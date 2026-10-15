@@ -1,0 +1,28 @@
+# MCP servers (stdio, streamable HTTP) exposed as Agent tools.
+product:
+  type: kmp/lib
+  platforms: [jvm, android, iosArm64, iosSimulatorArm64]
+
+dependencies:
+  - ../../core: exported
+  - io.modelcontextprotocol:kotlin-sdk-client:0.15.0
+  - io.ktor:ktor-client-auth:3.6.0
+  - co.touchlab:stately-concurrent-collections:2.1.0
+
+dependencies@jvm:
+  - io.ktor:ktor-client-java:3.6.0
+
+dependencies@android:
+  - io.ktor:ktor-client-okhttp:3.6.0
+
+dependencies@ios:
+  - io.ktor:ktor-client-darwin:3.6.0
+
+test-dependencies:
+  - $kotlin.test
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

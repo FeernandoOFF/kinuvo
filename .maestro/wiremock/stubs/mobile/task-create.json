@@ -1,0 +1,43 @@
+{
+  "name": "mobile/task-create",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "task.create"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.title",
+              "equalTo": "New mobile task"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"id\":\"created\",\"title\":\"New mobile task\",\"listId\":\"personal\",\"listName\":\"Personal\",\"status\":\"Todo\"}}"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+# The `kinuvo` command: runs the Server (`serve`, the default) and manages a Server's Agents, Routines, Skills, MCP
+# servers, Knowledge and Tasks through the protocol.
+product: jvm/app
+
+dependencies:
+  - ../../harness/server/jvm
+  - ../../harness/providers/codex
+  - ../../harness/plugins/cua
+  - ../../shared/client
+  - com.github.ajalt.clikt:clikt-core:5.1.0
+  - com.google.zxing:core:3.5.3
+  - org.jetbrains.kotlinx:kotlinx-datetime:0.8.0
+  - org.jetbrains.kotlinx:kotlinx-io-core:0.9.1
+
+test-dependencies:
+  - $kotlin.test
+
+settings:
+  jvm:
+    mainClass: kinuvo.cli.MainKt
+  kotlin:
+    compileIncrementally: true
+    serialization: json
