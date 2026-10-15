@@ -1,0 +1,15 @@
+product:
+  type: kmp/lib
+  platforms: [jvm, android, iosArm64, iosSimulatorArm64, js, wasmJs]
+
+dependencies:
+  - $kotlin.serialization.json: exported
+  - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0: exported
+
+test-dependencies:
+  - $kotlin.test
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

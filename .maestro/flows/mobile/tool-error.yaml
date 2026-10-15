@@ -1,0 +1,50 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: chat
+  apiVerifications:
+    - stub: ws/connect
+      exactly: 1
+    - stub: ws/create-session
+      exactly: 1
+    - stub: ws/chat-send
+      exactly: 1
+    - stub: ws/catch-up
+      exactly: 1
+---
+- runFlow: ../../shared/start-chat.yaml
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"session.update","payload":{"agentId":"e2e","sessionId":"e2e-session","change":{"type":"event","event":{"type":"RUN_STARTED","runId":"tool-run"}}},"seq":5}'
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"session.update","payload":{"agentId":"e2e","sessionId":"e2e-session","change":{"type":"entry","seq":2,"entry":{"type":"tool_call","id":"read-tool","name":"read_file","args":"{\"path\":\"notes.txt\"}"}}},"seq":6}'
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"session.update","payload":{"agentId":"e2e","sessionId":"e2e-session","change":{"type":"entry","seq":3,"entry":{"type":"tool_result","id":"read-tool","name":"read_file","output":"Fixture permission denied","isError":true}}},"seq":7}'
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"session.update","payload":{"agentId":"e2e","sessionId":"e2e-session","change":{"type":"entry","seq":4,"entry":{"type":"assistant","text":"Could not read the file","messageId":"tool-reply"}}},"seq":8}'
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"session.update","payload":{"agentId":"e2e","sessionId":"e2e-session","change":{"type":"event","event":{"type":"RUN_FINISHED","runId":"tool-run"}}},"seq":9}'
+- assertVisible: "Could not read the file"
+- scrollUntilVisible:
+    element:
+      text: "read_file"
+    direction: DOWN
+- tapOn: "read_file"
+- assertVisible: "Fixture permission denied"

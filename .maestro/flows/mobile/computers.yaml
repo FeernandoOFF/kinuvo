@@ -1,0 +1,35 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-computers
+  apiVerifications:
+    - stub: mobile/computers
+      atLeast: 1
+    - stub: mobile/computer-watch
+      atLeast: 1
+    - stub: mobile/computer-take
+      exactly: 1
+    - stub: mobile/computer-home
+      exactly: 1
+    - stub: mobile/computer-hand-back
+      exactly: 1
+---
+- runFlow: ../../shared/pair-mobile.yaml
+- tapOn: "Agents and sessions"
+- tapOn: "Computers"
+- assertVisible: "Idle"
+- assertVisible: "Waiting for the screen…"
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"computer.frame","payload":{"computer":{"id":"phone","name":"Pixel","platform":"Android","available":true,"control":"Idle"},"screen":{"capture":"frame","width":54,"height":120,"screenshot":"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"}},"seq":30}'
+- assertVisible: "Screen of Pixel"
+- tapOn: "Take over"
+- assertVisible: "You're in control"
+- tapOn: "Home"
+- tapOn: "Hand back"
+- assertVisible: "Idle"

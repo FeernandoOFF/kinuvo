@@ -1,0 +1,17 @@
+# Firecrawl for web_search, and for web_fetch as Markdown; set up in search.yaml (Settings → Web search).
+product:
+  type: kmp/lib
+  platforms: [jvm, android, iosArm64, iosSimulatorArm64]
+
+dependencies:
+  - ../../core: exported
+
+test-dependencies:
+  - $kotlin.test
+  - io.ktor:ktor-client-mock:3.6.0
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json
