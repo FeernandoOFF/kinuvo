@@ -1,0 +1,14 @@
+# Apple Reminders task provider for macOS hosts, backed by remindctl.
+product: jvm/lib
+
+dependencies:
+  - ../../core: exported
+
+test-dependencies:
+  - $kotlin.test
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

@@ -1,0 +1,30 @@
+# Agent engine: agent loop, Sessions, Store, approvals, skills, compaction, built-in tools.
+# Multiplatform so the same engine can run on-device; storage goes through repositories over kotlinx-io.
+product:
+  type: kmp/lib
+  platforms: [jvm, android, iosArm64, iosSimulatorArm64]
+
+aliases:
+  - jvmAndAndroid: [jvm, android]
+
+dependencies:
+  - ../../shared/protocol: exported
+  - ai.koog:agents-tools:1.3.0: exported
+  - ai.koog:prompt-model:1.3.0: exported
+  - ai.koog:prompt-llm:1.3.0: exported
+  - $kotlin.serialization.json: exported
+  - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0: exported
+  - org.jetbrains.kotlinx:kotlinx-datetime:0.8.0: exported
+  - org.jetbrains.kotlinx:kotlinx-io-core:0.9.1: exported
+  - io.ktor:ktor-client-core:3.6.0: exported
+  - com.charleskorn.kaml:kaml:0.104.0
+
+test-dependencies:
+  - io.ktor:ktor-client-mock:3.6.0
+  - $kotlin.test
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

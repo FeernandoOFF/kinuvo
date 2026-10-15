@@ -1,0 +1,64 @@
+package kinuvo.app
+
+import kinuvo.app.session.*
+
+import kotlin.test.Test
+import kotlin.test.assertEquals
+
+class VoiceTest {
+    @Test
+    fun speaksOnlyFinishedSentences() {
+        val text = "Sure. It's 3.5 km away! Want the"
+        assertEquals("Sure. It's 3.5 km away!".length, sentenceEnd(text, 0))
+        assertEquals(text.length, sentenceEnd(text, text.length))
+        assertEquals("One\n".length, sentenceEnd("One\nTwo", 0))
+    }
+
+    @Test
+    fun readsMarkdownAsPlainText() {
+        assertEquals("Buy milk\nCall Ana, see notes", speakable("- **Buy** milk\n1. Call `Ana`, see [notes](https://x.y)"))
+    }
+
+    @Test
+    fun splitsWords() = assertEquals(listOf("hello", "whos", "there"), words("Hello, who's there?"))
+}
+
+private class FakeSpeech : SpeechEngine {
+    var onPartial: (String) -> Unit = {}
+    var onFinal: (String) -> Unit = {}
+    var onError: (String) -> Unit = {}
+    var stops = 0
+    override fun authorize(completion: (String?) -> Unit) = completion(null)
+    override fun listen(untilPause: Boolean, onPartial: (String) -> Unit, onFinal: (String) -> Unit, onError: (String) -> Unit) {
+        this.onPartial = onPartial; this.onFinal = onFinal; this.onError = onError
+    }
+    override fun stopListening() {}
+    override fun speak(text: String, onDone: () -> Unit) = onDone()
+    override fun stopSpeaking() {}
+    override fun stop() { stops++ }
+}
+
+class DictationTest {
+    @Test
+    fun keepsTheFinalWordsAfterStopping() {
+        val speech = FakeSpeech()
+        val dictation = DictationViewModel(speech)
+        dictation.toggle()
+        speech.onPartial("call me")
+        speech.onFinal("Call me back.")
+        assertEquals(DictationState(dictating = false, text = "Call me back."), dictation.state.value)
+        assertEquals(1, speech.stops)
+        dictation.discard()
+        assertEquals(DictationState(), dictation.state.value)
+    }
+
+    @Test
+    fun anErrorReleasesTheMicrophone() {
+        val speech = FakeSpeech()
+        val dictation = DictationViewModel(speech)
+        dictation.toggle()
+        speech.onError("Speech recognition is unavailable")
+        assertEquals(DictationState(error = "Speech recognition is unavailable"), dictation.state.value)
+        assertEquals(1, speech.stops)
+    }
+}

@@ -1,0 +1,27 @@
+appId: ${APP_ID}
+tags:
+  - smoke
+  - android
+  - ios
+properties:
+  apiProfile: chat
+  apiVerifications:
+    - stub: ws/connect
+      atLeast: 1
+    - stub: ws/agents
+      atLeast: 1
+    - stub: ws/create-session
+      exactly: 1
+    - stub: ws/chat-send
+      exactly: 1
+---
+- launchApp
+- assertVisible: "Connect a server"
+- tapOn: "From kinuvo pair"
+- inputText: "123456"
+- tapOn: "Connect"
+- assertVisible: "Start a session with E2E Agent"
+- tapOn: "Message"
+- inputText: "Hello from Maestro"
+- tapOn: "Send"
+- assertVisible: "Hello from WireMock"
