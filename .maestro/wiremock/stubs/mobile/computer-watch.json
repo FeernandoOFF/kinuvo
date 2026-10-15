@@ -1,0 +1,43 @@
+{
+  "name": "mobile/computer-watch",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "computer.watch"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.computerId",
+              "equalTo": "phone"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":null}"
+        }
+      }
+    }
+  ]
+}

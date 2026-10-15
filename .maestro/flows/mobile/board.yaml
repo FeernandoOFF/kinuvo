@@ -1,0 +1,39 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-features
+  apiVerifications:
+    - stub: mobile/task-lists
+      atLeast: 1
+    - stub: mobile/tasks
+      atLeast: 1
+    - stub: mobile/task-create
+      exactly: 1
+---
+- runFlow: ../../shared/pair-mobile.yaml
+- tapOn: "Agents and sessions"
+- tapOn: "Board"
+- assertVisible: "Plan mobile tests"
+- tapOn: "New task"
+- tapOn: "Renew passport"
+- inputText: "New mobile task"
+- tapOn: "Add task"
+- assertVisible: "New mobile task"
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"task.changed","payload":{"id":"created","title":"Task updated by server","listId":"personal","listName":"Personal","status":"Todo"},"seq":20}'
+- assertVisible: "Task updated by server"
+- assertNotVisible: "New mobile task"
+- tapOn: "Show done"
+- assertVisible: "Hide done"
+- repeat:
+    times: 3
+    commands:
+      - swipe:
+          direction: LEFT
+- assertVisible: "Completed fixture task"

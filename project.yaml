@@ -1,0 +1,25 @@
+modules:
+  - apps/android
+  - apps/cli
+  - apps/desktop
+  - apps/ios
+  - apps/web
+  - harness/core
+  - harness/plugins/anytype
+  - harness/plugins/cua
+  - harness/plugins/exec
+  - harness/plugins/executor
+  - harness/plugins/firecrawl
+  - harness/plugins/mcp
+  - harness/plugins/ntfy
+  - harness/plugins/protonpass
+  - harness/plugins/reminders
+  - harness/providers/apple
+  - harness/providers/codex
+  - harness/server/embedded
+  - harness/server/jvm
+  - harness/server/runtime
+  - shared/app
+  - shared/client
+  - shared/protocol
+  - shared/ui

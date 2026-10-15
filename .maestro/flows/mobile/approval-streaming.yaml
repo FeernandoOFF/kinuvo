@@ -1,0 +1,49 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-approval
+  apiVerifications:
+    - stub: ws/chat-send
+      exactly: 1
+    - stub: mobile/approval-allow
+      exactly: 1
+---
+- runFlow: ../../shared/pair-mobile.yaml
+- tapOn: "Message"
+- inputText: "Hello from Maestro"
+- tapOn: "Send"
+- assertVisible: "Hello from WireMock"
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"session.update","payload":{"agentId":"e2e","sessionId":"e2e-session","change":{"type":"event","event":{"type":"RUN_STARTED","runId":"approval-run"}}},"seq":5}'
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"session.update","payload":{"agentId":"e2e","sessionId":"e2e-session","change":{"type":"event","event":{"type":"TEXT_MESSAGE_CONTENT","messageId":"approval-reply","delta":"Streaming draft"}}},"seq":6}'
+- assertVisible: "Streaming draft"
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"session.update","payload":{"agentId":"e2e","sessionId":"e2e-session","change":{"type":"entry","seq":2,"entry":{"type":"tool_call","id":"e2e-tool","name":"shell","args":"{\"command\":\"echo test\"}"}}},"seq":7}'
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"session.update","payload":{"agentId":"e2e","sessionId":"e2e-session","change":{"type":"event","event":{"type":"APPROVAL_REQUESTED","approvalId":"e2e-approval","toolCallId":"e2e-tool","toolCallName":"shell","args":"{\"command\":\"echo test\"}","reason":"Test approval from WireMock","trustable":false}}},"seq":8}'
+- scrollUntilVisible:
+    element:
+      text: 'Allow shell\?'
+    direction: DOWN
+- assertVisible: 'Allow shell\?'
+- assertVisible: "Test approval from WireMock"
+- tapOn: "Allow once"
+- assertVisible: "Approved action completed"
+- assertNotVisible: "Allow once"
+- assertNotVisible: "Streaming draft"

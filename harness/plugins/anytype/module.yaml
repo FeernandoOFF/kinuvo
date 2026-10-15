@@ -1,0 +1,25 @@
+product:
+  type: kmp/lib
+  platforms: [jvm, android, iosArm64, iosSimulatorArm64]
+
+dependencies:
+  - ../../core: exported
+
+dependencies@jvm:
+  - io.ktor:ktor-client-java:3.6.0
+
+dependencies@android:
+  - io.ktor:ktor-client-okhttp:3.6.0
+
+dependencies@ios:
+  - io.ktor:ktor-client-darwin:3.6.0
+
+test-dependencies:
+  - $kotlin.test
+  - io.ktor:ktor-client-mock:3.6.0
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

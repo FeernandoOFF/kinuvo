@@ -1,0 +1,33 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-session-details
+  apiVerifications:
+    - stub: ws/create-session
+      exactly: 1
+    - stub: ws/chat-send
+      exactly: 1
+    - stub: mobile/session-favorite
+      exactly: 1
+    - stub: mobile/session-rename
+      exactly: 1
+---
+- runFlow: ../../shared/start-chat.yaml
+- tapOn: "More"
+- assertNotVisible: "Settings"
+- tapOn: "Add to favorites"
+- tapOn: "More"
+- assertVisible: "Remove from favorites"
+- tapOn: "Rename"
+- assertVisible: "Rename chat"
+- eraseText: 20
+- inputText: "Trip plans"
+- tapOn: "Save"
+- assertNotVisible: "Rename chat"
+- tapOn: "Agents and sessions"
+- assertVisible: "FAVORITES"
+- tapOn: "Trip plans"
+- assertVisible: "Hello from WireMock"

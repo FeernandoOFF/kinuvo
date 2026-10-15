@@ -1,0 +1,33 @@
+{
+  "name": "ws/models",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "models.list"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"providers\":[{\"id\":\"codex\",\"name\":\"E2E\",\"models\":[{\"id\":\"e2e-model\",\"name\":\"E2E Model\"}]}]}}"
+        }
+      }
+    }
+  ]
+}

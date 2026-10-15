@@ -1,0 +1,104 @@
+package kinuvo.protocol
+
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+
+@Serializable
+data class SessionInfo(
+    val id: String,
+    val agentId: String,
+    val title: String,
+    val status: SessionStatus = SessionStatus.Idle,
+    /** The Routine that started this Session; null for Sessions the user started. */
+    val routine: RoutineRef? = null,
+    val settings: SessionSettings = SessionSettings(),
+    /** Whether it has a reply for the user, i.e. not [SILENT_REPLY]. */
+    val answered: Boolean = false,
+    /** The Task this Session is a run of; null for other Sessions. */
+    val task: String? = null,
+    /** Listed under Favorites in the sidebar. */
+    val favorite: Boolean = false,
+) {
+    /** The user's own Sessions, and a Routine's once it has something for the user or waits on them. */
+    val inChats: Boolean get() = routine == null || answered || status == SessionStatus.Waiting
+}
+
+/** A Task run's prompt: this first line, then the Task's details. */
+fun taskPrompt(id: String, title: String) = "[Task $id] $title"
+
+/** The Task ID and title a Task run's prompt starts with, or null for other messages. */
+fun parseTaskPrompt(text: String): Pair<String, String>? =
+    TASK_PROMPT.find(text)?.let { it.groupValues[1] to it.groupValues[2].trim() }
+
+private val TASK_PROMPT = Regex("""^\[Task ([^\]]+)] ([^\n]*)""")
+
+/** A Routine run whose reply starts with this has nothing for the user. */
+const val SILENT_REPLY = "[SILENT]"
+
+/** A Session's own model, reasoning effort and risk tolerance; null fields follow the Agent's. */
+@Serializable
+data class SessionSettings(val model: String? = null, val reasoning: String? = null, val approvals: String? = null, val provider: String? = null)
+
+/** [Waiting]: a run is paused on an Approval or an `ask_user` form. */
+@Serializable
+enum class SessionStatus { Idle, Running, Waiting }
+
+/** One page of an Agent's Sessions, newest first; the first page of chats also has every favorite in [favorites]. */
+@Serializable
+data class SessionPage(val sessions: List<SessionInfo>, val hasMore: Boolean, val favorites: List<SessionInfo> = emptyList())
+
+/** One line of a Session transcript. */
+@Serializable
+sealed interface SessionEntry {
+    /** Instructions frozen at Session start (Identity, Soul, Memory, User Notes). */
+    @Serializable @SerialName("started")
+    data class Started(val instructions: String, val routine: RoutineRef? = null) : SessionEntry
+
+    @Serializable @SerialName("context")
+    data class Context(val content: String) : SessionEntry
+
+    @Serializable @SerialName("measurement")
+    data class Measurement(val metrics: RequestMetrics) : SessionEntry
+
+    /** [routine] is set when a Routine sent [text] on its schedule; [voice] when [text] was transcribed from voice chat. */
+    @Serializable @SerialName("user")
+    data class UserMessage(val text: String, val routine: RoutineRef? = null, val attachments: List<Attachment> = emptyList(), val voice: Boolean = false) : SessionEntry
+
+    /** [messageId] matches the run's streamed events, so clients keep one item from live text to saved message. */
+    @Serializable @SerialName("assistant")
+    data class AssistantMessage(val text: String, val messageId: String? = null) : SessionEntry
+
+    /** Reasoning summary; [encrypted] is replayed to the model so it keeps its reasoning across turns. */
+    @Serializable @SerialName("reasoning")
+    data class Reasoning(val text: String, val id: String? = null, val encrypted: String? = null, val messageId: String? = null) : SessionEntry
+
+    @Serializable @SerialName("tool_call")
+    data class ToolCall(val id: String, val name: String, val args: String, val identity: ToolIdentity? = null) : SessionEntry
+
+    /** Summary that replaces transcript entries before index [keepFrom]; [activations] are re-attached after it. */
+    @Serializable @SerialName("compaction")
+    data class Compaction(val summary: String, val keepFrom: Int, val activations: List<Activation> = emptyList(), val user: UserMessage? = null) : SessionEntry
+
+    /** A background Reflection's result; it isn't part of the model's conversation. */
+    @Serializable @SerialName("reflection")
+    data class Reflection(val id: String, val at: Long, val result: ReflectionResult) : SessionEntry
+
+    @Serializable @SerialName("reflection_review")
+    data class ReflectionReview(val proposalId: String, val approved: Boolean) : SessionEntry
+
+    /** A Skill loaded into the Session by the user (`/name`) or carried over by Compaction. */
+    @Serializable @SerialName("activation")
+    data class Activation(val name: String, val content: String) : SessionEntry
+
+    /** The Session's settings from here on; the model doesn't see it. */
+    @Serializable @SerialName("settings")
+    data class Settings(val settings: SessionSettings) : SessionEntry
+
+    /** The user's name for the Session (null: from its first message) and whether it's a favorite, from here on; the model doesn't see it. */
+    @Serializable @SerialName("details")
+    data class Details(val title: String? = null, val favorite: Boolean = false) : SessionEntry
+
+    /** [attachments] are files the tool shows the model, e.g. an image from a note. */
+    @Serializable @SerialName("tool_result")
+    data class ToolResult(val id: String, val name: String, val output: String, val isError: Boolean = false, val attachments: List<Attachment> = emptyList(), val identity: ToolIdentity? = null) : SessionEntry
+}
