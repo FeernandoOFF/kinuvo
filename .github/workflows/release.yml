@@ -26,7 +26,7 @@ jobs:
           key: kotlin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/module.yaml', 'project.yaml') }}
           restore-keys: kotlin-${{ runner.os }}-${{ runner.arch }}-
       - run: scripts/package.sh jar "$VERSION"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: jar
           path: dist/kinuvo.jar
@@ -52,7 +52,7 @@ jobs:
           name: jar
           path: jar
       - run: scripts/package.sh cli "$VERSION" "$PWD/jar/kinuvo.jar"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: cli-${{ matrix.runner }}
           path: dist/kinuvo-*
@@ -83,7 +83,7 @@ jobs:
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y fakeroot
       - run: scripts/package.sh desktop "$VERSION"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: desktop-${{ matrix.runner }}
           path: dist/Kinuvo-*
@@ -121,7 +121,7 @@ jobs:
       - if: env.KEYSTORE == ''
         run: echo "::warning::ANDROID_KEYSTORE_BASE64 is not set; skipping the Android APK"
       - if: env.KEYSTORE != ''
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: android
           path: dist/Kinuvo-android.apk
