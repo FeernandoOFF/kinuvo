@@ -1,0 +1,26 @@
+product: jvm/app
+
+dependencies:
+  - ../../shared/ui
+  - ../../harness/server/jvm
+  - ../../harness/plugins/cua
+  - $compose.desktop.currentOs
+  - com.jetbrains:jbr-api:1.5.0
+
+test-dependencies:
+  - $kotlin.test
+
+repositories:
+  - https://packages.jetbrains.team/maven/p/ij/intellij-dependencies
+
+settings:
+  compose:
+    enabled: true
+    version: 1.12.1
+  kotlin:
+    compileIncrementally: true
+    serialization: json
+  jvm:
+    jdk:
+      distributions: [jetbrains]
+    mainClass: kinuvo.desktop.MainKt

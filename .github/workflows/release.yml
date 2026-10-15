@@ -1,0 +1,188 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+env:
+  VERSION: ${{ github.ref_name }}
+
+# Kotlin Toolchain caches are saved by CI on main; tag runs can only restore from there.
+
+jobs:
+  jar:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - run: scripts/jbr.sh
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/JetBrains
+            ~/Library/Caches/JetBrains
+            ~/AppData/Local/JetBrains
+          key: kotlin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/module.yaml', 'project.yaml') }}
+          restore-keys: kotlin-${{ runner.os }}-${{ runner.arch }}-
+      - run: scripts/package.sh jar "$VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: jar
+          path: dist/kinuvo.jar
+
+  cli:
+    needs: jar
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - run: scripts/jbr.sh
+      - uses: actions/download-artifact@v4
+        with:
+          name: jar
+          path: jar
+      - run: scripts/package.sh cli "$VERSION" "$PWD/jar/kinuvo.jar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-${{ matrix.runner }}
+          path: dist/kinuvo-*
+
+  desktop:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
+    runs-on: ${{ matrix.runner }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - run: scripts/jbr.sh
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/JetBrains
+            ~/Library/Caches/JetBrains
+            ~/AppData/Local/JetBrains
+          key: kotlin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/module.yaml', 'project.yaml') }}
+          restore-keys: kotlin-${{ runner.os }}-${{ runner.arch }}-
+      - if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y fakeroot
+      - run: scripts/package.sh desktop "$VERSION"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.runner }}
+          path: dist/Kinuvo-*
+
+  android:
+    runs-on: ubuntu-24.04
+    env:
+      KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.cache/JetBrains
+            ~/Library/Caches/JetBrains
+            ~/AppData/Local/JetBrains
+          key: kotlin-android-${{ hashFiles('**/module.yaml', 'project.yaml') }}
+          restore-keys: kotlin-android-
+      - name: Build a universal APK signed with the release key
+        if: env.KEYSTORE != ''
+        env:
+          STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          ./kotlin package -m android
+          aab=$(find build/tasks -name '*-release.aab' | head -1)
+          curl -fsSL -o bundletool.jar https://github.com/google/bundletool/releases/download/1.18.1/bundletool-all-1.18.1.jar
+          echo "$KEYSTORE" | base64 -d > release.keystore
+          java -jar bundletool.jar build-apks --mode=universal --bundle "$aab" --output app.apks \
+            --ks release.keystore --ks-pass "pass:$STORE_PASSWORD" --ks-key-alias "$KEY_ALIAS" --key-pass "pass:$KEY_PASSWORD"
+          mkdir -p dist && unzip -p app.apks universal.apk > dist/Kinuvo-android.apk
+          rm release.keystore
+      - if: env.KEYSTORE == ''
+        run: echo "::warning::ANDROID_KEYSTORE_BASE64 is not set; skipping the Android APK"
+      - if: env.KEYSTORE != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/Kinuvo-android.apk
+
+  docker:
+    needs: jar
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          name: jar
+          path: dist
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  release:
+    needs: [jar, cli, desktop, android]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: '{jar,cli-*,desktop-*,android}'
+          merge-multiple: true
+      - run: |
+          cp install.sh install.ps1 dist/
+          cd dist && sha256sum * > SHA256SUMS
+      - if: ${{ !github.event.repository.private }}
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/*
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease=$([[ $VERSION == *-* ]] && echo --prerelease || true)
+          gh release create "$VERSION" dist/* --verify-tag --generate-notes $prerelease

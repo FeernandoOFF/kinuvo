@@ -1,0 +1,55 @@
+{
+  "name": "ws/chat-send",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "chat.send"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"sessionId\":\"e2e-session\",\"runId\":\"e2e-run\",\"message\":\"Hello from Maestro\"}}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"entry\",\"seq\":0,\"entry\":{\"type\":\"user\",\"text\":\"Hello from Maestro\"}}},\"seq\":3}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"entry\",\"seq\":1,\"entry\":{\"type\":\"assistant\",\"text\":\"Hello from WireMock\",\"messageId\":\"e2e-reply\"}}},\"seq\":4}"
+        }
+      }
+    }
+  ]
+}

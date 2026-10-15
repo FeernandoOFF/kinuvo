@@ -1,0 +1,43 @@
+{
+  "name": "mobile/computer-home",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "computer.input"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.action.key",
+              "equalTo": "home"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"computer\":{\"id\":\"phone\",\"name\":\"Pixel\",\"platform\":\"Android\",\"available\":true,\"control\":\"User\"}}}"
+        }
+      }
+    }
+  ]
+}

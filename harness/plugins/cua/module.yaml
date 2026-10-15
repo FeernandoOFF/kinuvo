@@ -1,0 +1,15 @@
+# The Server's own screen as a Computer, through cua-driver (https://github.com/trycua/cua) over MCP.
+product: jvm/lib
+
+dependencies:
+  - ../../core: exported
+  - io.modelcontextprotocol:kotlin-sdk-client:0.15.0
+
+test-dependencies:
+  - $kotlin.test
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

@@ -1,0 +1,11 @@
+product: ios/app
+
+dependencies:
+  - ../../shared/ui
+
+settings:
+  kotlin:
+    compileIncrementally: true
+  compose:
+    enabled: true
+    version: 1.12.1

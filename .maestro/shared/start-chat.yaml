@@ -1,0 +1,7 @@
+appId: ${APP_ID}
+---
+- runFlow: pair-mobile.yaml
+- tapOn: "Message"
+- inputText: "Hello from Maestro"
+- tapOn: "Send"
+- assertVisible: "Hello from WireMock"
