@@ -1,0 +1,12 @@
+product: wasm-js/app
+
+dependencies:
+  - ../../shared/ui
+
+settings:
+  compose:
+    enabled: true
+    version: 1.12.1
+  kotlin:
+    compileIncrementally: true
+    serialization: json
