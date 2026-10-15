@@ -1,0 +1,27 @@
+# Assembles the engine (Harness) and serves it to clients over WebSocket.
+product: jvm/lib
+
+dependencies:
+  - ../../core: exported
+  - ../runtime: exported
+  - ../../plugins/anytype
+  - ../../plugins/exec
+  - ../../plugins/executor
+  - ../../plugins/firecrawl
+  - ../../plugins/mcp
+  - ../../plugins/ntfy
+  - ../../plugins/protonpass
+  - ../../plugins/reminders
+  - ../../providers/codex
+  - io.ktor:ktor-server-cio:3.6.0
+  - io.ktor:ktor-server-websockets:3.6.0
+
+test-dependencies:
+  - $kotlin.test
+  - ../../../shared/client
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

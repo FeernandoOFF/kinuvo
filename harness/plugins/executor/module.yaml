@@ -1,0 +1,18 @@
+# run_code: Scripts in an in-process, memory-limited QuickJS runtime that call the Agent's other tools.
+# Multiplatform code so a native Server can add targets that quickjs-kt publishes.
+product:
+  type: kmp/lib
+  platforms: [jvm, android, iosArm64, iosSimulatorArm64]
+
+dependencies:
+  - ../../core: exported
+  - io.github.dokar3:quickjs-kt:1.0.15
+
+test-dependencies:
+  - $kotlin.test
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

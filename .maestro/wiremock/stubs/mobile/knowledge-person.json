@@ -1,0 +1,43 @@
+{
+  "name": "mobile/knowledge-person",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "knowledge.get"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.ref",
+              "equalTo": "person"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"ref\":\"person\",\"type\":\"human\",\"title\":\"Fernando\",\"body\":\"Maintains Kinuvo and Mockstro.\"}}"
+        }
+      }
+    }
+  ]
+}

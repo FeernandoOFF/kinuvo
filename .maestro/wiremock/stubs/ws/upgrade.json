@@ -1,0 +1,10 @@
+{
+  "name": "ws/upgrade",
+  "request": {
+    "method": "GET",
+    "url": "/ws"
+  },
+  "response": {
+    "openWebsocketChannel": true
+  }
+}

@@ -1,0 +1,16 @@
+build/
+dist/
+.kotlin/
+.idea/
+*.iml
+.DS_Store
+.venv/
+/deploy-macmini.sh
+
+# Xcode user settings
+xcuserdata/
+
+# Mockstro generated state
+.maestro/.runtime/
+.maestro/wiremock/*.jar
+shared/ui/avatars/
