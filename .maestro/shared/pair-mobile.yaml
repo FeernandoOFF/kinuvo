@@ -1,0 +1,8 @@
+appId: ${APP_ID}
+---
+- launchApp
+- assertVisible: "Connect a server"
+- tapOn: "From kinuvo pair"
+- inputText: "123456"
+- tapOn: "Connect"
+- assertVisible: "Start a session with E2E Agent"

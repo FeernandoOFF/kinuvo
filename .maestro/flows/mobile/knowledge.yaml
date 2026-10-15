@@ -1,0 +1,36 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-features
+  apiVerifications:
+    - stub: mobile/knowledge-changes
+      atLeast: 1
+    - stub: mobile/knowledge-empty
+      atLeast: 1
+    - stub: mobile/knowledge-search
+      atLeast: 1
+    - stub: mobile/knowledge-project
+      exactly: 1
+    - stub: mobile/knowledge-person
+      exactly: 1
+---
+- runFlow: ../../shared/pair-mobile.yaml
+- tapOn: "Agents and sessions"
+- tapOn: "Knowledge"
+- tapOn: "Search people, projects, places…"
+- inputText: "Missing"
+- assertVisible: "No matches."
+- eraseText
+- inputText: "Kinuvo"
+- assertVisible: "Kinuvo project"
+- tapOn: "Kinuvo project"
+- assertVisible: "Ref project"
+- assertVisible: "Linked notes"
+- tapOn: "Fernando"
+- assertVisible: "Maintains Kinuvo and Mockstro."
+- assertVisible: "Ref person"
+- tapOn: "Back"
+- assertVisible: "Kinuvo project"

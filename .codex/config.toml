@@ -1,0 +1,3 @@
+[mcp_servers.compose-hot-reload]
+command = "./kotlin"
+args = ["compose-hot-reload-mcp-server"]

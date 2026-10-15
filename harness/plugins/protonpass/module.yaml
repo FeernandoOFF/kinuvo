@@ -1,0 +1,14 @@
+# Proton Pass as a password manager for Secret references (`${pass://…}`), through pass-cli and an AI agent access token.
+product: jvm/lib
+
+dependencies:
+  - ../../core: exported
+
+test-dependencies:
+  - $kotlin.test
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

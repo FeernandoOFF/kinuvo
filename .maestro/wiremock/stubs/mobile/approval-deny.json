@@ -1,0 +1,99 @@
+{
+  "name": "mobile/approval-deny",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "approval.respond"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.approvalId",
+              "equalTo": "e2e-approval"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.decision.type",
+              "equalTo": "deny"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.decision.note",
+              "equalTo": "Do not run this command"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":true}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"event\",\"event\":{\"type\":\"APPROVAL_RESOLVED\",\"toolCallId\":\"e2e-tool\",\"allowed\":false}}},\"seq\":10}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"entry\",\"seq\":3,\"entry\":{\"type\":\"tool_result\",\"id\":\"e2e-tool\",\"name\":\"shell\",\"output\":\"Denied by user: Do not run this command\",\"isError\":true}}},\"seq\":11}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"entry\",\"seq\":4,\"entry\":{\"type\":\"assistant\",\"text\":\"Action was denied\",\"messageId\":\"approval-reply\"}}},\"seq\":12}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"event\",\"event\":{\"type\":\"RUN_FINISHED\",\"runId\":\"approval-run\"}}},\"seq\":13}"
+        }
+      }
+    }
+  ]
+}

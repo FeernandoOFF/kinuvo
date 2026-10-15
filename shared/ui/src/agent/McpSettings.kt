@@ -1,0 +1,188 @@
+package kinuvo.ui.agent
+
+import kinuvo.app.connection.*
+import kinuvo.app.agent.*
+import kinuvo.ui.board.*
+import kinuvo.ui.navigation.*
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.*
+import com.composables.ui.components.*
+import com.composables.ui.theme.mutedColor
+import kinuvo.protocol.ConfigScope
+import kinuvo.protocol.McpAuthStatus
+import kinuvo.protocol.McpOAuthClient
+import kinuvo.protocol.McpServerInfo
+import kinuvo.ui.design.*
+
+@Composable
+internal fun McpList(p: Pane) {
+    val servers = p.ui.config.mcp
+    ItemList(
+        p, "MCP servers",
+        "Tools from other programs and services. ${p.ui.agent?.name ?: "The agent"} connects on its next run; " +
+            "its own servers win over shared ones of the same name.",
+        "New MCP server", servers == null,
+    ) {
+        items(servers.orEmpty(), key = { itemKey(it.scope, it.name) }) { s ->
+            ItemRow(itemKey(s.scope, s.name) == p.ui.route.item, Lucide.Plug, s.name, s.target(), { p.go(p.ui.route.copy(item = itemKey(s.scope, s.name), editing = false)) }) {
+                if (s.auth == McpAuthStatus.Required) Pill("Needs sign-in", tone = Tone.Warning)
+                if (!s.active) Pill("Overridden")
+                if (s.scope != ConfigScope.Agent) Pill(s.scope.label())
+            }
+        }
+    }
+}
+
+@Composable
+internal fun McpPane(p: Pane) {
+    val route = p.ui.route
+    val server = parseItem(route.item)?.let { (scope, name) -> p.ui.config.mcp?.firstOrNull { it.scope == scope && it.name == name } }
+    when {
+        route.editing && route.item == null -> McpForm(null, p)
+        server == null -> if (p.ui.config.mcp == null) PaneLoading() else DetailPane(p.back, "Not found") {}
+        route.editing -> McpForm(server, p)
+        else -> McpDetail(server, p)
+    }
+}
+
+@Composable
+private fun McpDetail(s: McpServerInfo, p: Pane) {
+    val test = p.ui.state.mcpTest
+    DetailPane(p.back, s.name) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            ActionButton(Lucide.PlugZap, "Test", { p.actions.onTestMcp(s.scope, s.name) }, enabled = !p.ui.state.testing)
+            if (s.url != null) {
+                if (s.auth == McpAuthStatus.SignedIn) ActionButton(Lucide.LogOut, "Sign out", { p.actions.onSignOutMcp(s.scope, s.name) })
+                else ActionButton(Lucide.LogIn, "Sign in", { p.actions.onSignInMcp(s.scope, s.name) }, enabled = p.ui.state.signInUrl == null)
+            }
+            ActionButton(Lucide.Pencil, "Edit", { p.go(p.ui.route.copy(editing = true)) })
+            DeleteButton("server", itemKey(s.scope, s.name)) { p.actions.onRemoveMcp(s.scope, s.name) }
+            if (p.ui.state.testing) Spinner()
+        }
+        p.ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
+        p.ui.state.signInUrl?.let { SignInWaiting(it, p) }
+        test?.let { t ->
+            if (t.needsLogin) Pill("Needs sign-in before it can connect", tone = Tone.Warning, icon = Lucide.LogIn)
+            else if (t.error != null) Pill("Couldn't connect: ${t.error}", tone = Tone.Danger, icon = Lucide.CircleX)
+            else DetailGroup("Tools (${t.tools.size})") { Text(t.tools.joinToString(", ").ifEmpty { "None" }) }
+        }
+        DetailGroup("Connection") {
+            DetailRow("Where") { Text((if (s.scope == ConfigScope.Shared) "Shared with every agent" else "This agent") + if (s.active) "" else " · overridden") }
+            if (s.command != null) {
+                DetailRow("Command") { Text((listOf(s.command!!) + s.args).joinToString(" "), style = MonoStyle) }
+                s.env.forEach { (k, v) -> DetailRow(k) { Text(v, style = MonoStyle) } }
+            } else {
+                DetailRow("URL") { Text(s.url.orEmpty(), style = MonoStyle) }
+                s.headers.forEach { (k, v) -> DetailRow(k) { Text(v, style = MonoStyle) } }
+                DetailRow("Sign-in") { Text(AUTH.getValue(s.auth)) }
+                s.oauth?.let { o ->
+                    DetailRow("OAuth client") { Text(o.clientId, style = MonoStyle) }
+                    if (o.scopes.isNotEmpty()) DetailRow("Scopes") { Text(o.scopes.joinToString(" "), style = MonoStyle) }
+                }
+            }
+        }
+        DetailGroup("Tools") {
+            DetailRow("Offered") { Text(s.includeTools?.joinToString(", ") ?: "All") }
+            if (s.excludeTools.isNotEmpty()) DetailRow("Hidden") { Text(s.excludeTools.joinToString(", ")) }
+            DetailRow("Approvals") { Text(APPROVAL[s.approval].orEmpty()) }
+        }
+    }
+}
+
+/** A sign-in open in the browser; its URL can be pasted when the browser can't come back here. */
+@Composable
+private fun SignInWaiting(url: String, p: Pane) {
+    val pasted = rememberTextFieldState()
+    DetailGroup("Signing in") {
+        Text("Finish signing in in your browser. If it doesn't open, open this link:", fontSize = 13.sp)
+        SelectionContainer { Text(url, style = MonoStyle, maxLines = 3) }
+        Text("If the browser can't get back to Kinuvo, paste the address it ends on:", fontSize = 13.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Input(pasted, "Paste the address", Modifier.weight(1f))
+            ActionButton(Lucide.Check, "Finish", { p.actions.onCompleteMcpSignIn(pasted.value()) }, enabled = pasted.value().isNotEmpty())
+            ActionButton(Lucide.X, "Cancel", p.actions.onCancelMcpSignIn)
+        }
+    }
+}
+
+/** A new server when [s] is null; otherwise edits it. */
+@Composable
+private fun McpForm(s: McpServerInfo?, p: Pane) {
+    val name = rememberTextFieldState(s?.name.orEmpty())
+    var scope by remember { mutableStateOf(s?.scope ?: ConfigScope.Agent) }
+    var http by remember { mutableStateOf(s?.url != null) }
+    val command = rememberTextFieldState(s?.command.orEmpty())
+    val args = rememberTextFieldState(s?.args.orEmpty().joinToString("\n"))
+    val env = rememberTextFieldState(s?.env.orEmpty().entries.joinToString("\n") { "${it.key}=${it.value}" })
+    val url = rememberTextFieldState(s?.url.orEmpty())
+    val headers = rememberTextFieldState(s?.headers.orEmpty().entries.joinToString("\n") { "${it.key}=${it.value}" })
+    val include = rememberTextFieldState(s?.includeTools?.joinToString(", ").orEmpty())
+    val exclude = rememberTextFieldState(s?.excludeTools.orEmpty().joinToString(", "))
+    var approval by remember { mutableStateOf(s?.approval) }
+    val clientId = rememberTextFieldState(s?.oauth?.clientId.orEmpty())
+    val clientSecret = rememberTextFieldState(s?.oauth?.clientSecret.orEmpty())
+    val scopes = rememberTextFieldState(s?.oauth?.scopes.orEmpty().joinToString(" "))
+    val ready = name.value().isNotEmpty() && (if (http) url else command).value().isNotEmpty()
+    val save = {
+        fun pairs(lines: List<String>) = lines.mapNotNull { l -> l.split("=", limit = 2).takeIf { it.size == 2 }?.let { it[0].trim() to it[1].trim() } }.toMap()
+        p.actions.onSaveMcp(McpServerInfo(
+            name = s?.name ?: name.value(),
+            scope = scope,
+            command = command.value().takeIf { !http },
+            args = if (http) emptyList() else args.lines(),
+            env = if (http) emptyMap() else pairs(env.lines()),
+            url = url.value().takeIf { http },
+            headers = if (http) pairs(headers.lines()) else emptyMap(),
+            includeTools = include.commaList().takeIf { it.isNotEmpty() },
+            excludeTools = exclude.commaList(),
+            approval = approval,
+            oauth = clientId.value().takeIf { http && it.isNotEmpty() }?.let { id ->
+                McpOAuthClient(id, clientSecret.value().ifEmpty { null }, scopes.value().split(" ").filter { it.isNotBlank() })
+            },
+        ))
+    }
+    DetailPane(p.back, s?.let { "Edit ${it.name}" } ?: "New MCP server", error = p.ui.error, trailing = { FormActions(if (s == null) "Add server" else "Save", ready, p.ui.state.saved, onSave = save, onCancel = p.cancel) }) {
+        if (s == null) {
+            FormField("Name", "Its tools are named <name>__<tool>.") { Input(name, "github") }
+            FormField("For") { Picker(listOf(ConfigScope.Agent, ConfigScope.Shared), scope, { if (it == ConfigScope.Shared) "Every agent" else "This agent" }, { scope = it }) }
+        }
+        FormField("Connect with") { Picker(listOf(false, true), http, { if (it) "HTTP (streamable)" else "A command (stdio)" }, { http = it }) }
+        if (http) {
+            FormField("URL") { Input(url, "https://example.com/mcp") }
+            FormField("Headers", REFERENCES) {
+                SecretField(p, { headers.insert(it) }) { TextArea(headers, "Authorization=Bearer \${TOKEN}", lines = 2, mono = true, trailing = it) }
+            }
+            FormField("OAuth client ID", "Only for servers whose sign-in needs a registered app; most register Kinuvo themselves.") { Input(clientId, "Optional") }
+            if (clientId.value().isNotEmpty()) {
+                FormField("OAuth client secret", REFERENCES) {
+                    SecretField(p, { clientSecret.insert(it) }) { Input(clientSecret, "Optional", secret = true, trailing = it) }
+                }
+                FormField("OAuth scopes", "Space-separated; blank for the server's own.") { Input(scopes, "read write") }
+            }
+        } else {
+            FormField("Command") { Input(command, "npx") }
+            FormField("Arguments", "One per line.") { TextArea(args, "-y\n@modelcontextprotocol/server-filesystem", lines = 3, mono = true) }
+            FormField("Environment", REFERENCES) {
+                SecretField(p, { env.insert(it) }) { TextArea(env, "GITHUB_TOKEN=\${GITHUB_TOKEN}", lines = 2, mono = true, trailing = it) }
+            }
+        }
+        FormField("Only these tools", "Comma-separated; blank for all.") { Input(include, "search, read") }
+        FormField("Never these tools", "Comma-separated.") { Input(exclude, "delete") }
+        FormField("Approvals") { Picker(APPROVAL.keys.toList(), approval, { APPROVAL[it].orEmpty() }, { approval = it }) }
+    }
+}
+
+private val AUTH = mapOf(McpAuthStatus.None to "Not signed in", McpAuthStatus.Required to "Needs sign-in", McpAuthStatus.SignedIn to "Signed in")
+
+private val APPROVAL = mapOf(null to "By each tool's read-only hint", "auto" to "Never ask", "ask" to "Always ask")
+
+private fun McpServerInfo.target() = command?.let { (listOf(it) + args).joinToString(" ") } ?: url.orEmpty()

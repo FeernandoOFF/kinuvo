@@ -1,0 +1,27 @@
+product:
+  type: kmp/lib
+  platforms: [jvm, android, iosArm64, iosSimulatorArm64]
+
+aliases:
+  - jvmAndAndroid: [jvm, android]
+
+dependencies:
+  - ../../core: exported
+  - co.touchlab:stately-concurrent-collections:2.1.0
+
+dependencies@jvmAndAndroid:
+  - io.ktor:ktor-client-cio:3.6.0
+  - io.ktor:ktor-server-cio:3.6.0
+  - io.ktor:ktor-server-websockets:3.6.0
+
+dependencies@ios:
+  - io.ktor:ktor-client-darwin:3.6.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json
+
+test-dependencies:
+  - $kotlin.test
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0

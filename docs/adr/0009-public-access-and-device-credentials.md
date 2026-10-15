@@ -1,0 +1,5 @@
+# Public access keeps one owner and separates Device credentials
+
+Public hosting uses a loopback Server behind a trusted HTTPS proxy, exact browser-origin checks, explicit high-entropy pairing windows, and bounded unauthenticated work. We keep opaque, hashed Device credentials rather than introducing accounts or JWTs: this remains one owner's Server, while pairing explicitly grants ordinary or management access. Ordinary Devices cannot manage access, change Server configuration, or answer Approvals.
+
+Native credentials live in OS secure storage separately from Server metadata. Hosted browsers use twelve-hour HttpOnly cookies whose credential stays on the Server; sessions end on restart rather than persisting another browser credential store. This trades longer browser retention for avoiding durable JavaScript-readable credentials. HTML Artifacts run in opaque-origin sandboxes even when they contain scripts. This supersedes ADR 0008's universal Device management access and perpetual pairing-code availability, preserving its link-prefill and revocation behavior.
