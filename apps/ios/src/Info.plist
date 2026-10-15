@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDisplayName</key>
+    <string>Kinuvo</string>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Kinuvo connects to your Server on the local network to reach your Agents.</string>
+    <key>NSContactsUsageDescription</key>
+    <string>Enabled Agents can look up contact names, phone numbers and emails for you.</string>
+    <key>NSHealthShareUsageDescription</key>
+    <string>Enabled Agents can read your workouts and sleep to help with your journal and questions.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>Take photos to attach to your messages.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>Kinuvo listens while you talk to your Agent in voice chat.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Kinuvo turns what you say in voice chat into messages for your Agent.</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
+    <key>CADisableMinimumFrameDurationOnPhone</key>
+    <true/>
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>UISupportedInterfaceOrientations~ipad</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+        <string>UIInterfaceOrientationPortraitUpsideDown</string>
+        <string>UIInterfaceOrientationLandscapeLeft</string>
+        <string>UIInterfaceOrientationLandscapeRight</string>
+    </array>
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>dev.kinuvo.app</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>kinuvo</string>
+            </array>
+        </dict>
+    </array>
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>dev.kinuvo.ios.run</string>
+    </array>
+    <key>UILaunchScreen</key>
+    <dict/>
+</dict>
+</plist>

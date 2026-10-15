@@ -1,0 +1,55 @@
+{
+  "name": "ws/catch-up",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "session.catchUp"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{}}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"reset\",\"firstSeq\":0}},\"seq\":1}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"live\",\"state\":{}}},\"seq\":2}"
+        }
+      }
+    }
+  ]
+}

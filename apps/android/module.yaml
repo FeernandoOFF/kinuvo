@@ -1,0 +1,19 @@
+product: android/app
+
+dependencies:
+  - ../../shared/ui
+  - androidx.activity:activity-compose:1.13.0
+
+settings:
+  android:
+    namespace: "dev.kinuvo.android"
+    versionName: "0.1.0-dev"
+    versionCode: 1
+    # The on-device Server stores files and paired Devices with java.nio.file (Android 8.0).
+    minSdk: 26
+  compose:
+    enabled: true
+    version: 1.12.1
+  kotlin:
+    compileIncrementally: true
+    serialization: json

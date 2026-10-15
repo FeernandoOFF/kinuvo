@@ -1,0 +1,19 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-rejected
+  apiVerifications:
+    - stub: mobile/connect-rejected
+      exactly: 1
+---
+- launchApp
+- assertVisible: "Connect a server"
+- tapOn: "From kinuvo pair"
+- inputText: "000000"
+- tapOn: "Connect"
+- assertVisible: "Pairing code expired"
+- assertVisible: "Connect a server"
+- assertNotVisible: "Start a session with E2E Agent"
