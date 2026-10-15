@@ -1,0 +1,15 @@
+# ntfy (ntfy.sh or self-hosted) for notifications; set up in notifications.yaml (Settings → Notifications).
+product: jvm/lib
+
+dependencies:
+  - ../../core: exported
+
+test-dependencies:
+  - $kotlin.test
+  - io.ktor:ktor-client-mock:3.6.0
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

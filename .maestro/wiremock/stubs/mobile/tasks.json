@@ -1,0 +1,33 @@
+{
+  "name": "mobile/tasks",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "tasks.list"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":[{\"id\":\"initial\",\"title\":\"Plan mobile tests\",\"listId\":\"personal\",\"listName\":\"Personal\",\"status\":\"Todo\"},{\"id\":\"done\",\"title\":\"Completed fixture task\",\"listId\":\"personal\",\"listName\":\"Personal\",\"status\":\"Done\"}]}"
+        }
+      }
+    }
+  ]
+}

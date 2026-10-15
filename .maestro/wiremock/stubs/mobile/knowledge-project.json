@@ -1,0 +1,43 @@
+{
+  "name": "mobile/knowledge-project",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "knowledge.get"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.ref",
+              "equalTo": "project"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"ref\":\"project\",\"type\":\"project\",\"title\":\"Kinuvo project\",\"body\":\"Testing mobile workflows with [[person|Fernando]].\"}}"
+        }
+      }
+    }
+  ]
+}
