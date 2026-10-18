@@ -30,6 +30,8 @@ properties:
 - assertVisible: "Screen of Pixel"
 - tapOn: "Take over"
 - assertVisible: "You're in control"
-- tapOn: "Home"
+- tapOn:
+    text: "Home"
+    above: "Type into the focused field"
 - tapOn: "Hand back"
 - assertVisible: "Idle"
