@@ -10,6 +10,8 @@ import kinuvo.harness.core.tools.MemoryTool
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolExecutor
 import kinuvo.harness.core.tools.ToolNames
+import kinuvo.harness.core.tools.requireString
+import kinuvo.harness.core.tools.string
 import kinuvo.protocol.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
@@ -56,8 +58,8 @@ class Reflection(
 }
 
 internal enum class ReflectionStage(val instructions: String) {
-    Memory("""Two stores, one home per fact. User Notes (target=user): who the user is: relationships, preferences, communication and work style. Memory (target=memory): lessons useful across many tasks: environment facts, conventions, verified fixes. Records about people, projects and places go to Knowledge; procedures go to Skills. Write each entry as a short declarative fact ("Prefers concise answers"), so the user's current request still wins. Read the current entries, plan every change, then apply them in one call per store: correct what the conversation corrects, merge near-duplicates, add what's new. Done when each kept fact sits in exactly one store, or reply "Nothing to save.""""),
-    Knowledge("""Propose additions to the user's notes about their world (people, projects, places, organizations, events) using their note types and conventions above. Search first; extend the matching Note, and create one only for a subject the user will come back to. Append facts and leave the rest of the Note as it is. Each proposal has a reason and source identifiers; it waits for the user's Approval. Done when every kept world fact has a proposal or is already in a Note, or reply "Nothing to save.""""),
+    Memory("""Two stores, one home per fact. User Notes (target=user): facts about the user themself: where they live, their relationships, preferences, communication and work style. Memory (target=memory): lessons useful across many tasks: environment facts, conventions, verified fixes. Knowledge holds records about the user's world: other people's details, projects, places, organizations, events; Skills hold procedures. Write each entry as a short declarative fact ("Prefers concise answers"), so the user's current request still wins. Read the current entries, plan every change, then apply them in one call per store: correct stale facts such as an outdated location, merge near-duplicates, add what's new. Done when each kept fact sits in exactly one store, or reply "Nothing to save.""""),
+    Knowledge("""Propose additions to the user's notes about the world around them (other people's details, projects, places, organizations, events) using their note types and conventions above. The user's own facts and preferences belong in User Notes; procedures belong in Skills. Search first; extend the matching Note, and create one only for a subject the user will come back to. Append facts and leave the rest of the Note as it is. Each proposal has a reason and source identifiers; it waits for the user's Approval. Done when every kept world fact has a proposal or is already in a Note, or reply "Nothing to save.""""),
     Skills("""A Skill is how to do a kind of task for this user. Signals: the user corrected your approach or style for a kind of work, a technique or fix worked and will recur, or a Skill used here proved wrong or incomplete. Improve the Skill used here first, then another matching one, and only then propose a new Skill named for the kind of task. Read a Skill before changing it. Write steps with decision points and the checks that proved them, and attach each pitfall to its step with one clause of why. Each rule stands without the incident behind it (no dates, ticket IDs or error logs). Record procedures that ended in success; when a tool failed because of setup, the lesson is the fix. Done when each signal lives in exactly one Skill, or reply "Nothing to save.""""),
 }
 
@@ -135,11 +137,30 @@ internal class ReflectionRun(
             ReflectionStage.Knowledge -> "How the user organizes it:\n${knowledge.conventions().trim()}\n\n${knowledge.schema().describe()}"
             ReflectionStage.Skills -> "Available Skills:\n" + skills!!.load(agent).joinToString("\n") { "- ${it.name}: ${it.description}" }
         }
-        val review = "$instructions\n\nToday is ${today()}.\n\n$context\n\n${stage.instructions}\n\n" +
+        val review = "$instructions\n\nToday is ${today()}.\n\n$context\n\n${stage.instructions}\n\n${savedEarlier()}" +
             "Review these source entries:\n$transcript"
         return messages.prompt("", listOf(SessionEntry.UserMessage(
             "Background Reflection instructions:\n$review\n\nPerform only the ${stage.name} stage. Use only these tools: ${tools.joinToString { it.descriptor.name }}. All other tools are blocked.",
         )))
+    }
+
+    private fun savedEarlier(): String {
+        val saved = buildList {
+            for (change in memoryChanges) {
+                val store = if (change.target == "user") "User Notes" else "Memory"
+                val before = change.before.lines().filter { it.isNotBlank() }
+                val after = change.after.lines().filter { it.isNotBlank() }
+                (before - after.toSet()).forEach { add("- $store removed: ${it.removePrefix("- ")}") }
+                (after - before.toSet()).forEach { add("- $store added: ${it.removePrefix("- ")}") }
+            }
+            for (proposal in changes.proposals) {
+                val store = if (proposal.tool == ToolNames.KNOWLEDGE) "Knowledge" else "Skill"
+                val title = proposal.args.string("title") ?: proposal.note?.title ?: proposal.args.string("name")
+                add("- $store proposal: ${proposal.args.requireString("action")} $title")
+            }
+        }
+        return if (saved.isEmpty()) "" else "Saved earlier in this Reflection:\n${saved.joinToString("\n")}\n\n" +
+            "Keep one home per fact: extend earlier work with distinct details, and skip what it already covers. Proposals still await the user's Approval.\n\n"
     }
 
     fun error(message: String) { errors += message }
