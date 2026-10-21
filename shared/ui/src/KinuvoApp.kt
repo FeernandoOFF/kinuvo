@@ -127,7 +127,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
         val route = link ?: return@LaunchedEffect
         if (connection !is Connection.Ready) return@LaunchedEffect
         pendingLink.value = null
-        history.open(route)
+        history.open(app.withShownAgent(route))
     }
     // Keeps focus in the app when the focused screen or field goes away, e.g. the composer when Settings opens, so the
     // app's shortcuts keep working.

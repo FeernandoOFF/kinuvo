@@ -8,6 +8,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import kinuvo.ui.KinuvoApp
 import kinuvo.app.connection.openLink
+import kinuvo.app.connection.openNewChat
 import kinuvo.ui.startKinuvo
 import org.koin.android.ext.koin.androidContext
 
@@ -22,12 +23,22 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        intent?.dataString?.let(::openLink)
+        intent?.let(::open)
         setContent { KinuvoApp() }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        intent.dataString?.let(::openLink)
+        open(intent)
+    }
+
+    /** Opens a link, or a launcher shortcut's new Session (res/xml/shortcuts.xml). */
+    private fun open(intent: Intent) {
+        if (intent.action == NEW_CHAT) openNewChat(voice = false, message = null)
+        else intent.dataString?.let(::openLink)
+    }
+
+    private companion object {
+        const val NEW_CHAT = "dev.kinuvo.android.NEW_CHAT"
     }
 }

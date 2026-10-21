@@ -14,7 +14,9 @@ import kinuvo.app.session.CompletionSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
@@ -166,6 +168,8 @@ data class SessionState(
     val capabilities: SessionCapabilities? = null,
     /** Half-filled `ask_user` forms by questions ID, then question ID, so they outlive the screen's layout. */
     val answers: Map<String, Map<String, List<String>>> = emptyMap(),
+    /** A shortcut asked for voice chat in this new Session, until it starts. */
+    val voiceRequested: Boolean = false,
 ) {
     val loaded get() = !resolving && (route.sessionId == null || data?.loaded == true)
     val running get() = sending || data?.live?.running == true
@@ -202,6 +206,15 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
             client.state.collect { if (it is ConnectionState.Connected) if (state.value.resolving) resolve() else refresh() }
         }
         viewModelScope.launch {
+            combine(pendingNewChat, state.map { it.resolving }) { request, resolving -> request?.takeIf { it.slot == route.slot && !resolving } }
+                .filterNotNull()
+                .collect { request ->
+                    pendingNewChat.value = null
+                    if (request.voice) state.update { it.copy(voiceRequested = true) }
+                    request.message?.let { send(it) }
+                }
+        }
+        viewModelScope.launch {
             state.map { it.route to (it.settings to it.defaults) }.distinctUntilChanged()
                 .collect { (route, settings) -> route.agentId?.let { loadCapabilities(it, route.sessionId, settings.first) } }
         }
@@ -214,6 +227,8 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
             }
         }
     }
+
+    fun voiceStarted() = state.update { it.copy(voiceRequested = false) }
 
     /** The screen is showing: keeps the Session cached and current. */
     fun shown() {
