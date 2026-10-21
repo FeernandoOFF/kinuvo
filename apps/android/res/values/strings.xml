@@ -2,4 +2,6 @@
 <resources>
     <string name="computer_use_label">Kinuvo computer use</string>
     <string name="computer_use_description">Lets your Kinuvo Agents see this phone\'s screen and tap, type, scroll and open apps when you allow computer use in Kinuvo. Agents act only while a run needs it, and you can watch, stop or take over at any time.</string>
+    <string name="shortcut_new_chat_short">New chat</string>
+    <string name="shortcut_new_chat_long">Start a new chat</string>
 </resources>

@@ -20,3 +20,18 @@ fun openLink(url: String) {
     Links.parsePair(url)?.let { pendingPairLink.value = it; return }
     Links.parseChat(url)?.let { (agent, session) -> pendingLink.value = Route.Chat(agent, session) }
 }
+
+/** A new Session a platform shortcut asked for, until the SessionViewModel for [slot] takes it: [voice] starts voice chat, [message] is sent. */
+data class NewChatRequest(val slot: String, val voice: Boolean = false, val message: String? = null)
+
+val pendingNewChat = MutableStateFlow<NewChatRequest?>(null)
+
+/**
+ * Opens a new Session with the shown Agent, e.g. from an App Shortcut. Not a `kinuvo://` link, so other apps and
+ * websites can't send messages.
+ */
+fun openNewChat(voice: Boolean, message: String?) {
+    val route = Route.Chat(compose = !voice && message.isNullOrBlank())
+    pendingNewChat.value = NewChatRequest(route.slot, voice, message?.ifBlank { null })
+    pendingLink.value = route
+}

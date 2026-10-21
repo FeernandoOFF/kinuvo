@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher shortcuts, handled in MainActivity like the iOS App Shortcuts. No voice chat yet: Android has no SpeechEngine. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new_chat"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_new_chat"
+        android:shortcutShortLabel="@string/shortcut_new_chat_short"
+        android:shortcutLongLabel="@string/shortcut_new_chat_long">
+        <intent
+            android:action="dev.kinuvo.android.NEW_CHAT"
+            android:targetPackage="dev.kinuvo.android"
+            android:targetClass="dev.kinuvo.android.MainActivity" />
+    </shortcut>
+</shortcuts>
