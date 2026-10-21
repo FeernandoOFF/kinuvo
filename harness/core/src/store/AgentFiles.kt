@@ -47,6 +47,7 @@ class AgentFiles(val home: Path) {
             AgentDoc.Memory -> "MEMORY.md"
             AgentDoc.UserNotes -> "USER.md"
             AgentDoc.Heartbeat -> "HEARTBEAT.md"
+            AgentDoc.ReflectionFeedback -> "reflection-feedback.json"
         }
     }
 }

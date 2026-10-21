@@ -59,7 +59,7 @@ fun Agent.with(settings: SessionSettings) = copy(
 )
 
 /** An Agent's Markdown documents: Identity, Soul, Memory, User Notes and the Heartbeat checklist. */
-enum class AgentDoc { Identity, Soul, Memory, UserNotes, Heartbeat }
+enum class AgentDoc { Identity, Soul, Memory, UserNotes, Heartbeat, ReflectionFeedback }
 
 interface AgentDocs {
     /** The document's text; empty when it doesn't exist yet. */
