@@ -101,7 +101,7 @@ class Reflection(
             PluginTools(listOf(tool)).ownedBy(PluginInstanceId(owner)).tools
         }.filter { deny.blockedTool(it.identity) == null }
         var error: String? = null
-        AgentRun(parent?.agent ?: agent, store, parent?.model ?: model, bound, maxSteps = 12,
+        AgentRun(parent?.agent ?: agent, store, parent?.model ?: model, bound,
             advertisedTools = parent?.tools ?: bound.map { it.descriptor }, requestKind = RequestKind.Reflection, tracing = tracing, traceSessionId = sessionId)
             .run(session.id, "Perform this background Reflection. Use only these tools: ${bound.joinToString { it.descriptor.name }}. All other tools are blocked. Knowledge and Skill writes stage proposals. Include reason and evidence in proposals.")
             .collect { if (it is AgentEvent.RunError) error = it.message }

@@ -2,6 +2,7 @@ package kinuvo.harness.core
 
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.agent.config.AIAgentConfig
+import ai.koog.agents.core.agent.exception.AIAgentMaxNumberOfIterationsReachedException
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.Prompt
 import kinuvo.harness.core.store.Store
@@ -16,6 +17,8 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.withContext
 import kotlin.uuid.Uuid
 
+private const val MAX_AGENT_ITERATIONS = 50
+
 /** One turn of an Agent, with a fresh Koog graph and a durable Session. */
 class AgentRun(
     private val agent: Agent,
@@ -26,7 +29,6 @@ class AgentRun(
     private val context: String = "",
     private val approvals: Approvals = Approvals.none(),
     private val questions: Broker<Map<String, List<String>>?>? = null,
-    private val maxSteps: Int = 30,
     advertisedTools: List<ToolDescriptor> = tools.map { it.descriptor },
     private val contextTokens: Int? = null,
     private val requestKind: RequestKind = RequestKind.Chat,
@@ -63,8 +65,8 @@ class AgentRun(
             val koog = AIAgent(
                 id = agent.id,
                 promptExecutor = model.executor,
-                agentConfig = AIAgentConfig(Prompt.Empty, model.model, maxSteps * 1000 + 10),
-                strategy = chatStrategy(session, executor, maxSteps) { stopped = it },
+                agentConfig = AIAgentConfig(Prompt.Empty, model.model, MAX_AGENT_ITERATIONS),
+                strategy = chatStrategy(session, executor) { stopped = it },
             ) {
                 install(SessionFeature) { this.session = session }
                 tracing?.install(this, agent.id, traceSessionId ?: sessionId, runId, requestKind)
@@ -77,7 +79,9 @@ class AgentRun(
             throw e
         } catch (e: Exception) {
             stopped = "Stopped before this call could run"
-            val message = model.failure(e).message ?: e.toString()
+            val message = if (e is AIAgentMaxNumberOfIterationsReachedException)
+                "The work is unfinished; send another message to continue."
+            else model.failure(e).message ?: e.toString()
             AgentEvent.RunError(runId, message)
         } finally {
             withContext(NonCancellable) {

@@ -5,6 +5,7 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.RequestKind
 import kinuvo.protocol.SessionEntry
 
 import ai.koog.prompt.streaming.StreamFrame
@@ -27,48 +28,37 @@ import kotlin.test.assertTrue
 
 class AgentRunTest {
     @Test
-    fun modelStepLimitDoesNotDependOnToolBatchSize() = runTest {
-        for (batch in listOf(1, 3)) {
-            val home = TestHome()
-            val agent = home.agent
-            val session = home.store.createSession(agent, "")
-            var calls = 0
-            val tool = object : Tool {
-                override val descriptor = ToolDescriptor("read", "Read")
-                override suspend fun execute(args: JsonObject) = "OK"
-            }
-            val model = scriptedModel { _, _ ->
-                calls++
-                flow {
-                    repeat(batch) { emit(StreamFrame.ToolCallComplete("c$calls-$it", "read", "{}")) }
-                    emit(StreamFrame.End())
+    fun koogIterationLimitStopsChatAndReflectionAndClosesPendingCalls() = runTest {
+        for (kind in listOf(RequestKind.Chat, RequestKind.Reflection)) {
+            for (batch in listOf(1, 3)) {
+                val home = TestHome()
+                val session = home.store.createSession(home.agent, "")
+                var calls = 0
+                var executed = 0
+                val tool = object : Tool {
+                    override val descriptor = ToolDescriptor("read", "Read")
+                    override suspend fun execute(args: JsonObject): String { executed++; return "OK" }
                 }
+                val model = scriptedModel { _, _ ->
+                    calls++
+                    flow {
+                        repeat(batch) { emit(StreamFrame.ToolCallComplete("c$calls-$it", "read", "{}")) }
+                        emit(StreamFrame.End())
+                    }
+                }
+                val events = AgentRun(home.agent, home.store, model, listOf(tool), requestKind = kind).run(session.id, "go").toList()
+                // The start node, history checks, model requests and each tool call share 50 iterations.
+                assertEquals(if (batch == 1) 16 else 10, calls)
+                assertEquals(if (batch == 1) 16 else 29, executed)
+                assertTrue(events.none { it is AgentEvent.RunFinished })
+                assertEquals("The work is unfinished; send another message to continue.", assertIs<AgentEvent.RunError>(events.last()).message)
+                val results = events.filterIsInstance<AgentEvent.ToolCallResult>()
+                assertEquals(calls * batch, results.size)
+                assertEquals(if (batch == 1) 0 else 1, results.count { it.isError })
+                val entries = home.store.entries(home.agent, session.id)
+                assertEquals(entries.filterIsInstance<SessionEntry.ToolCall>().map { it.id }, entries.filterIsInstance<SessionEntry.ToolResult>().map { it.id })
             }
-            val events = AgentRun(agent, home.store, model, listOf(tool)).run(session.id, "go").toList()
-            assertEquals(30, calls)
-            assertTrue(events.none { it is AgentEvent.RunFinished })
-            assertEquals("Stopped after 30 model steps. The work is unfinished; send another message to continue.", assertIs<AgentEvent.RunError>(events.last()).message)
-            assertEquals(30 * batch, events.filterIsInstance<AgentEvent.ToolCallResult>().size)
         }
-    }
-
-    @Test
-    fun reflectionStopsAfterTwelveModelStepsWithLargeToolBatches() = runTest {
-        val home = TestHome()
-        val session = home.store.createSession(home.agent, "")
-        var steps = 0
-        val tool = object : Tool {
-            override val descriptor = ToolDescriptor("read", "Read")
-            override suspend fun execute(args: JsonObject) = "OK"
-        }
-        val model = scriptedModel { _, _ ->
-            steps++
-            flow { repeat(3) { emit(StreamFrame.ToolCallComplete("$steps-$it", "read", "{}")) }; emit(StreamFrame.End()) }
-        }
-        val events = AgentRun(home.agent, home.store, model, listOf(tool), maxSteps = 12, requestKind = kinuvo.protocol.RequestKind.Reflection).run(session.id, "go").toList()
-        assertEquals(12, steps)
-        assertEquals(36, events.filterIsInstance<AgentEvent.ToolCallResult>().size)
-        assertEquals("Stopped after 12 model steps. The work is unfinished; send another message to continue.", assertIs<AgentEvent.RunError>(events.last()).message)
     }
 
     private val home = TestHome()

@@ -16,20 +16,17 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlin.uuid.Uuid
 
-internal fun chatStrategy(session: RunSession, executor: ToolExecutor, maxSteps: Int, stopped: (String) -> Unit) = strategy<Unit, Unit>("kinuvoChat") {
+internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit) = strategy<Unit, Unit>("kinuvoChat") {
     val failed = mutableSetOf<Pair<String, String>>()
     var repeats = 0
-    var steps = 0
     var pending = emptyList<SessionEntry.ToolCall>()
     fun checkRepeats() = check(repeats < 2) { "Stopped: the model kept repeating a tool call that failed" }
     val checkHistory by node<Unit, Unit> {
         checkRepeats()
-        check(steps < maxSteps) { "Stopped after $maxSteps model steps. The work is unfinished; send another message to continue." }
         llm.writeSession { prompt = session.load() }
     }
     val compactHistory by nodeLLMCompressHistory<Unit>(name = COMPACT_HISTORY, strategy = session.compressionStrategy)
     val request by node<Unit, Unit>("streamResponse") {
-        steps++
         llm.writeSession {
             requestLLMStreaming().requireEndFrame().collect { frame ->
                 when (frame) {
