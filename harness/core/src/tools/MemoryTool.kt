@@ -9,6 +9,8 @@ import kinuvo.harness.core.Agent
 import kinuvo.harness.core.AgentDoc
 import kinuvo.harness.core.AgentDocs
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 
 /** Edits Memory (MEMORY.md) and User Notes (USER.md) as bullet entries. Changes refresh in personal context on the next turn. */
 class MemoryTool(private val agent: Agent, private val docs: AgentDocs, private val memoryCap: Int = 4000, private val userCap: Int = 2000) : Tool {
@@ -18,13 +20,22 @@ class MemoryTool(private val agent: Agent, private val docs: AgentDocs, private 
         name = ToolNames.MEMORY,
         description = "Persist concise, durable information across Sessions. target=memory for verified lessons useful across many tasks; " +
             "target=user for confirmed facts and preferences about the user. Keep task-specific procedures in Skills and detailed world records in Knowledge. " +
+            "Make all changes to one target in one call. Operations are atomic; the character cap applies to the final result. " +
             "add appends an entry; replace/remove match an existing entry by a unique substring (old_text). " +
             "Changes are saved immediately and refreshed in personal context on the next turn, including in this Session.",
         requiredParameters = listOf(
-            ToolParameterDescriptor("action", "add | replace | remove", ToolParameterType.Enum(arrayOf("add", "replace", "remove"))),
             ToolParameterDescriptor("target", "memory | user", ToolParameterType.Enum(arrayOf("memory", "user"))),
         ),
         optionalParameters = listOf(
+            ToolParameterDescriptor("operations", "All changes to this target, in order", ToolParameterType.List(ToolParameterType.Object(
+                properties = listOf(
+                    ToolParameterDescriptor("action", "add | replace | remove", ToolParameterType.Enum(arrayOf("add", "replace", "remove"))),
+                    ToolParameterDescriptor("content", "Entry text for add/replace", ToolParameterType.String),
+                    ToolParameterDescriptor("old_text", "Unique substring of the entry to replace/remove", ToolParameterType.String),
+                ),
+                requiredProperties = listOf("action"),
+            ))),
+            ToolParameterDescriptor("action", "Single operation, when operations is omitted", ToolParameterType.Enum(arrayOf("add", "replace", "remove"))),
             ToolParameterDescriptor("content", "Entry text for add/replace", ToolParameterType.String),
             ToolParameterDescriptor("old_text", "Unique substring of the entry to replace/remove", ToolParameterType.String),
         ),
@@ -36,15 +47,16 @@ class MemoryTool(private val agent: Agent, private val docs: AgentDocs, private 
             "user" -> AgentDoc.UserNotes to userCap
             else -> error("target must be memory or user")
         }
-        val action = args.requireString("action")
-        require(action in setOf("add", "replace", "remove")) { "action must be add, replace or remove" }
+        val operations = args["operations"]?.jsonArray?.map { it.jsonObject } ?: listOf(args)
+        require(operations.isNotEmpty()) { "operations must not be empty" }
         var count = 0
         val text = docs.update(agent.id, doc) { old ->
             val entries = old.lines().filter { it.isNotBlank() }.map { it.removePrefix("- ").trim() }.toMutableList()
-            when (action) {
-                "add" -> entries += args.requireString("content").oneLine()
-                "replace" -> entries[indexOf(entries, args.requireString("old_text"))] = args.requireString("content").oneLine()
-                else -> entries.removeAt(indexOf(entries, args.requireString("old_text")))
+            for (operation in operations) when (operation.requireString("action")) {
+                "add" -> entries += operation.requireString("content").oneLine()
+                "replace" -> entries[indexOf(entries, operation.requireString("old_text"))] = operation.requireString("content").oneLine()
+                "remove" -> entries.removeAt(indexOf(entries, operation.requireString("old_text")))
+                else -> error("action must be add, replace or remove")
             }
             count = entries.size
             entries.joinToString("") { "- $it\n" }.also {
