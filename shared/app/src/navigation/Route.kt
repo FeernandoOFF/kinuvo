@@ -45,9 +45,9 @@ sealed interface Route {
     @Serializable
     data class Knowledge(val note: String? = null) : Route
 
-    /** The Artifacts every Agent made, with the [artifact] (an ID) open when set. */
+    /** The Artifacts every Agent made, with the [artifact] (an ID) open when set; [fullScreen] shows only it, without the shell. */
     @Serializable
-    data class Artifacts(val artifact: String? = null) : Route
+    data class Artifacts(val artifact: String? = null, val fullScreen: Boolean = false) : Route
 
     /** Live view of the Computers Agents can control, with [computer] (an ID) shown when set. */
     @Serializable
