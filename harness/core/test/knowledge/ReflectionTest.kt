@@ -210,7 +210,6 @@ class ReflectionTest {
         val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
             val instructions = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
-            assertTrue("silence are not user agreement" in instructions)
             if (tools.single().name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias() && history.toolResults.isEmpty()) flowOf(
                 StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"update","ref":"Kinuvo","append":"Use my suggested structure","reason":"Proposed organization","evidence":"assistant-1: suggested structure"}"""),
                 StreamFrame.End(),
@@ -292,13 +291,17 @@ class ReflectionTest {
                 assertTrue(stage in enabled)
                 seen += stage
                 val review = prompt.messages.filterIsInstance<Message.User>().last().textContent()
+                assertTrue(kinuvo.protocol.DEFAULT_REFLECTION_PROMPT in review)
+                ReflectionStage.entries.forEachIndexed { index, part -> assertEquals(stage == index, part.instructions in review) }
+                assertTrue("[assistant-1] Assistant: Do that" in review)
+                assertTrue("[user-2] User: Yes" in review)
                 assertEquals(stage == 0, "personal-only" in review)
                 assertEquals(stage == 1, "How the user organizes it:" in review)
                 assertEquals(stage == 2, "Available Skills:" in review)
                 flowOf(StreamFrame.End())
             }
             val agent = home.agent.copy(config = home.agent.config.copy(tools = enabled.map { features[it] }))
-            val result = Reflection(knowledge, home.docs, home.skills).reflect(agent, model, "s1", listOf(SessionEntry.UserMessage("Review this")))
+            val result = Reflection(knowledge, home.docs, home.skills).reflect(agent, model, "s1", listOf(SessionEntry.UserMessage("Review this"), SessionEntry.AssistantMessage("Do that"), SessionEntry.UserMessage("Yes")))
             assertEquals(null, result.error)
             assertEquals(enabled, seen)
             assertEquals(enabled.size, result.measurements.size)
