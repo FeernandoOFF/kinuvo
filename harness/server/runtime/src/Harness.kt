@@ -1,7 +1,5 @@
 package kinuvo.harness.server
 
-import co.touchlab.stately.concurrency.Lock
-import co.touchlab.stately.concurrency.withLock
 import kinuvo.harness.core.*
 import kinuvo.harness.core.routines.ScheduleTool
 import kinuvo.harness.core.skills.ActivateSkillTool
@@ -93,20 +91,27 @@ open class HarnessRuntime(
     private fun model(e: Effective): AgentModel = modelFactory?.invoke(e.agent.config)
         ?: (e.provider ?: error("No model provider '${e.agent.config.provider}'")).model(e.agent.config, e.info)
 
-    private val reflectionLock = Lock()
-    private val reflectionParents = LinkedHashMap<Pair<String, String>, kinuvo.harness.core.knowledge.ReflectionContext>()
-
     /** Whether conversations with [agent] are reflected on afterwards. */
     fun reflects(agent: Agent) = ServerFeature.Knowledge in features && agent.config.tools.any { it in setOf(ToolNames.KNOWLEDGE, ToolNames.MEMORY, ToolNames.SKILLS) } && reflectionEnabled
 
     /** Saves what's worth keeping from [entries] of a Session. */
-    suspend fun reflect(agent: Agent, sessionId: String, entries: List<SessionEntry>, history: List<SessionEntry> = entries): kinuvo.protocol.ReflectionResult {
-        val replay = history.activeHistory()
-        val parent = reflectionLock.withLock { reflectionParents[agent.id to sessionId] }
-            ?.takeIf { it.history == replay.take(it.history.size) }
-        val resolved = parent?.agent ?: runCatching { agent.with(store.session(agent, sessionId).settings) }.getOrDefault(agent)
-        return reflection.reflect(resolved, parent?.model ?: model(effective(resolved, sessionId)), sessionId, entries,
-            reflectionPrompt, parent, history)
+    suspend fun reflect(agent: Agent, sessionId: String, entries: List<SessionEntry>): kinuvo.protocol.ReflectionResult {
+        val resolved = try { agent.with(store.session(agent, sessionId).settings) }
+        catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { agent }
+        val chat = effective(resolved, null)
+        val chosen = try {
+            val selected = reflectionModel
+            val provider = providers[selected.provider ?: chat.agent.config.provider]
+            val catalog = modelCatalog().providers.firstOrNull { it.id == provider?.id }?.models.orEmpty()
+            val id = selected.model ?: provider?.reflectionModel(catalog)
+            val info = catalog.firstOrNull { it.id == id && it.tools != false && it.state.actionable }
+            if (provider != null && info != null && provider.availability(info.id).actionable) {
+                val reflected = chat.agent.copy(config = chat.agent.config.copy(provider = provider.id, model = info.id))
+                reflected to model(Effective(reflected, info, provider, chat.memoryCap, chat.userCap))
+            } else null
+        } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
+        val (reflected, model) = chosen ?: (chat.agent to model(chat))
+        return reflection.reflect(reflected, model, sessionId, entries, reflectionPrompt)
     }
 
     suspend fun newSession(agent: Agent, routine: RoutineRef? = null): SessionInfo {
@@ -237,13 +242,6 @@ open class HarnessRuntime(
             tools = tools,
             advertisedTools = advertised.map { it.descriptor },
             context = secrets.redact(context),
-            onRequest = { instructions, history, descriptors ->
-                if (sessionId != null) reflectionLock.withLock {
-                    reflectionParents.remove(agent.id to sessionId)
-                    reflectionParents[agent.id to sessionId] = kinuvo.harness.core.knowledge.ReflectionContext(agent, model, instructions, history, descriptors)
-                    while (reflectionParents.size > 32) reflectionParents.remove(reflectionParents.keys.first())
-                }
-            },
             warnings = prepared.warnings.map { secrets.redact(it) },
             approvals = when (routine?.approvals) {
                 null -> Approvals(ApprovalPolicy(agent, trustRules), approvals)

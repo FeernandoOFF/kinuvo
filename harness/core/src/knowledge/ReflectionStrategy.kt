@@ -4,21 +4,12 @@ import ai.koog.agents.core.dsl.builder.node
 import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.core.dsl.builder.subgraph
 import kinuvo.harness.core.ToolLoop
-import kinuvo.protocol.ReflectionResult
 import kinuvo.protocol.SessionEntry
 
-internal fun reflectionStrategy(run: ReflectionRun) = strategy<Unit, ReflectionResult>("kinuvoReflection") {
-    val gather by node<Unit, Unit> { run.gather() }
-    val memory by reflectionStage(run, ReflectionStage.Memory)
-    val knowledge by reflectionStage(run, ReflectionStage.Knowledge)
-    val skills by reflectionStage(run, ReflectionStage.Skills)
-    val finish by node<Unit, ReflectionResult> { run.result() }
-    edge(nodeStart forwardTo gather)
-    edge(gather forwardTo memory)
-    edge(memory forwardTo knowledge)
-    edge(knowledge forwardTo skills)
-    edge(skills forwardTo finish)
-    edge(finish forwardTo nodeFinish)
+internal fun reflectionStrategy(run: ReflectionRun, stage: ReflectionStage) = strategy<Unit, Unit>("kinuvoReflection${stage.name}") {
+    val review by reflectionStage(run, stage)
+    edge(nodeStart forwardTo review)
+    edge(review forwardTo nodeFinish)
 }
 
 private fun reflectionStage(run: ReflectionRun, stage: ReflectionStage) = subgraph<Unit, Unit>(stage.name) {

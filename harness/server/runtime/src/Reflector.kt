@@ -56,7 +56,7 @@ class Reflector(
         harness.log.publish(agent, sessionId, AgentEvent.ReflectionStarted(id))
         var result = ReflectionResult()
         try {
-            result = harness.reflect(agent, sessionId, new, entries)
+            result = harness.reflect(agent, sessionId, new)
         } catch (e: CancellationException) {
             result = result.copy(error = "Reflection interrupted")
             throw e

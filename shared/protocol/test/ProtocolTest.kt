@@ -21,12 +21,11 @@ class ProtocolTest {
     fun requestMeasurementsAndContextRoundTripWithUnknownCacheFields() {
         val metrics = RequestMetrics("m1", 123, RequestKind.Reflection, "codex", "model", "high", 500, 100, 2000, 200, cachedTokens = 0)
         for (entry in listOf(SessionEntry.Context("runtime context"), SessionEntry.Measurement(metrics),
-            SessionEntry.Reflection("r1", 123, ReflectionResult(measurements = listOf(metrics), warmContext = true)))) {
+            SessionEntry.Reflection("r1", 123, ReflectionResult(measurements = listOf(metrics))))) {
             assertEquals(entry, ProtocolJson.decodeFromString(SessionEntry.serializer(), ProtocolJson.encodeToString(SessionEntry.serializer(), entry)))
         }
         val empty = ProtocolJson.decodeFromString(ReflectionResult.serializer(), "{}")
         assertEquals(emptyList(), empty.measurements)
-        assertEquals(false, empty.warmContext)
         assertEquals(null, metrics.copy(cachedTokens = null).cachedTokens)
     }
 

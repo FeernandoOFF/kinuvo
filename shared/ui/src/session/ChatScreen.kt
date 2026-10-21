@@ -1106,9 +1106,6 @@ internal fun ReflectionView(item: ChatItem.Reflection, initiallyExpanded: Boolea
                 result.proposals.forEach { proposal ->
                     ReflectionProposalView(proposal, item.reviews[proposal.id], onReview)
                 }
-                if (result.measurements.isNotEmpty()) {
-                    Text(if (result.warmContext) "Replayed the parent request context" else "Parent request snapshot unavailable", fontSize = 12.sp, color = color(mutedColor))
-                }
                 result.error?.let { Text(it, color = color(destructiveColor), fontSize = 13.sp) }
             }
         }

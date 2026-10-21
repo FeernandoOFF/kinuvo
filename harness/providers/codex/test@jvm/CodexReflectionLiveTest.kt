@@ -23,7 +23,7 @@ import kotlin.time.TimeSource
 
 class CodexReflectionLiveTest {
     @Test
-    fun comparesWarmAndColdReflection() = runBlocking {
+    fun comparesColdReflectionModels() = runBlocking {
         if (System.getenv("KINUVO_LIVE") != "1") return@runBlocking
         val root = Path(Files.createTempDirectory("kinuvo-reflection-benchmark").toString())
         val provider = CodexProvider()
@@ -52,30 +52,25 @@ class CodexReflectionLiveTest {
                 .ownedBy(PluginInstanceId("kinuvo.core")).tools +
                 PluginTools(listOf(KnowledgeTool(chat.knowledge, ChangeSource(agent.id, session.id))))
                     .ownedBy(PluginInstanceId("kinuvo.knowledge")).tools
-            var parent: ReflectionContext? = null
             val started = TimeSource.Monotonic.markNow()
-            val events = AgentRun(agent, store, chatModel, tools, onRequest = { instructions, entries, descriptors ->
-                parent = ReflectionContext(agent, chatModel, instructions, entries, descriptors)
-            }).run(session.id, "Those release checks worked. Use that procedure for future releases. " +
+            val events = AgentRun(agent, store, chatModel, tools).run(session.id, "Those release checks worked. Use that procedure for future releases. " +
                 "Please recap Harbour's owner and deadline and my communication preference in two sentences, without calling tools.").toList()
             val chatMs = started.elapsedNow().inWholeMilliseconds
             val entries = store.entries(agent, session.id)
             val rows = mutableListOf(Row("chat", chatId, entries.filterIsInstance<SessionEntry.Measurement>().map { it.metrics }, chatMs))
             assertIs<AgentEvent.RunFinished>(events.last(), "Chat failed: $events")
-            val variants = listOf(Triple("warm", agent, requireNotNull(parent)), Triple("cold", agent, null),
-                Triple("cold-small", agent.copy(config = config.copy(model = smallId)), null))
-            for ((label, measuredAgent, context) in variants) {
+            val variants = listOf("cold" to agent, "cold-small" to agent.copy(config = config.copy(model = smallId)))
+            for ((label, measuredAgent) in variants) {
                 val fixture = fixture(Path(root, label), measuredAgent)
                 val start = TimeSource.Monotonic.markNow()
                 val result = Reflection(fixture.knowledge, fixture.docs, fixture.skills).reflect(
-                    measuredAgent, if (label == "cold-small") model(measuredAgent) else chatModel, session.id, entries,
-                    parent = context, history = entries,
+                    measuredAgent, if (label == "cold") chatModel else model(measuredAgent), session.id, entries,
                 )
                 rows += Row(label, measuredAgent.config.model, result.measurements, start.elapsedNow().inWholeMilliseconds, result)
             }
             println("\nReflection benchmark: identical seeded Session and fresh repositories per variant; reasoning=low.")
             println("Small model: $smallId (override with KINUVO_SMALL_MODEL; catalog has no prices, default prefers nano/luna/mini).")
-            println("Cold means no parent instructions/tools; provider caching can still occur. '?' means usage unavailable; reasoning is included in output.")
+            println("Both variants use fresh compact prompts; provider caching can still occur. '?' means usage unavailable; reasoning is included in output.")
             val table = listOf(listOf("variant", "model", "requests", "input", "cached", "output", "reasoning", "wall ms", "memory/user", "proposals", "errors")) + rows.map { row ->
                 val result = row.result
                 listOf(row.label, row.model, row.metrics.size.toString(), row.total { it.inputTokens }, row.total { it.cachedTokens },

@@ -27,28 +27,31 @@ class Reflection(
     private val tracing: AgentTracing? = null,
     private val today: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
 ) {
-    suspend fun reflect(agent: Agent, model: AgentModel, sessionId: String, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, parent: ReflectionContext? = null, history: List<SessionEntry> = entries): ReflectionResult {
-        val run = ReflectionRun(agent, parent?.agent ?: agent, parent?.model ?: model, sessionId, entries, history, prompt, parent, knowledge, docs, skills, denied, today)
-        val runId = Uuid.random().toString()
-        val koog = AIAgent(
-            id = agent.id,
-            promptExecutor = run.model.executor,
-            agentConfig = AIAgentConfig(Prompt.Empty, run.model.model, MAX_AGENT_ITERATIONS),
-            strategy = reflectionStrategy(run),
-        ) {
-            install(ToolLoopFeature) { requests = run.requests; response = run.response }
-            tracing?.install(this, agent.id, sessionId, runId, RequestKind.Reflection)
+    suspend fun reflect(agent: Agent, model: AgentModel, sessionId: String, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT): ReflectionResult {
+        val run = ReflectionRun(agent, model, sessionId, entries, prompt, knowledge, docs, skills, denied, today)
+        run.gather()
+        for (stage in ReflectionStage.entries) {
+            val runId = Uuid.random().toString()
+            val koog = AIAgent(
+                id = agent.id,
+                promptExecutor = model.executor,
+                agentConfig = AIAgentConfig(Prompt.Empty, model.model, MAX_AGENT_ITERATIONS),
+                strategy = reflectionStrategy(run, stage),
+            ) {
+                install(ToolLoopFeature) { requests = run.requests; response = run.response }
+                tracing?.install(this, agent.id, sessionId, runId, RequestKind.Reflection)
+            }
+            try {
+                withContext(TokenUsageCapture()) { koog.run(Unit, runId) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                run.error(if (e is AIAgentMaxNumberOfIterationsReachedException) "${stage.name} stopped at the iteration limit" else model.failure(e).message ?: e.toString())
+            } finally {
+                koog.close()
+            }
         }
-        return try {
-            withContext(TokenUsageCapture()) { koog.run(Unit, runId) }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            run.error(if (e is AIAgentMaxNumberOfIterationsReachedException) "Reflection stopped at the iteration limit" else run.model.failure(e).message ?: e.toString())
-            run.result()
-        } finally {
-            koog.close()
-        }
+        return run.result()
     }
 }
 
@@ -60,13 +63,10 @@ internal enum class ReflectionStage(val instructions: String) {
 
 internal class ReflectionRun(
     private val agent: Agent,
-    val measuredAgent: Agent,
     val model: AgentModel,
     private val sessionId: String,
     private val entries: List<SessionEntry>,
-    private val history: List<SessionEntry>,
     private val instructions: String,
-    private val parent: ReflectionContext?,
     private val knowledge: Knowledge,
     private val docs: AgentDocs,
     private val skills: SkillRepository?,
@@ -75,7 +75,7 @@ internal class ReflectionRun(
 ) {
     val messages = SessionMessages(model)
     val response = StreamResponse()
-    val requests = ModelRequests(measuredAgent.config, { RequestKind.Reflection }) { measurements += it }
+    val requests = ModelRequests(agent.config, { RequestKind.Reflection }) { measurements += it }
     private var transcript = ""
     private lateinit var changes: ReflectionChanges
     private var deny = DenyRules()
@@ -88,7 +88,7 @@ internal class ReflectionRun(
         private set
     lateinit var executor: ToolExecutor
         private set
-    val advertised get() = parent?.tools ?: tools.map { it.descriptor }.sortedBy { it.name }
+    val advertised get() = tools.map { it.descriptor }.sortedBy { it.name }
 
     suspend fun gather() {
         transcript = entries.mapIndexedNotNull { index, entry -> when (entry) {
@@ -136,15 +136,15 @@ internal class ReflectionRun(
             ReflectionStage.Skills -> "Available Skills:\n" + skills!!.load(agent).joinToString("\n") { "- ${it.name}: ${it.description}" }
         }
         val review = "$instructions\n\nToday is ${today()}.\n\n$context\n\n${stage.instructions}\n\n" +
-            "Review only these new source entries; earlier history is context, not new evidence:\n$transcript"
-        return messages.prompt(parent?.instructions.orEmpty(), history.activeHistory() + SessionEntry.UserMessage(
-            "Background Reflection instructions:\n$review\n\nPerform only the ${stage.name} stage. Use only these tools: ${tools.joinToString { it.descriptor.name }}. All other tools are blocked. Knowledge and Skill writes stage proposals. Include reason and evidence in proposals.",
-        ))
+            "Review these source entries:\n$transcript"
+        return messages.prompt("", listOf(SessionEntry.UserMessage(
+            "Background Reflection instructions:\n$review\n\nPerform only the ${stage.name} stage. Use only these tools: ${tools.joinToString { it.descriptor.name }}. All other tools are blocked.",
+        )))
     }
 
     fun error(message: String) { errors += message }
 
     fun result() = ReflectionResult(memory = memory, userNotes = userNotes, proposals = if (::changes.isInitialized) changes.proposals.toList() else emptyList(),
-        measurements = measurements.toList(), memoryChanges = memoryChanges.toList(), error = errors.takeIf { it.isNotEmpty() }?.joinToString("\n"), warmContext = parent != null)
+        measurements = measurements.toList(), memoryChanges = memoryChanges.toList(), error = errors.takeIf { it.isNotEmpty() }?.joinToString("\n"))
 }
 
