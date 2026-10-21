@@ -50,6 +50,7 @@ class ArtifactsActions(
     val onFilter: (String?) -> Unit = {},
     val onDelete: (String) -> Unit = {},
     val onOpenSession: (agentId: String, sessionId: String) -> Unit = { _, _ -> },
+    val onFullScreen: (Boolean) -> Unit = {},
 )
 
 @Composable
@@ -65,12 +66,13 @@ fun ArtifactsScreen(app: AppViewModel, artifacts: ArtifactsViewModel, actions: A
     ArtifactsContent(state, appState.agents, now, actions)
 }
 
-/** The list beside the open Artifact ≥900dp; narrower, the open Artifact takes the screen. */
+/** The list beside the open Artifact ≥900dp; narrower, or [Route.Artifacts.fullScreen], the open Artifact takes the screen. */
 @Composable
 fun ArtifactsContent(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions) {
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
         val open = state.route.artifact
-        if (maxWidth >= 900.dp) Row(Modifier.fillMaxSize()) {
+        if (open != null && state.route.fullScreen) ArtifactPane(state, agents, now, actions, back = null)
+        else if (maxWidth >= 900.dp) Row(Modifier.fillMaxSize()) {
             Box(Modifier.width(380.dp).fillMaxHeight().background(color(sidebarColor))) { ArtifactList(state, agents, now, actions, actions.onBack) }
             VerticalSeparator()
             Box(Modifier.weight(1f)) {
@@ -124,12 +126,14 @@ private fun ArtifactList(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
 private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions, back: (() -> Unit)?) {
     val data = state.open?.takeIf { it.info.id == state.route.artifact }
     Column(Modifier.fillMaxSize()) {
-        TitleBarRow(leading = back != null) {
+        TitleBarRow(leading = back != null || state.route.fullScreen) {
             back?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
             Column(Modifier.weight(1f).padding(start = 4.dp)) {
                 Text(data?.info?.title ?: "Artifact", fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
                 data?.info?.let { Text("${it.type} · ${agents.name(it.agentId)} · ${relative(it.updated, now)}", fontSize = 12.sp, color = color(mutedColor), singleLine = true) }
             }
+            val full = state.route.fullScreen
+            HeaderButton(if (full) Lucide.Minimize2 else Lucide.Maximize2, if (full) "Exit full screen" else "Full screen", { actions.onFullScreen(!full) })
             data?.info?.let { info ->
                 info.sessionId?.let { s -> HeaderButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(info.agentId, s) }) }
                 HeaderButton(Lucide.Trash2, "Delete", { actions.onDelete(info.id) })

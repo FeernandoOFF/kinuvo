@@ -343,6 +343,7 @@ class ScreenshotTest {
         )
         val team = listOf(agent, AgentInfo("research", "Researcher", "container"))
         render("artifacts-wide", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(artifacts, team, 1_790_000_600_000L, ArtifactsActions()) } }
+        render("artifacts-full-screen", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(artifacts.copy(route = Route.Artifacts("plan-1", fullScreen = true)), team, 1_790_000_600_000L, ArtifactsActions()) } }
         render("artifacts-narrow-list", 420, 860) { HarnessTheme(dark = true) { ArtifactsContent(artifacts.copy(route = Route.Artifacts()), team, 1_790_000_600_000L, ArtifactsActions(onBack = {})) } }
         startKinuvo(module { single<Preferences> { object : Preferences {
             private val values = mutableMapOf<String, String>()
