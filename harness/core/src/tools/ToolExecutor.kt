@@ -7,6 +7,7 @@ import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
@@ -54,10 +55,15 @@ class ToolExecutor(
                         else -> ""
                     }.ifEmpty { null }
                     emit(AgentEvent.ApprovalRequested(pending.id, approvalId, call.name, call.args, hint, a.risk, a.reason, verdict.trustKeys.isNotEmpty(), tool?.identity))
-                    pending.await().also {
-                        stopped("Cancelled by user")
-                        emit(AgentEvent.ApprovalResolved(approvalId, it !is ApprovalDecision.Deny))
+                    val wait = approvals.wait
+                    val answer = if (wait == null) pending.await() else withTimeoutOrNull(wait) { pending.await() }
+                    stopped("Cancelled by user")
+                    emit(AgentEvent.ApprovalResolved(approvalId, answer != null && answer !is ApprovalDecision.Deny))
+                    if (answer == null) {
+                        approvals.skipped(tool?.displayName ?: call.name)
+                        return SessionEntry.ToolResult(call.id, call.name, "No answer within ${wait?.inWholeMinutes} minutes; skipped", isError = true, identity = tool?.identity)
                     }
+                    answer
                 } finally {
                     pending.close()
                 }

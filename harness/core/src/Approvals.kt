@@ -16,6 +16,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.time.Duration
 import kotlin.uuid.Uuid
 
 /** Which risk levels run without an Approval: strict asks for everything, full never asks. Deny rules apply to all. */
@@ -121,8 +122,17 @@ class Broker<T> {
 
 typealias ApprovalBroker = Broker<ApprovalDecision>
 
-/** [unattended] answers every call that needs an Approval instead of asking, e.g. denying in a Routine run. */
-class Approvals(val policy: ApprovalPolicy?, val broker: ApprovalBroker, val unattended: ApprovalDecision? = null) {
+/**
+ * [unattended] answers every call that needs an Approval instead of asking, e.g. denying in a Routine run. With [wait]
+ * set, a call nobody answers in time is skipped and reported to [skipped] by tool name.
+ */
+class Approvals(
+    val policy: ApprovalPolicy?,
+    val broker: ApprovalBroker,
+    val unattended: ApprovalDecision? = null,
+    val wait: Duration? = null,
+    val skipped: (String) -> Unit = {},
+) {
     companion object {
         /** Everything runs without asking. */
         fun none() = Approvals(null, ApprovalBroker())
