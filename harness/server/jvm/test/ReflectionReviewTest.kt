@@ -3,6 +3,7 @@ package kinuvo.harness.server
 import kinuvo.harness.testing.*
 
 import kinuvo.harness.codex.CodexAuth
+import kinuvo.harness.core.modelAlias
 import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.core.knowledge.ChangeSource
@@ -24,8 +25,73 @@ import kotlin.test.assertTrue
 
 class ReflectionReviewTest {
     private val home = Files.createTempDirectory("reflection-review").toFile()
-    private fun harness() = Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))),
-        modelFactory = { scriptedModel { _, _ -> emptyFlow() } }, plugins = emptyList())
+    private fun harness(model: kinuvo.harness.core.AgentModel = scriptedModel { _, _ -> emptyFlow() }) = Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))),
+        modelFactory = { model }, plugins = emptyList())
+
+    @Test
+    fun notedApprovalRevisesWithoutWritingAndPersistsAcrossRestart() = runBlocking {
+        var requests = 0
+        val model = scriptedModel { prompt, tools ->
+            requests++
+            if (prompt.messages.toolResults.isNotEmpty()) kotlinx.coroutines.flow.flowOf(ai.koog.prompt.streaming.StreamFrame.End())
+            else {
+                val text = prompt.messages.filterIsInstance<ai.koog.prompt.message.Message.User>().single().textContent()
+                assertTrue("Perform only the Knowledge stage" in text)
+                assertTrue("wrong date" in text)
+                kotlinx.coroutines.flow.flowOf(ai.koog.prompt.streaming.StreamFrame.ToolCallComplete("revision", tools.single { it.name == ToolIdentity(PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias() }.name,
+                    """{"action":"create","type":"project","title":"Release","append":"Friday","reason":"Correct date","evidence":"review-note proposal"}"""),
+                    ai.koog.prompt.streaming.StreamFrame.ToolCallComplete("classify", tools.single { "reflection_feedback" in it.name }.name, """{"lasting":false}"""),
+                    ai.koog.prompt.streaming.StreamFrame.End())
+            }
+        }
+        val harness = harness(model)
+        val agent = harness.store.agents().single()
+        val session = harness.newSession(agent).id
+        val proposal = ReflectionProposal("dated", "knowledge", Json.parseToJsonElement("""{"action":"create","type":"project","title":"Release","append":"Thursday"}""").jsonObject,
+            "Schedule", "User: release date", scope = harness.knowledge.scope())
+        harness.log.append(agent, session, SessionEntry.Reflection("dated", 0, ReflectionResult(proposals = listOf(proposal))))
+        val review = ReflectionReview(harness)
+        review.respond(agent, session, proposal.id, true, "  wrong date  ")
+        assertEquals(null, harness.knowledge.find("Release"))
+        val saved = harness.store.entries(agent, session).filterIsInstance<SessionEntry.ReflectionReview>().single()
+        assertEquals("wrong date", saved.note)
+        val revised = saved.result!!.proposals.single()
+        assertEquals("Friday", revised.args["append"]!!.toString().trim('"'))
+        val previous = requests
+        review.respond(agent, session, proposal.id, true, "wrong date")
+        assertEquals(previous, requests)
+        val restarted = harness()
+        ReflectionReview(restarted).respond(agent, session, revised.id, true)
+        assertTrue("Friday" in restarted.knowledge.find("Release")!!.body)
+    }
+
+    @Test
+    fun lastingKnowledgeNoteProposesConventionsThatNeedApproval() = runBlocking {
+        val model = scriptedModel { prompt, tools ->
+            if (prompt.messages.toolResults.isNotEmpty()) kotlinx.coroutines.flow.flowOf(ai.koog.prompt.streaming.StreamFrame.End())
+            else kotlinx.coroutines.flow.flowOf(
+                ai.koog.prompt.streaming.StreamFrame.ToolCallComplete("classify", tools.single { "reflection_feedback" in it.name }.name, """{"lasting":true}"""),
+                ai.koog.prompt.streaming.StreamFrame.ToolCallComplete("learning", tools.single { "conventions" in it.name }.name,
+                    """{"action":"edit","content":"Cities stay in project Notes.","reason":"How the user organizes cities","evidence":"review-note"}"""),
+                ai.koog.prompt.streaming.StreamFrame.End(),
+            )
+        }
+        val harness = harness(model)
+        val agent = harness.store.agents().single()
+        val session = harness.newSession(agent).id
+        val proposal = ReflectionProposal("city", "knowledge", Json.parseToJsonElement("""{"action":"create","type":"place","title":"Dublin"}""").jsonObject,
+            "A place", "User: Dublin", scope = harness.knowledge.scope())
+        harness.log.append(agent, session, SessionEntry.Reflection("city", 0, ReflectionResult(proposals = listOf(proposal))))
+        ReflectionReview(harness).respond(agent, session, "city", false, "Don't make Notes for cities")
+        val pending = harness.store.entries(agent, session).filterIsInstance<SessionEntry.ReflectionReview>().single().result!!.proposals.single()
+        assertEquals("conventions", pending.tool)
+        assertEquals("", harness.knowledge.conventions())
+        assertEquals(null, harness.knowledge.find("Dublin"))
+        val restarted = harness()
+        ReflectionReview(restarted).respond(agent, session, pending.id, true)
+        assertEquals("Cities stay in project Notes.", restarted.knowledge.conventions())
+        assertEquals("Cities stay in project Notes.", restarted.files.conventions("markdown").let { java.io.File(it.toString()).readText() })
+    }
 
     @Test
     fun reviewsKnowledgeAcrossRestartAndRefusesChangedTargets() = runBlocking {

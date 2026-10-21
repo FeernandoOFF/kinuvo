@@ -31,23 +31,30 @@ class ReflectionReview(private val harness: HarnessRuntime) {
         } }
             .firstOrNull { it.id == proposalId } ?: error("No Reflection proposal '$proposalId' in this Session")
         val cleanNote = note?.trim()?.takeIf { it.isNotEmpty() }
-        val result = if (approve && cleanNote != null) {
-            harness.reflect(agent, sessionId, entries, ReflectionRevision(proposal, cleanNote)).also {
-                check(it.error == null) { it.error.orEmpty() }
-                check(it.proposals.isNotEmpty()) { "Reflection did not produce a revised proposal" }
+        val revision = cleanNote?.let { ReflectionRevision(proposal, it, approve) }
+        fun checkSource() {
+            val scope = when (proposal.tool) {
+                ToolNames.KNOWLEDGE -> harness.knowledge.scope()
+                "conventions" -> harness.knowledge.provider()
+                else -> return
             }
-        } else null
+            check(proposal.scope == scope) { "The Knowledge source changed; review a fresh proposal" }
+        }
+        if (revision != null) checkSource()
+        val result = revision?.let { harness.reflect(agent, sessionId, entries, it).also { checkSource() } }
         withContext(NonCancellable) {
             if (approve && cleanNote == null) when (proposal.tool) {
                 ToolNames.KNOWLEDGE -> if (harness.knowledge.change(proposal.id) == null) {
                     KnowledgeTool(harness.knowledge, ChangeSource(agent.id, sessionId, proposal.id))
                         .executeReviewed(proposal.args, proposal.note, requireNotNull(proposal.scope))
                 }
+                "conventions" -> harness.knowledge.saveConventionsReviewed(requireNotNull(proposal.scope),
+                    requireNotNull(proposal.conventionsBefore), proposal.args.requireString("content"))
                 "skill_manage" -> harness.skills.saveReviewed(agent, proposal.args.requireString("name"),
                     proposal.args.requireString("content"), proposal.skillBefore)
                 else -> error("Unsupported Reflection destination")
             }
-            if (!approve || cleanNote != null) harness.docs.rememberReflectionReview(agent.id, proposal, cleanNote, !approve)
+            if (!approve || revision?.lasting == false) harness.docs.rememberReflectionReview(agent.id, proposal, cleanNote.takeIf { revision?.lasting != true }, !approve)
             harness.log.append(agent, sessionId, SessionEntry.ReflectionReview(proposalId, approve, cleanNote, result))
         }
     }

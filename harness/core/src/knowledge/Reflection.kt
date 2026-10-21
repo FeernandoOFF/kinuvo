@@ -53,7 +53,7 @@ class Reflection(
                 koog.close()
             }
         }
-        return run.result()
+        return run.result().also { review?.validate(it) }
     }
 }
 
@@ -106,7 +106,7 @@ internal class ReflectionRun(
             is SessionEntry.ToolResult -> entry.id to "${entry.name} (${if (entry.isError) "failed" else "succeeded"}): ${entry.output.take(1200)}"
             else -> null
         } }.toMap()
-        changes = ReflectionChanges(agent, knowledge, skills, evidence + (review?.let { mapOf("review-note" to it.note, "proposal" to it.proposal.evidence) } ?: emptyMap()))
+        changes = ReflectionChanges(agent, knowledge, skills, evidence + (review?.let { mapOf("review-note" to it.note, "proposal" to it.proposal.evidence) } ?: emptyMap()), review)
         deny = denied(agent)
     }
 
@@ -121,14 +121,17 @@ internal class ReflectionRun(
     }
 
     suspend fun prepare(stage: ReflectionStage): Prompt? {
-        tools = if (transcript.isBlank()) emptyList() else when (stage) {
+        tools = if (transcript.isBlank() && review == null) emptyList() else when (stage) {
             ReflectionStage.Memory -> if (ToolNames.MEMORY in agent.config.tools) listOf(MemoryTool(agent, memoryDocs)) else emptyList()
             ReflectionStage.Knowledge -> if (ToolNames.KNOWLEDGE in agent.config.tools) listOf(changes.staging(KnowledgeTool(knowledge, ChangeSource(agent.id, sessionId)))) else emptyList()
             ReflectionStage.Skills -> if (ToolNames.SKILLS in agent.config.tools && skills != null) listOf(
                 ActivateSkillTool(agent, skills), ReadSkillFileTool(agent, skills), changes.staging(SkillManageTool(agent, skills)),
             ) else emptyList()
+        }.let { normal ->
+            if (review == null || normal.isEmpty()) normal else normal + review.decisionTool() +
+                if (stage == ReflectionStage.Knowledge) listOf(changes.staging(conventionsTool())) else emptyList()
         }.flatMap { tool ->
-            val owner = if (tool.descriptor.name == ToolNames.KNOWLEDGE) "kinuvo.knowledge" else "kinuvo.core"
+            val owner = if (tool.descriptor.name in listOf(ToolNames.KNOWLEDGE, "conventions")) "kinuvo.knowledge" else "kinuvo.core"
             PluginTools(listOf(tool)).ownedBy(PluginInstanceId(owner)).tools
         }.filter { deny.blockedTool(it.identity) == null }
         if (tools.isEmpty()) return null
