@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+
 import kinuvo.harness.core.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.runBlocking
@@ -24,10 +26,10 @@ class ModelCatalogTest {
             override val id = "test"
             override val modelProviders get() = listOf(this)
             override suspend fun models() = listOf(expected)
-            override fun model(config: AgentConfig): Model = error("Metadata was not passed")
-            override fun model(config: AgentConfig, info: ModelInfo?): Model {
+            override fun model(config: AgentConfig): AgentModel = error("Metadata was not passed")
+            override fun model(config: AgentConfig, info: ModelInfo?): AgentModel {
                 received = info
-                return Model { _, _, _ -> emptyFlow() }
+                return scriptedModel { _, _ -> emptyFlow() }
             }
         }
         val harness = HarnessRuntime(ServerInstallation.assemble(AgentFiles(Path(home, "installation")), plugins = listOf(plugin)))
@@ -46,7 +48,7 @@ class ModelCatalogTest {
             override val id = "subscription"
             override val name = "Subscription"
             override val catalogId = "lab"
-            override fun model(config: AgentConfig) = Model { _, _, _ -> emptyFlow() }
+            override fun model(config: AgentConfig) = scriptedModel { _, _ -> emptyFlow() }
             override suspend fun models() = listOf(ModelInfo("available", reasoning = listOf("high"), context = 123), ModelInfo("new-private"))
         }
         val metadata = Json.parseToJsonElement("""{"lab":{"models":{
@@ -71,7 +73,7 @@ class ModelCatalogTest {
         var failing = false
         val plugin = object : ModelProvider {
             override val id = "local"
-            override fun model(config: AgentConfig) = Model { _, _, _ -> emptyFlow() }
+            override fun model(config: AgentConfig) = scriptedModel { _, _ -> emptyFlow() }
             override suspend fun models(): List<ModelInfo> {
                 calls++
                 if (failing) error("secret-provider-response")

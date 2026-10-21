@@ -1,8 +1,11 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+import ai.koog.prompt.message.Message
+import ai.koog.prompt.message.MessagePart
+
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.KinuvoClient
-import kinuvo.harness.core.Model
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flowOf
@@ -19,9 +22,10 @@ class AttachmentsTest {
     @Test
     fun sendsAttachmentOnlyAndReplaysAfterRestart() = runBlocking {
         val home = Files.createTempDirectory("attachment-server").toFile()
-        val seen = CompletableDeferred<SessionEntry.UserMessage>()
-        val harness = Harness(Path(home.path), modelFactory = { Model { _, history, _ ->
-            seen.complete(history.filterIsInstance<SessionEntry.UserMessage>().last())
+        val seen = CompletableDeferred<Message.User>()
+        val harness = Harness(Path(home.path), modelFactory = { scriptedModel { prompt, _ ->
+            val history = prompt.messages
+            seen.complete(history.filterIsInstance<Message.User>().last())
             flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
         } })
         val server = HarnessServer(harness)
@@ -31,7 +35,7 @@ class AttachmentsTest {
             client.connect()
             val a = client.call(Api.UploadAttachment, UploadAttachmentParams("note.md", Base64.encode("read me".encodeToByteArray())))
             val sent = client.call(Api.Send, SendParams("default", text = "", attachments = listOf(a.id)))
-            assertEquals(listOf(a), seen.await().attachments)
+            assertEquals(1, seen.await().parts.filterIsInstance<MessagePart.Attachment>().size)
             assertEquals("read me", Base64.decode(client.call(Api.Attachment, AttachmentRef(a.id)).base64).decodeToString())
             assertFails { client.call(Api.Send, SendParams("default", attachments = listOf("../bad"), text = "")) }
             assertFails { client.call(Api.Send, SendParams("default", attachments = List(5) { a.id }, text = "")) }

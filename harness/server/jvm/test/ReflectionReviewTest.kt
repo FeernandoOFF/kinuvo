@@ -1,9 +1,10 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+
 import kinuvo.harness.codex.CodexAuth
 import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.codex.CodexProvider
-import kinuvo.harness.core.Model
 import kinuvo.harness.core.knowledge.ChangeSource
 import kinuvo.harness.core.knowledge.KnowledgeTool
 import kinuvo.harness.core.skills.load
@@ -15,7 +16,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.io.files.Path
-import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -25,7 +25,7 @@ import kotlin.test.assertTrue
 class ReflectionReviewTest {
     private val home = Files.createTempDirectory("reflection-review").toFile()
     private fun harness() = Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))),
-        modelFactory = { Model { _, _, _ -> emptyFlow() } }, plugins = emptyList())
+        modelFactory = { scriptedModel { _, _ -> emptyFlow() } }, plugins = emptyList())
 
     @Test
     fun reviewsKnowledgeAcrossRestartAndRefusesChangedTargets() = runBlocking {

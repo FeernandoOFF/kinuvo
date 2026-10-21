@@ -53,7 +53,7 @@ val BUILT_IN_FEATURES = setOf(ServerFeature.Attachments, ServerFeature.Skills,
 /** Executes Agents with the repositories and resources supplied by the Server installation. */
 open class HarnessRuntime(
     private val dependencies: RuntimeDependencies,
-    private val modelFactory: ((AgentConfig) -> Model)? = null,
+    private val modelFactory: ((AgentConfig) -> AgentModel)? = null,
     val platform: Platform = currentPlatform,
     val memoryCap: Int = 4000,
     val userCap: Int = 4000,
@@ -90,7 +90,7 @@ open class HarnessRuntime(
     fun requireModelProvider(id: String) { require(id in providers) { "No model provider '$id'" } }
     val usage: StateFlow<Usage?> = dependencies.usage
     private val modelFactoryOverride = modelFactory != null
-    private fun model(e: Effective): Model = modelFactory?.invoke(e.agent.config)
+    private fun model(e: Effective): AgentModel = modelFactory?.invoke(e.agent.config)
         ?: (e.provider ?: error("No model provider '${e.agent.config.provider}'")).model(e.agent.config, e.info)
 
     private val reflectionLock = Lock()
@@ -218,7 +218,7 @@ open class HarnessRuntime(
      * Builds a runner with the Agent's current tools, starting what its plugins need on first use. [sessionId] is the
      * Session it runs in; [routine] is set for a Routine's run, which follows the Routine's approval mode.
      */
-    suspend fun runner(agent: Agent, sessionId: String? = null, routine: Routine? = null, taskId: String? = null): AgentRunner {
+    suspend fun runner(agent: Agent, sessionId: String? = null, routine: Routine? = null, taskId: String? = null): AgentRun {
         val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true)
         val e = prepared.effective
         val agent = e.agent
@@ -228,7 +228,7 @@ open class HarnessRuntime(
         val context = kinuvo.harness.core.personalContextFor(agent, docs) + "\n" + kinuvo.harness.core.capabilitiesFor(agent, advertised) + "\nServer platform: $platformDescription. Today is ${Clock.System.todayIn(timeZone)} ($timeZone).\n" + sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
             "\n\nCurrent Skills:\n" + kinuvo.harness.core.skillCatalogFor(if (ToolNames.SKILLS in agent.config.tools) skills.load(agent) else emptyList())
         val model = model(e)
-        return AgentRunner(
+        return AgentRun(
             agent = agent,
             store = store,
             model = model,

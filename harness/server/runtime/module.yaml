@@ -23,5 +23,6 @@ settings:
     serialization: json
 
 test-dependencies:
+  - ../../testing
   - $kotlin.test
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0

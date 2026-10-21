@@ -55,7 +55,7 @@ class AgentRun(
         val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, emit = { event ->
             if (event !is AgentEvent.ToolCallResult || session.calls.none { it.id == event.toolCallId }) send(event)
         })
-        try {
+        val result: AgentEvent = try {
             if (context.isNotBlank() && store.entries(agent, sessionId).activeHistory().filterIsInstance<SessionEntry.Context>().lastOrNull()?.content != context)
                 session.append(SessionEntry.Context(context))
             activation?.let { session.append(it) }
@@ -67,7 +67,7 @@ class AgentRun(
             ) { install(SessionFeature) { this.session = session } }
             try { withContext(TokenUsageCapture()) { koog.run(Unit, runId) } }
             finally { koog.close() }
-            send(AgentEvent.RunFinished(runId))
+            AgentEvent.RunFinished(runId)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -75,12 +75,13 @@ class AgentRun(
             val message = if (generateSequence<Throwable>(e) { it.cause }.any { it is AIAgentMaxNumberOfIterationsReachedException })
                 "Stopped after $maxAgentIterations agent iterations. The work is unfinished; send another message to continue."
             else model.failure(e).message ?: e.toString()
-            send(AgentEvent.RunError(runId, message))
+            AgentEvent.RunError(runId, message)
         } finally {
             withContext(NonCancellable) {
                 session.saveResponse()
                 session.closePending(stopped)
             }
         }
+        send(result)
     }.buffer(0)
 }

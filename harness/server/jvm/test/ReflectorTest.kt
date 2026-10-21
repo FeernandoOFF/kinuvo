@@ -1,11 +1,13 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+import ai.koog.prompt.message.Message
+
 import kinuvo.harness.core.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.codex.CodexAuth
 import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.codex.CodexProvider
-import kinuvo.harness.core.Model
 import kinuvo.harness.core.store.knowledgeConfig
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.Api
@@ -29,13 +31,15 @@ class ReflectorTest {
     private var reflections = 0
     private val instructionsSeen = mutableListOf<String>()
     private val toolDescriptions = mutableListOf<String>()
-    private val model = Model { instructions, history, tools ->
-        val review = history.filterIsInstance<SessionEntry.Context>().lastOrNull()?.content?.takeIf { it.startsWith("Background Reflection instructions:") }
+    private val model = scriptedModel { prompt, tools ->
+        val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
+        val history = prompt.messages
+        val review = history.filterIsInstance<Message.System>().lastOrNull()?.textContent()?.takeIf { it.startsWith("Background Reflection instructions:") }
         instructionsSeen += review?.removePrefix("Background Reflection instructions:\n") ?: instructions
         tools.firstOrNull { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias() }?.let { toolDescriptions += it.description }
         when {
             review == null -> flowOf(StreamFrame.TextDelta("Nice!"), StreamFrame.End())
-            history.dropWhile { it !is SessionEntry.Context || it.content != review }.any { it is SessionEntry.ToolResult } -> flowOf(StreamFrame.TextDelta("Saved."), StreamFrame.End())
+            history.dropWhile { it !is Message.System || it.textContent() != review }.toolResults.isNotEmpty() -> flowOf(StreamFrame.TextDelta("Saved."), StreamFrame.End())
             else -> {
                 reflections++
                 flowOf(StreamFrame.ToolCallComplete("c$reflections", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"create","type":"person","title":"Ana","set":"{\"relationship\":\"sister\"}","reason":"Family","evidence":"${Regex("user-\\d+").find(review!!)?.value}"}"""), StreamFrame.End())

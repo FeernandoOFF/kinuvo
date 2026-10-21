@@ -1,12 +1,13 @@
 package kinuvo.harness.executor
 
+import kinuvo.harness.testing.*
+
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.AgentRunner
+import kinuvo.harness.core.AgentRun
 import kinuvo.harness.core.ApprovalBroker
 import kinuvo.harness.core.ApprovalPolicy
 import kinuvo.harness.core.Approvals
-import kinuvo.harness.core.Model
 import kinuvo.harness.core.RunContext
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.FileStore
@@ -21,7 +22,6 @@ import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.Risk
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemTemporaryDirectory
@@ -80,14 +80,15 @@ class RunCodeTest {
     fun scriptCallsTwoToolsWithApprovals() = runBlocking {
         val agent = store.agents().single().let { it.copy(config = it.config.copy(tools = it.config.tools + ToolNames.RUN_CODE)) }
         val tools = ExecutorPlugin().prepare(RunContext(agent, null), activate = true).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.executor")).tools + listOf(search, save)
-        val model = Model { _, history, _ ->
-            if (history.none { it is SessionEntry.ToolResult }) flowOf(StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.executor"), "run_code").modelAlias(), args(code)), StreamFrame.End())
+        val model = scriptedModel { prompt, _ ->
+            val history = prompt.messages
+            if (history.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.executor"), "run_code").modelAlias(), args(code)), StreamFrame.End())
             else flowOf(StreamFrame.TextDelta("Saved what mattered."), StreamFrame.End())
         }
         val broker = ApprovalBroker()
         val session = store.createSession(agent, "")
         val events = mutableListOf<AgentEvent>()
-        AgentRunner(agent, store, model, tools, approvals = Approvals(ApprovalPolicy(agent, FileTrustRules(files)), broker))
+        AgentRun(agent, store, model, tools, approvals = Approvals(ApprovalPolicy(agent, FileTrustRules(files)), broker))
             .run(session.id, "Search kotlin and remember the good hits").collect {
                 events += it
                 if (it is AgentEvent.ApprovalRequested) broker.respond(it.approvalId, if ("GraalJS" in it.args) ApprovalDecision.Deny("not that one") else ApprovalDecision.AllowOnce)
@@ -115,15 +116,16 @@ class RunCodeTest {
         val agent = store.agents().single().let { it.copy(config = it.config.copy(tools = it.config.tools + ToolNames.RUN_CODE)) }
         val tools = ExecutorPlugin().prepare(RunContext(agent, null), activate = true).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.executor")).tools + listOf(search, save)
         var replied = ""
-        val model = Model { _, history, _ ->
-            val result = history.filterIsInstance<SessionEntry.ToolResult>().lastOrNull()
+        val model = scriptedModel { prompt, _ ->
+            val history = prompt.messages
+            val result = history.toolResults.lastOrNull()
             if (result == null) flowOf(StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.executor"), "run_code").modelAlias(), args(code)), StreamFrame.End())
             else { replied = result.output; flowOf(StreamFrame.TextDelta("Saved 2."), StreamFrame.End()) }
         }
         val broker = ApprovalBroker()
         val session = store.createSession(agent, "")
         val events = mutableListOf<AgentEvent>()
-        AgentRunner(agent, store, model, tools, approvals = Approvals(ApprovalPolicy(agent, FileTrustRules(files)), broker))
+        AgentRun(agent, store, model, tools, approvals = Approvals(ApprovalPolicy(agent, FileTrustRules(files)), broker))
             .run(session.id, "Search kotlin and remember the good hits").collect {
                 events += it
                 if (it is AgentEvent.ApprovalRequested) broker.respond(it.approvalId, ApprovalDecision.AllowOnce)

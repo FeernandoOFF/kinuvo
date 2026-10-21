@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.modelAlias
@@ -7,7 +9,6 @@ import kinuvo.harness.core.Agent
 import kinuvo.harness.core.AgentConfig
 import kinuvo.harness.core.HarnessPlugin
 import kinuvo.harness.core.InstructionSection
-import kinuvo.harness.core.Model
 import kinuvo.harness.core.ModelProvider
 import kinuvo.harness.core.PluginTools
 import kinuvo.harness.core.RunContext
@@ -33,7 +34,7 @@ class PluginsTest {
         override val id = "fake"
         override val modelProviders get() = listOf(this)
         override suspend fun models() = listOf(ModelInfo("plugin-model", "Plugin model"))
-        override fun model(config: AgentConfig) = Model { _, _, tools ->
+        override fun model(config: AgentConfig) = scriptedModel { _, tools ->
             flowOf(StreamFrame.TextDelta(tools.joinToString { it.name }), StreamFrame.End())
         }
         override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(object : Tool {

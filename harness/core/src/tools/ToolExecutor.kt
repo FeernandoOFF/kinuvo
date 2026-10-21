@@ -21,15 +21,13 @@ class ToolExecutor(
 ) {
     private val toolsByName = tools.indexedTools()
     private val callable = (advertisedTools + tools.map { it.descriptor }).distinctBy { it.name }
-    val descriptors: List<ToolDescriptor> get() = callable
 
-    suspend fun call(call: SessionEntry.ToolCall, record: suspend (SessionEntry.ToolResult) -> Unit = {}, stopped: (String) -> Unit = {}): SessionEntry.ToolResult =
-        invoke(call.copy(identity = toolsByName[call.name]?.identity), call.id, stopped, record)
+    suspend fun call(call: SessionEntry.ToolCall, stopped: (String) -> Unit = {}): SessionEntry.ToolResult =
+        invoke(call.copy(identity = toolsByName[call.name]?.identity), call.id, stopped)
 
-    private suspend fun invoke(call: SessionEntry.ToolCall, approvalId: String, stopped: (String) -> Unit, record: suspend (SessionEntry.ToolResult) -> Unit = {}): SessionEntry.ToolResult {
+    private suspend fun invoke(call: SessionEntry.ToolCall, approvalId: String, stopped: (String) -> Unit): SessionEntry.ToolResult {
         emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
         val result = perform(call, approvalId, stopped)
-        record(result)
         emit(AgentEvent.ToolCallResult(call.id, result.output, result.isError, result.identity))
         return result
     }

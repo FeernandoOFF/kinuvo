@@ -1,5 +1,8 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+import ai.koog.prompt.message.Message
+
 import kinuvo.harness.core.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.KinuvoClient
@@ -17,19 +20,20 @@ import kotlin.uuid.Uuid
 
 class EmbeddedServerHostTest {
     private val home = Path(SystemTemporaryDirectory, "kinuvo-local-${Uuid.random()}")
-    private val seen = mutableListOf<List<SessionEntry>>()
+    private val seen = mutableListOf<List<Message>>()
     private val offered = mutableListOf<List<String>>()
     private val provider = object : ModelProvider {
         override val id = "test"
         override suspend fun models() = listOf(ModelInfo("local"))
-        override fun model(config: AgentConfig) = Model { _, history, tools ->
+        override fun model(config: AgentConfig) = scriptedModel { prompt, tools ->
+            val history = prompt.messages
             seen += history
             offered += tools.map { it.name }
-            val user = history.filterIsInstance<SessionEntry.UserMessage>().last()
+            val user = history.filterIsInstance<Message.User>().last()
             when {
-                user.text == "remember tea" && history.last() is SessionEntry.UserMessage && tools.isNotEmpty() ->
+                user.textContent() == "remember tea" && history.last() is Message.User && history.toolResults.isEmpty() && tools.isNotEmpty() ->
                     flowOf(StreamFrame.ToolCallComplete("remember", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"add","target":"user","content":"Prefers tea"}"""), StreamFrame.End())
-                history.last() is SessionEntry.ToolResult -> flowOf(StreamFrame.TextDelta("Saved."), StreamFrame.End())
+                history.toolResults.isNotEmpty() -> flowOf(StreamFrame.TextDelta("Saved."), StreamFrame.End())
                 else -> flowOf(StreamFrame.TextDelta("Reply."), StreamFrame.End())
             }
         }
@@ -120,8 +124,8 @@ class EmbeddedServerHostTest {
                 assertTrue(client.call(Api.Sessions, SessionsParams("default")).sessions.any { it.id == id })
                 val second = client.call(Api.CreateSession, AgentRef("default")).id
                 run(client, second, "what do I prefer?")
-                assertTrue(seen.last().filterIsInstance<SessionEntry.Context>().last().content.contains("Prefers tea"))
-                assertFalse(seen.last().filterIsInstance<SessionEntry.UserMessage>().any { it.text == "remember tea" })
+                assertTrue(seen.last().filterIsInstance<Message.System>().last().textContent().contains("Prefers tea"))
+                assertFalse(seen.last().filterIsInstance<Message.User>().any { it.textContent() == "remember tea" })
                 assertFailsWith<IllegalStateException> { client.call(Api.Send, SendParams("default", "missing", "hello")) }
                 assertFailsWith<IllegalStateException> { client.call(Api.ConfigureSession, ConfigureSessionParams("default", second, SessionSettings(provider = "cloud", model = "x"))) }
             } finally { client.close(); server.close() }

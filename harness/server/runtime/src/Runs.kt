@@ -2,7 +2,7 @@ package kinuvo.harness.server
 
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import kinuvo.harness.core.Agent
-import kinuvo.harness.core.AgentRunner
+import kinuvo.harness.core.AgentRun
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.SessionEntry
@@ -67,7 +67,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
         voice: Boolean = false,
         onEvent: (AgentEvent) -> Unit = {},
         onDone: suspend (stopped: Boolean) -> Unit = {},
-        runner: suspend () -> AgentRunner,
+        runner: suspend () -> AgentRun,
     ): Run {
         // Reserve the Session before anything suspends, so two sends can't both start a run in it.
         val reservation = Job()

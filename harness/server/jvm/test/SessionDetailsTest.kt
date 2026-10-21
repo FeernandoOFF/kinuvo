@@ -1,8 +1,9 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+import ai.koog.prompt.message.Message
+
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.Model
-import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -18,8 +19,8 @@ class SessionDetailsTest {
 
     @Test
     fun renamesAndFavoritesStayOutOfTheModelsHistory(): Unit = runBlocking {
-        val seen = mutableListOf<List<SessionEntry>>()
-        val harness = Harness(Path(home.path), modelFactory = { Model { _, history, _ -> seen += history; flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) } }, plugins = emptyList())
+        val seen = mutableListOf<List<Message>>()
+        val harness = Harness(Path(home.path), modelFactory = { scriptedModel { prompt, _ -> seen += prompt.messages; flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) } }, plugins = emptyList())
         try {
             val agent = harness.store.agents().single()
             val session = harness.newSession(agent).id
@@ -33,7 +34,7 @@ class SessionDetailsTest {
             assertEquals(emptyList(), harness.log.page(agent, older, 1).favorites)
 
             harness.runner(agent, session).run(session, "again").toList()
-            assertTrue(seen.last().none { it is SessionEntry.Details })
+            assertEquals(listOf("first message", "again"), seen.last().filterIsInstance<Message.User>().map { it.textContent() })
 
             val reset = harness.update(agent, session, " ", false)
             assertEquals("first message", reset.title)

@@ -1,9 +1,10 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+import ai.koog.prompt.message.Message
+
 import kinuvo.harness.core.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.Model
-import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.TaskStatus
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
@@ -28,14 +29,15 @@ class TaskDispatcherTest {
     private val home = Path(SystemTemporaryDirectory, "harness-tasks-${Uuid.random()}")
     private var finish = true
     private var fail = false
-    private val model = Model { _, history, tools ->
+    private val model = scriptedModel { prompt, tools ->
+        val history = prompt.messages
         assertTrue(tools.any { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.tasks"), "tasks").modelAlias() })
-        val prompt = history.filterIsInstance<SessionEntry.UserMessage>().first().text
+        val prompt = history.filterIsInstance<Message.User>().first().textContent()
         val id = Regex("""\[Task ([^\]]+)]""").find(prompt)!!.groupValues[1]
         if (fail) flow {
             emit(StreamFrame.TextDelta("Partial reply"))
             error("Model failed")
-        } else if (finish && history.none { it is SessionEntry.ToolResult }) flowOf(
+        } else if (finish && history.toolResults.isEmpty()) flowOf(
             StreamFrame.TextDelta("Working on it."),
             StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.tasks"), "tasks").modelAlias(), """{"action":"update","id":"$id","status":"done"}"""), StreamFrame.End(),
         ) else flowOf(StreamFrame.TextDelta("On it."), StreamFrame.End())

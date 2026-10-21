@@ -1,8 +1,8 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+
 import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
 import kinuvo.harness.core.store.AgentFiles
@@ -35,9 +35,9 @@ class RunPreparationTest {
         override fun usableTools(model: String, tools: List<ToolDescriptor>) = tools.filter {
             it.name != "ping" || it.requiredParameters.any { p -> p.name == "message" }
         }
-        override fun model(config: AgentConfig): Model {
+        override fun model(config: AgentConfig): AgentModel {
             modelsBuilt++
-            return Model { _, _, tools ->
+            return scriptedModel { _, tools ->
                 seen += tools.map { it.name }
                 flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
             }

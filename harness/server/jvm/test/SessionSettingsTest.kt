@@ -1,10 +1,13 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+import ai.koog.prompt.message.Message
+
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.codex.CodexAuth
 import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.codex.CodexProvider
-import kinuvo.harness.core.Model
+import kinuvo.harness.core.AgentModel
 import kinuvo.harness.core.ModelProvider
 import kinuvo.harness.core.HarnessPlugin
 import kinuvo.harness.core.AgentConfig
@@ -19,7 +22,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.io.files.Path
-import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -35,9 +37,9 @@ class SessionSettingsTest {
             override val definition = kinuvo.protocol.PluginDefinition("test.$id", "Test")
             override val id = id
             override val modelProviders get() = listOf(this)
-            override fun model(config: AgentConfig): Model {
+            override fun model(config: AgentConfig): AgentModel {
                 used += "$id/${config.model}"
-                return Model { _, _, _ -> flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) }
+                return scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) }
             }
         }
         val plugins = listOf(plugin("first"), plugin("second"))
@@ -68,10 +70,10 @@ class SessionSettingsTest {
     @Test
     fun aSessionRunsWithItsOwnSettings(): Unit = runBlocking {
         val used = mutableListOf<String>()
-        val seen = mutableListOf<List<SessionEntry>>()
+        val seen = mutableListOf<List<Message>>()
         val harness = Harness(Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { config ->
             used += "${config.model}/${config.reasoning}/${config.approvals}"
-            Model { _, history, _ -> seen += history; flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) }
+            scriptedModel { prompt, _ -> seen += prompt.messages; flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) }
         }, plugins = emptyList())
         val agent = harness.store.agents().single()
         val session = harness.newSession(agent).id
@@ -80,7 +82,7 @@ class SessionSettingsTest {
         assertEquals(SessionSettings("gpt-mini", null, "strict"), info.settings)
         harness.runner(agent, session).run(session, "hi").toList()
         assertEquals("gpt-mini/medium/strict", used.last())
-        assertEquals(listOf(SessionEntry.UserMessage("hi")), seen.last().filterNot { it is SessionEntry.Context })
+        assertEquals(listOf("hi"), seen.last().filterIsInstance<Message.User>().map { it.textContent() })
 
         harness.configure(agent, session, SessionSettings())
         harness.runner(agent, session)

@@ -54,7 +54,11 @@ class ServerRuntime(
     val runActivity get() = runs.activity
 
     /** With nobody watching, runs paused on an Approval or a question can't go on, so they stop, now or once they pause; the rest keep going. */
-    private suspend fun stopWaiting() = runs.sessions().filter { harness.log.status(it) == SessionStatus.Waiting }.forEach(runs::stop)
+    private suspend fun stopWaiting() {
+        val waiting = runs.sessions().filter { harness.log.status(it) == SessionStatus.Waiting }
+        waiting.forEach(runs::stop)
+        waiting.forEach { runs.join(it) }
+    }
 
     private fun changedCapabilities() = broadcast(Api.CapabilitiesChanged, Unit)
     init {

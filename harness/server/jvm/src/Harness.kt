@@ -6,13 +6,13 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import kinuvo.protocol.currentPlatform
 
-class Harness private constructor(home: Path, dependencies: RuntimeDependencies, modelFactory: ((AgentConfig) -> Model)?) : HarnessRuntime(
+class Harness private constructor(home: Path, dependencies: RuntimeDependencies, modelFactory: ((AgentConfig) -> AgentModel)?) : HarnessRuntime(
     dependencies, modelFactory,
     platformDescription = "${currentPlatform.displayName} ${System.getProperty("os.arch")}",
 ) {
     val files = AgentFiles(home)
     constructor(home: Path = kinuvoHome(), store: Store? = null, providers: List<HarnessPlugin>? = null,
-        modelFactory: ((AgentConfig) -> Model)? = null, clock: () -> Long = System::currentTimeMillis,
+        modelFactory: ((AgentConfig) -> AgentModel)? = null, clock: () -> Long = System::currentTimeMillis,
         plugins: List<HarnessPlugin>? = null, secretProviders: List<SecretProvider>? = null,
     ) : this(home, install(home, store, providers, plugins, secretProviders, clock), modelFactory)
 

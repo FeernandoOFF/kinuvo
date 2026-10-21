@@ -1,12 +1,14 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+import ai.koog.prompt.message.Message
+
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.AgentConfig
 import kinuvo.harness.core.AgentDoc
-import kinuvo.harness.core.Model
+import kinuvo.harness.core.AgentModel
 import kinuvo.protocol.RequestKind
-import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.SessionSettings
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -22,12 +24,14 @@ class WarmReflectionTest {
     fun cleanup() = kinuvo.harness.core.store.deleteTree(home)
     @Test
     fun reflectionReusesSessionModelAndExactParentInputsAndRestartFallsBack() = runBlocking {
-        data class Input(val instructions: String, val history: List<SessionEntry>, val tools: List<ToolDescriptor>)
+        data class Input(val instructions: String, val history: List<Message>, val tools: List<ToolDescriptor>)
         val configs = mutableListOf<AgentConfig>()
         val seen = mutableListOf<Input>()
-        val factory: (AgentConfig) -> Model = { config ->
+        val factory: (AgentConfig) -> AgentModel = { config ->
             configs += config
-            Model { instructions, history, tools ->
+            scriptedModel { prompt, tools ->
+                val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
+                val history = prompt.messages
                 seen += Input(instructions, history, tools)
                 flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
             }
@@ -40,7 +44,7 @@ class WarmReflectionTest {
         harness.runner(agent, session.id).run(session.id, "Remember my preference for short replies").collect {}
         val parent = seen.single()
         assertFalse("Fresh memory" in parent.instructions)
-        assertTrue(parent.history.filterIsInstance<SessionEntry.Context>().any { "Fresh memory" in it.content })
+        assertTrue(parent.history.filterIsInstance<Message.System>().any { "Fresh memory" in it.textContent() })
         val history = harness.store.entries(agent, session.id)
         val result = harness.reflect(agent, session.id, history, history)
         assertTrue(result.warmContext)

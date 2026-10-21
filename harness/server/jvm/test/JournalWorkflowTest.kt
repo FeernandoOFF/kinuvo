@@ -1,10 +1,11 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+import ai.koog.prompt.message.Message
+
 import kinuvo.harness.core.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.Model
 import kinuvo.harness.core.knowledge.*
-import kinuvo.harness.core.tools.ToolNames
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -17,12 +18,13 @@ class JournalWorkflowTest {
     @Test
     fun routineAsksQuestionsThenReadsWorkoutsBeforeWritingTheJournal() = runBlocking {
         val home = Files.createTempDirectory("journal-workflow").toFile()
-        val model = Model { _, history, tools ->
-            val instructions = history.filterIsInstance<SessionEntry.Context>().last().content
+        val model = scriptedModel { prompt, tools ->
+            val history = prompt.messages
+            val instructions = history.filterIsInstance<Message.System>().last().textContent()
             assertTrue("Preserve all writing outside it" in instructions)
             assertTrue("<!-- kinuvo-journal:start -->" in instructions)
             assertTrue(tools.any { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "ask_user").modelAlias() })
-            val results = history.filterIsInstance<SessionEntry.ToolResult>()
+            val results = history.toolResults
             val call = when (results.size) {
                 0 -> StreamFrame.ToolCallComplete("ask", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "ask_user").modelAlias(), """{"questions":[{"id":"reflection","label":"How was today?","kind":"text"}]}""")
                 1 -> {
@@ -68,7 +70,7 @@ class JournalWorkflowTest {
     @Test
     fun refreshingTheGeneratedBlockPreservesUserWritingAndCanBeUndone() = runBlocking {
         val home = Files.createTempDirectory("journal-refresh").toFile()
-        val harness = Harness(home = Path(home.path), modelFactory = { Model { _, _, _ -> emptyFlow() } })
+        val harness = Harness(home = Path(home.path), modelFactory = { scriptedModel { _, _ -> emptyFlow() } })
         try {
             val old = "<!-- kinuvo-journal:start -->\nSample workout: 30 min\n<!-- kinuvo-journal:end -->"
             val body = "## My notes\nKeep my writing.\n\n## Kinuvo\n$old\n\n## Plans\nTomorrow's plans."

@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.core.*
@@ -18,7 +20,7 @@ class SharedServerTest {
     private val provider = object : ModelProvider {
         override val id = "test"
         override suspend fun models() = listOf(ModelInfo("local"))
-        override fun model(config: AgentConfig) = Model { _, _, _ -> flowOf(StreamFrame.TextDelta("Reply."), StreamFrame.End()) }
+        override fun model(config: AgentConfig) = scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("Reply."), StreamFrame.End()) }
     }
 
     @AfterTest

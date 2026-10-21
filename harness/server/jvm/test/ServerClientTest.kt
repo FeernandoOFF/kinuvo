@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+
 import kinuvo.harness.core.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.AuthException
@@ -7,7 +9,6 @@ import kinuvo.client.KinuvoClient
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.harness.server.Harness
-import kinuvo.harness.core.Model
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.exists
 import kinuvo.harness.core.store.FileStore
@@ -25,7 +26,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.takeWhile
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -67,8 +67,9 @@ class ServerClientTest {
     private val home = Files.createTempDirectory("harness-server").toFile()
 
     /** First turn: call skill_manage (needs an Approval); after the tool result: answer "done". */
-    private val model = Model { _, history, _ ->
-        if (history.none { it is SessionEntry.ToolResult }) flowOf(
+    private val model = scriptedModel { prompt, _ ->
+        val history = prompt.messages
+        if (history.toolResults.isEmpty()) flowOf(
             StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "skill_manage").modelAlias(), """{"action":"create","name":"x","content":"---\nname: x\ndescription: d\n---\nbody"}"""),
             StreamFrame.End(),
         ) else flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
@@ -165,7 +166,7 @@ class ServerClientTest {
 
     @Test
     fun managesRoutinesAndReportsTheirRuns() = runBlocking {
-        val server = HarnessServer(Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { Model { _, _, _ -> flowOf(StreamFrame.TextDelta("hello"), StreamFrame.End()) } }))
+        val server = HarnessServer(Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("hello"), StreamFrame.End()) } }))
         val port = server.start("127.0.0.1", 0)
         try {
             withTimeout(30_000) {
