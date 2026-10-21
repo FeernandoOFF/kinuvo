@@ -1,5 +1,9 @@
+@file:OptIn(ai.koog.agents.core.annotation.InternalAgentsApi::class)
+
 package kinuvo.harness.core
 
+import ai.koog.agents.core.agent.entity.AIAgentNodeBase
+import ai.koog.agents.core.dsl.builder.AIAgentSubgraphBuilderBase
 import ai.koog.agents.core.dsl.builder.node
 import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.core.dsl.extension.nodeLLMCompressHistory
@@ -9,6 +13,11 @@ import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.SessionEntry
 
 internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit) = strategy<Unit, Unit>("kinuvoChat") {
+    edge(nodeStart forwardTo chatTurn(session, executor, stopped, nodeFinish))
+}
+
+/** The Session's history, compaction and the tool loop, ending at [finish]; returns the node to start from. */
+internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit, finish: AIAgentNodeBase<Unit, *>): AIAgentNodeBase<Unit, Unit> {
     val loop = ToolLoop(session.messages, session.response, { executor }, session::toolName,
         repeated = { call ->
             session.toolStarted(call.id)
@@ -34,9 +43,9 @@ internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: 
         llm.writeSession { prompt = session.load() }
     }
     val compactHistory by nodeLLMCompressHistory<Unit>(name = COMPACT_HISTORY, strategy = session.compressionStrategy)
-    edge(nodeStart forwardTo checkHistory)
     edge(checkHistory forwardTo compactHistory onCondition { session.needsCompression(llm.prompt) })
     edge(checkHistory forwardTo loop.request onCondition { !session.needsCompression(llm.prompt) })
     edge(compactHistory forwardTo loop.request)
-    loop.connect(this, checkHistory)
+    loop.connect(this, checkHistory, finish)
+    return checkHistory
 }

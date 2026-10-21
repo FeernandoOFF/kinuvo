@@ -122,7 +122,7 @@ class NotificationsTest {
         harness.saveService(ServiceKind.Notifications, ServiceSettings("test"))
         val agent = harness.store.agents().single()
         val session = harness.newSession(agent).id
-        harness.store.append(agent, session, SessionEntry.AssistantMessage("[SILENT]"))
+        harness.store.append(agent, session, SessionEntry.AssistantMessage("Nothing today"))
         var routine: RoutineRef? = RoutineRef("hb", "Heartbeat")
         val notifications = Notifications(harness, this) { routine }
         notifications.on(agent, session, AgentEvent.RunFinished("r1"))
@@ -131,6 +131,6 @@ class NotificationsTest {
         assertEquals(listOf("Kinuvo has questions", "Which flight?"), withTimeout(5_000) { sent.receive() }.let { listOf(it.title, it.body) })
         routine = null
         notifications.on(agent, session, AgentEvent.RunFinished("r2"))
-        assertEquals("[SILENT]", withTimeout(5_000) { sent.receive() }.body)
+        assertEquals("Nothing today", withTimeout(5_000) { sent.receive() }.body)
     }
 }

@@ -2,6 +2,7 @@ package kinuvo.harness.server
 
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import kinuvo.harness.core.Agent
+import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.harness.core.routines.Schedule
 import kinuvo.harness.core.routines.formatTime
 import kinuvo.protocol.AgentEvent
@@ -9,7 +10,6 @@ import kinuvo.protocol.Routine
 import kinuvo.protocol.RoutineRan
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.RunStatus
-import kinuvo.protocol.SILENT_REPLY
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.Trigger
 import kotlinx.coroutines.CancellationException
@@ -126,14 +126,17 @@ class Scheduler(
         var error: String? = null
         var kept: String? = sessionId
         var status = RunStatus.Ok
+        var report: String? = null
+        val routineRun = RoutineRun(routine, clock) { onRan(RoutineRan(agent.id, ref, RunStatus.Ok, sessionId, summary = it.summary)) }
         // Cleans up while the Session is still reserved, so truncating can't take a turn that starts right after.
         val run = try { runs.start(agent, sessionId, prompt, routine = ref, onEvent = { if (it is AgentEvent.RunError) error = it.message }, onDone = { stopped ->
             val added = harness.store.entries(agent, sessionId).drop(before)
-            val reply = added.filterIsInstance<SessionEntry.AssistantMessage>().lastOrNull()?.text
+            val outcome = added.filterIsInstance<SessionEntry.Outcome>().lastOrNull()
+            report = outcome?.summary?.takeIf { outcome.report }
             status = when {
                 stopped -> RunStatus.Stopped
                 error != null -> RunStatus.Error
-                reply?.trim()?.startsWith(SILENT_REPLY) == true -> RunStatus.Silent
+                outcome?.report == false -> RunStatus.Silent
                 else -> RunStatus.Ok
             }
             // A silent run's own Session stays in the Routine's history, except the Heartbeat's; one in an attached chat is removed from it.
@@ -144,12 +147,12 @@ class Scheduler(
                 harness.store.deleteSession(agent, sessionId)
             }
         }) {
-            harness.runner(agent, sessionId, routine)
+            harness.runner(agent, sessionId, routineRun)
         } } catch (_: Runs.StoppedBeforeStart) { null }
         run?.job?.join()
         record(agent, routine, status, error, startedAt, kept)
-        if (kept == null) harness.routines.update(agent, routine.id) { it.copy(lastSessionId = routine.lastSessionId) }
-        if (status == RunStatus.Ok || status == RunStatus.Error) onRan(RoutineRan(agent.id, ref, status, kept, error))
+        harness.routines.update(agent, routine.id) { it.copy(lastReport = report, lastSessionId = if (kept == null) routine.lastSessionId else it.lastSessionId) }
+        if (status == RunStatus.Error) onRan(RoutineRan(agent.id, ref, status, kept, error))
     }
 
     private suspend fun record(agent: Agent, routine: Routine, status: RunStatus, error: String?, at: Long? = null, sessionId: String? = null) {
@@ -159,8 +162,7 @@ class Scheduler(
     }
 
     private fun heartbeatPrompt(checklist: String): String? = checklist.takeIf { it.isNotBlank() }?.let {
-        "This is your Heartbeat, a periodic check-in. Work through the checklist below and act on anything that's due. " +
-            "If nothing needs the user's attention, reply with only $SILENT_REPLY.\n\n## HEARTBEAT.md\n\n${it.trim()}"
+        "This is your Heartbeat, a periodic check-in. Work through the checklist below and act on anything that's due.\n\n## HEARTBEAT.md\n\n${it.trim()}"
     }
 
     private fun format(at: Long, routine: Routine) = formatTime(at, routine.timeZone)

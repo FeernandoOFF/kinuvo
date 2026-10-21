@@ -147,7 +147,7 @@ What the Server sends to the user's phone through a Notifier (ntfy now) when no 
 _Avoid_: Push, alert
 
 **Routine**:
-A prompt an Agent runs on its own on a schedule (once, every so often, or a cron expression), each run in a new Session or continuing one Session.
+A prompt an Agent runs on its own on a schedule (once, every so often, or a cron expression), each run in a new Session or continuing one Session. Each run starts from the last run's outcome, ends with the Agent reporting something new (a Notification) or nothing new (nothing is sent), and skips any tool call whose Approval goes unanswered for 30 minutes.
 _Avoid_: Cron job, scheduled task, automation
 
 **Heartbeat**:

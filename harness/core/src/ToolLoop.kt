@@ -94,8 +94,8 @@ internal class ToolLoop(
         pending = pending.drop(1)
     }
 
-    fun connect(builder: AIAgentSubgraphBuilderBase<Unit, Unit>, beforeRequest: AIAgentNodeBase<Unit, Unit> = request) = with(builder) {
-        edge(request forwardTo nodeFinish onCondition { pending.isEmpty() })
+    fun connect(builder: AIAgentSubgraphBuilderBase<Unit, Unit>, beforeRequest: AIAgentNodeBase<Unit, Unit> = request, finish: AIAgentNodeBase<Unit, *> = builder.nodeFinish) = with(builder) {
+        edge(request forwardTo finish onCondition { pending.isEmpty() })
         edge(request forwardTo executeTool onCondition { pending.isNotEmpty() })
         edge(executeTool forwardTo executeTool onCondition { pending.isNotEmpty() })
         edge(executeTool forwardTo beforeRequest onCondition { pending.isEmpty() })

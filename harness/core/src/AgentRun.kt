@@ -5,6 +5,8 @@ import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.agent.exception.AIAgentMaxNumberOfIterationsReachedException
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.Prompt
+import kinuvo.harness.core.routines.RoutineRun
+import kinuvo.harness.core.routines.routineStrategy
 import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolExecutor
@@ -35,6 +37,7 @@ class AgentRun(
     private val attach: ((String, ByteArray) -> Attachment)? = null,
     private val tracing: AgentTracing? = null,
     private val traceSessionId: String? = null,
+    private val routine: RoutineRun? = null,
 ) {
     private val advertisedTools = advertisedTools.sortedBy { it.name }
 
@@ -43,7 +46,6 @@ class AgentRun(
         userText: String,
         activation: SessionEntry.Activation? = null,
         runId: String = Uuid.random().toString(),
-        routine: RoutineRef? = null,
         attachments: List<Attachment> = emptyList(),
         voice: Boolean = false,
     ): Flow<AgentEvent> = channelFlow {
@@ -60,12 +62,12 @@ class AgentRun(
             if (context.isNotBlank() && store.entries(agent, sessionId).activeHistory().filterIsInstance<SessionEntry.Context>().lastOrNull()?.content != context)
                 session.append(SessionEntry.Context(context))
             activation?.let { session.append(it) }
-            session.append(SessionEntry.UserMessage(userText, routine, attachments, voice))
+            if (routine == null) session.append(SessionEntry.UserMessage(userText, null, attachments, voice))
             val koog = AIAgent(
                 id = agent.id,
                 promptExecutor = model.executor,
                 agentConfig = AIAgentConfig(Prompt.Empty, model.model, MAX_AGENT_ITERATIONS),
-                strategy = chatStrategy(session, executor) { stopped = it },
+                strategy = routine?.let { routineStrategy(session, executor, it, userText) { stopped = it } } ?: chatStrategy(session, executor) { stopped = it },
             ) {
                 install(ToolLoopFeature) {
                     requests = session.requests
