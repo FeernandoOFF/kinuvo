@@ -84,7 +84,7 @@ sealed interface SessionEntry {
     data class Reflection(val id: String, val at: Long, val result: ReflectionResult) : SessionEntry
 
     @Serializable @SerialName("reflection_review")
-    data class ReflectionReview(val proposalId: String, val approved: Boolean) : SessionEntry
+    data class ReflectionReview(val proposalId: String, val approved: Boolean, val note: String? = null, val result: ReflectionResult? = null) : SessionEntry
 
     /** A Skill loaded into the Session by the user (`/name`) or carried over by Compaction. */
     @Serializable @SerialName("activation")
