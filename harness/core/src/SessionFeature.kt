@@ -13,6 +13,7 @@ import kinuvo.harness.core.tools.Tool
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.RequestKind
 import kinuvo.protocol.SessionEntry
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
@@ -35,7 +36,7 @@ class SessionFeature private constructor() {
             }
             pipeline.interceptLLMStreamingStarting(this) { session.startRequest() }
             pipeline.interceptLLMStreamingFrameReceived(this) { session.frame(it.streamFrame) }
-            pipeline.interceptLLMStreamingFailed(this) { session.streamFailed = true }
+            pipeline.interceptLLMStreamingFailed(this) { session.failStream() }
             pipeline.interceptLLMStreamingCompleted(this) { session.saveResponse() }
             pipeline.interceptLLMCallStarting(this) { session.startRequest() }
             pipeline.interceptLLMCallCompleted(this) {
@@ -90,12 +91,15 @@ internal class RunSession(
     var measurement: ModelMeasurement? = null
         private set
     private var ended = false
-    var streamFailed = false
+    private var streamFailed = false
     private var compressing = false
     private var before: Prompt? = null
     private var retained: List<Message> = emptyList()
+    private var systems: List<Message> = emptyList()
     private val budget = (contextTokens ?: model.model.contextLength?.toInt())?.let { it - minOf(4096, it / 4) }
     private val threshold = minOf(agent.config.compactAtTokens, budget ?: Int.MAX_VALUE)
+
+    val compressionStrategy get() = HistoryCompression { (budget ?: 24_576) - instructions.length / 4 }
 
     suspend fun load(): Prompt {
         val entries = store.entries(agent, sessionId)
@@ -118,6 +122,8 @@ internal class RunSession(
         }
     }
 
+    fun failStream() { streamFailed = true }
+
     fun frame(frame: StreamFrame) {
         measurement?.frame(frame)
         when (frame) {
@@ -125,7 +131,7 @@ internal class RunSession(
             is StreamFrame.ReasoningComplete -> response += SessionEntry.Reasoning(
                 (frame.summary?.takeIf { it.isNotEmpty() } ?: frame.content).joinToString("\n\n"), frame.id, frame.encrypted, messageId)
             is StreamFrame.ToolCallComplete -> response += SessionEntry.ToolCall(
-                requireNotNull(frame.id) { "The model returned a tool call without an ID" }, frame.name, frame.content, identities[frame.name])
+                frame.id ?: Uuid.random().toString(), frame.name, frame.content, identities[frame.name])
             is StreamFrame.End -> ended = true
             else -> Unit
         }
@@ -164,11 +170,7 @@ internal class RunSession(
 
     fun needsCompression(prompt: Prompt): Boolean {
         if (kind == RequestKind.Reflection || estimate(prompt) <= threshold) return false
-        val userAt = prompt.messages.indexOfLast(messages::user)
-        val compressible = prompt.messages.withIndex().any { (index, message) ->
-            index != userAt && message !is Message.System && !(index > userAt && messages.files(message))
-        }
-        if (compressible) return true
+        if (olderMessages(prompt).isNotEmpty()) return true
         check(budget == null || estimate(prompt) <= budget) { "The current request and tools exceed this model's context window. Shorten the request or select a larger model." }
         return false
     }
@@ -178,17 +180,17 @@ internal class RunSession(
         val existing = messages.entries(current.messages).filterIsInstance<SessionEntry.Activation>().map { it.name }.toSet()
         val prompt = current.withMessages { it + messages.messages(active.filterNot { it.name in existing }) }
         before = current
-        val userAt = prompt.messages.indexOfLast(messages::user)
-        retained = prompt.messages.filterIndexed { index, message -> index == userAt || index > userAt && messages.files(message) }
-        val older = prompt.messages.filterNot { it in retained }
-        check(older.any { it !is Message.System }) { "The current request and tools exceed this model's context window. Shorten the request or select a larger model." }
+        systems = prompt.messages.filterIsInstance<Message.System>()
+        val older = olderMessages(prompt)
+        retained = prompt.messages.filter { message -> message !is Message.System && older.none { it === message } }
+        check(older.isNotEmpty()) { "The current request and tools exceed this model's context window. Shorten the request or select a larger model." }
         compressing = true
         return prompt.withMessages { older }
     }
 
     suspend fun afterCompression(prompt: Prompt): Prompt {
         val original = requireNotNull(before)
-        val result = prompt.withMessages { it + retained }
+        val result = prompt.withMessages { systems + it + retained }
         check(result.messages.any { it is Message.Assistant && it.textContent().isNotBlank() }) { "Compaction produced an empty summary" }
         check(estimate(result) < estimate(original)) { "Compaction did not reduce the context. Shorten the request or select a larger model." }
         check(budget == null || estimate(result) <= budget) { "Compaction could not fit this request and tools in the model's context window. Shorten the request or select a larger model." }
@@ -198,6 +200,16 @@ internal class RunSession(
         before = null
         emit(AgentEvent.Compacted(summary))
         return result
+    }
+
+    private fun olderMessages(prompt: Prompt): List<Message> {
+        val userAt = prompt.messages.indexOfLast(messages::user)
+        var exchangeAt = prompt.messages.indexOfLast { message -> message.parts.any { it is ai.koog.prompt.message.MessagePart.Tool.Call } }
+        if (exchangeAt <= userAt) exchangeAt = prompt.messages.size
+        else while (exchangeAt > userAt + 1 && prompt.messages[exchangeAt - 1] is Message.Assistant) exchangeAt--
+        return prompt.messages.filterIndexed { index, message ->
+            message !is Message.System && index != userAt && index < exchangeAt
+        }
     }
 
     private fun estimate(prompt: Prompt): Int = messages.entries(prompt.messages).estimatedTokens(instructions, tools)

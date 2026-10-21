@@ -30,11 +30,12 @@ class ReflectionTest {
 
     @Test
     fun compactedParentReplaysItsRetainedHistoryInTheFork() = runTest {
-        val history = listOf(SessionEntry.Context("Earlier summary"), SessionEntry.Context("Current context"),
+        val history = listOf(SessionEntry.AssistantMessage("Earlier summary"), SessionEntry.Context("Current context"),
             SessionEntry.UserMessage("Remember this"), SessionEntry.AssistantMessage("Okay"))
         val model = scriptedModel { prompt, _ ->
             val seen = prompt.messages
-            assertEquals(listOf("Current context", "Remember this", "Okay"), seen.drop(2).take(3).map { it.textContent() })
+            assertEquals(listOf("Remember this", "Okay"), seen.drop(2).take(2).map { it.textContent() })
+            assertTrue(seen[4].textContent().contains("Current context"))
             assertTrue(seen[1].textContent().contains("Earlier summary"))
             flowOf(StreamFrame.End())
         }
@@ -60,7 +61,7 @@ class ReflectionTest {
             val history = prompt.messages
             requests++
             assertEquals("frozen parent", instructions)
-            assertEquals(listOf("Parent context", "I like concise replies", "", "Understood"), history.drop(1).take(4).map { it.textContent() })
+            assertEquals(listOf("I like concise replies", "", "Understood"), history.drop(1).take(3).map { it.textContent() })
             assertEquals(schemas, tools)
             if (requests == 1) flowOf(StreamFrame.ToolCallComplete("blocked", "shell", "{}"), StreamFrame.End())
             else {

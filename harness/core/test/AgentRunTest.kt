@@ -48,7 +48,7 @@ class AgentRunTest {
     private val agent = home.agent
 
     @Test
-    fun contextChangesAppendWithoutRewritingEarlierRequestPrefixes() = runTest {
+    fun onlyTheLatestContextIsSentWhileTheTranscriptKeepsEarlierContexts() = runTest {
         val session = store.createSession(agent, "stable")
         val seen = mutableListOf<List<Message>>()
         val model = scriptedModel { prompt, _ ->
@@ -62,8 +62,7 @@ class AgentRunTest {
         AgentRun(agent, store, model, emptyList(), context = "Today: Monday").run(session.id, "two").toList()
         AgentRun(agent, store, model, emptyList(), context = "Today: Tuesday").run(session.id, "three").toList()
         assertEquals(seen[0], seen[1].take(seen[0].size))
-        assertEquals(seen[1], seen[2].take(seen[1].size))
-        assertEquals(listOf("Today: Monday", "Today: Tuesday"), seen[2].filterIsInstance<Message.System>().drop(1).map { it.textContent() })
+        assertEquals(listOf("Today: Tuesday"), seen[2].filterIsInstance<Message.System>().drop(1).map { it.textContent() })
         val metrics = store.entries(agent, session.id).filterIsInstance<SessionEntry.Measurement>()
         assertEquals(3, metrics.size)
         assertTrue(metrics.all { it.metrics.success && it.metrics.cachedTokens == null && it.metrics.firstTokenMs != null })

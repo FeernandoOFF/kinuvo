@@ -29,9 +29,19 @@ class AppleProviderTest {
         override fun unavailableCode(model: String) = unavailable?.let { "apple_intelligence_not_enabled" }
         override fun contextSize(model: String, completion: (Int) -> Unit) = completion(if (model == SYSTEM) 8192 else cloud)
         var tools: String? = null
+        var instructions: String? = null
         override fun generate(requestId: String, model: String, instructions: String, prompt: String, toolsJson: String,
-            onText: (String) -> Unit, completion: (String?, String?) -> Unit) { tools = toolsJson; respond(onText, completion) }
+            onText: (String) -> Unit, completion: (String?, String?) -> Unit) { this.instructions = instructions; tools = toolsJson; respond(onText, completion) }
         override fun cancel(requestId: String) { cancelled = requestId }
+    }
+
+    @Test
+    fun instructionsUseOnlyTheLatestContextAndActivations() = runTest {
+        val native = Native { _, done -> done("""{"tool":"reply","reply":"ok"}""", null) }
+        model(native).request("stable", listOf(SessionEntry.Context("old context"),
+            SessionEntry.Activation("skill", "old instructions"), SessionEntry.Context("latest context"),
+            SessionEntry.Activation("skill", "latest instructions")), emptyList()).toList()
+        assertEquals("stable\n\nlatest context\n\nSkill 'skill' is active in this conversation:\n\nlatest instructions", native.instructions)
     }
 
     @Test

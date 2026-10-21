@@ -2,7 +2,6 @@ package kinuvo.harness.core
 
 import ai.koog.agents.core.dsl.builder.node
 import ai.koog.agents.core.dsl.builder.strategy
-import ai.koog.agents.core.dsl.extension.HistoryCompressionStrategy
 import ai.koog.agents.core.dsl.extension.nodeLLMCompressHistory
 import ai.koog.prompt.streaming.StreamFrame
 import ai.koog.prompt.streaming.requireEndFrame
@@ -16,7 +15,7 @@ internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: 
     var repeats = 0
     var pending = emptyList<SessionEntry.ToolCall>()
     val checkHistory by node<Unit, Unit> { llm.writeSession { prompt = session.load() } }
-    val compactHistory by nodeLLMCompressHistory<Unit>(name = COMPACT_HISTORY, strategy = HistoryCompressionStrategy.WholeHistory)
+    val compactHistory by nodeLLMCompressHistory<Unit>(name = COMPACT_HISTORY, strategy = session.compressionStrategy)
     val request by node<Unit, Unit>("streamResponse") {
         llm.writeSession {
             requestLLMStreaming().requireEndFrame().collect { frame ->
