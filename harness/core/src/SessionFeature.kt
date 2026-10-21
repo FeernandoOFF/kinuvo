@@ -92,6 +92,7 @@ internal class RunSession(
         private set
     private var ended = false
     private var streamFailed = false
+    private val startedCalls = mutableSetOf<String>()
     private var compressing = false
     private var before: Prompt? = null
     private var retained: List<Message> = emptyList()
@@ -160,11 +161,19 @@ internal class RunSession(
 
     suspend fun append(entry: SessionEntry) = withContext(NonCancellable) { store.append(agent, sessionId, entry) }
 
-    suspend fun closePending(reason: String) = withContext(NonCancellable) {
+    fun toolStarted(id: String) { startedCalls += id }
+
+    suspend fun closePending(reason: String, unstarted: String, notify: suspend (AgentEvent) -> Unit) = withContext(NonCancellable) {
         val all = store.entries(agent, sessionId)
         val answered = all.filterIsInstance<SessionEntry.ToolResult>().map { it.id }.toSet()
-        all.filterIsInstance<SessionEntry.ToolCall>().filter { it.id !in answered }.forEach {
-            append(SessionEntry.ToolResult(it.id, it.name, reason, isError = true, identity = it.identity))
+        val pending = all.filterIsInstance<SessionEntry.ToolCall>().filter { it.id !in answered }
+        val results = pending.map {
+            SessionEntry.ToolResult(it.id, it.name, if (it.id in startedCalls) reason else unstarted, isError = true, identity = it.identity)
+                .also { append(it) }
+        }
+        pending.zip(results).forEach { (call, result) ->
+            if (call.id !in startedCalls) notify(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
+            notify(AgentEvent.ToolCallResult(result.id, result.output, result.isError, result.identity))
         }
     }
 

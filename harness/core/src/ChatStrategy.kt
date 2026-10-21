@@ -10,13 +10,20 @@ import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.SessionEntry
 import kotlinx.serialization.json.Json
 
-internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit) = strategy<Unit, Unit>("kinuvoChat") {
+internal fun chatStrategy(session: RunSession, executor: ToolExecutor, maxSteps: Int, stopped: (String) -> Unit) = strategy<Unit, Unit>("kinuvoChat") {
     val failed = mutableSetOf<Pair<String, String>>()
     var repeats = 0
+    var steps = 0
     var pending = emptyList<SessionEntry.ToolCall>()
-    val checkHistory by node<Unit, Unit> { llm.writeSession { prompt = session.load() } }
+    fun checkRepeats() = check(repeats < 2) { "Stopped: the model kept repeating a tool call that failed" }
+    val checkHistory by node<Unit, Unit> {
+        checkRepeats()
+        check(steps < maxSteps) { "Stopped after $maxSteps model steps. The work is unfinished; send another message to continue." }
+        llm.writeSession { prompt = session.load() }
+    }
     val compactHistory by nodeLLMCompressHistory<Unit>(name = COMPACT_HISTORY, strategy = session.compressionStrategy)
     val request by node<Unit, Unit>("streamResponse") {
+        steps++
         llm.writeSession {
             requestLLMStreaming().requireEndFrame().collect { frame ->
                 when (frame) {
@@ -31,19 +38,18 @@ internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: 
         pending = session.calls
     }
     val executeTool by node<Unit, SessionEntry.ToolResult>("executeTool") {
+        checkRepeats()
         val call = pending.first()
         val key = call.name to canonical(call.args)
         val result = if (key in failed) {
             repeats++
+            session.toolStarted(call.id)
             session.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
             SessionEntry.ToolResult(call.id, call.name, "This exact call already failed in this turn. Don't repeat it; try something else or answer the user.", isError = true, identity = call.identity)
         } else executor.call(call, stopped = stopped)
         if (result.isError) failed += key
         pending = pending.drop(1)
         result
-    }
-    val checkTools by node<SessionEntry.ToolResult, Unit> {
-        check(repeats < 2) { "Stopped: the model kept repeating a tool call that failed" }
     }
 
     edge(nodeStart forwardTo checkHistory)
@@ -52,9 +58,8 @@ internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: 
     edge(compactHistory forwardTo request)
     edge(request forwardTo nodeFinish onCondition { pending.isEmpty() })
     edge(request forwardTo executeTool onCondition { pending.isNotEmpty() })
-    edge(executeTool forwardTo checkTools)
-    edge(checkTools forwardTo executeTool onCondition { pending.isNotEmpty() })
-    edge(checkTools forwardTo checkHistory onCondition { pending.isEmpty() })
+    edge(executeTool forwardTo executeTool onCondition { pending.isNotEmpty() } transformed { Unit })
+    edge(executeTool forwardTo checkHistory onCondition { pending.isEmpty() } transformed { Unit })
 }
 
 private fun canonical(args: String) = runCatching { Json.parseToJsonElement(args).deterministic().toString() }.getOrDefault(args)

@@ -7,6 +7,7 @@ import kinuvo.harness.testing.scriptedModel
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -46,17 +47,62 @@ class SessionFeatureTest {
         AgentRun(home.agent, home.store, model, emptyList()).run(session.id, "go").first { it is AgentEvent.ToolCallStart }
         val results = home.store.entries(home.agent, session.id).filterIsInstance<SessionEntry.ToolResult>()
         assertEquals(listOf("first", "second"), results.map { it.id })
-        assertTrue(results.all { it.isError && it.output == "Cancelled by user" })
+        assertTrue(results.all { it.isError })
+        assertEquals(listOf("Cancelled by user", "Not run: the turn was cancelled"), results.map { it.output })
+    }
+
+    @Test
+    fun cancellingAnApprovalDoesNotDenyTheRestOfTheBatch() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent, "")
+        var executed = 0
+        val tool = object : Tool {
+            override val descriptor = ToolDescriptor("read", "Read")
+            override val identity = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), "read")
+            override suspend fun execute(args: JsonObject): String { executed++; return "OK" }
+        }
+        val model = scriptedModel { _, _ -> flowOf(StreamFrame.ToolCallComplete("first", "read", "{}"),
+            StreamFrame.ToolCallComplete("second", "read", "{}"), StreamFrame.End()) }
+        val seen = mutableListOf<AgentEvent>()
+        AgentRun(home.agent, home.store, model, listOf(tool),
+            approvals = Approvals(ApprovalPolicy(home.agent, home.trustRules, Tolerance.Strict), ApprovalBroker()))
+            .run(session.id, "go").first { seen += it; it is AgentEvent.ApprovalRequested }
+        val results = home.store.entries(home.agent, session.id).filterIsInstance<SessionEntry.ToolResult>()
+        assertEquals(0, executed)
+        assertEquals(listOf("Denied (stopped)", "Not run: the turn was cancelled"), results.map { it.output })
+        assertEquals(listOf("first"), seen.filterIsInstance<AgentEvent.ToolCallStart>().map { it.toolCallId })
+    }
+
+    @Test
+    fun toolCallsWithoutIdsReceiveStableGeneratedIds() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent, "")
+        var requests = 0
+        val model = scriptedModel { _, _ ->
+            if (requests++ == 0) flowOf(StreamFrame.ToolCallComplete(null, "read", "{}"), StreamFrame.End())
+            else flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
+        }
+        val events = AgentRun(home.agent, home.store, model, emptyList()).run(session.id, "go").toList()
+        assertIs<AgentEvent.RunFinished>(events.last())
+        val entries = home.store.entries(home.agent, session.id)
+        val call = entries.filterIsInstance<SessionEntry.ToolCall>().single()
+        assertTrue(call.id.isNotBlank())
+        assertEquals(call.id, entries.filterIsInstance<SessionEntry.ToolResult>().single().id)
     }
 
     @Test
     fun unfinishedCallsAreSavedBeforeTheTerminalErrorReachesClients() = runTest {
         val home = TestHome()
         val session = home.store.createSession(home.agent, "")
-        val model = scriptedModel { _, _ -> flowOf(StreamFrame.ToolCallComplete("first", "read", "{}"),
-            StreamFrame.ToolCallComplete("second", "read", "{}"), StreamFrame.End()) }
+        val model = scriptedModel { _, _ -> flow {
+            emit(StreamFrame.ToolCallComplete("first", "read", "{}"))
+            emit(StreamFrame.ToolCallComplete("second", "read", "{}"))
+            error("Broken stream")
+        } }
         var failed = false
-        AgentRun(home.agent, home.store, model, emptyList(), maxAgentIterations = 3).run(session.id, "go").collect { event ->
+        val seen = mutableListOf<AgentEvent>()
+        AgentRun(home.agent, home.store, model, emptyList()).run(session.id, "go").collect { event ->
+            seen += event
             if (event is AgentEvent.RunError) {
                 failed = true
                 val results = home.store.entries(home.agent, session.id).filterIsInstance<SessionEntry.ToolResult>()
@@ -65,6 +111,8 @@ class SessionFeatureTest {
             }
         }
         assertTrue(failed)
+        assertEquals(listOf("first", "second"), seen.filterIsInstance<AgentEvent.ToolCallStart>().map { it.toolCallId })
+        assertEquals(listOf("first", "second"), seen.filterIsInstance<AgentEvent.ToolCallResult>().map { it.toolCallId })
     }
 
     @Test

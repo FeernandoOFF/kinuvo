@@ -17,7 +17,6 @@ internal class HistoryCompression(private val inputTokens: () -> Int) : HistoryC
                 is MessagePart.Tool.Result -> "Result ${part.tool} (${part.id}, error=${part.isError}): ${part.output}"
                 is MessagePart.Reasoning -> (part.summary ?: part.content).joinToString("\n")
                 is MessagePart.Attachment -> "[Earlier attachment]"
-                else -> ""
             } }
         }
         var summary = emptyList<Message.Assistant>()

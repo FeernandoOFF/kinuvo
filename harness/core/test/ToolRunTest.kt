@@ -23,8 +23,10 @@ import kotlin.test.assertTrue
 import kotlin.test.assertFailsWith
 
 class ToolRunTest {
-    @Test fun duplicateNamesCannotReplaceAnotherTool() {
-        assertFailsWith<IllegalArgumentException> { AgentRun(home.agent, home.store, model, listOf(target, target)) }
+    @Test fun duplicateNamesCannotReplaceAnotherTool() = runTest {
+        val session = home.store.createSession(home.agent, "")
+        assertFailsWith<IllegalArgumentException> { AgentRun(home.agent, home.store, model, listOf(target, target)).run(session.id, "go").collect {} }
+        assertEquals(1, home.store.entries(home.agent, session.id).size)
     }
 
     private val home = TestHome()
