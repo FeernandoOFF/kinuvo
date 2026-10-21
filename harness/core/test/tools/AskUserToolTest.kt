@@ -1,15 +1,16 @@
 package kinuvo.harness.core.tools
 
+import kinuvo.harness.testing.*
+
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.PluginTools
 import kinuvo.harness.core.ownedBy
 import kinuvo.protocol.PluginInstanceId
-import kinuvo.harness.core.AgentRunner
+import kinuvo.harness.core.AgentRun
 import kinuvo.harness.core.ApprovalPolicy
 import kinuvo.harness.core.Approvals
 import kinuvo.harness.core.ApprovalBroker
 import kinuvo.harness.core.Broker
-import kinuvo.harness.core.Model
 import kinuvo.harness.core.TestHome
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.QuestionKind
@@ -61,13 +62,14 @@ class AskUserToolTest {
 
     @Test
     fun runWaitsForTheAnswersWithoutAnApproval() = runTest {
-        val model = Model { _, history, _ ->
-            if (history.none { it is SessionEntry.ToolResult }) flowOf(StreamFrame.ToolCallComplete("c1", tool.descriptor.name, form), StreamFrame.End())
+        val model = scriptedModel { prompt, _ ->
+            val history = prompt.messages
+            if (history.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("c1", tool.descriptor.name, form), StreamFrame.End())
             else flowOf(StreamFrame.TextDelta("thanks"), StreamFrame.End())
         }
         val agent = home.agent.copy(config = home.agent.config.copy(approvals = "strict"))
         val questions = Broker<Map<String, List<String>>?>()
-        val runner = AgentRunner(agent, home.store, model, listOf(tool), approvals = Approvals(ApprovalPolicy(agent, home.trustRules), ApprovalBroker()), questions = questions)
+        val runner = AgentRun(agent, home.store, model, listOf(tool), approvals = Approvals(ApprovalPolicy(agent, home.trustRules), ApprovalBroker()), questions = questions)
         val session = home.store.createSession(agent, "").id
         val asked = Channel<AgentEvent>(Channel.UNLIMITED)
         val job = launch { runner.run(session, "plan a trip").collect { if (it is AgentEvent.QuestionsAsked || it is AgentEvent.ApprovalRequested) asked.send(it) } }

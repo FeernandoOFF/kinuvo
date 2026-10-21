@@ -77,10 +77,7 @@ class Reflection(
         val review = "$prompt\n\n$EVIDENCE_RULES\n\nToday is ${today()}.$conventions$personal\n\n$schema\n\nAvailable Skills:\n$catalog"
         val session = store.createSession(agent, parent?.instructions.orEmpty())
         val seed = history.activeHistory()
-        seed.forEach { entry ->
-            // The fork contains only active history, so its Compaction retains everything after it.
-            store.append(agent, session.id, if (entry is SessionEntry.Compaction) entry.copy(keepFrom = 2) else entry)
-        }
+        seed.forEach { store.append(agent, session.id, it) }
         store.append(agent, session.id, SessionEntry.Context("Background Reflection instructions:\n$review\n\nReview only these new source entries; earlier history is context, not new evidence:\n$transcript"))
         val evidence = entries.mapIndexedNotNull { index, entry -> when (entry) {
             is SessionEntry.UserMessage -> "user-$index" to "User: ${entry.text.take(1200)}"

@@ -1,5 +1,7 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.testing.*
+
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.tools.Tool
@@ -22,7 +24,7 @@ import kotlin.test.assertFailsWith
 
 class ToolRunTest {
     @Test fun duplicateNamesCannotReplaceAnotherTool() {
-        assertFailsWith<IllegalArgumentException> { AgentRunner(home.agent, home.store, model, listOf(target, target)) }
+        assertFailsWith<IllegalArgumentException> { AgentRun(home.agent, home.store, model, listOf(target, target)) }
     }
 
     private val home = TestHome()
@@ -43,8 +45,9 @@ class ToolRunTest {
             return run.call("change", "{}").output
         }
     }
-    private val model = Model { _, history, _ ->
-        if (history.none { it is SessionEntry.ToolResult }) flowOf(StreamFrame.ToolCallComplete("c1", "bridge", "{}"), StreamFrame.End())
+    private val model = scriptedModel { prompt, _ ->
+        val history = prompt.messages
+        if (history.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("c1", "bridge", "{}"), StreamFrame.End())
         else flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
     }
 
@@ -55,7 +58,7 @@ class ToolRunTest {
     @Test fun nestedCallsHonorTrustAndDenyRules() = runTest {
         val agent = home.agent
         val broker = ApprovalBroker()
-        val runner = AgentRunner(agent, home.store, model, listOf(bridge, target),
+        val runner = AgentRun(agent, home.store, model, listOf(bridge, target),
             approvals = Approvals(ApprovalPolicy(agent, home.trustRules), broker))
         val requests = mutableListOf<AgentEvent.ApprovalRequested>()
         repeat(2) {
@@ -82,7 +85,7 @@ class ToolRunTest {
     @Test fun stoppingNestedApprovalRecordsDenial() = runTest {
         val agent = home.agent
         val session = home.store.createSession(agent, "")
-        AgentRunner(agent, home.store, model, listOf(bridge, target),
+        AgentRun(agent, home.store, model, listOf(bridge, target),
             approvals = Approvals(ApprovalPolicy(agent, home.trustRules), ApprovalBroker()))
             .run(session.id, "go").first { it is AgentEvent.ApprovalRequested }
         assertEquals(0, calls)

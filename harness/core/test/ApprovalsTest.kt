@@ -1,5 +1,7 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.testing.*
+
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ApprovalDecision
@@ -80,13 +82,14 @@ class ApprovalsTest {
     @Test
     fun concurrentRunsWithSameModelIdStayIndependent() = runTest {
         val tool = FakeTool("click", Risk.Medium)
-        val model = Model { _, history, _ ->
-            if (history.none { it is SessionEntry.ToolResult }) flowOf(StreamFrame.ToolCallComplete("same", "click", "{}"), StreamFrame.End())
+        val model = scriptedModel { prompt, _ ->
+            val history = prompt.messages
+            if (history.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("same", "click", "{}"), StreamFrame.End())
             else flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
         }
         val a = agent()
         val broker = ApprovalBroker()
-        val runner = AgentRunner(a, store, model, listOf(tool), approvals = Approvals(policy(a), broker))
+        val runner = AgentRun(a, store, model, listOf(tool), approvals = Approvals(policy(a), broker))
         val sessions = List(2) { store.createSession(a, "").id }
         val requests = Channel<Pair<String, AgentEvent.ApprovalRequested>>(Channel.UNLIMITED)
         val jobs = sessions.map { id -> launch {
@@ -171,7 +174,7 @@ class ApprovalsTest {
     /** Runs one turn where the model calls [tool] once, answering the Approval with [decision]. */
     private suspend fun kotlinx.coroutines.test.TestScope.turn(tool: FakeTool, decision: ApprovalDecision?): List<AgentEvent> {
         var step = 0
-        val model = Model { _, _, _ ->
+        val model = scriptedModel { _, _ ->
             if (step++ == 0) flowOf(StreamFrame.ToolCallComplete("c$step-${tool.calls}", tool.descriptor.name, "{}"), StreamFrame.End())
             else flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
         }
@@ -179,7 +182,7 @@ class ApprovalsTest {
         val a = agent()
         val session = store.createSession(a, "")
         val events = Channel<AgentEvent>(Channel.UNLIMITED)
-        val job = launch { AgentRunner(a, store, model, listOf(tool), approvals = Approvals(policy(a), broker)).run(session.id, "go").collect { events.send(it) } }
+        val job = launch { AgentRun(a, store, model, listOf(tool), approvals = Approvals(policy(a), broker)).run(session.id, "go").collect { events.send(it) } }
         val seen = mutableListOf<AgentEvent>()
         while (true) {
             val e = events.receive()

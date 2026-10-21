@@ -55,6 +55,7 @@ class SessionFeature private constructor() {
                 if (it.node.name == COMPACT_HISTORY) it.context.llm.writeSession { prompt = session.afterCompression(prompt) }
                 (it.output as? SessionEntry.ToolResult)?.let { result ->
                     session.append(result)
+                    it.context.llm.writeSession { prompt = prompt.withMessages { it + session.messages.messages(listOf(result)) } }
                     session.emit(AgentEvent.ToolCallResult(result.id, result.output, result.isError, result.identity))
                 }
             }
@@ -136,8 +137,8 @@ internal class RunSession(
         response.filterIsInstance<SessionEntry.Reasoning>().forEach { append(it) }
         if (text.isNotEmpty()) append(SessionEntry.AssistantMessage(if (success) text.toString() else "$text\n\n[interrupted]", messageId))
         calls = response.filterIsInstance<SessionEntry.ToolCall>()
-        calls.forEach { append(it) }
         saveMeasurement(success)
+        calls.forEach { append(it) }
     }
 
     suspend fun saveMeasurement(success: Boolean) {
@@ -161,10 +162,22 @@ internal class RunSession(
         }
     }
 
-    fun needsCompression(prompt: Prompt): Boolean = kind != RequestKind.Reflection && estimate(prompt) > threshold
+    fun needsCompression(prompt: Prompt): Boolean {
+        if (kind == RequestKind.Reflection || estimate(prompt) <= threshold) return false
+        val userAt = prompt.messages.indexOfLast(messages::user)
+        val compressible = prompt.messages.withIndex().any { (index, message) ->
+            index != userAt && message !is Message.System && !(index > userAt && messages.files(message))
+        }
+        if (compressible) return true
+        check(budget == null || estimate(prompt) <= budget) { "The current request and tools exceed this model's context window. Shorten the request or select a larger model." }
+        return false
+    }
 
-    fun beforeCompression(prompt: Prompt): Prompt {
-        before = prompt
+    suspend fun beforeCompression(current: Prompt): Prompt {
+        val active = store.entries(agent, sessionId).activeHistory().activations()
+        val existing = messages.entries(current.messages).filterIsInstance<SessionEntry.Activation>().map { it.name }.toSet()
+        val prompt = current.withMessages { it + messages.messages(active.filterNot { it.name in existing }) }
+        before = current
         val userAt = prompt.messages.indexOfLast(messages::user)
         retained = prompt.messages.filterIndexed { index, message -> index == userAt || index > userAt && messages.files(message) }
         val older = prompt.messages.filterNot { it in retained }
@@ -180,8 +193,7 @@ internal class RunSession(
         check(estimate(result) < estimate(original)) { "Compaction did not reduce the context. Shorten the request or select a larger model." }
         check(budget == null || estimate(result) <= budget) { "Compaction could not fit this request and tools in the model's context window. Shorten the request or select a larger model." }
         val summary = prompt.messages.filterIsInstance<Message.Assistant>().last().textContent()
-        val all = store.entries(agent, sessionId)
-        append(SessionEntry.Compaction(summary, all.size + 1, history = messages.entries(result.messages)))
+        append(SessionEntry.Compaction(summary, messages.entries(result.messages)))
         compressing = false
         before = null
         emit(AgentEvent.Compacted(summary))

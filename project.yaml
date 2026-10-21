@@ -19,6 +19,7 @@ modules:
   - harness/server/embedded
   - harness/server/jvm
   - harness/server/runtime
+  - harness/testing
   - shared/app
   - shared/client
   - shared/protocol
