@@ -1,10 +1,8 @@
 package kinuvo.harness.core
 
-import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.protocol.RequestKind
 import kinuvo.protocol.RequestMetrics
-import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
@@ -24,25 +22,31 @@ class TokenUsageCapture : AbstractCoroutineContextElement(Key) {
     var completed: Boolean? = null
 }
 
-fun Model.measured(config: AgentConfig, kind: RequestKind, instructions: String, history: List<SessionEntry>,
-    tools: List<ToolDescriptor>, onMetrics: (RequestMetrics) -> Unit): Flow<StreamFrame> = flow {
-    val capture = TokenUsageCapture()
-    val at = Clock.System.now().toEpochMilliseconds()
-    val start = TimeSource.Monotonic.markNow()
-    var first: Long? = null
+internal class ModelMeasurement(private val config: AgentConfig, private val kind: RequestKind, val capture: TokenUsageCapture) {
+    private val at = Clock.System.now().toEpochMilliseconds()
+    private val start = TimeSource.Monotonic.markNow()
+    private var first: Long? = null
+
+    fun frame(frame: StreamFrame) {
+        if (first == null && (frame is StreamFrame.TextDelta || frame is StreamFrame.ReasoningDelta || frame is StreamFrame.ToolCallDelta || frame is StreamFrame.ToolCallComplete)) first = start.elapsedNow().inWholeMilliseconds
+        if (frame is StreamFrame.End) {
+            capture.input = capture.input ?: frame.metaInfo.inputTokensCount
+            capture.output = capture.output ?: frame.metaInfo.outputTokensCount
+        }
+    }
+
+    fun finish(success: Boolean) = RequestMetrics(Uuid.random().toString(), at, kind, config.provider, config.model, config.reasoning,
+        start.elapsedNow().inWholeMilliseconds, first, capture.input, capture.output, capture.cached, capture.cacheWrite, success && capture.completed != false)
+}
+
+fun Flow<StreamFrame>.measured(config: AgentConfig, kind: RequestKind, onMetrics: (RequestMetrics) -> Unit): Flow<StreamFrame> = flow {
+    val measurement = ModelMeasurement(config, kind, TokenUsageCapture())
     var success = false
     try {
-        stream(instructions, history, tools).flowOn(capture).collect { frame ->
-            if (first == null && (frame is StreamFrame.TextDelta || frame is StreamFrame.ReasoningDelta || frame is StreamFrame.ToolCallDelta || frame is StreamFrame.ToolCallComplete)) first = start.elapsedNow().inWholeMilliseconds
-            if (frame is StreamFrame.End) {
-                capture.input = capture.input ?: frame.metaInfo.inputTokensCount
-                capture.output = capture.output ?: frame.metaInfo.outputTokensCount
-            }
+        this@measured.flowOn(measurement.capture).collect { frame ->
+            measurement.frame(frame)
             emit(frame)
         }
-        success = capture.completed ?: true
-    } finally {
-        onMetrics(RequestMetrics(Uuid.random().toString(), at, kind, config.provider, config.model, config.reasoning,
-            start.elapsedNow().inWholeMilliseconds, first, capture.input, capture.output, capture.cached, capture.cacheWrite, success))
-    }
+        success = true
+    } finally { onMetrics(measurement.finish(success)) }
 }

@@ -77,7 +77,7 @@ sealed interface SessionEntry {
 
     /** Summary that replaces transcript entries before index [keepFrom]; [activations] are re-attached after it. */
     @Serializable @SerialName("compaction")
-    data class Compaction(val summary: String, val keepFrom: Int, val activations: List<Activation> = emptyList(), val user: UserMessage? = null) : SessionEntry
+    data class Compaction(val summary: String, val keepFrom: Int, val activations: List<Activation> = emptyList(), val user: UserMessage? = null, val history: List<SessionEntry>? = null) : SessionEntry
 
     /** A background Reflection's result; it isn't part of the model's conversation. */
     @Serializable @SerialName("reflection")
