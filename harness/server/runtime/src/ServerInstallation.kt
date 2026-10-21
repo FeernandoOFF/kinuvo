@@ -84,6 +84,7 @@ class RuntimeDependencies(
     val modelProviders: List<ModelProvider>,
     val modelCatalog: suspend (Boolean) -> ModelsCatalog,
     val webFetch: (WebSearch?) -> Tool,
+    val tracing: AgentTracing? = null,
 ) {
     val plugins get() = resources.plugins
     val mcp = plugins.firstNotNullOfOrNull { it.mcp } ?: McpManagement.Unavailable
@@ -104,9 +105,11 @@ object ServerInstallation {
     ): RuntimeDependencies {
         var http: HttpClient? = null
         var hosts: PluginHosts? = null
-        val resources = ServerResources(plugins) { hosts?.close(); http?.close() }
+        var tracing: AgentTracing? = null
+        val resources = ServerResources(plugins) { try { tracing?.close() } finally { hosts?.close(); http?.close() } }
         try {
             plugins.checkPluginInstances()
+            tracing = if (files.config().tracing) localTracing(files) else null
             val installedStore = store ?: FileStore(files)
             val docs = FileAgentDocs(files)
             val providers = (modelProviders + plugins.flatMap { it.modelProviders }).associateBy { it.id }.values.toList()
@@ -142,7 +145,7 @@ object ServerInstallation {
                     override fun get(id: String) = attachmentFiles.get(id)
                     override fun download(id: String) = attachmentFiles.download(id)
                     override fun bytes(attachment: Attachment) = attachmentFiles.bytes(attachment)
-                }, settings, secrets, progress, serverId, resources, providers, { catalog.list(it) }, { WebFetchTool(client, reader = it) })
+                }, settings, secrets, progress, serverId, resources, providers, { catalog.list(it) }, { WebFetchTool(client, reader = it) }, tracing)
         } catch (e: Throwable) {
             try { resources.close() } catch (cleanup: Throwable) { e.addSuppressed(cleanup) }
             throw e

@@ -15,6 +15,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class ServerConfig(
     val timezone: String? = null,
+    val tracing: Boolean = true,
     val knowledge: KnowledgeConfig = KnowledgeConfig(),
     val tasks: TasksConfig = TasksConfig(),
     val search: ServiceSettings = ServiceSettings(),

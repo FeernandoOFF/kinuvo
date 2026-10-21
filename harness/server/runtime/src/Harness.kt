@@ -83,7 +83,7 @@ open class HarnessRuntime(
     val devices = DeviceTools(log, { questions }, { timeZone })
     val computers = Computers(log) { questions }
     private val plugins = (listOf(KnowledgePlugin(knowledge), TasksPlugin(tasks), devices, computers) + external).also { it.checkPluginInstances() }
-    private val reflection = Reflection(knowledge, docs, skills, { trustRules.effective(it.id).deny }) { Clock.System.todayIn(timeZone) }
+    private val reflection = Reflection(knowledge, docs, skills, { trustRules.effective(it.id).deny }, tracing = dependencies.tracing) { Clock.System.todayIn(timeZone) }
     private val providers = dependencies.modelProviders.associateBy { it.id }
     suspend fun modelCatalog(refresh: Boolean = false) = dependencies.modelCatalog(refresh)
     val modelProviders get() = providers.values.toList()
@@ -233,6 +233,7 @@ open class HarnessRuntime(
             store = store,
             model = model,
             contextTokens = e.info?.context,
+            tracing = dependencies.tracing,
             tools = tools,
             advertisedTools = advertised.map { it.descriptor },
             context = secrets.redact(context),

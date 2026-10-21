@@ -23,6 +23,10 @@ dependencies:
   - com.charleskorn.kaml:kaml:0.104.0
   - co.touchlab:stately-concurrency:2.1.0
 
+dependencies@jvmAndAndroid:
+  - ai.koog:agents-features-opentelemetry:1.3.0
+  - io.opentelemetry:opentelemetry-exporter-logging-otlp:1.61.0
+
 test-dependencies:
   - ../testing
   - io.ktor:ktor-client-mock:3.6.0
