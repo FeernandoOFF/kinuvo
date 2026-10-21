@@ -104,7 +104,7 @@ open class HarnessRuntime(
             val selected = reflectionModel
             val provider = providers[selected.provider ?: chat.agent.config.provider]
             val catalog = modelCatalog().providers.firstOrNull { it.id == provider?.id }?.models.orEmpty()
-            val id = selected.model ?: provider?.reflectionModel(catalog)
+            val id = selected.model
             val info = catalog.firstOrNull { it.id == id && it.tools != false && it.state.actionable }
             if (provider != null && info != null && provider.availability(info.id).actionable) {
                 val reflected = chat.agent.copy(config = chat.agent.config.copy(provider = provider.id, model = info.id))
