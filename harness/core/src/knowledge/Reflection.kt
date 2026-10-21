@@ -36,7 +36,7 @@ class Reflection(
             agentConfig = AIAgentConfig(Prompt.Empty, run.model.model, MAX_AGENT_ITERATIONS),
             strategy = reflectionStrategy(run),
         ) {
-            install(ReflectionFeature) { this.run = run }
+            install(ToolLoopFeature) { requests = run.requests; response = run.response }
             tracing?.install(this, agent.id, sessionId, runId, RequestKind.Reflection)
         }
         return try {
@@ -70,6 +70,8 @@ internal class ReflectionRun(
     private val today: () -> LocalDate,
 ) {
     val messages = SessionMessages(model)
+    val response = StreamResponse()
+    val requests = ModelRequests(measuredAgent.config, { RequestKind.Reflection }) { measurements += it }
     private var transcript = ""
     private lateinit var changes: ReflectionChanges
     private var deny = DenyRules()

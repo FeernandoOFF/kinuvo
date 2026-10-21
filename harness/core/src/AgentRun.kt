@@ -68,6 +68,12 @@ class AgentRun(
                 agentConfig = AIAgentConfig(Prompt.Empty, model.model, MAX_AGENT_ITERATIONS),
                 strategy = chatStrategy(session, executor) { stopped = it },
             ) {
+                install(ToolLoopFeature) {
+                    requests = session.requests
+                    response = session.response
+                    starting = session::startRequest
+                    saveResponse = session::saveResponse
+                }
                 install(SessionFeature) { this.session = session }
                 tracing?.install(this, agent.id, traceSessionId ?: sessionId, runId, requestKind)
             }

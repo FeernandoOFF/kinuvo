@@ -36,6 +36,47 @@ class ReflectionTest {
     private val reflection = Reflection(knowledge, home.docs)
 
     @Test
+    fun repeatedFailuresUseCanonicalArgumentsAndStopTheStage() = runTest {
+        var requests = 0
+        val agent = home.agent.copy(config = home.agent.config.copy(tools = listOf(ToolNames.MEMORY)))
+        val model = scriptedModel { prompt, tools ->
+            val results = prompt.messages.toolResults
+            if (requests > 1) assertTrue("This exact call already failed" in results.last().output)
+            val args = if (requests++ % 2 == 0) """{"action":"remove","target":"memory","old_text":"missing"}"""
+                else """{"old_text":"missing","target":"memory","action":"remove"}"""
+            flowOf(StreamFrame.ToolCallComplete("call-$requests", tools.single().name, args), StreamFrame.End())
+        }
+        val result = reflection.reflect(agent, model, "s1", listOf(SessionEntry.UserMessage("Review this")))
+        assertEquals(3, requests)
+        assertTrue("kept repeating a tool call that failed" in result.error.orEmpty())
+        assertEquals(2, result.error.orEmpty().lines().count { "This exact call already failed" in it })
+    }
+
+    @Test
+    fun streamedReasoningAndGeneratedCallIdsSurviveTheToolLoop() = runTest {
+        var requests = 0
+        val agent = home.agent.copy(config = home.agent.config.copy(tools = listOf(ToolNames.MEMORY)))
+        val model = scriptedModel { prompt, tools ->
+            if (requests++ == 0) flowOf(
+                StreamFrame.ReasoningComplete("reason", emptyList(), listOf("remember"), encrypted = "encrypted"),
+                StreamFrame.ToolCallComplete(null, tools.single().name, """{"action":"add","target":"memory","content":"Use examples"}"""),
+                StreamFrame.End(),
+            ) else {
+                val parts = prompt.messages.flatMap { it.parts }
+                assertEquals("encrypted", parts.filterIsInstance<ai.koog.prompt.message.MessagePart.Reasoning>().single().encrypted)
+                val call = parts.filterIsInstance<ai.koog.prompt.message.MessagePart.Tool.Call>().single()
+                assertTrue(!call.id.isNullOrBlank())
+                assertEquals(call.id, prompt.messages.toolResults.single().id)
+                flowOf(StreamFrame.End())
+            }
+        }
+        val result = reflection.reflect(agent, model, "s1", listOf(SessionEntry.UserMessage("Examples help")))
+        assertEquals(null, result.error)
+        assertEquals(1, result.memory)
+        assertEquals(2, result.measurements.size)
+    }
+
+    @Test
     fun compactedParentReplaysItsRetainedHistoryInEachStage() = runTest {
         val history = listOf(SessionEntry.AssistantMessage("Earlier summary"), SessionEntry.Context("Current context"),
             SessionEntry.UserMessage("Remember this"), SessionEntry.AssistantMessage("Okay"))
