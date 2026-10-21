@@ -38,6 +38,7 @@ class Reflection(
     private val skills: SkillRepository? = null,
     /** The Agent's Deny rules, Server ones included; Reflection never offers a blocked tool. */
     private val denied: suspend (Agent) -> kinuvo.protocol.DenyRules = { kinuvo.protocol.DenyRules() },
+    private val tracing: kinuvo.harness.core.AgentTracing? = null,
     private val today: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
 ) {
     /** Reflects on [entries] of Session [sessionId]; returns its changes and any error. */
@@ -101,7 +102,7 @@ class Reflection(
         }.filter { deny.blockedTool(it.identity) == null }
         var error: String? = null
         AgentRun(parent?.agent ?: agent, store, parent?.model ?: model, bound, maxSteps = 12,
-            advertisedTools = parent?.tools ?: bound.map { it.descriptor }, requestKind = RequestKind.Reflection)
+            advertisedTools = parent?.tools ?: bound.map { it.descriptor }, requestKind = RequestKind.Reflection, tracing = tracing, traceSessionId = sessionId)
             .run(session.id, "Perform this background Reflection. Use only these tools: ${bound.joinToString { it.descriptor.name }}. All other tools are blocked. Knowledge and Skill writes stage proposals. Include reason and evidence in proposals.")
             .collect { if (it is AgentEvent.RunError) error = it.message }
         val generated = store.entries(agent, session.id).drop(1 + seed.size + 1)

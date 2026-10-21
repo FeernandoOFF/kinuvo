@@ -32,6 +32,8 @@ class AgentRun(
     private val requestKind: RequestKind = RequestKind.Chat,
     private val onRequest: (String, List<SessionEntry>, List<ToolDescriptor>) -> Unit = { _, _, _ -> },
     private val attach: ((String, ByteArray) -> Attachment)? = null,
+    private val tracing: AgentTracing? = null,
+    private val traceSessionId: String? = null,
 ) {
     private val advertisedTools = advertisedTools.sortedBy { it.name }
 
@@ -59,10 +61,14 @@ class AgentRun(
             activation?.let { session.append(it) }
             session.append(SessionEntry.UserMessage(userText, routine, attachments, voice))
             val koog = AIAgent(
+                id = agent.id,
                 promptExecutor = model.executor,
                 agentConfig = AIAgentConfig(Prompt.Empty, model.model, maxSteps * 1000 + 10),
                 strategy = chatStrategy(session, executor, maxSteps) { stopped = it },
-            ) { install(SessionFeature) { this.session = session } }
+            ) {
+                install(SessionFeature) { this.session = session }
+                tracing?.install(this, agent.id, traceSessionId ?: sessionId, runId, requestKind)
+            }
             try { withContext(TokenUsageCapture()) { koog.run(Unit, runId) } }
             finally { koog.close() }
             AgentEvent.RunFinished(runId)

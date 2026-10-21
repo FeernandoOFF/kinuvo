@@ -22,6 +22,7 @@ class AgentFiles(val home: Path) {
     val board = Path(home, "board.json")
     val localTasks = Path(home, "tasks.json")
     val artifacts = Path(home, "artifacts")
+    val traces = Path(home, "traces")
 
     /** How the user organizes notes in a knowledge [provider], in their words, for Agents to follow. */
     fun conventions(provider: String) = Path(home, "conventions", "$provider.md")
