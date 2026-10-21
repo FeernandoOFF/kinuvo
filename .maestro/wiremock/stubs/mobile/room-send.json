@@ -10,10 +10,26 @@
     },
     "message": {
       "body": {
-        "matchesJsonPath": {
-          "expression": "$.method",
-          "equalTo": "rooms.send"
-        }
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "rooms.send"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.recipients",
+              "equalToJson": "[\"e2e\"]"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.text",
+              "equalTo": "Check the plan"
+            }
+          }
+        ]
       }
     }
   },

@@ -1,0 +1,33 @@
+{
+  "name": "mobile/room-session-approval",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "rooms.session"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"session\":{\"id\":\"room-session\",\"roomId\":\"team\",\"messages\":[]},\"running\":true,\"progress\":{\"agentId\":\"e2e\",\"sessionId\":\"private\",\"live\":{\"approval\":{\"type\":\"APPROVAL_REQUESTED\",\"approvalId\":\"room-approval\",\"toolCallId\":\"room-call\",\"toolCallName\":\"address_member\",\"args\":\"{\\\"agentId\\\":\\\"builder\\\",\\\"text\\\":\\\"Check materials\\\"}\",\"reason\":\"Share this public request with Builder\",\"risk\":\"Medium\",\"trustable\":true,\"identity\":{\"instance\":{\"pluginId\":\"kinuvo.rooms\",\"instanceId\":\"default\"},\"localId\":\"address_member\"}}}}}}"
+        }
+      }
+    }
+  ]
+}

@@ -353,6 +353,73 @@ class ConnectedServerTest {
         destination.clearAndJoin()
     }
 
+    @Test fun roomSendReservesSubmissionAndPreservesEditedDraft() = withOwner { owner, _, _ ->
+        val script = Script("rooms")
+        connect(owner, script)
+        val vm = kinuvo.app.rooms.RoomsViewModel(owner.rooms)
+        store().put("rooms", vm)
+        vm.select(vm.state.first { it.rooms.isNotEmpty() }.rooms.single())
+        vm.state.first { it.view != null }
+        script.hold(Api.SendRoom.name)
+        vm.text("Original")
+        val send = vm.send()
+        vm.send().join()
+        script.blocked.receive()
+        assertTrue(vm.state.value.submitting)
+        assertEquals(1, script.requests.count { it.method == Api.SendRoom.name })
+        vm.text("Next draft")
+        vm.recipient("other")
+        script.release.complete(Unit)
+        send.join()
+        assertFalse(vm.state.value.submitting)
+        assertEquals("Next draft", vm.state.value.text)
+        assertEquals(listOf("other"), vm.state.value.recipients)
+    }
+
+    @Test fun lateRoomSendDoesNotChangeNewSessionOrItsDraft() = withOwner { owner, _, _ ->
+        val script = Script("rooms")
+        connect(owner, script)
+        val vm = kinuvo.app.rooms.RoomsViewModel(owner.rooms)
+        store().put("rooms", vm)
+        vm.select(vm.state.first { it.rooms.isNotEmpty() }.rooms.single())
+        vm.state.first { it.view != null }
+        script.hold(Api.SendRoom.name)
+        vm.text("Original")
+        val send = vm.send()
+        script.blocked.receive()
+        vm.open(RoomSession("explicit", "team"))
+        vm.text("New Session draft")
+        vm.recipient("other")
+        script.release.complete(Unit)
+        send.join()
+        assertEquals("explicit", vm.state.value.view?.session?.id)
+        assertFalse(vm.state.value.view!!.running)
+        assertFalse(vm.state.value.submitting)
+        assertEquals("New Session draft", vm.state.value.text)
+        assertEquals(listOf("other"), vm.state.value.recipients)
+    }
+
+    @Test fun lateRoomSelectionCannotReplaceExplicitOrNewSession() = withOwner { owner, _, _ ->
+        for (create in listOf(false, true)) {
+            val script = Script("rooms")
+            connect(owner, script)
+            val vm = kinuvo.app.rooms.RoomsViewModel(owner.rooms)
+            store().put("rooms-$create", vm)
+            val room = vm.state.first { it.rooms.isNotEmpty() }.rooms.single()
+            script.hold(Api.RoomSessions.name)
+            vm.select(room)
+            script.blocked.receive()
+            if (create) vm.newSession().join() else vm.open(RoomSession("explicit", room.id))
+            val expected = if (create) "new-room-session" else "explicit"
+            vm.state.first { it.view?.session?.id == expected }
+            script.release.complete(Unit)
+            script.finished.await()
+            // Flush the released response through the same client and Main dispatcher.
+            vm.refresh().join()
+            assertEquals(expected, vm.state.value.view?.session?.id)
+        }
+    }
+
     private fun withOwner(block: suspend (ConnectedServer, MutableList<Notice>, DeviceAccess) -> Unit) = runBlocking {
         Executors.newSingleThreadExecutor().asCoroutineDispatcher().use { main ->
             Dispatchers.setMain(main)
@@ -428,7 +495,11 @@ class ConnectedServerTest {
                 Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo("agent", name, "none")))
                 Api.Rooms.name -> reply(request, Api.Rooms, listOf(Room("team", name, listOf("agent", "other"), "agent")))
                 Api.RoomSessions.name -> reply(request, Api.RoomSessions, listOf(RoomSession("room-session", "team")))
-                Api.RoomSession.name -> reply(request, Api.RoomSession, RoomView(RoomSession("room-session", "team")))
+                Api.CreateRoomSession.name -> reply(request, Api.CreateRoomSession, RoomSession("new-room-session", "team"))
+                Api.RoomSession.name -> {
+                    val p = ProtocolJson.decodeFromJsonElement(Api.RoomSession.params, request.params)
+                    reply(request, Api.RoomSession, RoomView(RoomSession(p.sessionId, p.roomId)))
+                }
                 Api.SendRoom.name -> reply(request, Api.SendRoom, Unit)
                 Api.Models.name -> reply(request, Api.Models, ModelsCatalog())
                 Api.Providers.name -> reply(request, Api.Providers, emptyList())

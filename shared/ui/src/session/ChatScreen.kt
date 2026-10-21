@@ -1006,7 +1006,7 @@ private fun ArtifactCard(item: ChatItem.ToolCall, onOpen: (id: String) -> Unit) 
 }
 
 @Composable
-private fun ApprovalCard(item: ChatItem.ToolCall, onDecision: (String, ApprovalDecision) -> Unit) {
+internal fun ApprovalCard(item: ChatItem.ToolCall, onDecision: (String, ApprovalDecision) -> Unit) {
     val note = rememberTextFieldState()
     var showArgs by remember { mutableStateOf(false) }
     // A Script's call waits on its own Approval, shown on the Script's card.
@@ -1024,10 +1024,10 @@ private fun ApprovalCard(item: ChatItem.ToolCall, onDecision: (String, ApprovalD
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Lucide.ShieldAlert, Modifier.size(18.dp), tint = color(accentColor))
-                Text("Allow $label?", fontWeight = FontWeight.Normal)
-                item.approval?.let { a ->
-                    Pill(a.risk.name + " risk", tone = when (a.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
-                }
+                Text("Allow $label?", modifier = Modifier.weight(1f), fontWeight = FontWeight.Normal)
+            }
+            item.approval?.let { a ->
+                Pill(a.risk.name + " risk", tone = when (a.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
             }
             item.approval?.reason?.let { Text(it, color = color(mutedColor), fontSize = 12.sp) }
             val command = if (identity?.instance?.pluginId == "kinuvo.exec" && identity.localId == "shell") commandOf(args) else null

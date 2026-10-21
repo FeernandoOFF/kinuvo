@@ -1,0 +1,33 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-rooms-approval
+  apiVerifications:
+    - stub: mobile/room-session-approval
+      atLeast: 1
+    - stub: mobile/room-approval-deny
+      exactly: 1
+---
+- runFlow: ../../shared/pair-mobile.yaml
+- tapOn: "Agents and sessions"
+- tapOn: "Rooms"
+- tapOn: "Garden team"
+- scrollUntilVisible:
+    element:
+      text: 'Note for the agent \(optional, sent on Deny\)'
+    direction: DOWN
+- assertVisible: "E2E Agent · Waiting for you"
+- assertVisible: "Medium risk"
+- assertVisible: "Share this public request with Builder"
+- assertVisible: "Always allow"
+- tapOn: 'Note for the agent \(optional, sent on Deny\)'
+- inputText: "Keep this private"
+- scrollUntilVisible:
+    element:
+      text: "Deny"
+    direction: DOWN
+- takeScreenshot: rooms-approval
+- tapOn: "Deny"

@@ -13,6 +13,8 @@ properties:
       atLeast: 1
     - stub: mobile/room-session
       atLeast: 1
+    - stub: mobile/room-create-session
+      exactly: 1
     - stub: mobile/room-send
       exactly: 1
 ---
@@ -22,8 +24,10 @@ properties:
 - tapOn: "Garden team"
 - assertVisible: "Plan the garden"
 - assertVisible: "The materials list is ready."
+- tapOn: "New Session"
 - tapOn: "@E2E Agent"
 - tapOn: "Message this Room"
 - inputText: "Check the plan"
+- takeScreenshot: rooms-recipient
 - tapOn: "Send"
 - assertNotVisible: "Check the plan"

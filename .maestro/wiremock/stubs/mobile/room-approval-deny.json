@@ -1,0 +1,55 @@
+{
+  "name": "mobile/room-approval-deny",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "approval.respond"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.approvalId",
+              "equalTo": "room-approval"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.decision.type",
+              "equalTo": "deny"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.decision.note",
+              "equalTo": "Keep this private"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":true}"
+        }
+      }
+    }
+  ]
+}

@@ -31,8 +31,9 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
         override suspend fun session(agent: Agent, sessionId: String) = transcripts.session(agent, sessionId).copy(settings = transcripts.entries(agent, sessionId).filterIsInstance<SessionEntry.Settings>().lastOrNull()?.settings ?: SessionSettings())
     }
     val documents = mutableMapOf<AgentDoc, String>()
+    val agentDocuments = mutableMapOf<Pair<String, AgentDoc>, String>()
     val docs = object : AgentDocs {
-        override suspend fun read(agentId: String, doc: AgentDoc) = documents[doc].orEmpty()
+        override suspend fun read(agentId: String, doc: AgentDoc) = agentDocuments[agentId to doc] ?: documents[doc].orEmpty()
         override suspend fun write(agentId: String, doc: AgentDoc, text: String) { documents[doc] = text }
         override suspend fun update(agentId: String, doc: AgentDoc, transform: (String) -> String): String = transform(read(agentId, doc)).also { write(agentId, doc, it) }
     }

@@ -84,10 +84,8 @@ fun RoomsContent(agents: List<AgentInfo>, state: RoomsState, vm: RoomsActions, o
                     Text("${agents.firstOrNull { it.id == progress.agentId }?.name ?: progress.agentId} · ${if (progress.live.approval != null || progress.live.questions != null) "Waiting for you" else "Working"}")
                     if (progress.live.text.isNotBlank()) Text(progress.live.text)
                     progress.live.approval?.let { approval ->
-                        Text("${approval.toolCallName}: ${approval.args}")
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = { vm.approve(approval.approvalId, ApprovalDecision.AllowOnce) }) { Text("Allow once") }
-                            Button(onClick = { vm.approve(approval.approvalId, ApprovalDecision.Deny()) }, style = ButtonStyle.Ghost) { Text("Deny") }
+                        key(approval.approvalId) {
+                            ApprovalCard(kinuvo.app.session.ChatItem.ToolCall(approval.approvalId, approval.approvalId, approval.toolCallName, approval.args, identity = approval.identity, approval = approval), vm.approve)
                         }
                     }
                     progress.live.questions?.let { asked ->
@@ -108,7 +106,7 @@ fun RoomsContent(agents: List<AgentInfo>, state: RoomsState, vm: RoomsActions, o
                 LaunchedEffect(text) { snapshotFlow { text.text.toString() }.collect { vm.text(it) } }
                 TextArea(text, "Message this Room", lines = 3)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { vm.send() }, enabled = !view.running && state.text.isNotBlank()) { Text("Send") }
+                    Button(onClick = { vm.send() }, enabled = !view.running && !state.submitting && state.text.isNotBlank()) { Text("Send") }
                     if (view.running) Button(onClick = { vm.stop() }, style = ButtonStyle.Ghost) { Text("Stop") }
                 }
             }

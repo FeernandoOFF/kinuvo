@@ -6,11 +6,201 @@ import kinuvo.harness.core.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.flow
+import ai.koog.agents.core.tools.ToolDescriptor
+import kinuvo.harness.core.tools.Tool
+import kotlinx.serialization.json.JsonObject
 import kotlinx.coroutines.test.*
 import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RoomsTest {
+    @Test fun immediateStopAndShutdownReleaseTurnBeforeFirstDispatch() = runTest {
+        val fixture = RuntimeFixture()
+        fixture.members += fixture.agent.copy(id = "other")
+        val harness = fixture.runtime(scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("done"), StreamFrame.End()) })
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val runs = Runs(harness.log, scope)
+        val rooms = Rooms(harness, runs, scope)
+        try {
+            val room = rooms.create(CreateRoomParams("Team", listOf("test", "other"), "test"))
+            val session = rooms.createSession(room.id)
+            val ref = RoomSessionRef(room.id, session.id)
+            rooms.send(SendRoomParams(room.id, session.id, "first"))
+            rooms.stop(ref)
+            runCurrent()
+            assertFalse(rooms.view(ref).running)
+            assertTrue(runs.sessions().isEmpty())
+            rooms.send(SendRoomParams(room.id, session.id, "second"))
+            advanceUntilIdle()
+            assertEquals("done", rooms.view(ref).session.messages.last().text)
+            rooms.send(SendRoomParams(room.id, session.id, "third"))
+            rooms.stopAll()
+            assertFalse(rooms.view(ref).running)
+            assertTrue(runs.sessions().isEmpty())
+            rooms.send(SendRoomParams(room.id, session.id, "shutdown"))
+            scope.cancel()
+            rooms.stopAll()
+            assertFalse(rooms.view(ref).running)
+        } finally { rooms.stopAll(); scope.cancel(); harness.close() }
+    }
+
+    @Test fun coordinatorSynthesizesPublicWorkerResultWithoutPrivateSenderInstructions() = runTest {
+        val fixture = RuntimeFixture()
+        fixture.members = listOf(fixture.agent.copy(config = fixture.agent.config.copy(approvals = "full", tools = listOf("web_fetch"))), fixture.agent.copy(id = "other"))
+        var workerPrompt = ""
+        var finalPrompt = ""
+        var calls = 0
+        val model = scriptedModel { prompt, tools ->
+            val context = prompt.messages.joinToString()
+            if ("You are other." in context) {
+                workerPrompt = context
+                flowOf(StreamFrame.TextDelta("PUBLIC_WORKER_RESULT"), StreamFrame.End())
+            } else if ("Give the user a final synthesis" in context) {
+                finalPrompt = context
+                assertTrue(tools.none { it.description.contains("Queue a public") })
+                flowOf(StreamFrame.TextDelta("Synthesis: PUBLIC_WORKER_RESULT"), StreamFrame.End())
+            } else if (prompt.messages.toolResults.isEmpty()) {
+                val tool = tools.single { it.description == "Private lookup" }
+                flowOf(StreamFrame.ToolCallComplete("private", tool.name, "{}"), StreamFrame.End())
+            } else if (prompt.messages.toolResults.size == 1) {
+                assertTrue("PRIVATE_TOOL_RESULT" in context)
+                calls++
+                val tool = tools.single { it.description.contains("Queue a public") }
+                flowOf(StreamFrame.ToolCallComplete("delegate", tool.name, """{"agentId":"other","text":"PUBLIC_REQUEST"}"""), StreamFrame.End())
+            } else flowOf(StreamFrame.TextDelta("PUBLIC_COORDINATOR_REPLY"), StreamFrame.End())
+        }
+        fixture.fetch = { object : Tool {
+            override val descriptor = ToolDescriptor("web_fetch", "Private lookup")
+            override suspend fun execute(args: JsonObject) = "PRIVATE_TOOL_RESULT"
+        } }
+        fixture.documents[AgentDoc.Soul] = "PRIVATE_COORDINATOR_SOUL"
+        fixture.agentDocuments["other" to AgentDoc.Soul] = "WORKER_OWN_INSTRUCTIONS"
+        val harness = fixture.runtime(model)
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val rooms = Rooms(harness, Runs(harness.log, scope), scope)
+        try {
+            val room = rooms.create(CreateRoomParams("Team", listOf("test", "other"), "test"))
+            val session = rooms.createSession(room.id)
+            rooms.send(SendRoomParams(room.id, session.id, "work"))
+            advanceUntilIdle()
+            val view = rooms.view(RoomSessionRef(room.id, session.id))
+            assertNull(view.error)
+            assertEquals(1, calls)
+            assertTrue("PUBLIC_REQUEST" in workerPrompt)
+            assertTrue("WORKER_OWN_INSTRUCTIONS" in workerPrompt)
+            assertFalse("PRIVATE_COORDINATOR_SOUL" in workerPrompt)
+            assertFalse("PRIVATE_TOOL_RESULT" in workerPrompt)
+            assertFalse("WORKER_OWN_INSTRUCTIONS" in finalPrompt)
+            assertFalse("PRIVATE_TOOL_RESULT" in finalPrompt)
+            assertTrue("PUBLIC_WORKER_RESULT" in finalPrompt)
+            assertEquals("test", view.session.messages.last().sender)
+            assertEquals("Synthesis: PUBLIC_WORKER_RESULT", view.session.messages.last().text)
+        } finally { rooms.stopAll(); scope.cancel(); harness.close() }
+    }
+
+    @Test fun stopDuringRunnerPreparationReleasesReservation() = runTest {
+        val preparing = CompletableDeferred<Unit>()
+        val plugin = object : HarnessPlugin {
+            override val definition = PluginDefinition("example.preparing", "Preparing")
+            override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
+                if (activate) { preparing.complete(Unit); awaitCancellation() }
+                return PluginTools(emptyList())
+            }
+        }
+        val fixture = RuntimeFixture(listOf(plugin))
+        fixture.members += fixture.agent.copy(id = "other")
+        val harness = fixture.runtime(scriptedModel { _, _ -> flowOf(StreamFrame.End()) })
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val runs = Runs(harness.log, scope)
+        val rooms = Rooms(harness, runs, scope)
+        try {
+            val room = rooms.create(CreateRoomParams("Team", listOf("test", "other"), "test"))
+            val session = rooms.createSession(room.id)
+            val ref = RoomSessionRef(room.id, session.id)
+            rooms.send(SendRoomParams(room.id, session.id, "work"))
+            runCurrent()
+            assertTrue(preparing.isCompleted)
+            assertTrue(runs.sessions().isNotEmpty())
+            rooms.stop(ref)
+            advanceUntilIdle()
+            assertFalse(rooms.view(ref).running)
+            assertTrue(runs.sessions().isEmpty())
+        } finally { rooms.stopAll(); scope.cancel(); harness.close() }
+    }
+
+    @Test fun approvalResolutionAndTextStayOrderedOnDefaultDispatcher() = runBlocking {
+        val resumed = CompletableDeferred<Unit>()
+        val finish = CompletableDeferred<Unit>()
+        val fixture = RuntimeFixture()
+        fixture.members += fixture.agent.copy(id = "other")
+        val harness = fixture.runtime(scriptedModel { prompt, tools ->
+            if (prompt.messages.toolResults.isEmpty()) {
+                val tool = tools.single { it.description.contains("Queue a public") }
+                flowOf(StreamFrame.ToolCallComplete("delegate", tool.name, """{"agentId":"other","text":"public"}"""), StreamFrame.End())
+            } else flow {
+                repeat(100) { emit(StreamFrame.TextDelta("$it,")) }
+                resumed.complete(Unit)
+                finish.await()
+                emit(StreamFrame.End())
+            }
+        })
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val runs = Runs(harness.log, scope)
+        val rooms = Rooms(harness, runs, scope)
+        try {
+            val room = rooms.create(CreateRoomParams("Team", listOf("test", "other"), "test"))
+            val session = rooms.createSession(room.id)
+            val ref = RoomSessionRef(room.id, session.id)
+            rooms.send(SendRoomParams(room.id, session.id, "work", listOf("other")))
+            val approval = withTimeout(5000) {
+                var approval: AgentEvent.ApprovalRequested? = null
+                while (approval == null) { approval = rooms.view(ref).progress?.live?.approval; yield() }
+                approval
+            }
+            harness.approvals.respond(approval.approvalId, ApprovalDecision.Deny())
+            withTimeout(5000) { resumed.await() }
+            val expected = (0 until 100).joinToString("") { "$it," }
+            val live = withTimeout(5000) {
+                while (rooms.view(ref).progress!!.live.text.length < expected.length) yield()
+                rooms.view(ref).progress!!.live
+            }
+            assertNull(live.approval)
+            assertEquals(expected, live.text)
+            rooms.stop(ref)
+            withTimeout(5000) { rooms.stopAll() }
+            assertTrue(runs.sessions().isEmpty())
+            assertEquals(0, scope.coroutineContext.job.children.count())
+        } finally { finish.complete(Unit); rooms.stopAll(); scope.cancel(); harness.close() }
+    }
+
+    @Test fun denyRuleBlocksRoomCollaborationEvenAtFullTolerance() = runTest {
+        val fixture = RuntimeFixture()
+        fixture.members = listOf(fixture.agent.copy(config = fixture.agent.config.copy(approvals = "full")), fixture.agent.copy(id = "other"))
+        val identity = ToolIdentity(PluginInstanceId("kinuvo.rooms"), "address_member")
+        fixture.rules = TrustRules(deny = DenyRules(tools = listOf(identity.key)))
+        val harness = fixture.runtime(scriptedModel { prompt, tools ->
+            if (prompt.messages.toolResults.isEmpty()) {
+                val tool = tools.single { it.description.contains("Queue a public") }
+                flowOf(StreamFrame.ToolCallComplete("delegate", tool.name, """{"agentId":"other","text":"public"}"""), StreamFrame.End())
+            } else flowOf(StreamFrame.TextDelta("Denied"), StreamFrame.End())
+        })
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val rooms = Rooms(harness, Runs(harness.log, scope), scope)
+        try {
+            val room = rooms.create(CreateRoomParams("Team", listOf("test", "other"), "test"))
+            val session = rooms.createSession(room.id)
+            rooms.send(SendRoomParams(room.id, session.id, "work"))
+            advanceUntilIdle()
+            val view = rooms.view(RoomSessionRef(room.id, session.id))
+            assertNull(view.error)
+            assertEquals(listOf(null, "test"), view.session.messages.map { it.sender })
+            assertEquals(1, fixture.transcripts.sessions(fixture.agent).size)
+            val private = fixture.transcripts.sessions(fixture.members.first()).single()
+            assertTrue(fixture.transcripts.entries(fixture.members.first(), private.id).filterIsInstance<SessionEntry.ToolResult>().single().isError)
+        } finally { rooms.stopAll(); scope.cancel(); harness.close() }
+    }
+
     @Test fun validatesMembershipAndKeepsDirectIds() = runTest {
         val fixture = RuntimeFixture()
         fixture.members += fixture.agent.copy(id = "other")
@@ -35,7 +225,8 @@ class RoomsTest {
         val model = scriptedModel { prompt, tools ->
             val context = prompt.messages.joinToString { it.toString() }
             val target = if ("You are test." in context) "other" else "test"
-            if (prompt.messages.toolResults.isEmpty()) {
+            if (tools.none { it.description.contains("Queue a public") }) flowOf(StreamFrame.TextDelta("Final synthesis"), StreamFrame.End())
+            else if (prompt.messages.toolResults.isEmpty()) {
                 count++
                 val tool = tools.single { it.name.contains("address_member") || it.description.contains("Queue a public") }
                 flowOf(StreamFrame.ToolCallComplete("delegate-$count", tool.name, """{"agentId":"$target","text":"public request"}"""), StreamFrame.End())
@@ -51,7 +242,8 @@ class RoomsTest {
             advanceUntilIdle()
             val view = rooms.view(RoomSessionRef(room.id, session.id))
             assertFalse(view.running)
-            assertEquals(Rooms.MAX_DISPATCHES, count)
+            assertEquals(Rooms.MAX_DISPATCHES - 1, count)
+            assertEquals("Final synthesis", view.session.messages.last().text)
             assertTrue(view.session.messages.any { it.sender == "other" })
             val public = view.session.messages.joinToString()
             assertFalse("PRIVATE_SOUL" in public)
