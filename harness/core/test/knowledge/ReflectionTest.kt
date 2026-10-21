@@ -36,6 +36,28 @@ class ReflectionTest {
     private val reflection = Reflection(knowledge, home.docs)
 
     @Test
+    fun exhaustedStageDoesNotSpendTheNextStagesBudget() = runTest {
+        var memoryRequests = 0
+        val later = mutableListOf<String>()
+        val model = scriptedModel { _, tools ->
+            val memory = tools.singleOrNull()?.name == ToolIdentity(PluginInstanceId("kinuvo.core"), "memory").modelAlias()
+            if (memory) {
+                memoryRequests++
+                flowOf(StreamFrame.ToolCallComplete("m-$memoryRequests", tools.single().name,
+                    """{"target":"memory","operations":[{"action":"add","content":"Fact $memoryRequests"}]}"""), StreamFrame.End())
+            } else {
+                later += tools.first().name
+                flowOf(StreamFrame.End())
+            }
+        }
+        val result = Reflection(knowledge, home.docs, home.skills).reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Review")))
+        assertTrue("Memory stopped at the iteration limit" in result.error.orEmpty())
+        assertTrue(memoryRequests > 10)
+        assertEquals(2, later.size)
+        assertTrue(result.proposals.isEmpty())
+    }
+
+    @Test
     fun repeatedFailuresUseCanonicalArgumentsAndStopTheStage() = runTest {
         var requests = 0
         val agent = home.agent.copy(config = home.agent.config.copy(tools = listOf(ToolNames.MEMORY)))
@@ -74,56 +96,6 @@ class ReflectionTest {
         assertEquals(null, result.error)
         assertEquals(1, result.memory)
         assertEquals(2, result.measurements.size)
-    }
-
-    @Test
-    fun compactedParentReplaysItsRetainedHistoryInEachStage() = runTest {
-        val history = listOf(SessionEntry.AssistantMessage("Earlier summary"), SessionEntry.Context("Current context"),
-            SessionEntry.UserMessage("Remember this"), SessionEntry.AssistantMessage("Okay"))
-        val model = scriptedModel { prompt, _ ->
-            val seen = prompt.messages
-            assertEquals(listOf("Current context", "Remember this", "Okay"), seen.drop(2).take(3).map { it.textContent() })
-            assertTrue(seen[1].textContent().contains("Earlier summary"))
-            flowOf(StreamFrame.End())
-        }
-        val parent = ReflectionContext(home.agent, model, "stable", history, emptyList())
-        val full = listOf(SessionEntry.Started("stable"), SessionEntry.UserMessage("old"), SessionEntry.Compaction("Earlier summary", history))
-        val result = reflection.reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Remember this")), parent = parent, history = full)
-        assertEquals(null, result.error)
-        assertTrue(result.warmContext)
-    }
-
-    @Test
-    fun warmReflectionKeepsParentPrefixAndSchemasButBlocksOtherTools() = runTest {
-        val parentHistory = listOf(
-            SessionEntry.Context("Parent context"), SessionEntry.UserMessage("I like concise replies"),
-            SessionEntry.ToolResult("old-error", "shell", "Previously failed", isError = true),
-            SessionEntry.AssistantMessage("Understood"),
-        )
-        val schemas = listOf(ai.koog.agents.core.tools.ToolDescriptor("shell", "original shell schema"))
-        val agent = home.agent.copy(config = home.agent.config.copy(model = "parent-model", reasoning = "high", compactAtTokens = 1))
-        var requests = 0
-        val parentModel = scriptedModel { prompt, tools ->
-            val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
-            val history = prompt.messages
-            requests++
-            assertEquals("frozen parent", instructions)
-            assertEquals(listOf("Parent context", "I like concise replies", "", "Understood"), history.drop(1).take(4).map { it.textContent() })
-            assertEquals(schemas, tools)
-            if (requests == 1) flowOf(StreamFrame.ToolCallComplete("blocked", "shell", "{}"), StreamFrame.End())
-            else {
-                assertTrue(history.toolResults.last().isError)
-                flowOf(StreamFrame.End())
-            }
-        }
-        val parent = ReflectionContext(agent, parentModel, "frozen parent", parentHistory, schemas)
-        val result = reflection.reflect(home.agent, scriptedModel { _, _ -> error("Cold model used") }, "s1",
-            listOf(SessionEntry.UserMessage("I like concise replies")), parent = parent, history = parentHistory)
-        assertTrue(result.warmContext)
-        assertEquals(3, requests)
-        assertTrue("Unknown tool 'shell'" in result.error.orEmpty())
-        assertFalse("Previously failed" in result.error.orEmpty())
-        assertTrue(result.measurements.all { it.model == "parent-model" && it.reasoning == "high" && it.kind == kinuvo.protocol.RequestKind.Reflection })
     }
 
     @Test
@@ -326,24 +298,6 @@ class ReflectionTest {
         assertTrue(result.memoryChanges.isEmpty())
         assertEquals(1, result.proposals.size)
         assertEquals(4, result.measurements.size)
-    }
-
-    @Test
-    fun warmStagesCannotExecuteToolsFromAnotherStageEvenWhenAdvertised() = runTest {
-        val memory = ToolIdentity(PluginInstanceId("kinuvo.core"), "memory").modelAlias()
-        val schema = ai.koog.agents.core.tools.ToolDescriptor(memory, "parent schema")
-        val model = scriptedModel { prompt, tools ->
-            assertEquals(listOf(schema), tools)
-            val review = prompt.messages.filterIsInstance<Message.User>().last().textContent()
-            if ("Perform only the Knowledge stage." in review && prompt.messages.toolResults.isEmpty()) flowOf(
-                StreamFrame.ToolCallComplete("blocked", memory, """{"action":"add","target":"user","content":"Must not save"}"""), StreamFrame.End(),
-            ) else flowOf(StreamFrame.End())
-        }
-        val parent = ReflectionContext(home.agent, model, "parent", emptyList(), listOf(schema))
-        val result = reflection.reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Review")), parent = parent)
-        assertTrue("Unknown tool" in result.error.orEmpty())
-        assertEquals(0, result.userNotes)
-        assertEquals("", home.docs.read(home.agent.id, AgentDoc.UserNotes))
     }
 
     @Test

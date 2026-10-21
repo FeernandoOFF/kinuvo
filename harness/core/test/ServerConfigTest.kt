@@ -42,6 +42,15 @@ class ServerConfigTest {
     }
 
     @Test
+    fun reflectionModelRoundTripsAlongsideOtherSettings() {
+        val files = TestHome().files
+        files.updateConfig { it.copy(reflection = kinuvo.harness.core.store.ReflectionConfig("codex", "gpt-6-luna")) }
+        files.updateConfig { it.copy(timezone = "Europe/Dublin") }
+        assertEquals(kinuvo.harness.core.store.ReflectionConfig("codex", "gpt-6-luna"), files.config().reflection)
+        assertEquals("Europe/Dublin", files.config().timezone)
+    }
+
+    @Test
     fun anAgentsRulesSurviveSavingItsConfig() = runTest {
         val home = TestHome()
         home.trustRules.update(home.agent.id) { TrustRules(trusted = listOf("web_fetch")) }

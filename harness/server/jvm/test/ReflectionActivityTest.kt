@@ -94,7 +94,7 @@ class ReflectionActivityTest {
         val results = harness.store.entries(agent, sessionId).filterIsInstance<SessionEntry.Reflection>()
         assertEquals(3, results.size)
         assertEquals(ReflectionResult(), results[1].result.copy(measurements = emptyList()))
-        assertEquals("Provider unavailable", results[2].result.error)
+        assertEquals(List(3) { "Provider unavailable" }, results[2].result.error?.lines())
         val caught = mutableListOf<SessionUpdate>()
         harness.log.subscribe(agent, sessionId, null, 100, SessionLog.Subscriber { caught += it; true })
         assertEquals(null, caught.map { it.change }.filterIsInstance<SessionChange.Live>().single().state.reflectionId)

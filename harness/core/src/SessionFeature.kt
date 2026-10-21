@@ -53,7 +53,6 @@ internal class RunSession(
     private val kind: RequestKind,
     private val contextTokens: Int?,
     val emit: suspend (AgentEvent) -> Unit,
-    private val onRequest: (String, List<SessionEntry>, List<ai.koog.agents.core.tools.ToolDescriptor>) -> Unit,
 ) {
     val messages = SessionMessages(model)
     private val identities = callable.associate { it.descriptor.name to it.identity }
@@ -89,7 +88,6 @@ internal class RunSession(
             messageId = "$runId-${request++}"
             response.messageId = messageId
             responseSaved = false
-            onRequest(instructions, store.entries(agent, sessionId).activeHistory().recentScreens(), tools)
         }
     }
 

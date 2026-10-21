@@ -27,7 +27,7 @@ class TracingInstallationTest {
             val session = runtime.newSession(agent)
             assertIs<AgentEvent.RunFinished>(runtime.runner(agent, session.id).run(session.id, "private-input-secret").toList().last())
             val history = runtime.store.entries(agent, session.id)
-            assertNull(runtime.reflect(agent, session.id, history, history).error)
+            assertNull(runtime.reflect(agent, session.id, history).error)
             val content = files.traces.children().filter { it.name.endsWith(".jsonl") }.joinToString("") { it.readText() }
             assertTrue("invoke_agent ${agent.id}" in content)
             assertTrue("chat scripted" in content)

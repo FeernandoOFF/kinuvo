@@ -15,6 +15,16 @@ class CodexModelsTest {
     ]}"""
 
     @Test
+    fun reflectionPrefersTheSmallAvailableModel() {
+        val provider = CodexProvider()
+        fun model(id: String) = kinuvo.protocol.ModelInfo(id)
+        assertEquals("gpt-6-luna", provider.reflectionModel(listOf(model("gpt-6"), model("gpt-6-luna"))))
+        assertEquals("mini", provider.reflectionModel(listOf(model("big"), model("mini"))))
+        assertNull(provider.reflectionModel(listOf(model("big"))))
+        assertNull(provider.reflectionModel(listOf(model("gpt-6-luna").copy(state = kinuvo.protocol.CapabilityState.unavailable("offline")))))
+    }
+
+    @Test
     fun discoversWithoutAHardcodedModelList() = runBlocking {
         val client = HttpClient(MockEngine { request ->
             assertEquals("models", request.url.encodedPath.substringAfterLast('/'))

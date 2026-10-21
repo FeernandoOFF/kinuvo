@@ -43,8 +43,10 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
         override suspend fun get(agentId: String) = rules
         override suspend fun update(agentId: String, transform: (TrustRules) -> TrustRules) { rules = transform(rules) }
     }
+    var reflectionConfig = kinuvo.harness.core.store.ReflectionConfig()
     val settings = object : ServerSettings {
         override var timeZone: TimeZone = TimeZone.UTC
+        override val reflectionModel get() = reflectionConfig
         override val reflectionEnabled = true
         override val reflectionPrompt = DEFAULT_REFLECTION_PROMPT
         override val integrations = mapOf(Integration.Knowledge to setOf("markdown"), Integration.Tasks to setOf("local"))

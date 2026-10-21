@@ -24,6 +24,16 @@ class CodexProvider(override val auth: CodexAuth = CodexAuth(), private val atta
     override val name = "ChatGPT / Codex"
     override val catalogId = "openai"
     override suspend fun models() = discoverCodexModels(discovery.value)
+    override fun reflectionModel(models: List<ModelInfo>): String? = models.filter { it.tools != false && it.state.actionable }
+        .minByOrNull { model ->
+            when {
+                "nano" in model.id.lowercase() -> 0
+                "luna" in model.id.lowercase() -> 1
+                "mini" in model.id.lowercase() -> 2
+                else -> 3
+            }
+        }?.id?.takeIf { id -> listOf("nano", "luna", "mini").any { it in id.lowercase() } }
+
     override val usage: StateFlow<Usage?> = _usage
     override val modelProviders get() = listOf(this)
 

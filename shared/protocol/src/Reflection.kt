@@ -11,7 +11,6 @@ data class ReflectionResult(
     val error: String? = null,
     val proposals: List<ReflectionProposal> = emptyList(),
     val measurements: List<RequestMetrics> = emptyList(),
-    val warmContext: Boolean = false,
     val memoryChanges: List<ReflectionMemoryChange> = emptyList(),
 ) {
     val total get() = knowledge + memory + userNotes

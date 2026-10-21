@@ -42,7 +42,7 @@ class ReflectorTest {
             history.dropWhile { it !is Message.User || it.textContent() != review }.toolResults.isNotEmpty() -> flowOf(StreamFrame.TextDelta("Saved."), StreamFrame.End())
             else -> {
                 reflections++
-                flowOf(StreamFrame.ToolCallComplete("c$reflections", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"create","type":"person","title":"Ana","set":"{\"relationship\":\"sister\"}","reason":"Family","evidence":"${Regex("user-\\d+").find(review!!)?.value}"}"""), StreamFrame.End())
+                flowOf(StreamFrame.ToolCallComplete("c$reflections", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"create","type":"person","title":"Ana","set":"{\"relationship\":\"sister\"}","reason":"Family","evidence":"${Regex("\\[(user-\\d+)\\] User:").find(review)?.groupValues?.get(1)}"}"""), StreamFrame.End())
             }
         }
     }
@@ -88,7 +88,7 @@ class ReflectorTest {
         assertEquals(conventions + "\n", File(home, "conventions/markdown.md").readText())
         assertTrue(conventions !in harness.store.entries(agent, harness.newSession(agent).id).filterIsInstance<SessionEntry.Started>().single().instructions)
         harness.reflect(agent, "s1", listOf(SessionEntry.UserMessage("My sister Ana is visiting")))
-        assertTrue(instructionsSeen.any { it.startsWith("You maintain") && conventions in it && "Humans are profile." !in it })
+        assertTrue(instructionsSeen.any { it.startsWith(kinuvo.protocol.DEFAULT_REFLECTION_PROMPT) && conventions in it && "Humans are profile." !in it })
         harness.runner(agent, session.id).run(session.id, "Hello").collect {}
         assertTrue(conventions !in toolDescriptions.last())
         assertTrue(harness.store.entries(agent, session.id).filterIsInstance<SessionEntry.Context>().any { conventions in it.content })

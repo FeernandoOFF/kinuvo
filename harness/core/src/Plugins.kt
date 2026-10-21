@@ -14,6 +14,7 @@ interface ModelProvider {
     /** Provider key in Models.dev, for optional metadata enrichment. */
     val catalogId: String? get() = null
     suspend fun models(): List<kinuvo.protocol.ModelInfo> = emptyList()
+    fun reflectionModel(models: List<ModelInfo>): String? = null
     suspend fun availability(model: String): kinuvo.protocol.CapabilityState = kinuvo.protocol.CapabilityState()
     fun model(config: AgentConfig): AgentModel
     fun model(config: AgentConfig, info: kinuvo.protocol.ModelInfo?): AgentModel = model(config)

@@ -58,6 +58,7 @@ internal class FileServerSettings(
             field = value
             files.updateConfig { it.copy(timezone = value.id) }
         }
+    override val reflectionModel get() = files.config().reflection
     override val reflectionEnabled get() = files.knowledgeConfig().reflection
     override val reflectionPrompt get() = files.knowledgeConfig().reflectionPrompt ?: kinuvo.protocol.DEFAULT_REFLECTION_PROMPT
     /** The Markdown folder and the provider picked; both change with [saveKnowledgeSettings]. */

@@ -17,6 +17,7 @@ data class ServerConfig(
     val timezone: String? = null,
     val tracing: Boolean = true,
     val knowledge: KnowledgeConfig = KnowledgeConfig(),
+    val reflection: ReflectionConfig = ReflectionConfig(),
     val tasks: TasksConfig = TasksConfig(),
     val search: ServiceSettings = ServiceSettings(),
     val notifications: ServiceSettings = ServiceSettings(),
@@ -25,6 +26,9 @@ data class ServerConfig(
     fun service(kind: ServiceKind) = if (kind == ServiceKind.Search) search else notifications
     fun service(kind: ServiceKind, settings: ServiceSettings) = if (kind == ServiceKind.Search) copy(search = settings) else copy(notifications = settings)
 }
+
+@Serializable
+data class ReflectionConfig(val provider: String? = null, val model: String? = null)
 
 private val yaml = Yaml(configuration = YamlConfiguration(encodeDefaults = false))
 private val configLock = Lock()

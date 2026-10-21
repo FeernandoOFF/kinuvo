@@ -32,7 +32,6 @@ class AgentRun(
     advertisedTools: List<ToolDescriptor> = tools.map { it.descriptor },
     private val contextTokens: Int? = null,
     private val requestKind: RequestKind = RequestKind.Chat,
-    private val onRequest: (String, List<SessionEntry>, List<ToolDescriptor>) -> Unit = { _, _, _ -> },
     private val attach: ((String, ByteArray) -> Attachment)? = null,
     private val tracing: AgentTracing? = null,
     private val traceSessionId: String? = null,
@@ -50,7 +49,7 @@ class AgentRun(
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.RunStarted(runId))
         warnings.forEach { send(AgentEvent.Warning(it)) }
-        val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, { send(it) }, onRequest)
+        val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, { send(it) })
         var stopped = "Cancelled by user"
         var cancelled = false
         val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, emit = { event ->

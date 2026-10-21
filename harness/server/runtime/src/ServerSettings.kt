@@ -8,6 +8,7 @@ import kotlinx.datetime.TimeZone
 interface ServerSettings {
     var timeZone: TimeZone
     val reflectionEnabled: Boolean
+    val reflectionModel: kinuvo.harness.core.store.ReflectionConfig get() = kinuvo.harness.core.store.ReflectionConfig()
     val reflectionPrompt: String
     /** What Settings can set up on this Server, for its capabilities. */
     val integrations: Map<Integration, Set<String>> get() = emptyMap()
