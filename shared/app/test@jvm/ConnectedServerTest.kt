@@ -325,6 +325,34 @@ class ConnectedServerTest {
         } finally { store.clearAndJoin() }
     }
 
+    @Test fun roomsShareServerLifetimeAndSendStructuredRecipients() = withOwner { owner, _, _ ->
+        val script = Script("rooms")
+        connect(owner, script)
+        val destination = store()
+        val vm = kinuvo.app.rooms.RoomsViewModel(owner.rooms)
+        destination.put("rooms", vm)
+        val room = vm.state.first { it.rooms.isNotEmpty() }.rooms.single()
+        vm.select(room)
+        vm.state.first { it.view != null }
+        vm.recipient("outsider")
+        assertEquals(emptyList(), vm.state.value.recipients)
+        vm.recipient("other")
+        vm.text("Check this")
+        vm.send().join()
+        val request = script.requests.single { it.method == Api.SendRoom.name }
+        val params = ProtocolJson.decodeFromJsonElement(Api.SendRoom.params, request.params)
+        assertEquals(listOf("other"), params.recipients)
+        assertEquals("room-session", params.sessionId)
+        assertEquals("Check this", params.text)
+        assertEquals("", vm.state.value.text)
+        assertEquals(emptyList(), vm.state.value.recipients)
+        val job = vm.viewModelScope.coroutineContext.job
+        connect(owner, Script("new-server"))
+        job.join()
+        assertTrue(job.isCancelled)
+        destination.clearAndJoin()
+    }
+
     private fun withOwner(block: suspend (ConnectedServer, MutableList<Notice>, DeviceAccess) -> Unit) = runBlocking {
         Executors.newSingleThreadExecutor().asCoroutineDispatcher().use { main ->
             Dispatchers.setMain(main)
@@ -398,6 +426,10 @@ class ConnectedServerTest {
                 Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", name, capabilities = ServerCapabilities("test"), management = true))
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
                 Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo("agent", name, "none")))
+                Api.Rooms.name -> reply(request, Api.Rooms, listOf(Room("team", name, listOf("agent", "other"), "agent")))
+                Api.RoomSessions.name -> reply(request, Api.RoomSessions, listOf(RoomSession("room-session", "team")))
+                Api.RoomSession.name -> reply(request, Api.RoomSession, RoomView(RoomSession("room-session", "team")))
+                Api.SendRoom.name -> reply(request, Api.SendRoom, Unit)
                 Api.Models.name -> reply(request, Api.Models, ModelsCatalog())
                 Api.Providers.name -> reply(request, Api.Providers, emptyList())
                 Api.TaskLists.name -> reply(request, Api.TaskLists, listOf(TaskListInfo("list", "List")))

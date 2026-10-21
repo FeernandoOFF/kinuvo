@@ -131,11 +131,11 @@ This Device's own name for a remote Server, independent of the names other Devic
 Unpair a Device from a Server, ending its access until it pairs again.
 
 **Room**:
-Planned: a lasting conversation space defined by its members (the user and one or more Agents). Not implemented yet; Sessions belong to an Agent.
+A lasting conversation space defined by its members: the user and one or more Agents. A Direct Room is with one Agent; a group Room has multiple Agents and a designated coordinator.
 _Avoid_: Chat, channel, thread
 
 **Session**:
-One bounded conversation with an Agent (later, inside a Room); its transcript does not carry into the next Session, only Memory does.
+One bounded conversation inside a Room. A Direct Room keeps the Agent’s existing Sessions. A group Room has a public timeline with named speakers, separate from each Agent’s private execution history. Its transcript does not carry into the next Session, only Memory does.
 _Avoid_: Conversation, context
 
 **Session settings**:

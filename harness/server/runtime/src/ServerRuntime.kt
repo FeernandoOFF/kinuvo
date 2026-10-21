@@ -35,6 +35,7 @@ class ServerRuntime(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val clients = ConcurrentMutableSet<Client>()
     private val runs = Runs(harness.log, scope)
+    private val rooms = Rooms(harness, runs, scope)
     private val notifications = Notifications(harness, scope, runs::routine)
     private val scheduler = Scheduler(harness, runs, scope, onRan = { broadcast(Api.RoutineRan, it); notifications.routineRan(it) })
     private val admin = Admin(harness, runs) { broadcast(Api.AgentsChanged, it) }
@@ -91,13 +92,14 @@ class ServerRuntime(
         }
     }
 
-    suspend fun stopRuns() = runs.stopAll()
+    suspend fun stopRuns() { rooms.stopAll(); runs.stopAll() }
     suspend fun close() = withContext(NonCancellable) { lifecycle.withLock { shutdown() } }
 
     private suspend fun shutdown() = withContext(NonCancellable) {
         if (closed) return@withContext
         closed = true
         try {
+            rooms.stopAll()
             runs.stopAll()
             clients.block { it.toList() }.forEach { it.disconnect() }
         } finally {
@@ -262,6 +264,13 @@ class ServerRuntime(
         return when (r.method) {
         Api.Capabilities.name -> respond(r, Api.Capabilities) { harness.capabilities(agent(it.agentId), it.sessionId, it.settings, capabilities, seq.load()) }
         Api.Models.name -> respond(r, Api.Models) { harness.modelCatalog(it.refresh) }
+        Api.Rooms.name -> respond(r, Api.Rooms) { rooms.list() }
+        Api.CreateRoom.name -> respond(r, Api.CreateRoom) { rooms.create(it) }
+        Api.RoomSessions.name -> respond(r, Api.RoomSessions) { rooms.sessions(it.roomId) }
+        Api.CreateRoomSession.name -> respond(r, Api.CreateRoomSession) { rooms.createSession(it.roomId) }
+        Api.RoomSession.name -> respond(r, Api.RoomSession) { rooms.view(it) }
+        Api.SendRoom.name -> respond(r, Api.SendRoom) { rooms.send(it) }
+        Api.StopRoom.name -> respond(r, Api.StopRoom) { rooms.stop(it) }
         Api.Agents.name -> respond(r, Api.Agents) { admin.agents() }
         Api.Agent.name -> respond(r, Api.Agent) { admin.details(agent(it.agentId)) }
         Api.CreateAgent.name -> respond(r, Api.CreateAgent) { admin.create(it) }

@@ -55,6 +55,7 @@ exercise the default Compose shell on Android and iOS:
 
 - `chat.yaml`: pairing, Session creation, message sending and the pushed reply.
 - `pairing-rejected.yaml`: an expired pairing code stays on the connection screen.
+- `rooms.yaml`: group Room selection, participant-attributed history, and sending a structured Room message.
 - `board.yaml`: load Tasks, create one, receive a live Task update, and show Done.
 - `knowledge.yaml`: empty search, matching search, Note details, linked Notes and back navigation.
 - `approval-streaming.yaml`: streamed text, a tool Approval, Allow once, and the completed reply.

@@ -70,8 +70,8 @@ class SessionLog(private val store: Store) : Store by store {
         return SessionPage(page, from + page.size < all.size, if (before == null && routineId == null) all.filter { it.favorite } else emptyList())
     }
 
-    override suspend fun createSession(agent: Agent, instructions: String, routine: RoutineRef?): SessionInfo =
-        store.createSession(agent, instructions, routine).also { info -> lock.withLock { changed(info) } }
+    override suspend fun createSession(agent: Agent, instructions: String, routine: RoutineRef?, roomExecution: Boolean): SessionInfo =
+        store.createSession(agent, instructions, routine, roomExecution).also { info -> lock.withLock { changed(info) } }
 
     override suspend fun deleteSession(agent: Agent, sessionId: String) = lock.withLock {
         store.deleteSession(agent, sessionId)

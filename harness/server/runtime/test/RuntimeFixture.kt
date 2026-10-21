@@ -18,9 +18,16 @@ import kotlinx.datetime.TimeZone
 
 internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), providers: List<ModelProvider> = emptyList(), closeNetwork: () -> Unit = {}) {
     val agent = Agent("test", "Test", AgentConfig(provider = "test", model = "tools", tools = emptyList()))
+    var members = listOf(agent)
+    private val rooms = mutableMapOf<String, Room>()
+    private val roomSessions = mutableMapOf<String, RoomSession>()
     val transcripts = InMemoryStore()
     val store = object : Store by transcripts {
-        override suspend fun agents() = listOf(agent)
+        override suspend fun agents() = members
+        override suspend fun rooms() = rooms.values.toList()
+        override suspend fun saveRoom(room: Room) { rooms[room.id] = room }
+        override suspend fun roomSessions(roomId: String) = roomSessions.values.filter { it.roomId == roomId }
+        override suspend fun saveRoomSession(session: RoomSession) { roomSessions[session.id] = session }
         override suspend fun session(agent: Agent, sessionId: String) = transcripts.session(agent, sessionId).copy(settings = transcripts.entries(agent, sessionId).filterIsInstance<SessionEntry.Settings>().lastOrNull()?.settings ?: SessionSettings())
     }
     val documents = mutableMapOf<AgentDoc, String>()

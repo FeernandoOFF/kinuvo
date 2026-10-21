@@ -41,6 +41,9 @@ sealed interface Route {
     @Serializable
     data object Board : Route
 
+    @Serializable
+    data object Rooms : Route
+
     /** Knowledge: search and recent changes, with the [note] (a ref) open when set. */
     @Serializable
     data class Knowledge(val note: String? = null) : Route

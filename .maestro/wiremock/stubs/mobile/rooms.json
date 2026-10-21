@@ -1,0 +1,33 @@
+{
+  "name": "mobile/rooms",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "rooms.list"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":[{\"id\":\"team\",\"name\":\"Garden team\",\"members\":[\"e2e\",\"builder\"],\"coordinator\":\"e2e\"}]}"
+        }
+      }
+    }
+  ]
+}

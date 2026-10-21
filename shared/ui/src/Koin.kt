@@ -28,6 +28,8 @@ private val appModule = module {
     single { get<ConnectedServer>().routines }
     single { get<ConnectedServer>().config }
     single { get<ConnectedServer>().board }
+    single { get<ConnectedServer>().rooms }
+    viewModel { kinuvo.app.rooms.RoomsViewModel(get()) }
     single { get<ConnectedServer>().knowledge }
     single { get<ConnectedServer>().devices }
     viewModel { OnboardingViewModel(get()) }

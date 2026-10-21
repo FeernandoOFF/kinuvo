@@ -18,9 +18,10 @@ data class SessionInfo(
     val task: String? = null,
     /** Listed under Favorites in the sidebar. */
     val favorite: Boolean = false,
+    val roomExecution: Boolean = false,
 ) {
     /** The user's own Sessions, and a Routine's once it has something for the user or waits on them. */
-    val inChats: Boolean get() = routine == null || answered || status == SessionStatus.Waiting
+    val inChats: Boolean get() = !roomExecution && (routine == null || answered || status == SessionStatus.Waiting)
 }
 
 /** A Task run's prompt: this first line, then the Task's details. */
@@ -49,7 +50,7 @@ data class SessionPage(val sessions: List<SessionInfo>, val hasMore: Boolean, va
 sealed interface SessionEntry {
     /** Instructions frozen at Session start (Identity, Soul, Memory, User Notes). */
     @Serializable @SerialName("started")
-    data class Started(val instructions: String, val routine: RoutineRef? = null) : SessionEntry
+    data class Started(val instructions: String, val routine: RoutineRef? = null, val roomExecution: Boolean = false) : SessionEntry
 
     @Serializable @SerialName("context")
     data class Context(val content: String) : SessionEntry

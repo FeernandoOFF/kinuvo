@@ -1,0 +1,29 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - smoke
+  - regression
+properties:
+  apiProfile: mobile-rooms
+  apiVerifications:
+    - stub: mobile/rooms
+      atLeast: 1
+    - stub: mobile/room-sessions
+      atLeast: 1
+    - stub: mobile/room-session
+      atLeast: 1
+    - stub: mobile/room-send
+      exactly: 1
+---
+- runFlow: ../../shared/pair-mobile.yaml
+- tapOn: "Agents and sessions"
+- tapOn: "Rooms"
+- tapOn: "Garden team"
+- assertVisible: "Plan the garden"
+- assertVisible: "The materials list is ready."
+- tapOn: "@E2E Agent"
+- tapOn: "Message this Room"
+- inputText: "Check the plan"
+- tapOn: "Send"
+- assertNotVisible: "Check the plan"

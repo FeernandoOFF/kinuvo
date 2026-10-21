@@ -176,6 +176,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onSelect = { id -> cover { history.open(Route.Chat(agent?.id, id)) }() },
                 onLoadMore = { agent?.id?.let(app::loadMoreSessions) },
                 onSettings = cover { agent?.let { history.open(Route.Settings(it.id), push = true) } },
+                onRooms = cover { history.open(Route.Rooms) },
                 onBoard = cover { history.open(Route.Board) },
                 onKnowledge = cover { history.open(Route.Knowledge()) },
                 onArtifacts = cover { history.open(Route.Artifacts()) },
@@ -261,6 +262,9 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 app.showAgent(id)
                                 history.open(Route.Chat(id))
                             }
+                        }
+                        entry<Route.Rooms> {
+                            kinuvo.ui.rooms.RoomsScreen(appState.agents, koinViewModel<kinuvo.app.rooms.RoomsViewModel>(key = "rooms/${app.serverLifetime}"), history::open, onMenu = { if (compact) shell.revealed = true else shell.open = !shell.open }, onBack = back.takeIf { history.canGoBack })
                         }
                         entry<Route.Board> {
                             BoardScreen(app, koinViewModel<BoardViewModel>(key = "board/${app.serverLifetime}"), onBack = back.takeIf { history.canGoBack }, onOpenSession = history::open,

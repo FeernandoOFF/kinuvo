@@ -50,6 +50,7 @@ class Reflector(
         if (busy(sessionId) || !harness.reflects(agent)) return 0
         val done = progress()
         val entries = harness.store.entries(agent, sessionId)
+        if (entries.filterIsInstance<SessionEntry.Started>().any { it.roomExecution }) return 0
         val new = entries.drop(done[sessionId] ?: 0)
         if (new.none { it is SessionEntry.UserMessage }) return 0
         val id = Uuid.random().toString()

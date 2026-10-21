@@ -10,6 +10,7 @@ data class ConnectionSecurity(
 )
 
 internal val DEVICE_METHODS = setOf(
+    Api.Rooms.name, Api.RoomSessions.name, Api.RoomSession.name, Api.CreateRoomSession.name, Api.SendRoom.name, Api.StopRoom.name,
     Api.Capabilities.name, Api.Models.name, Api.Agents.name, Api.Agent.name, Api.Sessions.name, Api.Session.name,
     Api.Skills.name, Api.Skill.name, Api.CatchUp.name, Api.Unsubscribe.name, Api.History.name, Api.CreateSession.name, Api.UpdateSession.name,
     Api.UploadAttachment.name, Api.Attachment.name, Api.Send.name, Api.Stop.name, Api.Answer.name,

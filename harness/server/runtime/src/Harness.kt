@@ -102,6 +102,7 @@ open class HarnessRuntime(
 
     /** Saves what's worth keeping from [entries] of a Session. */
     suspend fun reflect(agent: Agent, sessionId: String, entries: List<SessionEntry>, review: ReflectionRevision? = null): kinuvo.protocol.ReflectionResult {
+        require(store.entries(agent, sessionId).filterIsInstance<SessionEntry.Started>().none { it.roomExecution }) { "Reflection is disabled for private Room execution Sessions" }
         val resolved = try { agent.with(store.session(agent, sessionId).settings) }
         catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { agent }
         val chat = effective(resolved, null)
@@ -229,12 +230,13 @@ open class HarnessRuntime(
      * Builds a runner with the Agent's current tools, starting what its plugins need on first use. [sessionId] is the
      * Session it runs in; [routine] is set for a Routine's run, which follows the Routine's approval mode.
      */
-    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null): AgentRun {
+    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null, roomTools: List<Tool> = emptyList(), roomContext: String = ""): AgentRun {
         val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true)
         val e = prepared.effective
         val agent = e.agent
-        val tools = prepared.tools.map(secrets::redacting)
-        val advertised = prepared.advertised.map { it.descriptor.name }.toSet().let { names -> tools.filter { it.descriptor.name in names } }
+        val extra = PluginTools(roomTools).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.rooms")).tools
+        val tools = (prepared.tools + extra).map(secrets::redacting)
+        val advertised = (prepared.advertised + extra).map { it.descriptor.name }.toSet().let { names -> tools.filter { it.descriptor.name in names } }
         val sections = plugins.mapNotNull { it.instructions(agent) }
         val context = kinuvo.harness.core.personalContextFor(agent, docs) + "\n" + kinuvo.harness.core.capabilitiesFor(agent, advertised) + "\nServer platform: $platformDescription. Today is ${Clock.System.todayIn(timeZone)} ($timeZone).\n" + sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
             "\n\nCurrent Skills:\n" + kinuvo.harness.core.skillCatalogFor(if (ToolNames.SKILLS in agent.config.tools) skills.load(agent) else emptyList())
@@ -247,7 +249,7 @@ open class HarnessRuntime(
             tracing = dependencies.tracing,
             tools = tools,
             advertisedTools = advertised.map { it.descriptor },
-            context = secrets.redact(context),
+            context = secrets.redact(if (roomContext.isBlank()) context else context + "\n" + roomContext),
             warnings = prepared.warnings.map { secrets.redact(it) },
             approvals = when (routine?.routine?.approvals) {
                 null -> Approvals(ApprovalPolicy(agent, trustRules), approvals)

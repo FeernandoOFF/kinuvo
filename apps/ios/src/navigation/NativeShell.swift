@@ -92,6 +92,7 @@ struct NativeShell: View {
                                 .disabled(model.state.capabilities?.features.contains(ServerFeature.tasks) == false)
                             NavigationLink("Knowledge", value: NativeRoute.knowledge(nil))
                                 .disabled(model.state.capabilities?.features.contains(ServerFeature.knowledge) == false)
+                            Button("Rooms") { model.open(RouteRooms.shared) }
                             Button("Full app · all features") { model.fullRoute = nil; model.fullApp = true }
                         }
                         Section("Agents") {

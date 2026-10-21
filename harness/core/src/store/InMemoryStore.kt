@@ -19,13 +19,16 @@ class InMemoryStore : Store {
     override suspend fun deleteAgent(agent: Agent) = unsupported()
     override suspend fun saveConfig(agent: Agent, config: AgentConfig): Agent = unsupported()
 
-    override suspend fun sessions(agent: Agent) = lock.withLock { sessions.keys.map { SessionInfo(it, agent.id, it) } }
-    override suspend fun session(agent: Agent, sessionId: String) = SessionInfo(sessionId, agent.id, sessionId)
+    override suspend fun sessions(agent: Agent) = lock.withLock { sessions.keys.map { info(agent, it) } }
+    override suspend fun session(agent: Agent, sessionId: String) = lock.withLock { info(agent, sessionId) }
 
-    override suspend fun createSession(agent: Agent, instructions: String, routine: RoutineRef?): SessionInfo {
+    private fun info(agent: Agent, id: String) = SessionInfo(id, agent.id, id,
+        roomExecution = sessions[id].orEmpty().filterIsInstance<SessionEntry.Started>().any { it.roomExecution })
+
+    override suspend fun createSession(agent: Agent, instructions: String, routine: RoutineRef?, roomExecution: Boolean): SessionInfo {
         val id = Uuid.random().toString()
-        lock.withLock { sessions[id] = mutableListOf(SessionEntry.Started(instructions, routine)) }
-        return SessionInfo(id, agent.id, id, routine = routine)
+        lock.withLock { sessions[id] = mutableListOf(SessionEntry.Started(instructions, routine, roomExecution)) }
+        return SessionInfo(id, agent.id, id, routine = routine, roomExecution = roomExecution)
     }
 
     override suspend fun append(agent: Agent, sessionId: String, entry: SessionEntry) = lock.withLock { sessions.getOrPut(sessionId) { mutableListOf() } += entry }

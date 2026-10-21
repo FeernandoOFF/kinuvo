@@ -32,6 +32,25 @@ class FileStore(private val files: AgentFiles) : Store {
         if (files.agents.children().none { it.isDirectory() }) writeTemplate("default")
     }
 
+    private val roomsPath get() = Path(files.home, "rooms")
+    private fun roomPath(id: String): Path {
+        require(Regex("[A-Za-z0-9_-]{1,128}").matches(id)) { "Invalid Room ID" }
+        return Path(roomsPath, id)
+    }
+    override suspend fun rooms() = roomsPath.children().mapNotNull { dir ->
+        Path(dir, "room.json").readTextOrNull()?.let { json.decodeFromString<kinuvo.protocol.Room>(it) }
+    }
+    override suspend fun saveRoom(room: kinuvo.protocol.Room) = lock.withLock {
+        writeAtomically(Path(roomPath(room.id), "room.json"), json.encodeToString(kinuvo.protocol.Room.serializer(), room))
+    }
+    override suspend fun roomSessions(roomId: String) = roomPath(roomId).children()
+        .filter { it.name.endsWith(".json") && it.name != "room.json" }
+        .map { json.decodeFromString<kinuvo.protocol.RoomSession>(it.readText()) }.sortedByDescending { it.createdAt }
+    override suspend fun saveRoomSession(session: kinuvo.protocol.RoomSession) = lock.withLock {
+        require(Regex("[A-Za-z0-9_-]{1,128}").matches(session.id)) { "Invalid Room Session ID" }
+        writeAtomically(Path(roomPath(session.roomId), "${session.id}.json"), json.encodeToString(kinuvo.protocol.RoomSession.serializer(), session))
+    }
+
     override suspend fun agents(): List<Agent> =
         files.agents.children().filter { files.config(it.name).isFile() }.map { load(it.name) }
 
@@ -64,6 +83,7 @@ class FileStore(private val files: AgentFiles) : Store {
 
     override suspend fun session(agent: Agent, sessionId: String): SessionInfo {
         var routine: RoutineRef? = null
+        var roomExecution = false
         var settings = SessionSettings()
         val entries = file(agent, sessionId).readTextOrNull()?.lineSequence()
             ?.mapNotNull { runCatching { json.decodeFromString(SessionEntry.serializer(), it) }.getOrNull() }.orEmpty()
@@ -73,7 +93,7 @@ class FileStore(private val files: AgentFiles) : Store {
         var details = SessionEntry.Details()
         for (e in entries) when (e) {
             is SessionEntry.Outcome -> answered = answered || e.report
-            is SessionEntry.Started -> routine = e.routine
+            is SessionEntry.Started -> { routine = e.routine; roomExecution = e.roomExecution }
             is SessionEntry.Settings -> settings = e.settings
             is SessionEntry.Details -> details = e
             is SessionEntry.UserMessage -> {
@@ -87,14 +107,14 @@ class FileStore(private val files: AgentFiles) : Store {
             else -> Unit
         }
         return SessionInfo(sessionId, agent.id, details.title ?: routine?.name ?: title ?: NEW_TITLE, routine = routine, settings = settings,
-            answered = answered, task = task, favorite = details.favorite)
+            answered = answered, task = task, favorite = details.favorite, roomExecution = roomExecution)
     }
 
-    override suspend fun createSession(agent: Agent, instructions: String, routine: RoutineRef?): SessionInfo {
+    override suspend fun createSession(agent: Agent, instructions: String, routine: RoutineRef?, roomExecution: Boolean): SessionInfo {
         val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
         val id = ID_FORMAT.format(now) + "-" + Random.nextInt(0x1000, 0xffff).toString(16)
-        lock.withLock { write(agent, id, SessionEntry.Started(instructions, routine)) }
-        return SessionInfo(id, agent.id, routine?.name ?: NEW_TITLE, routine = routine)
+        lock.withLock { write(agent, id, SessionEntry.Started(instructions, routine, roomExecution)) }
+        return SessionInfo(id, agent.id, routine?.name ?: NEW_TITLE, routine = routine, roomExecution = roomExecution)
     }
 
     override suspend fun append(agent: Agent, sessionId: String, entry: SessionEntry) = lock.withLock { write(agent, sessionId, entry) }

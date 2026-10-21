@@ -88,6 +88,7 @@ class ShellActions(
     val onSelect: (String) -> Unit = {},
     val onLoadMore: () -> Unit = {},
     val onSettings: () -> Unit = {},
+    val onRooms: () -> Unit = {},
     val onBoard: () -> Unit = {},
     val onKnowledge: () -> Unit = {},
     val onArtifacts: () -> Unit = {},
@@ -268,6 +269,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
         LazyColumn(Modifier.weight(1f), list, contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp + bottom), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             item(key = "pinned") {
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Pinned(Lucide.SquareKanban, "Rooms", state.view is Route.Rooms, true, actions.onRooms)
                     Pinned(Lucide.SquareKanban, "Board", state.view is Route.Board, state.capabilities.supports(ServerFeature.Tasks), actions.onBoard)
                     Pinned(Lucide.BookOpen, "Knowledge", state.view is Route.Knowledge, state.capabilities.supports(ServerFeature.Knowledge), actions.onKnowledge)
                     Pinned(Lucide.Shapes, "Artifacts", state.view is Route.Artifacts, state.capabilities.supports(ServerFeature.Artifacts), actions.onArtifacts)

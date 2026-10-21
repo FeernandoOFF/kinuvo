@@ -25,6 +25,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
         private set
     internal val client get() = lifetime?.client
     internal val scope get() = CoroutineScope((lifetime?.job ?: Job().also { it.cancel() }) + Dispatchers.Main.immediate + (lifetime ?: kotlin.coroutines.EmptyCoroutineContext))
+    val rooms = kinuvo.app.rooms.RoomsRepository(this)
     val sessions = SessionRepository(notifications, this)
     val routines = RoutineRepository(notifications, this)
     val config = ConfigRepository(this)

@@ -134,6 +134,14 @@ sealed interface SessionChange {
 }
 
 object Api {
+    val Rooms = Method("rooms.list", Unit.serializer(), ListSerializer(Room.serializer()))
+    val CreateRoom = Method("rooms.create", CreateRoomParams.serializer(), Room.serializer())
+    val RoomSessions = Method("rooms.sessions", RoomRef.serializer(), ListSerializer(kinuvo.protocol.RoomSession.serializer()))
+    val CreateRoomSession = Method("rooms.sessions.create", RoomRef.serializer(), kinuvo.protocol.RoomSession.serializer())
+    val RoomSession = Method("rooms.session", RoomSessionRef.serializer(), RoomView.serializer())
+    val SendRoom = Method("rooms.send", SendRoomParams.serializer(), Unit.serializer())
+    val StopRoom = Method("rooms.stop", RoomSessionRef.serializer(), Unit.serializer())
+
     val Capabilities = Method("session.capabilities", CapabilitiesParams.serializer(), SessionCapabilities.serializer())
     val CapabilitiesChanged = EventType("capabilities.changed", Unit.serializer())
     val Models = Method("models.list", ModelsParams.serializer(), ModelsCatalog.serializer())
