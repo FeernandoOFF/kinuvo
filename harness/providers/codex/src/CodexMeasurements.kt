@@ -41,6 +41,7 @@ private fun TokenUsageCapture.readUsage(data: String) {
     fun value(key: String) = usage[key]?.jsonPrimitive?.intOrNull
     input = value("input_tokens")
     output = value("output_tokens")
+    reasoning = runCatching { usage["output_tokens_details"]?.jsonObject?.get("reasoning_tokens")?.jsonPrimitive?.intOrNull }.getOrNull()
     val details = runCatching { usage["input_tokens_details"]?.jsonObject }.getOrNull()
     cached = details?.get("cached_tokens")?.jsonPrimitive?.intOrNull
     cacheWrite = details?.get("cache_write_tokens")?.jsonPrimitive?.intOrNull

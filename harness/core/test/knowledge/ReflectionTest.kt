@@ -350,6 +350,7 @@ class ReflectionTest {
             request++
             val capture = currentCoroutineContext()[TokenUsageCapture]!!
             capture.cached = request
+            if (request == 1) capture.reasoning = 3
             when (request) {
                 1 -> {
                     emit(StreamFrame.ToolCallComplete("save", tools.single().name, """{"action":"add","target":"memory","content":"Use examples"}"""))
@@ -367,6 +368,7 @@ class ReflectionTest {
         assertEquals(listOf(20, 30, null), result.measurements.map { it.inputTokens })
         assertEquals(listOf(4, 2, null), result.measurements.map { it.outputTokens })
         assertEquals(listOf(1, 2, 3), result.measurements.map { it.cachedTokens })
+        assertEquals(listOf(3, null, null), result.measurements.map { it.reasoningTokens })
         assertTrue(result.measurements.all { it.kind == RequestKind.Reflection })
     }
 }

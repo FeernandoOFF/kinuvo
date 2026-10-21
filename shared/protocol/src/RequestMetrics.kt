@@ -20,4 +20,5 @@ data class RequestMetrics(
     val cachedTokens: Int? = null,
     val cacheWriteTokens: Int? = null,
     val success: Boolean = true,
+    val reasoningTokens: Int? = null,
 )
