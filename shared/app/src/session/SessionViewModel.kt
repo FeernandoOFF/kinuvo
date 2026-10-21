@@ -124,6 +124,8 @@ data class ChatState(
     val dictation: DictationState? = null,
     /** The attachment open full screen. */
     val preview: AttachmentPreview? = null,
+    /** Half-filled `ask_user` forms, as in [SessionState.answers]. */
+    val answers: Map<String, Map<String, List<String>>> = emptyMap(),
 ) {
     val skills get() = capabilities?.server.supports(ServerFeature.Skills)
     /** Why nothing can be sent, or null when chat works. */
@@ -162,6 +164,8 @@ data class SessionState(
     /** Text of a message that failed to send, for the input to take back. */
     val unsent: String? = null,
     val capabilities: SessionCapabilities? = null,
+    /** Half-filled `ask_user` forms by questions ID, then question ID, so they outlive the screen's layout. */
+    val answers: Map<String, Map<String, List<String>>> = emptyMap(),
 ) {
     val loaded get() = !resolving && (route.sessionId == null || data?.loaded == true)
     val running get() = sending || data?.live?.running == true
@@ -395,10 +399,17 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         } }
     }
 
+    /** Keeps [value] as the answer to [questionId] in the `ask_user` form [questionsId] until it's sent. */
+    fun editAnswer(questionsId: String, questionId: String, value: List<String>) =
+        state.update { it.copy(answers = it.answers + (questionsId to it.answers[questionsId].orEmpty() + (questionId to value))) }
+
     /** Sends the open `ask_user` form's [answers]; null skips it. */
     fun answer(answers: Map<String, List<String>>?) {
         val questions = state.value.data?.live?.questions ?: return
-        viewModelScope.launch { attempt { repo.answer(questions.questionsId, answers) } }
+        viewModelScope.launch { attempt {
+            repo.answer(questions.questionsId, answers)
+            state.update { it.copy(answers = it.answers - questions.questionsId) }
+        } }
     }
 
     fun stop() {
