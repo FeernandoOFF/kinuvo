@@ -7,7 +7,7 @@ import kinuvo.harness.core.tools.WebSearchProvider
 import kinuvo.protocol.*
 import kotlinx.coroutines.flow.StateFlow
 
-/** Builds the [Model] an Agent's config asks for; [id] is what `provider:` names in agent.yaml. */
+/** Builds the [AgentModel] an Agent's config asks for; [id] is what `provider:` names in agent.yaml. */
 interface ModelProvider {
     val id: String
     val name: String get() = id
@@ -15,8 +15,8 @@ interface ModelProvider {
     val catalogId: String? get() = null
     suspend fun models(): List<kinuvo.protocol.ModelInfo> = emptyList()
     suspend fun availability(model: String): kinuvo.protocol.CapabilityState = kinuvo.protocol.CapabilityState()
-    fun model(config: AgentConfig): Model
-    fun model(config: AgentConfig, info: kinuvo.protocol.ModelInfo?): Model = model(config)
+    fun model(config: AgentConfig): AgentModel
+    fun model(config: AgentConfig, info: kinuvo.protocol.ModelInfo?): AgentModel = model(config)
     /** Plan usage, for providers that report it. */
     val usage: StateFlow<Usage?>? get() = null
     /** The [tools] [model] can take, e.g. fewer and simpler ones for a small model; the rest aren't offered. */
