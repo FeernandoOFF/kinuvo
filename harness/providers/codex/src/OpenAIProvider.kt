@@ -42,16 +42,17 @@ class OpenAIProvider(
     private constructor(key: OpenAIKey, attachments: ((Attachment) -> ByteArray)?) :
         this(key::resolve, attachments, apiKey = key)
 
+    val promptExecutor get() = executor.value
     override val id = "openai"
     override val name = "OpenAI API"
     override val catalogId = "openai"
     override val modelProviders get() = listOf(this)
-    private val client = lazy {
-        OpenAILLMClient(
+    private val executor = lazy {
+        koogExecutor(OpenAILLMClient(
             settings = OpenAIClientSettings(baseUrl = OPENAI_BASE_URL, responsesAPIPath = "responses"),
             httpClient = CodexMeasurements(KoogHttpClient.fromKtorClient("openai", KotlinLogging.logger("openai"), http)),
             toolsConverter = RawSchemaAwareGenerator(),
-        )
+        ))
     }
 
     override suspend fun availability(model: String) = if (keyValue().isNullOrBlank())
@@ -65,9 +66,9 @@ class OpenAIProvider(
         return parseOpenAIModels(bytes.decodeToString())
     }
 
-    override fun model(config: AgentConfig): Model = model(config, null)
-    override fun model(config: AgentConfig, info: ModelInfo?): Model = OpenAIModel(config, client.value, info, attachments)
-    override suspend fun close() { if (client.isInitialized()) client.value.close(); http.close() }
+    override fun model(config: AgentConfig): AgentModel = model(config, null)
+    override fun model(config: AgentConfig, info: ModelInfo?): AgentModel = openAIModel(config, executor.value, info, attachments)
+    override suspend fun close() { if (executor.isInitialized()) executor.value.close(); http.close() }
 }
 
 internal const val OPENAI_BASE_URL = "https://api.openai.com/v1/"

@@ -6,7 +6,15 @@ import kinuvo.harness.core.tools.ToolNames
 import kinuvo.protocol.CapabilityState
 import kinuvo.protocol.ModelInfo
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.SessionEntry
+import ai.koog.prompt.Prompt
+import ai.koog.prompt.dsl.ModerationResult
+import ai.koog.prompt.executor.clients.LLMClient
+import ai.koog.prompt.llm.LLMProvider
+import ai.koog.prompt.llm.LLModel
+import ai.koog.prompt.message.Message
+import ai.koog.prompt.message.MessagePart
+import ai.koog.prompt.streaming.toMessageResponse
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
@@ -62,14 +70,34 @@ class AppleProvider(private val native: AppleLanguageModel) : ModelProvider, Har
             ?: CapabilityState()
     }
 
-    override fun model(config: AgentConfig): Model {
+    private val client = AppleLLMClient(native)
+    val promptExecutor = koogExecutor(client)
+
+    override fun model(config: AgentConfig): AgentModel = model(config, null)
+
+    override fun model(config: AgentConfig, info: ModelInfo?): AgentModel {
         require(config.provider == id && config.model in setOf(SYSTEM, PRIVATE_CLOUD)) { "Unsupported Apple model" }
-        return Model { instructions, history, tools -> callbackFlow {
+        return AgentModel(promptExecutor, (info ?: ModelInfo(config.model, reasoning = emptyList(), input = listOf("text"), tools = true)).llModel(Apple))
+    }
+
+    override suspend fun close() { promptExecutor.close() }
+}
+
+private object Apple : LLMProvider("apple", "Apple")
+
+class AppleLLMClient(private val native: AppleLanguageModel) : LLMClient() {
+    override fun llmProvider(): LLMProvider = Apple
+    override fun close() {}
+    override suspend fun moderate(prompt: Prompt, model: LLModel): ModerationResult = error("Apple moderation is unavailable")
+    override suspend fun execute(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Message.Assistant =
+        executeStreaming(prompt, model, tools).toList().toMessageResponse()
+
+    override fun executeStreaming(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>) = callbackFlow {
             val requestId = Uuid.random().toString()
             val offered = tools.mapNotNull { it.toApple() }
             var emitted = ""
             withContext(Dispatchers.Main) {
-                native.generate(requestId, config.model, instructions, promptFor(history), ProtocolJson.encodeToString(offered), onText = { snapshot ->
+                native.generate(requestId, model.id, prompt.messages.filterIsInstance<Message.System>().joinToString("\n\n") { it.textContent() }, promptFor(prompt.messages), ProtocolJson.encodeToString(offered), onText = { snapshot ->
                     if (snapshot.startsWith(emitted)) {
                         val delta = snapshot.drop(emitted.length)
                         if (delta.isNotEmpty()) trySend(StreamFrame.TextDelta(delta))
@@ -85,6 +113,7 @@ class AppleProvider(private val native: AppleLanguageModel) : ModelProvider, Har
                             check(reply.startsWith(emitted)) { "The model revised an already streamed reply" }
                             val delta = reply.drop(emitted.length)
                             if (delta.isNotEmpty()) trySend(StreamFrame.TextDelta(delta))
+                            trySend(StreamFrame.TextComplete(reply))
                         } else {
                             check(offered.any { it.name == tool }) { "The model asked for $tool, which it wasn't offered" }
                             trySend(StreamFrame.ToolCallComplete(Uuid.random().toString(), tool, JsonObject(turn - "tool").toString()))
@@ -95,8 +124,7 @@ class AppleProvider(private val native: AppleLanguageModel) : ModelProvider, Har
                 })
             }
             awaitClose { native.cancel(requestId) }
-        }.buffer(Channel.UNLIMITED) }
-    }
+    }.buffer(Channel.UNLIMITED)
 }
 
 /** A tool as Apple's model sees it: flat parameters of simple types, so they fit its schema and small context. */
@@ -140,16 +168,21 @@ private val PREFERRED = listOf(ToolNames.MEMORY, ToolNames.WEB_SEARCH, ToolNames
 private val SKIPPED = setOf(ToolNames.SKILLS, ToolNames.ACTIVATE_SKILL, ToolNames.SHELL, ToolNames.KNOWLEDGE, ToolNames.KNOWLEDGE_REWRITE,
     ToolNames.TASKS, ToolNames.ARTIFACT, ToolNames.SCHEDULE, ToolNames.DEVICE_TOOLS, ToolNames.ASK_USER)
 
-internal fun promptFor(history: List<SessionEntry>): String = buildString {
-    val context = history.filterIsInstance<SessionEntry.Context>().lastOrNull()
-    context?.let { append("${it.content}\n\n") }
-    for (entry in history) when (entry) {
-        is SessionEntry.UserMessage -> append("User: ${entry.modelText}\n\n")
-        is SessionEntry.AssistantMessage -> append("Agent: ${entry.text}\n\n")
-        is SessionEntry.ToolCall -> append("Agent requested ${entry.name}: ${entry.args}\n\n")
-        is SessionEntry.ToolResult -> append("Tool ${entry.name} ${if (entry.isError) "failed" else "result"}: ${entry.output}\n\n")
-        is SessionEntry.Compaction -> append("Earlier conversation summary: ${entry.summary}\n\n")
-        else -> Unit
+internal fun promptFor(history: List<Message>): String = buildString {
+    for (message in history) when (message) {
+        is Message.System -> Unit
+        is Message.User -> {
+            if (message.textContent().isNotEmpty()) append("User: ${message.textContent()}\n\n")
+            message.parts.filterIsInstance<MessagePart.Tool.Result>().forEach {
+                append("Tool ${it.tool} ${if (it.isError) "failed" else "result"}: ${it.content}\n\n")
+            }
+        }
+        is Message.Assistant -> {
+            if (message.textContent().isNotEmpty()) append("Agent: ${message.textContent()}\n\n")
+            message.parts.filterIsInstance<MessagePart.Tool.Call>().forEach {
+                append("Agent requested ${it.tool}: ${it.args}\n\n")
+            }
+        }
     }
     append("Follow your instructions using the conversation and tool results above. Do not repeat a tool call that already succeeded.\n")
 }
