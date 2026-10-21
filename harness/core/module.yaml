@@ -10,6 +10,9 @@ aliases:
 dependencies:
   - ../../shared/protocol: exported
   - ai.koog:agents-tools:1.3.0: exported
+  - ai.koog:agents-core:1.3.0: exported
+  - ai.koog:prompt-executor-model:1.3.0: exported
+  - ai.koog:prompt-executor-clients:1.3.0: exported
   - ai.koog:prompt-model:1.3.0: exported
   - ai.koog:prompt-llm:1.3.0: exported
   - $kotlin.serialization.json: exported
