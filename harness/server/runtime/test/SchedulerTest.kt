@@ -4,6 +4,10 @@ import kinuvo.harness.testing.*
 
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.modelAlias
+import kinuvo.harness.core.tools.ToolNames
+import kotlin.time.Duration.Companion.milliseconds
+import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.RoutineApprovals
 import kinuvo.protocol.RoutineRan
 import kinuvo.protocol.RunStatus
@@ -46,7 +50,7 @@ class SchedulerTest {
         else flow { during(); emit(StreamFrame.TextDelta(reply)); emit(StreamFrame.End()) }
     }
     private var now = 1_790_000_000_000L
-    private val harness = runBlocking { HarnessRuntime(ServerInstallation.assemble(AgentFiles(home), clock = { now }), modelFactory = { model }) }.apply { timeZone = TimeZone.UTC }
+    private val harness = runBlocking { HarnessRuntime(ServerInstallation.assemble(AgentFiles(home), clock = { now }), modelFactory = { model }, routineApprovalWait = 200.milliseconds) }.apply { timeZone = TimeZone.UTC }
     private val agent = runBlocking { harness.store.agents().single() }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val ran = mutableListOf<RoutineRan>()
@@ -55,6 +59,9 @@ class SchedulerTest {
 
     @AfterTest
     fun tearDown() = runBlocking { scope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin(); harness.close(); kinuvo.harness.core.store.deleteTree(home) }
+
+    private fun nothingNew() { toolCall = ToolNames.ROUTINE_REPORT to """{"outcome":"nothing_new"}""" }
+    private fun report(summary: String) { toolCall = ToolNames.ROUTINE_REPORT to """{"outcome":"report","summary":"$summary"}""" }
 
     private suspend fun tickAndWait() = withTimeout(10_000) { scheduler.tick(); scheduler.idle() }
     private suspend fun routine(id: String) = harness.routines.get(agent, id)!!
@@ -72,16 +79,17 @@ class SchedulerTest {
         assertEquals("Brief", session.title)
         assertEquals(r.id, session.routine?.id)
         val sent = harness.store.entries(agent, session.id).filterIsInstance<SessionEntry.UserMessage>().single()
-        assertEquals("Summarize the news", sent.text)
+        assertTrue("Summarize the news" in sent.text && "every 60m" in sent.text, sent.text)
         assertEquals(r.id, sent.routine?.id)
         assertEquals(listOf(RunStatus.Ok), ran.map { it.status })
+        assertEquals("Here's your brief", ran.single().summary, "Without a report, the reply is what the user hears")
         assertEquals(listOf(session.id), harness.log.page(agent, null, 10).sessions.map { it.id }, "A run with a reply joins the chats")
         assertEquals(1, harness.log.page(agent, null, 10, r.id).sessions.size)
     }
 
     @Test
     fun silentRunStaysInTheRoutinesHistoryOnly() = runBlocking {
-        reply = "[SILENT]"
+        nothingNew()
         val r = harness.routines.create(agent, "Watch", "Check the site", Trigger.Every(5))
         now += 5 * 60_000
         tickAndWait()
@@ -90,6 +98,66 @@ class SchedulerTest {
         assertEquals(listOf(routine(r.id).lastSessionId), harness.log.page(agent, null, 10, r.id).sessions.map { it.id })
         assertTrue(harness.log.page(agent, null, 10).sessions.isEmpty())
         assertTrue(ran.isEmpty())
+        assertNull(routine(r.id).lastReport)
+        assertEquals(SessionEntry.Outcome(false), harness.store.entries(agent, routine(r.id).lastSessionId!!).last())
+    }
+
+    @Test
+    fun reportedSummaryIsToldAndTheNextRunSeesIt() = runBlocking {
+        report("Rent is due tomorrow")
+        val r = harness.routines.create(agent, "Bills", "Check my bills", Trigger.Every(60))
+        now += 60 * 60_000
+        tickAndWait()
+
+        assertEquals("Rent is due tomorrow", routine(r.id).lastReport)
+        assertEquals(listOf(RunStatus.Ok to "Rent is due tomorrow"), ran.map { it.status to it.summary })
+        toolCall = null
+        now += 60 * 60_000
+        tickAndWait()
+        val second = harness.store.entries(agent, routine(r.id).lastSessionId!!).filterIsInstance<SessionEntry.UserMessage>().single().text
+        assertTrue("told the user: Rent is due tomorrow." in second && "Check my bills" in second, second)
+    }
+
+    @Test
+    fun heartbeatWorksItsChecklistThroughTheRoutineStrategy() = runBlocking {
+        report("The invoice is overdue")
+        harness.routines.update(agent, "heartbeat") { it.copy(enabled = true, prompt = "- anything overdue?", activeHours = null) }
+        now += 60 * 60_000
+        tickAndWait()
+
+        val beat = routine("heartbeat")
+        assertEquals(RunStatus.Ok, beat.lastStatus)
+        val entries = harness.store.entries(agent, beat.lastSessionId!!)
+        val sent = entries.filterIsInstance<SessionEntry.UserMessage>().single().text
+        assertTrue("## HEARTBEAT.md" in sent && "- anything overdue?" in sent && "routine_report" in sent, sent)
+        assertEquals(SessionEntry.Outcome(true, "The invoice is overdue"), entries.last())
+        assertEquals("The invoice is overdue", ran.single().summary)
+    }
+
+    @Test
+    fun unansweredApprovalIsSkippedAfterTheWaitAndReported() = runBlocking {
+        toolCall = "skill_manage" to """{"action":"create","name":"x","content":"---\nname: x\ndescription: d\n---\nbody"}"""
+        val r = harness.routines.create(agent, "Unattended", "Make a skill", Trigger.Every(60))
+        now += 60 * 60_000
+        tickAndWait()
+
+        assertEquals(RunStatus.Ok, routine(r.id).lastStatus)
+        val result = harness.store.entries(agent, routine(r.id).lastSessionId!!).filterIsInstance<SessionEntry.ToolResult>().single()
+        assertTrue(result.isError && result.output.endsWith("; skipped"), result.output)
+        assertEquals("Here's your brief\nSkipped, no Approval: skill_manage", ran.single().summary)
+    }
+
+    @Test
+    fun approvalAnsweredInTimeRunsTheCall() = runBlocking {
+        toolCall = "skill_manage" to """{"action":"create","name":"x","content":"---\nname: x\ndescription: d\n---\nbody"}"""
+        harness.log.onEvent { _, _, event -> if (event is AgentEvent.ApprovalRequested) harness.approvals.respond(event.approvalId, ApprovalDecision.AllowOnce) }
+        val r = harness.routines.create(agent, "Attended", "Make a skill", Trigger.Every(60))
+        now += 60 * 60_000
+        tickAndWait()
+
+        val result = harness.store.entries(agent, routine(r.id).lastSessionId!!).filterIsInstance<SessionEntry.ToolResult>().single()
+        assertTrue(!result.isError, result.output)
+        assertEquals("Here's your brief", ran.single().summary)
     }
 
     @Test
@@ -110,7 +178,7 @@ class SchedulerTest {
 
     @Test
     fun settingsPickedDuringASilentRunAreKept() = runBlocking {
-        reply = "[SILENT]"
+        nothingNew()
         val session = harness.newSession(agent).id
         harness.store.append(agent, session, SessionEntry.UserMessage("hi"))
         val before = harness.store.entries(agent, session)
@@ -126,7 +194,7 @@ class SchedulerTest {
 
     @Test
     fun silentRunInAnAttachedSessionIsRemovedFromIt() = runBlocking {
-        reply = "[SILENT]"
+        nothingNew()
         val session = harness.newSession(agent).id
         harness.store.append(agent, session, SessionEntry.UserMessage("hi"))
         val before = harness.store.entries(agent, session)
@@ -147,7 +215,7 @@ class SchedulerTest {
         val before = harness.store.entries(agent, session)
         val changes = mutableListOf<kinuvo.protocol.SessionInfo>()
         harness.log.onChange { if (it.id == session) changes += it }
-        reply = "[SILENT]"
+        nothingNew()
         harness.routines.create(agent, "Watch", "Check", Trigger.Every(5)) { it.copy(sessionId = session) }
         now += 5 * 60_000
         tickAndWait()
@@ -234,7 +302,7 @@ class SchedulerTest {
         assertEquals(RunStatus.Skipped, routine("heartbeat").lastStatus)
 
         harness.routines.update(agent, "heartbeat") { it.copy(prompt = "- anything due?", activeHours = null) }
-        reply = "[SILENT]"
+        nothingNew()
         now += 60 * 60_000
         tickAndWait()
         assertEquals(RunStatus.Silent, routine("heartbeat").lastStatus)

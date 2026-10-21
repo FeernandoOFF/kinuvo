@@ -42,6 +42,8 @@ object ToolNames {
     const val KNOWLEDGE_REWRITE = "knowledge_rewrite"
     const val TASKS = "tasks"
     const val ASK_USER = "ask_user"
+    /** Only in Routine runs. */
+    const val ROUTINE_REPORT = "routine_report"
     const val ARTIFACT = "artifact"
     const val DEVICE_TOOLS = "device_tools"
     const val RUN_CODE = "run_code"

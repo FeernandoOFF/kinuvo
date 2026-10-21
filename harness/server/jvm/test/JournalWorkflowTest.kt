@@ -6,6 +6,7 @@ import ai.koog.prompt.message.Message
 import kinuvo.harness.core.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.knowledge.*
+import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -56,7 +57,7 @@ class JournalWorkflowTest {
                     DeviceToolResult(DeviceToolStatus.Ready, buildJsonObject { put("workouts", JsonArray(listOf(buildJsonObject { put("type", "Running"); put("durationMinutes", 35) }))) })
                 }
                 harness.timeZone = kotlinx.datetime.TimeZone.of("Europe/Dublin")
-                harness.runner(agent, session.id, routine).run(session.id, routine.prompt).collect { event ->
+                harness.runner(agent, session.id, RoutineRun(routine)).run(session.id, routine.prompt).collect { event ->
                     if (event is AgentEvent.QuestionsAsked) harness.questions.respond(event.questionsId, mapOf("reflection" to listOf("Rested")))
                     assertFalse(event is AgentEvent.RunError, event.toString())
                 }

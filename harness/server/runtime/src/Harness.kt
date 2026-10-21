@@ -1,6 +1,8 @@
 package kinuvo.harness.server
 
 import kinuvo.harness.core.*
+import kinuvo.harness.core.routines.RoutineReportTool
+import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.harness.core.routines.ScheduleTool
 import kinuvo.harness.core.skills.ActivateSkillTool
 import kinuvo.harness.core.skills.ReadSkillFileTool
@@ -14,6 +16,8 @@ import kinuvo.harness.core.tasks.TasksPlugin
 import kinuvo.harness.core.voice.VoiceProviders
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 import kinuvo.protocol.SessionEntry
 import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.artifacts.ArtifactTool
@@ -27,7 +31,6 @@ import kinuvo.harness.core.effective
 import kinuvo.harness.core.tools.WebSearch
 import kinuvo.harness.core.tools.WebSearchTool
 import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.Routine
 import kinuvo.protocol.RoutineApprovals
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.SessionInfo
@@ -60,6 +63,8 @@ open class HarnessRuntime(
     private val builtInFeatures: Set<ServerFeature> = BUILT_IN_FEATURES,
     private val platformDescription: String = platform.displayName,
     val voice: VoiceProviders = VoiceProviders(),
+    /** How long an unattended Routine run waits for an Approval before skipping the call. */
+    private val routineApprovalWait: Duration = 30.minutes,
 ) : ServerSettings by dependencies.settings {
     val log = SessionLog(dependencies.store)
     val store: Store = log
@@ -173,12 +178,12 @@ open class HarnessRuntime(
     private class PreparedRun(val effective: Effective, val tools: List<Tool>, val advertised: List<Tool>, val catalog: List<ResolvedTool>, val warnings: List<String>, val chat: CapabilityState)
 
     private suspend fun prepare(agent: Agent, sessionId: String?, settings: SessionSettings? = null,
-        routine: Routine? = null, taskId: String? = null, activate: Boolean = false): PreparedRun {
+        routine: RoutineRun? = null, taskId: String? = null, activate: Boolean = false): PreparedRun {
         val e = effective(agent, sessionId, settings)
         val chat = if (modelFactoryOverride) CapabilityState() else e.provider?.availability(e.agent.config.model)
             ?: CapabilityState.unsupported("No model provider '${e.agent.config.provider}'; this model provider is not installed")
         if (activate) chat.requireReady()
-        val run = RunContext(e.agent, sessionId, routine, taskId)
+        val run = RunContext(e.agent, sessionId, routine?.routine, taskId)
         val contributed = plugins.map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
         val own = PluginTools(toolsFor(e, sessionId, routine)).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.core")).tools
         val all = (own + contributed.flatMap { it.tools }).also { it.indexedTools() }
@@ -224,7 +229,7 @@ open class HarnessRuntime(
      * Builds a runner with the Agent's current tools, starting what its plugins need on first use. [sessionId] is the
      * Session it runs in; [routine] is set for a Routine's run, which follows the Routine's approval mode.
      */
-    suspend fun runner(agent: Agent, sessionId: String? = null, routine: Routine? = null, taskId: String? = null): AgentRun {
+    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null): AgentRun {
         val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true)
         val e = prepared.effective
         val agent = e.agent
@@ -244,12 +249,13 @@ open class HarnessRuntime(
             advertisedTools = advertised.map { it.descriptor },
             context = secrets.redact(context),
             warnings = prepared.warnings.map { secrets.redact(it) },
-            approvals = when (routine?.approvals) {
+            approvals = when (routine?.routine?.approvals) {
                 null -> Approvals(ApprovalPolicy(agent, trustRules), approvals)
                 RoutineApprovals.Auto -> Approvals(ApprovalPolicy(agent, trustRules, Tolerance.Full), approvals)
                 RoutineApprovals.Deny -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent)), approvals, ApprovalDecision.Deny(UNATTENDED_DENIAL))
-                RoutineApprovals.Inherit -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent)), approvals)
+                RoutineApprovals.Inherit -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent)), approvals, wait = routineApprovalWait, skipped = { routine.skipped += it })
             },
+            routine = routine,
             questions = questions,
             attach = { name, bytes -> attachments.upload(kinuvo.protocol.UploadAttachmentParams(name, kotlin.io.encoding.Base64.encode(bytes))) },
         )
@@ -268,22 +274,22 @@ open class HarnessRuntime(
     /** Stops what the plugins run for the Agent, e.g. after its exec settings changed. */
     suspend fun release(agent: Agent) = dependencies.resources.release(agent.id)
 
-    private suspend fun toolsFor(e: Effective, sessionId: String?, routine: Routine?): List<Tool> {
+    private suspend fun toolsFor(e: Effective, sessionId: String?, routine: RoutineRun?): List<Tool> {
         val agent = e.agent
         val search = if (ToolNames.WEB_FETCH in agent.config.tools) webSearch() else null
         return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool))
     }
 
-    private suspend fun builtInTools(e: Effective, sessionId: String?, routine: Routine?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {
+    private suspend fun builtInTools(e: Effective, sessionId: String?, routine: RoutineRun?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {
         when (it) {
             ToolNames.MEMORY -> MemoryTool(agent, docs, memoryCap = e.memoryCap, userCap = e.userCap)
             ToolNames.WEB_FETCH -> dependencies.webFetch(search)
-            ToolNames.SCHEDULE -> ScheduleTool(agent, routines, { timeZone }, sessionId, routine)
-            ToolNames.ASK_USER -> AskUserTool(routine != null).takeIf { routine?.approvals != RoutineApprovals.Deny }
+            ToolNames.SCHEDULE -> ScheduleTool(agent, routines, { timeZone }, sessionId, routine?.routine)
+            ToolNames.ASK_USER -> AskUserTool(routine != null).takeIf { routine?.routine?.approvals != RoutineApprovals.Deny }
             ToolNames.ARTIFACT -> ArtifactTool(agent, sessionId, artifacts) { readFile(agent, it) }
             else -> null
         }
-    } + if (ToolNames.SKILLS in agent.config.tools) skillTools(agent) else emptyList() }
+    } + if (ToolNames.SKILLS in agent.config.tools) skillTools(agent) else emptyList() } + listOfNotNull(routine?.let(::RoutineReportTool))
 
     /** [agent] without the tool groups this Server lacks the feature for, so neither its tools nor their instructions show. */
     private fun supported(agent: Agent) = agent.copy(config = agent.config.copy(tools = agent.config.tools.filter { it in toolGroups }))

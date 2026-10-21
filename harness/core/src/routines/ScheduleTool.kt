@@ -57,7 +57,7 @@ class ScheduleTool(
         name = ToolNames.SCHEDULE,
         description = "Manage your Routines: prompts you run on a schedule, each in a fresh Session by default. " +
             "Use them for reminders, recurring reports and checks. A run sees only your instructions, Memory and the prompt, " +
-            "so write self-contained prompts. A run that needs the user (an Approval or ask_user) notifies them and waits. A run that ends its reply with only [SILENT] is kept only in the routine's history, without notifying the user. " +
+            "so write self-contained prompts. A run that needs the user notifies them: an Approval is skipped if unanswered for a while, ask_user waits. A run notifies the user only when it has something new; otherwise it stays in the routine's history. " +
             "The routine with id 'heartbeat' is your Heartbeat: its prompt is your HEARTBEAT.md checklist. " +
             "Now: ${now()}. The user's time zone: ${defaultZone().id}." +
             (routine?.let { " You are running as the routine '${it.name}' (id ${it.id}): you can only list routines or remove this one." } ?: ""),
@@ -138,13 +138,8 @@ class ScheduleTool(
 
     private fun Routine.describe(): String {
         fun time(t: Long) = formatTime(t, timeZone)
-        val schedule = when (val t = trigger) {
-            is Trigger.Once -> "once at ${time(t.at)}"
-            is Trigger.Every -> "every ${t.minutes}m"
-            is Trigger.Cron -> "cron '${t.expr}'"
-        }
         return buildString {
-            append("- $id \"$name\": $schedule ($timeZone)")
+            append("- $id \"$name\": ${scheduleText()} ($timeZone)")
             activeHours?.let { append(", active ${it.start}-${it.end}") }
             append(if (enabled) nextRunAt?.let { ", next ${time(it)}" } ?: ", done" else ", paused")
             sessionId?.let { append(", continues Session $it") }
@@ -164,6 +159,13 @@ class ScheduleTool(
 }
 
 private val TIME = LocalDateTime.Format { date(LocalDate.Formats.ISO); char(' '); hour(); char(':'); minute() }
+
+/** When the Routine fires, in words. */
+fun Routine.scheduleText(): String = when (val t = trigger) {
+    is Trigger.Once -> "once at ${formatTime(t.at, timeZone)}"
+    is Trigger.Every -> "every ${t.minutes}m"
+    is Trigger.Cron -> "cron '${t.expr}'"
+}
 
 /** [at] as `yyyy-MM-dd HH:mm` in [timeZone]. */
 fun formatTime(at: Long, timeZone: String): String = TIME.format(Instant.fromEpochMilliseconds(at).toLocalDateTime(TimeZone.of(timeZone)))

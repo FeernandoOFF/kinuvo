@@ -86,7 +86,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
             val job = scope.launch(start = CoroutineStart.LAZY) {
                 var stopped = false
                 try {
-                    r.run(sessionId, message, activation, runId, routine, attachments, voice).collect {
+                    r.run(sessionId, message, activation, runId, attachments, voice).collect {
                         onEvent(it); log.publish(agent, sessionId, it); activity.update { a -> a.copy(steps = a.steps + 1) }
                     }
                 } catch (e: CancellationException) {

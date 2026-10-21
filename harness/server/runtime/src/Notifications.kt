@@ -13,7 +13,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Notifies the user about Sessions no client in the foreground is watching: an Approval or `ask_user` form waiting, a
- * reply or error, and Routine results worth showing (not silent Heartbeats).
+ * reply or error, and a Routine's report or failure (a quiet run sends nothing).
  */
 class Notifications(private val harness: HarnessRuntime, private val scope: CoroutineScope, private val routineOf: (sessionId: String) -> RoutineRef?) {
     fun on(agent: Agent, sessionId: String, event: AgentEvent) {
@@ -27,7 +27,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
                     Notification("${agent.name} needs an Approval", "${event.toolCallName}: ${event.reason ?: event.args}".clip(), agent.id, sessionId, urgent = true)
                 is AgentEvent.QuestionsAsked ->
                     Notification("${agent.name} has questions", (event.title ?: event.questions.joinToString(" · ") { it.label }).clip(), agent.id, sessionId, urgent = true)
-                // Routine runs are told by [routineRan], which knows when they were silent.
+                // Routine runs are told by [routineRan], when they have something to report.
                 is AgentEvent.RunFinished -> if (routine != null) null else Notification(agent.name, lastReply(agent, sessionId).orEmpty().clip(), agent.id, sessionId)
                 is AgentEvent.RunError -> if (routine != null) null else Notification("${agent.name} hit an error", event.message.clip(), agent.id, sessionId)
             }
@@ -39,7 +39,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         scope.launch {
             val agent = harness.store.agents().firstOrNull { it.id == ran.agentId } ?: return@launch
             if (ran.sessionId?.let { harness.log.watched(it) } == true) return@launch
-            val body = if (ran.status == RunStatus.Error) "Failed: ${ran.error}" else ran.sessionId?.let { lastReply(agent, it) }.orEmpty()
+            val body = if (ran.status == RunStatus.Error) "Failed: ${ran.error}" else ran.summary.orEmpty()
             quietly(Notification(ran.routine.name, body.clip(), agent.id, ran.sessionId))
         }
     }
