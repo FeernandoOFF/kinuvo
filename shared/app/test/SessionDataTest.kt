@@ -73,4 +73,19 @@ class SessionDataTest {
         val data = SessionData("main", entries = listOf(SessionEntry.ToolCall("c1", "ask_user", "{}")), live = LiveState(running = true, questions = asked))
         assertEquals(asked, (data.items.single() as ChatItem.ToolCall).questions)
     }
+    @Test
+    fun revisedProposalsRemainPendingAndTheOriginalIsNotCountedAsSaved() {
+        val proposal = kinuvo.protocol.ReflectionProposal("original", "knowledge", kotlinx.serialization.json.JsonObject(emptyMap()), "Reason", "Evidence")
+        val revised = proposal.copy(id = "revised")
+        val data = SessionData("main", entries = listOf(
+            SessionEntry.Reflection("first", 0, ReflectionResult(proposals = listOf(proposal))),
+            SessionEntry.ReflectionReview("original", true, "wrong date", ReflectionResult(proposals = listOf(revised))),
+        ))
+        val cards = data.items.filterIsInstance<ChatItem.Reflection>()
+        assertEquals(2, cards.size)
+        assertEquals(setOf("original"), cards.first().revised)
+        assertEquals(listOf(revised), cards.last().result!!.proposals)
+        assertEquals(null, cards.last().reviews["revised"])
+    }
+
 }

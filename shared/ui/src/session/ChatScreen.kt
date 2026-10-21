@@ -220,7 +220,7 @@ class ChatActions(
     val onRefreshModels: () -> Unit = {},
     val onStop: () -> Unit = {},
     val onDecision: (String, ApprovalDecision) -> Unit = { _, _ -> },
-    val onReviewReflection: (String, Boolean) -> Unit = { _, _ -> },
+    val onReviewReflection: (String, Boolean, String?) -> Unit = { _, _, _ -> },
     /** The open `ask_user` form's answers by question ID; null skips it. */
     val onAnswer: (Map<String, List<String>>?) -> Unit = {},
     val onEditAnswer: (questionsId: String, questionId: String, value: List<String>) -> Unit = { _, _, _ -> },
@@ -1066,13 +1066,14 @@ internal fun RequestMetricsView(metrics: kinuvo.protocol.RequestMetrics, initial
 }
 
 @Composable
-internal fun ReflectionView(item: ChatItem.Reflection, initiallyExpanded: Boolean = false, onReview: (String, Boolean) -> Unit = { _, _ -> }) {
+internal fun ReflectionView(item: ChatItem.Reflection, initiallyExpanded: Boolean = false, onReview: (String, Boolean, String?) -> Unit = { _, _, _ -> }) {
     val result = item.result
     val proposals = result?.proposals.orEmpty()
     val pending = proposals.count { it.id !in item.reviews }
-    val knowledge = (result?.knowledge ?: 0) + proposals.count { it.tool == "knowledge" && item.reviews[it.id] == true }
-    val skills = proposals.count { it.tool == "skill_manage" && item.reviews[it.id] == true }
-    val saved = (result?.total ?: 0) + proposals.count { item.reviews[it.id] == true }
+    val knowledge = (result?.knowledge ?: 0) + proposals.count { it.tool == "knowledge" && item.reviews[it.id] == true && it.id !in item.revised }
+    val skills = proposals.count { it.tool == "skill_manage" && item.reviews[it.id] == true && it.id !in item.revised }
+    val conventions = proposals.count { it.tool == "conventions" && item.reviews[it.id] == true && it.id !in item.revised }
+    val saved = (result?.total ?: 0) + proposals.count { item.reviews[it.id] == true && it.id !in item.revised }
     val title = when {
         result == null -> "Reflecting…"
         pending > 0 -> "Reflection needs your review"
@@ -1096,7 +1097,7 @@ internal fun ReflectionView(item: ChatItem.Reflection, initiallyExpanded: Boolea
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             if (result == null) Text("Reviewing this conversation for Knowledge, Memory, User Notes and Skills.", fontSize = 13.sp)
             else {
-                Text("Saved: Knowledge $knowledge · Memory ${result.memory} · User Notes ${result.userNotes} · Skills $skills", fontSize = 13.sp)
+                Text("Saved: Knowledge $knowledge · Memory ${result.memory} · User Notes ${result.userNotes} · Skills $skills" + if (conventions > 0) " · Conventions $conventions" else "", fontSize = 13.sp)
                 result.memoryChanges.forEach { change ->
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(if (change.target == "memory") "Memory update" else "User Notes update", fontSize = 13.sp)
@@ -1104,7 +1105,7 @@ internal fun ReflectionView(item: ChatItem.Reflection, initiallyExpanded: Boolea
                     }
                 }
                 result.proposals.forEach { proposal ->
-                    ReflectionProposalView(proposal, item.reviews[proposal.id], onReview)
+                    ReflectionProposalView(proposal, item.reviews[proposal.id], proposal.id in item.revised, onReview)
                 }
                 result.error?.let { Text(it, color = color(destructiveColor), fontSize = 13.sp) }
             }
@@ -1113,25 +1114,27 @@ internal fun ReflectionView(item: ChatItem.Reflection, initiallyExpanded: Boolea
 }
 
 @Composable
-private fun ReflectionProposalView(proposal: kinuvo.protocol.ReflectionProposal, approved: Boolean?, onReview: (String, Boolean) -> Unit) {
+private fun ReflectionProposalView(proposal: kinuvo.protocol.ReflectionProposal, approved: Boolean?, revised: Boolean, onReview: (String, Boolean, String?) -> Unit) {
     val skill = proposal.tool == "skill_manage"
+    val conventions = proposal.tool == "conventions"
     val title = proposal.args[if (skill) "name" else "title"]?.jsonPrimitive?.content ?: proposal.note?.title.orEmpty()
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         val kind = when {
+            conventions -> "Conventions update"
             !skill -> "Knowledge proposal"
             proposal.skillBefore != null -> "Skill update"
             else -> "Skill draft"
         }
-        Text("$kind: $title", fontWeight = FontWeight.Normal, fontSize = 13.sp)
+        Text(if (conventions) kind else "$kind: $title", fontWeight = FontWeight.Normal, fontSize = 13.sp)
         Text(proposal.reason, fontSize = 13.sp)
         // Evidence quotes the conversation; one line is enough to place it.
         Text("Evidence: ${proposal.evidence}", fontSize = 12.sp, color = color(mutedColor), maxLines = 1, overflow = TextOverflow.Ellipsis)
         val content = proposal.args["content"]?.jsonPrimitive?.content.orEmpty()
-        val edited = proposal.skillBefore?.takeIf { skill }
+        val edited = if (conventions) proposal.conventionsBefore else proposal.skillBefore?.takeIf { skill }
         // An edited Skill shows only what changes; its whole file stays out of the way.
         if (edited != null) {
             ReflectionDiff(remember(edited, content) { lineDiff(edited, content) })
-            ReviewButtons(proposal.id, approved, onReview)
+            ReviewButtons(proposal.id, approved, revised, onReview)
             return@Column
         }
         val before = proposal.note?.body
@@ -1165,16 +1168,21 @@ private fun ReflectionProposalView(proposal: kinuvo.protocol.ReflectionProposal,
                 }
             }
         }
-        ReviewButtons(proposal.id, approved, onReview)
+        ReviewButtons(proposal.id, approved, revised, onReview)
     }
 }
 
 @Composable
-private fun ReviewButtons(id: String, approved: Boolean?, onReview: (String, Boolean) -> Unit) {
-    if (approved == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Button(onClick = { onReview(id, true) }, style = ButtonStyle.Primary) { Text("Approve") }
-        Button(onClick = { onReview(id, false) }, style = ButtonStyle.Ghost) { Text("Reject") }
-    } else Text(if (approved) "Approved and saved" else "Rejected", fontSize = 12.sp, color = color(mutedColor))
+private fun ReviewButtons(id: String, approved: Boolean?, revised: Boolean, onReview: (String, Boolean, String?) -> Unit) {
+    if (approved == null) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        val note = rememberTextFieldState()
+        Input(note, "Note for the agent (optional)", capitalize = true)
+        Text("Approving with a note asks for a revision.", fontSize = 12.sp, color = color(mutedColor))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { onReview(id, true, note.text.toString()) }, style = ButtonStyle.Primary) { Text("Approve") }
+            Button(onClick = { onReview(id, false, note.text.toString()) }, style = ButtonStyle.Ghost) { Text("Reject") }
+        }
+    } else Text(if (revised) "Revised; awaiting Approval" else if (approved) "Approved and saved" else "Rejected", fontSize = 12.sp, color = color(mutedColor))
 }
 
 /** Added and removed lines, summed up as "+3 −1". */

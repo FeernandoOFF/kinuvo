@@ -54,6 +54,19 @@ class AgentDefaultsTest {
         } finally { store.clearAndJoin() }
     }
 
+    @Test fun reflectionReviewsSendTrimmedNotesForBothDecisions() = withOwner { owner, _, _ ->
+        val script = Script()
+        connect(owner, script)
+        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat("agent", "session"))
+        store().put("review", vm)
+        for (approve in listOf(true, false)) {
+            vm.reviewReflection("proposal", approve, "  wrong date  ")
+            assertEquals(ReviewReflectionParams("agent", "session", "proposal", approve, "wrong date"), script.reviews.receive())
+        }
+        vm.reviewReflection("proposal", false, "  ")
+        assertNull(script.reviews.receive().note)
+    }
+
     @Test fun oldDetailsReadCannotOverwriteSavedDefaults() = withOwner { owner, _, _ ->
         val script = Script()
         connect(owner, script)
@@ -111,6 +124,7 @@ class AgentDefaultsTest {
         val blocked = Channel<Unit>(Channel.UNLIMITED)
         val release = CompletableDeferred<Unit>()
         val sent = Channel<SessionSettings>(Channel.UNLIMITED)
+        val reviews = Channel<ReviewReflectionParams>(Channel.UNLIMITED)
         override suspend fun send(frame: Frame) {
             val request = frame as Frame.Request
             when (request.method) {
@@ -139,6 +153,11 @@ class AgentDefaultsTest {
                     reply(request, Api.ConfigureSession, SessionInfo("new", "agent", "New", settings = sessionSettings))
                 }
                 Api.Send.name -> { sent.send(sessionSettings); reply(request, Api.Send, SendResult("new", "run", "hello")) }
+                Api.Session.name -> reply(request, Api.Session, SessionInfo("session", "agent", "Review"))
+                Api.ReviewReflection.name -> {
+                    reviews.send(ProtocolJson.decodeFromJsonElement(Api.ReviewReflection.params, request.params))
+                    reply(request, Api.ReviewReflection, Unit)
+                }
                 Api.CatchUp.name -> reply(request, Api.CatchUp, Unit)
                 else -> frames.send(Frame.Response(request.id, false, error = "Unsupported in test: ${request.method}"))
             }
