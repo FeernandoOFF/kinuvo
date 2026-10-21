@@ -1,22 +1,18 @@
 package kinuvo.harness.core
 
 import ai.koog.agents.core.agent.config.AIAgentConfig
-import ai.koog.agents.core.annotation.InternalAgentsApi
 import ai.koog.agents.core.agent.entity.createStorageKey
 import ai.koog.agents.core.feature.AIAgentGraphFeature
 import ai.koog.agents.core.feature.config.FeatureConfig
 import ai.koog.agents.core.feature.pipeline.AIAgentGraphPipeline
 import ai.koog.prompt.Prompt
 import ai.koog.prompt.message.Message
-import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.tools.Tool
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.RequestKind
 import kinuvo.protocol.SessionEntry
-import kotlin.uuid.Uuid
 import kotlinx.coroutines.NonCancellable
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.withContext
 
 class SessionFeature private constructor() {
@@ -27,7 +23,6 @@ class SessionFeature private constructor() {
     companion object : AIAgentGraphFeature<Config, SessionFeature> {
         override val key = createStorageKey<SessionFeature>("kinuvo-session")
         override fun createInitialConfig(agentConfig: AIAgentConfig) = Config()
-        @OptIn(InternalAgentsApi::class)
         override fun install(config: Config, pipeline: AIAgentGraphPipeline): SessionFeature {
             val session = config.session
             pipeline.interceptStrategyStarting(this) { event ->
@@ -36,42 +31,11 @@ class SessionFeature private constructor() {
                     tools = session.tools
                 }
             }
-            pipeline.interceptLLMStreamingStarting(this) {
-                pipeline.onLLMCallStarting(it.eventId, it.executionInfo, it.context, it.runId, it.prompt, it.model, it.tools)
-            }
-            pipeline.interceptLLMStreamingFrameReceived(this) { session.frame(it.streamFrame) }
-            pipeline.interceptLLMStreamingFailed(this) { session.failStream() }
-            pipeline.interceptLLMStreamingCompleted(this) {
-                val success = session.streamingSuccess
-                withContext(NonCancellable) {
-                    session.saveResponse()
-                    if (success) pipeline.onLLMCallCompleted(it.eventId, it.executionInfo, it.context, it.runId, it.prompt, it.model, it.tools,
-                        session.responseMessages().filterIsInstance<Message.Assistant>().lastOrNull())
-                    else pipeline.onLLMCallFailed(it.eventId, it.executionInfo, it.context, it.runId, it.prompt, it.model, it.tools,
-                        IllegalStateException("Stream interrupted"))
-                }
-            }
-            pipeline.interceptLLMCallStarting(this) { session.startRequest() }
-            pipeline.interceptLLMCallCompleted(this) {
-                it.response?.let { response ->
-                    session.measurement?.capture?.let { capture ->
-                        capture.input = capture.input ?: response.metaInfo.inputTokensCount
-                        capture.output = capture.output ?: response.metaInfo.outputTokensCount
-                    }
-                }
-                session.saveMeasurement(true)
-            }
-            pipeline.interceptLLMCallFailed(this) { session.saveMeasurement(false) }
             pipeline.interceptNodeExecutionStarting(this) {
                 if (it.node.name == COMPACT_HISTORY) it.context.llm.writeSession { prompt = session.beforeCompression(prompt) }
             }
             pipeline.interceptNodeExecutionCompleted(this) {
                 if (it.node.name == COMPACT_HISTORY) it.context.llm.writeSession { prompt = session.afterCompression(prompt) }
-                (it.output as? SessionEntry.ToolResult)?.let { result ->
-                    session.append(result)
-                    it.context.llm.writeSession { prompt = prompt.withMessages { it + session.messages.messages(listOf(result)) } }
-                    session.emit(AgentEvent.ToolCallResult(result.id, result.output, result.isError, result.identity))
-                }
             }
             return SessionFeature()
         }
@@ -98,15 +62,12 @@ internal class RunSession(
     private var request = 0
     var messageId = ""
         private set
-    private var text = StringBuilder()
-    private var response = mutableListOf<SessionEntry>()
-    var calls: List<SessionEntry.ToolCall> = emptyList()
-        private set
-    var measurement: ModelMeasurement? = null
-        private set
-    private var ended = false
-    private var streamFailed = false
-    val streamingSuccess get() = ended && !streamFailed
+    val response = StreamResponse { identities[it] }
+    val calls get() = response.calls
+    val requests = ModelRequests(agent.config, { if (compressing) RequestKind.Compaction else kind }) {
+        append(SessionEntry.Measurement(it))
+    }
+    private var responseSaved = true
     private val startedCalls = mutableSetOf<String>()
     private var compressing = false
     private var before: Prompt? = null
@@ -124,55 +85,25 @@ internal class RunSession(
     }
 
     suspend fun startRequest() {
-        val capture = currentCoroutineContext()[TokenUsageCapture] ?: TokenUsageCapture()
-        capture.input = null; capture.output = null; capture.cached = null; capture.cacheWrite = null; capture.completed = null
-        measurement = ModelMeasurement(agent.config, if (compressing) RequestKind.Compaction else kind, capture)
         if (!compressing) {
             messageId = "$runId-${request++}"
-            text = StringBuilder()
-            response = mutableListOf()
-            calls = emptyList()
-            ended = false
-            streamFailed = false
+            response.messageId = messageId
+            responseSaved = false
             onRequest(instructions, store.entries(agent, sessionId).activeHistory().recentScreens(), tools)
         }
     }
 
-    fun failStream() { streamFailed = true }
-
-    fun frame(frame: StreamFrame) {
-        measurement?.frame(frame)
-        when (frame) {
-            is StreamFrame.TextDelta -> text.append(frame.text)
-            is StreamFrame.ReasoningComplete -> response += SessionEntry.Reasoning(
-                (frame.summary?.takeIf { it.isNotEmpty() } ?: frame.content).joinToString("\n\n"), frame.id, frame.encrypted, messageId)
-            is StreamFrame.ToolCallComplete -> response += SessionEntry.ToolCall(
-                frame.id ?: Uuid.random().toString(), frame.name, frame.content, identities[frame.name])
-            is StreamFrame.End -> ended = true
-            else -> Unit
-        }
-    }
-
     suspend fun saveResponse() = withContext(NonCancellable) {
-        if (measurement == null) return@withContext
-        val success = ended && !streamFailed
-        response.filterIsInstance<SessionEntry.Reasoning>().forEach { append(it) }
-        if (text.isNotEmpty()) append(SessionEntry.AssistantMessage(if (success) text.toString() else "$text\n\n[interrupted]", messageId))
-        calls = response.filterIsInstance<SessionEntry.ToolCall>()
-        saveMeasurement(success)
+        if (responseSaved) return@withContext
+        responseSaved = true
+        response.reasoning.forEach { append(it) }
+        if (response.text.isNotEmpty()) append(SessionEntry.AssistantMessage(
+            if (response.success) text() else "${text()}\n\n[interrupted]", messageId))
+        requests.finish(response.success)
         calls.forEach { append(it) }
     }
 
-    suspend fun saveMeasurement(success: Boolean) {
-        val current = measurement ?: return
-        measurement = null
-        append(SessionEntry.Measurement(current.finish(success)))
-    }
-
-    fun responseMessages(): List<Message> = messages.messages(response.filterIsInstance<SessionEntry.Reasoning>() +
-        listOfNotNull(text.takeIf { it.isNotEmpty() }?.let { SessionEntry.AssistantMessage(it.toString(), messageId) }) + calls)
-
-    fun text() = text.toString()
+    fun text() = response.text.toString()
 
     suspend fun append(entry: SessionEntry) = withContext(NonCancellable) { store.append(agent, sessionId, entry) }
 

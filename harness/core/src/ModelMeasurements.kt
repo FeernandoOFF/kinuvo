@@ -1,6 +1,7 @@
 package kinuvo.harness.core
 
 import ai.koog.prompt.streaming.StreamFrame
+import ai.koog.prompt.message.Message
 import kinuvo.protocol.RequestKind
 import kinuvo.protocol.RequestMetrics
 import kotlin.coroutines.AbstractCoroutineContextElement
@@ -8,6 +9,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.time.Clock
 import kotlin.time.TimeSource
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.currentCoroutineContext
 
 /** Request-local usage and timing, including complete calls collected from provider streams. */
 class TokenUsageCapture : AbstractCoroutineContextElement(Key) {
@@ -18,6 +20,35 @@ class TokenUsageCapture : AbstractCoroutineContextElement(Key) {
     var cacheWrite: Int? = null
     var completed: Boolean? = null
     var recordFrame: ((StreamFrame) -> Unit)? = null
+}
+
+internal class ModelRequests(
+    private val config: AgentConfig,
+    private val kind: () -> RequestKind,
+    private val save: suspend (RequestMetrics) -> Unit,
+) {
+    private var measurement: ModelMeasurement? = null
+
+    suspend fun start() {
+        val capture = currentCoroutineContext()[TokenUsageCapture] ?: TokenUsageCapture()
+        capture.input = null; capture.output = null; capture.cached = null; capture.cacheWrite = null; capture.completed = null
+        measurement = ModelMeasurement(config, kind(), capture)
+    }
+
+    fun frame(frame: StreamFrame) { measurement?.frame(frame) }
+
+    fun metadata(response: Message.Assistant) {
+        measurement?.capture?.let {
+            it.input = it.input ?: response.metaInfo.inputTokensCount
+            it.output = it.output ?: response.metaInfo.outputTokensCount
+        }
+    }
+
+    suspend fun finish(success: Boolean) {
+        val current = measurement ?: return
+        measurement = null
+        save(current.finish(success))
+    }
 }
 
 internal class ModelMeasurement(private val config: AgentConfig, private val kind: RequestKind, val capture: TokenUsageCapture) {
