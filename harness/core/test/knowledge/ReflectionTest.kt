@@ -14,6 +14,13 @@ import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ReflectionResult
 import kinuvo.protocol.ReflectionMemoryChange
 import kinuvo.protocol.ConfigScope
+import kinuvo.protocol.PluginInstanceId
+import kinuvo.protocol.ToolIdentity
+import kinuvo.protocol.RequestKind
+import kotlinx.coroutines.flow.flow
+import ai.koog.prompt.message.ResponseMetaInfo
+import kinuvo.harness.core.TokenUsageCapture
+import kotlinx.coroutines.currentCoroutineContext
 import kinuvo.harness.core.skills.load
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -29,7 +36,7 @@ class ReflectionTest {
     private val reflection = Reflection(knowledge, home.docs)
 
     @Test
-    fun compactedParentReplaysItsRetainedHistoryInTheFork() = runTest {
+    fun compactedParentReplaysItsRetainedHistoryInEachStage() = runTest {
         val history = listOf(SessionEntry.AssistantMessage("Earlier summary"), SessionEntry.Context("Current context"),
             SessionEntry.UserMessage("Remember this"), SessionEntry.AssistantMessage("Okay"))
         val model = scriptedModel { prompt, _ ->
@@ -72,7 +79,7 @@ class ReflectionTest {
         val result = reflection.reflect(home.agent, scriptedModel { _, _ -> error("Cold model used") }, "s1",
             listOf(SessionEntry.UserMessage("I like concise replies")), parent = parent, history = parentHistory)
         assertTrue(result.warmContext)
-        assertEquals(2, requests)
+        assertEquals(3, requests)
         assertTrue("Unknown tool 'shell'" in result.error.orEmpty())
         assertFalse("Previously failed" in result.error.orEmpty())
         assertTrue(result.measurements.all { it.model == "parent-model" && it.reasoning == "high" && it.kind == kinuvo.protocol.RequestKind.Reflection })
@@ -97,17 +104,22 @@ class ReflectionTest {
         val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
             val instructions = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
-            assertTrue(tools.any { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias() })
-            assertTrue("Keep replies concise" in instructions)
-            assertTrue("Lives in Cork" in instructions)
-            assertTrue("Likes tea" in instructions)
-            if (history.toolResults.isEmpty()) flowOf(
+            val personal = tools.single().name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias()
+            if (personal) {
+                assertTrue("Keep replies concise" in instructions)
+                assertTrue("Lives in Cork" in instructions)
+                assertTrue("Likes tea" in instructions)
+            }
+            if (history.toolResults.isNotEmpty()) flowOf(StreamFrame.End())
+            else if (personal) flowOf(
                 StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"add","target":"memory","content":"Give concrete examples"}"""),
                 StreamFrame.ToolCallComplete("c2", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"replace","target":"user","old_text":"Lives in Cork","content":"Lives in Dublin"}"""),
                 StreamFrame.ToolCallComplete("c3", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"remove","target":"user","old_text":"Likes tea"}"""),
+                StreamFrame.End(),
+            ) else flowOf(
                 StreamFrame.ToolCallComplete("c4", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"create","type":"person","title":"Ana","reason":"Family relationship","evidence":"user-0: Ana is my sister"}"""),
                 StreamFrame.End(),
-            ) else flowOf(StreamFrame.TextDelta("Saved."), StreamFrame.End())
+            )
         }
         val result = reflection.reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("I moved to Dublin. Examples help. Ana is my sister. I no longer like tea.")))
         val changes = listOf(
@@ -122,12 +134,14 @@ class ReflectionTest {
         assertTrue(knowledge.changes().isEmpty())
         assertEquals(null, knowledge.find("Ana"))
 
-        val next = scriptedModel { prompt, _ ->
+        val next = scriptedModel { prompt, tools ->
             val history = prompt.messages
             val instructions = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
-            assertTrue("Lives in Dublin" in instructions)
-            assertTrue("Give concrete examples" in instructions)
-            assertFalse("Lives in Cork" in instructions)
+            if (tools.single().name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias()) {
+                assertTrue("Lives in Dublin" in instructions)
+                assertTrue("Give concrete examples" in instructions)
+                assertFalse("Lives in Cork" in instructions)
+            }
             flowOf(StreamFrame.TextDelta("Nothing to save."), StreamFrame.End())
         }
         assertEquals(ReflectionResult(), reflection.reflect(home.agent, next, "s2", listOf(SessionEntry.UserMessage("Hello"))).copy(measurements = emptyList()))
@@ -135,9 +149,9 @@ class ReflectionTest {
 
     @Test
     fun failedMemoryWriteDoesNotProduceADiff() = runTest {
-        val model = scriptedModel { prompt, _ ->
+        val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
-            if (history.toolResults.isEmpty()) flowOf(
+            if (tools.single().name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias() && history.toolResults.isEmpty()) flowOf(
                 StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"add","target":"memory","content":"Use examples"}"""),
                 StreamFrame.ToolCallComplete("c2", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"remove","target":"memory","old_text":"Missing entry"}"""),
                 StreamFrame.End(),
@@ -152,11 +166,11 @@ class ReflectionTest {
     @Test
     fun unconfirmedAdviceCannotMutateKnowledgeEvenWithCustomPrompt() = runTest {
         val note = knowledge.create("project", "Kinuvo", body = "Existing structure")
-        val model = scriptedModel { prompt, _ ->
+        val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
             val instructions = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
             assertTrue("silence are not user agreement" in instructions)
-            if (history.toolResults.isEmpty()) flowOf(
+            if (tools.single().name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias() && history.toolResults.isEmpty()) flowOf(
                 StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"update","ref":"Kinuvo","append":"Use my suggested structure","reason":"Proposed organization","evidence":"assistant-1: suggested structure"}"""),
                 StreamFrame.End(),
             ) else flowOf(StreamFrame.End())
@@ -218,5 +232,100 @@ class ReflectionTest {
         assertEquals(ReflectionResult(), reflection.reflect(agent, model, "s1", listOf(SessionEntry.UserMessage("Hello"))).copy(measurements = emptyList()))
         assertEquals("- Existing memory\n", home.docs.read(agent.id, AgentDoc.Memory))
         assertEquals("- Existing user notes\n", home.docs.read(agent.id, AgentDoc.UserNotes))
+    }
+
+    @Test
+    fun enabledStagesRunInOrderWithOnlyTheirOwnToolsAndContext() = runTest {
+        home.docs.write(home.agent.id, AgentDoc.Memory, "personal-only")
+        val features = listOf(ToolNames.MEMORY, ToolNames.KNOWLEDGE, ToolNames.SKILLS)
+        val aliases = listOf(
+            setOf(ToolIdentity(PluginInstanceId("kinuvo.core"), "memory").modelAlias()),
+            setOf(ToolIdentity(PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias()),
+            setOf("activate_skill", "read_skill_file", "skill_manage").map { ToolIdentity(PluginInstanceId("kinuvo.core"), it).modelAlias() }.toSet(),
+        )
+        for (mask in 0..7) {
+            val enabled = features.indices.filter { mask and (1 shl it) != 0 }
+            val seen = mutableListOf<Int>()
+            val model = scriptedModel { prompt, tools ->
+                val stage = aliases.indexOf(tools.map { it.name }.toSet())
+                assertTrue(stage in enabled)
+                seen += stage
+                val review = prompt.messages.filterIsInstance<Message.User>().last().textContent()
+                assertEquals(stage == 0, "personal-only" in review)
+                assertEquals(stage == 1, "How the user organizes it:" in review)
+                assertEquals(stage == 2, "Available Skills:" in review)
+                flowOf(StreamFrame.End())
+            }
+            val agent = home.agent.copy(config = home.agent.config.copy(tools = enabled.map { features[it] }))
+            val result = Reflection(knowledge, home.docs, home.skills).reflect(agent, model, "s1", listOf(SessionEntry.UserMessage("Review this")))
+            assertEquals(null, result.error)
+            assertEquals(enabled, seen)
+            assertEquals(enabled.size, result.measurements.size)
+        }
+    }
+
+    @Test
+    fun countsSuccessfulEditsDirectlyEvenWhenCallIdsRepeatAndContentDoesNotChange() = runTest {
+        home.docs.write(home.agent.id, AgentDoc.Memory, "- Use examples\n")
+        val model = scriptedModel { prompt, tools ->
+            val name = tools.single().name
+            if (prompt.messages.toolResults.isNotEmpty()) flowOf(StreamFrame.End())
+            else if (name == ToolIdentity(PluginInstanceId("kinuvo.core"), "memory").modelAlias()) flowOf(
+                StreamFrame.ToolCallComplete("same-id", name, """{"action":"replace","target":"memory","old_text":"Use examples","content":"Use examples"}"""), StreamFrame.End(),
+            ) else flowOf(
+                StreamFrame.ToolCallComplete("same-id", name, """{"action":"create","type":"person","title":"Ana","reason":"Family","evidence":"user-0"}"""), StreamFrame.End(),
+            )
+        }
+        val result = reflection.reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Ana is my sister. Examples still help.")))
+        assertEquals(null, result.error)
+        assertEquals(1, result.memory)
+        assertTrue(result.memoryChanges.isEmpty())
+        assertEquals(1, result.proposals.size)
+        assertEquals(4, result.measurements.size)
+    }
+
+    @Test
+    fun warmStagesCannotExecuteToolsFromAnotherStageEvenWhenAdvertised() = runTest {
+        val memory = ToolIdentity(PluginInstanceId("kinuvo.core"), "memory").modelAlias()
+        val schema = ai.koog.agents.core.tools.ToolDescriptor(memory, "parent schema")
+        val model = scriptedModel { prompt, tools ->
+            assertEquals(listOf(schema), tools)
+            val review = prompt.messages.filterIsInstance<Message.User>().last().textContent()
+            if ("Perform only the Knowledge stage." in review && prompt.messages.toolResults.isEmpty()) flowOf(
+                StreamFrame.ToolCallComplete("blocked", memory, """{"action":"add","target":"user","content":"Must not save"}"""), StreamFrame.End(),
+            ) else flowOf(StreamFrame.End())
+        }
+        val parent = ReflectionContext(home.agent, model, "parent", emptyList(), listOf(schema))
+        val result = reflection.reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Review")), parent = parent)
+        assertTrue("Unknown tool" in result.error.orEmpty())
+        assertEquals(0, result.userNotes)
+        assertEquals("", home.docs.read(home.agent.id, AgentDoc.UserNotes))
+    }
+
+    @Test
+    fun eachRequestCapturesUsageAndFailedRequestsKeepEarlierChanges() = runTest {
+        var request = 0
+        val model = scriptedModel { _, tools -> flow {
+            request++
+            val capture = currentCoroutineContext()[TokenUsageCapture]!!
+            capture.cached = request
+            when (request) {
+                1 -> {
+                    emit(StreamFrame.ToolCallComplete("save", tools.single().name, """{"action":"add","target":"memory","content":"Use examples"}"""))
+                    emit(StreamFrame.End(metaInfo = ResponseMetaInfo.Empty.copy(inputTokensCount = 20, outputTokensCount = 4)))
+                }
+                2 -> emit(StreamFrame.End(metaInfo = ResponseMetaInfo.Empty.copy(inputTokensCount = 30, outputTokensCount = 2)))
+                else -> error("Knowledge provider failed")
+            }
+        } }
+        val result = reflection.reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Examples help")))
+        assertEquals(1, result.memory)
+        assertEquals(1, result.memoryChanges.size)
+        assertEquals("Knowledge provider failed", result.error)
+        assertEquals(listOf(true, true, false), result.measurements.map { it.success })
+        assertEquals(listOf(20, 30, null), result.measurements.map { it.inputTokens })
+        assertEquals(listOf(4, 2, null), result.measurements.map { it.outputTokens })
+        assertEquals(listOf(1, 2, 3), result.measurements.map { it.cachedTokens })
+        assertTrue(result.measurements.all { it.kind == RequestKind.Reflection })
     }
 }

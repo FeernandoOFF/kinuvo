@@ -193,7 +193,7 @@ internal class RunSession(
     }
 
     fun needsCompression(prompt: Prompt): Boolean {
-        if (kind == RequestKind.Reflection || estimate(prompt) <= threshold) return false
+        if (estimate(prompt) <= threshold) return false
         if (olderMessages(prompt).isNotEmpty()) return true
         check(budget == null || estimate(prompt) <= budget) { "The current request and tools exceed this model's context window. Shorten the request or select a larger model." }
         return false
