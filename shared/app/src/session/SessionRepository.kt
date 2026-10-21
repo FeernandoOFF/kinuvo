@@ -275,7 +275,7 @@ private fun SessionData.chatItems(): List<ChatItem> {
             is SessionEntry.ReflectionReview -> entry.result?.takeIf { it.proposals.isNotEmpty() }?.let {
                 items += ChatItem.Reflection(key("reflection-review-${entry.proposalId}", seq), it, reviews, revised)
             }
-            is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Context -> Unit
+            is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Context, is SessionEntry.Outcome -> Unit
         }
     }
     live.approval?.let { approval ->

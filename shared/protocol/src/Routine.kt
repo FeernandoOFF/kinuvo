@@ -53,6 +53,8 @@ data class Routine(
     val lastStatus: RunStatus? = null,
     val lastError: String? = null,
     val lastSessionId: String? = null,
+    /** What the last run told the user, for the next run to build on; null when it found nothing new. */
+    val lastReport: String? = null,
 )
 
 /** Names the Routine that started a Session or sent a message. */
@@ -91,6 +93,6 @@ data class UpdateRoutineParams(val agentId: String, val routineId: String, val s
 @Serializable
 data class RoutinesChanged(val agentId: String, val routines: List<Routine>)
 
-/** A run finished with something to show ([RunStatus.Ok] or [RunStatus.Error]). */
+/** A run finished with something to show ([RunStatus.Ok] with its [summary], or [RunStatus.Error]). */
 @Serializable
-data class RoutineRan(val agentId: String, val routine: RoutineRef, val status: RunStatus, val sessionId: String?, val error: String? = null)
+data class RoutineRan(val agentId: String, val routine: RoutineRef, val status: RunStatus, val sessionId: String?, val error: String? = null, val summary: String? = null)

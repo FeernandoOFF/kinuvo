@@ -5,7 +5,6 @@ import kinuvo.harness.core.AgentConfig
 import kinuvo.harness.core.AgentDoc
 import kinuvo.harness.core.identityName
 import kinuvo.protocol.RoutineRef
-import kinuvo.protocol.SILENT_REPLY
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.SessionInfo
 import kinuvo.protocol.SessionSettings
@@ -73,14 +72,17 @@ class FileStore(private val files: AgentFiles) : Store {
         var answered = false
         var details = SessionEntry.Details()
         for (e in entries) when (e) {
-            is SessionEntry.AssistantMessage -> answered = answered || !e.text.trim().startsWith(SILENT_REPLY)
+            is SessionEntry.Outcome -> answered = answered || e.report
             is SessionEntry.Started -> routine = e.routine
             is SessionEntry.Settings -> settings = e.settings
             is SessionEntry.Details -> details = e
-            is SessionEntry.UserMessage -> if (title == null) {
-                val run = parseTaskPrompt(e.text)
-                task = run?.first
-                title = (run?.second ?: e.text.ifBlank { e.attachments.firstOrNull()?.name.orEmpty() }).take(60)
+            is SessionEntry.UserMessage -> {
+                answered = answered || e.routine == null
+                if (title == null) {
+                    val run = parseTaskPrompt(e.text)
+                    task = run?.first
+                    title = (run?.second ?: e.text.ifBlank { e.attachments.firstOrNull()?.name.orEmpty() }).take(60)
+                }
             }
             else -> Unit
         }

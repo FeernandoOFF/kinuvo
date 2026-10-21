@@ -12,7 +12,7 @@ data class SessionInfo(
     /** The Routine that started this Session; null for Sessions the user started. */
     val routine: RoutineRef? = null,
     val settings: SessionSettings = SessionSettings(),
-    /** Whether it has a reply for the user, i.e. not [SILENT_REPLY]. */
+    /** Whether a Routine's run reported to the user, or the user joined in. */
     val answered: Boolean = false,
     /** The Task this Session is a run of; null for other Sessions. */
     val task: String? = null,
@@ -31,9 +31,6 @@ fun parseTaskPrompt(text: String): Pair<String, String>? =
     TASK_PROMPT.find(text)?.let { it.groupValues[1] to it.groupValues[2].trim() }
 
 private val TASK_PROMPT = Regex("""^\[Task ([^\]]+)] ([^\n]*)""")
-
-/** A Routine run whose reply starts with this has nothing for the user. */
-const val SILENT_REPLY = "[SILENT]"
 
 /** A Session's own model, reasoning effort and risk tolerance; null fields follow the Agent's. */
 @Serializable
@@ -97,6 +94,10 @@ sealed interface SessionEntry {
     /** The user's name for the Session (null: from its first message) and whether it's a favorite, from here on; the model doesn't see it. */
     @Serializable @SerialName("details")
     data class Details(val title: String? = null, val favorite: Boolean = false) : SessionEntry
+
+    /** How a Routine's run ended: [report] when it has [summary] for the user, else nothing was new; the model doesn't see it. */
+    @Serializable @SerialName("outcome")
+    data class Outcome(val report: Boolean, val summary: String = "") : SessionEntry
 
     /** [attachments] are files the tool shows the model, e.g. an image from a note. */
     @Serializable @SerialName("tool_result")
