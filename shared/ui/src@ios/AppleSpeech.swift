@@ -4,26 +4,36 @@ import os
 import KotlinModules
 
 /**
- * Voice chat on-device. SFSpeechRecognizer listens and AVSpeechSynthesizer speaks, both through one AVAudioEngine with
+ * Voice chat on-device. SpeechAnalyzer listens and AVSpeechSynthesizer speaks, both through one AVAudioEngine with
  * voice processing, so the microphone hears the user but not the reply (echo cancellation). Runs on the main thread.
  */
 final class AppleSpeech: NSObject, SpeechEngine {
-    private let recognizer = SFSpeechRecognizer()
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private let synthesizer = AVSpeechSynthesizer()
     private let playback = AVAudioFormat(standardFormatWithSampleRate: 22050, channels: 1)!
+    /** Converts and schedules speech off the main thread, which a streaming reply keeps busy: late buffers crackle. */
+    private let audio = DispatchQueue(label: "dev.kinuvo.speech.audio", qos: .userInteractive)
+    /** Only touched on [audio]. */
     private var converter: AVAudioConverter?
     private var configured = false
     /** Between start and stop, so audio changes after voice chat ends don't turn the microphone back on. */
     private var active = false
     private let lock = NSLock()
-    private var request: SFSpeechAudioBufferRecognitionRequest?
-    private var task: SFSpeechRecognitionTask?
+    /** The microphone's audio going to the analyzer, in [analyzerFormat]; set while listening, guarded by [lock]. */
+    private var feed: AsyncStream<AnalyzerInput>.Continuation?
+    private var analyzerFormat: AVAudioFormat?
+    /** Only touched on the microphone's thread. */
+    private var inputConverter: AVAudioConverter?
+    private var analyzer: SpeechAnalyzer?
+    private var transcribing: Task<Void, Never>?
     private var listening: UUID?
     private var pause: DispatchWorkItem?
-    /** Bumped by stopSpeaking, so buffers of cancelled utterances aren't played. */
+    /** Bumped by stopSpeaking, so buffers of cancelled utterances aren't played; guarded by [lock]. */
     private var generation = 0
+    /** Utterances waiting for the one being synthesized. */
+    private var queued = [(UUID, String)]()
+    private var synthesizing = false
     /** Completions of utterances not yet played; stopping speech completes them too. */
     private var unfinished = [UUID: () -> Void]()
     /** How long the user stays quiet before what they said is final. */
@@ -37,47 +47,80 @@ final class AppleSpeech: NSObject, SpeechEngine {
                 return
             }
             AVAudioApplication.requestRecordPermission { granted in
-                DispatchQueue.main.async { completion(granted ? nil : "Allow microphone access for Kinuvo in Settings") }
+                guard granted else {
+                    DispatchQueue.main.async { completion("Allow microphone access for Kinuvo in Settings") }
+                    return
+                }
+                Task { @MainActor in
+                    // Asked once; the voice is picked on first speaking, after the answer.
+                    if AVSpeechSynthesizer.personalVoiceAuthorizationStatus == .notDetermined {
+                        _ = await AVSpeechSynthesizer.requestPersonalVoiceAuthorization()
+                    }
+                    completion(await self.prepare())
+                }
             }
         }
     }
 
+    /** Downloads the speech model the first time, and finds the audio format it takes; returns why it can't, or nil. */
+    private func prepare() async -> String? {
+        guard let transcription = await Transcription.make() else {
+            return "Speech recognition isn't available for \(Locale.current.identifier(.bcp47))"
+        }
+        do {
+            if let request = try await AssetInventory.assetInstallationRequest(supporting: [transcription.module]) {
+                try await request.downloadAndInstall()
+            }
+        } catch {
+            log.error("Couldn't install the speech model: \(error.localizedDescription)")
+            return "Couldn't download the speech model: \(error.localizedDescription)"
+        }
+        let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcription.module])
+        lock.withLock { analyzerFormat = format }
+        return format == nil ? "Speech recognition can't take this microphone's audio" : nil
+    }
+
     func listen(untilPause: Bool, onPartial: @escaping (String) -> Void, onFinal: @escaping (String) -> Void, onError: @escaping (String) -> Void) {
         stopListening()
-        guard let recognizer, recognizer.isAvailable else { onError("Speech recognition is unavailable"); return }
-        guard recognizer.supportsOnDeviceRecognition else { onError("On-device speech recognition isn't available for \(recognizer.locale.identifier)"); return }
         do { try start() } catch {
             log.error("Couldn't start audio to listen: \(error.localizedDescription)")
             onError(error.localizedDescription)
             return
         }
-        let request = SFSpeechAudioBufferRecognitionRequest()
-        request.shouldReportPartialResults = true
-        request.addsPunctuation = true
-        request.requiresOnDeviceRecognition = true
         let id = UUID()
         listening = id
-        lock.withLock { self.request = request }
+        let (input, feed) = AsyncStream<AnalyzerInput>.makeStream()
+        lock.withLock { self.feed = feed }
         func finish(_ text: String) {
             stopListening()
             onFinal(text)
         }
-        task = recognizer.recognitionTask(with: request) { [weak self] result, error in
-            DispatchQueue.main.async {
-                guard let self, self.listening == id else { return }
-                if let result {
-                    let text = result.bestTranscription.formattedString
-                    onPartial(text)
-                    if result.isFinal { finish(text); return }
+        transcribing = Task { @MainActor in
+            do {
+                if lock.withLock({ analyzerFormat == nil }), let error = await prepare() { throw Failure(error) }
+                guard let transcription = await Transcription.make() else { throw Failure("Speech recognition is unavailable") }
+                let analyzer = SpeechAnalyzer(modules: [transcription.module])
+                guard listening == id else { return }
+                self.analyzer = analyzer
+                try await analyzer.start(inputSequence: input)
+                // Final results add up; the latest volatile one is a guess at what follows them.
+                var finalized = ""
+                try await transcription.results { text, isFinal in
+                    guard self.listening == id else { return }
+                    let full = joined(finalized, text)
+                    if isFinal { finalized = full }
+                    onPartial(full)
                     guard untilPause else { return }
                     self.pause?.cancel()
-                    let pause = DispatchWorkItem { if self.listening == id { finish(text) } }
+                    let pause = DispatchWorkItem { if self.listening == id { finish(full) } }
                     self.pause = pause
                     DispatchQueue.main.asyncAfter(deadline: .now() + self.endOfSpeech, execute: pause)
-                } else if let error {
-                    self.stopListening()
-                    onError(error.localizedDescription)
                 }
+            } catch {
+                guard listening == id else { return }
+                log.error("Transcription failed: \(error.localizedDescription)")
+                stopListening()
+                onError((error as? Failure)?.message ?? error.localizedDescription)
             }
         }
     }
@@ -88,17 +131,32 @@ final class AppleSpeech: NSObject, SpeechEngine {
             onDone()
             return
         }
-        let utterance = AVSpeechUtterance(string: text)
-        utterance.voice = voice
-        let generation = self.generation
+        // The synthesizer never ends an utterance with nothing to say, which would hold up the ones after it.
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return onDone() }
         let id = UUID()
         unfinished[id] = onDone
+        queued.append((id, text))
+        synthesizeNext()
+    }
+
+    /**
+     * Synthesizes the next queued utterance once the one before is written: a new write while one is still going cuts
+     * it short, which slower voices like Personal Voice make likely.
+     */
+    private func synthesizeNext() {
+        guard !synthesizing, !queued.isEmpty else { return }
+        let (id, text) = queued.removeFirst()
+        synthesizing = true
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = voice
+        let generation = lock.withLock { self.generation }
         // The synthesizer ends an utterance with an empty buffer, sometimes more than one.
         var ended = false
         synthesizer.write(utterance) { [weak self] buffer in
-            DispatchQueue.main.async {
-                guard let self, self.generation == generation, !ended, let buffer = buffer as? AVAudioPCMBuffer else { return }
-                if buffer.frameLength == 0 {
+            guard let buffer = buffer as? AVAudioPCMBuffer, let copy = buffer.copy() as? AVAudioPCMBuffer else { return }
+            self?.audio.async {
+                guard let self, self.lock.withLock({ self.generation == generation }), !ended else { return }
+                if copy.frameLength == 0 {
                     ended = true
                     // The last buffer is empty; a frame of silence after the speech reports when it has played.
                     let end = AVAudioPCMBuffer(pcmFormat: self.playback, frameCapacity: 1)!
@@ -107,10 +165,15 @@ final class AppleSpeech: NSObject, SpeechEngine {
                     self.player.scheduleBuffer(end, completionCallbackType: .dataPlayedBack) { _ in
                         DispatchQueue.main.async { self.unfinished.removeValue(forKey: id)?() }
                     }
-                } else if let converted = self.convert(buffer) {
+                    DispatchQueue.main.async {
+                        guard self.lock.withLock({ self.generation == generation }) else { return }
+                        self.synthesizing = false
+                        self.synthesizeNext()
+                    }
+                } else if let converted = converted(copy, to: self.playback, with: &self.converter) {
                     self.player.scheduleBuffer(converted)
                 } else {
-                    self.log.error("Couldn't convert speech from \(buffer.format)")
+                    self.log.error("Couldn't convert speech from \(copy.format)")
                 }
                 if !self.player.isPlaying { self.player.play() }
             }
@@ -118,9 +181,15 @@ final class AppleSpeech: NSObject, SpeechEngine {
     }
 
     func stopSpeaking() {
-        generation += 1
+        lock.withLock { generation += 1 }
+        queued.removeAll()
+        synthesizing = false
         synthesizer.stopSpeaking(at: .immediate)
-        player.stop()
+        // Waits for a buffer being scheduled, and drops what the converter held of the cut-short speech.
+        audio.sync {
+            player.stop()
+            converter = nil
+        }
         let stopped = unfinished.values
         unfinished.removeAll()
         stopped.forEach { $0() }
@@ -139,11 +208,15 @@ final class AppleSpeech: NSObject, SpeechEngine {
         pause?.cancel()
         pause = nil
         lock.withLock {
-            request?.endAudio()
-            request = nil
+            feed?.finish()
+            feed = nil
         }
-        task?.cancel()
-        task = nil
+        transcribing?.cancel()
+        transcribing = nil
+        if let analyzer {
+            self.analyzer = nil
+            Task { await analyzer.cancelAndFinishNow() }
+        }
     }
 
     private func start() throws {
@@ -181,31 +254,76 @@ final class AppleSpeech: NSObject, SpeechEngine {
         let input = engine.inputNode
         input.installTap(onBus: 0, bufferSize: 1024, format: input.outputFormat(forBus: 0)) { [weak self] buffer, _ in
             guard let self else { return }
-            self.lock.withLock { self.request?.append(buffer) }
+            self.lock.withLock {
+                guard let feed = self.feed, let format = self.analyzerFormat,
+                      let converted = converted(buffer, to: format, with: &self.inputConverter, copying: true) else { return }
+                feed.yield(AnalyzerInput(buffer: converted))
+            }
         }
     }
 
-    /** [buffer] in the player's format; the synthesizer's depends on the voice. */
-    private func convert(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
-        if buffer.format == playback { return buffer }
-        if converter?.inputFormat != buffer.format { converter = AVAudioConverter(from: buffer.format, to: playback) }
-        let capacity = AVAudioFrameCount(Double(buffer.frameLength) * playback.sampleRate / buffer.format.sampleRate) + 1
-        guard let converter, let out = AVAudioPCMBuffer(pcmFormat: playback, frameCapacity: capacity) else { return nil }
-        var fed = false
-        var error: NSError?
-        converter.convert(to: out, error: &error) { _, status in
-            if fed { status.pointee = .noDataNow; return nil }
-            fed = true
-            status.pointee = .haveData
-            return buffer
-        }
-        return error == nil ? out : nil
-    }
-
-    /** The best installed voice for the user's language; premium and enhanced ones are downloaded in Settings. */
+    /**
+     * The user's Personal Voice when they allow it and it speaks their language, else the best installed voice for it;
+     * premium and enhanced ones are downloaded in Settings.
+     */
     private lazy var voice: AVSpeechSynthesisVoice? = {
         let language = AVSpeechSynthesisVoice.currentLanguageCode()
-        return AVSpeechSynthesisVoice.speechVoices().filter { $0.language == language }.max { $0.quality.rawValue < $1.quality.rawValue }
+        let voices = AVSpeechSynthesisVoice.speechVoices()
+        let personal = AVSpeechSynthesizer.personalVoiceAuthorizationStatus == .authorized
+            ? voices.first { $0.voiceTraits.contains(.isPersonalVoice) && $0.language.prefix(2) == language.prefix(2) } : nil
+        return personal ?? voices.filter { $0.language == language }.max { $0.quality.rawValue < $1.quality.rawValue }
             ?? AVSpeechSynthesisVoice(language: language)
     }()
+}
+
+private func joined(_ a: String, _ b: String) -> String { [a, b].map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }.joined(separator: " ") }
+
+/**
+ * [buffer] in [format], through [converter], which is replaced when the buffer's format changes. [copying] never returns
+ * [buffer] itself, for buffers the engine reuses once its tap returns.
+ */
+private func converted(_ buffer: AVAudioPCMBuffer, to format: AVAudioFormat, with converter: inout AVAudioConverter?, copying: Bool = false) -> AVAudioPCMBuffer? {
+    if buffer.format == format { return copying ? buffer.copy() as? AVAudioPCMBuffer : buffer }
+    if converter?.inputFormat != buffer.format { converter = AVAudioConverter(from: buffer.format, to: format) }
+    let capacity = AVAudioFrameCount(Double(buffer.frameLength) * format.sampleRate / buffer.format.sampleRate) + 1
+    guard let converter, let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return nil }
+    var fed = false
+    var error: NSError?
+    converter.convert(to: out, error: &error) { _, status in
+        if fed { status.pointee = .noDataNow; return nil }
+        fed = true
+        status.pointee = .haveData
+        return buffer
+    }
+    return error == nil ? out : nil
+}
+
+private struct Failure: Error {
+    let message: String
+    init(_ message: String) { self.message = message }
+}
+
+/**
+ * The best transcriber for the user's language: SpeechTranscriber, built for long-form speech, or DictationTranscriber
+ * where it isn't available. [results] gets each result's text and whether it's final.
+ */
+private struct Transcription {
+    let module: any SpeechModule
+    let results: (@escaping (String, Bool) -> Void) async throws -> Void
+
+    static func make() async -> Transcription? {
+        if SpeechTranscriber.isAvailable, let locale = await SpeechTranscriber.supportedLocale(equivalentTo: .current) {
+            let transcriber = SpeechTranscriber(locale: locale, preset: .progressiveTranscription)
+            return Transcription(module: transcriber) { handle in
+                for try await result in transcriber.results { await MainActor.run { handle(String(result.text.characters), result.isFinal) } }
+            }
+        }
+        if let locale = await DictationTranscriber.supportedLocale(equivalentTo: .current) {
+            let transcriber = DictationTranscriber(locale: locale, preset: .progressiveLongDictation)
+            return Transcription(module: transcriber) { handle in
+                for try await result in transcriber.results { await MainActor.run { handle(String(result.text.characters), result.isFinal) } }
+            }
+        }
+        return nil
+    }
 }

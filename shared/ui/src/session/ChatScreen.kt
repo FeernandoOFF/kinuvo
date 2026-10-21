@@ -9,7 +9,10 @@ import kinuvo.ui.board.*
 import kinuvo.ui.routine.*
 import kinuvo.ui.navigation.*
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -127,7 +130,9 @@ fun ChatScreen(
     val dictation = speech?.let { koinViewModel<DictationViewModel> { parametersOf(it) } }
     // The ViewModels outlive the screen, e.g. while Settings is open; the microphone doesn't.
     DisposableEffect(voice, dictation) { onDispose { voice?.end(); dictation?.stop() } }
-    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { voice?.end(); dictation?.stop() }
+    // Picking a photo takes the app out of view too; voice chat waits for it instead of ending.
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) { voice?.background(); dictation?.stop() }
+    LifecycleEventEffect(Lifecycle.Event.ON_START) { voice?.foreground() }
     val draft = rememberRichTextState()
     remember(draft) { draft.setMarkdown(app.draft(route.slot)) }
     DisposableEffect(draft, route.slot) { onDispose { app.saveDraft(route.slot, draft.toMarkdown()) } }
@@ -186,6 +191,7 @@ fun ChatScreen(
             onFavorite = session::favorite,
             onVoice = voice?.let { v -> { dictation?.stop(); v.start() } },
             onPauseVoice = { if (it) voice?.pause() else voice?.resume() },
+            onHoldVoice = { if (it) voice?.hold() else voice?.letGo() },
             onSpeaker = { voice?.speaker(it) },
             onEndVoice = { voice?.end() },
             onDictate = dictation?.let { it::toggle },
@@ -227,6 +233,8 @@ class ChatActions(
     val onFavorite: (Boolean) -> Unit = {},
     val onVoice: (() -> Unit)? = null,
     val onPauseVoice: (Boolean) -> Unit = {},
+    /** Holds to talk, or lets go to send. */
+    val onHoldVoice: (Boolean) -> Unit = {},
     val onSpeaker: (Boolean) -> Unit = {},
     val onEndVoice: () -> Unit = {},
     val onDictate: (() -> Unit)? = null,
@@ -318,32 +326,49 @@ fun ChatContent(
             val canDrop = !state.running && (state.files?.actionable != false || state.photos?.actionable != false)
             Box(Modifier.weight(1f).attachmentDrop(canDrop, actions.onDropAttachments) { dropping = it }) {
                 val voice = state.voice?.takeIf { it.active }
+                // Keeps the last state while voice chat animates away.
+                var shownVoice by remember { mutableStateOf(voice) }
+                voice?.let { shownVoice = it }
                 CompositionLocalProvider(LocalRiveGaze provides gaze) {
                     Messages(state, messages, follow, Modifier.fillMaxSize().hazeSource(haze), actions, composerHeight,
                         top = (if (floating) FloatingBarHeight else 0.dp) + (if (voice != null) VoiceStatusHeight else 0.dp))
                 }
-                if (voice != null) VoiceGlow(voice, Modifier.align(Alignment.BottomCenter))
+                state.voice?.let { VoiceGlow(it, Modifier.align(Alignment.BottomCenter)) }
                 androidx.compose.animation.AnimatedVisibility(dropping, Modifier.matchParentSize(), enter = fadeIn(), exit = fadeOut()) { DropOverlay() }
                 if (floating) FloatingBar(state, usage, actions, toggle, Modifier.align(Alignment.TopCenter))
-                if (voice != null) VoiceStatus(voice, Modifier.align(Alignment.TopCenter).padding(top = if (floating) FloatingBarHeight + 8.dp else 12.dp))
+                androidx.compose.animation.AnimatedVisibility(voice != null, Modifier.align(Alignment.TopCenter).padding(top = if (floating) FloatingBarHeight + 8.dp else 12.dp),
+                    enter = fadeIn() + slideInVertically(spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow)) { -it },
+                    exit = fadeOut() + slideOutVertically { -it }) {
+                    shownVoice?.let { VoiceStatus(it) }
+                }
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { composerHeight = with(density) { it.height.toDp() } }
                     .onFocusChanged { composerFocused = it.hasFocus }.padding(horizontal = 16.dp).padding(bottom = if (wide) 10.dp else 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     LaunchedEffect(state.unsent) { state.unsent?.let { if (draft.annotatedString.text.isBlank()) draft.setMarkdown(it) } }
-                    var dictationBase by remember { mutableStateOf<String?>(null) }
+                    var dictated by remember { mutableStateOf<DictationDraft?>(null) }
                     LaunchedEffect(state.dictation) {
                         val dictation = state.dictation ?: return@LaunchedEffect
-                        // Dictation goes after what was typed before it started.
-                        val base = dictationBase ?: if (dictation.dictating) draft.toMarkdown().trim().also { dictationBase = it } else return@LaunchedEffect
+                        val current = dictated ?: if (dictation.dictating) DictationDraft(draft.toMarkdown().trim()) else return@LaunchedEffect
                         if (dictation.text.isNotBlank()) {
-                            draft.setMarkdown(listOf(base, dictation.text).filter { it.isNotBlank() }.joinToString(" "))
+                            val next = current.next(draft.toMarkdown().trim(), dictation.text)
+                            draft.setMarkdown(next.shown)
                             draft.selection = TextRange(draft.annotatedString.text.length)
-                        }
-                        if (!dictation.dictating) dictationBase = null
+                            dictated = next.copy(shown = draft.toMarkdown().trim())
+                        } else dictated = current
+                        if (!dictation.dictating) dictated = null
                     }
                     val settings: @Composable RowScope.() -> Unit = {
                         state.defaults?.let { ComposerSettings(state.settings, it, state.models, actions.onConfigure, actions.onAttach, !state.running, actions.onRefreshModels, state.photos, state.files) }
                     }
-                    if (voice != null) VoiceControls(voice, actions.onPauseVoice, actions.onSpeaker, actions.onEndVoice, Modifier.widthIn(max = ContentWidth), settings)
+                    val attachments: @Composable () -> Unit = { if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        state.attachments.forEach { a -> key(a.id) { AttachmentChip(a.attachment, a.upload.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onRemove = if (state.running) null else ({ actions.onRemoveAttachment(a.id) })) } }
+                    } }
+                    AnimatedContent(voice != null, contentAlignment = Alignment.BottomCenter, transitionSpec = {
+                        (fadeIn(tween(220, delayMillis = 80)) + slideInVertically(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) { it / 3 } +
+                            scaleIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow), initialScale = 0.94f))
+                            .togetherWith(fadeOut(tween(120)) + slideOutVertically(tween(160)) { it / 4 })
+                            .using(SizeTransform(clip = false))
+                    }) { inVoice ->
+                    if (inVoice) shownVoice?.let { VoiceControls(it, actions.onPauseVoice, actions.onHoldVoice, actions.onSpeaker, actions.onEndVoice, Modifier.widthIn(max = ContentWidth), settings, attachments) }
                     else Composer(
                         running = state.running,
                         onSend = { follow.value = true; actions.onDiscardDictation(); actions.onSend(it) },
@@ -358,9 +383,7 @@ fun ChatContent(
                         onCompletingChange = { completing = it },
                         hasAttachments = state.attachments.isNotEmpty(),
                         sending = state.sending,
-                        attachments = { if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            state.attachments.forEach { a -> key(a.id) { AttachmentChip(a.attachment, a.upload.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onRemove = if (state.running) null else ({ actions.onRemoveAttachment(a.id) })) } }
-                        } },
+                        attachments = attachments,
                         controls = settings,
                         containerColor = color(fieldColor).copy(alpha = 0.7f),
                         backdrop = Modifier.hazeBlur(HazeInput.Sources(haze), blur),
@@ -368,6 +391,7 @@ fun ChatContent(
                         onDictate = actions.onDictate,
                         dictating = state.dictation?.dictating == true,
                     )
+                    }
                 }
                 ConnectionSnackbar(connection, Modifier.align(Alignment.BottomCenter).padding(bottom = composerHeight + 12.dp).padding(horizontal = 16.dp))
             }
@@ -677,7 +701,7 @@ private fun Messages(
                     }
                 }
                 state.voice?.heard?.takeIf { it.isNotBlank() }?.let { heard ->
-                    item(key = "heard") { Box(Modifier.widthIn(max = ContentWidth).fillMaxWidth().alpha(0.6f)) { ChatItemView(ChatItem.User("heard", heard), actions) } }
+                    item(key = "heard") { Box(Modifier.animateItem(fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth().alpha(0.6f)) { Entering { ChatItemView(ChatItem.User("heard", heard), actions) } } }
                 }
                 if (thinking) item(key = "thinking") {
                     Row(Modifier.widthIn(max = ContentWidth).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

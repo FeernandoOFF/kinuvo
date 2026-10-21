@@ -637,6 +637,9 @@ I checked your knowledge base just now and didn't find a profile note for you.
         render("voice-listening-dark", 390, 844) {
             HarnessTheme(dark = true) { ChatContent(voice.copy(voice = VoiceChatState(VoicePhase.Listening, heard = "What's on my calendar")), ConnectionState.Connected("x"), null, ChatActions()) }
         }
+        render("voice-holding-dark", 390, 844) {
+            HarnessTheme(dark = true) { ChatContent(voice.copy(voice = VoiceChatState(VoicePhase.Listening, heard = "Let me think about", paused = true, holding = true)), ConnectionState.Connected("x"), null, ChatActions()) }
+        }
     }
 
     @Test
