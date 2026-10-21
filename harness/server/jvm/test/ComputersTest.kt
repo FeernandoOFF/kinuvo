@@ -1,6 +1,7 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.Model
+import kinuvo.harness.testing.*
+
 import kinuvo.harness.core.RunContext
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.ToolRun
@@ -14,7 +15,7 @@ import kotlin.test.*
 
 class ComputersTest {
     private val home = Files.createTempDirectory("computers").toFile()
-    private val harness = Harness(home = Path(home.path), modelFactory = { Model { _, _, _ -> kotlinx.coroutines.flow.emptyFlow() } })
+    private val harness = Harness(home = Path(home.path), modelFactory = { scriptedModel { _, _ -> kotlinx.coroutines.flow.emptyFlow() } })
     private val phone = ToolDevice("phone", "Pixel", setOf(DeviceToolKind.Computer))
     private val attached = mutableListOf<String>()
     private val run = object : ToolRun {

@@ -1,5 +1,8 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+import ai.koog.prompt.message.Message
+
 import kinuvo.harness.core.modelAlias
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
@@ -24,10 +27,12 @@ class RuntimeDependenciesTest {
             override val descriptor = ToolDescriptor("web_fetch", "Injected fetch")
             override suspend fun execute(args: JsonObject): String { fetched = true; return "Injected page" }
         } }
-        val model = Model { instructions, history, tools ->
+        val model = scriptedModel { prompt, tools ->
+            val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
+            val history = prompt.messages
             assertTrue("Injected soul" in instructions)
             assertEquals(setOf("memory", "web_fetch").map { kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), it).modelAlias() }.toSet(), tools.map { it.name }.toSet())
-            when (history.filterIsInstance<SessionEntry.ToolResult>().size) {
+            when (history.toolResults.size) {
                 0 -> flowOf(StreamFrame.ToolCallComplete("memory", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"add","target":"memory","content":"Injected memory"}"""), StreamFrame.End())
                 1 -> flowOf(StreamFrame.ToolCallComplete("fetch", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "web_fetch").modelAlias(), "{}"), StreamFrame.End())
                 else -> flowOf(StreamFrame.TextDelta("Done"), StreamFrame.End())
@@ -49,7 +54,7 @@ class RuntimeDependenciesTest {
     fun reflectionUsesInjectedProgressAndDoesNotRepeatCompletedWork() = runTest {
         val fixture = RuntimeFixture()
         var requests = 0
-        val runtime = fixture.runtime(Model { _, _, _ -> requests++; flowOf(StreamFrame.End()) })
+        val runtime = fixture.runtime(scriptedModel { _, _ -> requests++; flowOf(StreamFrame.End()) })
         val agent = fixture.agent.copy(config = fixture.agent.config.copy(tools = listOf("memory")))
         val session = runtime.newSession(agent)
         runtime.store.append(agent, session.id, SessionEntry.UserMessage("Remember"))
@@ -95,7 +100,7 @@ class RuntimeDependenciesTest {
                 entered.complete(Unit)
                 try { awaitCancellation() } finally { actions += "request stopped" }
             }
-            override fun model(config: AgentConfig): Model = error("Not used")
+            override fun model(config: AgentConfig): AgentModel = error("Not used")
         }
         val fixture = RuntimeFixture(providers = listOf(provider), closeNetwork = { actions += "resources closed" })
         val peers = object : PeerRegistry {
@@ -138,7 +143,7 @@ class RuntimeDependenciesTest {
                     try { state.collect(collector) } finally { actions += "work stopped" }
                 }
             }
-            override fun model(config: AgentConfig): Model = error("Not used")
+            override fun model(config: AgentConfig): AgentModel = error("Not used")
         }
         val fixture = RuntimeFixture(providers = listOf(provider), closeNetwork = { actions += "resources closed" })
         val peers = object : PeerRegistry {

@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+
 import kinuvo.harness.core.*
 import kinuvo.harness.core.artifacts.*
 import kinuvo.harness.core.knowledge.*
@@ -96,6 +98,6 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
             catalogReads++
             ModelsCatalog(providers.map { ProviderModels(it.id, it.name, it.models(), false) })
         }, { fetch(it) })
-    fun runtime(model: Model? = null, features: Set<ServerFeature> = BUILT_IN_FEATURES) =
+    fun runtime(model: AgentModel? = null, features: Set<ServerFeature> = BUILT_IN_FEATURES) =
         HarnessRuntime(dependencies, modelFactory = model?.let { { _: AgentConfig -> it } }, builtInFeatures = features)
 }

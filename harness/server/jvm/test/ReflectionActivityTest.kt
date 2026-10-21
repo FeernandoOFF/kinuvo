@@ -1,11 +1,13 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+import ai.koog.prompt.message.Message
+
 import kinuvo.harness.core.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.codex.CodexAuth
 import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.codex.CodexProvider
-import kinuvo.harness.core.Model
 import kinuvo.harness.core.store.FileStore
 import kinuvo.protocol.*
 import kotlinx.coroutines.CoroutineScope
@@ -15,7 +17,6 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
-import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -29,7 +30,10 @@ class ReflectionActivityTest {
         var outcome = "saved"
         lateinit var harness: Harness
         var sessionId = ""
-        val model = Model { instructions, history, _ -> flow {
+        val model = scriptedModel { prompt, _ ->
+            val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
+            val history = prompt.messages
+             flow {
             val agent = harness.store.agents().single()
             val caught = mutableListOf<SessionUpdate>()
             val subscriber = SessionLog.Subscriber { caught += it; true }
@@ -37,10 +41,10 @@ class ReflectionActivityTest {
             assertNotNull(caught.map { it.change }.filterIsInstance<SessionChange.Live>().single().state.reflectionId)
             assertEquals(SessionStatus.Idle, harness.log.status(sessionId))
             harness.log.unsubscribeAll(subscriber)
-            assertTrue("People go in person notes" in history.filterIsInstance<SessionEntry.Context>().last().content)
+            assertTrue("People go in person notes" in history.filterIsInstance<Message.System>().last().textContent())
             emitAll(when {
                 outcome == "failed" -> error("Provider unavailable")
-                outcome == "empty" || history.any { it is SessionEntry.ToolResult } -> flowOf(StreamFrame.TextDelta("Finished."), StreamFrame.End())
+                outcome == "empty" || history.toolResults.isNotEmpty() -> flowOf(StreamFrame.TextDelta("Finished."), StreamFrame.End())
                 else -> flowOf(
                     StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"create","type":"person","title":"Ana","reason":"Family","evidence":"user-1: sister Ana"}"""),
                     StreamFrame.ToolCallComplete("c2", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"add","target":"memory","content":"Use examples"}"""),

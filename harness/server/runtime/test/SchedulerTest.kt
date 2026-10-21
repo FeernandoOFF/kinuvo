@@ -1,8 +1,9 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.modelAlias
-import kinuvo.harness.core.Model
 import kinuvo.protocol.RoutineApprovals
 import kinuvo.protocol.RoutineRan
 import kinuvo.protocol.RunStatus
@@ -37,10 +38,11 @@ class SchedulerTest {
     private var hang = false
     /** Runs while the model is replying, e.g. to act like the user mid-run. */
     private var during: suspend () -> Unit = {}
-    private val model = Model { _, history, _ ->
+    private val model = scriptedModel { prompt, _ ->
+        val history = prompt.messages
         val call = toolCall
-        if (hang) return@Model flow<StreamFrame> { awaitCancellation() }
-        if (call != null && history.none { it is SessionEntry.ToolResult }) flowOf(StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), call.first).modelAlias(), call.second), StreamFrame.End())
+        if (hang) return@scriptedModel flow<StreamFrame> { awaitCancellation() }
+        if (call != null && history.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), call.first).modelAlias(), call.second), StreamFrame.End())
         else flow { during(); emit(StreamFrame.TextDelta(reply)); emit(StreamFrame.End()) }
     }
     private var now = 1_790_000_000_000L

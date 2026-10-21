@@ -50,6 +50,24 @@ class SessionFeatureTest {
     }
 
     @Test
+    fun unfinishedCallsAreSavedBeforeTheTerminalErrorReachesClients() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent, "")
+        val model = scriptedModel { _, _ -> flowOf(StreamFrame.ToolCallComplete("first", "read", "{}"),
+            StreamFrame.ToolCallComplete("second", "read", "{}"), StreamFrame.End()) }
+        var failed = false
+        AgentRun(home.agent, home.store, model, emptyList(), maxAgentIterations = 3).run(session.id, "go").collect { event ->
+            if (event is AgentEvent.RunError) {
+                failed = true
+                val results = home.store.entries(home.agent, session.id).filterIsInstance<SessionEntry.ToolResult>()
+                assertEquals(listOf("first", "second"), results.map { it.id })
+                assertTrue(results.all { it.isError })
+            }
+        }
+        assertTrue(failed)
+    }
+
+    @Test
     fun silentlyDroppedStreamsSavePartialTextAndReportFailure() = runTest {
         val home = TestHome()
         val session = home.store.createSession(home.agent, "")

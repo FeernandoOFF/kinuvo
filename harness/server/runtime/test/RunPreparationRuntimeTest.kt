@@ -1,5 +1,8 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+import ai.koog.prompt.message.Message
+
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -22,8 +25,9 @@ class RunPreparationRuntimeTest {
         var args = buildJsonObject {
             put("action", "create"); put("name", "Reminder"); put("prompt", "Do work"); put("every", "1h")
         }
-        val harness = fixture.runtime(Model { _, history, _ ->
-            if (history.any { it is SessionEntry.ToolResult }) flowOf(StreamFrame.End())
+        val harness = fixture.runtime(scriptedModel { prompt, _ ->
+            val history = prompt.messages
+            if (history.toolResults.isNotEmpty()) flowOf(StreamFrame.End())
             else flowOf(StreamFrame.ToolCallComplete("schedule", identity.modelAlias(), args.toString()), StreamFrame.End())
         })
         try {
@@ -77,9 +81,10 @@ class RunPreparationRuntimeTest {
         val provider = object : ModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true), ModelInfo("limited", tools = true, toolIds = setOf(second.key)))
-            override fun model(config: AgentConfig) = Model { _, history, tools ->
+            override fun model(config: AgentConfig) = scriptedModel { prompt, tools ->
+                val history = prompt.messages
                 offered += tools.map { it.name }
-                if (history.any { it is SessionEntry.ToolResult }) flowOf(StreamFrame.End())
+                if (history.toolResults.isNotEmpty()) flowOf(StreamFrame.End())
                 else flowOf(*tools.mapIndexed { i, tool -> StreamFrame.ToolCallComplete("call-$i", tool.name, "{}") }.toTypedArray(), StreamFrame.End())
             }
         }
@@ -145,9 +150,9 @@ class RunPreparationRuntimeTest {
         override fun usableTools(model: String, tools: List<ToolDescriptor>) = tools.filter {
             it.name != ToolIdentity(PluginInstanceId("test.runpreparationruntimetest.3"), "ping").modelAlias() || it.requiredParameters.any { p -> p.name == "message" }
         }
-        override fun model(config: AgentConfig): Model {
+        override fun model(config: AgentConfig): AgentModel {
             modelsBuilt++
-            return Model { _, _, tools ->
+            return scriptedModel { _, tools ->
                 seen += tools.map { it.name }
                 flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
             }
@@ -230,12 +235,11 @@ class RunPreparationRuntimeTest {
         } finally { harness.close() }
     }
 
-
     @Test fun runsInheritLatestAgentEffortAndRetainExplicitSessionEffort() = runBlocking {
         val efforts = mutableListOf<String>()
         val configured = object : ModelProvider by provider {
             override suspend fun models() = listOf(ModelInfo("tools", reasoning = listOf("low", "medium", "high"), defaultReasoning = "medium"))
-            override fun model(config: AgentConfig, info: ModelInfo?): Model {
+            override fun model(config: AgentConfig, info: ModelInfo?): AgentModel {
                 efforts += config.reasoning
                 return provider.model(config)
             }

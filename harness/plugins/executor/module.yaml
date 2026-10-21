@@ -9,6 +9,7 @@ dependencies:
   - io.github.dokar3:quickjs-kt:1.0.15
 
 test-dependencies:
+  - ../../testing
   - $kotlin.test
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
 

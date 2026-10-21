@@ -1,6 +1,7 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.Model
+import kinuvo.harness.testing.*
+
 import kinuvo.harness.core.RunContext
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
@@ -12,7 +13,7 @@ import kotlin.test.*
 
 class DeviceToolsTest {
     private val home = Files.createTempDirectory("device-tools").toFile()
-    private val harness = Harness(home = Path(home.path), modelFactory = { Model { _, _, _ -> kotlinx.coroutines.flow.emptyFlow() } })
+    private val harness = Harness(home = Path(home.path), modelFactory = { scriptedModel { _, _ -> kotlinx.coroutines.flow.emptyFlow() } })
     private val device = ToolDevice("phone", "iPhone", setOf(DeviceToolKind.Contacts))
     private val events = Channel<AgentEvent>(Channel.UNLIMITED)
 

@@ -17,6 +17,7 @@ dependencies:
   - io.ktor:ktor-server-websockets:3.6.0
 
 test-dependencies:
+  - ../../testing
   - $kotlin.test
   - ../../../shared/client
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0

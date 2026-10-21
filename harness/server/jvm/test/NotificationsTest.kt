@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.*
+
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.codex.CodexAuth
@@ -8,7 +10,6 @@ import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.core.HarnessPlugin
 import kinuvo.harness.core.McpManagement
 import kinuvo.harness.core.store.saveServiceConfig
-import kinuvo.harness.core.Model
 import kinuvo.harness.core.Notification
 import kinuvo.harness.core.NotificationProvider
 import kinuvo.harness.core.store.serviceConfig
@@ -25,7 +26,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.files.Path
-import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -64,7 +64,7 @@ class NotificationsTest {
 
     @Test
     fun notifiesWhenNoClientInTheForegroundWatches() = runBlocking {
-        val model = Model { _, _, _ -> flowOf(StreamFrame.TextDelta("All done"), StreamFrame.End()) }
+        val model = scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("All done"), StreamFrame.End()) }
         val plugin = object : HarnessPlugin {
             override val definition = kinuvo.protocol.PluginDefinition("test.notificationstest.2", "Test")
             override val notifications = listOf(provider) }
