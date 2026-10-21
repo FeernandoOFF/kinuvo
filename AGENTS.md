@@ -15,7 +15,7 @@ Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p j
 ## Device tests
 
 - Before Android or iOS device verification, read [.maestro/README.md](.maestro/README.md) and run the shared flows through Mockstro.
-- For now, build Mockstro from its `feat/websockets-kotlin-toolchain` branch; this branch supplies WebSocket fixtures, Kotlin Toolchain builds and the platform app ID.
+- Use the repository wrapper with `./mockstrow --dev`; `.maestro/mockstro.yaml` configures both platforms.
 - Let Mockstro manage device selection/booting, build/install, ownership, network overrides and cleanup. Use its mocked remote Server and `--tags smoke,regression`; select iOS with `--platform ios`. Use `--skip-build` only when the installed debug build matches the code being tested.
 - Extend `.maestro/flows/mobile/` and its fixtures for new feature coverage. Use direct device automation or a real Server only when the task explicitly requires that integration.
 

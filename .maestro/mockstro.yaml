@@ -1,0 +1,24 @@
+# Use ./mockstrow --dev until a release supports this YAML configuration.
+platforms:
+  android:
+    project: .
+    appId: dev.kinuvo.android
+    integration: full
+    wiremockVersion: 4.0.0-beta.40
+    websocketPath: /ws
+    overrideKey: kinuvo_e2e_override
+    acceptKey: kinuvo_e2e_accepted_run_id
+    build:
+      system: kotlin-toolchain
+      module: android
+      variant: debug
+  ios:
+    project: .
+    appId: dev.kinuvo.ios
+    integration: full
+    wiremockVersion: 4.0.0-beta.40
+    websocketPath: /ws
+    build:
+      system: kotlin-toolchain
+      module: ios
+      variant: debug
