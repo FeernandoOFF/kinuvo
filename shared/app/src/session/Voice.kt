@@ -44,13 +44,15 @@ enum class VoicePhase { Off, Starting, Listening, Thinking, Speaking }
 
 /**
  * [heard] is what the user is saying. [spoken] holds the reply's messages being read aloud, by item ID, with how far
- * into their text speech has reached. [paused] stops listening until resumed; [speaker] reads replies aloud.
+ * into their text speech has reached. [paused] stops listening until resumed; [holding] listens through pauses while
+ * the user holds to talk. [speaker] reads replies aloud.
  */
 data class VoiceChatState(
     val phase: VoicePhase = VoicePhase.Off,
     val heard: String = "",
     val spoken: Map<String, Int> = emptyMap(),
     val paused: Boolean = false,
+    val holding: Boolean = false,
     val speaker: Boolean = true,
     val error: String? = null,
 ) {
@@ -68,7 +70,15 @@ interface VoiceChat {
     /** Cuts any reply short and stops listening until [resume]. */
     fun pause()
     fun resume()
+    /** Starts the user's turn by hand, cutting any reply short; it lasts through pauses until [letGo]. */
+    fun hold()
+    /** Ends a [hold] and sends what was heard; hands-free listening carries on after the reply unless paused. */
+    fun letGo()
     fun speaker(on: Boolean)
+    /** The app went out of view, e.g. for the photo picker: frees the microphone but stays in voice chat for [foreground]. */
+    fun background()
+    /** Back in view: resumes what [background] paused. */
+    fun foreground()
 }
 
 /** The Device does every part for now; Server-provided ones ([VoiceSetup]) get their Device client here. */
@@ -94,6 +104,7 @@ class SpeechVoiceChat(
     private var reply: Job? = null
     /** Words of the reply spoken so far, to tell the user talking from the reply's echo. */
     private val said = mutableSetOf<String>()
+    private var resumeInView = false
 
     override fun start() {
         if (state.value.phase != VoicePhase.Off) return
@@ -109,6 +120,7 @@ class SpeechVoiceChat(
     }
 
     override fun end() {
+        resumeInView = false
         reply?.cancel()
         release()
         state.value = VoiceChatState(speaker = state.value.speaker)
@@ -125,6 +137,41 @@ class SpeechVoiceChat(
         if (!state.value.paused) return
         state.update { it.copy(paused = false) }
         hear()
+    }
+
+    override fun hold() {
+        if (state.value.phase in setOf(VoicePhase.Off, VoicePhase.Starting) || state.value.holding) return
+        cutIn()
+        state.update { it.copy(phase = VoicePhase.Listening, holding = true, heard = "", spoken = emptyMap()) }
+        transcriber.listen(
+            untilPause = false,
+            onPartial = { text -> if (state.value.holding) state.update { it.copy(heard = text) } },
+            onFinal = { text -> if (state.value.holding) state.update { it.copy(heard = text) } },
+            onError = ::fail,
+        )
+    }
+
+    override fun letGo() {
+        if (!state.value.holding) return
+        val text = state.value.heard
+        transcriber.stop()
+        state.update { it.copy(holding = false) }
+        if (text.isBlank()) hear() else send(text)
+    }
+
+    override fun background() {
+        if (state.value.phase == VoicePhase.Off || state.value.paused) return
+        resumeInView = true
+        // Unlike pause, the run carries on: only the microphone and speech stop.
+        reply?.cancel()
+        release()
+        state.update { it.copy(phase = VoicePhase.Listening, paused = true, holding = false, heard = "", spoken = emptyMap()) }
+    }
+
+    override fun foreground() {
+        if (!resumeInView) return
+        resumeInView = false
+        resume()
     }
 
     override fun speaker(on: Boolean) {
@@ -161,13 +208,15 @@ class SpeechVoiceChat(
                     else -> {}
                 }
             },
-            onError = { error ->
-                if (state.value.phase != VoicePhase.Off) {
-                    end()
-                    state.update { it.copy(error = error) }
-                }
-            },
+            onError = ::fail,
         )
+    }
+
+    private fun fail(error: String) {
+        if (state.value.phase != VoicePhase.Off) {
+            end()
+            state.update { it.copy(error = error) }
+        }
     }
 
     private fun release() {
@@ -176,10 +225,7 @@ class SpeechVoiceChat(
         device.stop()
     }
 
-    private fun isUser(text: String): Boolean {
-        val words = words(text)
-        return words.count { it !in said } >= 3
-    }
+    private fun isUser(text: String) = interrupts(text, said)
 
     private fun cutIn() {
         reply?.cancel()
@@ -256,6 +302,16 @@ class SpeechVoiceChat(
         }
         pending.first { it <= 0 }
     }
+}
+
+/**
+ * Whether [heard] is the user talking rather than the echo of the reply's [said] words: most of what was heard last isn't
+ * the reply. Only the latest words count, so echo misheard over a long reply doesn't add up to an interruption.
+ */
+internal fun interrupts(heard: String, said: Set<String>): Boolean {
+    val recent = words(heard).takeLast(8)
+    val new = recent.count { it !in said }
+    return new >= 3 && new * 2 > recent.size
 }
 
 /** The end of the last complete sentence in [text] after [from], or [from] when there's none yet. */

@@ -20,6 +20,15 @@ class VoiceTest {
     }
 
     @Test
+    fun onlyRecentWordsThatArentTheReplyInterruptIt() {
+        val said = words("Sure, the weather in Dublin is mild today with light rain later").toSet()
+        assertEquals(false, interrupts("the weather in dublin is mild today", said))
+        assertEquals(false, interrupts("sure the whether in dub lynn is mild today with light rain", said))
+        assertEquals(false, interrupts("keen of oh weather in dub lynn is mild today with light rain later", said))
+        assertEquals(true, interrupts("the weather in dublin wait stop that what about cork", said))
+    }
+
+    @Test
     fun splitsWords() = assertEquals(listOf("hello", "whos", "there"), words("Hello, who's there?"))
 }
 
@@ -47,6 +56,19 @@ class DictationTest {
         assertEquals(1, speech.stops)
         dictation.discard()
         assertEquals(DictationState(), dictation.state.value)
+    }
+
+    @Test
+    fun dictationGoesAfterTheDraftAndKeepsEditsMadeMeanwhile() {
+        var draft = DictationDraft("Hi")
+        draft = draft.next("Hi", "call me")
+        assertEquals("Hi call me", draft.shown)
+        draft = draft.next(draft.shown, "call me back")
+        assertEquals("Hi call me back", draft.shown)
+        draft = draft.next("Hi, call me later", "call me back tomorrow")
+        assertEquals("Hi, call me later tomorrow", draft.shown)
+        draft = draft.next(draft.shown, "call me back tomorrow at 5")
+        assertEquals("Hi, call me later tomorrow at 5", draft.shown)
     }
 
     @Test
