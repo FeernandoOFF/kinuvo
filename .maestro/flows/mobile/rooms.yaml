@@ -28,6 +28,10 @@ properties:
 - tapOn: "@E2E Agent"
 - tapOn: "Message this Room"
 - inputText: "Check the plan"
+- scrollUntilVisible:
+    element:
+      text: "Send"
+    direction: DOWN
 - takeScreenshot: rooms-recipient
 - tapOn: "Send"
 - assertNotVisible: "Check the plan"
