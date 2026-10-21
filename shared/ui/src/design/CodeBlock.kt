@@ -24,7 +24,8 @@ import kotlinx.coroutines.delay
 
 /** Monospace block with an optional language label and a copy button. */
 @Composable
-fun CodeBlock(code: String, modifier: Modifier = Modifier, language: String? = null, maxLines: Int = Int.MAX_VALUE) {
+fun CodeBlock(code: String, modifier: Modifier = Modifier, language: String? = null, maxLines: Int = Int.MAX_VALUE, previewChars: Int? = null) {
+    var shown by remember(code, previewChars) { mutableIntStateOf(minOf(code.length, previewChars ?: code.length)) }
     Panel(modifier.fillMaxWidth(), color = color(codeColor), contentPadding = PaddingValues(0.dp)) {
         Row(
             Modifier.fillMaxWidth().background(color(subtleColor).copy(alpha = 0.6f)).padding(start = 12.dp, end = 4.dp),
@@ -35,12 +36,20 @@ fun CodeBlock(code: String, modifier: Modifier = Modifier, language: String? = n
         }
         SelectionContainer {
             Text(
-                code.trimEnd('\n'),
+                code.take(shown).trimEnd('\n'),
                 Modifier.horizontalScroll(rememberScrollState()).padding(12.dp),
                 style = MonoStyle,
                 color = color(onCodeColor),
                 maxLines = maxLines,
             )
+        }
+        if (shown < code.length) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Showing $shown of ${code.length} characters", Modifier.weight(1f), fontSize = 11.sp, color = color(mutedColor))
+                Button(onClick = { shown = minOf(code.length, shown + (previewChars ?: code.length)) }, style = ButtonStyle.Ghost) {
+                    Text("Show more", fontSize = 12.sp)
+                }
+            }
         }
     }
 }

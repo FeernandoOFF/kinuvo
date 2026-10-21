@@ -55,6 +55,16 @@ import kotlin.test.Test
 
 /** Renders the main screens to `build/screens/` for eyeballing UI changes: `./kotlin test -m ui -p jvm`. */
 class ScreenshotTest {
+    @Test fun renderToolResultPreview() {
+        render("tool-result-preview-phone", 390, 420) {
+            HarnessTheme(dark = true) {
+                Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
+                    kinuvo.ui.design.CodeBlock("HTTP 200\n\n" + "Caption text from the fetched page.\n".repeat(30), language = "result", previewChars = 200)
+                }
+            }
+        }
+    }
+
     private val out = File("build/screens").apply { mkdirs() }
 
     private val agent = AgentInfo("main", "Kinuvo", "host")
