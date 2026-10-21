@@ -60,8 +60,6 @@ class SessionMessages(private val model: AgentModel) {
     fun user(message: Message): Boolean = entry(message)?.any { it is SessionEntry.UserMessage && !it.text.startsWith(TOOL_FILES) } == true
     private fun entry(message: Message) = entries.lastOrNull { it.first === message }?.second
 
-    fun files(message: Message): Boolean = message.parts.any { it is MessagePart.Attachment }
-
     private fun RequestMessagePartsBuilder.attach(list: List<Attachment>) = list.forEach { a ->
         val bytes = requireNotNull(model.attachments) { "This provider has no attachment storage" }(a)
         val content = AttachmentContent.Binary.Bytes(bytes)

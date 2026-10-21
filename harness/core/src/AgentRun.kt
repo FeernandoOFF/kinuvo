@@ -2,12 +2,10 @@ package kinuvo.harness.core
 
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.agent.config.AIAgentConfig
-import ai.koog.agents.core.agent.exception.AIAgentMaxNumberOfIterationsReachedException
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.Prompt
 import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.indexedTools
 import kinuvo.harness.core.tools.ToolExecutor
 import kinuvo.protocol.*
 import kotlinx.coroutines.CancellationException
@@ -28,15 +26,13 @@ class AgentRun(
     private val context: String = "",
     private val approvals: Approvals = Approvals.none(),
     private val questions: Broker<Map<String, List<String>>?>? = null,
-    private val maxAgentIterations: Int = 120,
+    private val maxSteps: Int = 30,
     advertisedTools: List<ToolDescriptor> = tools.map { it.descriptor },
     private val contextTokens: Int? = null,
     private val requestKind: RequestKind = RequestKind.Chat,
     private val onRequest: (String, List<SessionEntry>, List<ToolDescriptor>) -> Unit = { _, _, _ -> },
     private val attach: ((String, ByteArray) -> Attachment)? = null,
 ) {
-    init { tools.indexedTools() }
-
     private val advertisedTools = advertisedTools.sortedBy { it.name }
 
     fun run(
@@ -52,7 +48,9 @@ class AgentRun(
         warnings.forEach { send(AgentEvent.Warning(it)) }
         val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, { send(it) }, onRequest)
         var stopped = "Cancelled by user"
+        var cancelled = false
         val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, emit = { event ->
+            if (event is AgentEvent.ToolCallStart) session.toolStarted(event.toolCallId)
             if (event !is AgentEvent.ToolCallResult || session.calls.none { it.id == event.toolCallId }) send(event)
         })
         val result: AgentEvent = try {
@@ -62,24 +60,25 @@ class AgentRun(
             session.append(SessionEntry.UserMessage(userText, routine, attachments, voice))
             val koog = AIAgent(
                 promptExecutor = model.executor,
-                agentConfig = AIAgentConfig(Prompt.Empty, model.model, maxAgentIterations),
-                strategy = chatStrategy(session, executor) { stopped = it },
+                agentConfig = AIAgentConfig(Prompt.Empty, model.model, maxSteps * 1000 + 10),
+                strategy = chatStrategy(session, executor, maxSteps) { stopped = it },
             ) { install(SessionFeature) { this.session = session } }
             try { withContext(TokenUsageCapture()) { koog.run(Unit, runId) } }
             finally { koog.close() }
             AgentEvent.RunFinished(runId)
         } catch (e: CancellationException) {
+            cancelled = true
             throw e
         } catch (e: Exception) {
             stopped = "Stopped before this call could run"
-            val message = if (generateSequence<Throwable>(e) { it.cause }.any { it is AIAgentMaxNumberOfIterationsReachedException })
-                "Stopped after $maxAgentIterations agent iterations. The work is unfinished; send another message to continue."
-            else model.failure(e).message ?: e.toString()
+            val message = model.failure(e).message ?: e.toString()
             AgentEvent.RunError(runId, message)
         } finally {
             withContext(NonCancellable) {
                 session.saveResponse()
-                session.closePending(stopped)
+                session.closePending(stopped, if (cancelled) "Not run: the turn was cancelled" else "Not run: the turn stopped") { event ->
+                    if (cancelled) trySend(event) else send(event)
+                }
             }
         }
         send(result)
