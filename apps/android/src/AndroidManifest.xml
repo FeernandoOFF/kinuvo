@@ -43,6 +43,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="dev.kinuvo.app" />
             </intent-filter>
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
         <!-- Keeps the on-device Server running in the background (LocalServer.android.kt). -->
         <service android:name="kinuvo.ui.ServerService"

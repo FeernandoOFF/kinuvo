@@ -245,6 +245,10 @@ class AppViewModel(
         }
     }
 
+    /** [route] with the Agent the shell shows when it has none, e.g. a shortcut's new Session. */
+    fun withShownAgent(route: Route.Chat) =
+        if (route.agentId != null) route else route.copy(agentId = state.value.agentId ?: state.value.agents.firstOrNull()?.id)
+
     /** The Session last shown for [agentId], or a new one. */
     fun lastView(agentId: String) = views[agentId] ?: Route.Chat(agentId)
 

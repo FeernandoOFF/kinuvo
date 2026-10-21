@@ -9,7 +9,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kinuvo.protocol.VoiceSetup
@@ -84,6 +87,12 @@ interface VoiceChat {
 /** The Device does every part for now; Server-provided ones ([VoiceSetup]) get their Device client here. */
 class VoiceViewModel(device: SpeechEngine, session: SessionViewModel) : ViewModel() {
     val chat: VoiceChat = SpeechVoiceChat(device, session, viewModelScope)
+
+    init {
+        viewModelScope.launch {
+            session.state.map { it.voiceRequested }.distinctUntilChanged().filter { it }.collect { session.voiceStarted(); chat.start() }
+        }
+    }
 
     override fun onCleared() = chat.end()
 }
