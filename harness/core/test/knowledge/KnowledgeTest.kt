@@ -1,14 +1,15 @@
 package kinuvo.harness.core.knowledge
 
+import kinuvo.harness.testing.*
+import ai.koog.prompt.message.Message
+
 import kinuvo.harness.core.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.Model
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.store.FileKnowledgeChangeLog
 import kinuvo.harness.core.store.MarkdownKnowledgeSource
 import kinuvo.harness.core.store.readText
 import kinuvo.harness.core.store.writeAtomically
-import kinuvo.harness.core.store.appendText
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ReflectionResult
 import kinuvo.protocol.KnowledgeChange
@@ -242,9 +243,11 @@ class KnowledgeTest {
 
     @Test
     fun reflectionStagesWhatTheModelPicks() = runTest {
-        val model = Model { instructions, history, _ ->
-            assertTrue("Today is 2026-10-04." in history.filterIsInstance<SessionEntry.Context>().last().content)
-            if (history.none { it is SessionEntry.ToolResult }) flowOf(
+        val model = scriptedModel { prompt, _ ->
+            val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
+            val history = prompt.messages
+            assertTrue("Today is 2026-10-04." in history.filterIsInstance<Message.System>().last().textContent())
+            if (history.toolResults.isEmpty()) flowOf(
                 StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"create","type":"person","title":"Ana","set":"{\"relationship\":\"sister\"}","reason":"Family relationship","evidence":"user-0: sister Ana"}"""),
                 StreamFrame.End(),
             ) else flowOf(StreamFrame.TextDelta("Saved Ana."), StreamFrame.End())

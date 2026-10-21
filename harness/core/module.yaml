@@ -24,6 +24,7 @@ dependencies:
   - co.touchlab:stately-concurrency:2.1.0
 
 test-dependencies:
+  - ../testing
   - io.ktor:ktor-client-mock:3.6.0
   - $kotlin.test
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0

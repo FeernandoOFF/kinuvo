@@ -21,6 +21,7 @@ class SessionMessages(private val model: AgentModel) {
     }
 
     fun messages(history: List<SessionEntry>): List<Message> = history.flatMap { entry ->
+        if (entry is SessionEntry.Compaction) return@flatMap messages(entry.history)
         val block = prompt("session") {
             when (entry) {
                 is SessionEntry.Context -> system(entry.content)
@@ -31,10 +32,6 @@ class SessionMessages(private val model: AgentModel) {
                 is SessionEntry.Reasoning -> if (entry.encrypted != null) reasoning(
                     MessagePart.Reasoning(content = emptyList(), summary = listOf(entry.text), encrypted = entry.encrypted, id = entry.id)
                 )
-                is SessionEntry.Compaction -> {
-                    system("Summary of the earlier part of this conversation:\n\n${entry.summary}")
-                    entry.activations.forEach { system(activation(it)) }
-                }
                 is SessionEntry.Activation -> system(activation(entry))
                 else -> Unit
             }
@@ -48,7 +45,7 @@ class SessionMessages(private val model: AgentModel) {
             normalized
         }
         if (entry is SessionEntry.ToolResult && entry.attachments.isNotEmpty())
-            block + messages(listOf(SessionEntry.UserMessage("Files from the tool results above:", attachments = entry.attachments)))
+            block + messages(listOf(SessionEntry.UserMessage(TOOL_FILES, attachments = entry.attachments)))
         else block
     }
 
@@ -58,7 +55,7 @@ class SessionMessages(private val model: AgentModel) {
         is Message.Assistant -> assistantEntries(it)
     } }
 
-    fun user(message: Message): Boolean = entries[message]?.any { it is SessionEntry.UserMessage && it.text != "Files from the tool results above:" } == true
+    fun user(message: Message): Boolean = entries[message]?.any { it is SessionEntry.UserMessage && !it.text.startsWith(TOOL_FILES) } == true
     fun files(message: Message): Boolean = message.parts.any { it is MessagePart.Attachment }
 
     private fun RequestMessagePartsBuilder.attach(list: List<Attachment>) = list.forEach { a ->
@@ -77,3 +74,5 @@ internal fun assistantEntries(message: Message.Assistant, messageId: String? = n
 } }
 
 private fun activation(a: SessionEntry.Activation) = "Skill '${a.name}' is active in this conversation:\n\n${a.content}"
+
+internal const val TOOL_FILES = "Files from the tool results above:"

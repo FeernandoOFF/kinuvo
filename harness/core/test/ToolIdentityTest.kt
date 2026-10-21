@@ -1,5 +1,7 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.testing.*
+
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.tools.*
@@ -132,12 +134,14 @@ class ToolIdentityTest {
             override suspend fun execute(args: JsonObject, callId: String, run: ToolRun) = run.call(target.descriptor.name, "{}").output
         }
         val scopedBridge = PluginTools(listOf(bridge)).ownedBy(PluginInstanceId("example.bridge")).tools.single()
-        val model = Model { _, history, _ -> if (history.none { it is SessionEntry.ToolResult })
+        val model = scriptedModel { prompt, _ ->
+            val history = prompt.messages
+             if (history.toolResults.isEmpty())
             flowOf(StreamFrame.ToolCallComplete("call", scopedBridge.descriptor.name, "{}"), StreamFrame.End()) else flowOf(StreamFrame.End()) }
         val session = home.store.createSession(home.agent, "")
         val broker = ApprovalBroker()
         val events = mutableListOf<AgentEvent>()
-        AgentRunner(home.agent, home.store, model, listOf(scopedBridge, target),
+        AgentRun(home.agent, home.store, model, listOf(scopedBridge, target),
             approvals = Approvals(ApprovalPolicy(home.agent, home.trustRules), broker)).run(session.id, "go").collect {
             events += it
             if (it is AgentEvent.ApprovalRequested) broker.respond(it.approvalId, ApprovalDecision.AlwaysAllow)

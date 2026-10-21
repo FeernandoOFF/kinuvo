@@ -5,6 +5,7 @@ import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.core.dsl.extension.HistoryCompressionStrategy
 import ai.koog.agents.core.dsl.extension.nodeLLMCompressHistory
 import ai.koog.prompt.streaming.StreamFrame
+import ai.koog.prompt.streaming.requireEndFrame
 import kinuvo.harness.core.tools.ToolExecutor
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.SessionEntry
@@ -14,11 +15,11 @@ internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: 
     val failed = mutableSetOf<Pair<String, String>>()
     var repeats = 0
     var pending = emptyList<SessionEntry.ToolCall>()
-    val checkHistory by node<Unit, Unit> { }
+    val checkHistory by node<Unit, Unit> { llm.writeSession { prompt = session.load() } }
     val compactHistory by nodeLLMCompressHistory<Unit>(name = COMPACT_HISTORY, strategy = HistoryCompressionStrategy.WholeHistory)
     val request by node<Unit, Unit>("streamResponse") {
         llm.writeSession {
-            requestLLMStreaming().collect { frame ->
+            requestLLMStreaming().requireEndFrame().collect { frame ->
                 when (frame) {
                     is StreamFrame.TextDelta -> session.emit(AgentEvent.TextMessageContent(session.messageId, frame.text))
                     is StreamFrame.ReasoningDelta -> (frame.summary ?: frame.text)?.let { session.emit(AgentEvent.ThinkingContent(session.messageId, it)) }
@@ -38,7 +39,6 @@ internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: 
             session.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
             SessionEntry.ToolResult(call.id, call.name, "This exact call already failed in this turn. Don't repeat it; try something else or answer the user.", isError = true, identity = call.identity)
         } else executor.call(call, stopped = stopped)
-        llm.writeSession { prompt = prompt.withMessages { it + session.messages.messages(listOf(result)) } }
         if (result.isError) failed += key
         pending = pending.drop(1)
         result

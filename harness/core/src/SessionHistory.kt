@@ -8,17 +8,11 @@ import ai.koog.agents.core.tools.ToolDescriptor
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
-/** What the model sees from a full transcript: the latest Compaction's summary, then the entries it kept. */
+/** The latest compressed history followed by the Session's subsequent model entries. */
 fun List<SessionEntry>.activeHistory(): List<SessionEntry> {
     val at = indexOfLast { it is SessionEntry.Compaction }
-    if (at < 0) return filterNot { it is SessionEntry.Started || it is SessionEntry.Settings || it is SessionEntry.Details || it is SessionEntry.Reflection || it is SessionEntry.ReflectionReview || it is SessionEntry.Measurement }
-    val compaction = this[at] as SessionEntry.Compaction
-    val kept = withIndex()
-        .filter { (i, e) -> i >= compaction.keepFrom && i != at && e !is SessionEntry.Compaction && e !is SessionEntry.Started && e !is SessionEntry.Settings && e !is SessionEntry.Details && e !is SessionEntry.Reflection && e !is SessionEntry.ReflectionReview && e !is SessionEntry.Measurement }
-        .map { it.value }
-    compaction.history?.let { return it + kept }
-    val context = if (kept.none { it is SessionEntry.Context }) take(compaction.keepFrom).filterIsInstance<SessionEntry.Context>().lastOrNull() else null
-    return listOf(compaction) + listOfNotNull(context, compaction.user) + kept
+    val history = if (at < 0) this else (this[at] as SessionEntry.Compaction).history + drop(at + 1)
+    return history.filterNot { it is SessionEntry.Started || it is SessionEntry.Settings || it is SessionEntry.Details || it is SessionEntry.Reflection || it is SessionEntry.ReflectionReview || it is SessionEntry.Measurement }
 }
 
 /** Screenshots a Computer tool shows the model are named so, and only the latest few are sent again. */
@@ -28,8 +22,20 @@ const val SCREENSHOT_PREFIX = "screen-"
 fun List<SessionEntry>.recentScreens(keep: Int = 3): List<SessionEntry> {
     var seen = 0
     return asReversed().map { entry ->
-        if (entry !is SessionEntry.ToolResult || entry.attachments.none { it.name.startsWith(SCREENSHOT_PREFIX) } || ++seen <= keep) entry
-        else entry.copy(attachments = entry.attachments.filterNot { it.name.startsWith(SCREENSHOT_PREFIX) }, output = entry.output + "\n(Its screenshot is no longer shown.)")
+        val attachments = when (entry) {
+            is SessionEntry.ToolResult -> entry.attachments
+            is SessionEntry.UserMessage -> entry.attachments.takeIf { entry.text.startsWith(TOOL_FILES) }.orEmpty()
+            else -> emptyList()
+        }
+        if (attachments.none { it.name.startsWith(SCREENSHOT_PREFIX) } || ++seen <= keep) entry
+        else {
+            val kept = attachments.filterNot { it.name.startsWith(SCREENSHOT_PREFIX) }
+            when (entry) {
+                is SessionEntry.ToolResult -> entry.copy(attachments = kept, output = entry.output + "\n(Its screenshot is no longer shown.)")
+                is SessionEntry.UserMessage -> entry.copy(attachments = kept, text = entry.text + "\n(Its screenshot is no longer shown.)")
+                else -> entry
+            }
+        }
     }.asReversed()
 }
 
@@ -43,7 +49,7 @@ fun List<SessionEntry>.estimatedTokens(instructions: String, tools: List<ToolDes
             is SessionEntry.Reasoning -> it.text.length + (it.encrypted?.length ?: 0)
             is SessionEntry.ToolCall -> it.name.length + it.args.length
             is SessionEntry.ToolResult -> it.output.length + it.attachments.estimatedChars()
-            is SessionEntry.Compaction -> it.summary.length + it.activations.sumOf { a -> a.content.length }
+            is SessionEntry.Compaction -> it.history.estimatedTokens("") * 4
             is SessionEntry.Activation -> it.content.length
             is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Reflection, is SessionEntry.ReflectionReview, is SessionEntry.Measurement -> 0
         }
@@ -56,7 +62,7 @@ fun List<SessionEntry>.activations(): List<SessionEntry.Activation> {
     val calls = filterIsInstance<SessionEntry.ToolCall>().filter { it.identity?.instance?.pluginId == "kinuvo.core" && it.identity?.localId == ToolNames.ACTIVATE_SKILL }.associateBy { it.id }
     val found = linkedMapOf<String, SessionEntry.Activation>()
     for (e in this) when (e) {
-        is SessionEntry.Compaction -> e.activations.forEach { found[it.name] = it }
+        is SessionEntry.Compaction -> e.history.activations().forEach { found[it.name] = it }
         is SessionEntry.Activation -> found[e.name] = e
         is SessionEntry.ToolResult -> if (!e.isError) calls[e.id]?.let { call ->
             val name = runCatching {

@@ -75,9 +75,9 @@ sealed interface SessionEntry {
     @Serializable @SerialName("tool_call")
     data class ToolCall(val id: String, val name: String, val args: String, val identity: ToolIdentity? = null) : SessionEntry
 
-    /** Summary that replaces transcript entries before index [keepFrom]; [activations] are re-attached after it. */
+    /** The compressed model history; earlier transcript entries remain available to clients. */
     @Serializable @SerialName("compaction")
-    data class Compaction(val summary: String, val keepFrom: Int, val activations: List<Activation> = emptyList(), val user: UserMessage? = null, val history: List<SessionEntry>? = null) : SessionEntry
+    data class Compaction(val summary: String, val history: List<SessionEntry>) : SessionEntry
 
     /** A background Reflection's result; it isn't part of the model's conversation. */
     @Serializable @SerialName("reflection")
