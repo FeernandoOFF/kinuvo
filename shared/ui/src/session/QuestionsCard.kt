@@ -7,9 +7,6 @@ import kinuvo.ui.board.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.mapSaver
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.snapshots.SnapshotStateMap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -25,11 +22,10 @@ import kinuvo.protocol.Question
 import kinuvo.protocol.QuestionKind
 import kinuvo.ui.design.*
 
-/** An `ask_user` form waiting in the chat; [onAnswer] gets the answers by question ID, or null to skip. */
+/** An `ask_user` form waiting in the chat, filled in from [drafts]; [ChatActions.onAnswer] gets the answers by question ID, or null to skip. */
 @Composable
-internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, onAnswer: (Map<String, List<String>>?) -> Unit) {
-    // Saveable, so a half-filled form survives leaving the chat and coming back.
-    val answers = rememberSaveable(asked.questionsId, saver = AnswersSaver) { mutableStateMapOf(*asked.questions.map { it.id to it.default }.toTypedArray()) }
+internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String, Map<String, List<String>>>, actions: ChatActions) {
+    val answers = asked.questions.associate { it.id to it.default } + drafts[asked.questionsId].orEmpty()
     val ready = asked.questions.none { it.required && answers[it.id].orEmpty().none(String::isNotBlank) }
     Panel(
         Modifier.fillMaxWidth(),
@@ -43,19 +39,14 @@ internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, onAnswer: (Map<Stri
                 Icon(Lucide.MessageCircleQuestionMark, Modifier.size(18.dp), tint = color(accentColor))
                 Text(asked.title ?: "Questions for you", fontWeight = FontWeight.Normal)
             }
-            asked.questions.forEach { q -> QuestionField(q, answers[q.id].orEmpty()) { answers[q.id] = it } }
+            asked.questions.forEach { q -> key(q.id) { QuestionField(q, answers[q.id].orEmpty()) { actions.onEditAnswer(asked.questionsId, q.id, it) } } }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onAnswer(answers.toMap()) }, enabled = ready, style = ButtonStyle.Primary) { Text(if (asked.questions.isEmpty()) "Check again" else "Submit") }
-                Button(onClick = { onAnswer(null) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip") }
+                Button(onClick = { actions.onAnswer(answers) }, enabled = ready, style = ButtonStyle.Primary) { Text(if (asked.questions.isEmpty()) "Check again" else "Submit") }
+                Button(onClick = { actions.onAnswer(null) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip") }
             }
         }
     }
 }
-
-private val AnswersSaver = mapSaver<SnapshotStateMap<String, List<String>>>(
-    save = { answers -> answers.mapValues { (_, v) -> ArrayList(v) } },
-    restore = { saved -> mutableStateMapOf(*saved.map { (k, v) -> k to (v as List<*>).map { it.toString() } }.toTypedArray()) },
-)
 
 @Composable
 private fun QuestionField(q: Question, value: List<String>, onChange: (List<String>) -> Unit) {
