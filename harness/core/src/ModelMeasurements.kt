@@ -16,6 +16,7 @@ class TokenUsageCapture : AbstractCoroutineContextElement(Key) {
     companion object Key : CoroutineContext.Key<TokenUsageCapture>
     var input: Int? = null
     var output: Int? = null
+    var reasoning: Int? = null
     var cached: Int? = null
     var cacheWrite: Int? = null
     var completed: Boolean? = null
@@ -31,7 +32,7 @@ internal class ModelRequests(
 
     suspend fun start() {
         val capture = currentCoroutineContext()[TokenUsageCapture] ?: TokenUsageCapture()
-        capture.input = null; capture.output = null; capture.cached = null; capture.cacheWrite = null; capture.completed = null
+        capture.input = null; capture.output = null; capture.reasoning = null; capture.cached = null; capture.cacheWrite = null; capture.completed = null
         measurement = ModelMeasurement(config, kind(), capture)
     }
 
@@ -69,6 +70,7 @@ internal class ModelMeasurement(private val config: AgentConfig, private val kin
     fun finish(success: Boolean): RequestMetrics {
         capture.recordFrame = null
         return RequestMetrics(Uuid.random().toString(), at, kind, config.provider, config.model, config.reasoning,
-            start.elapsedNow().inWholeMilliseconds, first, capture.input, capture.output, capture.cached, capture.cacheWrite, success && capture.completed != false)
+            start.elapsedNow().inWholeMilliseconds, first, capture.input, capture.output, capture.cached, capture.cacheWrite, success && capture.completed != false,
+            reasoningTokens = capture.reasoning)
     }
 }

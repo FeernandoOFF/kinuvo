@@ -56,6 +56,7 @@ class CodexMeasurementsTest {
             assertEquals("Hello", events.filterIsInstance<AgentEvent.TextMessageEnd>().single().text)
             assertTrue(metrics.success)
             assertEquals(4, metrics.cachedTokens)
+            assertEquals(0, metrics.reasoningTokens)
         } finally { client.close(); http.close() }
     }
 
@@ -91,15 +92,17 @@ class CodexMeasurementsTest {
         capture.read("not json")
         capture.read("""{"type":{}}""")
         assertNull(capture.cached)
-        capture.read("""{"type":"response.completed","response":{"usage":{"input_tokens":2000,"output_tokens":150,"input_tokens_details":{"cached_tokens":0}}}}""")
+        capture.read("""{"type":"response.completed","response":{"usage":{"input_tokens":2000,"output_tokens":150,"input_tokens_details":{"cached_tokens":0},"output_tokens_details":{"reasoning_tokens":42}}}}""")
         assertEquals(2000, capture.input)
         assertEquals(150, capture.output)
         assertEquals(0, capture.cached)
+        assertEquals(42, capture.reasoning)
         assertNull(capture.cacheWrite)
         assertEquals(true, capture.completed)
         capture.read("""{"type":"response.incomplete","response":{"usage":{"input_tokens":3000,"output_tokens":200}}}""")
         assertEquals(false, capture.completed)
         assertNull(capture.cached)
+        assertNull(capture.reasoning)
     }
 
     @Test
