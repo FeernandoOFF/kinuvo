@@ -38,7 +38,7 @@ class ReflectorTest {
         instructionsSeen += review?.removePrefix("Background Reflection instructions:\n") ?: instructions
         tools.firstOrNull { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias() }?.let { toolDescriptions += it.description }
         when {
-            review == null -> flowOf(StreamFrame.TextDelta("Nice!"), StreamFrame.End())
+            review == null || "Perform only the Knowledge stage." !in review -> flowOf(StreamFrame.TextDelta("Nice!"), StreamFrame.End())
             history.dropWhile { it !is Message.User || it.textContent() != review }.toolResults.isNotEmpty() -> flowOf(StreamFrame.TextDelta("Saved."), StreamFrame.End())
             else -> {
                 reflections++
@@ -107,11 +107,11 @@ class ReflectorTest {
         harness.reflect(agent, "s1", listOf(SessionEntry.UserMessage("I prefer concise replies")))
         val instructions = instructionsSeen.last()
         assertTrue(instructions.startsWith(custom))
-        assertTrue("People are person notes." in instructions)
-        assertTrue("Use concrete examples" in instructions)
-        assertTrue("Current User Notes:" in instructions)
+        assertTrue(instructionsSeen.any { "People are person notes." in it })
+        assertTrue(instructionsSeen.any { "Use concrete examples" in it })
+        assertTrue(instructionsSeen.any { "Current User Notes:" in it })
         assertTrue("Today is " in instructions)
-        assertTrue("person" in instructions)
+        assertTrue(instructionsSeen.any { "person" in it })
 
         val reset = harness.saveKnowledgeSettings(settings.copy(reflectionPrompt = kinuvo.protocol.DEFAULT_REFLECTION_PROMPT))
         assertEquals(null, reset.settings.reflectionPrompt)

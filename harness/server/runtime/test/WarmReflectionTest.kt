@@ -52,9 +52,13 @@ class WarmReflectionTest {
         assertEquals(parent.instructions, seen.last().instructions)
         assertEquals(parent.tools, seen.last().tools)
         assertEquals(parent.history, seen.last().history.take(parent.history.size))
-        assertEquals("parent-model", result.measurements.single().model)
-        assertEquals("high", result.measurements.single().reasoning)
-        assertEquals(RequestKind.Reflection, result.measurements.single().kind)
+        assertEquals(3, result.measurements.size)
+        assertTrue(result.measurements.all { it.model == "parent-model" && it.reasoning == "high" && it.kind == RequestKind.Reflection })
+        seen.drop(1).forEach {
+            assertEquals(parent.instructions, it.instructions)
+            assertEquals(parent.tools, it.tools)
+            assertEquals(parent.history, it.history.take(parent.history.size))
+        }
         harness.close()
 
         val restarted = HarnessRuntime(ServerInstallation.assemble(AgentFiles(home)), modelFactory = factory)
