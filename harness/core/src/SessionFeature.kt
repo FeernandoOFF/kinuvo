@@ -1,6 +1,7 @@
 package kinuvo.harness.core
 
 import ai.koog.agents.core.agent.config.AIAgentConfig
+import ai.koog.agents.core.annotation.InternalAgentsApi
 import ai.koog.agents.core.agent.entity.createStorageKey
 import ai.koog.agents.core.feature.AIAgentGraphFeature
 import ai.koog.agents.core.feature.config.FeatureConfig
@@ -26,6 +27,7 @@ class SessionFeature private constructor() {
     companion object : AIAgentGraphFeature<Config, SessionFeature> {
         override val key = createStorageKey<SessionFeature>("kinuvo-session")
         override fun createInitialConfig(agentConfig: AIAgentConfig) = Config()
+        @OptIn(InternalAgentsApi::class)
         override fun install(config: Config, pipeline: AIAgentGraphPipeline): SessionFeature {
             val session = config.session
             pipeline.interceptStrategyStarting(this) { event ->
@@ -34,10 +36,21 @@ class SessionFeature private constructor() {
                     tools = session.tools
                 }
             }
-            pipeline.interceptLLMStreamingStarting(this) { session.startRequest() }
+            pipeline.interceptLLMStreamingStarting(this) {
+                pipeline.onLLMCallStarting(it.eventId, it.executionInfo, it.context, it.runId, it.prompt, it.model, it.tools)
+            }
             pipeline.interceptLLMStreamingFrameReceived(this) { session.frame(it.streamFrame) }
             pipeline.interceptLLMStreamingFailed(this) { session.failStream() }
-            pipeline.interceptLLMStreamingCompleted(this) { session.saveResponse() }
+            pipeline.interceptLLMStreamingCompleted(this) {
+                val success = session.streamingSuccess
+                withContext(NonCancellable) {
+                    session.saveResponse()
+                    if (success) pipeline.onLLMCallCompleted(it.eventId, it.executionInfo, it.context, it.runId, it.prompt, it.model, it.tools,
+                        session.responseMessages().filterIsInstance<Message.Assistant>().lastOrNull())
+                    else pipeline.onLLMCallFailed(it.eventId, it.executionInfo, it.context, it.runId, it.prompt, it.model, it.tools,
+                        IllegalStateException("Stream interrupted"))
+                }
+            }
             pipeline.interceptLLMCallStarting(this) { session.startRequest() }
             pipeline.interceptLLMCallCompleted(this) {
                 it.response?.let { response ->
@@ -80,6 +93,7 @@ internal class RunSession(
 ) {
     val messages = SessionMessages(model)
     private val identities = callable.associate { it.descriptor.name to it.identity }
+    fun toolName(name: String) = name.takeIf { it in identities } ?: "unknown"
     private var instructions = ""
     private var request = 0
     var messageId = ""
@@ -92,6 +106,7 @@ internal class RunSession(
         private set
     private var ended = false
     private var streamFailed = false
+    val streamingSuccess get() = ended && !streamFailed
     private val startedCalls = mutableSetOf<String>()
     private var compressing = false
     private var before: Prompt? = null
