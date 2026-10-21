@@ -2,6 +2,8 @@ package kinuvo.harness.server
 
 import kinuvo.harness.core.Agent
 import kinuvo.harness.core.knowledge.ChangeSource
+import kinuvo.harness.core.knowledge.ReflectionRevision
+import kinuvo.harness.core.knowledge.rememberReflectionReview
 import kinuvo.harness.core.knowledge.KnowledgeTool
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
@@ -15,17 +17,28 @@ import kotlinx.coroutines.withContext
 class ReflectionReview(private val harness: HarnessRuntime) {
     private val lock = Mutex()
 
-    suspend fun respond(agent: Agent, sessionId: String, proposalId: String, approve: Boolean) = lock.withLock {
+    suspend fun respond(agent: Agent, sessionId: String, proposalId: String, approve: Boolean, note: String? = null) = lock.withLock {
         val entries = harness.store.entries(agent, sessionId)
         val reviewed = entries.filterIsInstance<SessionEntry.ReflectionReview>().firstOrNull { it.proposalId == proposalId }
         if (reviewed != null) {
-            check(reviewed.approved == approve) { "This proposal was already reviewed" }
+            check(reviewed.approved == approve && reviewed.note == note?.trim()?.takeIf { it.isNotEmpty() }) { "This proposal was already reviewed" }
             return@withLock
         }
-        val proposal = entries.filterIsInstance<SessionEntry.Reflection>().flatMap { it.result.proposals }
+        val proposal = entries.flatMap { when (it) {
+            is SessionEntry.Reflection -> it.result.proposals
+            is SessionEntry.ReflectionReview -> it.result?.proposals.orEmpty()
+            else -> emptyList()
+        } }
             .firstOrNull { it.id == proposalId } ?: error("No Reflection proposal '$proposalId' in this Session")
+        val cleanNote = note?.trim()?.takeIf { it.isNotEmpty() }
+        val result = if (approve && cleanNote != null) {
+            harness.reflect(agent, sessionId, entries, ReflectionRevision(proposal, cleanNote)).also {
+                check(it.error == null) { it.error.orEmpty() }
+                check(it.proposals.isNotEmpty()) { "Reflection did not produce a revised proposal" }
+            }
+        } else null
         withContext(NonCancellable) {
-            if (approve) when (proposal.tool) {
+            if (approve && cleanNote == null) when (proposal.tool) {
                 ToolNames.KNOWLEDGE -> if (harness.knowledge.change(proposal.id) == null) {
                     KnowledgeTool(harness.knowledge, ChangeSource(agent.id, sessionId, proposal.id))
                         .executeReviewed(proposal.args, proposal.note, requireNotNull(proposal.scope))
@@ -34,7 +47,8 @@ class ReflectionReview(private val harness: HarnessRuntime) {
                     proposal.args.requireString("content"), proposal.skillBefore)
                 else -> error("Unsupported Reflection destination")
             }
-            harness.log.append(agent, sessionId, SessionEntry.ReflectionReview(proposalId, approve))
+            if (!approve || cleanNote != null) harness.docs.rememberReflectionReview(agent.id, proposal, cleanNote, !approve)
+            harness.log.append(agent, sessionId, SessionEntry.ReflectionReview(proposalId, approve, cleanNote, result))
         }
     }
 }

@@ -303,7 +303,7 @@ class ServerRuntime(
         Api.Attachment.name -> respond(r, Api.Attachment) { withContext(Dispatchers.Default) { harness.attachments.download(it.id) } }
         Api.Send.name -> respond(r, Api.Send) { send(it) }
         Api.Stop.name -> respond(r, Api.Stop) { stop(it.sessionId) }
-        Api.ReviewReflection.name -> respond(r, Api.ReviewReflection) { reflectionReview.respond(agent(it.agentId), it.sessionId, it.proposalId, it.approve) }
+        Api.ReviewReflection.name -> respond(r, Api.ReviewReflection) { reflectionReview.respond(agent(it.agentId), it.sessionId, it.proposalId, it.approve, it.note) }
         Api.Approve.name -> respond(r, Api.Approve) { harness.approvals.respond(it.approvalId, it.decision) }
         Api.Answer.name -> respond(r, Api.Answer) { harness.questions.respond(it.questionsId, it.answers) }
         Api.Artifacts.name -> respond(r, Api.Artifacts) { harness.artifacts.list() }

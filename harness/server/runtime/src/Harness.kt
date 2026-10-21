@@ -9,6 +9,7 @@ import kinuvo.harness.core.skills.load
 import kinuvo.harness.core.skills.slashActivation
 import kinuvo.harness.core.knowledge.KnowledgePlugin
 import kinuvo.harness.core.knowledge.Reflection
+import kinuvo.harness.core.knowledge.ReflectionRevision
 import kinuvo.harness.core.tasks.TasksPlugin
 import kinuvo.harness.core.voice.VoiceProviders
 import kotlinx.datetime.todayIn
@@ -95,7 +96,7 @@ open class HarnessRuntime(
     fun reflects(agent: Agent) = ServerFeature.Knowledge in features && agent.config.tools.any { it in setOf(ToolNames.KNOWLEDGE, ToolNames.MEMORY, ToolNames.SKILLS) } && reflectionEnabled
 
     /** Saves what's worth keeping from [entries] of a Session. */
-    suspend fun reflect(agent: Agent, sessionId: String, entries: List<SessionEntry>): kinuvo.protocol.ReflectionResult {
+    suspend fun reflect(agent: Agent, sessionId: String, entries: List<SessionEntry>, review: ReflectionRevision? = null): kinuvo.protocol.ReflectionResult {
         val resolved = try { agent.with(store.session(agent, sessionId).settings) }
         catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { agent }
         val chat = effective(resolved, null)
@@ -111,7 +112,7 @@ open class HarnessRuntime(
             } else null
         } catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { null }
         val (reflected, model) = chosen ?: (chat.agent to model(chat))
-        return reflection.reflect(reflected, model, sessionId, entries, reflectionPrompt)
+        return reflection.reflect(reflected, model, sessionId, entries, reflectionPrompt, review)
     }
 
     suspend fun newSession(agent: Agent, routine: RoutineRef? = null): SessionInfo {

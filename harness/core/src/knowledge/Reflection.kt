@@ -29,10 +29,10 @@ class Reflection(
     private val tracing: AgentTracing? = null,
     private val today: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
 ) {
-    suspend fun reflect(agent: Agent, model: AgentModel, sessionId: String, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT): ReflectionResult {
-        val run = ReflectionRun(agent, model, sessionId, entries, prompt, knowledge, docs, skills, denied, today)
+    suspend fun reflect(agent: Agent, model: AgentModel, sessionId: String, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, review: ReflectionRevision? = null): ReflectionResult {
+        val run = ReflectionRun(agent, model, sessionId, entries, prompt, knowledge, docs, skills, denied, today, review)
         run.gather()
-        for (stage in ReflectionStage.entries) {
+        for (stage in review?.let { listOf(it.stage) } ?: ReflectionStage.entries) {
             val runId = Uuid.random().toString()
             val koog = AIAgent(
                 id = agent.id,
@@ -74,6 +74,7 @@ internal class ReflectionRun(
     private val skills: SkillRepository?,
     private val denied: suspend (Agent) -> DenyRules,
     private val today: () -> LocalDate,
+    private val review: ReflectionRevision? = null,
 ) {
     val messages = SessionMessages(model)
     val response = StreamResponse()
@@ -105,7 +106,7 @@ internal class ReflectionRun(
             is SessionEntry.ToolResult -> entry.id to "${entry.name} (${if (entry.isError) "failed" else "succeeded"}): ${entry.output.take(1200)}"
             else -> null
         } }.toMap()
-        changes = ReflectionChanges(agent, knowledge, skills, evidence)
+        changes = ReflectionChanges(agent, knowledge, skills, evidence + (review?.let { mapOf("review-note" to it.note, "proposal" to it.proposal.evidence) } ?: emptyMap()))
         deny = denied(agent)
     }
 
@@ -137,7 +138,7 @@ internal class ReflectionRun(
             ReflectionStage.Knowledge -> "How the user organizes it:\n${knowledge.conventions().trim()}\n\n${knowledge.schema().describe()}"
             ReflectionStage.Skills -> "Available Skills:\n" + skills!!.load(agent).joinToString("\n") { "- ${it.name}: ${it.description}" }
         }
-        val review = "$instructions\n\nToday is ${today()}.\n\n$context\n\n${stage.instructions}\n\n${savedEarlier()}" +
+        val review = "$instructions\n\nToday is ${today()}.\n\n$context\n\n${stage.instructions}\n\n${review?.prompt().orEmpty()}${docs.reflectionFeedback(agent.id, stage)}${savedEarlier()}" +
             "Review these source entries:\n$transcript"
         return messages.prompt("", listOf(SessionEntry.UserMessage(
             "Background Reflection instructions:\n$review\n\nPerform only the ${stage.name} stage. Use only these tools: ${tools.joinToString { it.descriptor.name }}. All other tools are blocked.",
