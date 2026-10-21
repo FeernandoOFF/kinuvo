@@ -24,16 +24,21 @@ class FileStoreTest {
     }
 
     @Test
-    fun routineSessionKeepsItsAnswerAfterASilentReply() = runTest {
+    fun routineSessionJoinsTheChatsOnceItReportsOrTheUserJoinsIn() = runTest {
         val home = TestHome()
-        val session = home.store.createSession(home.agent, "instructions", kinuvo.protocol.RoutineRef("watch", "Watch"))
-        home.store.append(home.agent, session.id, SessionEntry.AssistantMessage("[SILENT]"))
-        assertEquals(false, home.store.session(home.agent, session.id).inChats)
-        home.store.append(home.agent, session.id, SessionEntry.AssistantMessage("Something changed"))
-        home.store.append(home.agent, session.id, SessionEntry.AssistantMessage("[SILENT]"))
-        assertEquals(true, home.store.session(home.agent, session.id).inChats)
-        home.store.truncate(home.agent, session.id, 2)
-        assertEquals(false, home.store.session(home.agent, session.id).inChats)
+        val routine = kinuvo.protocol.RoutineRef("watch", "Watch")
+        val quiet = home.store.createSession(home.agent, "instructions", routine)
+        home.store.append(home.agent, quiet.id, SessionEntry.Outcome(report = false))
+        assertEquals(false, home.store.session(home.agent, quiet.id).inChats)
+        home.store.append(home.agent, quiet.id, SessionEntry.UserMessage("what changed?"))
+        assertEquals(true, home.store.session(home.agent, quiet.id).inChats)
+        val reported = home.store.createSession(home.agent, "instructions", routine)
+        home.store.append(home.agent, reported.id, SessionEntry.UserMessage("Check", routine))
+        assertEquals(false, home.store.session(home.agent, reported.id).inChats)
+        home.store.append(home.agent, reported.id, SessionEntry.Outcome(report = true, summary = "Something changed"))
+        assertEquals(true, home.store.session(home.agent, reported.id).inChats)
+        home.store.truncate(home.agent, reported.id, 2)
+        assertEquals(false, home.store.session(home.agent, reported.id).inChats)
     }
 
     @Test
