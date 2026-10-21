@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.withContext
 import kotlin.uuid.Uuid
 
-private const val MAX_AGENT_ITERATIONS = 50
+internal const val MAX_AGENT_ITERATIONS = 50
 
 /** One turn of an Agent, with a fresh Koog graph and a durable Session. */
 class AgentRun(

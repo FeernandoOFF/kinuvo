@@ -68,7 +68,7 @@ internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: 
 }
 
 @OptIn(InternalAgentsApi::class)
-private suspend fun AIAgentGraphContextBase.toolCall(call: SessionEntry.ToolCall, name: String, execute: suspend () -> SessionEntry.ToolResult): SessionEntry.ToolResult {
+internal suspend fun AIAgentGraphContextBase.toolCall(call: SessionEntry.ToolCall, name: String, execute: suspend () -> SessionEntry.ToolResult): SessionEntry.ToolResult {
     val event = Uuid.random().toString()
     val args = JSONObject(emptyMap())
     pipeline.onToolCallStarting(event, executionInfo, this, runId, call.id, name, null, args)
@@ -85,4 +85,4 @@ private suspend fun AIAgentGraphContextBase.toolCall(call: SessionEntry.ToolCall
     }
 }
 
-private fun canonical(args: String) = runCatching { Json.parseToJsonElement(args).deterministic().toString() }.getOrDefault(args)
+internal fun canonical(args: String) = runCatching { Json.parseToJsonElement(args).deterministic().toString() }.getOrDefault(args)
