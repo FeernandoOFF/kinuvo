@@ -36,6 +36,71 @@ class ReflectionTest {
     private val reflection = Reflection(knowledge, home.docs)
 
     @Test
+    fun stagePromptsGiveUserFactsAndWorldFactsTheirOwnHomes() {
+        val memory = ReflectionStage.Memory.instructions
+        assertTrue("User Notes (target=user): facts about the user themself: where they live, their relationships, preferences, communication and work style." in memory)
+        assertTrue("correct stale facts such as an outdated location" in memory)
+        assertTrue("Knowledge holds records about the user's world: other people's details, projects, places, organizations, events; Skills hold procedures." in memory)
+        val knowledge = ReflectionStage.Knowledge.instructions
+        assertTrue("The user's own facts and preferences belong in User Notes; procedures belong in Skills." in knowledge)
+        assertTrue("create one only for a subject the user will come back to" in knowledge)
+    }
+
+    @Test
+    fun laterStagesSeeEarlierEditsAndProposalActionsAndTitles() = runTest {
+        home.docs.write(home.agent.id, AgentDoc.UserNotes, "- Lives in Cork\n- Likes tea\n")
+        knowledge.create("project", "Harbour", body = "A project")
+        val seen = mutableListOf<ReflectionStage>()
+        val model = scriptedModel { prompt, tools ->
+            if (prompt.messages.toolResults.isNotEmpty()) return@scriptedModel flowOf(StreamFrame.End())
+            val stage = ReflectionStage.entries.first { it.instructions in prompt.messages.first().textContent() }
+            seen += stage
+            val review = prompt.messages.first().textContent()
+            if (stage == ReflectionStage.Memory) {
+                assertFalse("Saved earlier in this Reflection:" in review)
+                flowOf(
+                    StreamFrame.ToolCallComplete("memory", tools.single().name,
+                        """{"target":"memory","operations":[{"action":"add","content":"Clear the cache after changing the SDK"}]}"""),
+                    StreamFrame.ToolCallComplete("user", tools.single().name,
+                        """{"target":"user","operations":[{"action":"replace","old_text":"Lives in Cork","content":"Lives in Dublin"},{"action":"add","content":"Prefers concise answers with one example"},{"action":"add","content":"Ana is the user's sister"}]}"""),
+                    StreamFrame.End(),
+                )
+            } else {
+                val saved = review.substringAfter("Saved earlier in this Reflection:").substringBefore("Review these source entries:")
+                assertTrue("- Memory added: Clear the cache after changing the SDK" in saved)
+                assertTrue("- User Notes removed: Lives in Cork" in saved)
+                assertTrue("- User Notes added: Lives in Dublin" in saved)
+                assertTrue("- User Notes added: Prefers concise answers with one example" in saved)
+                assertTrue("- User Notes added: Ana is the user's sister" in saved)
+                assertFalse("Likes tea" in saved)
+                assertTrue("Keep one home per fact: extend earlier work with distinct details, and skip what it already covers." in saved)
+                if (stage == ReflectionStage.Knowledge) {
+                    assertFalse("Knowledge proposal:" in saved)
+                    flowOf(
+                        StreamFrame.ToolCallComplete("project", tools.single().name,
+                            """{"action":"update","ref":"Harbour","append":"Ana leads the project","reason":"Project owner","evidence":"user-0"}"""),
+                        StreamFrame.ToolCallComplete("person", tools.single().name,
+                            """{"action":"create","type":"person","title":"Ana","append":"Leads Harbour","reason":"Project lead","evidence":"user-0"}"""),
+                        StreamFrame.End(),
+                    )
+                } else {
+                    assertTrue("- Knowledge proposal: update Harbour" in saved)
+                    assertTrue("- Knowledge proposal: create Ana" in saved)
+                    assertTrue("Proposals still await the user's Approval." in saved)
+                    flowOf(StreamFrame.End())
+                }
+            }
+        }
+        val result = Reflection(knowledge, home.docs, home.skills).reflect(home.agent, model, "s1", listOf(
+            SessionEntry.UserMessage("I moved to Dublin. I prefer concise answers with one example. Ana is my sister and leads Harbour. Clearing the cache fixed the SDK change."),
+        ))
+        assertEquals(null, result.error)
+        assertEquals(ReflectionStage.entries.toList(), seen)
+        assertEquals(2, result.memoryChanges.size)
+        assertEquals(2, result.proposals.size)
+    }
+
+    @Test
     fun exhaustedStageDoesNotSpendTheNextStagesBudget() = runTest {
         var memoryRequests = 0
         val later = mutableListOf<String>()
