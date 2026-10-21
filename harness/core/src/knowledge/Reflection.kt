@@ -6,8 +6,8 @@ import kinuvo.harness.core.ownedBy
 import kinuvo.protocol.PluginInstanceId
 import kinuvo.harness.core.AgentDoc
 import kinuvo.harness.core.AgentDocs
-import kinuvo.harness.core.AgentRunner
-import kinuvo.harness.core.Model
+import kinuvo.harness.core.AgentRun
+import kinuvo.harness.core.AgentModel
 import kinuvo.harness.core.activeHistory
 import kinuvo.protocol.RequestKind
 import kinuvo.harness.core.store.InMemoryStore
@@ -41,7 +41,7 @@ class Reflection(
     private val today: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
 ) {
     /** Reflects on [entries] of Session [sessionId]; returns its changes and any error. */
-    suspend fun reflect(agent: Agent, model: Model, sessionId: String, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, parent: ReflectionContext? = null, history: List<SessionEntry> = entries): ReflectionResult {
+    suspend fun reflect(agent: Agent, model: AgentModel, sessionId: String, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, parent: ReflectionContext? = null, history: List<SessionEntry> = entries): ReflectionResult {
         val transcript = entries.mapIndexedNotNull { index, entry ->
             when (entry) {
                 is SessionEntry.UserMessage -> "[user-$index] User: ${entry.text.take(600)}"
@@ -103,7 +103,7 @@ class Reflection(
             PluginTools(listOf(tool)).ownedBy(PluginInstanceId(owner)).tools
         }.filter { deny.blockedTool(it.identity) == null }
         var error: String? = null
-        AgentRunner(parent?.agent ?: agent, store, parent?.model ?: model, bound, maxSteps = 12,
+        AgentRun(parent?.agent ?: agent, store, parent?.model ?: model, bound, maxAgentIterations = 48,
             advertisedTools = parent?.tools ?: bound.map { it.descriptor }, requestKind = RequestKind.Reflection)
             .run(session.id, "Perform this background Reflection. Use only these tools: ${bound.joinToString { it.descriptor.name }}. All other tools are blocked. Knowledge and Skill writes stage proposals. Include reason and evidence in proposals.")
             .collect { if (it is AgentEvent.RunError) error = it.message }

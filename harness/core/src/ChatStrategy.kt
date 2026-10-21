@@ -1,0 +1,61 @@
+package kinuvo.harness.core
+
+import ai.koog.agents.core.dsl.builder.node
+import ai.koog.agents.core.dsl.builder.strategy
+import ai.koog.agents.core.dsl.extension.HistoryCompressionStrategy
+import ai.koog.agents.core.dsl.extension.nodeLLMCompressHistory
+import ai.koog.prompt.streaming.StreamFrame
+import kinuvo.harness.core.tools.ToolExecutor
+import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.SessionEntry
+import kotlinx.serialization.json.Json
+
+internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit) = strategy<Unit, Unit>("kinuvoChat") {
+    val failed = mutableSetOf<Pair<String, String>>()
+    var repeats = 0
+    var pending = emptyList<SessionEntry.ToolCall>()
+    val checkHistory by node<Unit, Unit> { }
+    val compactHistory by nodeLLMCompressHistory<Unit>(name = COMPACT_HISTORY, strategy = HistoryCompressionStrategy.WholeHistory)
+    val request by node<Unit, Unit>("streamResponse") {
+        llm.writeSession {
+            requestLLMStreaming().collect { frame ->
+                when (frame) {
+                    is StreamFrame.TextDelta -> session.emit(AgentEvent.TextMessageContent(session.messageId, frame.text))
+                    is StreamFrame.ReasoningDelta -> (frame.summary ?: frame.text)?.let { session.emit(AgentEvent.ThinkingContent(session.messageId, it)) }
+                    else -> Unit
+                }
+            }
+            prompt = prompt.withMessages { it + session.responseMessages() }
+        }
+        if (session.text().isNotEmpty()) session.emit(AgentEvent.TextMessageEnd(session.messageId, session.text()))
+        pending = session.calls
+    }
+    val executeTool by node<Unit, SessionEntry.ToolResult>("executeTool") {
+        val call = pending.first()
+        val key = call.name to canonical(call.args)
+        val result = if (key in failed) {
+            repeats++
+            session.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
+            SessionEntry.ToolResult(call.id, call.name, "This exact call already failed in this turn. Don't repeat it; try something else or answer the user.", isError = true, identity = call.identity)
+        } else executor.call(call, stopped = stopped)
+        llm.writeSession { prompt = prompt.withMessages { it + session.messages.messages(listOf(result)) } }
+        if (result.isError) failed += key
+        pending = pending.drop(1)
+        result
+    }
+    val checkTools by node<SessionEntry.ToolResult, Unit> {
+        check(repeats < 2) { "Stopped: the model kept repeating a tool call that failed" }
+    }
+
+    edge(nodeStart forwardTo checkHistory)
+    edge(checkHistory forwardTo compactHistory onCondition { session.needsCompression(llm.prompt) })
+    edge(checkHistory forwardTo request onCondition { !session.needsCompression(llm.prompt) })
+    edge(compactHistory forwardTo request)
+    edge(request forwardTo nodeFinish onCondition { pending.isEmpty() })
+    edge(request forwardTo executeTool onCondition { pending.isNotEmpty() })
+    edge(executeTool forwardTo checkTools)
+    edge(checkTools forwardTo executeTool onCondition { pending.isNotEmpty() })
+    edge(checkTools forwardTo checkHistory onCondition { pending.isEmpty() })
+}
+
+private fun canonical(args: String) = runCatching { Json.parseToJsonElement(args).deterministic().toString() }.getOrDefault(args)
