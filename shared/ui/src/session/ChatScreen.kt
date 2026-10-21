@@ -156,6 +156,7 @@ fun ChatScreen(
                 ?: current.downloads[id]?.let { AttachmentPreview(it.attachment.copy(id = id), it.base64) }
                 ?: current.items.firstNotNullOfOrNull { item -> (item as? ChatItem.User)?.attachments?.firstOrNull { it.id == id } }?.let { AttachmentPreview(it, null) }
         },
+        answers = current.answers,
     )
     ChatContent(
         state, connection, appState.usage,
@@ -176,6 +177,7 @@ fun ChatScreen(
             onDecision = { _, decision -> session.respond(decision) },
             onReviewReflection = session::reviewReflection,
             onAnswer = session::answer,
+            onEditAnswer = session::editAnswer,
             onOpenArtifact = { onNavigate(Route.Artifacts(it)) },
             onWatch = { onNavigate(Route.Computers()) },
             onLoadOlder = session::loadOlder,
@@ -215,6 +217,7 @@ class ChatActions(
     val onReviewReflection: (String, Boolean) -> Unit = { _, _ -> },
     /** The open `ask_user` form's answers by question ID; null skips it. */
     val onAnswer: (Map<String, List<String>>?) -> Unit = {},
+    val onEditAnswer: (questionsId: String, questionId: String, value: List<String>) -> Unit = { _, _, _ -> },
     val onOpenArtifact: (id: String) -> Unit = {},
     /** Opens Live view of the Computers an Agent controls. */
     val onWatch: () -> Unit = {},
@@ -668,7 +671,7 @@ private fun Messages(
                     Box(Modifier.animateItem(fadeInSpec = if (user) null else tween(250), fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth()) {
                         when (row) {
                             is ChatRow.Single -> if (row.key == "outgoing") Entering { ChatItemView(row.item, actions) }
-                                else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id))
+                                else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id), state.answers)
                             is ChatRow.Steps -> StepsView(row, active = state.running && row === rows.last())
                         }
                     }
@@ -737,7 +740,7 @@ private fun JumpToBottom(unseen: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = null) {
+private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = null, answers: Map<String, Map<String, List<String>>> = emptyMap()) {
     when (item) {
         is ChatItem.User -> if (item.routine != null) Expandable(Lucide.AlarmClock, requireNotNull(item.routine), subtitle = "routine") { RichMarkdown(item.text) }
         else if (item.task != null) Expandable(Lucide.SquareKanban, requireNotNull(item.task), subtitle = "task") { RichMarkdown(item.text) }
@@ -761,10 +764,10 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
         is ChatItem.ToolCall -> when {
             item.awaitingApproval -> ApprovalCard(item, actions.onDecision)
             item.questions != null && item.name == "request_takeover" -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                QuestionsCard(requireNotNull(item.questions), actions.onAnswer)
+                QuestionsCard(requireNotNull(item.questions), answers, actions)
                 Button(onClick = actions.onWatch, style = ButtonStyle.Outlined) { Text("Open Live view") }
             }
-            item.questions != null -> QuestionsCard(requireNotNull(item.questions), actions.onAnswer)
+            item.questions != null -> QuestionsCard(requireNotNull(item.questions), answers, actions)
             (item.identity?.instance?.pluginId == "kinuvo.computer" && item.identity?.localId in setOf("computer_capture", "computer_act")) && item.result == null -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 ToolCallView(item)
                 Button(onClick = actions.onWatch, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Watch live", fontSize = 12.sp) }
