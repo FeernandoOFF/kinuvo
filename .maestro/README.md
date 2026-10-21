@@ -1,29 +1,53 @@
 # Mobile E2E
 
-Requires the `feat/websockets-kotlin-toolchain` Mockstro branch, Java 17+, Maestro,
-Android SDK tools and Xcode for iOS. Build Mockstro from its checkout (keep this dependency on its feature branch for now):
+Use the repository wrapper with the current development CLI. The latest published
+release (`v0.1.0-rc.1`) predates the YAML config and Kotlin Toolchain/WebSocket support
+used by this suite. Install the development binary once from the Mockstro checkout:
 
 ```sh
-cd <mockstro-checkout>
-git branch --show-current # must be feat/websockets-kotlin-toolchain
-go build -o /private/tmp/mockstro ./cmd/mockstro
+make install-dev
 ```
 
-From the Kinuvo repository root, select a test device explicitly:
+Requires Java 17+ and Android SDK tools or Xcode for the selected platform.
+`setup` validates fixtures and installs missing Maestro and WireMock dependencies.
+
+From the Kinuvo repository root:
 
 ```sh
-/private/tmp/mockstro run .maestro/flows/mobile/chat.yaml --device <emulator-serial>
-IOS_SIMULATOR_NAMES='<simulator-name>' /private/tmp/mockstro --platform ios run .maestro/flows/mobile/chat.yaml --device <simulator-udid>
+./mockstrow --dev setup
+./mockstrow --dev --owner agent status --json
+./mockstrow --dev --owner agent --platform android run --headless .maestro/flows/mobile/chat.yaml
+./mockstrow --dev --owner agent --platform ios run --headless .maestro/flows/mobile/chat.yaml
 ```
+
+`.maestro/mockstro.yaml` configures both platform app IDs, full integration, Kotlin
+Toolchain builds, and the pinned WireMock beta with `/ws`. Put machine-specific device
+names in the ignored `.maestro/mockstro.local.yaml`:
+
+```yaml
+platforms:
+  android:
+    devices: [Your_Android_AVD]
+  ios:
+    devices: [Your iPhone simulator]
+```
+
+Agents use designated devices; Mockstro can select and boot a free one. Add
+`--device <serial-or-udid>` to select a particular designated device.
+`MOCKSTRO_DEV_CLI=/path/to/mockstro-dev` selects a development binary outside `PATH`.
+Omit `--platform` to run both configured platforms concurrently.
+When a compatible release is published, add its `cliVersion` to the shared YAML and
+use `./mockstrow` without `--dev`.
 
 Every flow uses `appId: ${APP_ID}` and carries both `android` and `ios`
 tags. Mockstro injects `APP_ID` from the selected platform configuration. Keep
-separate flows when the platform has different UI steps or behavior.
+common behavior in shared flows; use native Maestro platform conditions for
+interactions that differ.
 
 Run all eleven shared flows on iOS (smoke and regression) with:
 
 ```sh
-IOS_SIMULATOR_NAMES='<simulator-name>' /private/tmp/mockstro --platform ios run --tags smoke,regression --device <simulator-udid>
+./mockstrow --dev --owner agent --platform ios run --headless --tags smoke,regression
 ```
 
 Add `--skip-build` when the current debug build is already installed. These flows
@@ -45,7 +69,7 @@ All flows under `flows/mobile/` run unchanged on Android and iOS. Run the shared
 suite on Android with:
 
 ```sh
-/private/tmp/mockstro run --tags smoke,regression --device <emulator-serial>
+./mockstrow --dev --owner agent --platform android run --headless --tags smoke,regression
 ```
 
 Tool responses and Agent events are mocked at the WebSocket boundary. These tests
@@ -59,8 +83,8 @@ Server pushes happen after UI readiness assertions, without fixed sleeps. Mockst
 restarts the WebSocket server and stops the app between scenarios; each launch
 uses fresh test preferences and credentials.
 
-Alternatively, designate an Android AVD with `MAESTRO_AGENT_AVDS=<avd-name>` and use
-`--boot-emulator=<avd-name> --headless`. Mockstro builds with `./kotlin`, snapshots
+Use `--boot-emulator <designated-device-name>` to request a specific stopped device.
+Mockstro builds with `./kotlin`, snapshots
 and installs the artifact, loads the pinned WireMock 4 beta, writes the runtime
 override, and cleans up its override and forwarding when the run finishes.
 
