@@ -78,7 +78,7 @@ class Reflection(
         val session = store.createSession(agent, parent?.instructions.orEmpty())
         val seed = history.activeHistory()
         seed.forEach { store.append(agent, session.id, it) }
-        store.append(agent, session.id, SessionEntry.Context("Background Reflection instructions:\n$review\n\nReview only these new source entries; earlier history is context, not new evidence:\n$transcript"))
+        store.append(agent, session.id, SessionEntry.Context(seed.filterIsInstance<SessionEntry.Context>().lastOrNull()?.content.orEmpty() + "\n\nBackground Reflection instructions:\n$review\n\nReview only these new source entries; earlier history is context, not new evidence:\n$transcript"))
         val evidence = entries.mapIndexedNotNull { index, entry -> when (entry) {
             is SessionEntry.UserMessage -> "user-$index" to "User: ${entry.text.take(1200)}"
             is SessionEntry.ToolResult -> entry.id to "${entry.name} (${if (entry.isError) "failed" else "succeeded"}): ${entry.output.take(1200)}"

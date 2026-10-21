@@ -100,6 +100,50 @@ class CompactionTest {
     }
 
     @Test
+    fun dailyContextsDoNotAccumulateAcrossCompactions() = runTest {
+        val home = TestHome()
+        val agent = home.agent.copy(config = home.agent.config.copy(compactAtTokens = 400))
+        val session = home.store.createSession(agent, "stable")
+        repeat(20) { home.store.append(agent, session.id, Context("Day $it: " + "x".repeat(1000))) }
+        home.store.append(agent, session.id, UserMessage("earlier"))
+        home.store.append(agent, session.id, AssistantMessage("y".repeat(8000)))
+        val model = scriptedModel { prompt, _ ->
+            if (prompt.messages.last().textContent().contains("Create a comprehensive summary"))
+                flowOf(StreamFrame.TextDelta("Earlier work."), StreamFrame.End())
+            else {
+                assertEquals(listOf("stable", "Today"), prompt.messages.filterIsInstance<Message.System>().map { it.textContent() })
+                flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
+            }
+        }
+        val events = AgentRun(agent, home.store, model, emptyList(), context = "Today", contextTokens = 4096).run(session.id, "next").toList()
+        assertIs<AgentEvent.RunFinished>(events.last())
+        assertEquals(listOf(Context("Today")), home.store.entries(agent, session.id).filterIsInstance<Compaction>().single().history.filterIsInstance<Context>())
+    }
+
+    @Test
+    fun aSingleOversizedEarlierToolResultIsSummarizedInBoundedRequests() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent, "stable")
+        home.store.append(home.agent, session.id, UserMessage("read"))
+        home.store.append(home.agent, session.id, ToolCall("old", "read", "{}"))
+        home.store.append(home.agent, session.id, ToolResult("old", "read", "x".repeat(40000) + "TAIL"))
+        var summaries = 0
+        var tail = false
+        val model = scriptedModel { prompt, _ ->
+            assertTrue(prompt.messages.sumOf { it.textContent().length } / 4 < 3072)
+            if (prompt.messages.last().textContent().contains("Create a comprehensive summary")) {
+                summaries++
+                tail = tail || prompt.messages.any { "TAIL" in it.textContent() }
+                flowOf(StreamFrame.TextDelta("Read completed."), StreamFrame.End())
+            } else flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
+        }
+        val events = AgentRun(home.agent, home.store, model, emptyList(), contextTokens = 4096).run(session.id, "next").toList()
+        assertIs<AgentEvent.RunFinished>(events.last())
+        assertTrue(summaries > 1)
+        assertTrue(tail)
+    }
+
+    @Test
     fun compressesToolExchangesAndPreservesFilesAndTheCurrentRequest() = runTest {
         val home = TestHome()
         val agent = home.agent.copy(config = home.agent.config.copy(compactAtTokens = 2000))
@@ -116,9 +160,14 @@ class CompactionTest {
         var chat = 0
         val model = scriptedModel { prompt, tools ->
             if (tools.isEmpty()) flowOf(StreamFrame.TextDelta("Read the photo."), StreamFrame.End())
-            else if (chat++ == 0) flowOf(StreamFrame.ToolCallComplete("real-call-id", "read", "{}"), StreamFrame.End())
+            else if (chat++ < 2) flowOf(StreamFrame.ToolCallComplete("call-$chat", "read", "{}"), StreamFrame.End())
             else {
-                assertTrue(prompt.messages.any { it.textContent() == "Original request" })
+                val userAt = prompt.messages.indexOfFirst { it.textContent() == "Original request" }
+                val callAt = prompt.messages.indexOfFirst { it.parts.any { p -> p is MessagePart.Tool.Call && p.id == "call-2" } }
+                val resultAt = prompt.messages.indexOfFirst { it.parts.any { p -> p is MessagePart.Tool.Result && p.id == "call-2" } }
+                assertTrue(userAt > 0)
+                assertTrue(callAt > userAt && resultAt > callAt)
+                assertTrue(prompt.messages.take(userAt).any { it is Message.Assistant })
                 assertTrue(prompt.messages.flatMap { it.parts }.any { it is MessagePart.Attachment })
                 flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
             }
@@ -126,6 +175,8 @@ class CompactionTest {
         val events = AgentRun(agent, home.store, model, listOf(tool), attach = { _, _ -> photo }).run(session.id, "Original request").toList()
         assertIs<AgentEvent.RunFinished>(events.last())
         assertEquals(1, events.filterIsInstance<AgentEvent.Compacted>().size)
-        assertEquals("real-call-id", home.store.entries(agent, session.id).filterIsInstance<ToolResult>().single().id)
+        val snapshot = home.store.entries(agent, session.id).filterIsInstance<Compaction>().single().history
+        assertEquals(listOf("call-2"), snapshot.filterIsInstance<ToolCall>().map { it.id })
+        assertEquals("x".repeat(20000), snapshot.filterIsInstance<ToolResult>().single().output)
     }
 }

@@ -10,9 +10,13 @@ import kotlinx.serialization.json.jsonPrimitive
 
 /** The latest compressed history followed by the Session's subsequent model entries. */
 fun List<SessionEntry>.activeHistory(): List<SessionEntry> {
-    val at = indexOfLast { it is SessionEntry.Compaction }
+    val at = indexOfLast { it is SessionEntry.Compaction && it.history.isNotEmpty() }
     val history = if (at < 0) this else (this[at] as SessionEntry.Compaction).history + drop(at + 1)
-    return history.filterNot { it is SessionEntry.Started || it is SessionEntry.Settings || it is SessionEntry.Details || it is SessionEntry.Reflection || it is SessionEntry.ReflectionReview || it is SessionEntry.Measurement }
+    val contextAt = history.indexOfLast { it is SessionEntry.Context }
+    val activations = history.filterIsInstance<SessionEntry.Activation>().associateBy { it.name }
+    return history.filterIndexed { index, entry -> (entry !is SessionEntry.Context || index == contextAt) &&
+        (entry !is SessionEntry.Activation || activations[entry.name] === entry)
+    }.filterNot { it is SessionEntry.Compaction || it is SessionEntry.Started || it is SessionEntry.Settings || it is SessionEntry.Details || it is SessionEntry.Reflection || it is SessionEntry.ReflectionReview || it is SessionEntry.Measurement }
 }
 
 /** Screenshots a Computer tool shows the model are named so, and only the latest few are sent again. */

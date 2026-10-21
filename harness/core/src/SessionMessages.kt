@@ -6,18 +6,20 @@ import ai.koog.prompt.dsl.RequestMessagePartsBuilder
 import ai.koog.prompt.message.*
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.SessionEntry
+import kotlin.uuid.Uuid
 
 /** Session conversion belongs to the persistence feature, including files shown after tool results. */
 class SessionMessages(private val model: AgentModel) {
-    private val entries = mutableMapOf<Message, List<SessionEntry>>()
+    private val entries = mutableListOf<Pair<Message, List<SessionEntry>>>()
 
     fun prompt(instructions: String, history: List<SessionEntry>): Prompt {
+        entries.clear()
         val initial = prompt("kinuvo", model.parameters(instructions)) {
             if (model.instructionsInPrompt && instructions.isNotBlank()) system(instructions)
         }
         val system = initial.messages.map { (it as Message.System).copy(metaInfo = RequestMetaInfo.Empty) }
-        system.forEach { entries[it] = emptyList() }
-        return initial.withMessages { system + messages(history) }
+        system.forEach { entries += it to emptyList() }
+        return initial.withMessages { system + messages(history.activeHistory()) }
     }
 
     fun messages(history: List<SessionEntry>): List<Message> = history.flatMap { entry ->
@@ -25,7 +27,7 @@ class SessionMessages(private val model: AgentModel) {
         val block = prompt("session") {
             when (entry) {
                 is SessionEntry.Context -> system(entry.content)
-                is SessionEntry.UserMessage -> user { text(entry.modelText); attach(entry.attachments) }
+                is SessionEntry.UserMessage -> user { if (entry.modelText.isNotBlank()) text(entry.modelText); attach(entry.attachments) }
                 is SessionEntry.AssistantMessage -> assistant(entry.text)
                 is SessionEntry.ToolCall -> toolCall(MessagePart.Tool.Call(entry.id, entry.name, entry.args))
                 is SessionEntry.ToolResult -> toolResult(MessagePart.Tool.Result(entry.id, entry.name, entry.output, entry.isError))
@@ -41,7 +43,7 @@ class SessionMessages(private val model: AgentModel) {
                 is Message.User -> message.copy(metaInfo = RequestMetaInfo.Empty)
                 is Message.Assistant -> message.copy(metaInfo = ResponseMetaInfo.Empty)
             }
-            entries[normalized] = listOf(if (entry is SessionEntry.ToolResult) entry.copy(attachments = emptyList()) else entry)
+            entries += normalized to listOf(if (entry is SessionEntry.ToolResult) entry.copy(attachments = emptyList()) else entry)
             normalized
         }
         if (entry is SessionEntry.ToolResult && entry.attachments.isNotEmpty())
@@ -49,13 +51,15 @@ class SessionMessages(private val model: AgentModel) {
         else block
     }
 
-    fun entries(messages: List<Message>): List<SessionEntry> = messages.flatMap { entries[it] ?: when (it) {
+    fun entries(messages: List<Message>): List<SessionEntry> = messages.flatMap { entry(it) ?: when (it) {
         is Message.System -> listOf(SessionEntry.Context(it.textContent()))
         is Message.User -> listOf(SessionEntry.UserMessage(it.textContent()))
         is Message.Assistant -> assistantEntries(it)
     } }
 
-    fun user(message: Message): Boolean = entries[message]?.any { it is SessionEntry.UserMessage && !it.text.startsWith(TOOL_FILES) } == true
+    fun user(message: Message): Boolean = entry(message)?.any { it is SessionEntry.UserMessage && !it.text.startsWith(TOOL_FILES) } == true
+    private fun entry(message: Message) = entries.lastOrNull { it.first === message }?.second
+
     fun files(message: Message): Boolean = message.parts.any { it is MessagePart.Attachment }
 
     private fun RequestMessagePartsBuilder.attach(list: List<Attachment>) = list.forEach { a ->
@@ -66,10 +70,10 @@ class SessionMessages(private val model: AgentModel) {
     }
 }
 
-internal fun assistantEntries(message: Message.Assistant, messageId: String? = null): List<SessionEntry> = message.parts.mapNotNull { part -> when (part) {
-    is MessagePart.Text -> part.text.takeIf { it.isNotEmpty() }?.let { SessionEntry.AssistantMessage(it, messageId) }
-    is MessagePart.Reasoning -> SessionEntry.Reasoning((part.summary?.takeIf { it.isNotEmpty() } ?: part.content).joinToString("\n\n"), part.id, part.encrypted, messageId)
-    is MessagePart.Tool.Call -> SessionEntry.ToolCall(requireNotNull(part.id) { "The model returned a tool call without an ID" }, part.tool, part.args)
+internal fun assistantEntries(message: Message.Assistant): List<SessionEntry> = message.parts.mapNotNull { part -> when (part) {
+    is MessagePart.Text -> part.text.takeIf { it.isNotEmpty() }?.let { SessionEntry.AssistantMessage(it) }
+    is MessagePart.Reasoning -> SessionEntry.Reasoning((part.summary?.takeIf { it.isNotEmpty() } ?: part.content).joinToString("\n\n"), part.id, part.encrypted)
+    is MessagePart.Tool.Call -> SessionEntry.ToolCall(part.id ?: Uuid.random().toString(), part.tool, part.args)
     else -> null
 } }
 

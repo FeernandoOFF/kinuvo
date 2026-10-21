@@ -1,6 +1,7 @@
 package kinuvo.harness.core.store
 
 import kinuvo.harness.core.TestHome
+import kinuvo.harness.core.activeHistory
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
@@ -9,6 +10,19 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class FileStoreTest {
+    @Test
+    fun obsoleteCompactionsDoNotMakeSessionsUnloadable() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent, "instructions")
+        val file = Path(home.files.sessions(home.agent.id), "${session.id}.jsonl")
+        file.appendText("""{"type":"compaction","summary":"old","keepFrom":2,"activations":[],"user":null}""" + "\n")
+        file.appendText("""{"type":"compaction","futureField":true}""" + "\n")
+        home.store.append(home.agent, session.id, SessionEntry.UserMessage("next"))
+        val entries = home.store.entries(home.agent, session.id)
+        assertEquals(4, entries.size)
+        assertEquals(listOf(SessionEntry.UserMessage("next")), entries.activeHistory())
+    }
+
     @Test
     fun routineSessionKeepsItsAnswerAfterASilentReply() = runTest {
         val home = TestHome()

@@ -77,7 +77,7 @@ sealed interface SessionEntry {
 
     /** The compressed model history; earlier transcript entries remain available to clients. */
     @Serializable @SerialName("compaction")
-    data class Compaction(val summary: String, val history: List<SessionEntry>) : SessionEntry
+    data class Compaction(val summary: String = "", val history: List<SessionEntry> = emptyList()) : SessionEntry
 
     /** A background Reflection's result; it isn't part of the model's conversation. */
     @Serializable @SerialName("reflection")
