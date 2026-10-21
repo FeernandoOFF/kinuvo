@@ -255,6 +255,7 @@ private fun SessionData.chatItems(): List<ChatItem> {
     val keys = mutableSetOf<String>()
     fun key(preferred: String?, seq: Int) = preferred?.takeIf { keys.add(it) } ?: "entry-$seq".also { keys += it }
     val reviews = entries.filterIsInstance<SessionEntry.ReflectionReview>().associate { it.proposalId to it.approved }
+    val revised = entries.filterIsInstance<SessionEntry.ReflectionReview>().filter { it.approved && it.note != null }.map { it.proposalId }.toSet()
     entries.forEachIndexed { i, entry ->
         val seq = firstSeq + i
         when (entry) {
@@ -268,10 +269,13 @@ private fun SessionData.chatItems(): List<ChatItem> {
                 else items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id, entry.name, "", entry.output, entry.isError, identity = entry.identity)
             }
             is SessionEntry.Measurement -> items += ChatItem.Measurement(key("metrics-${entry.metrics.id}", seq), entry.metrics)
-            is SessionEntry.Reflection -> items += ChatItem.Reflection(key("reflection-${entry.id}", seq), entry.result, reviews)
+            is SessionEntry.Reflection -> items += ChatItem.Reflection(key("reflection-${entry.id}", seq), entry.result, reviews, revised)
             is SessionEntry.Compaction -> items += ChatItem.Compaction(key(null, seq), entry.summary)
             is SessionEntry.Activation -> items += ChatItem.Activation(key(null, seq), entry.name, entry.content)
-            is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.ReflectionReview, is SessionEntry.Context -> Unit
+            is SessionEntry.ReflectionReview -> entry.result?.takeIf { it.proposals.isNotEmpty() }?.let {
+                items += ChatItem.Reflection(key("reflection-review-${entry.proposalId}", seq), it, reviews, revised)
+            }
+            is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Context -> Unit
         }
     }
     live.approval?.let { approval ->

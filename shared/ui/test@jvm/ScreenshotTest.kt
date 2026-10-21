@@ -546,6 +546,26 @@ class ScreenshotTest {
                     }
                 }
             }
+            render("reflection-conventions-${if (dark) "dark" else "light"}", 420, 650) {
+                val conventions = proposal.copy(id = "conventions", tool = "conventions", note = null, scope = "markdown",
+                    args = kotlinx.serialization.json.buildJsonObject {
+                        put("action", kotlinx.serialization.json.JsonPrimitive("edit"))
+                        put("content", kotlinx.serialization.json.JsonPrimitive("Keep project Notes.\nCities stay in their project Notes."))
+                    }, conventionsBefore = "Keep project Notes.", reason = "Keep cities with their projects.", evidence = "User: Don't make Notes for cities")
+                HarnessTheme(dark = dark) {
+                    Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
+                        ReflectionView(ChatItem.Reflection("conventions", ReflectionResult(proposals = listOf(conventions))), initiallyExpanded = true)
+                    }
+                }
+            }
+            render("reflection-revised-${if (dark) "dark" else "light"}", 420, 650) {
+                HarnessTheme(dark = dark) {
+                    Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
+                        ReflectionView(ChatItem.Reflection("revised", ReflectionResult(proposals = listOf(proposal)),
+                            reviews = mapOf(proposal.id to true), revised = setOf(proposal.id)), initiallyExpanded = true)
+                    }
+                }
+            }
             render("reflection-skill-${if (dark) "dark" else "light"}", 420, 650) {
                 HarnessTheme(dark = dark) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {

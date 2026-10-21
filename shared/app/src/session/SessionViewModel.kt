@@ -49,7 +49,7 @@ sealed interface ChatItem {
     }
     data class Measurement(override val id: String, val metrics: RequestMetrics) : ChatItem
     data class Error(override val id: String, val message: String) : ChatItem
-    data class Reflection(override val id: String, val result: ReflectionResult? = null, val reviews: Map<String, Boolean> = emptyMap()) : ChatItem
+    data class Reflection(override val id: String, val result: ReflectionResult? = null, val reviews: Map<String, Boolean> = emptyMap(), val revised: Set<String> = emptySet()) : ChatItem
     data class Compaction(override val id: String, val summary: String) : ChatItem
     data class Activation(override val id: String, val name: String, val content: String) : ChatItem
 }
@@ -405,11 +405,11 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         viewModelScope.launch { attempt { repo.approve(approval.approvalId, decision) } }
     }
 
-    fun reviewReflection(proposalId: String, approve: Boolean) {
+    fun reviewReflection(proposalId: String, approve: Boolean, note: String? = null) {
         val sessionId = route.sessionId ?: return
         val agentId = route.agentId ?: return
         viewModelScope.launch { attempt {
-            client.call(Api.ReviewReflection, kinuvo.protocol.ReviewReflectionParams(agentId, sessionId, proposalId, approve))
+            client.call(Api.ReviewReflection, kinuvo.protocol.ReviewReflectionParams(agentId, sessionId, proposalId, approve, note?.trim()?.takeIf { it.isNotEmpty() }))
             if (approve) repo.loadSkills(agentId)
         } }
     }
