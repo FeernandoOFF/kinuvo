@@ -19,7 +19,6 @@ class ReflectionModelTest {
         val provider = object : ModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools"), ModelInfo("small"), ModelInfo("custom"))
-            override fun reflectionModel(models: List<ModelInfo>) = "small"
             override suspend fun availability(model: String) = if (unavailable) CapabilityState.unavailable("offline") else CapabilityState()
             override fun model(config: AgentConfig): AgentModel {
                 configs += config
@@ -40,8 +39,8 @@ class ReflectionModelTest {
             val session = harness.store.createSession(agent, "parent-only")
             val entries = listOf(SessionEntry.UserMessage("My preference"), SessionEntry.AssistantMessage("Use examples"), SessionEntry.UserMessage("Yes"))
             for ((setting, expected) in listOf(
-                ReflectionConfig() to "small",
-                ReflectionConfig("test") to "small",
+                ReflectionConfig() to "tools",
+                ReflectionConfig("test") to "tools",
                 ReflectionConfig("test", "custom") to "custom",
                 ReflectionConfig("other", "custom") to "custom",
                 ReflectionConfig("missing", "custom") to "tools",
