@@ -16,6 +16,8 @@ import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.streaming.toMessageResponse
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.buffer
@@ -89,41 +91,43 @@ class AppleLLMClient(private val native: AppleLanguageModel) : LLMClient() {
     override fun llmProvider(): LLMProvider = Apple
     override fun close() {}
     override suspend fun moderate(prompt: Prompt, model: LLModel): ModerationResult = error("Apple moderation is unavailable")
-    override suspend fun execute(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Message.Assistant =
-        executeStreaming(prompt, model, tools).toList().toMessageResponse()
+    override suspend fun execute(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>): Message.Assistant {
+        val capture = currentCoroutineContext()[TokenUsageCapture]
+        return executeStreaming(prompt, model, tools).onEach { capture?.recordFrame?.invoke(it) }.toList().toMessageResponse()
+    }
 
     override fun executeStreaming(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>) = callbackFlow {
-            val requestId = Uuid.random().toString()
-            val offered = tools.mapNotNull { it.toApple() }
-            var emitted = ""
-            withContext(Dispatchers.Main) {
-                native.generate(requestId, model.id, prompt.messages.filterIsInstance<Message.System>().joinToString("\n\n") { it.textContent() }, promptFor(prompt.messages), ProtocolJson.encodeToString(offered), onText = { snapshot ->
-                    if (snapshot.startsWith(emitted)) {
-                        val delta = snapshot.drop(emitted.length)
+        val requestId = Uuid.random().toString()
+        val offered = tools.mapNotNull { it.toApple() }
+        var emitted = ""
+        withContext(Dispatchers.Main) {
+            native.generate(requestId, model.id, prompt.messages.filterIsInstance<Message.System>().joinToString("\n\n") { it.textContent() }, promptFor(prompt.messages), ProtocolJson.encodeToString(offered), onText = { snapshot ->
+                if (snapshot.startsWith(emitted)) {
+                    val delta = snapshot.drop(emitted.length)
+                    if (delta.isNotEmpty()) trySend(StreamFrame.TextDelta(delta))
+                    emitted = snapshot
+                }
+            }, completion = { result, error ->
+                if (error != null) close(IllegalStateException(error))
+                else try {
+                    val turn = ProtocolJson.parseToJsonElement(result ?: error("No model response")).jsonObject
+                    val tool = turn["tool"]?.jsonPrimitive?.content ?: REPLY
+                    if (tool == REPLY) {
+                        val reply = turn["reply"]?.jsonPrimitive?.content.orEmpty()
+                        check(reply.startsWith(emitted)) { "The model revised an already streamed reply" }
+                        val delta = reply.drop(emitted.length)
                         if (delta.isNotEmpty()) trySend(StreamFrame.TextDelta(delta))
-                        emitted = snapshot
+                        trySend(StreamFrame.TextComplete(reply))
+                    } else {
+                        check(offered.any { it.name == tool }) { "The model asked for $tool, which it wasn't offered" }
+                        trySend(StreamFrame.ToolCallComplete(Uuid.random().toString(), tool, JsonObject(turn - "tool").toString()))
                     }
-                }, completion = { result, error ->
-                    if (error != null) close(IllegalStateException(error))
-                    else try {
-                        val turn = ProtocolJson.parseToJsonElement(result ?: error("No model response")).jsonObject
-                        val tool = turn["tool"]?.jsonPrimitive?.content ?: REPLY
-                        if (tool == REPLY) {
-                            val reply = turn["reply"]?.jsonPrimitive?.content.orEmpty()
-                            check(reply.startsWith(emitted)) { "The model revised an already streamed reply" }
-                            val delta = reply.drop(emitted.length)
-                            if (delta.isNotEmpty()) trySend(StreamFrame.TextDelta(delta))
-                            trySend(StreamFrame.TextComplete(reply))
-                        } else {
-                            check(offered.any { it.name == tool }) { "The model asked for $tool, which it wasn't offered" }
-                            trySend(StreamFrame.ToolCallComplete(Uuid.random().toString(), tool, JsonObject(turn - "tool").toString()))
-                        }
-                        trySend(StreamFrame.End())
-                        close()
-                    } catch (e: Exception) { close(e) }
-                })
-            }
-            awaitClose { native.cancel(requestId) }
+                    trySend(StreamFrame.End())
+                    close()
+                } catch (e: Exception) { close(e) }
+            })
+        }
+        awaitClose { native.cancel(requestId) }
     }.buffer(Channel.UNLIMITED)
 }
 
@@ -174,7 +178,7 @@ internal fun promptFor(history: List<Message>): String = buildString {
         is Message.User -> {
             if (message.textContent().isNotEmpty()) append("User: ${message.textContent()}\n\n")
             message.parts.filterIsInstance<MessagePart.Tool.Result>().forEach {
-                append("Tool ${it.tool} ${if (it.isError) "failed" else "result"}: ${it.content}\n\n")
+                append("Tool ${it.tool} ${if (it.isError) "failed" else "result"}: ${it.output}\n\n")
             }
         }
         is Message.Assistant -> {

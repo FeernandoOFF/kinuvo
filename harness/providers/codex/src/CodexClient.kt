@@ -51,10 +51,9 @@ private val debugLog = KotlinLogging.logger("codex")
 /** Koog OpenAI client pointed at the ChatGPT Codex backend, authenticated with [CodexAuth]. */
 fun codexLLMClient(auth: CodexAuth, usage: MutableStateFlow<Usage?> = MutableStateFlow(null)): OpenAILLMClient {
     val http = KoogHttpClient.fromKtorClient("codex", debugLog, codexHttpClient(auth::tokens, usage))
-    return OpenAILLMClient(
+    return ResponsesLLMClient(
         settings = OpenAIClientSettings(baseUrl = CODEX_BASE_URL, responsesAPIPath = "responses"),
         httpClient = CodexMeasurements(http),
-        toolsConverter = RawSchemaAwareGenerator(),
     )
 }
 

@@ -1,5 +1,6 @@
 package kinuvo.harness.codex
 
+import kinuvo.harness.testing.*
 import ai.koog.agents.core.tools.ToolDescriptor
 import io.ktor.client.engine.HttpClientEngineBase
 import io.ktor.client.request.HttpRequestData
@@ -53,8 +54,10 @@ class OpenAIProviderTest {
             assertTrue(provider.availability("gpt-test").actionable)
             assertEquals(listOf("gpt-test"), provider.models().map { it.id })
             val model = provider.model(AgentConfig(provider = "openai", model = "gpt-test"), ModelInfo("gpt-test", reasoning = emptyList(), tools = true))
+            assertSame(provider.promptExecutor, model.executor)
+            assertSame(provider.promptExecutor, provider.model(AgentConfig(provider = "openai", model = "gpt-test")).executor)
             val error = assertFailsWith<IllegalStateException> {
-                model.stream("Stable instructions", listOf(SessionEntry.UserMessage("hello")), listOf(ToolDescriptor("z", "Z"), ToolDescriptor("a", "A"))).toList()
+                model.request("Stable instructions", listOf(SessionEntry.UserMessage("hello")), listOf(ToolDescriptor("z", "Z"), ToolDescriptor("a", "A"))).toList()
             }
             assertTrue(error.message.orEmpty().contains("API key"))
             val request = assertNotNull(sent)

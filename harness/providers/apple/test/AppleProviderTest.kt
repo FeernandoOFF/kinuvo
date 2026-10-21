@@ -1,5 +1,6 @@
 package kinuvo.harness.apple
 
+import kinuvo.harness.testing.*
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -50,30 +51,30 @@ class AppleProviderTest {
             text("Hello"); text("Hello world")
             done("""{"tool":"reply","reply":"Hello world!"}""", null)
         }
-        val frames = model(native).stream("", emptyList(), emptyList()).toList()
+        val frames = model(native).request("", emptyList(), emptyList()).toList()
         assertEquals(listOf("Hello", " world", "!"), frames.filterIsInstance<StreamFrame.TextDelta>().map { it.text })
     }
 
     @Test
     fun propagatesAvailabilityErrorsAndCancelsNativeRequests() = runTest {
         val unavailable = Native { _, done -> done(null, "Enable Apple Intelligence") }
-        val error = assertFailsWith<IllegalStateException> { model(unavailable).stream("", emptyList(), emptyList()).toList() }
+        val error = assertFailsWith<IllegalStateException> { model(unavailable).request("", emptyList(), emptyList()).toList() }
         assertEquals("Enable Apple Intelligence", error.message)
         val hanging = Native { text, _ -> text("partial") }
-        assertEquals("partial", (model(hanging).stream("", emptyList(), emptyList()).first() as StreamFrame.TextDelta).text)
+        assertEquals("partial", (model(hanging).request("", emptyList(), emptyList()).first() as StreamFrame.TextDelta).text)
         assertNotNull(hanging.cancelled)
     }
 
     @Test
     fun rejectsCallsToToolsNotOffered() = runTest {
         val native = Native { _, done -> done("""{"tool":"memory","action":"add","target":"user","content":"tea"}""", null) }
-        assertFailsWith<IllegalStateException> { model(native).stream("", emptyList(), emptyList()).toList() }
+        assertFailsWith<IllegalStateException> { model(native).request("", emptyList(), emptyList()).toList() }
     }
 
     @Test
     fun memoryRequestsBecomeHarnessToolCallsWithoutPrematureSuccessText() = runTest {
         val native = Native { _, done -> done("""{"tool":"memory","action":"replace","target":"user","content":"Prefers tea","old_text":"coffee"}""", null) }
-        val frames = model(native).stream("", emptyList(), listOf(ToolDescriptor(ToolNames.MEMORY, "Memory"))).toList()
+        val frames = model(native).request("", emptyList(), listOf(ToolDescriptor(ToolNames.MEMORY, "Memory"))).toList()
         assertTrue(frames.none { it is StreamFrame.TextDelta })
         val call = frames.filterIsInstance<StreamFrame.ToolCallComplete>().single()
         assertEquals(ToolNames.MEMORY, call.name)
@@ -97,17 +98,19 @@ class AppleProviderTest {
             ToolDescriptor(ToolNames.MEMORY, "Memory", listOf(ToolParameterDescriptor("action", "Action", ToolParameterType.Enum(arrayOf("add", "remove")))))))
         assertEquals(listOf(ToolNames.MEMORY) + (1..5).map { "mcp_$it" }, offered.map { it.name })
         val native = Native { _, done -> done("""{"tool":"reply","reply":""}""", null) }
-        runBlocking { model(native).stream("", emptyList(), offered).toList() }
+        runBlocking { model(native).request("", emptyList(), offered).toList() }
         assertTrue(native.tools!!.contains("""["add","remove"]"""))
     }
 
     @Test
-    fun currentPersonalContextReplacesOlderSnapshotsInThePrompt() {
-        val prompt = promptFor(listOf(SessionEntry.Context("old facts"), SessionEntry.UserMessage("one"),
-            SessionEntry.Context("current facts"), SessionEntry.UserMessage("two"),
-            SessionEntry.ToolCall("c", ToolNames.MEMORY, "{}"), SessionEntry.ToolResult("c", ToolNames.MEMORY, "OK")))
-        assertFalse(prompt.contains("old facts"))
-        assertTrue(prompt.contains("current facts"))
+    fun nativePromptIncludesUserAndToolMessages() {
+        val configured = model(Native())
+        val messages = kinuvo.harness.core.SessionMessages(configured).prompt("stable", listOf(
+            SessionEntry.Context("Current facts"), SessionEntry.UserMessage("one"),
+            SessionEntry.ToolCall("c", ToolNames.MEMORY, "{}"), SessionEntry.ToolResult("c", ToolNames.MEMORY, "OK"))).messages
+        val prompt = promptFor(messages)
+        assertTrue(prompt.contains("User: one"))
+        assertTrue(prompt.contains("Agent requested memory"))
         assertTrue(prompt.contains("Tool memory result: OK"))
     }
 }
