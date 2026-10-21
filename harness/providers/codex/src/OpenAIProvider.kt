@@ -3,7 +3,6 @@ package kinuvo.harness.codex
 import ai.koog.http.client.KoogHttpClient
 import ai.koog.http.client.ktor.fromKtorClient
 import ai.koog.prompt.executor.clients.openai.OpenAIClientSettings
-import ai.koog.prompt.executor.clients.openai.OpenAILLMClient
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.HttpClientEngine
@@ -21,7 +20,6 @@ import io.ktor.http.content.OutgoingContent
 import io.ktor.utils.io.readBuffer
 import kinuvo.harness.core.*
 import kinuvo.harness.core.store.AgentFiles
-import kinuvo.harness.core.store.loadEnv
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.CapabilityState
 import kinuvo.protocol.ModelInfo
@@ -48,10 +46,9 @@ class OpenAIProvider(
     override val catalogId = "openai"
     override val modelProviders get() = listOf(this)
     private val executor = lazy {
-        koogExecutor(OpenAILLMClient(
+        koogExecutor(ResponsesLLMClient(
             settings = OpenAIClientSettings(baseUrl = OPENAI_BASE_URL, responsesAPIPath = "responses"),
             httpClient = CodexMeasurements(KoogHttpClient.fromKtorClient("openai", KotlinLogging.logger("openai"), http)),
-            toolsConverter = RawSchemaAwareGenerator(),
         ))
     }
 

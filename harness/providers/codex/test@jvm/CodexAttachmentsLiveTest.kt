@@ -1,5 +1,6 @@
 package kinuvo.harness.codex
 
+import kinuvo.harness.testing.*
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.AgentConfig
 import kinuvo.protocol.*
@@ -20,7 +21,7 @@ class CodexAttachmentsLiveTest {
         val pdf = pdf("The marker is orchid73.")
         val bytes = mapOf("image" to png, "text" to text, "pdf" to pdf)
         val config = AgentConfig(model = System.getenv("KINUVO_MODEL") ?: "gpt-5.6-sol", reasoning = "low")
-        val model = OpenAIModel(config, codexLLMClient(CodexAuth()), info = kinuvo.protocol.ModelInfo(config.model, input = listOf("text", "image", "file"))) { bytes.getValue(it.id) }
+        val model = openAIModel(config, codexLLMClient(CodexAuth()), info = kinuvo.protocol.ModelInfo(config.model, input = listOf("text", "image", "file"))) { bytes.getValue(it.id) }
         runBlocking {
             for ((id, name, mime, question, expected) in listOf(
                 listOf("image", "red.png", "image/png", "What is the image's dominant color? One word.", "red"),
@@ -30,7 +31,7 @@ class CodexAttachmentsLiveTest {
                 val a = Attachment(id, name, mime, bytes.getValue(id).size)
                 val history = listOf(SessionEntry.UserMessage(question, attachments = listOf(a)))
                 val answer = StringBuilder()
-                model.stream("Read the attachments and answer tersely.", history, emptyList()).collect { if (it is StreamFrame.TextDelta) answer.append(it.text) }
+                model.request("Read the attachments and answer tersely.", history, emptyList()).collect { if (it is StreamFrame.TextDelta) answer.append(it.text) }
                 assertTrue(expected in answer.toString().lowercase(), "$name: $answer")
                 println("Verified $mime")
             }

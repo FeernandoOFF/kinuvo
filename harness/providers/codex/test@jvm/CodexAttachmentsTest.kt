@@ -1,5 +1,6 @@
 package kinuvo.harness.codex
 
+import kinuvo.harness.testing.*
 import ai.koog.prompt.streaming.IncompleteStreamException
 import ai.koog.http.client.KoogHttpClient
 import ai.koog.http.client.ktor.fromKtorClient
@@ -36,10 +37,10 @@ class CodexAttachmentsTest {
         val client = OpenAILLMClient(OpenAIClientSettings(baseUrl = CODEX_BASE_URL, responsesAPIPath = "responses"), httpClient = transport)
         val image = Attachment("image", "photo.png", "image/png", 3)
         val file = Attachment("file", "journal.pdf", "application/pdf", 3)
-        val model = OpenAIModel(AgentConfig(), client, ModelInfo("test", input = listOf("text", "image", "file"))) { byteArrayOf(1, 2, 3) }
+        val model = openAIModel(AgentConfig(), client, ModelInfo("test", input = listOf("text", "image", "file"))) { byteArrayOf(1, 2, 3) }
         val history = listOf(SessionEntry.UserMessage("What do these show?", attachments = listOf(image, file)))
         try {
-            assertFailsWith<IncompleteStreamException> { model.stream("Help the user", history, emptyList()).toList() }
+            assertFailsWith<IncompleteStreamException> { model.request("Help the user", history, emptyList()).toList() }
             val parts = assertNotNull(request).getValue("input").jsonArray.flatMap { it.jsonObject["content"]?.jsonArray.orEmpty() }.map { it.jsonObject }
             assertEquals("What do these show?", parts.first { it["type"]?.jsonPrimitive?.content == "input_text" }["text"]?.jsonPrimitive?.content)
             val imagePart = parts.first { it["type"]?.jsonPrimitive?.content == "input_image" }
@@ -47,7 +48,7 @@ class CodexAttachmentsTest {
             val filePart = parts.first { it["type"]?.jsonPrimitive?.content == "input_file" }
             assertEquals("journal.pdf", filePart["filename"]?.jsonPrimitive?.content)
             assertEquals("data:application/pdf;base64,AQID", filePart["file_data"]?.jsonPrimitive?.content)
-            assertFailsWith<IncompleteStreamException> { model.stream("Help the user", history + SessionEntry.AssistantMessage("done") + SessionEntry.UserMessage("Look again"), emptyList()).toList() }
+            assertFailsWith<IncompleteStreamException> { model.request("Help the user", history + SessionEntry.AssistantMessage("done") + SessionEntry.UserMessage("Look again"), emptyList()).toList() }
             assertTrue(request.toString().contains("input_image"))
             assertTrue(request.toString().contains("input_file"))
         } finally { http.close() }
@@ -66,14 +67,14 @@ class CodexAttachmentsTest {
             }
         }
         val client = OpenAILLMClient(OpenAIClientSettings(baseUrl = CODEX_BASE_URL, responsesAPIPath = "responses"), httpClient = transport)
-        val model = OpenAIModel(AgentConfig(), client, ModelInfo("test", input = listOf("text", "image", "file"))) { byteArrayOf(1, 2, 3) }
+        val model = openAIModel(AgentConfig(), client, ModelInfo("test", input = listOf("text", "image", "file"))) { byteArrayOf(1, 2, 3) }
         val history = listOf(
             SessionEntry.UserMessage("What's in Ana's photo?"),
             SessionEntry.ToolCall("call-1", "knowledge", "{}"),
             SessionEntry.ToolResult("call-1", "knowledge", "Attached photo.png", attachments = listOf(Attachment("image", "photo.png", "image/png", 3))),
         )
         try {
-            assertFailsWith<IncompleteStreamException> { model.stream("Help the user", history, emptyList()).toList() }
+            assertFailsWith<IncompleteStreamException> { model.request("Help the user", history, emptyList()).toList() }
             val input = assertNotNull(request).getValue("input").jsonArray.map { it.jsonObject }
             assertEquals("function_call_output", input[input.size - 2]["type"]?.jsonPrimitive?.content)
             val parts = input.last().getValue("content").jsonArray.map { it.jsonObject }

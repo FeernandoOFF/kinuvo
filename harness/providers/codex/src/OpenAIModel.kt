@@ -35,18 +35,18 @@ fun openAIModel(config: AgentConfig, executor: PromptExecutor, info: ModelInfo? 
 }
 
 private fun friendly(config: AgentConfig, e: Throwable): Throwable {
-        val status = generateSequence(e) { it.cause }.filterIsInstance<KoogHttpClientException>().firstOrNull()?.statusCode
-        return when (status) {
-            401, 403 -> if (config.provider == "openai") IllegalStateException("OpenAI rejected the API key ($status). Check OPENAI_API_KEY on the Server.", e) else IllegalStateException("Codex rejected the login ($status). Run `kinuvo login` or `codex login` and try again.", e)
-            429 -> if (config.provider == "openai") IllegalStateException("OpenAI rate or usage limit reached (429). Check your API account limits.", e) else IllegalStateException("Codex usage limit reached (429). Check the usage indicator for when it resets.", e)
-            null -> e
-            else -> IllegalStateException("${if (config.provider == "openai") "OpenAI" else "Codex"} request failed ($status): ${e.message?.lineSequence()?.firstOrNull { it.startsWith("Message") } ?: ""}".trim(), e)
-        }
+    val status = generateSequence(e) { it.cause }.filterIsInstance<KoogHttpClientException>().firstOrNull()?.statusCode
+    return when (status) {
+        401, 403 -> if (config.provider == "openai") IllegalStateException("OpenAI rejected the API key ($status). Check OPENAI_API_KEY on the Server.", e) else IllegalStateException("Codex rejected the login ($status). Run `kinuvo login` or `codex login` and try again.", e)
+        429 -> if (config.provider == "openai") IllegalStateException("OpenAI rate or usage limit reached (429). Check your API account limits.", e) else IllegalStateException("Codex usage limit reached (429). Check the usage indicator for when it resets.", e)
+        null -> e
+        else -> IllegalStateException("${if (config.provider == "openai") "OpenAI" else "Codex"} request failed ($status): ${e.message?.lineSequence()?.firstOrNull { it.startsWith("Message") } ?: ""}".trim(), e)
     }
+}
 
 private fun summary(value: String) =
-        if (value.equals("none", ignoreCase = true)) null
-        else ReasoningSummary.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: ReasoningSummary.AUTO
+    if (value.equals("none", ignoreCase = true)) null
+    else ReasoningSummary.entries.firstOrNull { it.name.equals(value, ignoreCase = true) } ?: ReasoningSummary.AUTO
 
 private fun effort(value: String) = ReasoningEffort.entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
-        ?: ReasoningEffort.MEDIUM
+    ?: ReasoningEffort.MEDIUM
