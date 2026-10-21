@@ -34,8 +34,7 @@ class ReflectionTest {
             SessionEntry.UserMessage("Remember this"), SessionEntry.AssistantMessage("Okay"))
         val model = scriptedModel { prompt, _ ->
             val seen = prompt.messages
-            assertEquals(listOf("Remember this", "Okay"), seen.drop(2).take(2).map { it.textContent() })
-            assertTrue(seen[4].textContent().contains("Current context"))
+            assertEquals(listOf("Current context", "Remember this", "Okay"), seen.drop(2).take(3).map { it.textContent() })
             assertTrue(seen[1].textContent().contains("Earlier summary"))
             flowOf(StreamFrame.End())
         }
@@ -61,7 +60,7 @@ class ReflectionTest {
             val history = prompt.messages
             requests++
             assertEquals("frozen parent", instructions)
-            assertEquals(listOf("I like concise replies", "", "Understood"), history.drop(1).take(3).map { it.textContent() })
+            assertEquals(listOf("Parent context", "I like concise replies", "", "Understood"), history.drop(1).take(4).map { it.textContent() })
             assertEquals(schemas, tools)
             if (requests == 1) flowOf(StreamFrame.ToolCallComplete("blocked", "shell", "{}"), StreamFrame.End())
             else {
@@ -97,7 +96,7 @@ class ReflectionTest {
         home.docs.write(home.agent.id, AgentDoc.UserNotes, "- Lives in Cork\n- Likes tea\n")
         val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
-            val instructions = history.filterIsInstance<Message.System>().last().textContent()
+            val instructions = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
             assertTrue(tools.any { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias() })
             assertTrue("Keep replies concise" in instructions)
             assertTrue("Lives in Cork" in instructions)
@@ -125,7 +124,7 @@ class ReflectionTest {
 
         val next = scriptedModel { prompt, _ ->
             val history = prompt.messages
-            val instructions = history.filterIsInstance<Message.System>().last().textContent()
+            val instructions = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
             assertTrue("Lives in Dublin" in instructions)
             assertTrue("Give concrete examples" in instructions)
             assertFalse("Lives in Cork" in instructions)
@@ -155,7 +154,7 @@ class ReflectionTest {
         val note = knowledge.create("project", "Kinuvo", body = "Existing structure")
         val model = scriptedModel { prompt, _ ->
             val history = prompt.messages
-            val instructions = history.filterIsInstance<Message.System>().last().textContent()
+            val instructions = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
             assertTrue("silence are not user agreement" in instructions)
             if (history.toolResults.isEmpty()) flowOf(
                 StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"update","ref":"Kinuvo","append":"Use my suggested structure","reason":"Proposed organization","evidence":"assistant-1: suggested structure"}"""),
@@ -186,7 +185,7 @@ class ReflectionTest {
         val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
             assertFalse(tools.any { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias() || it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias() })
-            val transcript = history.filterIsInstance<Message.System>().last().textContent()
+            val transcript = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
             assertTrue("check-1" in transcript && "succeeded" in transcript && "passed" in transcript)
             assertTrue("failed" in transcript && "wrong flag" in transcript)
             if (history.toolResults.none { it.id == "learn" }) flowOf(StreamFrame.ToolCallComplete("learn", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "skill_manage").modelAlias(), args.toString()), StreamFrame.End())
@@ -210,7 +209,7 @@ class ReflectionTest {
         val agent = home.agent.copy(config = home.agent.config.copy(tools = listOf(ToolNames.KNOWLEDGE)))
         val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
-            val instructions = history.filterIsInstance<Message.System>().last().textContent()
+            val instructions = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
             assertFalse(tools.any { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias() })
             assertFalse("Existing memory" in instructions)
             assertFalse("Existing user notes" in instructions)
