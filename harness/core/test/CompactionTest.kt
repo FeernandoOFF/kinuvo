@@ -172,7 +172,7 @@ class CompactionTest {
                 flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
             }
         }
-        val events = AgentRun(agent, home.store, model, listOf(tool), maxSteps = 3, attach = { _, _ -> photo }).run(session.id, "Original request").toList()
+        val events = AgentRun(agent, home.store, model, listOf(tool), attach = { _, _ -> photo }).run(session.id, "Original request").toList()
         assertIs<AgentEvent.RunFinished>(events.last())
         assertEquals(1, events.filterIsInstance<AgentEvent.Compacted>().size)
         val snapshot = home.store.entries(agent, session.id).filterIsInstance<Compaction>().single().history
