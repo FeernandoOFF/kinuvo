@@ -16,7 +16,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlin.uuid.Uuid
 
 /** Reflection can read freely, but its Knowledge and Skill writes only produce drafts. */
-class ReflectionChanges(private val agent: Agent, private val knowledge: Knowledge, private val skills: SkillRepository?, private val sources: Map<String, String>) {
+class ReflectionChanges(private val agent: Agent, private val knowledge: Knowledge, private val skills: SkillRepository?, private val sources: Map<String, String>, private val review: ReflectionRevision? = null) {
     val proposals = mutableListOf<ReflectionProposal>()
 
     fun staging(tool: Tool): Tool = object : Tool {
@@ -35,6 +35,10 @@ class ReflectionChanges(private val agent: Agent, private val knowledge: Knowled
             require(action != "file") { "Reflection can't view files; work from the transcript" }
             if (tool.descriptor.name == ToolNames.KNOWLEDGE && action !in listOf("create", "update")) return tool.execute(args)
             require(action in listOf("create", "update", "edit")) { "Reflection can only propose creating or updating Knowledge and Skills" }
+            if (review != null) {
+                if (tool.descriptor.name == ToolNames.KNOWLEDGE) require(review.approve && review.proposal.tool == ToolNames.KNOWLEDGE) { "Only revise the reviewed proposal" }
+                if (tool.descriptor.name == "skill_manage") require(args.requireString("name") == review.proposal.args.requireString("name")) { "Only change the reviewed Skill" }
+            }
             val reason = args.requireString("reason")
             val references = args.requireString("evidence")
             val cited = sources.filterKeys { id -> Regex("(?<![A-Za-z0-9_-])${Regex.escape(id)}(?![A-Za-z0-9_-])").containsMatchIn(references) }
@@ -52,6 +56,11 @@ class ReflectionChanges(private val agent: Agent, private val knowledge: Knowled
                     }
                     val pinned = if (note != null) JsonObject(clean + ("ref" to JsonPrimitive(note.ref))) else clean
                     ReflectionProposal(Uuid.random().toString(), tool.descriptor.name, pinned, reason, evidence, note = note, scope = scope)
+                }
+                "conventions" -> {
+                    args.requireString("content")
+                    ReflectionProposal(Uuid.random().toString(), "conventions", clean, reason, evidence,
+                        scope = knowledge.provider(), conventionsBefore = knowledge.conventions())
                 }
                 "skill_manage" -> {
                     val repo = requireNotNull(skills)

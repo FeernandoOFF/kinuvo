@@ -69,6 +69,10 @@ internal class FileServerSettings(
         { knowledgeSource(knowledgeProvider) },
         FileKnowledgeChangeLog(files.knowledgeChanges),
         conventions = { files.knowledgeConventions(knowledgeProvider) },
+        updateConventions = { provider, before, content ->
+            check(files.knowledgeConventions(provider) == before) { "Conventions changed; review a fresh proposal" }
+            writeAtomically(files.conventions(provider), content)
+        },
         clock = clock,
     )
     val tasks = Tasks(

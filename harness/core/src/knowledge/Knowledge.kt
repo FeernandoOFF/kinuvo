@@ -94,6 +94,7 @@ class Knowledge(
     private val changes: KnowledgeChangeLog,
     val conventions: () -> String = { "" },
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+    private val updateConventions: (String, String, String) -> Unit = { _, _, _ -> error("Conventions cannot be edited") },
 ) {
     private val lock = Mutex()
     private val listeners = AtomicReference(emptyList<(KnowledgeChange) -> Unit>())
@@ -103,6 +104,15 @@ class Knowledge(
     private val source get() = sources().snapshot()
 
     fun scope() = source.scope
+    fun provider() = source.id
+
+    suspend fun saveConventionsReviewed(provider: String, before: String, content: String) = lock.withLock {
+        check(source.id == provider) { "The Knowledge provider changed; review a fresh proposal" }
+        val current = conventions()
+        if (current == content) return@withLock
+        check(current == before) { "Conventions changed; review a fresh proposal" }
+        updateConventions(provider, before, content)
+    }
 
     suspend fun schema() = source.schema()
 

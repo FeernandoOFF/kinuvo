@@ -31,6 +31,7 @@ data class ReflectionProposal(
     val note: Note? = null,
     val scope: String? = null,
     val skillBefore: String? = null,
+    val conventionsBefore: String? = null,
 )
 
 @Serializable
