@@ -23,22 +23,15 @@ import kotlin.time.TimeSource
 
 class CodexReflectionLiveTest {
     @Test
-    fun comparesColdReflectionModels() = runBlocking {
+    fun comparesColdBigAndDefaultReflectionModel() = runBlocking {
         if (System.getenv("KINUVO_LIVE") != "1") return@runBlocking
         val root = Path(Files.createTempDirectory("kinuvo-reflection-benchmark").toString())
         val provider = CodexProvider()
         try {
             val catalog = provider.models()
             val chatId = System.getenv("KINUVO_MODEL") ?: AgentConfig().model
-            val smallId = System.getenv("KINUVO_SMALL_MODEL") ?: catalog.minByOrNull { model ->
-                when {
-                    "nano" in model.id.lowercase() -> 0
-                    "luna" in model.id.lowercase() -> 1
-                    "mini" in model.id.lowercase() -> 2
-                    else -> 3
-                }
-            }?.id?.takeIf { id -> listOf("nano", "luna", "mini").any { it in id.lowercase() } }
-                ?: error("No small Codex model in the catalog; set KINUVO_SMALL_MODEL. Available: ${catalog.joinToString { it.id }}")
+            val smallId = provider.reflectionModel(catalog)
+                ?: error("No default Reflection model in the Codex catalog: ${catalog.joinToString { it.id }}")
             val config = AgentConfig(model = chatId, reasoning = "low", tools = listOf(ToolNames.MEMORY, ToolNames.KNOWLEDGE, ToolNames.SKILLS))
             val agent = Agent("benchmark", "Benchmark", config)
             fun model(agent: Agent) = provider.model(agent.config, catalog.firstOrNull { it.id == agent.config.model })
@@ -59,17 +52,17 @@ class CodexReflectionLiveTest {
             val entries = store.entries(agent, session.id)
             val rows = mutableListOf(Row("chat", chatId, entries.filterIsInstance<SessionEntry.Measurement>().map { it.metrics }, chatMs))
             assertIs<AgentEvent.RunFinished>(events.last(), "Chat failed: $events")
-            val variants = listOf("cold" to agent, "cold-small" to agent.copy(config = config.copy(model = smallId)))
+            val variants = listOf("cold big" to agent, "default Reflection model" to agent.copy(config = config.copy(model = smallId)))
             for ((label, measuredAgent) in variants) {
                 val fixture = fixture(Path(root, label), measuredAgent)
                 val start = TimeSource.Monotonic.markNow()
                 val result = Reflection(fixture.knowledge, fixture.docs, fixture.skills).reflect(
-                    measuredAgent, if (label == "cold") chatModel else model(measuredAgent), session.id, entries,
+                    measuredAgent, if (label == "cold big") chatModel else model(measuredAgent), session.id, entries,
                 )
                 rows += Row(label, measuredAgent.config.model, result.measurements, start.elapsedNow().inWholeMilliseconds, result)
             }
             println("\nReflection benchmark: identical seeded Session and fresh repositories per variant; reasoning=low.")
-            println("Small model: $smallId (override with KINUVO_SMALL_MODEL; catalog has no prices, default prefers nano/luna/mini).")
+            println("Default Reflection model: $smallId (Codex catalog selection).")
             println("Both variants use fresh compact prompts; provider caching can still occur. '?' means usage unavailable; reasoning is included in output.")
             val table = listOf(listOf("variant", "model", "requests", "input", "cached", "output", "reasoning", "wall ms", "memory/user", "proposals", "errors")) + rows.map { row ->
                 val result = row.result
