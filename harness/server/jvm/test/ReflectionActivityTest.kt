@@ -30,7 +30,7 @@ class ReflectionActivityTest {
         var outcome = "saved"
         lateinit var harness: Harness
         var sessionId = ""
-        val model = scriptedModel { prompt, _ ->
+        val model = scriptedModel { prompt, tools ->
             val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
             val history = prompt.messages
              flow {
@@ -41,16 +41,22 @@ class ReflectionActivityTest {
             assertNotNull(caught.map { it.change }.filterIsInstance<SessionChange.Live>().single().state.reflectionId)
             assertEquals(SessionStatus.Idle, harness.log.status(sessionId))
             harness.log.unsubscribeAll(subscriber)
-            assertTrue("People go in person notes" in history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent())
+            val knowledgeStage = tools.singleOrNull()?.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias()
+            val memoryStage = tools.singleOrNull()?.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias()
+            if (knowledgeStage) assertTrue("People go in person notes" in history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent())
             emitAll(when {
                 outcome == "failed" -> error("Provider unavailable")
                 outcome == "empty" || history.toolResults.isNotEmpty() -> flowOf(StreamFrame.TextDelta("Finished."), StreamFrame.End())
-                else -> flowOf(
+                knowledgeStage -> flowOf(
                     StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"create","type":"person","title":"Ana","reason":"Family","evidence":"user-1: sister Ana"}"""),
+                    StreamFrame.End(),
+                )
+                memoryStage -> flowOf(
                     StreamFrame.ToolCallComplete("c2", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"add","target":"memory","content":"Use examples"}"""),
                     StreamFrame.ToolCallComplete("c3", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"add","target":"user","content":"Lives in Dublin"}"""),
                     StreamFrame.End(),
                 )
+                else -> flowOf(StreamFrame.End())
             })
         } }
         harness = Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }, plugins = emptyList())
