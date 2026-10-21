@@ -41,7 +41,7 @@ class ReflectionActivityTest {
             assertNotNull(caught.map { it.change }.filterIsInstance<SessionChange.Live>().single().state.reflectionId)
             assertEquals(SessionStatus.Idle, harness.log.status(sessionId))
             harness.log.unsubscribeAll(subscriber)
-            assertTrue("People go in person notes" in history.filterIsInstance<Message.System>().last().textContent())
+            assertTrue("People go in person notes" in history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent())
             emitAll(when {
                 outcome == "failed" -> error("Provider unavailable")
                 outcome == "empty" || history.toolResults.isNotEmpty() -> flowOf(StreamFrame.TextDelta("Finished."), StreamFrame.End())
