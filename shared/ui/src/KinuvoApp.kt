@@ -199,7 +199,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                     else (shellState.favorites + shellState.chats).getOrNull(i)?.let { shellActions.onSelect(it.id) }
                 }
             }
-            val withShell = top !is Route.Settings && top != Route.Connect && top != Route.NewAgent
+            val withShell = top !is Route.Settings && top != Route.Connect && top != Route.NewAgent && (top as? Route.Artifacts)?.fullScreen != true
             val beside = !compact && shell.open && withShell
             val windowChrome = LocalWindowChrome.current
             val screens = @Composable {
@@ -278,6 +278,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     onFilter = artifacts::filter,
                                     onDelete = { id -> artifacts.delete(id); if (id == route.artifact) history.open(Route.Artifacts()) },
                                     onOpenSession = { agent, session -> history.open(Route.Chat(agent, session)) },
+                                    onFullScreen = { if (it) history.open(route.copy(fullScreen = true)) else if (history.canGoBack) back() else history.reset(route.copy(fullScreen = false)) },
                                 ))
                             }
                         }
