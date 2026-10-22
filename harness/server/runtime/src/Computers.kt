@@ -44,7 +44,7 @@ class Computers(
 
     override val features = setOf(ServerFeature.Computer)
 
-    fun connect(id: String, act: suspend (ComputerRequest) -> ComputerResult) { connections.update { it + (id to act) }; changed() }
+    fun connect(id: String, act: suspend (ComputerRequest) -> ComputerResult) { capabilities.update { it - id }; connections.update { it + (id to act) }; changed() }
 
     fun disconnect(id: String, act: suspend (ComputerRequest) -> ComputerResult) {
         val before = connections.value
@@ -55,11 +55,14 @@ class Computers(
     /** What each Computer said it runs, from its screens. */
     private val platforms = MutableStateFlow(emptyMap<String, String>())
 
+    private val capabilities = MutableStateFlow(emptyMap<String, Set<ComputerActionKind>>())
+
     fun all(): List<Computer> = paired().filter { DeviceToolKind.Computer in it.tools }.map { device ->
         object : Computer {
             override val id = device.id
             override val name = device.name
             override val platform get() = platforms.value[device.id] ?: "Device"
+            override val actions get() = (capabilities.value[device.id] ?: ComputerActionKind.basic) + SERVER_ACTIONS
             override val available get() = device.id in connections.value
             override suspend fun perform(request: ComputerRequest) =
                 connections.value[device.id]?.invoke(request) ?: ComputerResult(DeviceToolStatus.Unavailable, "${device.name} is offline")
@@ -75,7 +78,7 @@ class Computers(
             now() - c.agentAt < AGENT_ACTIVE_MS -> ComputerControl.Agent
             else -> ComputerControl.Idle
         }
-        return ComputerInfo(computer.id, computer.name, computer.platform, computer.available, control, c.request)
+        return ComputerInfo(computer.id, computer.name, computer.platform, computer.available, control, c.request, computer.actions.map { it.action }.toSet())
     }
 
     fun list() = all().map(::info)
@@ -99,6 +102,7 @@ class Computers(
                     ?: ComputerResult(DeviceToolStatus.Unavailable, "${computer.name} didn't answer in time")
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) { ComputerResult(DeviceToolStatus.Unavailable, e.message ?: "${computer.name} failed") }
+            result.screen?.let { screen -> capabilities.update { it + (computer.id to screen.actions) } }
             result.screen?.platform?.let { p -> if (platforms.value[computer.id] != p) platforms.update { it + (computer.id to p) } }
             // A Takeover started or ended on the Computer itself shows in any answer it gives; under the lock, answers apply in order.
             val c = controls.value[computer.id]
@@ -200,11 +204,16 @@ class Computers(
 
     override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
         if (!enabled(run)) return PluginTools()
+        all().filter { it.available }.forEach { probe(it) }
         val available = all().any { it.available }
         val state = if (available) CapabilityState() else CapabilityState.unavailable("Allow computer use under This Device's tools on a paired Device", "no_computer")
         // Each run acts on the screens it saw, so another Agent's capture can't change what an element number or Approval means.
         val seen = mutableMapOf<String, ComputerScreen>()
-        val tools = listOf(ListTool(), CaptureTool(seen), ActTool(seen)) + listOfNotNull(run.sessionId?.let { TakeoverTool(run) })
+        val windows = mutableMapOf<String, List<ComputerWindow>>()
+        val supported = all().filter { it.available }.flatMap { it.actions }.toSet()
+        val tools = listOf(ListTool(), CaptureTool(seen), ActTool(seen, windows, supported)) +
+            listOfNotNull(ReadTool(false, windows).takeIf { ComputerActionKind.ListApps in supported },
+                ReadTool(true, windows).takeIf { ComputerActionKind.ListWindows in supported }) + listOfNotNull(run.sessionId?.let { TakeoverTool(run) })
         return PluginTools(tools, catalog = tools.map { ResolvedTool(it.descriptor.name, state = if (it is ListTool) CapabilityState() else state) })
     }
 
@@ -229,7 +238,34 @@ class Computers(
     private inner class ListTool : Tool {
         override val risk = Risk.Low
         override val descriptor = ToolDescriptor("computer_list", "List the Computers you can control (paired phones and computers) and whether each is available.", emptyList())
-        override suspend fun execute(args: JsonObject) = ProtocolJson.encodeToString(kotlinx.serialization.builtins.ListSerializer(ComputerInfo.serializer()), list())
+        override suspend fun execute(args: JsonObject): String {
+            all().filter { it.available }.forEach { probe(it) }
+            return ProtocolJson.encodeToString(kotlinx.serialization.builtins.ListSerializer(ComputerInfo.serializer()), list())
+        }
+    }
+
+    private inner class ReadTool(private val windowList: Boolean, private val windows: MutableMap<String, List<ComputerWindow>>) : Tool {
+        override val risk = Risk.Low
+        private val action = if (windowList) ComputerActionKind.ListWindows else ComputerActionKind.ListApps
+        override val descriptor = ToolDescriptor(if (windowList) "computer_windows" else "computer_apps",
+            if (windowList) "List windows with ids, apps and frames in desktop points for set_window_frame."
+            else "List installed apps with names, bundle/package ids and running/frontmost flags. Sensitive apps need Approval to open. Android only knows the frontmost app is running.",
+            optionalParameters = listOf(ToolParameterDescriptor("computer", "Id from computer_list", ToolParameterType.String)))
+        override suspend fun execute(args: JsonObject): String {
+            val computer = choose(args)
+            require(action in computer.actions) { "${action.action} is not supported on ${computer.name}" }
+            val result = act(computer, ComputerRequest(ComputerAction(action), screenshot = false, elements = false))
+            if (result.status != DeviceToolStatus.Ready) return "${result.status}: ${result.message}"
+            if (windowList) {
+                val listed = requireNotNull(result.windows) { "${computer.name} returned no windows" }
+                windows[computer.id] = listed
+                return ProtocolJson.encodeToString(kotlinx.serialization.builtins.ListSerializer(ComputerWindow.serializer()), listed)
+            }
+            val apps = requireNotNull(result.apps) { "${computer.name} returned no apps" }.map {
+                it.copy(sensitive = appKey(it.id) in SENSITIVE || appKey(it.name) in SENSITIVE)
+            }
+            return Json(ProtocolJson) { explicitNulls = true }.encodeToString(kotlinx.serialization.builtins.ListSerializer(ComputerApp.serializer()), apps)
+        }
     }
 
     private inner class CaptureTool(private val seen: MutableMap<String, ComputerScreen>) : Tool {
@@ -249,30 +285,43 @@ class Computers(
         }
     }
 
-    private inner class ActTool(private val seen: MutableMap<String, ComputerScreen>) : Tool {
+    private inner class ActTool(private val seen: MutableMap<String, ComputerScreen>,
+        private val windows: MutableMap<String, List<ComputerWindow>>, supported: Set<ComputerActionKind>) : Tool {
         /** The app [args] acts in, as named in Trust rules, and whether it types into a password field; null app before any capture. */
         private fun target(args: JsonObject): Triple<ComputerActionKind?, String?, Boolean> {
             val action = ACTIONS[args.string("action")]
             val screen = runCatching { choose(args) }.getOrNull()?.let { seen[it.id] }
             val element = args.int("element")?.let { n -> screen?.elements?.firstOrNull { it.id == n } } ?: screen?.elements?.firstOrNull { it.focused }
-            val app = if (action == ComputerActionKind.OpenApp) args.string("app") else screen?.app
-            return Triple(action, app, action == ComputerActionKind.Type && element?.password == true)
+            val app = when (action) {
+                ComputerActionKind.OpenApp, ComputerActionKind.KillApp -> args.string("app")
+                ComputerActionKind.SetWindowFrame -> runCatching { choose(args) }.getOrNull()?.let { computer ->
+                    windows[computer.id]?.firstOrNull { it.id == args["window"]?.jsonPrimitive?.longOrNull }?.app
+                }
+                else -> screen?.app
+            }
+            return Triple(action, app, action in setOf(ComputerActionKind.Type, ComputerActionKind.SetValue) && element?.password == true)
         }
 
         override val descriptor = ToolDescriptor(
             "computer_act", "Act on a Computer's screen, then see the result. Use element numbers from the latest capture.",
-            requiredParameters = listOf(ToolParameterDescriptor("action", "What to do", ToolParameterType.Enum(ACTIONS.keys.toTypedArray()))),
+            requiredParameters = listOf(ToolParameterDescriptor("action", "What to do", ToolParameterType.Enum(ACTIONS.filterValues { it in supported }.keys.toTypedArray()))),
             optionalParameters = listOf(
                 ToolParameterDescriptor("computer", "Id from the Computer list tool; needed when several are available", ToolParameterType.String),
-                ToolParameterDescriptor("element", "Element number to tap, type into or scroll", ToolParameterType.Integer),
-                ToolParameterDescriptor("x", "Screen x in screenshot pixels, when there's no element", ToolParameterType.Integer),
-                ToolParameterDescriptor("y", "Screen y in screenshot pixels", ToolParameterType.Integer),
+                ToolParameterDescriptor("element", "Element number to tap, type into, set_value or scroll", ToolParameterType.Integer),
+                ToolParameterDescriptor("x", "Screen x in screenshot pixels; zoom crop left; set_window_frame: desktop points", ToolParameterType.Integer),
+                ToolParameterDescriptor("y", "Screen y in screenshot pixels; zoom crop top; set_window_frame: desktop points", ToolParameterType.Integer),
                 ToolParameterDescriptor("to_x", "Swipe end x", ToolParameterType.Integer),
                 ToolParameterDescriptor("to_y", "Swipe end y", ToolParameterType.Integer),
-                ToolParameterDescriptor("text", "Text to type", ToolParameterType.String),
+                ToolParameterDescriptor("text", "Text to type, set_value (replaces value), or clipboard_write (may be empty)", ToolParameterType.String),
                 ToolParameterDescriptor("key", "Key to press: back, home, recents, notifications, enter, or a combination like cmd+c on a desktop", ToolParameterType.String),
                 ToolParameterDescriptor("direction", "Scroll direction: up, down, left or right", ToolParameterType.String),
-                ToolParameterDescriptor("app", "App to open: its name, or package/bundle id", ToolParameterType.String),
+                ToolParameterDescriptor("app", "App to open or kill: its name, or package/bundle id", ToolParameterType.String),
+                ToolParameterDescriptor("path", "invoke_menu: exact menu labels, e.g. [File, New] in the front app", ToolParameterType.List(ToolParameterType.String)),
+                ToolParameterDescriptor("window", "set_window_frame: id from computer_windows; list windows first", ToolParameterType.Integer),
+                ToolParameterDescriptor("width", "zoom: crop width in screenshot pixels; set_window_frame: width in desktop points", ToolParameterType.Integer),
+                ToolParameterDescriptor("height", "zoom: crop height in screenshot pixels; set_window_frame: height in desktop points", ToolParameterType.Integer),
+                ToolParameterDescriptor("role", "verify_state: exact element role (case-insensitive), optionally with text; text is a case-insensitive substring in the same element", ToolParameterType.String),
+                ToolParameterDescriptor("front_app", "verify_state: exact foreground app as reported by computer_capture (case-insensitive)", ToolParameterType.String),
                 ToolParameterDescriptor("duration_ms", "Hold or wait time in milliseconds", ToolParameterType.Integer),
                 ToolParameterDescriptor("screenshot", "Include a screenshot of the result (default true)", ToolParameterType.Boolean),
             ),
@@ -287,6 +336,9 @@ class Computers(
             fun ask(reason: String, trustable: Boolean = true) =
                 Assessment(listOf(Action(Risk.High, listOfNotNull(descriptor.name, app.takeIf { trustable }), reason, exact = true, trustable = trustable)))
             return when {
+                action in setOf(ComputerActionKind.ClipboardRead, ComputerActionKind.KillApp) -> Assessment(listOf(
+                    Action(Risk.High, listOf(descriptor.name), "${action?.action} always needs Approval", trustable = false, alwaysAsk = true)))
+                action in SERVER_ACTIONS -> Assessment(listOf(Action(Risk.Low, listOf(descriptor.name))))
                 action == ComputerActionKind.Wait || action == ComputerActionKind.Key && args.string("key")?.lowercase() in NAVIGATION ->
                     Assessment(listOf(Action(Risk.Low, listOf(descriptor.name))))
                 password -> ask("Types into a password field", trustable = false)
@@ -301,24 +353,63 @@ class Computers(
         override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {
             val kind = requireNotNull(ACTIONS[args.string("action")]) { "Choose an action: ${ACTIONS.keys.joinToString()}" }
             val action = ComputerAction(kind, args.int("element"), args.int("x"), args.int("y"), args.int("to_x"), args.int("to_y"),
-                args.string("text"), args.string("key"), args.string("direction"), args.string("app"), args.int("duration_ms")?.coerceIn(0, 10_000))
+                args.string("text"), args.string("key"), args.string("direction"), args.string("app"), args.int("duration_ms")?.coerceIn(0, 10_000),
+                path = args["path"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty(), window = args["window"]?.jsonPrimitive?.longOrNull,
+                width = args.int("width"), height = args.int("height"))
             when (kind) {
                 ComputerActionKind.Type -> require(!action.text.isNullOrEmpty()) { "Give the text to type" }
                 ComputerActionKind.Key -> require(!action.key.isNullOrBlank()) { "Give the key to press" }
-                ComputerActionKind.OpenApp -> require(!action.app.isNullOrBlank()) { "Give the app to open" }
+                ComputerActionKind.OpenApp, ComputerActionKind.KillApp -> require(!action.app.isNullOrBlank()) { "Give the app to open" }
                 ComputerActionKind.Swipe -> require(action.x != null && action.y != null && action.toX != null && action.toY != null) { "Give x, y, to_x and to_y" }
-                ComputerActionKind.Tap, ComputerActionKind.DoubleTap, ComputerActionKind.LongPress ->
+                ComputerActionKind.Tap, ComputerActionKind.DoubleTap, ComputerActionKind.LongPress, ComputerActionKind.RightClick ->
                     require(action.element != null || action.x != null && action.y != null) { "Give an element or x and y" }
-                ComputerActionKind.Scroll, ComputerActionKind.Wait -> Unit
+                ComputerActionKind.SetValue -> require(action.element != null && action.text != null) { "Give an element and text value" }
+                ComputerActionKind.ClipboardWrite -> require(action.text != null) { "Give text for the clipboard" }
+                ComputerActionKind.InvokeMenu -> require(action.path.isNotEmpty() && action.path.all { it.isNotBlank() }) { "Give a menu path of labels" }
+                ComputerActionKind.Zoom, ComputerActionKind.SetWindowFrame -> {
+                    require(action.x != null && action.y != null && (action.width ?: 0) > 0 && (action.height ?: 0) > 0) { "Give x, y and positive width and height" }
+                    if (kind == ComputerActionKind.SetWindowFrame) require(action.window != null) { "Give a window id from computer_windows" }
+                }
+                ComputerActionKind.VerifyState -> require(listOf("text", "role", "front_app").any { !args.string(it).isNullOrBlank() }) { "Give text, role or front_app to verify" }
+                else -> Unit
             }
             val computer = choose(args)
+            require(kind in computer.actions) { "${kind.action} is not supported on ${computer.name}" }
+            if (kind == ComputerActionKind.Zoom) {
+                val screen = requireNotNull(seen[computer.id]) { "Capture a screenshot before zooming" }
+                val image = requireNotNull(screen.screenshot) { "The latest capture has no screenshot; capture again" }
+                val x = requireNotNull(action.x); val y = requireNotNull(action.y)
+                val w = requireNotNull(action.width); val h = requireNotNull(action.height)
+                require(x >= 0 && y >= 0 && x.toLong() + w <= screen.width && y.toLong() + h <= screen.height) { "The zoom region must fit inside the latest screenshot" }
+                val bytes = cropComputerScreenshot(Base64.decode(image), x, y, w, h)
+                run.attach("${SCREENSHOT_PREFIX}${screen.capture}-zoom.jpg", bytes)
+                return "Crop of capture ${screen.capture}: $w×${h}px at $x,$y. Element numbers and action coordinates still refer to the full capture."
+            }
+            if (kind == ComputerActionKind.VerifyState) {
+                val result = act(computer, ComputerRequest(screenshot = false))
+                if (result.status != DeviceToolStatus.Ready) return "${result.status}: ${result.message}"
+                val screen = requireNotNull(result.screen) { "${computer.name} returned no screen" }
+                seen.remove(computer.id)
+                val text = args.string("text")
+                val role = args.string("role")
+                val front = args.string("front_app")
+                val matches = (front == null || screen.app?.equals(front, ignoreCase = true) == true) &&
+                    (text == null && role == null || screen.elements.any {
+                        (text == null || it.label.contains(text, ignoreCase = true)) && (role == null || it.role.equals(role, ignoreCase = true))
+                    })
+                return "matched=$matches; app=${screen.app}; capture=${screen.capture}. Capture again before using element numbers."
+            }
+            if (action.element != null) requireNotNull(seen[computer.id]) { "Capture before using element numbers" }
             val (_, app, password) = target(args)
+            if (kind == ComputerActionKind.SetWindowFrame) requireNotNull(app) { "List windows first; window ${action.window} is unknown" }
             // The Computer refuses the action if another app has come forward since the Approval.
             val request = ComputerRequest(action, seen[computer.id]?.capture, args.boolean("screenshot") ?: true,
-                app = app.takeIf { kind != ComputerActionKind.OpenApp && kind != ComputerActionKind.Wait && !(kind == ComputerActionKind.Key && action.key?.lowercase() in NAVIGATION) },
+                app = app.takeIf { kind !in setOf(ComputerActionKind.OpenApp, ComputerActionKind.KillApp, ComputerActionKind.Wait, ComputerActionKind.ClipboardRead) && !(kind == ComputerActionKind.Key && action.key?.lowercase() in NAVIGATION) },
                 password = password)
             val result = act(computer, request)
             result.screen?.let { seen[computer.id] = it }
+            if (kind == ComputerActionKind.ClipboardRead && result.status == DeviceToolStatus.Ready)
+                return buildJsonObject { put("text", result.clipboard ?: "") }.toString()
             return show(computer, result, run)
         }
     }
@@ -371,15 +462,14 @@ class Computers(
     companion object {
         private const val AGENT_ACTIVE_MS = 15_000L
         private const val FRAME_MS = 300L
-        private val ACTIONS = mapOf("tap" to ComputerActionKind.Tap, "double_tap" to ComputerActionKind.DoubleTap, "long_press" to ComputerActionKind.LongPress,
-            "type" to ComputerActionKind.Type, "swipe" to ComputerActionKind.Swipe, "scroll" to ComputerActionKind.Scroll, "key" to ComputerActionKind.Key,
-            "open_app" to ComputerActionKind.OpenApp, "wait" to ComputerActionKind.Wait)
+        private val SERVER_ACTIONS = setOf(ComputerActionKind.Zoom, ComputerActionKind.VerifyState)
+        private val ACTIONS = ComputerActionKind.entries.filter { it !in setOf(ComputerActionKind.ListApps, ComputerActionKind.ListWindows) }.associateBy { it.action }
         /** System screens where a wrong tap changes security or installs software. */
         private val SENSITIVE_APPS = setOf("com.android.settings", "com.android.permissioncontroller", "com.google.android.permissioncontroller",
-            "com.android.packageinstaller", "com.google.android.packageinstaller", "com.android.vending", "com.apple.systempreferences", "com.apple.SecurityAgent")
+            "com.android.packageinstaller", "com.google.android.packageinstaller", "com.android.vending", "com.apple.systempreferences", "com.apple.SecurityAgent", "com.apple.AppStore", "com.apple.installer", "com.apple.PackageInstaller")
         /** These and the names Agents open them by, as Trust rules name apps. */
         private val SENSITIVE = SENSITIVE_APPS.map(::appKey).toSet() +
-            setOf("settings", "system_settings", "system_preferences", "play_store", "google_play_store", "app_store", "securityagent")
+            setOf("settings", "system_settings", "system_preferences", "play_store", "google_play_store", "app_store", "securityagent", "installer", "package_installer")
         private val NAVIGATION = setOf("back", "home", "recents", "notifications")
         private const val MAX_ELEMENTS = 300
 

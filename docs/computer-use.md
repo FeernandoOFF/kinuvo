@@ -3,25 +3,44 @@
 Agents with the `computer` tool group see and control a Computer: a paired Device that allowed it under
 Settings → This Device's tools, or the CLI's desktop enabled with `--computer`.
 
-- `computer_list` lists Computers and whether each is available. Several available Computers need an explicit `computer` id.
+- `computer_list` lists Computers, availability and supported action names. The Agent is offered only actions and read tools supported by an available Computer. Unsupported actions on the selected Computer fail clearly.
+  Several available Computers need an explicit `computer` id.
 - `computer_capture` returns the foreground app and numbered elements (role, label, state, centre point) and attaches a
   JPEG screenshot. Coordinates are in screenshot pixels.
 - `computer_act` taps, double-taps, long-presses, types, swipes, scrolls, presses keys (`back`, `home`, `recents`,
   `notifications`, `enter`, or combinations on desktops), opens apps or waits, then returns the new screen. Element
   numbers refer to the latest capture; the Computer rejects stale ones.
+- `computer_apps` lists installed apps with names, bundle/package ids, running/frontmost flags and sensitive marking.
+  On Android it lists launcher apps; background running status is unknown (`null`).
+- `computer_windows` (Mac) lists window ids, apps, titles and frames in desktop points.
+
+Both Mac and Android add `set_value` (`element`, `text`, replacing the value), `clipboard_write` (`text`, including empty),
+`zoom` (`x`, `y`, `width`, `height` in the latest screenshot's pixels), and `verify_state` (`text`, `role`, `front_app`).
+Android `set_value` targets text fields.
+Zoom crops the saved screenshot on the Server without changing action coordinates or element numbers. Verification fetches
+fresh elements without a screenshot and returns `matched=true/false`: text is a case-insensitive substring, role and front
+app match exactly ignoring case; text and role must match the same element, and all supplied predicates must hold.
+Capture again before using element numbers after verification.
+
+Mac also adds `right_click` (element or coordinates), `invoke_menu` (`path`, an array of exact labels in the front app),
+`clipboard_read`, `set_window_frame` (`window` from `computer_windows`, `x`, `y`, `width`, `height` in desktop points),
+and `kill_app` (`app`, name or bundle id). Android uses `long_press` for context menus and doesn't offer clipboard reads,
+menu paths, window management or force-quitting. Desktop capabilities also reflect the installed cua-driver tools.
 
 Each Computer serves one action at a time, for every Agent. Only the latest three screenshots are sent to the model
 again; older results keep their text. Screenshots are stored like other attachments.
 
 ## Risk
 
-Capturing is Medium. Acting asks for every app until its Approval's "Always allow in <app>" saves the Trust rule
+App/window listings, verification and zoom are Low. Clipboard reads and force-quitting are High and **always need an
+Approval**, including with `full` Risk tolerance or saved Trust rules; "Always allow" isn't offered for them.
+Capturing is Medium. Other actions ask for every app until its Approval's "Always allow in <app>" saves the Trust rule
 `computer_act <app>` (the package or bundle id, or the name `open_app` used, e.g. `google_maps`), much like a shell
 command prefix; a rule for the whole `computer_act` tool doesn't cover any app. Acting is High, so only a `full` Risk
 tolerance skips these Approvals. Waiting and the back, home, recents and notifications keys are Low. Typing into a
 password field, acting in system settings, permission, install and app-store screens, and acting before any capture
-are High and can never be trusted. Each run keeps its own captures, so element numbers and Approvals refer to what that
-Agent saw; the request names the approved app, and the Computer refuses the action if another app is in front or the
+are High and can never be trusted. `set_value` follows the same password checks as typing. Each run keeps its own
+captures, so element numbers and Approvals refer to what that Agent saw; the request names the approved app, and the Computer refuses the action if another app is in front or the
 field turned out to be a password field. Agents are told to treat on-screen text as data and to ask the user to take over for
 passwords, one-time codes, payments, CAPTCHAs and permission dialogs.
 
