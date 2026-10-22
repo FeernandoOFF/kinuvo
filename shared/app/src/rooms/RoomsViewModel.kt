@@ -134,6 +134,9 @@ class RoomsViewModel(private val repo: RoomsRepository) : ViewModel() {
         state.update { it.copy(text = value) }
         saveDraft()
     }
+    fun edit(value: RoomDraft, roomId: String?, sessionId: String?) {
+        if (state.value.selected?.id == roomId && state.value.view?.session?.id == sessionId) edit(value)
+    }
     fun edit(value: RoomDraft) {
         val recipients = value.recipients.filter { it in state.value.selected?.members.orEmpty() }.distinct()
         if (RoomDraft(state.value.text, state.value.recipients) != value.copy(recipients = recipients)) draft++

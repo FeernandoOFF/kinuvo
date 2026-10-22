@@ -9,8 +9,9 @@ import kinuvo.app.rooms.displayTitle
 import kinuvo.protocol.RoomSession
 import kinuvo.protocol.AgentInfo
 import kotlin.test.*
+import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalRichTextApi::class)
+@OptIn(ExperimentalRichTextApi::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class RoomMentionsTest {
     @Test fun acceptedMentionsRoundTripDeleteAndUndoWithStableIdentity() {
         val state = RichTextState().apply { registerTrigger(Trigger(RoomMemberTrigger, '@')) }
@@ -27,6 +28,41 @@ class RoomMentionsTest {
         assertEquals(listOf("pip"), state.roomDraft(listOf("atlas-2", "pip")).recipients)
         state.history.undo()
         assertEquals(draft, state.roomDraft(listOf("atlas-2", "pip")))
+    }
+
+    @Test fun sameLabelIdentityReplacementAndRestorationEmitStructuralDrafts() = kotlinx.coroutines.test.runTest {
+        val state = RichTextState().apply { setMarkdown("[@Atlas](trigger:room-member:a)") }
+        val visible = Triple(state.annotatedString, state.selection, state.activeTriggerQuery)
+        val drafts = mutableListOf<kinuvo.app.rooms.RoomDraft>()
+        val observer = backgroundScope.launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) {
+            androidx.compose.runtime.snapshotFlow { state.annotatedString to state.roomDraft(listOf("a", "b")) }.collect { drafts += it.second }
+        }
+        state.setRichTextDocument(RichTextState().apply { setMarkdown("[@Atlas](trigger:room-member:b)") }.toRichTextDocument(), state.selection)
+        assertEquals(visible, Triple(state.annotatedString, state.selection, state.activeTriggerQuery))
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        testScheduler.runCurrent()
+        assertEquals(listOf("b"), drafts.last().recipients)
+        state.setMarkdown("[@Atlas](trigger:room-member:a)")
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        testScheduler.runCurrent()
+        assertEquals(listOf("a"), drafts.last().recipients)
+        state.registerTrigger(Trigger(RoomMemberTrigger, '@'))
+        state.setText("")
+        state.addTextAfterSelection("@At")
+        state.insertToken(RoomMemberTrigger, "a", "@Atlas")
+        val beforeEdit = Triple(state.annotatedString, state.selection, state.activeTriggerQuery)
+        state.replaceTextRange(TextRange(0, state.annotatedString.length), "@At")
+        state.insertToken(RoomMemberTrigger, "b", "@Atlas")
+        assertEquals(beforeEdit, Triple(state.annotatedString, state.selection, state.activeTriggerQuery))
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        testScheduler.runCurrent()
+        assertEquals(listOf("b"), drafts.last().recipients)
+        repeat(3) { if (state.roomDraft(listOf("a", "b")).recipients != listOf("a")) state.history.undo() }
+        assertEquals(beforeEdit, Triple(state.annotatedString, state.selection, state.activeTriggerQuery))
+        androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
+        testScheduler.runCurrent()
+        assertEquals(listOf("a"), drafts.last().recipients)
+        observer.cancel()
     }
 
     @Test fun generatedSessionTitlesShowMentionLabelsWithoutEditorMetadata() {

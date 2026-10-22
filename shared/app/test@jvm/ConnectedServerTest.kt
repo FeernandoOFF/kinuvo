@@ -448,6 +448,30 @@ class ConnectedServerTest {
         assertEquals(listOf("writer"), vm.state.value.recipients)
     }
 
+    @Test fun sameLabelMentionIdentitySurvivesSessionSwitchAndRestoration() = withOwner { owner, _, _ ->
+        val script = Script("rooms")
+        connect(owner, script)
+        val vm = kinuvo.app.rooms.RoomsViewModel(owner.rooms)
+        store().put("rooms", vm)
+        vm.select(vm.state.first { it.rooms.isNotEmpty() }.rooms.single())
+        val first = vm.state.first { it.view != null }.view!!.session
+        val original = kinuvo.app.rooms.RoomDraft("[@Atlas](trigger:room-member:agent)", listOf("agent"))
+        val replacement = kinuvo.app.rooms.RoomDraft("[@Atlas](trigger:room-member:other)", listOf("other"))
+        vm.edit(original)
+        vm.edit(replacement)
+        vm.open(RoomSession("second", first.roomId))
+        vm.edit(kinuvo.app.rooms.RoomDraft("Second draft"))
+        vm.edit(original, first.roomId, first.id)
+        assertEquals("Second draft", vm.state.value.text)
+        vm.open(first)
+        assertEquals(replacement, kinuvo.app.rooms.RoomDraft(vm.state.value.text, vm.state.value.recipients))
+        vm.edit(original)
+        vm.open(RoomSession("second", first.roomId))
+        assertEquals("Second draft", vm.state.value.text)
+        vm.open(first)
+        assertEquals(original, kinuvo.app.rooms.RoomDraft(vm.state.value.text, vm.state.value.recipients))
+    }
+
     @Test fun refreshingRoomsPrunesRemovedNavigationAndEndsItsSelection() = withOwner { owner, _, _ ->
         val script = Script("rooms")
         script.rooms = listOf(Room("team", "Garden", listOf("agent", "other")), Room("launch", "Launch", listOf("agent", "writer")))

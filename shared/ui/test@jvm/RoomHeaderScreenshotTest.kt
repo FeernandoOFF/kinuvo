@@ -28,7 +28,7 @@ class RoomHeaderScreenshotTest {
         val agents = listOf(AgentInfo("atlas", "Atlas", "local"), AgentInfo("pip", "Pip", "local"))
         val room = Room("macbook", "Macbook", agents.map { it.id })
         val session = RoomSession("intro", room.id, listOf(
-            RoomMessage("one", text = "Hey guys, what is your name and what tools do you have available?"),
+            RoomMessage("one", text = "Hey guys, what is your name and what tools do you have available?", recipients = room.members),
             RoomMessage("two", "atlas", "Atlas", "I’m Atlas. I can help with research, your Tasks, and the files in your Workspace."),
             RoomMessage("three", "pip", "Pip", "I’m Pip. I can work with your Computer and help you build and review software."),
         ), title = "Hey guys, what is your name and what tools do yo")

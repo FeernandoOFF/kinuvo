@@ -35,6 +35,8 @@ import org.koin.compose.koinInject
 @Composable
 fun RoomsScreen(agents: List<AgentInfo>, vm: RoomsViewModel, onOpen: (Route.Chat) -> Unit, onMenu: () -> Unit, onBack: (() -> Unit)? = null, onAgentSettings: (String) -> Unit = {}) {
     val state by vm.state.collectAsState()
+    val editorRoom = state.selected?.id
+    val editorSession = state.view?.session?.id
     val server = koinInject<ConnectedServer>()
     var context by rememberSaveable { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -45,7 +47,9 @@ fun RoomsScreen(agents: List<AgentInfo>, vm: RoomsViewModel, onOpen: (Route.Chat
                     onMenu = onMenu, onBack = onBack, creating = vm::creating, refresh = { vm.refresh() }, select = vm::select, name = vm::name, member = vm::member,
                     create = { vm.create() }, newSession = { vm.newSession() }, open = vm::open,
                     approve = vm::approve, answer = vm::answer,
-                    edit = vm::edit, sendDraft = { vm.send(it) }, stop = { vm.stop() }, rename = { vm.rename(it) }, onContext = { context = !context }, contextOpen = context,
+                    edit = { draft ->
+                        vm.edit(draft, editorRoom, editorSession)
+                    }, sendDraft = { vm.send(it) }, stop = { vm.stop() }, rename = { vm.rename(it) }, onContext = { context = !context }, contextOpen = context,
                 ), onOpen)
             }
             if (context && desktop) Box(Modifier.width(320.dp).fillMaxHeight()) {
@@ -107,10 +111,7 @@ fun RoomsContent(agents: List<AgentInfo>, state: RoomsState, vm: RoomsActions, o
                         if (message.sender == null) Panel(
                             Modifier.widthIn(max = 560.dp), color = color(selectedControlColor), borderColor = Color.Transparent,
                             shape = Theme[shapes][largeShape], contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-                        ) { Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                            if (legacyRecipients.isNotEmpty()) Text(legacyRecipients.joinToString(" ") { id -> "@" + (agents.firstOrNull { it.id == id }?.name ?: id) }, fontSize = 12.sp, color = color(accentColor))
-                            RichMarkdown(message.text)
-                        } }
+                        ) { RichMarkdown(message.text) }
                         else Column(Modifier.widthIn(max = 760.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 agents.firstOrNull { it.id == message.sender }?.let { AgentAvatar(it, 24.dp) }
@@ -148,7 +149,7 @@ fun RoomsContent(agents: List<AgentInfo>, state: RoomsState, vm: RoomsActions, o
                         previous = state.text
                     }
                     val completions = remember(room.members, agents) { listOf(roomCompletions(room.members, agents)) }
-                    LaunchedEffect(text, room.members) { snapshotFlow { Triple(text.annotatedString, text.selection, text.activeTriggerQuery) }.collect { vm.edit(text.roomDraft(room.members)) } }
+                    LaunchedEffect(text, room.members) { snapshotFlow { text.annotatedString to text.roomDraft(room.members) }.collect { vm.edit(it.second) } }
                     Composer(view.running, {
                         val draft = text.roomDraft(room.members)
                         vm.sendDraft(draft)

@@ -150,6 +150,28 @@ class RoomsInputTest {
         }
     }
 
+    @Test fun userBubblesOnlyRenderAuthoredTextAndInlineMentions() = javax.swing.SwingUtilities.invokeAndWait {
+        val agents = listOf(AgentInfo("atlas", "Atlas", "local"), AgentInfo("pip", "Pip", "local"))
+        val room = Room("team", "Team", agents.map { it.id })
+        val messages = listOf(
+            RoomMessage("broadcast", text = "Hello everyone", recipients = room.members),
+            RoomMessage("legacy", text = "Review this", recipients = listOf("atlas")),
+            RoomMessage("mentioned", text = "[@Atlas](trigger:room-member:atlas) please review", recipients = listOf("atlas")),
+        )
+        ImageComposeScene(1000, 900, Density(1f), content = {
+            HarnessTheme { RoomsContent(agents, RoomsState(selected = room, view = RoomView(RoomSession("s", room.id, messages, title = "Review"))), RoomsActions(), {}) }
+        }).use { scene ->
+            repeat(6) { scene.render(it * 150_000_000L) }
+            fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
+            val texts = scene.semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }
+                .flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty() }.map { it.text }
+            assertTrue(texts.any { it == "Hello everyone" })
+            assertTrue(texts.any { it == "Review this" })
+            assertTrue(texts.any { it.contains("@Atlas") && it.contains("please review") })
+            assertFalse(texts.any { it == "@Atlas" || it.contains("@Pip") || it == "You" || it.startsWith("To ") })
+        }
+    }
+
     private fun ImageComposeScene.click(label: String) {
         fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
         var target = semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }.first {

@@ -26,7 +26,7 @@ class RoomsScreenshotTest {
         val room = Room("launch", "Launch room", agents.map { it.id })
         val garden = Room("garden", "Garden team", listOf("iris", "sol"))
         val session = RoomSession("review", room.id, listOf(
-            RoomMessage("one", text = "Can you review the landing page before we launch?"),
+            RoomMessage("one", text = "Can you review the landing page before we launch?", recipients = room.members),
             RoomMessage("two", "iris", "Iris", "## A clearer first step\nKeep the introduction short, then put the primary action directly below it.\n\n- Explain what the user can do\n- Make the next step easy to find"),
             RoomMessage("three", "milo", "Milo", "I’ll check the narrow layout and keyboard navigation next.", listOf("iris")),
         ), title = "Landing-page review")
