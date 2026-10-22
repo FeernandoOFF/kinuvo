@@ -211,7 +211,7 @@ class ServerRuntime(
         try {
             connection.incoming.collect { decoded ->
                 if (window.elapsedNow().inWholeMilliseconds >= 60_000) { window = TimeSource.Monotonic.markNow(); messages = 0 }
-                if (++messages > security.messagesPerMinute) { System.err.println("Closing a connection: over ${security.messagesPerMinute} messages a minute"); client.disconnect(); return@collect }
+                if (++messages > security.messagesPerMinute) { println("Closing a connection: over ${security.messagesPerMinute} messages a minute"); client.disconnect(); return@collect }
                 if (authed && !client.valid()) { client.disconnect(); return@collect }
                 if (client.closeAfterResponse != null) return@collect
                 if (decoded is Frame.Response && authed) { client.response(decoded); return@collect }
@@ -238,7 +238,7 @@ class ServerRuntime(
                     return@collect
                 }
                 val stateful = request.method in setOf(Api.CatchUp.name, Api.Unsubscribe.name, Api.Send.name, Api.Stop.name, Api.Presence.name, Api.DeviceTools.name, Api.RevokeDevice.name, Api.RotateToken.name)
-                if (!outstanding.tryAcquire()) { System.err.println("Closing a connection: over ${security.concurrentRequests} requests at once (${request.method})"); client.disconnect(); return@collect }
+                if (!outstanding.tryAcquire()) { println("Closing a connection: over ${security.concurrentRequests} requests at once (${request.method})"); client.disconnect(); return@collect }
                 if (stateful) {
                     try { client.outbox.send(handle(request, client)) } finally { outstanding.release() }
                 } else requests.launch {
