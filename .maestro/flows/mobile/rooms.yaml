@@ -30,12 +30,12 @@ properties:
 - tapOn: "Agents and sessions"
 - scrollUntilVisible:
     element:
-      text: "Rooms for E2E Agent"
+      text: "Rooms for E2E Agent.*"
     direction: DOWN
 - assertVisible: "Garden team"
-- tapOn: "Rooms for E2E Agent"
+- tapOn: "Rooms for E2E Agent.*"
 - assertNotVisible: "Garden team"
-- tapOn: "Rooms for E2E Agent"
+- tapOn: "Rooms for E2E Agent.*"
 - assertVisible: "Garden team"
 - tapOn:
     text: "Rooms"

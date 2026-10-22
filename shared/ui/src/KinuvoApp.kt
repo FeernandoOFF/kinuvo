@@ -308,7 +308,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers) {
                 val blur by animateDpAsState(if (shell.quickChat || popovers.active) 16.dp else 0.dp)
                 val screenInsets = if (top == Route.NewAgent || top == Route.Connect) WindowInsets(0) else WindowInsets.safeDrawing
-                Column(Modifier.fillMaxSize()) {
+                Column(Modifier.fillMaxSize().windowInsetsPadding(screenInsets.only(WindowInsetsSides.Top))) {
                     if (connection is Connection.Ready) SessionComputerIndicator(koinInject<ConnectedServer>())
                     Box(Modifier.weight(1f)) {
                         if (compact) Box(Modifier.fillMaxSize()) {

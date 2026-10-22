@@ -177,7 +177,7 @@ class Rooms(private val harness: HarnessRuntime, private val runs: Runs, private
                 execution = null
             }
             if (dispatched == MAX_DISPATCHES) lock.withLock {
-                errors.putIfAbsent(sessionId, "Room turn reached its $MAX_DISPATCHES participation limit. Send a new message to continue.")
+                errors.getOrPut(sessionId) { "Room turn reached its $MAX_DISPATCHES participation limit. Send a new message to continue." }
             }
         } catch (e: CancellationException) {
             withContext(NonCancellable) { lock.withLock { errors[sessionId] = "Stopped. Send a new message to continue." } }
