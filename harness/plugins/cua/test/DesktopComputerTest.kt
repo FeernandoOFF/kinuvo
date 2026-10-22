@@ -24,7 +24,16 @@ class DesktopComputerTest {
             "drag" -> setOf("session", "pid", "window_id", "from_x", "from_y", "to_x", "to_y", "duration_ms")
             "scroll" -> setOf("session", "pid", "window_id", "element_token", "x", "y", "direction")
             else -> emptySet()
-        } else null
+        } else when (tool) {
+            "right_click" -> setOf("session", "pid", "window_id", "element_token", "x", "y")
+            "set_value" -> setOf("session", "pid", "window_id", "element_token", "value")
+            "invoke_menu" -> setOf("session", "pid", "window_id", "path")
+            "clipboard_read" -> setOf("session", "include_text")
+            "clipboard_write" -> setOf("session", "text")
+            "set_window_frame" -> setOf("session", "pid", "window_id", "x", "y", "width", "height")
+            "kill_app" -> setOf("session", "pid")
+            else -> null
+        }
         override suspend fun call(tool: String, args: JsonObject): JsonObject {
             parameters(tool)?.let { assertTrue(args.keys.all { key -> key in it }, "$tool received unsupported arguments: ${args.keys - it}") }
             calls += tool to args
@@ -35,8 +44,9 @@ class DesktopComputerTest {
                     {"app_name":"Cua Driver","pid":1,"window_id":1,"is_on_screen":true,"layer":0,"z_index":99,"title":"","bounds":{"x":0,"y":0,"width":1000,"height":500}},
                     {"app_name":"Calculator","pid":7,"window_id":70,"is_on_screen":true,"layer":0,"z_index":50,"title":"Calculator","bounds":{"x":100,"y":50,"width":200,"height":300}},
                     {"app_name":"Notes","pid":8,"window_id":80,"is_on_screen":false,"layer":0,"z_index":60,"title":"","bounds":{"x":0,"y":0,"width":400,"height":400}}]}""")
-                "list_apps" -> json("""{"apps":[{"name":"Notes","pid":8,"active":false},{"name":"Calculator","pid":7,"active":true}]}""")
+                "list_apps" -> json("""{"apps":[{"name":"Notes","bundle_id":"com.apple.Notes","pid":8,"running":true,"active":false},{"name":"Calculator","bundle_id":"com.apple.calculator","pid":7,"running":true,"active":true},{"name":"Mail","bundle_id":"com.apple.mail","pid":0,"running":false,"active":false}]}""")
                 "get_window_state" -> json("""{"elements":[{"element_index":0,"role":"AXButton","label":"7","frame":{"x":20,"y":40,"w":40,"h":20},"element_token":"t7","actions":["AXPress"]}]}""")
+                "clipboard_read" -> json("""{"text":"clipboard text","types":["public.utf8-plain-text"]}""")
                 else -> JsonObject(emptyMap())
             }
         }
@@ -44,6 +54,63 @@ class DesktopComputerTest {
     private val computer = DesktopComputer { driver }
 
     private fun json(text: String) = Json.parseToJsonElement(text).jsonObject
+
+    @Test
+    fun capabilitiesAndReadToolsNeedNoScreenshot() = runTest {
+        if (computer.platform != "macOS") return@runTest
+        val state = computer.perform(ComputerRequest(screenshot = false, elements = false)).screen!!
+        assertEquals(ComputerActionKind.mac, state.actions)
+        assertTrue(calls.none { it.first == "get_desktop_state" || it.first == "get_window_state" })
+        val apps = computer.perform(ComputerRequest(ComputerAction(ComputerActionKind.ListApps))).apps!!
+        assertEquals("com.apple.calculator", apps.single { it.frontmost }.id)
+        assertEquals(false, apps.single { it.name == "Mail" }.running)
+        val windows = computer.perform(ComputerRequest(ComputerAction(ComputerActionKind.ListWindows))).windows!!
+        assertEquals(100, windows.single { it.id == 70L }.x)
+        val clipboard = computer.perform(ComputerRequest(ComputerAction(ComputerActionKind.ClipboardRead)))
+        assertEquals("clipboard text", clipboard.clipboard)
+        assertEquals(true, calls.last().second["include_text"]?.jsonPrimitive?.boolean)
+        assertTrue(calls.none { it.first == "get_desktop_state" })
+    }
+
+    @Test
+    fun newActionsUseTheDriversExactTargetAndValueParameters() = runTest {
+        if (computer.platform != "macOS") return@runTest
+        val capture = computer.perform(ComputerRequest()).screen!!.capture
+        suspend fun act(action: ComputerAction, app: String? = "Calculator") {
+            assertEquals(DeviceToolStatus.Ready, computer.perform(ComputerRequest(action, capture, app = app)).status)
+        }
+        act(ComputerAction(ComputerActionKind.RightClick, element = 1))
+        assertEquals("t7", calls.last { it.first == "right_click" }.second["element_token"]?.jsonPrimitive?.content)
+        act(ComputerAction(ComputerActionKind.RightClick, x = 100, y = 50))
+        val click = calls.last { it.first == "right_click" }.second
+        assertEquals(listOf(7, 70, 50, 25), listOf("pid", "window_id", "x", "y").map { click[it]?.jsonPrimitive?.int })
+        act(ComputerAction(ComputerActionKind.SetValue, element = 1, text = ""))
+        val value = calls.last { it.first == "set_value" }.second
+        assertEquals("", value["value"]?.jsonPrimitive?.content)
+        assertEquals("t7", value["element_token"]?.jsonPrimitive?.content)
+        act(ComputerAction(ComputerActionKind.InvokeMenu, path = listOf("File", "New")))
+        val menu = calls.last { it.first == "invoke_menu" }.second
+        assertEquals(listOf("File", "New"), menu["path"]?.jsonArray?.map { it.jsonPrimitive.content })
+        assertEquals(70, menu["window_id"]?.jsonPrimitive?.int)
+        act(ComputerAction(ComputerActionKind.ClipboardWrite, text = "hello"))
+        assertEquals("hello", calls.last { it.first == "clipboard_write" }.second["text"]?.jsonPrimitive?.content)
+        act(ComputerAction(ComputerActionKind.SetWindowFrame, window = 70, x = -100, y = 20, width = 500, height = 400))
+        val frame = calls.last { it.first == "set_window_frame" }.second
+        assertEquals(listOf(7, 70, -100, 20, 500, 400), listOf("pid", "window_id", "x", "y", "width", "height").map { frame[it]?.jsonPrimitive?.int })
+        act(ComputerAction(ComputerActionKind.KillApp, app = "com.apple.Notes"), app = null)
+        assertEquals(8, calls.last { it.first == "kill_app" }.second["pid"]?.jsonPrimitive?.int)
+    }
+
+    @Test
+    fun elementsOnlyCaptureDoesNotRequestAScreenshot() = runTest {
+        computer.perform(ComputerRequest())
+        calls.clear()
+        val screen = computer.perform(ComputerRequest(screenshot = false)).screen!!
+        assertNull(screen.screenshot)
+        assertTrue(calls.none { it.first == "get_desktop_state" })
+        assertEquals(500 to 250, screen.width to screen.height)
+        assertEquals(60, screen.elements.single().x)
+    }
 
     @Test
     fun saysHowToInstallTheDriverWhenItIsMissing() = runTest {

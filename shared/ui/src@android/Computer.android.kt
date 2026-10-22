@@ -4,6 +4,8 @@ import kinuvo.app.computer.ComputerDriver
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -102,11 +104,24 @@ internal class AndroidComputer(private val context: Context) : ComputerDriver {
 
     override suspend fun perform(request: ComputerRequest): ComputerResult = lock.withLock {
         val service = ComputerService.instance ?: return ComputerResult(DeviceToolStatus.Unavailable, "Turn on Kinuvo in this Device's Accessibility settings")
+        request.action?.let {
+            if (it.kind !in ComputerActionKind.android) return ComputerResult(DeviceToolStatus.Denied, "${it.kind.action} is not supported on Android")
+        }
         if (request.release) service.handBack()
         val agent = !request.user && (request.action != null || request.elements)
         if (agent && service.userControl) return ComputerResult(DeviceToolStatus.Unavailable, "The user took over this phone", userControl = true)
         if (agent) service.showAgent()
         withContext(Dispatchers.Default) {
+            if (request.action?.kind == ComputerActionKind.ListApps) {
+                val front = service.rootInActiveWindow?.packageName?.toString()
+                val pm = context.packageManager
+                val apps = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+                    .distinctBy { it.activityInfo.packageName }.map {
+                        val id = it.activityInfo.packageName
+                        ComputerApp(it.loadLabel(pm).toString(), id, running = true.takeIf { id == front }, frontmost = id == front)
+                    }.sortedBy { it.name.lowercase() }
+                return@withContext ComputerResult(DeviceToolStatus.Ready, apps = apps)
+            }
             val message = request.action?.let { action ->
                 val error = try { act(service, action, request) } catch (e: CancellationException) { throw e } catch (e: Exception) { e.message ?: "That didn't work" }
                 if (error != null) return@withContext ComputerResult(DeviceToolStatus.Denied, error, capture(service, request.screenshot, request.elements), userControl = service.userControl)
@@ -132,22 +147,25 @@ internal class AndroidComputer(private val context: Context) : ComputerDriver {
         // Whatever is on top where the gesture lands receives it, e.g. the notification shade over the app.
         val app = target?.let { (x, y) -> appAt(service, x, y) } ?: node?.packageName?.toString() ?: service.rootInActiveWindow?.packageName?.toString()
         // Approved for one app: anything else came forward since, so the Approval doesn't cover it.
-        if (!user && request.app != null && action.kind != ComputerActionKind.Type && app != request.app)
+        if (!user && request.app != null && action.kind !in setOf(ComputerActionKind.Type, ComputerActionKind.SetValue) && app != request.app)
             return "${app ?: "Another app"} is there now, not ${request.app}; capture again"
         if (!user && action.kind !in setOf(ComputerActionKind.Key, ComputerActionKind.OpenApp, ComputerActionKind.Wait) && app in blocked(context))
             return "Kinuvo doesn't act in $app; ask the user to take over"
         when (action.kind) {
+            ComputerActionKind.ClipboardWrite -> (context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
+                .setPrimaryClip(ClipData.newPlainText("", requireNotNull(action.text)))
             ComputerActionKind.Tap -> if (node == null || !click(node, AccessibilityNodeInfo.ACTION_CLICK)) tap(service, requireNotNull(target) { "Give an element or x and y" }, 50)
             ComputerActionKind.DoubleTap -> requireNotNull(target) { "Give an element or x and y" }.let { tap(service, it, 50); delay(100); tap(service, it, 50) }
             ComputerActionKind.LongPress -> if (node == null || !click(node, AccessibilityNodeInfo.ACTION_LONG_CLICK)) tap(service, requireNotNull(target) { "Give an element or x and y" }, (action.durationMs ?: 700).toLong())
-            ComputerActionKind.Type -> {
+            ComputerActionKind.Type, ComputerActionKind.SetValue -> {
+                if (action.kind == ComputerActionKind.SetValue && node == null) return "Give an element to set"
                 val field = node ?: focusedInput(service) ?: return "No text field is focused; tap one or give its element"
                 if (!user && field.packageName?.toString() in blocked(context)) return "Kinuvo doesn't type into ${field.packageName}"
                 if (!user && request.app != null && field.packageName?.toString() != request.app) return "${field.packageName} is in front now, not ${request.app}; capture again"
                 if (!user && field.isPassword && !request.password) return "That's a password field; capture again, or ask the user to take over"
                 if (!field.isFocused) field.performAction(AccessibilityNodeInfo.ACTION_FOCUS)
                 val existing = if (Build.VERSION.SDK_INT >= 26 && field.isShowingHintText) "" else field.text?.toString().orEmpty()
-                val text = existing + requireNotNull(action.text)
+                val text = if (action.kind == ComputerActionKind.SetValue) requireNotNull(action.text) else existing + requireNotNull(action.text)
                 if (!field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }))
                     return "That element doesn't take text"
             }
@@ -156,6 +174,7 @@ internal class AndroidComputer(private val context: Context) : ComputerDriver {
             ComputerActionKind.Key -> return key(service, requireNotNull(action.key).lowercase())
             ComputerActionKind.OpenApp -> return open(requireNotNull(action.app), user)
             ComputerActionKind.Wait -> delay((action.durationMs ?: 1000).toLong())
+            else -> return "${action.kind.action} is not supported on Android"
         }
         return null
     }
@@ -280,7 +299,7 @@ internal class AndroidComputer(private val context: Context) : ComputerDriver {
         val elements = mutableListOf<ComputerElement>()
         if (!withElements) {
             val image = if (screenshot && Build.VERSION.SDK_INT >= 30) screenshot(service, scale) else null
-            return ComputerScreen("frame", (w * scale).roundToInt(), (h * scale).roundToInt(), service.rootInActiveWindow?.packageName?.toString(), screenshot = image, platform = PLATFORM)
+            return ComputerScreen("frame", (w * scale).roundToInt(), (h * scale).roundToInt(), service.rootInActiveWindow?.packageName?.toString(), screenshot = image, platform = PLATFORM, actions = ComputerActionKind.android)
         }
         val roots = runCatching {
             service.windows.filter { it.type != android.view.accessibility.AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY }
@@ -311,7 +330,7 @@ internal class AndroidComputer(private val context: Context) : ComputerDriver {
         last = Capture(id, scale, nodes)
         val image = if (screenshot && Build.VERSION.SDK_INT >= 30) screenshot(service, scale) else null
         return ComputerScreen(id, (w * scale).roundToInt(), (h * scale).roundToInt(), active?.packageName?.toString(),
-            runCatching { service.windows.firstOrNull { it.isActive }?.title?.toString() }.getOrNull(), elements, image, PLATFORM)
+            runCatching { service.windows.firstOrNull { it.isActive }?.title?.toString() }.getOrNull(), elements, image, PLATFORM, ComputerActionKind.android)
     }
 
     @RequiresApi(30)
