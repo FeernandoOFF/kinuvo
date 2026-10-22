@@ -39,6 +39,19 @@ class ApprovalsTest {
         override suspend fun execute(args: JsonObject): String { calls++; return "ran" }
     }
 
+    @Test
+    fun mandatoryApprovalsIgnoreFullToleranceAndTrustRules() = runTest {
+        val tool = object : Tool {
+            override val identity = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), "private")
+            override val descriptor = ToolDescriptor("private", "fake")
+            override fun assess(args: JsonObject) = kinuvo.harness.core.tools.Assessment(listOf(
+                kinuvo.harness.core.tools.Action(Risk.High, listOf("private"), alwaysAsk = true)))
+            override suspend fun execute(args: JsonObject) = "ran"
+        }
+        home.trustRules.update(base.id) { it.copy(trusted = listOf(tool.identity.key)) }
+        for (mode in Tolerance.ids) assertTrue(assertIs<Verdict.Ask>(policy(agent(mode)).decide(tool)).trustKeys.isEmpty())
+    }
+
     @Test fun unknownRiskTolerancesAreRejected() {
         for (value in listOf("ask", "auto", "unknown")) {
             kotlin.test.assertFailsWith<IllegalArgumentException> { Tolerance.of(value) }
