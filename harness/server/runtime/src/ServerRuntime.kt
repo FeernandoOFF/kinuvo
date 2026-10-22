@@ -200,12 +200,15 @@ class ServerRuntime(
         val outstanding = Semaphore(security.concurrentRequests)
         val timeout = requests.launch { delay(security.authenticationTimeoutMillis); client.disconnect() }
         val validity = requests.launch {
-            while (isActive) { delay(security.validationIntervalMillis); if (!client.valid()) client.disconnect() }
+            while (isActive) { delay(security.validationIntervalMillis); if (!client.valid() && client.closeAfterResponse == null) client.disconnect() }
         }
         var window = TimeSource.Monotonic.markNow()
         var messages = 0
         val writer = requests.launch { for (frame in client.outbox) {
-            if (!client.valid() && (frame !is Frame.Response || frame.id != client.closeAfterResponse)) { client.disconnect(); break }
+            if (!client.valid() && (frame !is Frame.Response || frame.id != client.closeAfterResponse)) {
+                if (client.closeAfterResponse != null) continue
+                client.disconnect(); break
+            }
             connection.send(frame)
             if (frame is Frame.Response && frame.id == client.closeAfterResponse) client.disconnect()
         } }
@@ -214,8 +217,8 @@ class ServerRuntime(
             connection.incoming.collect { decoded ->
                 if (window.elapsedNow().inWholeMilliseconds >= 60_000) { window = TimeSource.Monotonic.markNow(); messages = 0 }
                 if (++messages > security.messagesPerMinute) { println("Closing a connection: over ${security.messagesPerMinute} messages a minute"); client.disconnect(); return@collect }
-                if (authed && !client.valid()) { client.disconnect(); return@collect }
                 if (client.closeAfterResponse != null) return@collect
+                if (authed && !client.valid()) { client.disconnect(); return@collect }
                 if (decoded is Frame.Response && authed) { client.response(decoded); return@collect }
                 val request = decoded as? Frame.Request ?: return@collect
                 if (!authed && request.method != Api.Connect.name) { connection.close(); return@collect }
@@ -376,9 +379,10 @@ class ServerRuntime(
         }
         Api.RevokeDevice.name -> respond(r, Api.RevokeDevice) { p ->
             check(client.authenticated(auth::management) || client.deviceId == p.id) { "This action requires management access" }
-            check(auth.revoke(p.id)) { "No paired Device '${p.id}'" }
+            check(client.authenticated { auth.revoke(p.id).also { revoked ->
+                if (revoked && client.deviceId == p.id) client.closeAfterResponse = r.id
+            } }) { "No paired Device '${p.id}'" }
             clients.block { it.filter { c -> c.deviceId == p.id && c !== client } }.forEach { it.disconnect() }
-            if (client.deviceId == p.id) client.closeAfterResponse = r.id
             broadcast(Api.DevicesChanged, Unit)
         }
         Api.Computers.name -> respond(r, Api.Computers) { harness.computers.list() }

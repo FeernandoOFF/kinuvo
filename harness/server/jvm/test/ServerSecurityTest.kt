@@ -20,6 +20,58 @@ import kotlin.test.*
 
 class ServerSecurityTest {
     @Test
+    fun selfRevocationRepliesAfterQueuedEventsAndConcurrentValidation() = runBlocking {
+        val home = Files.createTempDirectory("revocation-security")
+        val auth = DeviceAuth(home.resolve("devices.json").toFile())
+        val token = assertNotNull(auth.authenticate("owner", null, auth.currentPairingCode()))
+        val invalidated = CompletableDeferred<Unit>()
+        val release = java.util.concurrent.CountDownLatch(1)
+        val peers = object : PeerRegistry by auth {
+            override fun revoke(id: String) = auth.revoke(id).also {
+                invalidated.complete(Unit)
+                check(release.await(5, java.util.concurrent.TimeUnit.SECONDS))
+            }
+        }
+        val runtime = ServerRuntime(Harness(Path(home.toString())), peers, security = ConnectionSecurity(validationIntervalMillis = 1))
+        runtime.start()
+        val requests = Channel<Frame>(Channel.UNLIMITED)
+        val responses = Channel<Frame>(Channel.UNLIMITED)
+        val eventSending = CompletableDeferred<Unit>()
+        val releaseEvent = CompletableDeferred<Unit>()
+        val closed = CompletableDeferred<Unit>()
+        val connection = object : FrameConnection {
+            override val incoming = requests.receiveAsFlow()
+            override suspend fun send(frame: Frame) {
+                if (frame is Frame.Event) { eventSending.complete(Unit); releaseEvent.await() }
+                responses.send(frame)
+            }
+            override suspend fun close() { closed.complete(Unit); requests.close(); responses.close() }
+        }
+        val serving = launch(Dispatchers.Default) { runtime.serve(connection) }
+        try {
+            withTimeout(5_000) {
+                requests.send(Frame.Request("connect", Api.Connect.name, ProtocolJson.encodeToJsonElement(Api.Connect.params, ConnectParams("owner", token))))
+                assertTrue((responses.receive() as Frame.Response).ok)
+                eventSending.await()
+                runtime.harness.routines.create(runtime.harness.store.agents().single(), "Queued", "Hello", Trigger.Every(60))
+                val id = auth.devices().single().id
+                requests.send(Frame.Request("revoke", Api.RevokeDevice.name, ProtocolJson.encodeToJsonElement(Api.RevokeDevice.params, DeviceRef(id))))
+                invalidated.await()
+                delay(100)
+                assertFalse(closed.isCompleted)
+                release.countDown()
+                releaseEvent.complete(Unit)
+                var response: Frame.Response? = null
+                while (response == null) response = responses.receive() as? Frame.Response
+                assertEquals("revoke", response.id)
+                assertTrue(response.ok)
+                closed.await()
+                assertFalse(auth.valid(token))
+            }
+        } finally { release.countDown(); releaseEvent.complete(Unit); serving.cancelAndJoin(); runtime.close() }
+    }
+
+    @Test
     fun rotationDoesNotExposeAnInvalidCredentialToConcurrentValidation() = runBlocking {
         val home = Files.createTempDirectory("rotation-security")
         val auth = DeviceAuth(home.resolve("devices.json").toFile())
