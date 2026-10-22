@@ -1,0 +1,33 @@
+{
+  "name": "mobile/room-session-artifacts",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "artifacts.list"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":[{\"id\":\"garden-plan.md\",\"title\":\"Garden plan\",\"type\":\"md\",\"agentId\":\"e2e\",\"sessionId\":\"private\",\"roomSessionId\":\"room-session\",\"created\":1792684800000,\"updated\":1792688400000},{\"id\":\"other.md\",\"title\":\"Builder private output\",\"type\":\"md\",\"agentId\":\"builder\",\"sessionId\":\"private\",\"roomSessionId\":\"unrelated-session\",\"created\":1792684800000,\"updated\":1792688400000}]}"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,80 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-room-computer
+  apiVerifications:
+    - stub: mobile/computer-watch
+      exactly: 8
+    - stub: mobile/room-computer-take
+      exactly: 1
+    - stub: mobile/computer-hand-back
+      exactly: 1
+---
+- runFlow: ../../shared/pair-mobile.yaml
+- tapOn: "Agents and sessions"
+- tapOn:
+    text: "Rooms"
+    index: 0
+- tapOn: "Garden team"
+- assertVisible: "The materials list is ready."
+- tapOn: "Session details"
+- assertVisible: "Take over"
+- tapOn: "Garden plan"
+- assertVisible: '(?s).*Planting checklist.*'
+- retry:
+    maxRetries: 3
+    commands:
+      - runScript:
+          file: ../../shared/assert-computer-watches.js
+          env:
+            EXPECTED: '[true,false]'
+- takeScreenshot: room-computer-artifact-unwatched
+- tapOn: "Return to context"
+- assertVisible: "Take over"
+- tapOn: "Garden plan"
+- assertVisible: '(?s).*Planting checklist.*'
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"computers.changed","payload":[{"id":"phone","name":"Pixel","platform":"Android","available":true,"control":"Idle","agentId":"e2e","sessionId":"private","roomSessionId":"room-session"}],"seq":40}'
+- tapOn: "Return to context"
+- assertNotVisible: "Take over"
+- runScript:
+    file: ../../shared/assert-computer-watches.js
+    env:
+      EXPECTED: '[true,false,true,false]'
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"computers.changed","payload":[{"id":"phone","name":"Pixel","platform":"Android","available":true,"control":"Agent","agentId":"e2e","sessionId":"private","roomSessionId":"room-session"}],"seq":41}'
+- assertVisible: "Take over"
+- tapOn: "Take over"
+- assertVisible: "You have control. Agents are waiting."
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"computers.changed","payload":[{"id":"phone","name":"Pixel","platform":"Android","available":true,"control":"User","agentId":"e2e","sessionId":"private","roomSessionId":"room-session"}],"seq":42}'
+- tapOn: "Back to Session"
+- assertVisible: "Return to screen"
+- takeScreenshot: room-computer-takeover-retained
+- tapOn: "Close context"
+- assertVisible: "You control Pixel"
+- tapOn: "You control Pixel"
+- assertVisible: "You have control. Agents are waiting."
+- tapOn: "Back to Session"
+- assertVisible: "You control Pixel"
+- retry:
+    maxRetries: 3
+    commands:
+      - runScript:
+          file: ../../shared/assert-computer-watches.js
+          env:
+            EXPECTED: '[true,false,true,false,true,false,true,false]'
+- tapOn: "Hand back"
+- assertNotVisible: "You control Pixel"

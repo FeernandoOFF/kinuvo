@@ -56,6 +56,7 @@ exercise the default Compose shell on Android and iOS:
 - `chat.yaml`: pairing, Session creation, message sending and the pushed reply.
 - `pairing-rejected.yaml`: an expired pairing code stays on the connection screen.
 - `rooms.yaml`: collapsible Agent membership, independent titled group Sessions and drafts, contextual Routine editing and Artifact previews, a member's execution override, and structured recipients.
+- `room-computer.yaml`: contextual Live view stops during Artifact previews, resumes on return, stays idle after Agent use ends, and preserves Takeover across fullscreen and navigation; exact watch requests are checked.
 - `rooms-approval.yaml`: a private Room execution's Approval is shown and denied through its original Approval ID.
 - `board.yaml`: load Tasks, create one, receive a live Task update, and show Done.
 - `knowledge.yaml`: empty search, matching search, Note details, linked Notes and back navigation.

@@ -76,6 +76,20 @@ properties:
       text: "Edit Garden check"
     direction: UP
 - tapOn: "Edit Garden check"
+- tapOn: "This Session"
+- tapOn: "All Agent Artifacts"
+- scrollUntilVisible:
+    element:
+      text: "E2E Agent"
+    direction: UP
+- tapOn: "E2E Agent"
+- tapOn: "All members"
+- assertVisible: "Garden plan"
+- assertNotVisible: "Builder private output"
+- takeScreenshot: rooms-all-members-artifacts
+- tapOn: "All members"
+- tapOn: "E2E Agent"
+- assertVisible: "All Agent Artifacts"
 - tapOn: "Garden plan"
 - assertVisible: '(?s).*Planting checklist.*'
 - takeScreenshot: rooms-artifact

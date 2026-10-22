@@ -20,6 +20,7 @@ import androidx.compose.ui.window.DialogProperties
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
+import kinuvo.app.computer.ComputersState
 import kinuvo.app.computer.ComputersViewModel
 import kinuvo.app.connection.ConnectedServer
 import kinuvo.app.session.*
@@ -66,14 +67,18 @@ fun SessionContextPanel(
         while (true) { delay(30_000); value = Clock.System.now().toEpochMilliseconds() }
     }
     var fullscreen by remember { mutableStateOf(false) }
+    computers?.let { key(it) {
+        val computerState by it.state.collectAsState()
+        ContextComputerWatch(computerState, context, state.agentId, state.artifactId == null, fullscreen, it::watchActive)
+    } }
     SessionContextContent(state, context, model.management, model.serverCapabilities, now,
         SessionContextActions(
             onSelectAgent = { selectedMember = it; model.selectAgent(it) },
             onRoutine = model::updateRoutine, onRuns = model::loadRuns,
             onArtifact = { artifactId = it; model.openArtifact(it) }, onExecution = model::saveExecution),
         onOpenSession, onAgentSettings, onClose,
-        computer = { computers?.let { ContextComputer(it, context, state.agentId, fullscreen) { fullscreen = true } } })
-    if (fullscreen && computers != null) ComputerTakeover(computers, releaseOnClose = false) { fullscreen = false }
+        computer = { computers?.let { ContextComputer(it, context, state.agentId) { fullscreen = true } } })
+    if (fullscreen && computers != null) ComputerTakeover(computers, manageWatch = false) { fullscreen = false }
 }
 
 internal class SessionContextActions(
@@ -98,6 +103,7 @@ internal fun SessionContextContent(
     computer: @Composable () -> Unit = {},
 ) {
     var artifactSessionOnly by rememberSaveable(context.agentId, context.sessionId, context.roomId, context.roomSessionId) { mutableStateOf(context.roomSessionId != null) }
+    val sessionOnly = artifactSessionOnly || (context.roomSessionId != null && state.agentId == null)
     Column(Modifier.fillMaxSize().background(color(sidebarColor))) {
         TitleBarRow(trailing = false) {
             if (state.artifactId != null) HeaderButton(Lucide.ArrowLeft, "Return to context", { actions.onArtifact(null) })
@@ -129,14 +135,14 @@ internal fun SessionContextContent(
                     }
                 }
             } else if (context.memberAgentIds.isNotEmpty()) Text("Choose a member to view their Routines and Session execution.", fontSize = 13.sp, color = color(mutedColor))
-            ContextSection(if (artifactSessionOnly) "Session outputs" else "Agent Artifacts") {
-                if (state.agentId != null) Picker(listOf(false, true), artifactSessionOnly, { if (it) "This Session" else "All Agent Artifacts" }, { artifactSessionOnly = it })
+            ContextSection(if (sessionOnly) "Session outputs" else "Agent Artifacts") {
+                if (state.agentId != null) Picker(listOf(false, true), sessionOnly, { if (it) "This Session" else "All Agent Artifacts" }, { artifactSessionOnly = it })
                 val all = state.artifacts
-                val shown = if (artifactSessionOnly) context.outputs(all.orEmpty(), state.agentId)
+                val shown = if (sessionOnly) context.outputs(all.orEmpty(), state.agentId)
                     else all.orEmpty().filter { it.agentId == state.agentId }
                 when {
                     all == null -> Spinner(size = 16.dp)
-                    shown.isEmpty() -> Text(if (artifactSessionOnly) "No outputs saved from this Session." else "No Artifacts saved by this Agent.", fontSize = 13.sp, color = color(mutedColor))
+                    shown.isEmpty() -> Text(if (sessionOnly) "No outputs saved from this Session." else "No Artifacts saved by this Agent.", fontSize = 13.sp, color = color(mutedColor))
                     else -> shown.sortedByDescending { it.updated }.forEach { artifact ->
                         ListRow(selected = false, onClick = { actions.onArtifact(artifact.id) }, leading = { Icon(Lucide.FileText, Modifier.size(16.dp)) }) {
                             Column(Modifier.weight(1f)) {
@@ -322,11 +328,28 @@ private fun ContextExecution(state: SessionContextState, defaults: AgentSettings
 }
 
 @Composable
-private fun ContextComputer(computers: ComputersViewModel, context: SessionContextScope, selectedAgent: String?, fullscreen: Boolean, onTakeover: () -> Unit) {
+internal fun ContextComputerWatch(
+    state: ComputersState,
+    context: SessionContextScope,
+    selectedAgent: String?,
+    previewVisible: Boolean,
+    fullscreen: Boolean,
+    watch: (String?) -> Unit,
+) {
+    val active = state.computers.orEmpty().filter { context.contains(it, selectedAgent) }
+    val preview = active.firstOrNull { it.id == state.selected } ?: active.firstOrNull()
+    val target = if (fullscreen) state.computer?.takeIf { it.available }?.id
+        else if (previewVisible) preview?.takeIf { it.available && it.control == ComputerControl.Agent }?.id else null
+    val currentWatch by rememberUpdatedState(watch)
+    LaunchedEffect(target) { currentWatch(target) }
+    DisposableEffect(Unit) { onDispose { currentWatch(null) } }
+}
+
+@Composable
+private fun ContextComputer(computers: ComputersViewModel, context: SessionContextScope, selectedAgent: String?, onTakeover: () -> Unit) {
     val state by computers.state.collectAsState()
     val active = state.computers.orEmpty().filter { context.contains(it, selectedAgent) }
     val computer = active.firstOrNull { it.id == state.selected } ?: active.firstOrNull()
-    LaunchedEffect(computer?.id, computer?.agentId, computer?.sessionId, computer?.roomSessionId, computer?.available, computer?.control, fullscreen) { if (!fullscreen) computers.watchActive(computer?.takeIf { it.available && it.control == ComputerControl.Agent }?.id) }
     if (computer == null) {
         state.error?.let { ErrorMessage(it) }
         return
@@ -371,7 +394,7 @@ fun SessionComputerIndicator(server: ConnectedServer, onOpen: () -> Unit = {}) {
 }
 
 @Composable
-private fun ComputerTakeover(computers: ComputersViewModel, releaseOnClose: Boolean = true, onClose: () -> Unit) {
+private fun ComputerTakeover(computers: ComputersViewModel, manageWatch: Boolean = true, onClose: () -> Unit) {
     val state by computers.state.collectAsState()
     val computer = state.computer
     var controlled by remember { mutableStateOf(state.control == ComputerControl.User) }
@@ -379,8 +402,7 @@ private fun ComputerTakeover(computers: ComputersViewModel, releaseOnClose: Bool
         if (state.control == ComputerControl.User) controlled = true
         else if (controlled) onClose()
     }
-    LaunchedEffect(computer?.id, computer?.available) { computers.watchActive(computer?.takeIf { it.available }?.id) }
-    DisposableEffect(computers, releaseOnClose) { onDispose { if (releaseOnClose) computers.watchActive(null) } }
+    if (manageWatch) key(computers) { ContextComputerWatch(state, SessionContextScope(), null, false, true, computers::watchActive) }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
             TitleBarRow(trailing = false) {
