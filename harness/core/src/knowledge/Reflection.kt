@@ -37,7 +37,7 @@ class Reflection(
             val koog = AIAgent(
                 id = agent.id,
                 promptExecutor = model.executor,
-                agentConfig = AIAgentConfig(Prompt.Empty, model.model, MAX_AGENT_ITERATIONS),
+                agentConfig = AIAgentConfig(Prompt.Empty, model.model, STAGE_ITERATIONS),
                 strategy = reflectionStrategy(run, stage),
             ) {
                 install(ToolLoopFeature) { requests = run.requests; response = run.response }

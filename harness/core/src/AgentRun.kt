@@ -19,7 +19,11 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.withContext
 import kotlin.uuid.Uuid
 
-internal const val MAX_AGENT_ITERATIONS = 50
+/** Koog graph steps in a chat or Routine turn: each model request and tool call is one, so about 66 tool calls. */
+internal const val MAX_AGENT_ITERATIONS = 200
+
+/** Koog's default, for each Reflection stage. */
+internal const val STAGE_ITERATIONS = 50
 
 /** One turn of an Agent, with a fresh Koog graph and a durable Session. */
 class AgentRun(
