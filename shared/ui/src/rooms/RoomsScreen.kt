@@ -101,13 +101,19 @@ fun RoomsContent(agents: List<AgentInfo>, state: RoomsState, vm: RoomsActions, o
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     room.members.forEach { id -> Checkbox(id in state.recipients, { vm.recipient(id) }) { Text("@" + (agents.firstOrNull { it.id == id }?.name ?: id)) } }
                 }
-                val text = rememberTextFieldState(state.text)
-                LaunchedEffect(state.text) { if (text.text.toString() != state.text) text.setTextAndPlaceCursorAtEnd(state.text) }
-                LaunchedEffect(text) { snapshotFlow { text.text.toString() }.collect { vm.text(it) } }
-                TextArea(text, "Message this Room", lines = 3)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { vm.send() }, enabled = !view.running && !state.submitting && state.text.isNotBlank()) { Text("Send") }
-                    if (view.running) Button(onClick = { vm.stop() }, style = ButtonStyle.Ghost) { Text("Stop") }
+                key(room.id) {
+                    val text = rememberTextFieldState(state.text)
+                    var previous by remember { mutableStateOf(state.text) }
+                    LaunchedEffect(state.text) {
+                        if (text.text.toString() == previous && previous != state.text) text.setTextAndPlaceCursorAtEnd(state.text)
+                        previous = state.text
+                    }
+                    LaunchedEffect(text) { snapshotFlow { text.text.toString() }.collect { vm.text(it) } }
+                    TextArea(text, "Message this Room", lines = 3)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = { vm.text(text.text.toString()); vm.send() }, enabled = !view.running && !state.submitting && text.text.isNotBlank()) { Text("Send") }
+                        if (view.running) Button(onClick = { vm.stop() }, style = ButtonStyle.Ghost) { Text("Stop") }
+                    }
                 }
             }
         }
