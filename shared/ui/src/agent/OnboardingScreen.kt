@@ -288,7 +288,7 @@ internal fun OnboardingContent(
     var featured by remember { mutableIntStateOf(0) }
     val pokes = remember { mutableStateListOf(0, 0, 0, 0) }
     val feature = { i: Int -> featured = i; pokes[i] += 1 }
-    if (s.step == 0) LaunchedEffect(featured) { delay(2800); feature((featured + 1) % AvatarArtboards.size) }
+    if (s.step == 0) LaunchedEffect(featured) { delay(2800); feature((featured + 1) % pokes.size) }
     val tint by animateColorAsState(AvatarInk[if (s.step == 0) featured else s.avatar], tween(700))
     CompositionLocalProvider(LocalTint provides tint) {
         Box(Modifier.fillMaxSize().background(color(backgroundColor)).drawBehind {
