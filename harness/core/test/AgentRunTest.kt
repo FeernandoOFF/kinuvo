@@ -47,9 +47,9 @@ class AgentRunTest {
                     }
                 }
                 val events = AgentRun(home.agent, home.store, model, listOf(tool), requestKind = kind).run(session.id, "go").toList()
-                // The start node, history checks, model requests and each tool call share 50 iterations.
-                assertEquals(if (batch == 1) 16 else 10, calls)
-                assertEquals(if (batch == 1) 16 else 29, executed)
+                // The start node, history checks, model requests and each tool call share 200 iterations.
+                assertEquals(if (batch == 1) 66 else 40, calls)
+                assertEquals(if (batch == 1) 66 else 119, executed)
                 assertTrue(events.none { it is AgentEvent.RunFinished })
                 assertEquals("The work is unfinished; send another message to continue.", assertIs<AgentEvent.RunError>(events.last()).message)
                 val results = events.filterIsInstance<AgentEvent.ToolCallResult>()
