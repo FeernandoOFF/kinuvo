@@ -13,11 +13,14 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
+import com.composeunstyled.theme.Theme
+import androidx.compose.ui.graphics.Color
 import com.composables.icons.lucide.*
 import com.mohamedrejeb.richeditor.model.rememberRichTextState
 import kinuvo.app.rooms.*
@@ -41,8 +44,8 @@ fun RoomsScreen(agents: List<AgentInfo>, vm: RoomsViewModel, onOpen: (Route.Chat
                 RoomsContent(agents, state, RoomsActions(
                     onMenu = onMenu, onBack = onBack, creating = vm::creating, refresh = { vm.refresh() }, select = vm::select, name = vm::name, member = vm::member,
                     create = { vm.create() }, newSession = { vm.newSession() }, open = vm::open,
-                    approve = vm::approve, answer = vm::answer, recipient = vm::recipient, text = vm::text,
-                    send = { vm.send() }, stop = { vm.stop() }, rename = { vm.rename(it) }, onContext = { context = !context },
+                    approve = vm::approve, answer = vm::answer,
+                    edit = vm::edit, sendDraft = { vm.send(it) }, stop = { vm.stop() }, rename = { vm.rename(it) }, onContext = { context = !context }, contextOpen = context,
                 ), onOpen)
             }
             if (context && desktop) Box(Modifier.width(320.dp).fillMaxHeight()) {
@@ -58,23 +61,14 @@ fun RoomsScreen(agents: List<AgentInfo>, vm: RoomsViewModel, onOpen: (Route.Chat
     }
 }
 
+@OptIn(com.mohamedrejeb.richeditor.annotation.ExperimentalRichTextApi::class)
 @Composable
 fun RoomsContent(agents: List<AgentInfo>, state: RoomsState, vm: RoomsActions, onOpen: (Route.Chat) -> Unit, indicator: @Composable () -> Unit = {}) {
     val room = state.selected
     val view = state.view
     var renaming by remember(view?.session?.id) { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
-        TitleBarRow {
-            vm.onMenu?.let { HeaderButton(Lucide.Menu, "Agents and sessions", it) }
-            vm.onBack?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
-            Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                Text(room?.name ?: "Rooms", fontWeight = FontWeight.Medium, singleLine = true)
-                view?.session?.let { Text(it.displayTitle(), color = color(mutedColor), fontSize = 12.sp, singleLine = true) }
-            }
-            if (view != null) HeaderButton(Lucide.Pencil, "Rename Session", { renaming = true })
-            if (room != null) HeaderButton(Lucide.SquarePen, "New Session", vm.newSession)
-            HeaderButton(Lucide.PanelRight, "Session details", vm.onContext)
-        }
+        RoomHeader(state, vm, onRename = { renaming = true })
         HorizontalSeparator()
         if (renaming && view != null) Popover(true, { renaming = false }, "Rename Session") {
             val title = rememberTextFieldState(view.session.displayTitle())
@@ -107,13 +101,23 @@ fun RoomsContent(agents: List<AgentInfo>, state: RoomsState, vm: RoomsActions, o
                     }
                 }
                 items(view?.session?.messages.orEmpty(), key = { it.id }) { message ->
+                    val mentioned = remember(message.text, room.members) { com.mohamedrejeb.richeditor.model.RichTextState().apply { setMarkdown(message.text) }.roomDraft(room.members).recipients }
+                    val legacyRecipients = message.recipients.filterNot { it in mentioned }
                     Box(Modifier.fillMaxWidth(), contentAlignment = if (message.sender == null) Alignment.CenterEnd else Alignment.CenterStart) {
-                        Column(Modifier.widthIn(max = 760.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (message.sender == null) Panel(
+                            Modifier.widthIn(max = 560.dp), color = color(selectedControlColor), borderColor = Color.Transparent,
+                            shape = Theme[shapes][largeShape], contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+                        ) { Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            if (legacyRecipients.isNotEmpty()) Text(legacyRecipients.joinToString(" ") { id -> "@" + (agents.firstOrNull { it.id == id }?.name ?: id) }, fontSize = 12.sp, color = color(accentColor))
+                            RichMarkdown(message.text)
+                        } }
+                        else Column(Modifier.widthIn(max = 760.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 agents.firstOrNull { it.id == message.sender }?.let { AgentAvatar(it, 24.dp) }
-                                Text(message.senderName, fontSize = 13.sp, color = color(mutedColor))
+                                Text(message.senderName, Modifier.widthIn(max = 180.dp), fontSize = 13.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                                if (legacyRecipients.isNotEmpty()) Text(legacyRecipients.joinToString(" ") { id -> "@" + (agents.firstOrNull { it.id == id }?.name ?: id) },
+                                    Modifier.weight(1f), fontSize = 12.sp, color = color(accentColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
                             }
-                            if (message.recipients.isNotEmpty()) Text("To " + message.recipients.joinToString { id -> agents.firstOrNull { it.id == id }?.name ?: id }, fontSize = 12.sp, color = color(mutedColor))
                             RichMarkdown(message.text)
                         }
                     }
@@ -143,19 +147,88 @@ fun RoomsContent(agents: List<AgentInfo>, state: RoomsState, vm: RoomsActions, o
                         if (text.toMarkdown().trimEnd() == previous.trimEnd() && previous != state.text) text.setMarkdown(state.text)
                         previous = state.text
                     }
-                    LaunchedEffect(text) { snapshotFlow { text.annotatedString }.collect { vm.text(text.toMarkdown().trimEnd()) } }
-                    Column(Modifier.widthIn(max = 760.dp).fillMaxWidth()) {
-                        var recipients by remember { mutableStateOf(false) }
-                        Button(onClick = { recipients = !recipients }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) {
-                            Text(if (state.recipients.isEmpty()) "To Room · @mention to direct" else "To " + state.recipients.joinToString { id -> agents.firstOrNull { it.id == id }?.name ?: id }, fontSize = 12.sp)
-                        }
-                        if (recipients) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            room.members.forEach { id -> Checkbox(id in state.recipients, { vm.recipient(id) }) { Text("@" + (agents.firstOrNull { it.id == id }?.name ?: id)) } }
-                        }
-                        Composer(view.running, { vm.text(it); vm.send() }, vm.stop, placeholder = "Message ${room.name}", state = text, sending = state.submitting, clearOnSend = false, hint = "Members can reply or pass")
-                    }
+                    val completions = remember(room.members, agents) { listOf(roomCompletions(room.members, agents)) }
+                    LaunchedEffect(text, room.members) { snapshotFlow { Triple(text.annotatedString, text.selection, text.activeTriggerQuery) }.collect { vm.edit(text.roomDraft(room.members)) } }
+                    Composer(view.running, {
+                        val draft = text.roomDraft(room.members)
+                        vm.sendDraft(draft)
+                    }, vm.stop, modifier = Modifier.widthIn(max = 760.dp), placeholder = "Message ${room.name}", state = text,
+                        completions = completions, sending = state.submitting, clearOnSend = false)
+
                 }
             }
+        }
+    }
+}
+
+@Composable
+internal fun RoomHeader(state: RoomsState, actions: RoomsActions, onRename: () -> Unit) {
+    val room = state.selected
+    val session = state.view?.session
+    var menu by remember(session?.id) { mutableStateOf(false) }
+    val chrome = LocalWindowChrome.current
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val labeled = maxWidth >= 650.dp
+        val narrow = maxWidth < 500.dp
+        Column {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = if (narrow) 52.dp else 80.dp)
+                    .padding(chrome?.padding() ?: PaddingValues())
+                    .padding(horizontal = if (labeled) 20.dp else 12.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(if (labeled) 16.dp else 8.dp),
+            ) {
+                if (actions.onMenu != null) RoomHeaderAction(Lucide.Menu, "Agents and sessions", false, actions.onMenu)
+                else actions.onBack?.let { RoomHeaderAction(Lucide.ArrowLeft, "Back", false, it) }
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    if (room != null && !state.creating) Text(
+                        room.name, color = color(mutedColor), fontSize = 12.sp,
+                        fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis,
+                    )
+                    val title = if (state.creating) "New Room" else session?.displayTitle() ?: if (room != null) "New Session" else "Rooms"
+                    if (!narrow) Tooltip(side = TooltipSide.Bottom, panel = { TooltipPanel { Text(title) } }) {
+                        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Normal,
+                            singleLine = true, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    if (room != null && !state.creating) {
+                        RoomHeaderAction(Lucide.Plus, "New Session", labeled, actions.newSession)
+                        Spacer(Modifier.width(if (labeled) 8.dp else 0.dp))
+                        RoomHeaderAction(Lucide.PanelRight, "Session details", labeled, actions.onContext, actions.contextOpen, "Details")
+                    }
+                    if (session != null || (actions.onMenu != null && actions.onBack != null)) DropdownMenu(
+                        expanded = menu, onExpandedChange = { menu = it },
+                        panel = { DropdownMenuPanel {
+                            if (session != null) {
+                                DropdownMenuLabel { Text(session.displayTitle(), Modifier.widthIn(max = 280.dp)) }
+                                DropdownMenuItem(onClick = { menu = false; onRename() }) { Text("Rename Session") }
+                            }
+                            if (actions.onMenu != null) actions.onBack?.let { back ->
+                                DropdownMenuItem(onClick = { menu = false; back() }) { Text("Back") }
+                            }
+                        } },
+                    ) { RoomHeaderAction(Lucide.Ellipsis, "Session menu", false, { menu = true }) }
+                }
+            }
+            if (narrow) {
+                val title = if (state.creating) "New Room" else session?.displayTitle() ?: if (room != null) "New Session" else "Rooms"
+                Text(title, Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, bottom = 16.dp),
+                    fontSize = 18.sp, fontWeight = FontWeight.Normal, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun RoomHeaderAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, labeled: Boolean, onClick: () -> Unit, selected: Boolean = false, text: String = label) {
+    Tooltip(side = TooltipSide.Bottom, panel = { TooltipPanel { Text(label, fontSize = 12.sp) } }) {
+        Button(onClick = onClick, style = if (selected) ButtonStyle.Secondary else ButtonStyle.Ghost,
+            modifier = Modifier.height(40.dp).then(if (labeled) Modifier else Modifier.width(40.dp)).titleBarControl(),
+            contentPadding = PaddingValues(horizontal = if (labeled) 10.dp else 0.dp),
+        ) {
+            Icon(icon, Modifier.size(18.dp), contentDescription = label)
+            if (labeled) { Spacer(Modifier.width(7.dp)); Text(text, fontSize = 13.sp, fontWeight = FontWeight.Normal) }
         }
     }
 }
@@ -178,12 +251,13 @@ private fun CreateRoom(agents: List<AgentInfo>, state: RoomsState, vm: RoomsActi
 }
 
 class RoomsActions(
-    val onMenu: (() -> Unit)? = null, val onBack: (() -> Unit)? = null, val onContext: () -> Unit = {},
+    val contextOpen: Boolean = false, val onMenu: (() -> Unit)? = null, val onBack: (() -> Unit)? = null, val onContext: () -> Unit = {},
     val creating: (Boolean) -> Unit = {}, val refresh: () -> Unit = {}, val select: (Room) -> Unit = {},
     val name: (String) -> Unit = {}, val member: (String) -> Unit = {},
     val create: () -> Unit = {}, val newSession: () -> Unit = {}, val open: (RoomSession) -> Unit = {},
     val approve: (String, ApprovalDecision) -> Unit = { _, _ -> },
     val answer: (String, Map<String, List<String>>?) -> Unit = { _, _ -> },
     val rename: (String) -> Unit = {},
-    val recipient: (String) -> Unit = {}, val text: (String) -> Unit = {}, val send: () -> Unit = {}, val stop: () -> Unit = {},
+    val edit: (RoomDraft) -> Unit = {}, val sendDraft: (RoomDraft) -> Unit = {},
+    val stop: () -> Unit = {},
 )

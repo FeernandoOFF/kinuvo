@@ -99,7 +99,12 @@ properties:
     element:
       text: "Session execution"
     direction: DOWN
-- tapOn: "Agent default · This server machine"
+- tapOn: "Edit"
+- scrollUntilVisible:
+    element:
+      text: "Follow Agent default"
+    direction: DOWN
+- tapOn: "Follow Agent default"
 - tapOn: 'Nowhere \(no shell\)'
 - scrollUntilVisible:
     element:
@@ -108,15 +113,15 @@ properties:
 - tapOn: "Save execution"
 - takeScreenshot: rooms-execution
 - tapOn: "Close context"
-- tapOn: "To Room · @mention to direct"
-- tapOn: "@E2E Agent"
 - tapOn: "Message"
+- inputText: "@E2"
+- tapOn: "@E2E Agent"
 - inputText: "Check the plan"
-- assertVisible: "Check the plan"
+- assertVisible: ".*Check the plan.*"
 - scrollUntilVisible:
     element:
       text: "Send"
     direction: DOWN
 - takeScreenshot: rooms-recipient
 - tapOn: "Send"
-- assertNotVisible: "Check the plan"
+- assertNotVisible: ".*Check the plan.*"

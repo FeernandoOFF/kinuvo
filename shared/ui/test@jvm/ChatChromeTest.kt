@@ -93,6 +93,32 @@ class ChatChromeTest {
         }
     }
 
+    @Test fun managementDestinationsAreReachableFromSettingsWithoutPinnedRows() = javax.swing.SwingUtilities.invokeAndWait {
+        val agent = kinuvo.protocol.AgentInfo("pip", "Pip", "local")
+        val capabilities = kinuvo.protocol.ServerCapabilities("home", features = setOf(kinuvo.protocol.ServerFeature.Knowledge, kinuvo.protocol.ServerFeature.Computer))
+        var knowledge = 0
+        var computers = 0
+        ImageComposeScene(320, 844, Density(1f), content = {
+            HarnessTheme { com.composeunstyled.TooltipHost {
+                kinuvo.ui.navigation.Shell(kinuvo.ui.navigation.ShellState(agent = agent, agents = listOf(agent), capabilities = capabilities),
+                    kinuvo.ui.navigation.ShellActions(onKnowledge = { knowledge++ }, onComputers = { computers++ }),
+                    kinuvo.ui.navigation.ShellChrome(remember { mutableStateOf(true) }))
+            } }
+        }).use { scene ->
+            var time = 0L
+            fun frame() { repeat(6) { time += 150_000_000; scene.render(time) } }
+            frame()
+            assertNull(scene.node("Knowledge"))
+            assertNull(scene.node("Computers"))
+            scene.click("Settings ${kinuvo.ui.design.shortcut(",")}"); frame()
+            scene.click("Knowledge"); frame()
+            assertEquals(1, knowledge)
+            scene.click("Settings ${kinuvo.ui.design.shortcut(",")}"); frame()
+            scene.click("Computers"); frame()
+            assertEquals(1, computers)
+        }
+    }
+
     private fun ImageComposeScene.nodes(): List<SemanticsNode> {
         fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
         return semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }

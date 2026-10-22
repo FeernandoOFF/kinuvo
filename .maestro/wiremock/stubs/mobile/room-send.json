@@ -26,7 +26,7 @@
           {
             "matchesJsonPath": {
               "expression": "$.params.text",
-              "equalTo": "Check the plan"
+              "equalTo": "[@E2E Agent](trigger:room-member:e2e) Check the plan"
             }
           },
           {

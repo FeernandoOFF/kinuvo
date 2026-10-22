@@ -1,10 +1,10 @@
 package kinuvo.app.session
 
 /** One value the user can insert after a trigger, e.g. a Skill name after `/`. */
-data class Completion(val value: String, val description: String = "")
+data class Completion(val value: String, val description: String = "", val id: String? = null)
 
 /** Offers [items] for words starting with [trigger]; [startOnly] limits it to the message's first word. */
-data class CompletionSource(val trigger: Char, val items: List<Completion>, val startOnly: Boolean = false)
+data class CompletionSource(val trigger: Char, val items: List<Completion>, val startOnly: Boolean = false, val tokenTriggerId: String? = null)
 
 /** The trigger word being typed at the cursor: text[[start], [end]) is replaced on accept. */
 data class CompletionQuery(val source: CompletionSource, val start: Int, val end: Int, val query: String) {
@@ -24,7 +24,7 @@ fun findCompletion(text: String, selectionStart: Int, selectionEnd: Int = select
     val end = text.indexOfAny(Whitespace, cursor).let { if (it < 0) text.length else it }
     val word = text.substring(start, cursor)
     val source = sources.firstOrNull { s ->
-        word.firstOrNull() == s.trigger && (!s.startOnly || text.substring(0, start).isBlank())
+        s.tokenTriggerId == null && word.firstOrNull() == s.trigger && (!s.startOnly || text.substring(0, start).isBlank())
     } ?: return null
     return CompletionQuery(source, start, end, word.drop(1))
 }

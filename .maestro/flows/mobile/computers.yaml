@@ -19,6 +19,7 @@ properties:
 ---
 - runFlow: ../../shared/pair-mobile.yaml
 - tapOn: "Agents and sessions"
+- tapOn: "Settings.*"
 - tapOn: "Computers"
 - assertVisible: "Idle"
 - assertVisible: "Waiting for the screen…"

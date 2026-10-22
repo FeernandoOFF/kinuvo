@@ -202,8 +202,19 @@ private fun AgentRail(state: ShellState, actions: ShellActions) {
                 Icon(Lucide.Plus, Modifier.size(20.dp), tint = color(successColor))
             }
         }
-        RailItem("Settings ${shortcut(",")}", selected = false, news = false, onClick = actions.onSettings, enabled = state.agent != null) {
-            Icon(Lucide.Settings, Modifier.size(20.dp), tint = color(mutedColor))
+        var settingsMenu by remember { mutableStateOf(false) }
+        DropdownMenu(expanded = settingsMenu, onExpandedChange = { settingsMenu = it }, panel = {
+            DropdownMenuPanel {
+                DropdownMenuItem(onClick = { settingsMenu = false; actions.onSettings() }) { Text("Settings") }
+                if (state.capabilities.supports(ServerFeature.Knowledge))
+                    DropdownMenuItem(onClick = { settingsMenu = false; actions.onKnowledge() }) { Text("Knowledge") }
+                if (state.management && state.capabilities?.features?.contains(ServerFeature.Computer) == true)
+                    DropdownMenuItem(onClick = { settingsMenu = false; actions.onComputers() }) { Text("Computers") }
+            }
+        }) {
+            RailItem("Settings ${shortcut(",")}", selected = false, news = false, onClick = { settingsMenu = true }, enabled = state.agent != null) {
+                Icon(Lucide.Settings, Modifier.size(20.dp), tint = color(mutedColor))
+            }
         }
         ServerPicker(state.servers, actions)
     }
@@ -299,10 +310,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
             item(key = "pinned") {
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     Pinned(Lucide.SquareKanban, "Board", state.view is Route.Board, state.capabilities.supports(ServerFeature.Tasks), actions.onBoard)
-                    Pinned(Lucide.BookOpen, "Knowledge", state.view is Route.Knowledge, state.capabilities.supports(ServerFeature.Knowledge), actions.onKnowledge)
                     Pinned(Lucide.Shapes, "Artifacts", state.view is Route.Artifacts, state.capabilities.supports(ServerFeature.Artifacts), actions.onArtifacts)
-                    if (state.management && state.capabilities?.features?.contains(ServerFeature.Computer) == true)
-                        Pinned(Lucide.MonitorSmartphone, "Computers", state.view is Route.Computers, true, actions.onComputers)
                 }
             }
             val selected = (state.view as? Route.Chat)?.sessionId

@@ -38,6 +38,9 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.LocalContentColor
 import com.composeunstyled.theme.Theme
+import com.mohamedrejeb.richeditor.annotation.ExperimentalRichTextApi
+import com.mohamedrejeb.richeditor.model.trigger.Trigger
+import androidx.compose.ui.text.SpanStyle
 import com.mohamedrejeb.richeditor.model.RichTextState
 import com.mohamedrejeb.richeditor.model.rememberRichTextState
 import kotlin.math.PI
@@ -51,6 +54,7 @@ import com.mohamedrejeb.richeditor.ui.BasicRichTextEditor
  * [onDictate] and [onVoice] are set; while [dictating], Dictate stops it. Typing a [completions] trigger lists matching values to insert. While [blocked] is
  * set, sending is disabled and the reason replaces [hint].
  */
+@OptIn(ExperimentalRichTextApi::class)
 @Composable
 fun Composer(
     running: Boolean,
@@ -85,7 +89,21 @@ fun Composer(
         state.config.codeSpanStrokeColor = border
         state.config.codeSpanCornerRadius = 4.sp
     }
-    val query by remember(state, completions) { derivedStateOf { findCompletion(state.annotatedString.text, state.selection, completions) } }
+    val mentionColor = color(accentColor)
+    DisposableEffect(state, completions, mentionColor) {
+        val tokens = completions.filter { it.tokenTriggerId != null }
+        state.config.linkColor = mentionColor
+        tokens.forEach { source -> state.registerTrigger(Trigger(source.tokenTriggerId!!, source.trigger,
+            style = { SpanStyle(color = mentionColor, background = mentionColor.copy(alpha = .12f)) })) }
+        state.invalidateStyles()
+        onDispose { tokens.forEach { state.unregisterTrigger(it.tokenTriggerId!!) } }
+    }
+    val query by remember(state, completions) { derivedStateOf {
+        val token = state.activeTriggerQuery
+        val source = completions.firstOrNull { it.tokenTriggerId != null && it.tokenTriggerId == token?.triggerId }
+        if (token != null && source != null) CompletionQuery(source, token.range.start, token.range.end, token.query)
+        else findCompletion(state.annotatedString.text, state.selection, completions)
+    } }
     var dismissedAt by remember { mutableIntStateOf(-1) }
     var highlighted by remember { mutableIntStateOf(0) }
     LaunchedEffect(query?.start, query?.query) {
@@ -96,6 +114,10 @@ fun Composer(
     LaunchedEffect(open != null) { onCompletingChange(open != null) }
 
     fun accept(q: CompletionQuery, item: Completion) {
+        q.source.tokenTriggerId?.let { trigger ->
+            state.insertToken(trigger, requireNotNull(item.id), "${q.source.trigger}${item.value}")
+            return
+        }
         val text = q.insertion(item)
         state.replaceTextRange(TextRange(q.start, q.end), text)
         state.selection = TextRange(q.start + text.length)
@@ -108,7 +130,7 @@ fun Composer(
             Key.DirectionDown -> highlighted = (highlighted + 1) % shown.size
             Key.DirectionUp -> highlighted = (highlighted - 1 + shown.size) % shown.size
             Key.Enter, Key.Tab -> if (event.isShiftPressed) return false else accept(q, shown[highlighted.coerceIn(shown.indices)])
-            Key.Escape -> dismissedAt = q.start
+            Key.Escape -> { dismissedAt = q.start; if (q.source.tokenTriggerId != null) state.cancelActiveTrigger() }
             else -> return false
         }
         return true

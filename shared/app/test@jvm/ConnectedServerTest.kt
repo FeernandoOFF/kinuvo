@@ -353,6 +353,23 @@ class ConnectedServerTest {
         destination.clearAndJoin()
     }
 
+    @Test fun roomSendCapturesAtomicEditorDraftAndFiltersDepartedMembers() = withOwner { owner, _, _ ->
+        val script = Script("rooms")
+        connect(owner, script)
+        val vm = kinuvo.app.rooms.RoomsViewModel(owner.rooms)
+        store().put("rooms", vm)
+        vm.select(vm.state.first { it.rooms.isNotEmpty() }.rooms.single())
+        vm.state.first { it.view != null }
+        vm.edit(kinuvo.app.rooms.RoomDraft("Older editor value", listOf("agent")))
+        val snapshot = kinuvo.app.rooms.RoomDraft("[@Other](trigger:room-member:other) Review this", listOf("other", "departed", "other"))
+        vm.send(snapshot).join()
+        val params = ProtocolJson.decodeFromJsonElement(Api.SendRoom.params, script.requests.single { it.method == Api.SendRoom.name }.params)
+        assertEquals(snapshot.text, params.text)
+        assertEquals(listOf("other"), params.recipients)
+        assertEquals("", vm.state.value.text)
+        assertTrue(vm.state.value.recipients.isEmpty())
+    }
+
     @Test fun roomSendReservesSubmissionAndPreservesEditedDraft() = withOwner { owner, _, _ ->
         val script = Script("rooms")
         connect(owner, script)

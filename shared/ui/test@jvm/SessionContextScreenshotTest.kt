@@ -60,4 +60,35 @@ class SessionContextScreenshotTest {
             }
         }
     }
+    @Test fun pipDirectConversationAcrossLayoutsAndThemes() = javax.swing.SwingUtilities.invokeAndWait {
+        val pip = AgentInfo("pip", "Pip", "local")
+        val session = SessionInfo("hello", pip.id, "Hey")
+        val server = ServerCapabilities("home", features = setOf(ServerFeature.Artifacts, ServerFeature.Routines, ServerFeature.Shell, ServerFeature.Computer, ServerFeature.Knowledge, ServerFeature.Tasks))
+        val defaults = AgentSettings("model", "medium", "default", "none")
+        val effective = EffectiveSessionSettings("codex", "model", "medium", "default", "none", emptyList(), ContainerSettings(), null, emptyList())
+        val state = SessionContextState(agentId = pip.id, agents = listOf(pip), details = AgentDetails(pip, defaults, "", ""),
+            routines = emptyList(), artifacts = emptyList(), capabilities = SessionCapabilities(server = server, effective = effective))
+        for (dark in listOf(false, true)) for (width in listOf(390, 1440)) for (details in listOf(false, true)) {
+            ImageComposeScene(width, 900, Density(1f), content = {
+                HarnessTheme(dark = dark) { TooltipHost {
+                    Row(Modifier.fillMaxSize().background(color(backgroundColor))) {
+                        if (width > 600) Shell(ShellState(agents = listOf(pip), agent = pip, view = Route.Chat(pip.id, session.id), lists = mapOf(pip.id to SessionList(listOf(session))), capabilities = server), ShellActions(), ShellChrome(mutableStateOf(true)))
+                        if (width > 600 || !details) Box(Modifier.weight(1f)) {
+                            ChatContent(ChatState(agent = pip, selected = session.id, sessions = listOf(session), loaded = true,
+                                items = listOf(ChatItem.User("hey", "Hey"), ChatItem.Assistant("reply", "Hey! What would you like to work on?"))),
+                                kinuvo.client.ConnectionState.Connected("Home"), null, ChatActions(onContext = {}, contextOpen = details), onToggleShell = {})
+                        }
+                        if (details) Box(Modifier.then(if (width > 600) Modifier.width(320.dp) else Modifier.fillMaxWidth()).fillMaxHeight()) {
+                            SessionContextContent(state, SessionContextScope(agentId = pip.id, sessionId = session.id), true, server, 0L)
+                        }
+                    }
+                } }
+            }).use { scene ->
+                repeat(10) { scene.render(it * 150_000_000L) }
+                File("build/screens").apply { mkdirs() }.resolve("pip-direct-${if (details) "details-" else ""}${if (dark) "dark" else "light"}-$width.png")
+                    .writeBytes(scene.render(2_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+            }
+        }
+    }
+
 }

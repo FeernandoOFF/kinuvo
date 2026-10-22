@@ -1,6 +1,11 @@
 package kinuvo.ui
 
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.foundation.layout.Box
+import kinuvo.ui.design.LocalPopovers
+import kinuvo.ui.design.Popovers
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
@@ -27,7 +32,7 @@ class RoomsInputTest {
             var reported = ""
             ImageComposeScene(1000, 1500, Density(1f), coroutineContext = UnconfinedTestDispatcher(testScheduler), content = {
                 HarnessTheme {
-                    RoomsContent(emptyList(), state.value, RoomsActions(text = { reported = it }), {})
+                    RoomsContent(emptyList(), state.value, RoomsActions(edit = { reported = it.text }), {})
                 }
             }).use { scene ->
                 fun frame() { repeat(5) { scene.render(testScheduler.currentTime * 1_000_000); testScheduler.advanceTimeBy(100) } }
@@ -62,8 +67,8 @@ class RoomsInputTest {
             ImageComposeScene(1000, 900, Density(1f), coroutineContext = UnconfinedTestDispatcher(testScheduler), content = {
                 HarnessTheme {
                     RoomsContent(emptyList(), state.value, RoomsActions(
-                        text = { state.value = state.value.copy(text = it) },
-                        send = { submitted = state.value.text; state.value = state.value.copy(submitting = true) },
+                        edit = { state.value = state.value.copy(text = it.text, recipients = it.recipients) },
+                        sendDraft = { submitted = it.text; state.value = state.value.copy(submitting = true) },
                     ), {})
                 }
             }).use { scene ->
@@ -85,10 +90,71 @@ class RoomsInputTest {
         }
     }
 
+    @Test fun headerActionsAndRenameRemainUsableAtPhoneWidth() = javax.swing.SwingUtilities.invokeAndWait {
+        val room = Room("macbook", "Macbook", listOf("iris", "milo"))
+        val session = RoomSession("intro", room.id, title = "Hey guys, what is your name and what tools do yo")
+        var menu = 0
+        var back = 0
+        var created = 0
+        var details = 0
+        var renamed = ""
+        ImageComposeScene(320, 844, Density(1f), content = {
+            HarnessTheme { com.composeunstyled.TooltipHost {
+                val popovers = remember { Popovers() }
+                CompositionLocalProvider(LocalPopovers provides popovers) { Box {
+                RoomsContent(emptyList(), RoomsState(selected = room, view = RoomView(session)), RoomsActions(
+                    onMenu = { menu++ }, onBack = { back++ }, newSession = { created++ },
+                    onContext = { details++ }, rename = { renamed = it },
+                ), {})
+                popovers.Host()
+                } }
+            } }
+        }).use { scene ->
+            var time = 0L
+            fun frame() { repeat(8) { time += 150_000_000; scene.render(time) } }
+            frame()
+            scene.click("Agents and sessions"); scene.click("New Session"); scene.click("Session details")
+            assertEquals(1, menu); assertEquals(1, created); assertEquals(1, details)
+            scene.click("Session menu"); frame(); scene.click("Back"); frame()
+            assertEquals(1, back)
+            scene.click("Session menu"); frame(); scene.click("Rename Session"); frame()
+            fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
+            val input = scene.semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }.last { it.config.getOrNull(SemanticsProperties.EditableText) != null }
+            input.config[SemanticsActions.SetText].action!!.invoke(AnnotatedString("Introductions"))
+            frame(); scene.click("Save"); frame()
+            assertEquals("Introductions", renamed)
+        }
+    }
+
+    @Test fun acceptingMentionAndSendingImmediatelyUsesTheTokenSnapshot() = javax.swing.SwingUtilities.invokeAndWait {
+        val agents = listOf(AgentInfo("atlas", "Atlas", "local"), AgentInfo("pip", "Pip", "local"))
+        val room = Room("team", "Team", agents.map { it.id })
+        var sent: kinuvo.app.rooms.RoomDraft? = null
+        ImageComposeScene(390, 844, Density(1f), content = {
+            HarnessTheme { RoomsContent(agents, RoomsState(selected = room, view = RoomView(RoomSession("s", room.id))),
+                RoomsActions(sendDraft = { sent = it }), {}) }
+        }).use { scene ->
+            var time = 0L
+            fun frame() { repeat(6) { time += 150_000_000; scene.render(time) } }
+            frame()
+            scene.type("@At"); frame()
+            scene.click("@Atlas")
+            scene.click("Send")
+            assertEquals(listOf("atlas"), sent?.recipients)
+            assertEquals("[@Atlas](trigger:room-member:atlas)", sent?.text?.trim())
+            frame()
+            scene.type(""); frame()
+            scene.type("@Atlas plain"); frame()
+            scene.click("Send")
+            assertEquals(emptyList(), sent?.recipients)
+        }
+    }
+
     private fun ImageComposeScene.click(label: String) {
         fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
         var target = semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }.first {
-            it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains(label) == true
+            it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains(label) == true ||
+                it.config.getOrNull(SemanticsProperties.Text)?.any { text -> text.text == label } == true
         }
         while (target.config.getOrNull(SemanticsActions.OnClick) == null) target = requireNotNull(target.parent)
         target.config[SemanticsActions.OnClick].action!!.invoke()

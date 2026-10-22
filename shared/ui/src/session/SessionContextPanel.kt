@@ -120,7 +120,12 @@ internal fun SessionContextContent(
             if (context.memberAgentIds.isNotEmpty()) Picker(listOf<String?>(null) + context.memberAgentIds, state.agentId, { id ->
                 id?.let { member -> state.agents.firstOrNull { it.id == member }?.name ?: member } ?: "All members"
             }, actions.onSelectAgent)
-            state.details?.let { Text(it.info.name, fontSize = 18.sp, fontWeight = FontWeight.Normal) }
+            state.details?.let { details ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    AgentAvatar(details.info, 36.dp)
+                    Text(details.info.name, fontSize = 18.sp, fontWeight = FontWeight.Normal)
+                }
+            }
             state.error?.let { ErrorMessage(it) }
             computer()
             if (state.agentId != null) {
@@ -272,17 +277,19 @@ private fun ContextExecution(state: SessionContextState, defaults: AgentSettings
     val choices = listOf<String?>(null) + EXEC.keys.filter {
         (it == "none" || server.offers(Integration.Exec, it)) && (it != "ssh" || saved.ssh != null || defaults.ssh != null)
     }
-    Picker((choices + saved.exec).distinct(), chosen, { it?.let { EXEC[it] ?: it } ?: "Agent default · ${EXEC[defaults.exec] ?: defaults.exec}" }, { backend ->
-        chosen = backend
-        if (backend == null) { editing = false; onSave(saved.agentExecutionDefault()) } else editing = true
-    })
-    if (active != null) Text("Current run: ${EXEC[active.exec] ?: active.exec}", fontSize = 12.sp, color = color(mutedColor))
     val pending = active != null && effective != null && (active.exec != effective.exec || active.workspace != effective.workspace || active.container != effective.container || active.ssh != effective.ssh)
-    Text(if (pending) "Next run: ${EXEC[effective.exec] ?: effective.exec}" else if (saved.exec == null && saved.workspace == null && saved.container == null && saved.ssh == null) "Following Agent execution settings." else "Execution saved for this Session.", fontSize = 12.sp, color = color(mutedColor))
-    Text("Shell and files only. Changes apply to the next run. Files stay on their current backend.", fontSize = 12.sp, color = color(mutedColor))
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(EXEC[effective?.exec] ?: effective?.exec ?: "Agent default", fontSize = 13.sp)
+            Text(if (saved.exec == null && saved.workspace == null && saved.container == null && saved.ssh == null) "Agent default" else "Session override", fontSize = 12.sp, color = color(mutedColor))
+        }
+        Button(onClick = { chosen = saved.exec; editing = !editing }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text(if (editing) "Cancel" else "Edit") }
+    }
+    if (active != null) Text("Current run: ${EXEC[active.exec] ?: active.exec}" + if (pending) "\nNext run: ${EXEC[effective?.exec] ?: effective?.exec}" else "", fontSize = 12.sp, color = color(mutedColor))
     if (state.saving) Spinner(size = 14.dp)
-    Button(onClick = { editing = !editing }, style = ButtonStyle.Link) { Text(if (editing) "Close execution details" else "Workspace and connection") }
     if (editing) key(saved) {
+        Text("Shell and files. Changes apply to the next run; files stay on their current backend. Computer control is separate.", fontSize = 12.sp, color = color(mutedColor))
+        Picker((choices + saved.exec).distinct(), chosen, { it?.let { EXEC[it] ?: it } ?: "Follow Agent default" }, { chosen = it })
         val workspace = rememberTextFieldState((saved.workspace ?: defaults.workspace).joinToString("\n"))
         val container = saved.container ?: defaults.container
         val image = rememberTextFieldState(container.image)
@@ -320,11 +327,12 @@ private fun ContextExecution(state: SessionContextState, defaults: AgentSettings
                 require(backend != "ssh" || rawPort.isEmpty() || rawPort.toIntOrNull() != null) { "Enter a numeric SSH port" }
                 validateSessionExecution(settings, defaults)
             }.exceptionOrNull()?.message
-            if (error == null) onSave(settings)
+            if (error == null) { onSave(if (chosen == null && saved.exec != null) saved.agentExecutionDefault() else settings); editing = false }
         }, style = ButtonStyle.Outlined) { Text("Save execution") }
+        if (saved.exec != null || saved.workspace != null || saved.container != null || saved.ssh != null)
+            Button(onClick = { onSave(saved.agentExecutionDefault()); chosen = null; editing = false }, style = ButtonStyle.Link) { Text("Use Agent execution default") }
+        Button(onClick = onSettings, style = ButtonStyle.Link) { Text("Agent execution settings") }
     }
-    Button(onClick = { onSave(saved.agentExecutionDefault()); chosen = null; editing = false }, style = ButtonStyle.Link) { Text("Use Agent execution default") }
-    Button(onClick = onSettings, style = ButtonStyle.Link) { Text("Agent execution settings") }
 }
 
 @Composable

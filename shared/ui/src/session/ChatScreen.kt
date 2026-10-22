@@ -196,7 +196,7 @@ fun ChatScreen(
                             onWatch = { onNavigate(Route.Computers()) },
                             onLoadOlder = session::loadOlder,
                             onSettings = { route.agentId?.let(onSettings) },
-                            onContext = { contextOpen = !contextOpen },
+                            onContext = { contextOpen = !contextOpen }, contextOpen = contextOpen,
                             onRename = session::rename,
                             onFavorite = session::favorite,
                             onVoice = voice?.let { v -> { dictation?.stop(); v.start() } },
@@ -260,6 +260,7 @@ class ChatActions(
     val onLoadOlder: () -> Unit = {},
     val onSettings: () -> Unit = {},
     val onContext: (() -> Unit)? = null,
+    val contextOpen: Boolean = false,
     val onRename: (String) -> Unit = {},
     val onFavorite: (Boolean) -> Unit = {},
     val onVoice: (() -> Unit)? = null,
@@ -535,24 +536,31 @@ internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit,
 
 @Composable
 private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, controls: @Composable () -> Unit) {
-    TitleBarRow {
-        controls()
-        Spacer(Modifier.width(6.dp))
-        val selected = state.sessions.firstOrNull { it.id == state.selected } ?: state.info
-        Row(Modifier.weight(1f).padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                selected?.title ?: state.agent?.name ?: "…",
-                Modifier.weight(1f, fill = false),
-                fontWeight = FontWeight.Normal,
-                singleLine = true,
-                overflow = TextOverflow.Ellipsis,
-            )
-            selected?.let { SessionBadge(it) }
+    var statistics by remember(state.selected) { mutableStateOf(false) }
+    BoxWithConstraints {
+        val labeled = maxWidth >= 650.dp
+        TitleBarRow {
+            controls()
+            Spacer(Modifier.width(6.dp))
+            val selected = state.sessions.firstOrNull { it.id == state.selected } ?: state.info
+            Row(Modifier.weight(1f).padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(selected?.title ?: state.agent?.name ?: "…", Modifier.weight(1f, fill = false), fontWeight = FontWeight.Normal,
+                    singleLine = true, overflow = TextOverflow.Ellipsis)
+                selected?.let { SessionBadge(it) }
+            }
+            actions.onContext?.let { toggle ->
+                Button(onClick = toggle, style = if (actions.contextOpen) ButtonStyle.Secondary else ButtonStyle.Ghost,
+                    modifier = Modifier.height(36.dp).titleBarControl(), contentPadding = PaddingValues(horizontal = 10.dp)) {
+                    Icon(Lucide.PanelRight, Modifier.size(17.dp), contentDescription = "Session context")
+                    if (labeled) { Spacer(Modifier.width(7.dp)); Text("Details", fontSize = 13.sp, fontWeight = FontWeight.Normal) }
+                }
+            }
+            SessionMenu(selected, actions, extra = { close ->
+                DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
+            }) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
         }
-        actions.onContext?.let { HeaderButton(Lucide.PanelRight, "Session context", it) }
-        ChatStatistics(usage, remember(state.items) { state.items.requestMetrics() }, state.selected)
-        if (selected != null) SessionMenu(selected, actions) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
     }
+    Popover(statistics, { statistics = false }) { ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth()) }
 }
 
 /** Favorite and Rename for the open Session, under [trigger]; [extra] items go first. */

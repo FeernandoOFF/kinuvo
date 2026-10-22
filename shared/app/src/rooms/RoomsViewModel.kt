@@ -134,6 +134,12 @@ class RoomsViewModel(private val repo: RoomsRepository) : ViewModel() {
         state.update { it.copy(text = value) }
         saveDraft()
     }
+    fun edit(value: RoomDraft) {
+        val recipients = value.recipients.filter { it in state.value.selected?.members.orEmpty() }.distinct()
+        if (RoomDraft(state.value.text, state.value.recipients) != value.copy(recipients = recipients)) draft++
+        state.update { it.copy(text = value.text, recipients = recipients) }
+        saveDraft()
+    }
     fun recipient(id: String) {
         draft++
         state.update {
@@ -151,6 +157,10 @@ class RoomsViewModel(private val repo: RoomsRepository) : ViewModel() {
             state.update { it.copy(roomSessions = it.roomSessions + (session.roomId to sessions)) }
             if (selection == generation) state.update { it.copy(sessions = sessions, view = it.view?.let { v -> v.copy(session = v.session.copy(title = title.trim())) }) }
         }
+    }
+    fun send(value: RoomDraft): Job {
+        edit(value)
+        return send()
     }
     fun send(): Job {
         if (state.value.submitting) return viewModelScope.launch {}
@@ -209,4 +219,7 @@ internal class RoomDrafts {
     }
 }
 
-fun RoomSession.displayTitle() = title.ifBlank { messages.firstOrNull()?.text?.lineSequence()?.firstOrNull()?.take(48) ?: "New Session" }
+fun RoomSession.displayTitle() = title.ifBlank { messages.firstOrNull()?.text?.lineSequence()?.firstOrNull() ?: "New Session" }
+    .replace(RoomMentionTitle) { it.groupValues[1] }
+
+private val RoomMentionTitle = Regex("""\[(@[^]]+)]\(trigger:room-member:[^)]*\)?""")
