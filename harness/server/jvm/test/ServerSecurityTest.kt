@@ -142,6 +142,13 @@ class ServerSecurityTest {
             ordinary = KinuvoClient("ws://127.0.0.1:$port/ws", "ordinary", pairingCode = code.code)
             assertFalse(ordinary.connect().management)
             assertTrue(ordinary.call(Api.Agents, Unit).isNotEmpty())
+            owner.call(Api.CreateAgent, CreateAgentParams("other"))
+            val room = owner.call(Api.CreateRoom, CreateRoomParams("Team", listOf("default", "other")))
+            val session = ordinary.call(Api.CreateRoomSession, RoomRef(room.id, "Original"))
+            assertEquals("Renamed", ordinary.call(Api.UpdateRoomSession, UpdateRoomSessionParams(room.id, session.id, "Renamed")).title)
+            assertFails { ordinary.call(Api.ConfigureRoomSession, ConfigureRoomSessionParams(room.id, session.id, "other", SessionSettings(exec = "none"))) }
+            val direct = ordinary.call(Api.CreateSession, AgentRef("default"))
+            assertFails { ordinary.call(Api.ConfigureSession, ConfigureSessionParams("default", direct.id, SessionSettings(exec = "none"))) }
             assertFails { ordinary.call(Api.Pairing, PairingParams(management = true)) }
             assertFails { ordinary.call(Api.Approve, ApprovalParams("missing", ApprovalDecision.AllowOnce)) }
             assertFails { ordinary.call(Api.LoginProvider, ProviderRef("codex")) }

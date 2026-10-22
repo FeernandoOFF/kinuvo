@@ -55,6 +55,10 @@ fun Agent.with(settings: SessionSettings) = copy(
         model = settings.model ?: config.model,
         reasoning = settings.reasoning ?: config.reasoning,
         approvals = settings.approvals ?: config.approvals,
+        exec = settings.exec ?: config.exec,
+        workspace = settings.workspace ?: config.workspace,
+        container = settings.container ?: config.container,
+        ssh = settings.ssh ?: config.ssh,
     ),
 )
 

@@ -16,8 +16,11 @@ class ExecPlugin(private val files: AgentFiles, private val secrets: Secrets = S
     override val definition = kinuvo.protocol.PluginDefinition("kinuvo.exec", "Shell and files")
     override val features = setOf(kinuvo.protocol.ServerFeature.Shell)
     private val lock = Mutex()
-    private val backends = mutableMapOf<String, ExecBackend?>()
-    private val states = mutableMapOf<String, kinuvo.protocol.CapabilityState>()
+    private data class Key(val agentId: String, val exec: String, val workspace: List<String>, val container: kinuvo.protocol.ContainerSettings,
+        val ssh: kinuvo.protocol.SshSettings?, val env: Map<String, String>)
+    private fun key(agent: Agent) = agent.config.let { Key(agent.id, it.exec, it.workspace, it.container, it.ssh, it.env) }
+    private val backends = mutableMapOf<Key, ExecBackend?>()
+    private val states = mutableMapOf<Key, kinuvo.protocol.CapabilityState>()
 
     override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
         val agent = run.agent
@@ -27,7 +30,7 @@ class ExecPlugin(private val files: AgentFiles, private val secrets: Secrets = S
             override suspend fun execScript(script: String, cwd: String, stdin: String?, timeout: kotlin.time.Duration, maxChars: Int): ExecResult =
                 error("Inspection cannot execute commands")
         }
-        val cached = lock.withLock { backends[agent.id] to states[agent.id] }
+        val cached = lock.withLock { backends[key(agent)] to states[key(agent)] }
         val definitions = execTools(cached.first ?: preview)
         val state = when {
             agent.config.workspace.isEmpty() -> kinuvo.protocol.CapabilityState.unavailable("Exec needs at least one Workspace folder")
@@ -39,7 +42,7 @@ class ExecPlugin(private val files: AgentFiles, private val secrets: Secrets = S
         } catch (e: kotlinx.coroutines.CancellationException) { throw e }
         catch (e: Exception) { PluginTools(warnings = listOf("Exec backend unavailable: ${e.message}")) }
         val resolved = if (!activate) state else if (result.tools.isEmpty()) kinuvo.protocol.CapabilityState.unavailable(result.warnings.firstOrNull() ?: "Exec backend unavailable") else kinuvo.protocol.CapabilityState()
-        if (activate) lock.withLock { states[agent.id] = resolved }
+        if (activate) lock.withLock { states[key(agent)] = resolved }
         return result.copy(catalog = definitions.map { kinuvo.protocol.ResolvedTool(it.descriptor.name,
             location = if (agent.config.exec == "ssh") kinuvo.protocol.ExecutionLocation.External else kinuvo.protocol.ExecutionLocation.ServerHost,
             target = agent.config.ssh?.host,
@@ -70,7 +73,11 @@ class ExecPlugin(private val files: AgentFiles, private val secrets: Secrets = S
     override suspend fun readFile(agent: Agent, path: String): String? = backend(agent)?.read(path, Artifacts.MAX_CHARS, whole = true)
 
     override suspend fun release(agentId: String) {
-        lock.withLock { states.remove(agentId); backends.remove(agentId) }?.close()
+        val removed = lock.withLock {
+            states.keys.removeAll { it.agentId == agentId }
+            backends.keys.filter { it.agentId == agentId }.map { backends.remove(it) }
+        }
+        removed.forEach { it?.close() }
     }
 
     override suspend fun close() {
@@ -83,6 +90,13 @@ class ExecPlugin(private val files: AgentFiles, private val secrets: Secrets = S
     }
 
     private suspend fun backend(agent: Agent): ExecBackend? = lock.withLock {
-        backends.getOrPut(agent.id) { ExecBackends.create(agent, files, secrets) }
+        val key = key(agent)
+        backends.getOrPut(key) {
+            val encoded = kinuvo.protocol.ProtocolJson.encodeToString(kinuvo.harness.core.AgentConfig.serializer(),
+                kinuvo.harness.core.AgentConfig(exec = key.exec, workspace = key.workspace, container = key.container,
+                    ssh = key.ssh, env = key.env.toSortedMap()))
+            val suffix = java.security.MessageDigest.getInstance("SHA-256").digest(encoded.toByteArray()).take(12).joinToString("") { "%02x".format(it) }
+            ExecBackends.create(agent, files, secrets, resourceId = "${agent.id}_$suffix")
+        }
     }
 }

@@ -7,6 +7,8 @@ import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -69,6 +71,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
         onDone: suspend (stopped: Boolean) -> Unit = {},
         runner: suspend () -> AgentRun,
     ): Run {
+        currentCoroutineContext().ensureActive()
         // Reserve the Session before anything suspends, so two sends can't both start a run in it.
         val reservation = Job()
         active.block { runs ->
@@ -81,6 +84,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
         counted.invokeOnCompletion { activity.update { a -> a.copy(runs = a.runs - 1) } }
         try {
             val r = runner()
+            currentCoroutineContext().ensureActive()
             val runId = Uuid.random().toString()
             if (!reservation.isActive) stoppedEarly(sessionId, reservation, onDone)
             val job = scope.launch(start = CoroutineStart.LAZY) {

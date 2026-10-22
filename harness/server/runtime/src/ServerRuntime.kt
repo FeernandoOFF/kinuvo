@@ -270,7 +270,9 @@ class ServerRuntime(
         Api.Rooms.name -> respond(r, Api.Rooms) { rooms.list() }
         Api.CreateRoom.name -> respond(r, Api.CreateRoom) { rooms.create(it) }
         Api.RoomSessions.name -> respond(r, Api.RoomSessions) { rooms.sessions(it.roomId) }
-        Api.CreateRoomSession.name -> respond(r, Api.CreateRoomSession) { rooms.createSession(it.roomId) }
+        Api.CreateRoomSession.name -> respond(r, Api.CreateRoomSession) { rooms.createSession(it.roomId, it.title) }
+        Api.ConfigureRoomSession.name -> respond(r, Api.ConfigureRoomSession) { rooms.configure(it).also { changedCapabilities() } }
+        Api.UpdateRoomSession.name -> respond(r, Api.UpdateRoomSession) { rooms.update(it) }
         Api.RoomSession.name -> respond(r, Api.RoomSession) { rooms.view(it) }
         Api.SendRoom.name -> respond(r, Api.SendRoom) { rooms.send(it) }
         Api.StopRoom.name -> respond(r, Api.StopRoom) { rooms.stop(it) }

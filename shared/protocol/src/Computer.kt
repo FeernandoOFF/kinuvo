@@ -107,7 +107,8 @@ enum class ComputerControl { Idle, Agent, User }
 @Serializable
 data class ComputerInfo(val id: String, val name: String, val platform: String, val available: Boolean,
     val control: ComputerControl = ComputerControl.Idle, val takeoverRequest: String? = null,
-    val actions: Set<String> = ComputerActionKind.basic.map { it.action }.toSet())
+    val actions: Set<String> = ComputerActionKind.basic.map { it.action }.toSet(),
+    val agentId: String? = null, val sessionId: String? = null, val roomSessionId: String? = null)
 
 @Serializable
 data class WatchComputerParams(val computerId: String, val watch: Boolean)

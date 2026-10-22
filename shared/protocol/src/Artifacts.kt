@@ -14,6 +14,7 @@ data class ArtifactInfo(
     val sessionId: String? = null,
     val created: Long,
     val updated: Long,
+    val roomSessionId: String? = null,
 )
 
 @Serializable

@@ -52,6 +52,27 @@ class ComputerToolsTest {
 
     private fun args(action: String, values: JsonObjectBuilder.() -> Unit = {}) = buildJsonObject { put("action", action); values() }
 
+    @Test fun activeUsageKeepsOriginalPrivateSessionAndPublicRoomAttribution() = runTest {
+        tools()
+        val context = RunContext(agent, "private", roomSessionId = "public")
+        val prepared = computers.prepare(context, true).tools.associateBy { it.descriptor.name }
+        assertNull(computers.list().single().agentId)
+        prepared.getValue("computer_capture").execute(buildJsonObject {}, "capture", run)
+        val active = computers.list().single()
+        assertEquals(agent.id, active.agentId)
+        assertEquals("private", active.sessionId)
+        assertEquals("public", active.roomSessionId)
+        computers.finished("unrelated")
+        assertEquals(active.agentId, computers.list().single().agentId)
+        computers.finished("private")
+        val idle = computers.list().single()
+        assertNull(idle.agentId)
+        assertNull(idle.sessionId)
+        assertNull(idle.roomSessionId)
+        assertEquals(ComputerControl.Idle, idle.control)
+        computers.close()
+    }
+
     @Test fun capabilitiesFilterToolsAndActionsAndRejectUnsupportedComputers() = runTest {
         val tools = tools(ComputerActionKind.android)
         assertTrue("computer_apps" in tools)

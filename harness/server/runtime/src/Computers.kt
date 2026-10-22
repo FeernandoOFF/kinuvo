@@ -37,7 +37,7 @@ class Computers(
     private val watchLock = co.touchlab.stately.concurrency.Lock()
 
     /** [local] when the user took over on the Computer itself, which tells when they hand it back. */
-    private data class Control(val user: Boolean = false, val local: Boolean = false, val agentAt: Long = 0, val request: String? = null)
+    private data class Control(val user: Boolean = false, val local: Boolean = false, val agentAt: Long = 0, val request: String? = null, val run: RunContext? = null)
     private val controls = MutableStateFlow(emptyMap<String, Control>())
     private class Watching(val watchers: Set<(ComputerFrame) -> Unit>, val job: Job?, val frameAt: Long = 0)
     private val watching = MutableStateFlow(emptyMap<String, Watching>())
@@ -80,7 +80,14 @@ class Computers(
             now() - c.agentAt < AGENT_ACTIVE_MS -> ComputerControl.Agent
             else -> ComputerControl.Idle
         }
-        return ComputerInfo(computer.id, computer.name, computer.platform, computer.available, control, c.request, computer.actions.map { it.action }.toSet())
+        val run = c.run.takeIf { computer.available && control != ComputerControl.Idle }
+        return ComputerInfo(computer.id, computer.name, computer.platform, computer.available, control, c.request,
+            computer.actions.map { it.action }.toSet(), run?.agent?.id, run?.sessionId, run?.roomSessionId)
+    }
+
+    fun finished(sessionId: String) {
+        controls.update { all -> all.mapValues { (_, c) -> if (c.run?.sessionId == sessionId) c.copy(agentAt = 0, run = null) else c } }
+        changed()
     }
 
     fun list() = all().map(::info)
@@ -95,10 +102,11 @@ class Computers(
      * Performs [request] on [computer], one at a time per Computer. An [agent]'s request is refused under the same lock
      * once the user has taken over, so one queued behind another action can't slip into a Takeover.
      */
-    private suspend fun perform(computer: Computer, request: ComputerRequest, agent: Boolean = false): ComputerResult {
+    private suspend fun perform(computer: Computer, request: ComputerRequest, agent: Boolean = false, context: RunContext? = null): ComputerResult {
         val lock = locksLock.withLock { locks.getOrPut(computer.id) { Mutex() } }
         val result = lock.withLock {
             if (agent && controls.value[computer.id]?.user == true) return@withLock ComputerResult(DeviceToolStatus.Unavailable, "The user controls ${computer.name}", userControl = true)
+            if (agent) control(computer.id) { it.copy(agentAt = now(), run = context) }
             val result = try {
                 withTimeoutOrNull(60_000) { computer.perform(request.copy(keepAwake = controls.value[computer.id]?.user == true && !request.release)) }
                     ?: ComputerResult(DeviceToolStatus.Unavailable, "${computer.name} didn't answer in time")
@@ -117,10 +125,9 @@ class Computers(
     }
 
     /** An Agent's [request]: it waits while the user controls [computer], and is refused if they took over meanwhile. */
-    suspend fun act(computer: Computer, request: ComputerRequest): ComputerResult {
+    suspend fun act(computer: Computer, request: ComputerRequest, context: RunContext? = null): ComputerResult {
         awaitUser(computer)
-        control(computer.id) { it.copy(agentAt = now()) }
-        val result = perform(computer, request, agent = true)
+        val result = perform(computer, request, agent = true, context = context)
         if (!result.userControl) return result
         awaitUser(computer)
         return ComputerResult(DeviceToolStatus.Skipped, "The user took over ${computer.name} and has handed it back; capture again before acting.")
@@ -213,9 +220,9 @@ class Computers(
         val seen = mutableMapOf<String, ComputerScreen>()
         val windows = mutableMapOf<String, List<ComputerWindow>>()
         val supported = all().filter { it.available }.flatMap { it.actions }.toSet()
-        val tools = listOf(ListTool(), CaptureTool(seen), ActTool(seen, windows, supported)) +
-            listOfNotNull(ReadTool(false, windows).takeIf { ComputerActionKind.ListApps in supported },
-                ReadTool(true, windows).takeIf { ComputerActionKind.ListWindows in supported }) + listOfNotNull(run.sessionId?.let { TakeoverTool(run) })
+        val tools = listOf(ListTool(), CaptureTool(seen, run), ActTool(seen, windows, supported, run)) +
+            listOfNotNull(ReadTool(false, windows, run).takeIf { ComputerActionKind.ListApps in supported },
+                ReadTool(true, windows, run).takeIf { ComputerActionKind.ListWindows in supported }) + listOfNotNull(run.sessionId?.let { TakeoverTool(run) })
         return PluginTools(tools, catalog = tools.map { ResolvedTool(it.descriptor.name, state = if (it is ListTool) CapabilityState() else state) })
     }
 
@@ -246,7 +253,7 @@ class Computers(
         }
     }
 
-    private inner class ReadTool(private val windowList: Boolean, private val windows: MutableMap<String, List<ComputerWindow>>) : Tool {
+    private inner class ReadTool(private val windowList: Boolean, private val windows: MutableMap<String, List<ComputerWindow>>, private val context: RunContext) : Tool {
         override val risk = Risk.Low
         private val action = if (windowList) ComputerActionKind.ListWindows else ComputerActionKind.ListApps
         override val descriptor = ToolDescriptor(if (windowList) "computer_windows" else "computer_apps",
@@ -256,7 +263,7 @@ class Computers(
         override suspend fun execute(args: JsonObject): String {
             val computer = choose(args)
             require(action in computer.actions) { "${action.action} is not supported on ${computer.name}" }
-            val result = act(computer, ComputerRequest(ComputerAction(action), screenshot = false, elements = false))
+            val result = act(computer, ComputerRequest(ComputerAction(action), screenshot = false, elements = false), context)
             if (result.status != DeviceToolStatus.Ready) return "${result.status}: ${result.message}"
             if (windowList) {
                 val listed = requireNotNull(result.windows) { "${computer.name} returned no windows" }
@@ -270,7 +277,7 @@ class Computers(
         }
     }
 
-    private inner class CaptureTool(private val seen: MutableMap<String, ComputerScreen>) : Tool {
+    private inner class CaptureTool(private val seen: MutableMap<String, ComputerScreen>, private val context: RunContext) : Tool {
         override val descriptor = ToolDescriptor(
             "computer_capture", "See a Computer's screen: its foreground app, numbered elements and a screenshot.",
             optionalParameters = listOf(
@@ -281,14 +288,14 @@ class Computers(
         override suspend fun execute(args: JsonObject): String = error("Computer use needs a run")
         override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {
             val computer = choose(args)
-            val result = act(computer, ComputerRequest(screenshot = args.boolean("screenshot") ?: true))
+            val result = act(computer, ComputerRequest(screenshot = args.boolean("screenshot") ?: true), context)
             result.screen?.let { seen[computer.id] = it }
             return show(computer, result, run)
         }
     }
 
     private inner class ActTool(private val seen: MutableMap<String, ComputerScreen>,
-        private val windows: MutableMap<String, List<ComputerWindow>>, supported: Set<ComputerActionKind>) : Tool {
+        private val windows: MutableMap<String, List<ComputerWindow>>, supported: Set<ComputerActionKind>, private val context: RunContext) : Tool {
         /** The app [args] acts in, as named in Trust rules, and whether it types into a password field; null app before any capture. */
         private fun target(args: JsonObject): Triple<ComputerActionKind?, String?, Boolean> {
             val action = ACTIONS[args.string("action")]
@@ -388,7 +395,7 @@ class Computers(
                 return "Crop of capture ${screen.capture}: $w×${h}px at $x,$y. Element numbers and action coordinates still refer to the full capture."
             }
             if (kind == ComputerActionKind.VerifyState) {
-                val result = act(computer, ComputerRequest(screenshot = false))
+                val result = act(computer, ComputerRequest(screenshot = false), context)
                 if (result.status != DeviceToolStatus.Ready) return "${result.status}: ${result.message}"
                 val screen = requireNotNull(result.screen) { "${computer.name} returned no screen" }
                 seen.remove(computer.id)
@@ -408,7 +415,7 @@ class Computers(
             val request = ComputerRequest(action, seen[computer.id]?.capture, args.boolean("screenshot") ?: true,
                 app = app.takeIf { kind !in setOf(ComputerActionKind.OpenApp, ComputerActionKind.KillApp, ComputerActionKind.Wait, ComputerActionKind.ClipboardRead) && !(kind == ComputerActionKind.Key && action.key?.lowercase() in NAVIGATION) },
                 password = password)
-            val result = act(computer, request)
+            val result = act(computer, request, context)
             result.screen?.let { seen[computer.id] = it }
             if (kind == ComputerActionKind.ClipboardRead && result.status == DeviceToolStatus.Ready)
                 return buildJsonObject { put("text", result.clipboard ?: "") }.toString()
@@ -430,7 +437,7 @@ class Computers(
             val reason = args.requireString("reason").trim().take(300).trimEnd('.')
             val sessionId = requireNotNull(context.sessionId)
             val pending = questions().register()
-            control(computer.id) { it.copy(request = reason) }
+            control(computer.id) { it.copy(request = reason, run = context, agentAt = now()) }
             try {
                 log.publish(context.agent, sessionId, AgentEvent.QuestionsAsked(pending.id, callId, "Take over ${computer.name}: $reason. Open Computers to watch and act, then hand it back.",
                     listOf(Question("note", "Note for the Agent (optional)", placeholder = "Done, or what happened"))))

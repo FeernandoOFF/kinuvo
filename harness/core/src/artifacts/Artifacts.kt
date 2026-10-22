@@ -33,19 +33,19 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
 
     private suspend fun find(id: String) = repo.get(id) ?: error("No artifact '$id'")
 
-    suspend fun create(agentId: String, sessionId: String?, title: String, type: String, content: String): ArtifactInfo = lock.withLock {
+    suspend fun create(agentId: String, sessionId: String?, title: String, type: String, content: String, roomSessionId: String? = null): ArtifactInfo = lock.withLock {
         require(title.isNotBlank()) { "Give the artifact a title" }
         val taken = repo.list().map { it.id }.toSet()
         val slug = title.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(40).ifEmpty { "artifact" }
         val id = generateSequence { "$slug-${Random.nextInt(0x10000).toString(16).padStart(4, '0')}" }.first { it !in taken }
         val now = clock()
-        ArtifactInfo(id, title.trim(), checkedType(type), agentId, sessionId, now, now).also { save(it, content) }
+        ArtifactInfo(id, title.trim(), checkedType(type), agentId, sessionId, now, now, roomSessionId).also { save(it, content) }
     }
 
     /** Replaces [id]'s content with what [transform] makes of it, and its title when [title] is set. */
-    suspend fun update(id: String, agentId: String, sessionId: String?, title: String? = null, transform: (String) -> String): ArtifactInfo = lock.withLock {
+    suspend fun update(id: String, agentId: String, sessionId: String?, title: String? = null, roomSessionId: String? = null, transform: (String) -> String): ArtifactInfo = lock.withLock {
         val old = find(id)
-        val info = old.info.copy(title = title?.trim()?.ifEmpty { null } ?: old.info.title, agentId = agentId, sessionId = sessionId, updated = clock())
+        val info = old.info.copy(title = title?.trim()?.ifEmpty { null } ?: old.info.title, agentId = agentId, sessionId = sessionId, roomSessionId = roomSessionId, updated = clock())
         info.also { save(it, transform(old.content)) }
     }
 

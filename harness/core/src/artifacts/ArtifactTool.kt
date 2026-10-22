@@ -18,6 +18,7 @@ class ArtifactTool(
     private val agent: Agent,
     private val sessionId: String?,
     private val artifacts: Artifacts,
+    private val roomSessionId: String? = null,
     private val readWorkspace: suspend (String) -> String,
 ) : Tool {
     override val risk = Risk.Low
@@ -46,12 +47,12 @@ class ArtifactTool(
         "create" -> {
             val path = args.given("from_path")
             val type = args.given("type") ?: path?.substringAfterLast('.', "")?.takeIf { it.isNotEmpty() } ?: error("Give a type")
-            saved(artifacts.create(agent.id, sessionId, args.requireString("title"), type, content(args)?.takeIf { it.isNotBlank() } ?: error("Give content or from_path")))
+            saved(artifacts.create(agent.id, sessionId, args.requireString("title"), type, content(args)?.takeIf { it.isNotBlank() } ?: error("Give content or from_path"), roomSessionId))
         }
         "update" -> {
             val content = content(args)
             val old = args.given("old")
-            saved(artifacts.update(args.requireString("id"), agent.id, sessionId, args.given("title")) { current ->
+            saved(artifacts.update(args.requireString("id"), agent.id, sessionId, args.given("title"), roomSessionId) { current ->
                 when {
                     content != null -> content
                     old != null -> {

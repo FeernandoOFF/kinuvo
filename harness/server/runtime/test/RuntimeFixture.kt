@@ -52,12 +52,13 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
         override suspend fun update(agentId: String, transform: (TrustRules) -> TrustRules) { rules = transform(rules) }
     }
     var reflectionConfig = kinuvo.harness.core.store.ReflectionConfig()
+    var execOptions = emptySet<String>()
     val settings = object : ServerSettings {
         override var timeZone: TimeZone = TimeZone.UTC
         override val reflectionModel get() = reflectionConfig
         override val reflectionEnabled = true
         override val reflectionPrompt = DEFAULT_REFLECTION_PROMPT
-        override val integrations = mapOf(Integration.Knowledge to setOf("markdown"), Integration.Tasks to setOf("local"))
+        override val integrations get() = mapOf(Integration.Knowledge to setOf("markdown"), Integration.Tasks to setOf("local"), Integration.Exec to execOptions)
         override fun tasksSetup() = TasksSetup(TasksSettings(), listOf("local"))
         override suspend fun saveTasksSettings(s: TasksSettings): TasksSetup = error("Not used")
         override fun knowledgeSetup() = KnowledgeSetup(KnowledgeSettings(), "", emptyList())

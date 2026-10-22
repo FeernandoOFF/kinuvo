@@ -85,6 +85,8 @@ data class SessionCapabilities(
     val chat: CapabilityState = CapabilityState(),
     val inputs: Map<String, CapabilityState> = emptyMap(),
     val tools: List<ResolvedTool> = emptyList(),
+    val effective: EffectiveSessionSettings? = null,
+    val active: EffectiveSessionSettings? = null,
 ) {
     fun input(kind: String) = inputs[kind] ?: CapabilityState.unsupported("This model does not accept $kind input")
 }

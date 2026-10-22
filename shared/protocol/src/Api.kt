@@ -138,6 +138,8 @@ object Api {
     val CreateRoom = Method("rooms.create", CreateRoomParams.serializer(), Room.serializer())
     val RoomSessions = Method("rooms.sessions", RoomRef.serializer(), ListSerializer(kinuvo.protocol.RoomSession.serializer()))
     val CreateRoomSession = Method("rooms.sessions.create", RoomRef.serializer(), kinuvo.protocol.RoomSession.serializer())
+    val ConfigureRoomSession = Method("rooms.session.configure", ConfigureRoomSessionParams.serializer(), kinuvo.protocol.RoomSession.serializer())
+    val UpdateRoomSession = Method("rooms.session.update", UpdateRoomSessionParams.serializer(), kinuvo.protocol.RoomSession.serializer())
     val RoomSession = Method("rooms.session", RoomSessionRef.serializer(), RoomView.serializer())
     val SendRoom = Method("rooms.send", SendRoomParams.serializer(), Unit.serializer())
     val StopRoom = Method("rooms.stop", RoomSessionRef.serializer(), Unit.serializer())

@@ -15,6 +15,99 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class RoomsTest {
+    @Test fun unmentionedPeersParticipateSequentiallyAndCanPassWithoutPublicText() = runTest {
+        val fixture = RuntimeFixture()
+        fixture.members += fixture.agent.copy(id = "other")
+        val order = mutableListOf<String>()
+        val harness = fixture.runtime(scriptedModel { prompt, tools ->
+            val context = prompt.messages.joinToString()
+            if ("You are test." in context) {
+                order += "test"
+                flowOf(StreamFrame.TextDelta("Useful reply; @other is only prose"), StreamFrame.End())
+            } else if (prompt.messages.toolResults.isEmpty()) {
+                order += "other"
+                val pass = tools.single { it.name.contains("pass_turn") }
+                flowOf(StreamFrame.ToolCallComplete("pass", pass.name, "{}"), StreamFrame.End())
+            } else flowOf(StreamFrame.TextDelta("This passed reply stays private"), StreamFrame.End())
+        })
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val rooms = Rooms(harness, Runs(harness.log, scope), scope)
+        try {
+            val room = rooms.create(CreateRoomParams("Team", listOf("test", "other")))
+            val session = rooms.createSession(room.id)
+            rooms.send(SendRoomParams(room.id, session.id, "Discuss"))
+            advanceUntilIdle()
+            val view = rooms.view(RoomSessionRef(room.id, session.id))
+            assertEquals(listOf("test", "other"), order)
+            assertNull(view.error)
+            assertEquals(listOf(null, "test"), view.session.messages.map { it.sender })
+            assertEquals("Discuss", view.session.title)
+            assertFalse(view.session.messages.joinToString().contains("stays private"))
+            order.clear()
+            rooms.send(SendRoomParams(room.id, session.id, "Only @test in prose", listOf("other")))
+            advanceUntilIdle()
+            assertEquals(listOf("other"), order)
+        } finally { rooms.stopAll(); scope.cancel(); harness.close() }
+    }
+
+    @Test fun memberSettingsAndActiveSnapshotAreScopedToOneTitledSession() = runTest {
+        val fixture = RuntimeFixture()
+        fixture.execOptions = setOf("host")
+        fixture.members += fixture.agent.copy(id = "other")
+        val harness = fixture.runtime(scriptedModel { _, _ -> flow { awaitCancellation() } })
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val rooms = Rooms(harness, Runs(harness.log, scope), scope)
+        try {
+            val room = rooms.create(CreateRoomParams("Team", listOf("test", "other")))
+            val session = rooms.createSession(room.id, "Release")
+            val second = rooms.createSession(room.id, "Research")
+            val ref = RoomSessionRef(room.id, session.id)
+            val settings = SessionSettings(exec = "host", workspace = listOf("/work"))
+            rooms.configure(ConfigureRoomSessionParams(room.id, session.id, "other", settings))
+            rooms.send(SendRoomParams(room.id, session.id, "work", listOf("other")))
+            runCurrent()
+            rooms.configure(ConfigureRoomSessionParams(room.id, session.id, "other", SessionSettings()))
+            val view = rooms.view(ref)
+            assertEquals("host", view.progress?.effective?.exec)
+            assertEquals("host", view.members["other"]?.active?.exec)
+            assertEquals("none", view.members["other"]?.effective?.exec)
+            assertEquals("none", view.members["test"]?.effective?.exec)
+            assertTrue(view.session.memberSettings.isEmpty())
+            assertEquals("none", rooms.view(RoomSessionRef(room.id, second.id)).members["other"]?.effective?.exec)
+            assertEquals("Renamed", rooms.update(UpdateRoomSessionParams(room.id, session.id, "Renamed")).title)
+            assertEquals(setOf("Renamed", "Research"), rooms.sessions(room.id).map { it.title }.toSet())
+            rooms.stop(ref)
+            advanceUntilIdle()
+            assertNull(rooms.view(ref).members["other"]?.active)
+        } finally { rooms.stopAll(); scope.cancel(); harness.close() }
+    }
+
+    @Test fun artifactsKeepPublicAndPrivateSessionAttribution() = runTest {
+        val fixture = RuntimeFixture()
+        fixture.members = listOf(fixture.agent.copy(config = fixture.agent.config.copy(tools = listOf("artifact"))), fixture.agent.copy(id = "other"))
+        val harness = fixture.runtime(scriptedModel { prompt, tools ->
+            if (prompt.messages.toolResults.isEmpty()) {
+                val tool = tools.single { it.description.startsWith("Make something") }
+                flowOf(StreamFrame.ToolCallComplete("artifact", tool.name, """{"action":"create","title":"Result","type":"txt","content":"Public result"}"""), StreamFrame.End())
+            } else flowOf(StreamFrame.TextDelta("Result ready"), StreamFrame.End())
+        })
+        val scope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
+        val rooms = Rooms(harness, Runs(harness.log, scope), scope)
+        try {
+            val room = rooms.create(CreateRoomParams("Team", listOf("test", "other")))
+            val session = rooms.createSession(room.id)
+            rooms.send(SendRoomParams(room.id, session.id, "work", listOf("test")))
+            advanceUntilIdle()
+            val artifact = harness.artifacts.list().single()
+            assertEquals("test", artifact.agentId)
+            assertEquals(session.id, artifact.roomSessionId)
+            assertNotEquals(session.id, artifact.sessionId)
+            val privateId = assertNotNull(artifact.sessionId)
+            assertTrue(fixture.transcripts.entries(fixture.agent, privateId).filterIsInstance<SessionEntry.Started>().single().roomExecution)
+            assertNull(rooms.view(RoomSessionRef(room.id, session.id)).error)
+        } finally { rooms.stopAll(); scope.cancel(); harness.close() }
+    }
+
     @Test fun immediateStopAndShutdownReleaseTurnBeforeFirstDispatch() = runTest {
         val fixture = RuntimeFixture()
         fixture.members += fixture.agent.copy(id = "other")
@@ -45,21 +138,16 @@ class RoomsTest {
         } finally { rooms.stopAll(); scope.cancel(); harness.close() }
     }
 
-    @Test fun coordinatorSynthesizesPublicWorkerResultWithoutPrivateSenderInstructions() = runTest {
+    @Test fun peerFollowupSharesOnlyPublicTextWithoutAnotherCoordinatorRun() = runTest {
         val fixture = RuntimeFixture()
         fixture.members = listOf(fixture.agent.copy(config = fixture.agent.config.copy(approvals = "full", tools = listOf("web_fetch"))), fixture.agent.copy(id = "other"))
         var workerPrompt = ""
-        var finalPrompt = ""
         var calls = 0
         val model = scriptedModel { prompt, tools ->
             val context = prompt.messages.joinToString()
             if ("You are other." in context) {
                 workerPrompt = context
                 flowOf(StreamFrame.TextDelta("PUBLIC_WORKER_RESULT"), StreamFrame.End())
-            } else if ("Give the user a final synthesis" in context) {
-                finalPrompt = context
-                assertTrue(tools.none { it.description.contains("Queue a public") })
-                flowOf(StreamFrame.TextDelta("Synthesis: PUBLIC_WORKER_RESULT"), StreamFrame.End())
             } else if (prompt.messages.toolResults.isEmpty()) {
                 val tool = tools.single { it.description == "Private lookup" }
                 flowOf(StreamFrame.ToolCallComplete("private", tool.name, "{}"), StreamFrame.End())
@@ -82,7 +170,7 @@ class RoomsTest {
         try {
             val room = rooms.create(CreateRoomParams("Team", listOf("test", "other"), "test"))
             val session = rooms.createSession(room.id)
-            rooms.send(SendRoomParams(room.id, session.id, "work"))
+            rooms.send(SendRoomParams(room.id, session.id, "work", listOf("test")))
             advanceUntilIdle()
             val view = rooms.view(RoomSessionRef(room.id, session.id))
             assertNull(view.error)
@@ -91,11 +179,9 @@ class RoomsTest {
             assertTrue("WORKER_OWN_INSTRUCTIONS" in workerPrompt)
             assertFalse("PRIVATE_COORDINATOR_SOUL" in workerPrompt)
             assertFalse("PRIVATE_TOOL_RESULT" in workerPrompt)
-            assertFalse("WORKER_OWN_INSTRUCTIONS" in finalPrompt)
-            assertFalse("PRIVATE_TOOL_RESULT" in finalPrompt)
-            assertTrue("PUBLIC_WORKER_RESULT" in finalPrompt)
-            assertEquals("test", view.session.messages.last().sender)
-            assertEquals("Synthesis: PUBLIC_WORKER_RESULT", view.session.messages.last().text)
+            assertEquals("other", view.session.messages.last().sender)
+            assertEquals("PUBLIC_WORKER_RESULT", view.session.messages.last().text)
+            assertEquals(2, fixture.transcripts.sessions(fixture.agent).size)
         } finally { rooms.stopAll(); scope.cancel(); harness.close() }
     }
 
@@ -118,7 +204,7 @@ class RoomsTest {
             val room = rooms.create(CreateRoomParams("Team", listOf("test", "other"), "test"))
             val session = rooms.createSession(room.id)
             val ref = RoomSessionRef(room.id, session.id)
-            rooms.send(SendRoomParams(room.id, session.id, "work"))
+            rooms.send(SendRoomParams(room.id, session.id, "work", listOf("test")))
             runCurrent()
             assertTrue(preparing.isCompleted)
             assertTrue(runs.sessions().isNotEmpty())
@@ -190,7 +276,7 @@ class RoomsTest {
         try {
             val room = rooms.create(CreateRoomParams("Team", listOf("test", "other"), "test"))
             val session = rooms.createSession(room.id)
-            rooms.send(SendRoomParams(room.id, session.id, "work"))
+            rooms.send(SendRoomParams(room.id, session.id, "work", listOf("test")))
             advanceUntilIdle()
             val view = rooms.view(RoomSessionRef(room.id, session.id))
             assertNull(view.error)
@@ -208,7 +294,7 @@ class RoomsTest {
         val rooms = Rooms(harness, Runs(harness.log, backgroundScope), backgroundScope)
         assertEquals("test", rooms.list().first { it.direct }.id)
         assertFailsWith<IllegalArgumentException> { rooms.create(CreateRoomParams("Team", listOf("test", "missing"), "test")) }
-        assertFailsWith<IllegalArgumentException> { rooms.create(CreateRoomParams("Team", listOf("test", "other"), "missing")) }
+        assertEquals("", rooms.create(CreateRoomParams("Legacy", listOf("test", "other"), "missing")).coordinator)
         val room = rooms.create(CreateRoomParams("Team", listOf("test", "other"), "test"))
         val session = rooms.createSession(room.id)
         assertFailsWith<IllegalArgumentException> { rooms.send(SendRoomParams(room.id, session.id, "hello", listOf("missing"))) }
@@ -238,12 +324,13 @@ class RoomsTest {
         try {
             val room = rooms.create(CreateRoomParams("Team", listOf("test", "other"), "test"))
             val session = rooms.createSession(room.id)
-            rooms.send(SendRoomParams(room.id, session.id, "work"))
+            rooms.send(SendRoomParams(room.id, session.id, "work", listOf("test")))
             advanceUntilIdle()
             val view = rooms.view(RoomSessionRef(room.id, session.id))
             assertFalse(view.running)
-            assertEquals(Rooms.MAX_DISPATCHES - 1, count)
-            assertEquals("Final synthesis", view.session.messages.last().text)
+            assertEquals(Rooms.MAX_DISPATCHES, count)
+            assertTrue(assertNotNull(view.error).contains("participation limit"))
+            assertEquals("public reply", view.session.messages.last().text)
             assertTrue(view.session.messages.any { it.sender == "other" })
             val public = view.session.messages.joinToString()
             assertFalse("PRIVATE_SOUL" in public)
@@ -320,7 +407,7 @@ class RoomsTest {
             val room = rooms.create(CreateRoomParams("Team", listOf("test", "other"), "test"))
             val session = rooms.createSession(room.id)
             val ref = RoomSessionRef(room.id, session.id)
-            rooms.send(SendRoomParams(room.id, session.id, "work"))
+            rooms.send(SendRoomParams(room.id, session.id, "work", listOf("test")))
             runCurrent()
             val pending = rooms.view(ref).progress!!
             assertTrue(runs.isActive(pending.sessionId))

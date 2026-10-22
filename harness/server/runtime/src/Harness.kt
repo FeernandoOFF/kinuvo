@@ -67,6 +67,10 @@ open class HarnessRuntime(
     private val routineApprovalWait: Duration = 30.minutes,
 ) : ServerSettings by dependencies.settings {
     val log = SessionLog(dependencies.store)
+    private val activeSettings = co.touchlab.stately.collections.ConcurrentMutableMap<String, kinuvo.protocol.EffectiveSessionSettings>()
+    init { log.onEvent { _, sessionId, event ->
+        if (event is kinuvo.protocol.AgentEvent.RunFinished) { activeSettings.remove(sessionId); computers.finished(sessionId) }
+    } }
     val store: Store = log
     val docs = dependencies.docs
     val skills = dependencies.skills
@@ -127,12 +131,33 @@ open class HarnessRuntime(
 
     /** Replaces [sessionId]'s own settings; its next run uses them. */
     suspend fun configure(agent: Agent, sessionId: String, settings: SessionSettings): SessionInfo {
-        val s = settings.copy(model = settings.model?.trim()?.ifEmpty { null }, reasoning = settings.reasoning?.trim()?.ifEmpty { null },
-            approvals = settings.approvals?.trim()?.ifEmpty { null }, provider = settings.provider?.trim()?.ifEmpty { null })
-        s.provider?.let { requireModelProvider(it); require(s.model != null) { "Choose a model with its provider" } }
-        require(s.approvals == null || s.approvals in Tolerance.ids) { "approvals must be one of ${Tolerance.ids.joinToString()}" }
+        val s = validateSettings(agent, settings)
         if (s != store.session(agent, sessionId).settings) store.append(agent, sessionId, SessionEntry.Settings(s))
         return store.session(agent, sessionId)
+    }
+
+    suspend fun validateSettings(agent: Agent, settings: SessionSettings): SessionSettings {
+        val s = settings.copy(model = settings.model?.trim()?.ifEmpty { null }, reasoning = settings.reasoning?.trim()?.ifEmpty { null },
+            approvals = settings.approvals?.trim()?.ifEmpty { null }, provider = settings.provider?.trim()?.ifEmpty { null },
+            exec = settings.exec?.trim()?.ifEmpty { null }, workspace = settings.workspace?.map { it.trim() }?.distinct())
+        s.provider?.let { requireModelProvider(it); require(s.model != null) { "Choose a model with its provider" } }
+        require(s.approvals == null || s.approvals in Tolerance.ids) { "approvals must be one of ${Tolerance.ids.joinToString()}" }
+        val config = agent.with(s).config
+        if (s.exec != null || s.workspace != null || s.container != null || s.ssh != null) {
+            require(config.exec == ExecModes.NONE || config.exec in integrations[Integration.Exec].orEmpty()) { "This Server can't run a shell on '${config.exec}'" }
+            if (config.exec != ExecModes.NONE) {
+                require(config.workspace.isNotEmpty() && config.workspace.all { it.isNotBlank() && (it.startsWith("/") || it == "~" || it.startsWith("~/")) }) { "Choose absolute Workspace folders" }
+                if (config.exec == ExecModes.SSH) {
+                    require(config.workspace.all { it.startsWith("/") }) { "SSH Workspace folders must be absolute remote paths" }
+                    val ssh = requireNotNull(config.ssh) { "SSH settings are missing" }
+                    require(ssh.host.isNotBlank() && !ssh.host.startsWith("-") && ssh.host.none { it.isWhitespace() }) { "Choose an SSH host" }
+                    require(ssh.port == null || ssh.port in 1..65535) { "Choose an SSH port between 1 and 65535" }
+                    ssh.user?.let { user -> require(user.isNotBlank() && !user.startsWith("-") && user.none { it.isWhitespace() }) { "Choose an SSH user" } }
+                }
+                if (config.exec == ExecModes.CONTAINER) require(config.container.image.isNotBlank()) { "Choose a container image" }
+            }
+        }
+        return s
     }
 
     /** Renames [sessionId] (blank: back to its first message) or marks it a favorite. */
@@ -159,8 +184,12 @@ open class HarnessRuntime(
      */
     private class Effective(val agent: Agent, val info: ModelInfo?, val provider: ModelProvider?, val memoryCap: Int, val userCap: Int)
 
-    private suspend fun effective(agent: Agent, sessionId: String?, settings: SessionSettings? = null): Effective {
-        val configured = supported(agent.with(settings ?: sessionId?.let { store.session(agent, it).settings } ?: SessionSettings()))
+    private fun Effective.snapshot() = agent.config.let { kinuvo.protocol.EffectiveSessionSettings(it.provider, it.model, it.reasoning,
+        Tolerance.of(it.approvals).id, it.exec, it.workspace, it.container, it.ssh, it.tools) }
+
+    private suspend fun effective(agent: Agent, sessionId: String?, settings: SessionSettings? = null, validate: Boolean = false): Effective {
+        val selected = settings ?: sessionId?.let { store.session(agent, it).settings } ?: SessionSettings()
+        val configured = supported(agent.with(if (validate) validateSettings(agent, selected) else selected))
         val info = modelCatalog().providers.firstOrNull { it.id == configured.config.provider }?.models?.firstOrNull { it.id == configured.config.model }
         val context = info?.context
         val fitted = if (context == null) configured else configured.copy(config = configured.config.copy(compactAtTokens = minOf(configured.config.compactAtTokens, context * 55 / 100)))
@@ -179,14 +208,14 @@ open class HarnessRuntime(
     private class PreparedRun(val effective: Effective, val tools: List<Tool>, val advertised: List<Tool>, val catalog: List<ResolvedTool>, val warnings: List<String>, val chat: CapabilityState)
 
     private suspend fun prepare(agent: Agent, sessionId: String?, settings: SessionSettings? = null,
-        routine: RoutineRun? = null, taskId: String? = null, activate: Boolean = false): PreparedRun {
-        val e = effective(agent, sessionId, settings)
+        routine: RoutineRun? = null, taskId: String? = null, activate: Boolean = false, roomSessionId: String? = null): PreparedRun {
+        val e = effective(agent, sessionId, settings, validate = activate)
         val chat = if (modelFactoryOverride) CapabilityState() else e.provider?.availability(e.agent.config.model)
             ?: CapabilityState.unsupported("No model provider '${e.agent.config.provider}'; this model provider is not installed")
         if (activate) chat.requireReady()
-        val run = RunContext(e.agent, sessionId, routine?.routine, taskId)
+        val run = RunContext(e.agent, sessionId, routine?.routine, taskId, roomSessionId)
         val contributed = plugins.map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
-        val own = PluginTools(toolsFor(e, sessionId, routine)).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.core")).tools
+        val own = PluginTools(toolsFor(e, sessionId, routine, roomSessionId)).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.core")).tools
         val all = (own + contributed.flatMap { it.tools }).also { it.indexedTools() }
         val eligible = usable(e, all)
         val descriptors = all.map { it.descriptor.name }.toSet()
@@ -223,16 +252,20 @@ open class HarnessRuntime(
             kind !in info.input.orEmpty() -> CapabilityState.unsupported("This model does not accept $kind input")
             else -> chat
         }
-        return SessionCapabilities(revision, server, chat, listOf("text", "image", "file", "audio").associateWith(::input), prepared.catalog)
+        return SessionCapabilities(revision, server, chat, listOf("text", "image", "file", "audio").associateWith(::input), prepared.catalog,
+            prepared.effective.snapshot(), sessionId?.let { activeSettings[it] }?.takeIf { log.status(requireNotNull(sessionId)) != kinuvo.protocol.SessionStatus.Idle })
     }
 
     /**
      * Builds a runner with the Agent's current tools, starting what its plugins need on first use. [sessionId] is the
      * Session it runs in; [routine] is set for a Routine's run, which follows the Routine's approval mode.
      */
-    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null, roomTools: List<Tool> = emptyList(), roomContext: String = ""): AgentRun {
-        val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true)
+    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null, roomTools: List<Tool> = emptyList(), roomContext: String = "", roomSessionId: String? = null, onPrepared: (kinuvo.protocol.EffectiveSessionSettings) -> Unit = {}): AgentRun {
+        val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, roomSessionId = roomSessionId)
         val e = prepared.effective
+        val snapshot = e.snapshot()
+        sessionId?.let { activeSettings[it] = snapshot }
+        onPrepared(snapshot)
         val agent = e.agent
         val extra = PluginTools(roomTools).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.rooms")).tools
         val tools = (prepared.tools + extra).map(secrets::redacting)
@@ -276,19 +309,19 @@ open class HarnessRuntime(
     /** Stops what the plugins run for the Agent, e.g. after its exec settings changed. */
     suspend fun release(agent: Agent) = dependencies.resources.release(agent.id)
 
-    private suspend fun toolsFor(e: Effective, sessionId: String?, routine: RoutineRun?): List<Tool> {
+    private suspend fun toolsFor(e: Effective, sessionId: String?, routine: RoutineRun?, roomSessionId: String?): List<Tool> {
         val agent = e.agent
         val search = if (ToolNames.WEB_FETCH in agent.config.tools) webSearch() else null
-        return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool))
+        return builtInTools(e, sessionId, routine, search, roomSessionId) + listOfNotNull(search?.let(::WebSearchTool))
     }
 
-    private suspend fun builtInTools(e: Effective, sessionId: String?, routine: RoutineRun?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {
+    private suspend fun builtInTools(e: Effective, sessionId: String?, routine: RoutineRun?, search: WebSearch?, roomSessionId: String?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {
         when (it) {
             ToolNames.MEMORY -> MemoryTool(agent, docs, memoryCap = e.memoryCap, userCap = e.userCap)
             ToolNames.WEB_FETCH -> dependencies.webFetch(search)
             ToolNames.SCHEDULE -> ScheduleTool(agent, routines, { timeZone }, sessionId, routine?.routine)
             ToolNames.ASK_USER -> AskUserTool(routine != null).takeIf { routine?.routine?.approvals != RoutineApprovals.Deny }
-            ToolNames.ARTIFACT -> ArtifactTool(agent, sessionId, artifacts) { readFile(agent, it) }
+            ToolNames.ARTIFACT -> ArtifactTool(agent, sessionId, artifacts, roomSessionId = roomSessionId) { readFile(agent, it) }
             else -> null
         }
     } + if (ToolNames.SKILLS in agent.config.tools) skillTools(agent) else emptyList() } + listOfNotNull(routine?.let(::RoutineReportTool))

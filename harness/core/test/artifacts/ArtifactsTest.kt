@@ -26,6 +26,18 @@ class ArtifactsTest {
 
     private suspend fun call(vararg args: Pair<String, String>) = tool.execute(JsonObject(args.associate { (k, v) -> k to JsonPrimitive(v) }))
 
+    @Test fun attributionFollowsTheActualLastSaverAndSurvivesReload() = runTest {
+        val created = artifacts.create("first", "private-one", "Output", "txt", "one", roomSessionId = "public-one")
+        assertEquals("public-one", Artifacts(FileArtifacts(home.files.artifacts)).get(created.id).info.roomSessionId)
+        artifacts.update(created.id, "second", "private-two", roomSessionId = "public-two") { "two" }
+        val updated = Artifacts(FileArtifacts(home.files.artifacts)).get(created.id).info
+        assertEquals("second", updated.agentId)
+        assertEquals("private-two", updated.sessionId)
+        assertEquals("public-two", updated.roomSessionId)
+        artifacts.update(created.id, "direct", "direct-session") { "three" }
+        assertNull(artifacts.get(created.id).info.roomSessionId)
+    }
+
     @Test
     fun createUpdateAndDeleteKeepOnlyTheLatest() = runTest {
         val changes = mutableListOf<ArtifactChange>()

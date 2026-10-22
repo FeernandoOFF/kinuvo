@@ -35,7 +35,19 @@ private val TASK_PROMPT = Regex("""^\[Task ([^\]]+)] ([^\n]*)""")
 
 /** A Session's own model, reasoning effort and risk tolerance; null fields follow the Agent's. */
 @Serializable
-data class SessionSettings(val model: String? = null, val reasoning: String? = null, val approvals: String? = null, val provider: String? = null)
+data class SessionSettings(
+    val model: String? = null, val reasoning: String? = null, val approvals: String? = null, val provider: String? = null,
+    val exec: String? = null, val workspace: List<String>? = null,
+    val container: ContainerSettings? = null, val ssh: SshSettings? = null,
+)
+
+/** Concrete settings used by the next run, with Session settings and Server support applied. */
+@Serializable
+data class EffectiveSessionSettings(
+    val provider: String, val model: String, val reasoning: String, val approvals: String,
+    val exec: String, val workspace: List<String>, val container: ContainerSettings, val ssh: SshSettings?,
+    val tools: List<String>,
+)
 
 /** [Waiting]: a run is paused on an Approval or an `ask_user` form. */
 @Serializable

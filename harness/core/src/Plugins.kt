@@ -108,7 +108,7 @@ fun List<HarnessPlugin>.checkPluginInstances() {
 }
 
 /** One run: [sessionId] is the Session it runs in; [routine] is set for a Routine's run; [taskId] for a dispatched Task. */
-data class RunContext(val agent: Agent, val sessionId: String?, val routine: Routine? = null, val taskId: String? = null)
+data class RunContext(val agent: Agent, val sessionId: String?, val routine: Routine? = null, val taskId: String? = null, val roomSessionId: String? = null)
 
 data class PluginTools(
     val tools: List<Tool> = emptyList(),
