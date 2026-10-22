@@ -1,0 +1,33 @@
+{
+  "name": "mobile/room-agent",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "agent.get"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"info\":{\"id\":\"e2e\",\"name\":\"E2E Agent\",\"exec\":\"host\"},\"settings\":{\"model\":\"e2e-model\",\"reasoning\":\"medium\",\"approvals\":\"default\",\"exec\":\"host\",\"provider\":\"codex\",\"workspace\":[\"/tmp\"],\"tools\":[\"shell\",\"files\"]},\"identity\":\"E2E Agent\",\"soul\":\"Test Agent\"}}"
+        }
+      }
+    }
+  ]
+}

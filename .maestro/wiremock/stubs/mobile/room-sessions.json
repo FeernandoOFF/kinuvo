@@ -25,7 +25,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":[{\"id\":\"room-session\",\"roomId\":\"team\",\"messages\":[{\"id\":\"user\",\"text\":\"Plan the garden\",\"senderName\":\"You\",\"recipients\":[\"e2e\"]},{\"id\":\"reply\",\"sender\":\"builder\",\"senderName\":\"Builder\",\"text\":\"The materials list is ready.\",\"rootId\":\"user\",\"replyTo\":\"user\"}]}]}"
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":[{\"id\":\"room-session\",\"roomId\":\"team\",\"messages\":[{\"id\":\"user\",\"text\":\"Plan the garden\",\"senderName\":\"You\",\"recipients\":[\"e2e\"]},{\"id\":\"reply\",\"sender\":\"builder\",\"senderName\":\"Builder\",\"text\":\"The materials list is ready.\",\"rootId\":\"user\",\"replyTo\":\"user\"}],\"title\":\"Plan the garden\"},{\"id\":\"room-second\",\"roomId\":\"team\",\"title\":\"Planting schedule\",\"messages\":[]}]}"
         }
       }
     }

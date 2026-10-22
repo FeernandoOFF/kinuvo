@@ -29,6 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +41,9 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
+import kinuvo.app.rooms.*
+import kinuvo.protocol.Room
+import kinuvo.protocol.RoomSession
 import kinuvo.protocol.AgentInfo
 import kinuvo.protocol.Routine
 import kinuvo.protocol.ServerCapabilities
@@ -66,6 +70,7 @@ data class ShellState(
     val routines: Map<String, List<Routine>> = emptyMap(),
     /** Whether this Device has management access, which watching and taking over Computers needs. */
     val management: Boolean = true,
+    val rooms: RoomsState = RoomsState(),
 ) {
     val sessions get() = agent?.let { lists[it.id] }?.sessions.orEmpty()
     val hasMore get() = agent?.let { lists[it.id] }?.hasMore == true
@@ -89,6 +94,9 @@ class ShellActions(
     val onLoadMore: () -> Unit = {},
     val onSettings: () -> Unit = {},
     val onRooms: () -> Unit = {},
+    val onSelectRoom: (Room) -> Unit = {},
+    val onRoomSession: (RoomSession) -> Unit = {},
+    val onNewRoom: () -> Unit = {},
     val onBoard: () -> Unit = {},
     val onKnowledge: () -> Unit = {},
     val onArtifacts: () -> Unit = {},
@@ -126,6 +134,7 @@ class ShellChrome(open: MutableState<Boolean>, private val prefs: Preferences? =
         }
     /** Every chat, loading more on scroll, rather than the few most recent. */
     var allChats by mutableStateOf(false)
+    var membershipCollapsed by mutableStateOf(false)
 
     private companion object {
         const val COLLAPSED = "shell.collapsed"
@@ -145,7 +154,7 @@ fun Shell(state: ShellState, actions: ShellActions, chrome: ShellChrome, modifie
     if (fill) PhoneShell(state, actions, chrome, modifier)
     else Row(modifier.fillMaxHeight().background(color(railColor))) {
         AgentRail(state, actions)
-        ColumnPanel(Modifier.width(ColumnWidth)) { AgentColumn(state, actions, chrome) }
+        ColumnPanel(Modifier.width(ColumnWidth)) { NavigationColumn(state, actions, chrome) }
     }
 }
 
@@ -157,10 +166,7 @@ internal val RailWidth = 72.dp
 private fun ColumnPanel(modifier: Modifier, content: @Composable () -> Unit) =
     Box(modifier.fillMaxHeight().clip(RoundedCornerShape(topStart = 16.dp)).background(color(sidebarColor))) { content() }
 
-/**
- * Phones, edge to edge: settings and Server top the rail and the other Agents stack at its foot, above the shown one,
- * whose avatar starts the bar opening [QuickChat].
- */
+/** Phones reveal the same Rooms and Agent navigation above the quick chat bar. */
 @Composable
 private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellChrome, modifier: Modifier) {
     val insets = WindowInsets.safeDrawing
@@ -168,26 +174,8 @@ private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellCh
     val clear = QuickChatBarHeight + insets.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
     Box(modifier.fillMaxSize().background(color(railColor)).windowInsetsPadding(insets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
         Row(Modifier.fillMaxSize()) {
-            Column(Modifier.width(RailWidth).fillMaxHeight().padding(top = 8.dp, bottom = clear), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                RailItem("Settings", selected = false, news = false, onClick = actions.onSettings, enabled = state.agent != null) {
-                    Icon(Lucide.Settings, Modifier.size(20.dp), tint = color(mutedColor))
-                }
-                ServerPicker(state.servers, actions)
-                HorizontalSeparator(Modifier.width(32.dp))
-                LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout = true, verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom)) {
-                    items(state.agents.filter { it.id != state.agent?.id }, key = { it.id }) { agent ->
-                        Box(Modifier.animateItem()) {
-                            RailItem(agent.name, selected = false, news = state.hasNews(agent.id), onClick = { actions.onSelectAgent(agent.id) }) { AgentAvatar(agent, 40.dp, state = state.avatarState(agent.id)) }
-                        }
-                    }
-                    item(key = "new") {
-                        RailItem("New agent", selected = false, news = false, onClick = actions.onAddAgent, enabled = state.agent != null) {
-                            Icon(Lucide.Plus, Modifier.size(20.dp), tint = color(successColor))
-                        }
-                    }
-                }
-            }
-            ColumnPanel(Modifier.weight(1f)) { AgentColumn(state, actions, chrome, bottom = clear) }
+            Box(Modifier.padding(bottom = clear)) { AgentRail(state, actions) }
+            ColumnPanel(Modifier.weight(1f)) { NavigationColumn(state, actions, chrome, bottom = clear) }
         }
         QuickChatBar(state.agent, chrome.draft, Modifier.align(Alignment.BottomStart).windowInsetsPadding(insets.only(WindowInsetsSides.Bottom))) { chrome.quickChat = true }
     }
@@ -196,14 +184,15 @@ private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellCh
 @Composable
 private fun AgentRail(state: ShellState, actions: ShellActions) {
     Column(
-        // A touch wider where the window buttons sit over it, so they clear the column.
-        Modifier.width(if ((LocalWindowChrome.current?.leadingInset ?: 0.dp) > 0.dp) 80.dp else RailWidth).fillMaxHeight().background(color(railColor)).padding(top = LocalWindowChrome.current?.height ?: 12.dp, bottom = 12.dp),
+        Modifier.width(RailWidth).fillMaxHeight().background(color(railColor)).padding(top = LocalWindowChrome.current?.height ?: 12.dp, bottom = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        RoomsRailItem(state, actions)
+        HorizontalSeparator(Modifier.width(32.dp))
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             state.agents.forEachIndexed { i, agent ->
-                val selected = agent.id == state.agent?.id
+                val selected = state.view !is Route.Rooms && agent.id == state.agent?.id
                 RailItem(if (i < 9) "${agent.name} ${shortcut("${i + 1}", shift = true)}" else agent.name, selected, news = state.hasNews(agent.id), onClick = { actions.onSelectAgent(agent.id) }) {
                     AgentAvatar(agent, 40.dp, state = state.avatarState(agent.id))
                 }
@@ -240,10 +229,50 @@ private fun RailItem(label: String, selected: Boolean, news: Boolean, onClick: (
                     .background(if (selected) color(selectedControlColor) else color(panelColor))
                     .hoverable(interaction)
                     .clickable(interaction, Theme[indications][defaultIndication], enabled = enabled, onClick = onClick)
-                    .semantics { stateDescription = if (selected) "Selected" else "" },
+                    .semantics { contentDescription = label; stateDescription = if (selected) "Selected" else "" },
                 contentAlignment = Alignment.Center,
             ) { content() }
         } }
+    }
+}
+
+@Composable
+private fun RoomsRailItem(state: ShellState, actions: ShellActions) =
+    RailItem("Rooms", state.view is Route.Rooms, news = false, onClick = actions.onRooms) {
+        Icon(Lucide.PanelsTopLeft, Modifier.size(24.dp), tint = color(onBackgroundColor))
+    }
+
+@Composable
+private fun NavigationColumn(state: ShellState, actions: ShellActions, chrome: ShellChrome, bottom: Dp = 0.dp) {
+    if (state.view !is Route.Rooms) AgentColumn(state, actions, chrome, bottom)
+    else Column(Modifier.fillMaxSize()) {
+        TitleBarRow(leading = false, trailing = false) {
+            Text("Conversations", Modifier.weight(1f).padding(horizontal = 8.dp), fontWeight = FontWeight.Bold)
+            HeaderButton(Lucide.SquarePen, "New Room", actions.onNewRoom)
+        }
+        HorizontalSeparator()
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(8.dp, 8.dp, 8.dp, 8.dp + bottom)) {
+            item { Pinned(Lucide.SquareKanban, "Board", false, state.capabilities.supports(ServerFeature.Tasks), actions.onBoard) }
+            item { Pinned(Lucide.Shapes, "Artifacts", false, state.capabilities.supports(ServerFeature.Artifacts), actions.onArtifacts) }
+            item { GroupHeader("Rooms") }
+            state.rooms.rooms.filterNot { it.direct }.forEach { room -> roomRows(room, state, actions) }
+            if (state.rooms.rooms.none { !it.direct }) item { Text("Create a Room to work together", Modifier.padding(12.dp), color = color(mutedColor), fontSize = 13.sp) }
+        }
+    }
+}
+
+private fun LazyListScope.roomRows(room: Room, state: ShellState, actions: ShellActions) {
+    item(key = "room:${room.id}") {
+        ListRow(false, { actions.onSelectRoom(room) }, leading = { Icon(Lucide.PanelsTopLeft, Modifier.size(16.dp)) }) {
+            Text(room.name, Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis)
+        }
+    }
+    items(state.rooms.roomSessions[room.id].orEmpty(), key = { "room:${room.id}/${it.id}" }) { session ->
+        Box(Modifier.padding(start = 12.dp)) {
+            ListRow(state.view is Route.Rooms && state.rooms.view?.session?.id == session.id, { actions.onRoomSession(session) }, leading = { Icon(Lucide.Hash, Modifier.size(16.dp)) }) {
+                Text(session.displayTitle(), Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis)
+            }
+        }
     }
 }
 
@@ -269,7 +298,6 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
         LazyColumn(Modifier.weight(1f), list, contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp + bottom), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             item(key = "pinned") {
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Pinned(Lucide.SquareKanban, "Rooms", state.view is Route.Rooms, true, actions.onRooms)
                     Pinned(Lucide.SquareKanban, "Board", state.view is Route.Board, state.capabilities.supports(ServerFeature.Tasks), actions.onBoard)
                     Pinned(Lucide.BookOpen, "Knowledge", state.view is Route.Knowledge, state.capabilities.supports(ServerFeature.Knowledge), actions.onKnowledge)
                     Pinned(Lucide.Shapes, "Artifacts", state.view is Route.Artifacts, state.capabilities.supports(ServerFeature.Artifacts), actions.onArtifacts)
@@ -293,7 +321,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
             }
             if (chats.isNotEmpty()) {
                 val more = chats.size > RECENT_CHATS || state.hasMore
-                item(key = "chats") { GroupHeader("Chats", !chrome.allChats, if (more) ({ chrome.allChats = !chrome.allChats }) else null) }
+                item(key = "chats") { GroupHeader("Sessions", !chrome.allChats, onToggle = if (more) ({ chrome.allChats = !chrome.allChats }) else null) }
                 rows(if (chrome.allChats) chats else chats.take(RECENT_CHATS) + needsLook(chats.drop(RECENT_CHATS)))
                 if (!chrome.allChats && more) item(key = "allChats") {
                     ListRow(false, { chrome.allChats = true }, leading = { Icon(Lucide.ChevronDown, Modifier.size(16.dp), tint = color(mutedColor)) }) {
@@ -318,6 +346,11 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                     }
                 }
             }
+            val memberships = state.rooms.rooms.filter { !it.direct && state.agent?.id in it.members }
+            if (memberships.isNotEmpty()) {
+                item(key = "membership") { GroupHeader("Rooms", chrome.membershipCollapsed, description = "Rooms for ${state.agent?.name}") { chrome.membershipCollapsed = !chrome.membershipCollapsed } }
+                if (!chrome.membershipCollapsed) memberships.forEach { room -> roomRows(room, state, actions) }
+            }
             if (state.sessions.isEmpty() && state.agent != null) item(key = "empty") {
                 Text("No sessions yet", Modifier.padding(horizontal = 10.dp, vertical = 12.dp), color = color(mutedColor), fontSize = 13.sp)
             }
@@ -337,15 +370,15 @@ private fun Pinned(icon: ImageVector, label: String, selected: Boolean, enabled:
 
 /** A section's heading; with [onToggle], it collapses the section. */
 @Composable
-private fun GroupHeader(title: String, collapsed: Boolean = false, onToggle: (() -> Unit)? = null) {
+private fun GroupHeader(title: String, collapsed: Boolean = false, description: String? = null, onToggle: (() -> Unit)? = null) {
     Row(
-        Modifier.fillMaxWidth().padding(top = 12.dp).clip(Theme[shapes][smallShape])
+        Modifier.fillMaxWidth().semantics { description?.let { contentDescription = it } }.padding(top = 12.dp).clip(Theme[shapes][smallShape])
             .then(if (onToggle != null) Modifier.clickable(onClick = onToggle).semantics { stateDescription = if (collapsed) "Collapsed" else "Expanded" } else Modifier)
             .padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(title.uppercase(), fontSize = 11.sp, lineHeight = 14.sp, letterSpacing = 0.6.sp, color = color(mutedColor), singleLine = true)
+        Text(title, fontSize = 12.sp, lineHeight = 16.sp, color = color(mutedColor), singleLine = true)
         if (onToggle != null) Icon(if (collapsed) Lucide.ChevronRight else Lucide.ChevronDown, Modifier.size(12.dp), tint = color(mutedColor))
     }
 }

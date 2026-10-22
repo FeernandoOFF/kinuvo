@@ -44,7 +44,7 @@ tags. Mockstro injects `APP_ID` from the selected platform configuration. Keep
 common behavior in shared flows; use native Maestro platform conditions for
 interactions that differ.
 
-Run all eleven shared flows on iOS (smoke and regression) with:
+Run all shared flows on iOS (smoke and regression) with:
 
 ```sh
 ./mockstrow --dev --owner agent --platform ios run --headless --tags smoke,regression
@@ -55,7 +55,8 @@ exercise the default Compose shell on Android and iOS:
 
 - `chat.yaml`: pairing, Session creation, message sending and the pushed reply.
 - `pairing-rejected.yaml`: an expired pairing code stays on the connection screen.
-- `rooms.yaml`: group Room selection, participant-attributed history, and sending a structured Room message.
+- `rooms.yaml`: collapsible Agent membership, independent titled group Sessions and drafts, contextual Routine editing and Artifact previews, a member's execution override, and structured recipients.
+- `rooms-approval.yaml`: a private Room execution's Approval is shown and denied through its original Approval ID.
 - `board.yaml`: load Tasks, create one, receive a live Task update, and show Done.
 - `knowledge.yaml`: empty search, matching search, Note details, linked Notes and back navigation.
 - `approval-streaming.yaml`: streamed text, a tool Approval, Allow once, and the completed reply.

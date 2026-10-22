@@ -1,0 +1,61 @@
+{
+  "name": "mobile/room-configure",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "rooms.session.configure"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.agentId",
+              "equalTo": "e2e"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.settings.exec",
+              "equalTo": "none"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.roomId",
+              "equalTo": "team"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.sessionId",
+              "equalTo": "room-new"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"id\":\"room-new\",\"roomId\":\"team\",\"title\":\"New Session\",\"messages\":[],\"memberSettings\":{\"e2e\":{\"exec\":\"none\"}}}}"
+        }
+      }
+    }
+  ]
+}

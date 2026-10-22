@@ -28,6 +28,12 @@
               "expression": "$.params.text",
               "equalTo": "Check the plan"
             }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.sessionId",
+              "equalTo": "room-new"
+            }
           }
         ]
       }

@@ -1,16 +1,16 @@
 {
   "mappings": [
-    "ws/agent",
+    "mobile/room-agent",
     "ws/agents",
-    "ws/capabilities",
+    "mobile/room-capabilities",
     "ws/catch-up",
     "ws/chat-send",
-    "mobile/connect-features",
+    "mobile/connect-rooms",
     "ws/create-session",
     "ws/device-tools",
     "ws/models",
     "ws/presence",
-    "ws/routines",
+    "mobile/room-routines",
     "ws/session",
     "ws/sessions",
     "ws/skills",
@@ -31,6 +31,13 @@
     "mobile/room-session-approval",
     "mobile/room-send",
     "mobile/room-create-session",
-    "mobile/room-approval-deny"
+    "mobile/room-approval-deny",
+    "mobile/room-session-new",
+    "mobile/room-session-second",
+    "mobile/room-artifacts",
+    "mobile/room-computers",
+    "mobile/room-configure",
+    "mobile/room-artifact",
+    "mobile/room-routine-update"
   ]
 }

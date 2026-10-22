@@ -1,0 +1,61 @@
+{
+  "name": "mobile/room-routine-update",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "routine.update"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.agentId",
+              "equalTo": "e2e"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.routineId",
+              "equalTo": "garden-check"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.spec.every",
+              "equalTo": "60m"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.spec.name",
+              "equalTo": "Garden check"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"id\":\"garden-check\",\"agentId\":\"e2e\",\"name\":\"Garden check\",\"prompt\":\"Check the garden plan\",\"trigger\":{\"type\":\"every\",\"minutes\":60},\"timeZone\":\"Europe/Dublin\",\"lastStatus\":\"Ok\",\"lastRunAt\":1792684800000,\"nextRunAt\":1792688400000}}"
+        }
+      }
+    }
+  ]
+}

@@ -33,5 +33,18 @@ properties:
 - tapOn:
     text: "Home"
     above: "Type into the focused field"
+- runScript:
+    file: ../../shared/send-message.js
+    env:
+      WS_PATH: /ws
+      WS_MESSAGE: '{"type":"event","event":"computers.changed","payload":[{"id":"phone","name":"Pixel","platform":"Android","available":true,"control":"User"}],"seq":31}'
+- tapOn: "Back"
+- assertVisible: "You control Pixel"
+- tapOn: "You control Pixel"
+- assertVisible: "You have control. Agents are waiting."
+- takeScreenshot: computer-takeover
+- tapOn: "Back to Session"
+- assertVisible: "You control Pixel"
+- takeScreenshot: computer-control-banner
 - tapOn: "Hand back"
-- assertVisible: "Idle"
+- assertNotVisible: "You control Pixel"

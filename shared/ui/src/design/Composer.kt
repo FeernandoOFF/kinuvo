@@ -71,6 +71,7 @@ fun Composer(
     dictating: Boolean = false,
     onVoice: (() -> Unit)? = null,
     blocked: String? = null,
+    clearOnSend: Boolean = true,
     containerColor: androidx.compose.ui.graphics.Color = color(fieldColor),
     /** Drawn under [containerColor], e.g. a blur of what scrolls behind. */
     backdrop: Modifier = Modifier,
@@ -125,7 +126,7 @@ fun Composer(
     fun submit() {
         if (running || blocked != null || (empty && !hasAttachments)) return
         onSend(state.toMarkdown().trim())
-        state.clear()
+        if (clearOnSend) state.clear()
     }
 
     val shape = RoundedCornerShape(28.dp)

@@ -16,6 +16,8 @@ Each dispatch uses a fresh private Agent Session. The Agent keeps its own
 instructions, Memory, tools and Approval rules. Only public replies and explicitly
 addressed public requests enter the Room history. Approvals and questions retain
 the private run's IDs and brokers.
+The shared context contains the latest 20 public messages, capped at 4,000
+characters each; the complete saved public history remains available to the user.
 
 Execution overrides belong to the direct Session or one member of a group
 Session. Unset values follow that Agent's defaults. They do not change another

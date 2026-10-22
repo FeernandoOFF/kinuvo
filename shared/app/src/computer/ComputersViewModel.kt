@@ -10,6 +10,7 @@ import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.sync.withLock
 
 /** [computers] is null until loaded; [frame] is the latest Live view frame of [selected]. */
@@ -25,10 +26,12 @@ data class ComputersState(
 }
 
 /** Live view of one Computer at a time: frames while the screen is open, and the user's Takeover and input. */
-class ComputersViewModel(private val client: KinuvoClient, route: Route.Computers, private val owner: ConnectedServer) : ViewModel() {
+class ComputersViewModel(private val client: KinuvoClient, route: Route.Computers, private val owner: ConnectedServer, private val autoWatch: Boolean = true) : ViewModel() {
     val state: StateFlow<ComputersState>
         field = MutableStateFlow(ComputersState(selected = route.computer))
     private var watching: String? = null
+    private var preview: String? = null
+    private var disposed = false
     private val watchLock = kotlinx.coroutines.sync.Mutex()
 
     init {
@@ -37,8 +40,8 @@ class ComputersViewModel(private val client: KinuvoClient, route: Route.Computer
         viewModelScope.launch { client.events(Api.ComputersChanged).collect { all -> update(all); attempt { watch() } } }
         viewModelScope.launch {
             client.events(Api.ComputerFrameEvent).collect { frame ->
-                if (frame.computer.id != state.value.selected) return@collect
-                state.update { s -> s.copy(frame = if (frame.screen?.screenshot == null) s.frame?.copy(computer = frame.computer, message = frame.message) ?: frame else frame,
+                if (frame.computer.id != state.value.selected || (!autoWatch && frame.computer.id != preview)) return@collect
+                state.update { s -> s.copy(frame = if (frame.screen?.screenshot == null) s.frame?.takeIf { it.computer.sameUsage(frame.computer) }?.copy(computer = frame.computer, message = frame.message) ?: frame else frame,
                     computers = s.computers?.map { if (it.id == frame.computer.id) frame.computer else it }) }
             }
         }
@@ -80,7 +83,7 @@ class ComputersViewModel(private val client: KinuvoClient, route: Route.Computer
                 state.update { s ->
                     // A late answer from a Computer no longer shown only updates its entry.
                     val shown = s.selected == id
-                    s.copy(frame = if (!shown) s.frame else if (frame.screen != null) frame else s.frame?.copy(computer = frame.computer) ?: frame,
+                    s.copy(frame = if (!shown) s.frame else if (frame.screen != null) frame else s.frame?.takeIf { it.computer.sameUsage(frame.computer) }?.copy(computer = frame.computer) ?: frame,
                         computers = s.computers?.map { if (it.id == id) frame.computer else it }, error = if (shown) frame.message else s.error)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -94,7 +97,7 @@ class ComputersViewModel(private val client: KinuvoClient, route: Route.Computer
 
     private fun update(all: List<ComputerInfo>) = state.update { s ->
         val selected = s.selected?.takeIf { id -> all.any { it.id == id } } ?: all.firstOrNull { it.available }?.id ?: all.firstOrNull()?.id
-        if (selected == s.selected) s.copy(computers = all) else s.copy(computers = all, selected = selected, frame = null, error = null)
+        if (selected == s.selected) s.copy(computers = all, frame = s.frame?.takeIf { frame -> all.firstOrNull { it.id == selected }?.let(frame.computer::sameUsage) == true }) else s.copy(computers = all, selected = selected, frame = null, error = null)
     }
 
     private suspend fun load() = attempt {
@@ -102,19 +105,31 @@ class ComputersViewModel(private val client: KinuvoClient, route: Route.Computer
         watch()
     }
 
+    fun watchActive(id: String?) {
+        preview = id
+        if (id != null) state.update { it.copy(selected = id) }
+        else state.update { it.copy(frame = null) }
+        viewModelScope.launch { attempt { watch() } }
+    }
+
     private suspend fun watch() = watchLock.withLock {
-        val id = state.value.selected
+        val id = if (disposed) null else if (autoWatch) state.value.selected else preview
         if (id == watching) return@withLock
         watching?.let { client.call(Api.WatchComputer, WatchComputerParams(it, false)) }
         watching = id
         id?.let { client.call(Api.WatchComputer, WatchComputerParams(it, true)) }
     }
 
-    override fun onCleared() {
+    fun dispose() {
+        disposed = true
+        viewModelScope.cancel()
         val id = watching ?: return
+        watching = null
         // The Server also stops the frames when this client disconnects.
         owner.scope.launch { runCatching { client.call(Api.WatchComputer, WatchComputerParams(id, false)) } }
     }
+
+    override fun onCleared() = dispose()
 
     private suspend fun attempt(block: suspend () -> Unit) {
         try {
@@ -126,3 +141,7 @@ class ComputersViewModel(private val client: KinuvoClient, route: Route.Computer
         }
     }
 }
+
+
+private fun ComputerInfo.sameUsage(other: ComputerInfo): Boolean =
+    id == other.id && agentId == other.agentId && sessionId == other.sessionId && roomSessionId == other.roomSessionId

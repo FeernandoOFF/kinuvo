@@ -17,16 +17,86 @@ properties:
       exactly: 1
     - stub: mobile/room-send
       exactly: 1
+    - stub: mobile/room-session-second
+      atLeast: 1
+    - stub: mobile/room-configure
+      exactly: 1
+    - stub: mobile/room-routine-update
+      exactly: 1
+    - stub: mobile/room-artifact
+      exactly: 1
 ---
 - runFlow: ../../shared/pair-mobile.yaml
 - tapOn: "Agents and sessions"
-- tapOn: "Rooms"
+- scrollUntilVisible:
+    element:
+      text: "Rooms for E2E Agent"
+    direction: DOWN
+- assertVisible: "Garden team"
+- tapOn: "Rooms for E2E Agent"
+- assertNotVisible: "Garden team"
+- tapOn: "Rooms for E2E Agent"
+- assertVisible: "Garden team"
+- tapOn:
+    text: "Rooms"
+    index: 0
+- waitForAnimationToEnd:
+    timeout: 5000
 - tapOn: "Garden team"
 - assertVisible: "Plan the garden"
 - assertVisible: "The materials list is ready."
+- tapOn: "Agents and sessions"
+- tapOn: "Planting schedule"
+- assertNotVisible: "The materials list is ready."
+- tapOn: "Message"
+- inputText: "Keep the planting dates"
+- tapOn: "Agents and sessions"
+- tapOn: "Plan the garden"
+- assertVisible: "The materials list is ready."
+- assertNotVisible: "Keep the planting dates"
+- tapOn: "Agents and sessions"
+- tapOn: "Planting schedule"
+- assertVisible: "Keep the planting dates"
 - tapOn: "New Session"
+- assertNotVisible: "Keep the planting dates"
+- assertNotVisible: "The materials list is ready."
+- tapOn: "Session details"
+- tapOn: "All members"
+- tapOn: "E2E Agent"
+- assertVisible: "Garden check"
+- tapOn: "Edit Garden check"
+- assertVisible: "Each run starts a new Session."
+- scrollUntilVisible:
+    element:
+      text: "Save Routine"
+    direction: DOWN
+- tapOn: "Save Routine"
+- scrollUntilVisible:
+    element:
+      text: "Edit Garden check"
+    direction: UP
+- tapOn: "Edit Garden check"
+- tapOn: "Garden plan"
+- assertVisible: '(?s).*Planting checklist.*'
+- takeScreenshot: rooms-artifact
+- assertNotVisible: "Builder private output"
+- tapOn: "Return to context"
+- scrollUntilVisible:
+    element:
+      text: "Session execution"
+    direction: DOWN
+- tapOn: "Agent default · This server machine"
+- tapOn: 'Nowhere \(no shell\)'
+- scrollUntilVisible:
+    element:
+      text: "Save execution"
+    direction: DOWN
+- tapOn: "Save execution"
+- takeScreenshot: rooms-execution
+- tapOn: "Close context"
+- tapOn: "To Room · @mention to direct"
 - tapOn: "@E2E Agent"
-- tapOn: "Message this Room"
+- tapOn: "Message"
 - inputText: "Check the plan"
 - assertVisible: "Check the plan"
 - scrollUntilVisible:

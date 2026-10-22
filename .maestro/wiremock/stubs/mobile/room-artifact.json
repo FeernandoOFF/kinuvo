@@ -1,0 +1,43 @@
+{
+  "name": "mobile/room-artifact",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "artifact.get"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.id",
+              "equalTo": "garden-plan.md"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"info\":{\"id\":\"garden-plan.md\",\"title\":\"Garden plan\",\"type\":\"md\",\"agentId\":\"e2e\",\"sessionId\":\"private\",\"roomSessionId\":\"room-new\",\"created\":1792684800000,\"updated\":1792688400000},\"content\":\"# Planting checklist\\n\\nCheck the soil before planting.\"}}"
+        }
+      }
+    }
+  ]
+}

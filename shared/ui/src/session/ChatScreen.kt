@@ -118,6 +118,7 @@ fun ChatScreen(
     onSettings: (agentId: String) -> Unit,
     onNavigate: (Route) -> Unit = {},
     onToggleShell: (() -> Unit)? = null,
+    showComputerIndicator: Boolean = true,
 ) {
     val appState by app.state.collectAsState()
     val current by session.state.collectAsState()
@@ -163,45 +164,74 @@ fun ChatScreen(
         },
         answers = current.answers,
     )
-    ChatContent(
-        state, connection, appState.usage,
-        ChatActions(
-            onNew = { if (route.sessionId != null) onOpen(Route.Chat(route.agentId, compose = true)) },
-            onSelect = { id -> if (id != route.sessionId) onOpen(Route.Chat(route.agentId, id)) },
-            onSend = session::send,
-            onAttach = pickAttachment,
-            onDropAttachments = session::addAttachments,
-            onRemoveAttachment = session::removeAttachment,
-            onLoadAttachment = session::loadAttachment,
-            onSaveAttachment = { session.saveAttachment(it, saveAttachment) },
-            onPreviewAttachment = session::preview,
-            downloads = current.downloads,
-            onConfigure = session::configure,
-            onRefreshModels = { session.loadModels(true) },
-            onStop = session::stop,
-            onDecision = { _, decision -> session.respond(decision) },
-            onReviewReflection = session::reviewReflection,
-            onAnswer = session::answer,
-            onEditAnswer = session::editAnswer,
-            onOpenArtifact = { onNavigate(Route.Artifacts(it)) },
-            onWatch = { onNavigate(Route.Computers()) },
-            onLoadOlder = session::loadOlder,
-            onSettings = { route.agentId?.let(onSettings) },
-            onRename = session::rename,
-            onFavorite = session::favorite,
-            onVoice = voice?.let { v -> { dictation?.stop(); v.start() } },
-            onPauseVoice = { if (it) voice?.pause() else voice?.resume() },
-            onHoldVoice = { if (it) voice?.hold() else voice?.letGo() },
-            onSpeaker = { voice?.speaker(it) },
-            onEndVoice = { voice?.end() },
-            onDictate = dictation?.let { it::toggle },
-            onDiscardDictation = { dictation?.discard() },
-        ),
-        wide = wide,
-        compose = route.compose && route.sessionId == null,
-        draft = draft,
-        onToggleShell = onToggleShell ?: { if (wide) shell.open = !shell.open else shell.revealed = true },
-    )
+    val server = getKoin().get<ConnectedServer>()
+    var contextOpen by rememberSaveable { mutableStateOf(false) }
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val inlineContext = maxWidth >= 1050.dp
+        Row(Modifier.fillMaxSize()) {
+            Column(Modifier.weight(1f).fillMaxHeight()) {
+                if (showComputerIndicator) SessionComputerIndicator(server)
+                Box(Modifier.weight(1f)) {
+                    ChatContent(
+                        state, connection, appState.usage,
+                        ChatActions(
+                            onNew = { if (route.sessionId != null) onOpen(Route.Chat(route.agentId, compose = true)) },
+                            onSelect = { id -> if (id != route.sessionId) onOpen(Route.Chat(route.agentId, id)) },
+                            onSend = session::send,
+                            onAttach = pickAttachment,
+                            onDropAttachments = session::addAttachments,
+                            onRemoveAttachment = session::removeAttachment,
+                            onLoadAttachment = session::loadAttachment,
+                            onSaveAttachment = { session.saveAttachment(it, saveAttachment) },
+                            onPreviewAttachment = session::preview,
+                            downloads = current.downloads,
+                            onConfigure = session::configure,
+                            onRefreshModels = { session.loadModels(true) },
+                            onStop = session::stop,
+                            onDecision = { _, decision -> session.respond(decision) },
+                            onReviewReflection = session::reviewReflection,
+                            onAnswer = session::answer,
+                            onEditAnswer = session::editAnswer,
+                            onOpenArtifact = { onNavigate(Route.Artifacts(it)) },
+                            onWatch = { onNavigate(Route.Computers()) },
+                            onLoadOlder = session::loadOlder,
+                            onSettings = { route.agentId?.let(onSettings) },
+                            onContext = { contextOpen = !contextOpen },
+                            onRename = session::rename,
+                            onFavorite = session::favorite,
+                            onVoice = voice?.let { v -> { dictation?.stop(); v.start() } },
+                            onPauseVoice = { if (it) voice?.pause() else voice?.resume() },
+                            onHoldVoice = { if (it) voice?.hold() else voice?.letGo() },
+                            onSpeaker = { voice?.speaker(it) },
+                            onEndVoice = { voice?.end() },
+                            onDictate = dictation?.let { it::toggle },
+                            onDiscardDictation = { dictation?.discard() },
+                        ),
+                        wide = wide,
+                        compose = route.compose && route.sessionId == null,
+                        draft = draft,
+                        onToggleShell = onToggleShell ?: { if (wide) shell.open = !shell.open else shell.revealed = true },
+                    )
+                }
+            }
+            if (contextOpen && inlineContext) {
+                VerticalSeparator()
+                Box(Modifier.width(320.dp).fillMaxHeight()) {
+                    SessionContextPanel(server, route.agentId, route.sessionId,
+                        onOpenSession = { a, id -> onOpen(Route.Chat(a, id)) }, onAgentSettings = onSettings,
+                        onClose = { contextOpen = false })
+                }
+            }
+        }
+        if (contextOpen && !inlineContext) {
+            Box(Modifier.fillMaxSize().background(color(backgroundColor).copy(alpha = 0.65f)).clickable { contextOpen = false })
+            Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().then(if (maxWidth < 600.dp) Modifier.fillMaxWidth() else Modifier.width(360.dp))) {
+                SessionContextPanel(server, route.agentId, route.sessionId,
+                    onOpenSession = { a, id -> onOpen(Route.Chat(a, id)) }, onAgentSettings = onSettings,
+                    onClose = { contextOpen = false })
+            }
+        }
+    }
 }
 
 class ChatActions(
@@ -229,6 +259,7 @@ class ChatActions(
     val onWatch: () -> Unit = {},
     val onLoadOlder: () -> Unit = {},
     val onSettings: () -> Unit = {},
+    val onContext: (() -> Unit)? = null,
     val onRename: (String) -> Unit = {},
     val onFavorite: (Boolean) -> Unit = {},
     val onVoice: (() -> Unit)? = null,
@@ -471,6 +502,7 @@ private fun PhoneActions(state: ChatState, usage: Usage?, actions: ChatActions) 
     var statistics by remember(state.selected) { mutableStateOf(false) }
     val selected = state.selected?.let { id -> state.sessions.firstOrNull { it.id == id } ?: state.info }
     Bubble {
+        actions.onContext?.let { BubbleButton(Lucide.PanelRight, "Session context", it) }
         if (state.selected != null) BubbleButton(Lucide.SquarePen, "New session", actions.onNew)
         SessionMenu(selected, actions, extra = { close ->
             DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
@@ -517,6 +549,7 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, contro
             )
             selected?.let { SessionBadge(it) }
         }
+        actions.onContext?.let { HeaderButton(Lucide.PanelRight, "Session context", it) }
         ChatStatistics(usage, remember(state.items) { state.items.requestMetrics() }, state.selected)
         if (selected != null) SessionMenu(selected, actions) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
     }

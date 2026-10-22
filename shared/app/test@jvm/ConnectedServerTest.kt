@@ -399,6 +399,123 @@ class ConnectedServerTest {
         assertEquals(listOf("other"), vm.state.value.recipients)
     }
 
+    @Test fun roomSessionsRestoreIndependentDraftsAndMapToTheirOwnRoom() = withOwner { owner, _, _ ->
+        val script = Script("rooms")
+        script.rooms = listOf(Room("team", "Garden", listOf("agent", "other")), Room("launch", "Launch", listOf("agent", "writer")))
+        connect(owner, script)
+        val vm = kinuvo.app.rooms.RoomsViewModel(owner.rooms)
+        store().put("rooms", vm)
+        val rooms = vm.state.first { it.roomSessions.size == 2 }.rooms
+        vm.select(rooms.first())
+        val first = vm.state.first { it.view != null }.view!!.session
+        vm.text("Garden draft")
+        vm.recipient("other")
+        val second = RoomSession("second", "team", title = "Planting schedule")
+        vm.open(second)
+        assertEquals("", vm.state.value.text)
+        assertEquals(emptyList(), vm.state.value.recipients)
+        vm.text("Second draft")
+        vm.open(RoomSession("launch-session", "launch", title = "Launch checklist"))
+        assertEquals("launch", vm.state.value.selected?.id)
+        vm.text("Launch draft")
+        vm.recipient("writer")
+        vm.open(first)
+        assertEquals("team", vm.state.value.selected?.id)
+        assertEquals("Garden draft", vm.state.value.text)
+        assertEquals(listOf("other"), vm.state.value.recipients)
+        vm.open(second)
+        assertEquals("Second draft", vm.state.value.text)
+        assertEquals(emptyList(), vm.state.value.recipients)
+        vm.open(RoomSession("launch-session", "launch"))
+        assertEquals("Launch draft", vm.state.value.text)
+        assertEquals(listOf("writer"), vm.state.value.recipients)
+    }
+
+    @Test fun refreshingRoomsPrunesRemovedNavigationAndEndsItsSelection() = withOwner { owner, _, _ ->
+        val script = Script("rooms")
+        script.rooms = listOf(Room("team", "Garden", listOf("agent", "other")), Room("launch", "Launch", listOf("agent", "writer")))
+        connect(owner, script)
+        val vm = kinuvo.app.rooms.RoomsViewModel(owner.rooms)
+        store().put("rooms", vm)
+        val rooms = vm.state.first { it.roomSessions.size == 2 }.rooms
+        vm.select(rooms.first())
+        vm.state.first { it.view != null }
+        vm.text("Keep this draft")
+        script.rooms = listOf(rooms.last())
+        vm.refresh().join()
+        assertEquals(setOf("launch"), vm.state.value.roomSessions.keys)
+        assertNull(vm.state.value.selected)
+        assertNull(vm.state.value.view)
+        assertEquals("", vm.state.value.text)
+    }
+
+    @Test fun lateRoomListCannotSelectASessionInThePreviouslySelectedRoom() = withOwner { owner, _, _ ->
+        val script = Script("rooms")
+        script.rooms = listOf(Room("team", "Garden", listOf("agent", "other")), Room("launch", "Launch", listOf("agent", "writer")))
+        connect(owner, script)
+        val vm = kinuvo.app.rooms.RoomsViewModel(owner.rooms)
+        store().put("rooms", vm)
+        val rooms = vm.state.first { it.roomSessions.size == 2 }.rooms
+        script.hold(Api.RoomSessions.name)
+        vm.select(rooms.first())
+        script.blocked.receive()
+        vm.open(RoomSession("launch-session", "launch"))
+        vm.text("Keep the launch draft")
+        vm.recipient("writer")
+        script.release.complete(Unit)
+        script.finished.await()
+        vm.refresh().join()
+        assertEquals("launch", vm.state.value.selected?.id)
+        assertEquals("launch-session", vm.state.value.view?.session?.id)
+        assertEquals("Keep the launch draft", vm.state.value.text)
+        assertEquals(listOf("writer"), vm.state.value.recipients)
+    }
+
+    @Test fun completedSendClearsOnlyTheSentDraftWhenReturningAfterSwitch() = withOwner { owner, _, _ ->
+        val script = Script("rooms")
+        connect(owner, script)
+        val vm = kinuvo.app.rooms.RoomsViewModel(owner.rooms)
+        store().put("rooms", vm)
+        vm.select(vm.state.first { it.rooms.isNotEmpty() }.rooms.single())
+        val sent = vm.state.first { it.view != null }.view!!.session
+        vm.text("Send this")
+        vm.recipient("other")
+        script.hold(Api.SendRoom.name)
+        val sending = vm.send()
+        script.blocked.receive()
+        vm.open(RoomSession("second", sent.roomId))
+        vm.text("Keep this")
+        script.release.complete(Unit)
+        sending.join()
+        vm.open(sent)
+        assertEquals("", vm.state.value.text)
+        assertEquals(emptyList(), vm.state.value.recipients)
+        vm.open(RoomSession("second", sent.roomId))
+        assertEquals("Keep this", vm.state.value.text)
+    }
+
+    @Test fun lateSendKeepsARetypedIdenticalDraftAfterSwitchingSessions() = withOwner { owner, _, _ ->
+        val script = Script("rooms")
+        connect(owner, script)
+        val vm = kinuvo.app.rooms.RoomsViewModel(owner.rooms)
+        store().put("rooms", vm)
+        vm.select(vm.state.first { it.rooms.isNotEmpty() }.rooms.single())
+        val first = vm.state.first { it.view != null }.view!!.session
+        vm.text("Send this")
+        vm.recipient("other")
+        script.hold(Api.SendRoom.name)
+        val sending = vm.send()
+        script.blocked.receive()
+        vm.text("")
+        vm.text("Send this")
+        vm.open(RoomSession("second", first.roomId))
+        script.release.complete(Unit)
+        sending.join()
+        vm.open(first)
+        assertEquals("Send this", vm.state.value.text)
+        assertEquals(listOf("other"), vm.state.value.recipients)
+    }
+
     @Test fun lateRoomSelectionCannotReplaceExplicitOrNewSession() = withOwner { owner, _, _ ->
         for (create in listOf(false, true)) {
             val script = Script("rooms")
@@ -458,6 +575,7 @@ class ConnectedServerTest {
     private class Script(private val name: String) : FrameConnection {
         private val frames = Channel<Frame>(Channel.UNLIMITED)
         override val incoming = frames.receiveAsFlow()
+        var rooms = listOf(Room("team", name, listOf("agent", "other")))
         private val held = ConcurrentHashMap<String, Boolean>()
         val calls = java.util.concurrent.CopyOnWriteArrayList<String>()
         val requests = java.util.concurrent.CopyOnWriteArrayList<Frame.Request>()
@@ -493,8 +611,11 @@ class ConnectedServerTest {
                 Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", name, capabilities = ServerCapabilities("test"), management = true))
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
                 Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo("agent", name, "none")))
-                Api.Rooms.name -> reply(request, Api.Rooms, listOf(Room("team", name, listOf("agent", "other"), "agent")))
-                Api.RoomSessions.name -> reply(request, Api.RoomSessions, listOf(RoomSession("room-session", "team")))
+                Api.Rooms.name -> reply(request, Api.Rooms, rooms)
+                Api.RoomSessions.name -> {
+                    val p = ProtocolJson.decodeFromJsonElement(Api.RoomSessions.params, request.params)
+                    reply(request, Api.RoomSessions, listOf(RoomSession("room-session", p.roomId)))
+                }
                 Api.CreateRoomSession.name -> reply(request, Api.CreateRoomSession, RoomSession("new-room-session", "team"))
                 Api.RoomSession.name -> {
                     val p = ProtocolJson.decodeFromJsonElement(Api.RoomSession.params, request.params)

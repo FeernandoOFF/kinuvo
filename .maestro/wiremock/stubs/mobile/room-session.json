@@ -10,10 +10,20 @@
     },
     "message": {
       "body": {
-        "matchesJsonPath": {
-          "expression": "$.method",
-          "equalTo": "rooms.session"
-        }
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "rooms.session"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.sessionId",
+              "equalTo": "room-session"
+            }
+          }
+        ]
       }
     }
   },
@@ -25,7 +35,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"session\":{\"id\":\"room-session\",\"roomId\":\"team\",\"messages\":[{\"id\":\"user\",\"text\":\"Plan the garden\",\"senderName\":\"You\",\"recipients\":[\"e2e\"]},{\"id\":\"reply\",\"sender\":\"builder\",\"senderName\":\"Builder\",\"text\":\"The materials list is ready.\",\"rootId\":\"user\",\"replyTo\":\"user\"}]}}}"
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"session\":{\"id\":\"room-session\",\"roomId\":\"team\",\"messages\":[{\"id\":\"user\",\"text\":\"Plan the garden\",\"senderName\":\"You\",\"recipients\":[\"e2e\"]},{\"id\":\"reply\",\"sender\":\"builder\",\"senderName\":\"Builder\",\"text\":\"The materials list is ready.\",\"rootId\":\"user\",\"replyTo\":\"user\"}],\"title\":\"Plan the garden\"},\"members\":{\"e2e\":{\"server\":{\"serverId\":\"e2e-server\",\"features\":[\"Tasks\",\"Knowledge\",\"Artifacts\",\"Routines\",\"Computer\",\"Shell\"],\"integrations\":{\"Exec\":[\"host\"]}},\"effective\":{\"provider\":\"codex\",\"model\":\"e2e-model\",\"reasoning\":\"medium\",\"approvals\":\"default\",\"exec\":\"host\",\"workspace\":[\"/tmp\"],\"container\":{},\"ssh\":null,\"tools\":[\"shell\",\"files\"]}}}}}"
         }
       }
     }

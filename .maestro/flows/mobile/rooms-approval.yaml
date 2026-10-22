@@ -14,12 +14,14 @@ properties:
 - runFlow: ../../shared/pair-mobile.yaml
 - tapOn: "Agents and sessions"
 - tapOn: "Rooms"
+- waitForAnimationToEnd:
+    timeout: 5000
 - tapOn: "Garden team"
 - scrollUntilVisible:
     element:
       text: 'Note for the agent \(optional, sent on Deny\)'
     direction: DOWN
-- assertVisible: "E2E Agent · Waiting for you"
+- assertVisible: "E2E Agent"
 - assertVisible: "Medium risk"
 - assertVisible: "Share this public request with Builder"
 - assertVisible: "Always allow"
