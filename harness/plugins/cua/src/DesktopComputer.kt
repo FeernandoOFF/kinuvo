@@ -34,6 +34,7 @@ interface Driver {
  */
 class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let { path -> { McpDriver(path) } }) {
     val platform = currentPlatform.displayName
+    private var actions = ComputerActionKind.basic
     /** Whether cua-driver is installed; it also needs Accessibility and Screen Recording (`cua-driver permissions grant`). */
     val ready get() = connect != null
 
@@ -44,6 +45,8 @@ class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let {
     private var last: Capture? = null
     /** Screenshot pixels per screen point in the last capture. */
     private var perPoint = 1.0
+    private var screenWidth = 0
+    private var screenHeight = 0
     private var session = newSession()
 
     fun close() { driver?.close(); driver = null }
@@ -53,6 +56,18 @@ class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let {
         val d = driver ?: connect().also { driver = it }
         try {
             d.keepAwake(request.keepAwake)
+            actions = ComputerActionKind.basic + if (currentPlatform == Platform.MacOS) NEW_TOOLS.filter { (_, tool) ->
+                tool in setOf("list_apps", "list_windows") || d.parameters(tool)?.isNotEmpty() != false
+            }.keys else emptySet()
+            val action = request.action
+            if (action != null && action.kind !in actions) return ComputerResult(DeviceToolStatus.Denied, "${action.kind.action} is not supported on $platform")
+            if (action?.kind == ComputerActionKind.ListApps) return ComputerResult(DeviceToolStatus.Ready, apps = apps(d))
+            if (action?.kind == ComputerActionKind.ListWindows) return ComputerResult(DeviceToolStatus.Ready, windows = windows(d))
+            if (action?.kind == ComputerActionKind.ClipboardRead) {
+                val result = d.tool("clipboard_read") { put("include_text", true) }
+                return ComputerResult(if (result["error"] == null) DeviceToolStatus.Ready else DeviceToolStatus.Denied,
+                    result["error"]?.jsonPrimitive?.contentOrNull, clipboard = result["text"]?.jsonPrimitive?.contentOrNull)
+            }
             val error = request.action?.let { act(d, it, request) }
             if (request.action != null) delay(300)
             val screen = capture(d, request.screenshot, request.elements)
@@ -92,16 +107,20 @@ class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let {
         if (!request.user) {
             // Approved for one app: the window under the pointer, or in front for keys and typing, must still be that app's.
             val x = action.x; val y = action.y
-            val at = if (element == null && x != null && y != null) windowAt(d, x, y) else frontmost(d)
-            if (request.app != null && at?.app != request.app) return "${at?.app ?: "Another app"} is there now, not ${request.app}; capture again"
+            val at = when (action.kind) {
+                ComputerActionKind.SetWindowFrame -> window(d, action.window)
+                ComputerActionKind.KillApp -> null
+                else -> if (element == null && x != null && y != null) windowAt(d, x, y) else frontmost(d)
+            }
+            if (action.kind != ComputerActionKind.KillApp && request.app != null && at?.app != request.app) return "${at?.app ?: "Another app"} is there now, not ${request.app}; capture again"
             // Typing goes to the given element only, whose password status the Approval saw; focus could have moved anywhere.
-            if (action.kind == ComputerActionKind.Type && element == null) return "Give the element to type into"
-            if (action.kind == ComputerActionKind.Type && element?.password == true && !request.password)
+            if (action.kind in setOf(ComputerActionKind.Type, ComputerActionKind.SetValue) && element == null) return "Give the element to type into"
+            if (action.kind in setOf(ComputerActionKind.Type, ComputerActionKind.SetValue) && element?.password == true && !request.password)
                 return "That's a password field; capture again, or ask the user to take over"
         }
         val point = action.x?.let { x -> action.y?.let { y -> x to y } }
         val target = when (action.kind) {
-            ComputerActionKind.Tap, ComputerActionKind.DoubleTap, ComputerActionKind.LongPress -> if (element?.token == null) desktop(d, "click", point) else null
+            ComputerActionKind.Tap, ComputerActionKind.DoubleTap, ComputerActionKind.LongPress, ComputerActionKind.RightClick -> if (element?.token == null) desktop(d, if (action.kind == ComputerActionKind.RightClick) "right_click" else "click", point) else null
             ComputerActionKind.Type -> if (element?.token == null) desktop(d, "type_text") else null
             ComputerActionKind.Swipe -> desktop(d, "drag", point, action.toX?.let { x -> action.toY?.let { y -> x to y } })
             ComputerActionKind.Scroll -> if (element?.token == null) desktop(d, "scroll", point) else null
@@ -109,7 +128,7 @@ class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let {
             else -> null
         }
         val result: JsonObject = when (action.kind) {
-            ComputerActionKind.Tap, ComputerActionKind.DoubleTap, ComputerActionKind.LongPress -> d.tool("click") {
+            ComputerActionKind.Tap, ComputerActionKind.DoubleTap, ComputerActionKind.LongPress, ComputerActionKind.RightClick -> d.tool(if (action.kind == ComputerActionKind.RightClick) "right_click" else "click") {
                 if (element?.token != null) { put("element_token", element.token); element.pid?.let { put("pid", it) } }
                 else { requireNotNull(point) { "Give an element or x and y" }; target?.forEach { (k, v) -> put(k, v) } }
                 if (action.kind == ComputerActionKind.DoubleTap) put("count", 2)
@@ -142,7 +161,32 @@ class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let {
                 launched["pid"]?.jsonPrimitive?.longOrNull?.let { pid -> d.tool("bring_to_front") { put("pid", pid) } }
                 launched
             }
+            ComputerActionKind.SetValue -> d.tool("set_value") {
+                put("element_token", requireNotNull(element?.token) { "Give an element to set" })
+                put("pid", requireNotNull(element.pid)); put("value", requireNotNull(action.text))
+            }
+            ComputerActionKind.InvokeMenu -> {
+                val window = requireNotNull(frontmost(d)) { "No front window" }
+                d.tool("invoke_menu") { put("pid", window.pid); put("window_id", window.windowId); put("path", JsonArray(action.path.map(::JsonPrimitive))) }
+            }
+            ComputerActionKind.ClipboardWrite -> d.tool("clipboard_write") { put("text", requireNotNull(action.text)) }
+            ComputerActionKind.SetWindowFrame -> {
+                val window = window(d, action.window) ?: return "No window ${action.window}"
+                d.tool("set_window_frame") {
+                    put("pid", window.pid); put("window_id", window.windowId)
+                    put("x", requireNotNull(action.x)); put("y", requireNotNull(action.y))
+                    put("width", requireNotNull(action.width)); put("height", requireNotNull(action.height))
+                }
+            }
+            ComputerActionKind.KillApp -> {
+                val app = d.tool("list_apps")["apps"]?.jsonArray?.map { it.jsonObject }?.firstOrNull {
+                    it["bundle_id"]?.jsonPrimitive?.contentOrNull == action.app || it["name"]?.jsonPrimitive?.contentOrNull?.equals(action.app, ignoreCase = true) == true
+                } ?: return "No running app ${action.app}"
+                val pid = app["pid"]?.jsonPrimitive?.longOrNull?.takeIf { it > 0 } ?: return "${action.app} is not running"
+                d.tool("kill_app") { put("pid", pid) }
+            }
             ComputerActionKind.Wait -> { delay((action.durationMs ?: 1000).toLong()); JsonObject(emptyMap()) }
+            else -> return "${action.kind.action} is not supported on $platform"
         }
         return result["error"]?.jsonPrimitive?.contentOrNull
     }
@@ -174,15 +218,16 @@ class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let {
     }
 
     private suspend fun capture(d: Driver, screenshot: Boolean, withElements: Boolean): ComputerScreen {
-        val desktop = d.tool("get_desktop_state") { put("max_image_dimension", MAX_SIDE) }
+        if (!screenshot && !withElements) return ComputerScreen("state", 0, 0, platform = platform, actions = actions)
+        val desktop = if (screenshot) d.tool("get_desktop_state") { put("max_image_dimension", MAX_SIDE) } else JsonObject(emptyMap())
         desktop["error"]?.jsonPrimitive?.contentOrNull?.let { error(it) }
         val png = desktop["screenshot_png_b64"]?.jsonPrimitive?.contentOrNull ?: desktop["image"]?.jsonPrimitive?.contentOrNull
         val image = png?.let { runCatching { jpeg(Base64.decode(it)) }.getOrNull() }
         if (screenshot) requireNotNull(image) { "Desktop capture is unavailable; unlock the desktop and check Screen Recording access" }
         val pointsWide = desktop["screen_width"]?.jsonPrimitive?.doubleOrNull ?: 1.0
-        val width = desktop["screenshot_width"]?.jsonPrimitive?.intOrNull ?: image?.second ?: pointsWide.roundToInt()
-        val height = desktop["screenshot_height"]?.jsonPrimitive?.intOrNull ?: image?.third ?: 0
-        perPoint = width / pointsWide
+        val width = desktop["screenshot_width"]?.jsonPrimitive?.intOrNull ?: image?.second ?: screenWidth
+        val height = desktop["screenshot_height"]?.jsonPrimitive?.intOrNull ?: image?.third ?: screenHeight
+        if (screenshot) { perPoint = width / pointsWide; screenWidth = width; screenHeight = height }
         val id = desktop["capture_id"]?.jsonPrimitive?.contentOrNull ?: "d${System.nanoTime()}"
         val front = frontmost(d)
         val elements = mutableListOf<ComputerElement>()
@@ -211,7 +256,31 @@ class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let {
             }
             last = Capture(id, handles)
         } else if (withElements) last = Capture(id, emptyMap())
-        return ComputerScreen(id, width, height, front?.app, front?.title, elements, if (screenshot) image?.first else null, platform)
+        return ComputerScreen(id, width, height, front?.app, front?.title, elements, if (screenshot) image?.first else null, platform, actions)
+    }
+
+    private suspend fun apps(d: Driver): List<ComputerApp> {
+        val result = d.tool("list_apps")
+        result["error"]?.let { error(it.jsonPrimitive.content) }
+        return result["apps"]?.jsonArray.orEmpty().map { raw ->
+            val app = raw.jsonObject
+            val name = app["name"]?.jsonPrimitive?.contentOrNull.orEmpty()
+            ComputerApp(name, app["bundle_id"]?.jsonPrimitive?.contentOrNull ?: name,
+                app["running"]?.jsonPrimitive?.booleanOrNull ?: ((app["pid"]?.jsonPrimitive?.longOrNull ?: 0) > 0),
+                app["active"]?.jsonPrimitive?.booleanOrNull == true)
+        }
+    }
+
+    private suspend fun windows(d: Driver): List<ComputerWindow> {
+        val result = d.tool("list_windows")
+        result["error"]?.let { error(it.jsonPrimitive.content) }
+        return result["windows"]?.jsonArray.orEmpty().map { raw ->
+            val w = raw.jsonObject
+            val b = w.getValue("bounds").jsonObject
+            ComputerWindow(w.getValue("window_id").jsonPrimitive.long, w["app_name"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                w["title"]?.jsonPrimitive?.contentOrNull.orEmpty(), b.getValue("x").jsonPrimitive.double.roundToInt(),
+                b.getValue("y").jsonPrimitive.double.roundToInt(), b.getValue("width").jsonPrimitive.double.roundToInt(), b.getValue("height").jsonPrimitive.double.roundToInt())
+        }
     }
 
     private class Window(val pid: Long, val windowId: Long, val app: String, val title: String, val x: Double, val y: Double, val width: Double, val height: Double)
@@ -237,6 +306,16 @@ class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let {
         return front + all.filter { it.second && it.first.pid != active }.sortedByDescending { it.third }.map { it.first }
     }
 
+    private suspend fun window(d: Driver, id: Long?): Window? {
+        val w = d.tool("list_windows")["windows"]?.jsonArray?.map { it.jsonObject }
+            ?.firstOrNull { it["window_id"]?.jsonPrimitive?.longOrNull == id } ?: return null
+        val b = w.getValue("bounds").jsonObject
+        return Window(w.getValue("pid").jsonPrimitive.long, w.getValue("window_id").jsonPrimitive.long,
+            w["app_name"]?.jsonPrimitive?.contentOrNull.orEmpty(), w["title"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+            b.getValue("x").jsonPrimitive.double, b.getValue("y").jsonPrimitive.double,
+            b.getValue("width").jsonPrimitive.double, b.getValue("height").jsonPrimitive.double)
+    }
+
     private suspend fun frontmost(d: Driver) = ordered(d, 100.0).firstOrNull()
 
     /** The front window at [x], [y] in the last screenshot's pixels. */
@@ -250,6 +329,10 @@ class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let {
     private companion object {
         const val MAX_SIDE = 1600
         const val MAX_ELEMENTS = 300
+        val NEW_TOOLS = mapOf(ComputerActionKind.ListApps to "list_apps", ComputerActionKind.RightClick to "right_click",
+            ComputerActionKind.InvokeMenu to "invoke_menu", ComputerActionKind.SetValue to "set_value",
+            ComputerActionKind.ClipboardWrite to "clipboard_write", ComputerActionKind.ClipboardRead to "clipboard_read",
+            ComputerActionKind.ListWindows to "list_windows", ComputerActionKind.SetWindowFrame to "set_window_frame", ComputerActionKind.KillApp to "kill_app")
         val KEYS = mapOf("enter" to "return", "back" to "escape", "esc" to "escape", "command" to "cmd", "control" to "ctrl", "alt" to "option")
         val EDITABLE = setOf("TextField", "TextArea", "SearchField", "ComboBox", "SecureTextField")
         val IGNORED = setOf("Cua Driver", "CursorUIViewService", "Window Server", "Dock")

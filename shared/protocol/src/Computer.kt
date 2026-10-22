@@ -90,8 +90,9 @@ data class ComputerScreen(
 data class ComputerResult(val status: DeviceToolStatus, val message: String? = null, val screen: ComputerScreen? = null, val userControl: Boolean = false,
     val apps: List<ComputerApp>? = null, val windows: List<ComputerWindow>? = null, val clipboard: String? = null)
 
+/** [running] is unknown for Android background apps. */
 @Serializable
-data class ComputerApp(val name: String, val id: String, val running: Boolean = false, val frontmost: Boolean = false,
+data class ComputerApp(val name: String, val id: String, val running: Boolean? = null, val frontmost: Boolean = false,
     val sensitive: Boolean = false)
 
 /** Bounds use desktop points from list_windows, rather than screenshot pixels. */
@@ -106,7 +107,7 @@ enum class ComputerControl { Idle, Agent, User }
 @Serializable
 data class ComputerInfo(val id: String, val name: String, val platform: String, val available: Boolean,
     val control: ComputerControl = ComputerControl.Idle, val takeoverRequest: String? = null,
-    val actions: Set<ComputerActionKind> = ComputerActionKind.basic)
+    val actions: Set<String> = ComputerActionKind.basic.map { it.action }.toSet())
 
 @Serializable
 data class WatchComputerParams(val computerId: String, val watch: Boolean)
