@@ -39,7 +39,8 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
         val old = agent.config
         p.provider?.let { harness.requireModelProvider(it); require(!p.model.isNullOrBlank() || it == old.provider) { "Choose a model with its provider" } }
         p.approvals?.let { require(it in Tolerance.ids) { "approvals must be one of ${Tolerance.ids.joinToString()}" } }
-        p.tools?.let { tools -> require(tools.all { it in TOOLS }) { "tools must be among ${TOOLS.joinToString()}" } }
+        // A tool this Server no longer has may linger in the config; it doesn't block changes and is dropped on save.
+        p.tools?.let { tools -> require(tools.all { it in TOOLS || it in old.tools }) { "tools must be among ${TOOLS.joinToString()}" } }
         p.exec?.takeIf { it != old.exec }?.let(::requireExec)
         val config = old.copy(
             avatar = p.avatar ?: old.avatar,
@@ -49,7 +50,7 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
             approvals = p.approvals ?: old.approvals,
             exec = p.exec ?: old.exec,
             workspace = p.workspace ?: old.workspace,
-            tools = p.tools ?: old.tools,
+            tools = p.tools?.filter { it in TOOLS } ?: old.tools,
             container = p.container ?: old.container,
             ssh = p.ssh ?: old.ssh,
         )
