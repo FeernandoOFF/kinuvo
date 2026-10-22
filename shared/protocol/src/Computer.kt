@@ -3,7 +3,18 @@ package kinuvo.protocol
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class ComputerActionKind { Tap, DoubleTap, LongPress, Type, Swipe, Scroll, Key, OpenApp, Wait }
+enum class ComputerActionKind(val action: String) {
+    Tap("tap"), DoubleTap("double_tap"), LongPress("long_press"), Type("type"), Swipe("swipe"), Scroll("scroll"),
+    Key("key"), OpenApp("open_app"), Wait("wait"), ListApps("list_apps"), RightClick("right_click"), InvokeMenu("invoke_menu"),
+    Zoom("zoom"), SetValue("set_value"), VerifyState("verify_state"), ClipboardWrite("clipboard_write"), ClipboardRead("clipboard_read"),
+    ListWindows("list_windows"), SetWindowFrame("set_window_frame"), KillApp("kill_app");
+
+    companion object {
+        val basic = setOf(Tap, DoubleTap, LongPress, Type, Swipe, Scroll, Key, OpenApp, Wait)
+        val android = basic + setOf(ListApps, SetValue, ClipboardWrite)
+        val mac = android + setOf(RightClick, InvokeMenu, ClipboardRead, ListWindows, SetWindowFrame, KillApp)
+    }
+}
 
 /**
  * One input on a Computer. [element] is a number from the latest [ComputerScreen]; [x]/[y] (and [toX]/[toY] for a
@@ -23,6 +34,10 @@ data class ComputerAction(
     val direction: String? = null,
     val app: String? = null,
     val durationMs: Int? = null,
+    val path: List<String> = emptyList(),
+    val window: Long? = null,
+    val width: Int? = null,
+    val height: Int? = null,
 )
 
 /**
@@ -67,11 +82,21 @@ data class ComputerScreen(
     val screenshot: String? = null,
     /** Android, macOS, Windows or Linux: which keys and controls apply. */
     val platform: String? = null,
+    val actions: Set<ComputerActionKind> = ComputerActionKind.basic,
 )
 
 /** [userControl] when the user took over on the Computer itself, so Agents wait. */
 @Serializable
-data class ComputerResult(val status: DeviceToolStatus, val message: String? = null, val screen: ComputerScreen? = null, val userControl: Boolean = false)
+data class ComputerResult(val status: DeviceToolStatus, val message: String? = null, val screen: ComputerScreen? = null, val userControl: Boolean = false,
+    val apps: List<ComputerApp>? = null, val windows: List<ComputerWindow>? = null, val clipboard: String? = null)
+
+@Serializable
+data class ComputerApp(val name: String, val id: String, val running: Boolean = false, val frontmost: Boolean = false,
+    val sensitive: Boolean = false)
+
+/** Bounds use desktop points from list_windows, rather than screenshot pixels. */
+@Serializable
+data class ComputerWindow(val id: Long, val app: String, val title: String, val x: Int, val y: Int, val width: Int, val height: Int)
 
 /** Who is using a Computer: nobody, an Agent, or the user during a Takeover. */
 @Serializable
@@ -80,7 +105,8 @@ enum class ComputerControl { Idle, Agent, User }
 /** A screen an Agent can control: a Device that allowed it. [takeoverRequest] is why an Agent asked the user to take over. */
 @Serializable
 data class ComputerInfo(val id: String, val name: String, val platform: String, val available: Boolean,
-    val control: ComputerControl = ComputerControl.Idle, val takeoverRequest: String? = null)
+    val control: ComputerControl = ComputerControl.Idle, val takeoverRequest: String? = null,
+    val actions: Set<ComputerActionKind> = ComputerActionKind.basic)
 
 @Serializable
 data class WatchComputerParams(val computerId: String, val watch: Boolean)

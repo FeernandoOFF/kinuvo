@@ -19,7 +19,7 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Duration
 import kotlin.uuid.Uuid
 
-/** Which risk levels run without an Approval: strict asks for everything, full never asks. Deny rules apply to all. */
+/** Which risk levels run without an Approval: strict asks for everything, full skips risk-based Approvals. Deny rules apply to all. */
 enum class Tolerance(val id: String, val autoUpTo: Risk?) {
     Strict("strict", null),
     Default("default", Risk.Low),
@@ -70,6 +70,7 @@ class ApprovalPolicy(private val agent: Agent, private val rules: TrustRulesRepo
         blocked(tool, command, rules)?.let { return Verdict.Block(it) }
         if (tool.kind == ToolKind.AskUser) return Verdict.Run
         val assessment = tool.assess(json).let { if (tool.kind == ToolKind.Shell) it else it.withToolKey(tool.descriptor.name, key) }
+        if (assessment.actions.any { it.alwaysAsk }) return ask(assessment, emptyList())
         val limit = tolerance.autoUpTo ?: return ask(assessment, emptyList())
         val saved = if (tool.kind == ToolKind.Shell) rules.shell.map(ShellCommand::words) else rules.trusted.map { it.split(' ') }
         fun trusted(a: Action) = saved.any(a::matches)

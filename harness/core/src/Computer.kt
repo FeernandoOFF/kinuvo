@@ -9,6 +9,7 @@ interface Computer {
     val name: String
     /** Android, macOS, Windows or Linux, once it has said. */
     val platform: String
+    val actions: Set<kinuvo.protocol.ComputerActionKind> get() = kinuvo.protocol.ComputerActionKind.basic
     val available: Boolean
     suspend fun perform(request: ComputerRequest): ComputerResult
 }

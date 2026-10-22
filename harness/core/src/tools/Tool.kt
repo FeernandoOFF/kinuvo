@@ -19,8 +19,9 @@ data class Action(
     val trustable: Boolean = true,
     val key: List<String> = words,
     val floor: Risk = Risk.Low,
+    val alwaysAsk: Boolean = false,
 ) {
-    fun matches(rule: List<String>) = trustable && rule.isNotEmpty() && if (exact) rule == words else words.take(rule.size) == rule
+    fun matches(rule: List<String>) = !alwaysAsk && trustable && rule.isNotEmpty() && if (exact) rule == words else words.take(rule.size) == rule
 }
 
 /** What a call would do; its risk is that of its riskiest [actions]. */
