@@ -27,6 +27,7 @@ properties:
 - assertVisible: "Always allow"
 - tapOn: 'Note for the agent \(optional, sent on Deny\)'
 - inputText: "Keep this private"
+- hideKeyboard
 - scrollUntilVisible:
     element:
       text: "Deny"
