@@ -44,7 +44,7 @@ class Computers(
 
     override val features = setOf(ServerFeature.Computer)
 
-    fun connect(id: String, act: suspend (ComputerRequest) -> ComputerResult) { capabilities.update { it - id }; connections.update { it + (id to act) }; changed() }
+    fun connect(id: String, act: suspend (ComputerRequest) -> ComputerResult) { capabilities.update { it - id }; probed.update { it - id }; connections.update { it + (id to act) }; changed() }
 
     fun disconnect(id: String, act: suspend (ComputerRequest) -> ComputerResult) {
         val before = connections.value
@@ -56,6 +56,8 @@ class Computers(
     private val platforms = MutableStateFlow(emptyMap<String, String>())
 
     private val capabilities = MutableStateFlow(emptyMap<String, Set<ComputerActionKind>>())
+    /** Computers asked once since connecting what they support; preparing a run never waits on a Computer again. */
+    private val probed = MutableStateFlow(emptySet<String>())
 
     fun all(): List<Computer> = paired().filter { DeviceToolKind.Computer in it.tools }.map { device ->
         object : Computer {
@@ -204,7 +206,7 @@ class Computers(
 
     override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
         if (!enabled(run)) return PluginTools()
-        all().filter { it.available }.forEach { probe(it) }
+        all().filter { it.available && it.id !in probed.value }.forEach { probed.update { ids -> ids + it.id }; probe(it) }
         val available = all().any { it.available }
         val state = if (available) CapabilityState() else CapabilityState.unavailable("Allow computer use under This Device's tools on a paired Device", "no_computer")
         // Each run acts on the screens it saw, so another Agent's capture can't change what an element number or Approval means.

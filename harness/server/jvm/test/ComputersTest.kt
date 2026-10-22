@@ -71,6 +71,18 @@ class ComputersTest {
     }
 
     @Test
+    fun preparingRunsAsksAConnectedComputerOnce() = runBlocking {
+        tools()
+        var asked = 0
+        harness.computers.connect(phone.id) { asked++; ComputerResult(DeviceToolStatus.Ready, screen = screen) }
+        repeat(3) { tools() }
+        assertEquals(1, asked)
+        harness.computers.connect(phone.id) { asked++; ComputerResult(DeviceToolStatus.Ready, screen = screen) }
+        tools()
+        assertEquals(2, asked)
+    }
+
+    @Test
     fun offlineComputersReportItAndMissingArgumentsFailEarly() = runBlocking {
         val tools = tools()
         assertContains(tools.getValue("computer_capture").execute(JsonObject(emptyMap()), "call", run), "Unavailable")
