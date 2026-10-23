@@ -19,6 +19,7 @@ class ToolExecutor(
     private val questions: Broker<Map<String, List<String>>?>? = null,
     private val attach: ((String, ByteArray) -> Attachment)? = null,
     private val emit: suspend (AgentEvent) -> Unit = {},
+    private val terminated: () -> Boolean = { false },
 ) {
     private val toolsByName = tools.indexedTools()
     private val callable = (advertisedTools + tools.map { it.descriptor }).distinctBy { it.name }
@@ -28,7 +29,8 @@ class ToolExecutor(
 
     private suspend fun invoke(call: SessionEntry.ToolCall, approvalId: String, stopped: (String) -> Unit): SessionEntry.ToolResult {
         emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
-        val result = perform(call, approvalId, stopped)
+        val result = if (terminated()) SessionEntry.ToolResult(call.id, call.name, "Not run: Room turn completed", isError = true, identity = call.identity)
+        else perform(call, approvalId, stopped)
         emit(AgentEvent.ToolCallResult(call.id, result.output, result.isError, result.identity))
         return result
     }

@@ -53,6 +53,7 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
     }
     var reflectionConfig = kinuvo.harness.core.store.ReflectionConfig()
     var execOptions = emptySet<String>()
+    var notifier: Notifier? = null
     val settings = object : ServerSettings {
         override var timeZone: TimeZone = TimeZone.UTC
         override val reflectionModel get() = reflectionConfig
@@ -68,7 +69,7 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
         override fun saveService(kind: ServiceKind, s: ServiceSettings, secretUpdates: Map<String, SecretUpdate>): ServiceSetup = error("Not used")
         override suspend fun testService(p: TestServiceParams): ServiceTestResult = error("Not used")
         override fun webSearch(): WebSearch? = null
-        override fun notifier(): Notifier? = null
+        override fun notifier(): Notifier? = this@RuntimeFixture.notifier
     }
     private var savedRoutines = emptyList<Routine>()
     val routines = Routines(object : RoutineRepository {

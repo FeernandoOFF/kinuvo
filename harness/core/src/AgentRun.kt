@@ -42,6 +42,7 @@ class AgentRun(
     private val tracing: AgentTracing? = null,
     private val traceSessionId: String? = null,
     private val routine: RoutineRun? = null,
+    private val room: RoomRun? = null,
 ) {
     private val advertisedTools = advertisedTools.sortedBy { it.name }
 
@@ -58,7 +59,12 @@ class AgentRun(
         val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, { send(it) })
         var stopped = "Cancelled by user"
         var cancelled = false
-        val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, emit = { event ->
+        val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, terminated = { room?.outcome != null }, emit = { event ->
+            when (event) {
+                is AgentEvent.QuestionsAsked -> room?.needsUser(event.questionsId)
+                is AgentEvent.QuestionsAnswered -> room?.needsUser(null)
+                else -> Unit
+            }
             if (event is AgentEvent.ToolCallStart) session.toolStarted(event.toolCallId)
             if (event !is AgentEvent.ToolCallResult || session.calls.none { it.id == event.toolCallId }) send(event)
         })
@@ -71,11 +77,16 @@ class AgentRun(
                 id = agent.id,
                 promptExecutor = model.executor,
                 agentConfig = AIAgentConfig(Prompt.Empty, model.model, MAX_AGENT_ITERATIONS),
-                strategy = routine?.let { routineStrategy(session, executor, it, userText) { stopped = it } } ?: chatStrategy(session, executor) { stopped = it },
+                strategy = when {
+                    room != null -> roomStrategy(session, executor, room) { stopped = it }
+                    routine != null -> routineStrategy(session, executor, routine, userText) { stopped = it }
+                    else -> chatStrategy(session, executor) { stopped = it }
+                },
             ) {
                 install(ToolLoopFeature) {
                     requests = session.requests
                     response = session.response
+                    beforeRequest = { room?.beforeRequest?.invoke() }
                     starting = session::startRequest
                     saveResponse = session::saveResponse
                 }
@@ -97,7 +108,7 @@ class AgentRun(
         } finally {
             withContext(NonCancellable) {
                 session.saveResponse()
-                session.closePending(stopped, if (cancelled) "Not run: the turn was cancelled" else "Not run: the turn stopped") { event ->
+                session.closePending(stopped, if (cancelled) "Not run: the turn was cancelled" else if (room?.outcome != null) "Not run: Room turn completed" else "Not run: the turn stopped") { event ->
                     if (cancelled) trySend(event) else send(event)
                 }
             }

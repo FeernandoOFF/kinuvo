@@ -63,6 +63,7 @@ internal class ToolLoop(
     private val onResult: suspend (SessionEntry.ToolResult) -> Unit = {},
     private val onFrame: suspend (StreamFrame) -> Unit = {},
     private val stopped: (String) -> Unit = {},
+    private val terminated: () -> Boolean = { false },
 ) {
     private val failed = mutableSetOf<Pair<String, String>>()
     private var repeats = 0
@@ -92,13 +93,15 @@ internal class ToolLoop(
         onResult(result)
         llm.writeSession { prompt = prompt.withMessages { it + messages.messages(listOf(result)) } }
         pending = pending.drop(1)
+        if (terminated()) stopped("Room turn completed")
     }
 
     fun connect(builder: AIAgentSubgraphBuilderBase<Unit, Unit>, beforeRequest: AIAgentNodeBase<Unit, Unit> = request, finish: AIAgentNodeBase<Unit, *> = builder.nodeFinish) = with(builder) {
         edge(request forwardTo finish onCondition { pending.isEmpty() })
         edge(request forwardTo executeTool onCondition { pending.isNotEmpty() })
-        edge(executeTool forwardTo executeTool onCondition { pending.isNotEmpty() })
-        edge(executeTool forwardTo beforeRequest onCondition { pending.isEmpty() })
+        edge(executeTool forwardTo finish onCondition { terminated() })
+        edge(executeTool forwardTo executeTool onCondition { !terminated() && pending.isNotEmpty() })
+        edge(executeTool forwardTo beforeRequest onCondition { !terminated() && pending.isEmpty() })
     }
 }
 
@@ -106,6 +109,7 @@ internal class ToolLoopFeature private constructor() {
     class Config : FeatureConfig() {
         lateinit var requests: ModelRequests
         lateinit var response: StreamResponse
+        var beforeRequest: suspend () -> Unit = {}
         var starting: suspend () -> Unit = {}
         var saveResponse: suspend () -> Unit = {}
     }
@@ -117,7 +121,7 @@ internal class ToolLoopFeature private constructor() {
         override fun install(config: Config, pipeline: AIAgentGraphPipeline): ToolLoopFeature {
             val response = config.response
             val requests = config.requests
-            pipeline.interceptLLMCallStarting(this) { requests.start(); config.starting() }
+            pipeline.interceptLLMCallStarting(this) { config.beforeRequest(); requests.start(); config.starting() }
             pipeline.interceptLLMCallCompleted(this) {
                 it.response?.let { response -> requests.metadata(response) }
                 requests.finish(true)

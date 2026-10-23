@@ -22,6 +22,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         val routine = routineOf(sessionId)
         scope.launch {
             if (harness.log.watched(sessionId)) return@launch
+            if (routine == null && (event is AgentEvent.RunFinished || event is AgentEvent.RunError) && harness.store.session(agent, sessionId).roomExecution) return@launch
             val notification = when (event) {
                 is AgentEvent.ApprovalRequested ->
                     Notification("${agent.name} needs an Approval", "${event.toolCallName}: ${event.reason ?: event.args}".clip(), agent.id, sessionId, urgent = true)

@@ -16,9 +16,10 @@ class RoomsStoreTest {
         val message = RoomMessage("message", agent.id, agent.name, "public reply", rootId = "root")
         val settings = SessionSettings(exec = "ssh", workspace = listOf("/remote"), ssh = SshSettings("host", "user"))
         home.store.append(home.agent, direct.id, SessionEntry.Settings(settings))
-        val session = RoomSession("room-session", room.id, listOf(message), title = "Release", memberSettings = mapOf(agent.id to settings))
-        home.store.saveRoomSession(session)
         val privateSession = home.store.createSession(home.agent, "private", roomExecution = true)
+        val session = RoomSession("room-session", room.id, listOf(message), title = "Release", memberSettings = mapOf(agent.id to settings),
+            memberExecutions = mapOf(home.agent.id to RoomExecution(privateSession.id, cursor = 1, interrupted = true)))
+        home.store.saveRoomSession(session)
         home.store.append(home.agent, privateSession.id, SessionEntry.UserMessage("private request"))
         assertFalse(home.store.session(home.agent, privateSession.id).inChats)
         val reopened = FileStore(home.files)

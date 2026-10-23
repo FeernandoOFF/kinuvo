@@ -260,7 +260,7 @@ open class HarnessRuntime(
      * Builds a runner with the Agent's current tools, starting what its plugins need on first use. [sessionId] is the
      * Session it runs in; [routine] is set for a Routine's run, which follows the Routine's approval mode.
      */
-    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null, roomTools: List<Tool> = emptyList(), roomContext: String = "", roomSessionId: String? = null, onPrepared: (kinuvo.protocol.EffectiveSessionSettings) -> Unit = {}): AgentRun {
+    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null, roomTools: List<Tool> = emptyList(), roomContext: String = "", roomSessionId: String? = null, roomRun: kinuvo.harness.core.RoomRun? = null, onPrepared: (kinuvo.protocol.EffectiveSessionSettings) -> Unit = {}): AgentRun {
         val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, roomSessionId = roomSessionId)
         val e = prepared.effective
         val snapshot = e.snapshot()
@@ -291,6 +291,7 @@ open class HarnessRuntime(
                 RoutineApprovals.Inherit -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent)), approvals, wait = routineApprovalWait, skipped = { routine.skipped += it })
             },
             routine = routine,
+            room = roomRun,
             questions = questions,
             attach = { name, bytes -> attachments.upload(kinuvo.protocol.UploadAttachmentParams(name, kotlin.io.encoding.Base64.encode(bytes))) },
         )

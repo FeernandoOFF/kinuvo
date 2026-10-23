@@ -17,7 +17,11 @@ class RoomsApiTest {
     @Test fun roomApiPersistsPublicHistoryAndLeavesDirectApiCompatible() = runBlocking {
         val home = Path(Files.createTempDirectory("rooms-api").toString())
         fun harness() = Harness(home = home, providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home, "no-auth.json"))))), modelFactory = {
-            scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("Public reply"), StreamFrame.End()) }
+            scriptedModel { _, tools ->
+                val reply = tools.firstOrNull { it.name.contains("public_reply") }
+                if (reply == null) flowOf(StreamFrame.TextDelta("Public reply"), StreamFrame.End())
+                else flowOf(StreamFrame.ToolCallComplete("publish", reply.name, """{"text":"Public reply"}"""), StreamFrame.End())
+            }
         })
         val first = harness()
         first.store.createAgent("other")

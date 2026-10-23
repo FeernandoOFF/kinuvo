@@ -7,7 +7,9 @@ data class Room(val id: String, val name: String, val members: List<String>, val
 @Serializable
 data class RoomMessage(val id: String, val sender: String? = null, val senderName: String = "You", val text: String, val recipients: List<String> = emptyList(), val replyTo: String? = null, val rootId: String? = null)
 @Serializable
-data class RoomSession(val id: String, val roomId: String, val messages: List<RoomMessage> = emptyList(), val createdAt: Long = 0, val title: String = "", val memberSettings: Map<String, SessionSettings> = emptyMap())
+data class RoomSession(val id: String, val roomId: String, val messages: List<RoomMessage> = emptyList(), val createdAt: Long = 0, val title: String = "", val memberSettings: Map<String, SessionSettings> = emptyMap(), val memberExecutions: Map<String, RoomExecution> = emptyMap())
+@Serializable
+data class RoomExecution(val sessionId: String, val cursor: Int = 0, val interrupted: Boolean = false)
 @Serializable
 data class RoomRef(val roomId: String, val title: String? = null)
 @Serializable

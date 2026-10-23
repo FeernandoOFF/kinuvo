@@ -17,7 +17,7 @@ internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: 
 }
 
 /** The Session's history, compaction and the tool loop, ending at [finish]; returns the node to start from. */
-internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit, finish: AIAgentNodeBase<Unit, *>): AIAgentNodeBase<Unit, Unit> {
+internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit, finish: AIAgentNodeBase<Unit, *>, room: RoomRun? = null): AIAgentNodeBase<Unit, Unit> {
     val loop = ToolLoop(session.messages, session.response, { executor }, session::toolName,
         repeated = { call ->
             session.toolStarted(call.id)
@@ -25,18 +25,19 @@ internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession
             SessionEntry.ToolResult(call.id, call.name, "This exact call already failed in this turn. Don't repeat it; try something else or answer the user.", isError = true, identity = call.identity)
         },
         onResponse = {
-            if (session.text().isNotEmpty()) session.emit(AgentEvent.TextMessageEnd(session.messageId, session.text()))
+            if (room == null && session.text().isNotEmpty()) session.emit(AgentEvent.TextMessageEnd(session.messageId, session.text()))
         },
         onResult = { result ->
             session.append(result)
             session.emit(AgentEvent.ToolCallResult(result.id, result.output, result.isError, result.identity))
         },
-        onFrame = { frame -> when (frame) {
+        onFrame = { frame -> if (room == null) when (frame) {
             is StreamFrame.TextDelta -> session.emit(AgentEvent.TextMessageContent(session.messageId, frame.text))
             is StreamFrame.ReasoningDelta -> (frame.summary ?: frame.text)?.let { session.emit(AgentEvent.ThinkingContent(session.messageId, it)) }
             else -> Unit
         } },
         stopped = stopped,
+        terminated = { room?.outcome != null },
     )
     val checkHistory by node<Unit, Unit> {
         loop.checkRepeats()
