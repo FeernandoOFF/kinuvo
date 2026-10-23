@@ -22,8 +22,9 @@ internal class RoomWork(val root: RoomMessage, private val members: Set<String>,
         check(dispatched < limits.dispatches) { "Room participation limit reached" }
         val next = pending.values.first()
         pending.remove(next.agentId)
-        check(counts.getOrDefault(next.agentId, 0) < limits.perMember) { "Room member participation limit reached" }
-        counts[next.agentId] = counts.getOrDefault(next.agentId, 0) + 1
+        val used = counts[next.agentId] ?: 0
+        check(used < limits.perMember) { "Room member participation limit reached" }
+        counts[next.agentId] = used + 1
         dispatched++
         current = next.agentId
         return next
@@ -41,7 +42,7 @@ internal class RoomWork(val root: RoomMessage, private val members: Set<String>,
             .groupBy { it.owner to it.target }.values.map { group -> group.first().owner to group.maxOf { it.depth } }
         val reserved = scheduled.map { it.key to it.value } + waiting
         if (reserved.any { it.second > limits.depth } ||
-            reserved.groupingBy { it.first }.eachCount().any { (agent, turns) -> counts.getOrDefault(agent, 0) + turns > limits.perMember } ||
+            reserved.groupingBy { it.first }.eachCount().any { (agent, turns) -> (counts[agent] ?: 0) + turns > limits.perMember } ||
             dispatched + reserved.size > limits.dispatches) {
             rejection = "Room participation limit reached. Send a new message to continue."
             error(rejection!!)
@@ -105,6 +106,6 @@ internal class RoomWork(val root: RoomMessage, private val members: Set<String>,
             member in completed -> "completed"
             else -> "not scheduled"
         }
-        "$member: $status (${counts.getOrDefault(member, 0)} turns used)"
+        "$member: $status (${counts[member] ?: 0} turns used)"
     }
 }
