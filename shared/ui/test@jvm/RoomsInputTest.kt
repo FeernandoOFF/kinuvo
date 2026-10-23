@@ -1,11 +1,6 @@
 package kinuvo.ui
 
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.foundation.layout.Box
-import kinuvo.ui.design.LocalPopovers
-import kinuvo.ui.design.Popovers
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsNode
@@ -90,39 +85,36 @@ class RoomsInputTest {
         }
     }
 
-    @Test fun headerActionsAndRenameRemainUsableAtPhoneWidth() = javax.swing.SwingUtilities.invokeAndWait {
+    @Test fun headerRevealsTheRoomAndRenamesInPlaceAtPhoneWidth() = javax.swing.SwingUtilities.invokeAndWait {
         val room = Room("macbook", "Macbook", listOf("iris", "milo"))
         val session = RoomSession("intro", room.id, title = "Hey guys, what is your name and what tools do yo")
-        var menu = 0
-        var back = 0
-        var created = 0
+        var revealed = 0
         var details = 0
-        var renamed = ""
+        val renamed = mutableListOf<String>()
         ImageComposeScene(320, 844, Density(1f), content = {
             HarnessTheme { com.composeunstyled.TooltipHost {
-                val popovers = remember { Popovers() }
-                CompositionLocalProvider(LocalPopovers provides popovers) { Box {
                 RoomsContent(emptyList(), RoomsState(selected = room, view = RoomView(session)), RoomsActions(
-                    onMenu = { menu++ }, onBack = { back++ }, newSession = { created++ },
-                    onContext = { details++ }, rename = { renamed = it },
+                    onReveal = { revealed++ }, onContext = { details++ }, rename = { renamed += it },
                 ), {})
-                popovers.Host()
-                } }
             } }
         }).use { scene ->
             var time = 0L
             fun frame() { repeat(8) { time += 150_000_000; scene.render(time) } }
+            fun rename(text: String) {
+                scene.click(session.title); frame()
+                val field = scene.titleInput()
+                assertEquals(session.title, field.config[SemanticsProperties.EditableText].text)
+                field.config[SemanticsActions.SetText].action!!.invoke(AnnotatedString(text))
+                frame()
+                scene.titleInput().config[SemanticsActions.OnImeAction].action!!.invoke()
+                frame()
+            }
             frame()
-            scene.click("Agents and sessions"); scene.click("New Session"); scene.click("Session details")
-            assertEquals(1, menu); assertEquals(1, created); assertEquals(1, details)
-            scene.click("Session menu"); frame(); scene.click("Back"); frame()
-            assertEquals(1, back)
-            scene.click("Session menu"); frame(); scene.click("Rename Session"); frame()
-            fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
-            val input = scene.semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }.last { it.config.getOrNull(SemanticsProperties.EditableText) != null }
-            input.config[SemanticsActions.SetText].action!!.invoke(AnnotatedString("Introductions"))
-            frame(); scene.click("Save"); frame()
-            assertEquals("Introductions", renamed)
+            scene.click("Show Macbook in sidebar"); scene.click("Show Session details")
+            assertEquals(1, revealed); assertEquals(1, details)
+            rename("Introductions")
+            rename("   ")
+            assertEquals(listOf("Introductions"), renamed)
         }
     }
 
@@ -186,6 +178,13 @@ class RoomsInputTest {
         fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
         return semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }.single {
             it.config.getOrNull(SemanticsProperties.EditableText) != null
+        }
+    }
+
+    private fun ImageComposeScene.titleInput(): SemanticsNode {
+        fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
+        return semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }.single {
+            it.config.getOrNull(SemanticsProperties.EditableText) != null && it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains("Session name") == true
         }
     }
 

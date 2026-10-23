@@ -94,7 +94,7 @@ properties:
 - assertVisible: '(?s).*Planting checklist.*'
 - takeScreenshot: rooms-artifact
 - assertNotVisible: "Builder private output"
-- tapOn: "Return to context"
+- tapOn: "Back to details"
 - scrollUntilVisible:
     element:
       text: "Session execution"
@@ -112,7 +112,7 @@ properties:
     direction: DOWN
 - tapOn: "Save execution"
 - takeScreenshot: rooms-execution
-- tapOn: "Close context"
+- tapOn: "Close details"
 - tapOn: "Message"
 - inputText: "@E2"
 - tapOn: "@E2E Agent"

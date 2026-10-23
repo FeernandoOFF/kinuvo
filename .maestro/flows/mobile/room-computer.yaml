@@ -32,7 +32,7 @@ properties:
           env:
             EXPECTED: '[true,false]'
 - takeScreenshot: room-computer-artifact-unwatched
-- tapOn: "Return to context"
+- tapOn: "Back to details"
 - assertVisible: "Take over"
 - tapOn: "Garden plan"
 - assertVisible: '(?s).*Planting checklist.*'
@@ -41,7 +41,7 @@ properties:
     env:
       WS_PATH: /ws
       WS_MESSAGE: '{"type":"event","event":"computers.changed","payload":[{"id":"phone","name":"Pixel","platform":"Android","available":true,"control":"Idle","agentId":"e2e","sessionId":"private","roomSessionId":"room-session"}],"seq":40}'
-- tapOn: "Return to context"
+- tapOn: "Back to details"
 - assertNotVisible: "Take over"
 - runScript:
     file: ../../shared/assert-computer-watches.js
@@ -63,7 +63,7 @@ properties:
 - tapOn: "Back to Session"
 - assertVisible: "Return to screen"
 - takeScreenshot: room-computer-takeover-retained
-- tapOn: "Close context"
+- tapOn: "Close details"
 - assertVisible: "You control Pixel"
 - tapOn: "You control Pixel"
 - assertVisible: "You have control. Agents are waiting."

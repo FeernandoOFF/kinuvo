@@ -183,6 +183,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onSelectRoom = { room -> cover { roomsVm?.creating(false); roomsVm?.select(room); history.open(Route.Rooms) }() },
                 onRoomSession = { session -> cover { roomsVm?.creating(false); roomsVm?.open(session); history.open(Route.Rooms) }() },
                 onNewRoom = cover { roomsVm?.creating(true); history.open(Route.Rooms) },
+                onNewRoomSession = { room -> cover { roomsVm?.creating(false); roomsVm?.newSession(room); history.open(Route.Rooms) }() },
                 onBoard = cover { history.open(Route.Board) },
                 onKnowledge = cover { history.open(Route.Knowledge()) },
                 onArtifacts = cover { history.open(Route.Artifacts()) },
@@ -250,7 +251,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     update?.let(backStack::update)
                                 }
                                 ChatScreen(app, session, !compact, shell, onOpen = history::open,
-                                    onSettings = { history.open(Route.Settings(it), push = true) }, onNavigate = history::open, showComputerIndicator = false)
+                                    onSettings = { history.open(Route.Settings(it, SettingsSection.Overview), push = true) }, onNavigate = history::open, showComputerIndicator = false)
                             }
                         }
                         entry<Route.Settings>(metadata = { SettingsTransitions(compact) }) { route ->
@@ -270,7 +271,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             }
                         }
                         entry<Route.Rooms> {
-                            roomsVm?.let { vm -> kinuvo.ui.rooms.RoomsScreen(appState.agents, vm, history::open, onMenu = { if (compact) shell.revealed = true else shell.open = !shell.open }, onBack = back.takeIf { history.canGoBack }, onAgentSettings = { history.open(Route.Settings(it), push = true) }) }
+                            roomsVm?.let { vm -> kinuvo.ui.rooms.RoomsScreen(appState.agents, vm, history::open, onReveal = { if (compact) shell.revealed = true else shell.open = true }, onAgentSettings = { history.open(Route.Settings(it, SettingsSection.Overview), push = true) }) }
                         }
                         entry<Route.Board> {
                             BoardScreen(app, koinViewModel<BoardViewModel>(key = "board/${app.serverLifetime}"), onBack = back.takeIf { history.canGoBack }, onOpenSession = history::open,
@@ -308,29 +309,30 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers) {
                 val blur by animateDpAsState(if (shell.quickChat || popovers.active) 16.dp else 0.dp)
                 val screenInsets = if (top == Route.NewAgent || top == Route.Connect) WindowInsets(0) else WindowInsets.safeDrawing
-                Column(Modifier.fillMaxSize().windowInsetsPadding(screenInsets.only(WindowInsetsSides.Top))) {
-                    if (connection is Connection.Ready) SessionComputerIndicator(koinInject<ConnectedServer>())
-                    Box(Modifier.weight(1f)) {
-                        if (compact) Box(Modifier.fillMaxSize()) {
-                            Box(Modifier.blur(blur)) {
-                                Reveal(shell.revealed, { shell.revealed = it }, behind = { Shell(shellState, shellActions, shell, Modifier.fillMaxSize(), fill = true) },
-                                    enabled = withShell) { Box(Modifier.windowInsetsPadding(screenInsets)) { screens() } }
-                            }
-                            androidx.compose.animation.AnimatedVisibility(shell.quickChat, enter = fadeIn(), exit = fadeOut()) {
-                                QuickChat(appState.agents, agent, shell.draft, shellActions.onSelectAgent, shellActions.onQuickSend) { shell.quickChat = false }
-                            }
-                        }
-                        else Row(Modifier.fillMaxSize().windowInsetsPadding(screenInsets).blur(blur)) {
-                            AnimatedVisibility(beside, enter = expandHorizontally(), exit = shrinkHorizontally()) {
-                                Row { Shell(shellState, shellActions, shell); VerticalSeparator() }
-                            }
-                            Box(Modifier.weight(1f)) {
-                                CompositionLocalProvider(LocalWindowChrome provides windowChrome?.let { if (beside) it.trailingOnly else it }) { screens() }
-                            }
-                        }
-                        popovers.Host()
+                val shown: @Composable () -> Unit = {
+                    Column {
+                        if (connection is Connection.Ready) SessionComputerIndicator(koinInject<ConnectedServer>())
+                        Box(Modifier.weight(1f)) { screens() }
                     }
                 }
+                if (compact) Box(Modifier.fillMaxSize()) {
+                    Box(Modifier.blur(blur)) {
+                        Reveal(shell.revealed, { shell.revealed = it }, behind = { Shell(shellState, shellActions, shell, Modifier.fillMaxSize(), fill = true) },
+                            enabled = withShell) { Box(Modifier.windowInsetsPadding(screenInsets)) { shown() } }
+                    }
+                    androidx.compose.animation.AnimatedVisibility(shell.quickChat, enter = fadeIn(), exit = fadeOut()) {
+                        QuickChat(appState.agents, agent, shell.draft, shellActions.onSelectAgent, shellActions.onQuickSend) { shell.quickChat = false }
+                    }
+                }
+                else Row(Modifier.fillMaxSize().windowInsetsPadding(screenInsets).blur(blur)) {
+                    AnimatedVisibility(beside, enter = expandHorizontally(), exit = shrinkHorizontally()) {
+                        Row { Shell(shellState, shellActions, shell); VerticalSeparator() }
+                    }
+                    Box(Modifier.weight(1f)) {
+                        CompositionLocalProvider(LocalWindowChrome provides windowChrome?.let { if (beside) it.trailingOnly else it }) { shown() }
+                    }
+                }
+                popovers.Host()
             }
             appState.notice?.let { notice ->
                 Row(Modifier.align(Alignment.BottomCenter).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {

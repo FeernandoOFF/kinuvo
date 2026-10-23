@@ -17,6 +17,8 @@ import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.ui.draw.blur
 import androidx.compose.animation.scaleIn
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.foundation.clickable
@@ -53,6 +55,8 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.stateDescription
@@ -168,7 +172,9 @@ fun ChatScreen(
     var contextOpen by rememberSaveable { mutableStateOf(false) }
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val inlineContext = maxWidth >= 1050.dp
-        Row(Modifier.fillMaxSize()) {
+        val overlay = contextOpen && !inlineContext
+        val blur by animateDpAsState(if (overlay) 12.dp else 0.dp)
+        Row(Modifier.fillMaxSize().blur(blur)) {
             Column(Modifier.weight(1f).fillMaxHeight()) {
                 if (showComputerIndicator) SessionComputerIndicator(server)
                 Box(Modifier.weight(1f)) {
@@ -223,8 +229,8 @@ fun ChatScreen(
                 }
             }
         }
-        if (contextOpen && !inlineContext) {
-            Box(Modifier.fillMaxSize().background(color(backgroundColor).copy(alpha = 0.65f)).clickable { contextOpen = false })
+        if (overlay) {
+            Scrim { contextOpen = false }
             Box(Modifier.align(Alignment.CenterEnd).fillMaxHeight().then(if (maxWidth < 600.dp) Modifier.fillMaxWidth() else Modifier.width(360.dp))) {
                 SessionContextPanel(server, route.agentId, route.sessionId,
                     onOpenSession = { a, id -> onOpen(Route.Chat(a, id)) }, onAgentSettings = onSettings,
@@ -470,18 +476,20 @@ private fun FloatingBar(state: ChatState, usage: Usage?, actions: ChatActions, o
     Box(modifier.fillMaxWidth().height(FloatingBarHeight).background(Brush.verticalGradient(0.6f to background, 1f to background.copy(alpha = 0f)))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             onToggle?.let { Bubble { BubbleButton(Lucide.Menu, "Agents and sessions", it) } }
-            Spacer(Modifier.weight(1f))
+            Box(Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                state.agent?.let { agent -> TitlePill(agent.name, "Session details", actions.onContext ?: actions.onSettings) { AgentAvatar(agent, 30.dp) } }
+            }
             PhoneActions(state, usage, actions)
         }
     }
 }
 
-private val FloatingBarHeight = 72.dp
+internal val FloatingBarHeight = 72.dp
 private val VoiceStatusHeight = 44.dp
 
 /** Phone header buttons sit in round bubbles, a pill when there are several. */
 @Composable
-private fun Bubble(content: @Composable RowScope.() -> Unit) {
+internal fun Bubble(content: @Composable RowScope.() -> Unit) {
     val shape = RoundedCornerShape(50)
     Row(
         Modifier.height(44.dp).clip(shape).background(color(panelColor), shape).border(1.dp, color(borderColor), shape).padding(horizontal = 2.dp),
@@ -491,9 +499,28 @@ private fun Bubble(content: @Composable RowScope.() -> Unit) {
 }
 
 @Composable
-private fun BubbleButton(icon: ImageVector, label: String, onClick: () -> Unit) {
+internal fun BubbleButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     IconButton(onClick = onClick, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(onBackgroundColor), modifier = Modifier.size(40.dp)) {
         Icon(icon, Modifier.size(20.dp), contentDescription = label)
+    }
+}
+
+/** A phone header bubble naming who the conversation is with; [onClick] opens its details. */
+@Composable
+internal fun TitlePill(name: String, label: String, onClick: () -> Unit, modifier: Modifier = Modifier, subtitle: String? = null, leading: @Composable () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    Row(
+        modifier.height(44.dp).clip(shape).background(color(panelColor), shape).border(1.dp, color(borderColor), shape)
+            .clickable(role = Role.Button, onClick = onClick).semantics(mergeDescendants = true) { contentDescription = label }.padding(start = 7.dp, end = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        leading()
+        if (subtitle == null) Text(name, fontSize = 16.sp, singleLine = true, overflow = TextOverflow.Ellipsis)
+        else Column {
+            Text(name, fontSize = 14.sp, lineHeight = 17.sp, singleLine = true, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, fontSize = 12.sp, lineHeight = 15.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 
@@ -503,7 +530,6 @@ private fun PhoneActions(state: ChatState, usage: Usage?, actions: ChatActions) 
     var statistics by remember(state.selected) { mutableStateOf(false) }
     val selected = state.selected?.let { id -> state.sessions.firstOrNull { it.id == id } ?: state.info }
     Bubble {
-        actions.onContext?.let { BubbleButton(Lucide.PanelRight, "Session context", it) }
         if (state.selected != null) BubbleButton(Lucide.SquarePen, "New session", actions.onNew)
         SessionMenu(selected, actions, extra = { close ->
             DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
@@ -538,26 +564,36 @@ internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit,
 private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, controls: @Composable () -> Unit) {
     var statistics by remember(state.selected) { mutableStateOf(false) }
     BoxWithConstraints {
-        val labeled = maxWidth >= 650.dp
         TitleBarRow {
             controls()
             Spacer(Modifier.width(6.dp))
             val selected = state.sessions.firstOrNull { it.id == state.selected } ?: state.info
-            Row(Modifier.weight(1f).padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(selected?.title ?: state.agent?.name ?: "…", Modifier.weight(1f, fill = false), fontWeight = FontWeight.Normal,
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                state.agent?.let { agent ->
+                    Row(Modifier.height(36.dp).clip(Theme[shapes][mediumShape])
+                        .then(actions.onContext?.let { Modifier.clickable(role = Role.Button, onClick = it).titleBarControl() } ?: Modifier)
+                        .semantics(mergeDescendants = true) { contentDescription = "${agent.name} details" }
+                        .padding(start = 4.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AgentAvatar(agent, 24.dp)
+                        Text(agent.name, color = color(mutedColor), fontSize = 15.sp, singleLine = true)
+                    }
+                    if (selected != null) Text("/", color = color(mutedColor), fontSize = 16.sp)
+                }
+                if (selected != null || state.agent == null) Text(selected?.title ?: "…", Modifier.weight(1f, fill = false).padding(horizontal = 4.dp), fontSize = 15.sp, fontWeight = FontWeight.Normal,
                     singleLine = true, overflow = TextOverflow.Ellipsis)
                 selected?.let { SessionBadge(it) }
-            }
-            actions.onContext?.let { toggle ->
-                Button(onClick = toggle, style = if (actions.contextOpen) ButtonStyle.Secondary else ButtonStyle.Ghost,
-                    modifier = Modifier.height(36.dp).titleBarControl(), contentPadding = PaddingValues(horizontal = 10.dp)) {
-                    Icon(Lucide.PanelRight, Modifier.size(17.dp), contentDescription = "Session context")
-                    if (labeled) { Spacer(Modifier.width(7.dp)); Text("Details", fontSize = 13.sp, fontWeight = FontWeight.Normal) }
-                }
             }
             SessionMenu(selected, actions, extra = { close ->
                 DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
             }) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
+            actions.onContext?.let { toggle ->
+                Tooltip(side = TooltipSide.Bottom, panel = { TooltipPanel { Text(if (actions.contextOpen) "Hide details" else "Show details", fontSize = 12.sp) } }) {
+                    IconButton(onClick = toggle, style = if (actions.contextOpen) ButtonStyle.Secondary else ButtonStyle.Ghost, shape = Theme[shapes][mediumShape],
+                        contentColor = color(if (actions.contextOpen) onBackgroundColor else mutedColor), modifier = Modifier.size(32.dp).titleBarControl()) {
+                        Icon(Lucide.PanelRight, Modifier.size(17.dp), contentDescription = "Session details")
+                    }
+                }
+            }
         }
     }
     Popover(statistics, { statistics = false }) { ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth()) }

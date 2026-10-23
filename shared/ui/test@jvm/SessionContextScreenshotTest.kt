@@ -45,7 +45,7 @@ class SessionContextScreenshotTest {
                     Box(Modifier.fillMaxSize().background(color(backgroundColor))) {
                         Row(Modifier.fillMaxSize()) {
                             if (width >= 720) Shell(ShellState(agents = agents, agent = agents[1], view = Route.Rooms, rooms = rooms), ShellActions(), ShellChrome(mutableStateOf(true)))
-                            Box(Modifier.weight(1f)) { RoomsContent(agents, rooms, RoomsActions(onMenu = {}), {}) }
+                            Box(Modifier.weight(1f)) { RoomsContent(agents, rooms, RoomsActions(onReveal = {}), {}) }
                             if (width >= 1300) Box(Modifier.width(320.dp).fillMaxHeight()) { SessionContextContent(shown, scope, true, capabilities, now) }
                         }
                         if (width < 1300) Box(Modifier.align(androidx.compose.ui.Alignment.CenterEnd).fillMaxHeight().then(if (width < 600) Modifier.fillMaxWidth() else Modifier.width(360.dp))) {

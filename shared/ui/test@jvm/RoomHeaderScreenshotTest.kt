@@ -54,7 +54,7 @@ class RoomHeaderScreenshotTest {
                     HarnessTheme(dark = dark) { TooltipHost {
                         Row(Modifier.fillMaxSize().background(color(backgroundColor))) {
                             if (width >= 820) Shell(ShellState(agents = agents, agent = agents.first(), view = Route.Rooms, rooms = state), ShellActions(), ShellChrome(mutableStateOf(true)))
-                            Box(Modifier.weight(1f)) { RoomsContent(agents, state, RoomsActions(onMenu = {}, onBack = {}, contextOpen = details), {}) }
+                            Box(Modifier.weight(1f)) { RoomsContent(agents, state, RoomsActions(onReveal = {}, contextOpen = details), {}) }
                             if (details) Box(Modifier.width(320.dp).fillMaxHeight()) {
                                 SessionContextContent(SessionContextState(agents = agents, artifacts = emptyList()), SessionContextScope(roomId = room.id, roomSessionId = session.id, memberAgentIds = room.members), true, ServerCapabilities("home"), 0L)
                             }

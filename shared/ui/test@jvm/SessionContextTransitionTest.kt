@@ -65,18 +65,18 @@ class SessionContextTransitionTest {
                 fun frame() { repeat(5) { scene.render(testScheduler.currentTime * 1_000_000); testScheduler.advanceTimeBy(100) } }
                 frame(); assertEquals("computer", watches.last())
                 scene.click("Output"); frame(); assertNull(watches.last())
-                scene.click("Return to context"); frame(); assertEquals("computer", watches.last())
+                scene.click("Back to details"); frame(); assertEquals("computer", watches.last())
                 computers.value = computers.value.copy(computers = listOf(computer.copy(control = ComputerControl.User)))
                 fullscreen.value = true; frame(); assertEquals("computer", watches.last())
                 scene.click("Output"); frame(); assertEquals("computer", watches.last())
                 fullscreen.value = false; frame(); assertNull(watches.last())
                 assertEquals(ComputerControl.User, computers.value.control)
                 computers.value = computers.value.copy(computers = listOf(computer.copy(control = ComputerControl.Idle)))
-                scene.click("Return to context"); frame(); assertNull(watches.last())
+                scene.click("Back to details"); frame(); assertNull(watches.last())
                 computers.value = computers.value.copy(computers = listOf(computer)); frame(); assertEquals("computer", watches.last())
                 scene.click("Output"); frame()
                 computers.value = computers.value.copy(computers = listOf(computer.copy(control = ComputerControl.Idle))); frame()
-                scene.click("Return to context"); frame(); assertNull(watches.last())
+                scene.click("Back to details"); frame(); assertNull(watches.last())
             }
             assertNull(watches.last())
         }

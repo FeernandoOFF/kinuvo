@@ -95,12 +95,15 @@ class RoomsViewModel(private val repo: RoomsRepository) : ViewModel() {
             }
         }
     }
-    fun newSession(): Job {
-        val room = state.value.selected ?: return viewModelScope.launch {}
+    fun newSession(room: Room? = state.value.selected): Job {
+        room ?: return viewModelScope.launch {}
         saveDraft()
         val generation = ++selection
         poll?.cancel()
-        state.update { it.copy(view = null, text = "", recipients = emptyList(), submitting = false, error = null) }
+        state.update { s ->
+            s.copy(selected = room, sessions = s.roomSessions[room.id] ?: if (s.selected?.id == room.id) s.sessions else emptyList(),
+                view = null, text = "", recipients = emptyList(), submitting = false, error = null)
+        }
         return attempt {
             val session = repo.newSession(room.id)
             if (selection == generation) open(session)

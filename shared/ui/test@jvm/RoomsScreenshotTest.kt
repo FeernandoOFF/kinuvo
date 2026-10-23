@@ -41,7 +41,7 @@ class RoomsScreenshotTest {
                 HarnessTheme(dark = dark) { TooltipHost {
                     Row(Modifier.fillMaxSize().background(color(backgroundColor))) {
                         if (width >= 720) Shell(ShellState(agents = agents, agent = agents.first(), view = Route.Rooms, rooms = state), ShellActions(), ShellChrome(mutableStateOf(true)))
-                        Box(Modifier.weight(1f)) { RoomsContent(agents, state, RoomsActions(onMenu = {}), {}) }
+                        Box(Modifier.weight(1f)) { RoomsContent(agents, state, RoomsActions(onReveal = {}), {}) }
                     }
                 } }
             }).use { scene ->

@@ -27,7 +27,10 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -97,6 +100,7 @@ class ShellActions(
     val onSelectRoom: (Room) -> Unit = {},
     val onRoomSession: (RoomSession) -> Unit = {},
     val onNewRoom: () -> Unit = {},
+    val onNewRoomSession: (Room) -> Unit = {},
     val onBoard: () -> Unit = {},
     val onKnowledge: () -> Unit = {},
     val onArtifacts: () -> Unit = {},
@@ -166,7 +170,10 @@ internal val RailWidth = 72.dp
 private fun ColumnPanel(modifier: Modifier, content: @Composable () -> Unit) =
     Box(modifier.fillMaxHeight().clip(RoundedCornerShape(topStart = 16.dp)).background(color(sidebarColor))) { content() }
 
-/** Phones reveal the same Rooms and Agent navigation above the quick chat bar. */
+/**
+ * Phones, edge to edge: settings, Server and Rooms top the rail and the other Agents stack at its foot, above the shown
+ * one, whose avatar starts the bar opening [QuickChat].
+ */
 @Composable
 private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellChrome, modifier: Modifier) {
     val insets = WindowInsets.safeDrawing
@@ -174,7 +181,24 @@ private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellCh
     val clear = QuickChatBarHeight + insets.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
     Box(modifier.fillMaxSize().background(color(railColor)).windowInsetsPadding(insets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
         Row(Modifier.fillMaxSize()) {
-            Box(Modifier.padding(bottom = clear)) { AgentRail(state, actions) }
+            Column(Modifier.width(RailWidth).fillMaxHeight().padding(top = 8.dp, bottom = clear), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SettingsRailItem(state, actions)
+                ServerPicker(state.servers, actions)
+                HorizontalSeparator(Modifier.width(32.dp))
+                RoomsRailItem(state, actions)
+                LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout = true, verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom)) {
+                    items(state.agents.filter { it.id != state.agent?.id }, key = { it.id }) { agent ->
+                        Box(Modifier.animateItem()) {
+                            RailItem(agent.name, selected = false, news = state.hasNews(agent.id), onClick = { actions.onSelectAgent(agent.id) }) { AgentAvatar(agent, 40.dp, state = state.avatarState(agent.id)) }
+                        }
+                    }
+                    item(key = "new") {
+                        RailItem("New agent", selected = false, news = false, onClick = actions.onAddAgent, enabled = state.agent != null) {
+                            Icon(Lucide.Plus, Modifier.size(20.dp), tint = color(successColor))
+                        }
+                    }
+                }
+            }
             ColumnPanel(Modifier.weight(1f)) { NavigationColumn(state, actions, chrome, bottom = clear) }
         }
         QuickChatBar(state.agent, chrome.draft, Modifier.align(Alignment.BottomStart).windowInsetsPadding(insets.only(WindowInsetsSides.Bottom))) { chrome.quickChat = true }
@@ -184,7 +208,8 @@ private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellCh
 @Composable
 private fun AgentRail(state: ShellState, actions: ShellActions) {
     Column(
-        Modifier.width(RailWidth).fillMaxHeight().background(color(railColor)).padding(top = LocalWindowChrome.current?.height ?: 12.dp, bottom = 12.dp),
+        // A touch wider where the window buttons sit over it, so they clear the column.
+        Modifier.width(if ((LocalWindowChrome.current?.leadingInset ?: 0.dp) > 0.dp) 80.dp else RailWidth).fillMaxHeight().background(color(railColor)).padding(top = LocalWindowChrome.current?.height ?: 12.dp, bottom = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -202,20 +227,7 @@ private fun AgentRail(state: ShellState, actions: ShellActions) {
                 Icon(Lucide.Plus, Modifier.size(20.dp), tint = color(successColor))
             }
         }
-        var settingsMenu by remember { mutableStateOf(false) }
-        DropdownMenu(expanded = settingsMenu, onExpandedChange = { settingsMenu = it }, panel = {
-            DropdownMenuPanel {
-                DropdownMenuItem(onClick = { settingsMenu = false; actions.onSettings() }) { Text("Settings") }
-                if (state.capabilities.supports(ServerFeature.Knowledge))
-                    DropdownMenuItem(onClick = { settingsMenu = false; actions.onKnowledge() }) { Text("Knowledge") }
-                if (state.management && state.capabilities?.features?.contains(ServerFeature.Computer) == true)
-                    DropdownMenuItem(onClick = { settingsMenu = false; actions.onComputers() }) { Text("Computers") }
-            }
-        }) {
-            RailItem("Settings ${shortcut(",")}", selected = false, news = false, onClick = { settingsMenu = true }, enabled = state.agent != null) {
-                Icon(Lucide.Settings, Modifier.size(20.dp), tint = color(mutedColor))
-            }
-        }
+        SettingsRailItem(state, actions)
         ServerPicker(state.servers, actions)
     }
 }
@@ -247,6 +259,25 @@ private fun RailItem(label: String, selected: Boolean, news: Boolean, onClick: (
     }
 }
 
+/** Settings, with Knowledge and Computers beside it. */
+@Composable
+private fun SettingsRailItem(state: ShellState, actions: ShellActions) {
+    var menu by remember { mutableStateOf(false) }
+    DropdownMenu(expanded = menu, onExpandedChange = { menu = it }, panel = {
+        DropdownMenuPanel {
+            DropdownMenuItem(onClick = { menu = false; actions.onSettings() }) { Text("Settings") }
+            if (state.capabilities.supports(ServerFeature.Knowledge))
+                DropdownMenuItem(onClick = { menu = false; actions.onKnowledge() }) { Text("Knowledge") }
+            if (state.management && state.capabilities?.features?.contains(ServerFeature.Computer) == true)
+                DropdownMenuItem(onClick = { menu = false; actions.onComputers() }) { Text("Computers") }
+        }
+    }) {
+        RailItem("Settings ${shortcut(",")}", selected = false, news = false, onClick = { menu = true }, enabled = state.agent != null) {
+            Icon(Lucide.Settings, Modifier.size(20.dp), tint = color(mutedColor))
+        }
+    }
+}
+
 @Composable
 private fun RoomsRailItem(state: ShellState, actions: ShellActions) =
     RailItem("Rooms", state.view is Route.Rooms, news = false, onClick = actions.onRooms) {
@@ -273,11 +304,7 @@ private fun NavigationColumn(state: ShellState, actions: ShellActions, chrome: S
 }
 
 private fun LazyListScope.roomRows(room: Room, state: ShellState, actions: ShellActions) {
-    item(key = "room:${room.id}") {
-        ListRow(false, { actions.onSelectRoom(room) }, leading = { Icon(Lucide.PanelsTopLeft, Modifier.size(16.dp)) }) {
-            Text(room.name, Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis)
-        }
-    }
+    item(key = "room:${room.id}") { RoomRow(room, actions) }
     items(state.rooms.roomSessions[room.id].orEmpty(), key = { "room:${room.id}/${it.id}" }) { session ->
         Box(Modifier.padding(start = 12.dp)) {
             ListRow(state.view is Route.Rooms && state.rooms.view?.session?.id == session.id, { actions.onRoomSession(session) }, leading = { Icon(Lucide.Hash, Modifier.size(16.dp)) }) {
@@ -285,6 +312,37 @@ private fun LazyListScope.roomRows(room: Room, state: ShellState, actions: Shell
             }
         }
     }
+}
+
+/** A Room, with a New Session button at its end on hover or keyboard focus, and always on touch. */
+@Composable
+private fun RoomRow(room: Room, actions: ShellActions) {
+    val hover = remember { MutableInteractionSource() }
+    val hovered by hover.collectIsHoveredAsState()
+    var focused by remember { mutableStateOf(false) }
+    val label = "New Session in ${room.name}"
+    Box(Modifier.hoverable(hover)) {
+        ListRow(false, { actions.onSelectRoom(room) }, leading = { Icon(Lucide.PanelsTopLeft, Modifier.size(16.dp)) }) {
+            Text(room.name, Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis)
+            Tooltip(side = TooltipSide.Bottom, panel = { TooltipPanel { Text(label, fontSize = 12.sp) } }) {
+                IconButton(
+                    onClick = { actions.onNewRoomSession(room) },
+                    style = ButtonStyle.Ghost,
+                    shape = Theme[shapes][smallShape],
+                    contentColor = color(mutedColor),
+                    modifier = Modifier.overhang(if (hasTouchKeyboard) 36.dp else 26.dp).onFocusChanged { focused = it.hasFocus }
+                        .alpha(if (hovered || focused || hasTouchKeyboard) 1f else 0f),
+                ) { Icon(Lucide.Plus, Modifier.size(16.dp), contentDescription = label) }
+            }
+        }
+    }
+}
+
+/** A square of [size] that takes no more height than the row's text, overhanging its padding instead. */
+private fun Modifier.overhang(size: Dp) = size(size).layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val height = 20.dp.roundToPx()
+    layout(placeable.width, height) { placeable.place(0, (height - placeable.height) / 2) }
 }
 
 @Composable

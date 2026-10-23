@@ -2,6 +2,8 @@ package kinuvo.ui.session
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import com.composeunstyled.theme.Theme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -106,26 +108,28 @@ internal fun SessionContextContent(
     val sessionOnly = artifactSessionOnly || (context.roomSessionId != null && state.agentId == null)
     Column(Modifier.fillMaxSize().background(color(sidebarColor))) {
         TitleBarRow(trailing = false) {
-            if (state.artifactId != null) HeaderButton(Lucide.ArrowLeft, "Return to context", { actions.onArtifact(null) })
-            Text(if (state.artifactId != null) "Artifact preview" else "Context", Modifier.weight(1f), fontWeight = FontWeight.Normal)
+            if (state.artifactId != null) {
+                HeaderButton(Lucide.ArrowLeft, "Back to details", { actions.onArtifact(null) })
+                Text("Artifact", Modifier.weight(1f).padding(start = 4.dp), fontWeight = FontWeight.Normal)
+            } else {
+                val details = state.details?.takeIf { it.info.id == state.agentId && context.memberAgentIds.isEmpty() }
+                Row(Modifier.weight(1f).padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (details != null) AgentAvatar(details.info, 26.dp)
+                    Text(details?.info?.name ?: "Details", fontSize = 16.sp, fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
+                }
+            }
             state.agentId?.let { id -> HeaderButton(Lucide.Settings, "Agent settings", { onAgentSettings(id) }) }
-            HeaderButton(Lucide.X, "Close context", onClose)
+            HeaderButton(Lucide.X, "Close details", onClose)
         }
         HorizontalSeparator()
         if (!management) {
             Text("Context requires management access to this Server.", Modifier.padding(20.dp), color = color(mutedColor))
         } else if (state.artifactId != null) {
             ContextArtifact(state, onOpenSession)
-        } else Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        } else Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(28.dp)) {
             if (context.memberAgentIds.isNotEmpty()) Picker(listOf<String?>(null) + context.memberAgentIds, state.agentId, { id ->
                 id?.let { member -> state.agents.firstOrNull { it.id == member }?.name ?: member } ?: "All members"
             }, actions.onSelectAgent)
-            state.details?.let { details ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    AgentAvatar(details.info, 36.dp)
-                    Text(details.info.name, fontSize = 18.sp, fontWeight = FontWeight.Normal)
-                }
-            }
             state.error?.let { ErrorMessage(it) }
             computer()
             if (state.agentId != null) {
@@ -171,11 +175,18 @@ internal fun SessionContextContent(
 
 @Composable
 private fun ContextSection(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        HorizontalSeparator()
-        Text(title, fontWeight = FontWeight.Normal, fontSize = 14.sp)
-        content()
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(title, Modifier.padding(horizontal = 4.dp), fontSize = 13.sp, color = color(mutedColor))
+        Column(Modifier.fillMaxWidth().background(color(panelColor), Theme[shapes][largeShape]).padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
     }
+}
+
+/** Closes an overlaid panel on tap: no ripple, the content behind it blurs instead. */
+@Composable
+internal fun Scrim(onDismiss: () -> Unit) {
+    Box(Modifier.fillMaxSize().background(color(backgroundColor).copy(alpha = 0.35f))
+        .clickable(remember { MutableInteractionSource() }, indication = null, onClickLabel = "Close details", onClick = onDismiss))
 }
 
 @Composable
