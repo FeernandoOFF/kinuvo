@@ -1,6 +1,8 @@
 #!/bin/sh
 # Project-local mockstro launcher. Pin cliVersion in .maestro/mockstro.yaml.
 set -eu
+kinuvo_project_root=$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)
+. "$kinuvo_project_root/scripts/project-env.sh"
 fail() { echo "mockstrow: $*" >&2; exit 1; }
 # Development is explicit; normal invocations always use the project's release pin.
 if [ "${1:-}" = --dev ]; then

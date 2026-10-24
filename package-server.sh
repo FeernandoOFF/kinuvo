@@ -3,6 +3,8 @@ set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 cd "$root"
+kinuvo_project_root=$root
+. "$kinuvo_project_root/scripts/project-env.sh"
 
 ./kotlin build -m web -v release
 ./kotlin package -m cli -f executable-jar

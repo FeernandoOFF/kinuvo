@@ -40,7 +40,7 @@ private object HarnessEmbeddedServer : EmbeddedServer {
 
     private suspend fun started(): HarnessServer = mutex.withLock {
         server ?: HarnessServer(Harness()).also { s ->
-            port = s.start("0.0.0.0", HarnessServer.EMBEDDED_PORTS)
+            port = s.start("0.0.0.0", System.getenv("KINUVO_EMBEDDED_PORT")?.toInt()?.let(::listOf) ?: HarnessServer.EMBEDDED_PORTS)
             s.advertise()
             Runtime.getRuntime().addShutdownHook(Thread { s.stop() })
             server = s

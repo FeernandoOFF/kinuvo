@@ -6,6 +6,8 @@
 # JAVA_HOME must be a JetBrains Runtime 25 SDK (jlink, jpackage and jmods).
 set -euo pipefail
 cd "$(dirname "$0")/.."
+kinuvo_project_root=$PWD
+. "$kinuvo_project_root/scripts/project-env.sh"
 
 target=${1:?cli or desktop}
 version=${2:-dev}
