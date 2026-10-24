@@ -41,8 +41,8 @@ Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p j
 ## Isolated local testing
 
 - Read [docs/local-testing.md](docs/local-testing.md) before running a local Server or app. If present, `docs/local-testing.local.md` records this machine's assignments.
-- Each checkout pins an absolute data home and a port in ignored `.kinuvo-home` and `.kinuvo-port`. Use `./dev init` to configure a new checkout. Do not overwrite pins or copy data between homes without a user request.
-- In pinned checkouts use `./dev server`, `./dev desktop`, `./dev android`, `./dev ios`, and `./dev cli ...`. Use `./dev kotlin ...` for toolchain commands and `./dev exec ...` for other scripts that may access data. Do not launch installed apps, jars or the global CLI directly; those bypass the checkout's environment. Do not change OS `HOME`.
+- Each checkout pins an absolute data home and a port in ignored `.kinuvo-home` and `.kinuvo-port`. Use `mise run init --` to configure a new checkout. Do not overwrite pins or copy data between homes without a user request.
+- In pinned checkouts use `mise run server`, `mise run desktop`, `mise run android`, `mise run ios`, and `mise run cli -- ...`. Use `mise run kotlin -- ...` for toolchain commands and `mise run exec -- ...` for other scripts that may access data. Do not launch installed apps, jars or the global CLI directly; those bypass the checkout's environment. Do not change OS `HOME`.
 - The vendor-managed `./kotlin` wrapper remains unchanged. Repository packaging and Mockstro wrappers load any local pins; new data-accessing scripts should source `scripts/project-env.sh` with `kinuvo_project_root` set to their checkout root.
 - Before starting a Server, stop any Server using the same home. The launcher's PID check is advisory, not an exclusive lock. The macOS launch service has one label across homes; manage it only from its assigned checkout.
 - Fix shared bugs on main, then bring main into experimental branches. Keep experimental data and app identities separate.
