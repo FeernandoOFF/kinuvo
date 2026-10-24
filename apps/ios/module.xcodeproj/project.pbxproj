@@ -190,6 +190,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = src/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				KINUVO_DISPLAY_NAME = Kinuvo;
 				KOTLIN_CLI_WRAPPER_PATH = ../../kotlin;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -230,6 +231,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = src/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				KINUVO_DISPLAY_NAME = Kinuvo;
 				KOTLIN_CLI_WRAPPER_PATH = ../../kotlin;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

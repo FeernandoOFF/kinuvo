@@ -6,7 +6,7 @@ import KotlinModules
 /// continued-processing task, shown as a Live Activity once the app is in the background; if iOS refuses one,
 /// the app asks for the usual short grace period instead. When iOS ends either, the runs stop and save.
 final class AppleBackgroundRuns: NSObject, BackgroundRuns {
-    private let identifier = "dev.kinuvo.ios.run"
+    private let identifier = Bundle.main.bundleIdentifier! + ".run"
     private var runs: Int32 = 0
     private var steps: Int64 = 0
     private var submitted = false

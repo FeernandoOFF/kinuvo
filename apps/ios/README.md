@@ -19,6 +19,40 @@ xcrun devicectl list devices
 ./kotlin run -m ios -p iosArm64 --device-id <device-id>
 ```
 
+### Install Rooms beside the regular app
+
+The default build remains **Kinuvo** (`dev.kinuvo.ios`). To install **Kinuvo Rooms**
+(`dev.kinuvo.ios.rooms`) beside it, run from the repository root:
+
+```sh
+XCODE_XCCONFIG_FILE="$PWD/apps/ios/Rooms.xcconfig" \
+  ./kotlin run --build-dir="$PWD/build/ios-rooms" \
+    -m ios -p iosArm64 --device-id <device-id>
+```
+
+The same override works with `iosSimulatorArm64`. The separate build directory
+keeps the two variants' cached app bundles apart. The override applies only to
+that invocation; normal builds and builds after merging this branch keep the
+default identity. Each installed app has separate local Agents, Sessions,
+settings and sign-ins.
+
+The Rooms bundle ID needs its own development provisioning profile. To let Xcode
+create it, sign into your development account in Xcode and build once with:
+
+```sh
+XCODE_XCCONFIG_FILE="$PWD/apps/ios/Rooms.xcconfig" \
+  xcodebuild -project apps/ios/module.xcodeproj -scheme app \
+    -configuration Debug -destination 'platform=iOS,id=<device-id>' \
+    -allowProvisioningUpdates build
+```
+
+For Mockstro testing of the Rooms variant, set the iOS `appId` to
+`dev.kinuvo.ios.rooms` in `.maestro/mockstro.local.yaml` and pass the same override.
+
+Both variants retain the `kinuvo://` URL scheme for existing pairing and OAuth
+links. With both installed, an ordinary pairing link may open either app; pair
+the Rooms app from its own connection screen when testing side by side.
+
 The project uses Kotlin Toolchain 0.13.0 with incremental compilation enabled. Debug native linking reuses compiler caches; compilation to `.klib` files still runs in full.
 
 Debug builds keep `ENABLE_DEBUG_DYLIB=NO` in the Xcode target. This works around unsigned debug dylibs observed with Kotlin Toolchain 0.12.2 during CLI device installs, which iOS refuses to load. Keep this setting when regenerating the Xcode project. The Debug target also defines `DEBUG` in `SWIFT_ACTIVE_COMPILATION_CONDITIONS` for the simulator test override; preserve it when regenerating.
