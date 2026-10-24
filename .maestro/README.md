@@ -112,3 +112,31 @@ Add feature requests as native message fixtures in `wiremock/stubs/ws/` and
 reference them from profiles. Server events use `type`, `event`, `payload` and
 `seq`; response IDs echo `{{jsonPath message.body '$.id'}}`. The explicit HTTP
 upgrade fixture is required by the pinned beta. Generated runs and JARs are ignored.
+
+## Visible devices and interactive use
+
+Use T3 to discover and open a designated device before device work so the user can
+watch its live view in the sidebar. T3 is the boot/view entry point; interactive inspection, screenshots
+and UI actions use the `agent-device` executable and exact target/config/session
+flags returned by `device_open`. Read that installed CLI's help for its supported
+commands and keep element references current. Use ADB or Apple platform tools for
+low-level diagnostics, always with an explicit device target.
+
+For E2E tests, finish the interactive session and hand the same booted device to
+Mockstro. Obtain the current serial/UDID from T3 rather than assuming it is stable:
+
+```sh
+./mockstrow --dev --owner agent --platform android run --device <android-serial> --tags smoke,regression
+./mockstrow --dev --owner agent --platform ios run --device <simulator-udid> --tags smoke,regression
+```
+
+The device must be designated in this checkout's local Mockstro configuration.
+Mockstro keeps responsibility for test build/install, ownership, overrides and
+cleanup. Do not send interactive commands through another driver during its run.
+The sidebar video may stay visible; it does not replace Mockstro's test ownership.
+If T3 is unavailable, report that limitation; Mockstro can select and boot a
+designated device itself, without promising a sidebar view.
+
+Regular user-requested device interaction does not require running the full suite.
+Maestro MCP is an optional aid for explicitly requested Maestro investigation or
+flow authoring; execute repository E2E flows through Mockstro.

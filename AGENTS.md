@@ -12,12 +12,16 @@ Self-hosted personal AI assistant. Terms: `CONTEXT.md`. Decisions: `docs/adr/`.
 
 Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p jvm`. UI screenshots render to `shared/ui/build/screens/` via `./kotlin test -m ui -p jvm`. Releases: [docs/releasing.md](docs/releasing.md).
 
-## Device tests
+## Device workflow
 
-- Before Android or iOS device verification, read [.maestro/README.md](.maestro/README.md) and run the shared flows through Mockstro.
-- Use the repository wrapper with `./mockstrow --dev`; `.maestro/mockstro.yaml` configures both platforms.
-- Let Mockstro manage device selection/booting, build/install, ownership, network overrides and cleanup. Use its mocked remote Server and `--tags smoke,regression`; select iOS with `--platform ios`. Use `--skip-build` only when the installed debug build matches the code being tested.
-- Extend `.maestro/flows/mobile/` and its fixtures for new feature coverage. Use direct device automation or a real Server only when the task explicitly requires that integration.
+- Use T3 `device_list` and `device_open` only to discover, boot and attach a device to the sidebar for the user to watch. Use the returned device ID for every subsequent operation. Do not use T3 device screenshot tools for inspection or verification.
+- For regular device use and exploratory debugging, use the `agent-device` CLI returned by `device_open`, keeping its exact executable path and all target, config and session flags. Read its installed help, prefer current element refs/selectors, and use its screenshots when visual evidence is needed. Verify the requested result in the UI. Routine interaction does not require a regression run.
+- For repeatable app verification after code changes, read [.maestro/README.md](.maestro/README.md) and run the shared flows through `./mockstrow --dev`. Open the designated device through T3 first so the user can watch, then pass its serial/UDID to Mockstro with `--device`. Use only a device designated for this checkout. If T3 is unavailable, report that limitation; Mockstro may then select/boot a designated device itself.
+- Mockstro owns test builds/installs, ownership, network overrides, Maestro execution and cleanup. Use its mocked remote Server and `--tags smoke,regression`; select the platform explicitly with `--platform android` or `--platform ios`. Use `--skip-build` only when the installed debug build matches the code being tested.
+- Finish interactive automation before handing a device to Mockstro. Do not run `agent-device`, standalone Maestro/Maestro MCP, or manual ADB UI commands against a device while Mockstro owns a run. Do not treat the T3 sidebar's passive video stream as an interactive controller.
+- Maestro MCP is optional for explicitly requested Maestro investigation or flow authoring; it is not the default interactive driver and must not bypass Mockstro for repository E2E tests. If a required tool is unavailable, report that and use an available alternative without silently changing the test setup.
+- Use ADB on Android and `xcrun simctl`/`devicectl` on Apple platforms for lower-level tasks the interactive driver does not cover, such as logs, shell commands, port forwarding and platform diagnostics. Always target an explicit serial/UDID; do not use raw coordinate input as the default UI driver.
+- Extend `.maestro/flows/mobile/` and its fixtures for new regression coverage. Use a real Server only when the task explicitly requires that integration. Keep the checkout's home and device assignments separate from other branches.
 
 ## Preferences
 
