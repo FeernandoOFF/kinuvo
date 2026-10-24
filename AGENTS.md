@@ -33,3 +33,12 @@ Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p j
 - Co-locate logic by feature in `shared/app/src/<feature>` and mirror those feature names in `shared/ui` and native UI folders. Views own rendering, input bindings and navigation; transport stays in `shared/client` and wire types in `shared/protocol`.
 - Reuse `ConnectedServer` for connection work and caches. Native destinations own ViewModel lifetimes and cancel observations on disposal; selected Compose screens share the same app and Server lifetime and hand navigation back to their native host.
 - Before adding a SwiftUI feature, observing Kotlin state or hosting a Compose screen, read [the iOS integration guide](apps/ios/README.md#swiftui-integration-proof). Follow its observation and disposal pattern. Test shared behavior in `shared/app`, Compose rendering in `shared/ui`, and native navigation/lifecycle in the iOS integration.
+
+## Isolated local testing
+
+- Read [docs/local-testing.md](docs/local-testing.md) before running a local Server or app. If present, `docs/local-testing.local.md` records this machine's assignments.
+- Each checkout pins an absolute data home and a port in ignored `.kinuvo-home` and `.kinuvo-port`. Use `./dev init` to configure a new checkout. Do not overwrite pins or copy data between homes without a user request.
+- In pinned checkouts use `./dev server`, `./dev desktop`, `./dev android`, `./dev ios`, and `./dev cli ...`. Use `./dev kotlin ...` for toolchain commands and `./dev exec ...` for other scripts that may access data. Do not launch installed apps, jars or the global CLI directly; those bypass the checkout's environment. Do not change OS `HOME`.
+- The vendor-managed `./kotlin` wrapper remains unchanged. Repository packaging and Mockstro wrappers load any local pins; new data-accessing scripts should source `scripts/project-env.sh` with `kinuvo_project_root` set to their checkout root.
+- Before starting a Server, stop any Server using the same home. The launcher's PID check is advisory, not an exclusive lock. The macOS launch service has one label across homes; manage it only from its assigned checkout.
+- Fix shared bugs on main, then bring main into experimental branches. Keep experimental data and app identities separate.
