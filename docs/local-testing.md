@@ -7,11 +7,12 @@ including embedded desktop Servers, even if their bind addresses differ.
 
 ## Configure a checkout
 
-Python 3 is required by the development launcher. From the checkout root:
+Install mise and Python 3. From the checkout root:
 
 ```sh
-./dev init "$HOME/.kinuvo-experiment" 8790
-./dev home
+mise trust
+mise run init -- "$HOME/.kinuvo-experiment" 8790
+mise run home
 ```
 
 Initialization writes `.kinuvo-home` and `.kinuvo-port`; it does not create, copy,
@@ -26,26 +27,32 @@ by Mockstro belong in ignored `.maestro/mockstro.local.yaml`.
 ## Run and manage
 
 ```sh
-./dev desktop --compose-hot-reload
-./dev server
-./dev cli pair --manage
-./dev android --device-id <android-serial>
-./dev ios -p iosSimulatorArm64 --device-id <simulator-udid>
-./dev ios -p iosArm64 --device-id <iphone-id>
-./dev kotlin test -m app -p jvm
-./dev exec <command> <args>
+mise run desktop -- --compose-hot-reload
+mise run server
+mise run cli -- pair --manage
+mise run android -- --device-id <android-serial>
+mise run ios -- -p iosSimulatorArm64 --device-id <simulator-udid>
+mise run ios -- -p iosArm64 --device-id <iphone-id>
+mise run kotlin -- test -m app -p jvm
+mise run exec -- <command> <args>
 ```
 
-`./dev` changes to its own checkout root before invoking the toolchain. It exports
+`mise tasks` lists the actions defined in `mise.toml`. Tasks run from their checkout
+root, including when invoked from a subdirectory. They export
 `KINUVO_HOME` and `KINUVO_EMBEDDED_PORT` from the pins, rejecting conflicting inherited
 values. The standalone Server uses the pinned port as well. Run only one Server
-per home: `server` and `desktop` check the advertised PID, but that check is not an
+per home: the `server` and `desktop` tasks check the advertised PID, but that check is not an
 exclusive lock and cannot prevent simultaneous launches or PID reuse.
+
+The mise tasks replace the former `./dev` launcher. Existing pins keep working;
+run `mise trust` once in each existing checkout, without rerunning `init`.
+Custom tasks that need the pinned environment can use `scripts/project-run.sh`.
+Keep personal task overrides in ignored `mise.local.toml`.
 
 Repository Mockstro and packaging entry points load the same pins when present.
 The vendor-managed `./kotlin` wrapper is unchanged, so fresh-clone builds and CI
 need no local configuration. In a pinned checkout, agents and project actions must
-use `./dev kotlin ...` rather than invoking that wrapper directly. Directly launched
+use `mise run kotlin -- ...` rather than invoking that wrapper directly. Directly launched
 installed apps, jars and arbitrary scripts can bypass these guards. These rules
 are launch conventions, not filesystem access controls.
 

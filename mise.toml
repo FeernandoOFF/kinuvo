@@ -1,0 +1,39 @@
+[tasks.init]
+description = "Pin this checkout's data home and port: init /absolute/home port"
+run = "python3 scripts/init-checkout.py"
+
+[tasks.home]
+description = "Show this checkout's pinned data home"
+run = "./scripts/project-run.sh printenv KINUVO_HOME"
+
+[tasks.server]
+description = "Run this checkout's Server on its pinned port"
+run = './scripts/project-run.sh --check-server ./kotlin run -m cli -- serve --host 127.0.0.1 --port "$(cat .kinuvo-port)"'
+
+[tasks.desktop]
+description = "Run the desktop app with this checkout's data"
+run = "./scripts/project-run.sh --check-server ./kotlin run -m desktop"
+
+[tasks.android]
+description = "Build, install and launch the Android app"
+run = "./scripts/project-run.sh ./kotlin run -m android"
+
+[tasks.ios]
+description = "Build, install and launch the iOS app"
+run = "./scripts/project-run.sh ./kotlin run -m ios"
+
+[tasks.cli]
+description = "Run CLI commands against this checkout's home"
+run = "./scripts/project-run.sh ./kotlin run -m cli --"
+
+[tasks.kotlin]
+description = "Run Kotlin Toolchain commands with this checkout's environment"
+run = "./scripts/project-run.sh ./kotlin"
+
+[tasks.exec]
+description = "Run any command with this checkout's environment"
+run = "./scripts/project-run.sh"
+
+[tasks."test:tasks"]
+description = "Test task argument forwarding and checkout isolation"
+run = "python3 scripts/test-mise.py"
