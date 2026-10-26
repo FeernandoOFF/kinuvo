@@ -11,6 +11,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +42,7 @@ internal sealed interface MdBlock {
     data class Table(val rows: List<List<String>>) : MdBlock
 }
 
+private val listItem = Regex("""^\s*([-*+]|\d+[.)])\s""")
 private val tableSeparator = Regex("""^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$""")
 
 internal fun parseBlocks(markdown: String): List<MdBlock> {
@@ -71,6 +74,8 @@ internal fun parseBlocks(markdown: String): List<MdBlock> {
                 i--
                 blocks += MdBlock.Table(rows)
             }
+            // Paragraphs are blocks of their own, so a streaming reply parses only the one still growing; lists stay whole.
+            line.isBlank() && prose.isNotBlank() && lines.getOrNull(i + 1)?.let { it.isNotBlank() && !it.first().isWhitespace() && !listItem.containsMatchIn(it) } == true -> flushProse()
             else -> prose.appendLine(line)
         }
         i++
@@ -97,8 +102,12 @@ internal fun markdownTextStyle(): TextStyle = LocalTextStyle.current.copy(
 @Composable
 fun Markdown(text: String, modifier: Modifier = Modifier, style: TextStyle = markdownTextStyle()) {
     val blocks = remember(text) { parseBlocks(text) }
-    Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        blocks.forEach { block ->
+    // Paragraphs stay a blank line apart, as in one block of text; other blocks are spaced apart.
+    val measurer = rememberTextMeasurer()
+    val blankLine = with(LocalDensity.current) { remember(style) { measurer.measure("", style).size.height }.toDp() }
+    Column(modifier) {
+        blocks.forEachIndexed { i, block ->
+            if (i > 0) Spacer(Modifier.height(if (block is MdBlock.Prose && blocks[i - 1] is MdBlock.Prose) blankLine else 10.dp))
             when (block) {
                 is MdBlock.Prose -> RichMarkdown(block.text, style, Modifier.fillMaxWidth())
                 is MdBlock.Code -> CodeBlock(block.code, language = block.language)
