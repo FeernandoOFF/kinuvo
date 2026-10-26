@@ -22,6 +22,28 @@ import java.nio.file.Files
 import kotlin.test.*
 
 class RunPreparationTest {
+    @Test
+    fun attachmentCapabilitiesCombineModalitiesAndEndpointFormats() = runBlocking {
+        val provider = object : ModelProvider {
+            override val id = "test"
+            override suspend fun models() = listOf(ModelInfo("tools", input = listOf("text", "image")))
+            override fun fileTypes(model: ModelInfo?) = setOf("application/pdf")
+            override fun model(config: AgentConfig) = scriptedModel { _, _ -> flowOf(StreamFrame.End()) }
+        }
+        val harness = harness(providers = listOf(provider))
+        try {
+            val agent = agent(harness)
+            val caps = inspect(harness, agent)
+            assertTrue(caps.input("file").actionable)
+            assertEquals(listOf("text", "image"), harness.modelCatalog().providers.single().models.single().input)
+            for (mime in listOf("text/plain", "text/csv", "application/json", "image/png", "application/pdf")) {
+                assertTrue(caps.attachment(mime).actionable, mime)
+            }
+            assertFalse(caps.attachment("application/vnd.openxmlformats-officedocument.wordprocessingml.document").actionable)
+            val withoutAttachments = harness.capabilities(agent, null, null, ServerCapabilities(harness.serverId))
+            assertTrue(ATTACHMENT_MIME_TYPES.none { withoutAttachments.attachment(it).actionable })
+        } finally { harness.close() }
+    }
     private val home = Files.createTempDirectory("run-preparation").toFile()
     private val seen = mutableListOf<List<String>>()
     private var modelsBuilt = 0

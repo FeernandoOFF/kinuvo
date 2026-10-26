@@ -6,8 +6,18 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
 import kotlin.test.*
+import kinuvo.protocol.ModelInfo
 
 class CodexModelsTest {
+    @Test
+    fun fileSupportDoesNotRequireAFileModality() {
+        val vision = responsesFileTypes(ModelInfo("vision", input = listOf("text", "image")))
+        val text = responsesFileTypes(ModelInfo("text", input = listOf("text")))
+        assertTrue("application/pdf" in vision)
+        assertFalse("application/pdf" in text)
+        assertTrue("application/vnd.openxmlformats-officedocument.wordprocessingml.document" in text)
+        assertTrue(responsesFileTypes(null).isEmpty())
+    }
     private val catalog = """{"models":[
         {"slug":"dynamic","display_name":"Dynamic model","supported_reasoning_levels":[{"effort":"low"},{"effort":"high"}],"default_reasoning_level":"low","context_window":1234,"input_modalities":["text","image"],"visibility":"list"},
         {"slug":"hidden","visibility":"hide"},
