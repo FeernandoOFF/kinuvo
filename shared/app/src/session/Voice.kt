@@ -295,9 +295,9 @@ class SpeechVoiceChat(
             started = started || s.data?.live?.running == true || errors.isNotEmpty() || fresh.any { it is ChatItem.Assistant || it is ChatItem.ToolCall }
             val done = started && !s.running
             for (item in fresh + errors) when (item) {
-                is ChatItem.Assistant -> {
+                // A sentence at a time, so the next is ready to play before the one before it ends, however much arrived at once.
+                is ChatItem.Assistant -> for (end in sentenceEnds(item.text, queued[item.id] ?: 0) + if (done) listOf(item.text.length) else emptyList()) {
                     val from = queued[item.id] ?: 0
-                    val end = if (done) item.text.length else sentenceEnd(item.text, from)
                     if (end > from) {
                         queued[item.id] = end
                         say(item.text.substring(from, end), item.id, end)
@@ -323,12 +323,9 @@ internal fun interrupts(heard: String, said: Set<String>): Boolean {
     return new >= 3 && new * 2 > recent.size
 }
 
-/** The end of the last complete sentence in [text] after [from], or [from] when there's none yet. */
-internal fun sentenceEnd(text: String, from: Int): Int {
-    var end = from
-    for (i in from until text.length - 1) if (text[i] == '\n' || (text[i] in ".!?:;" && text[i + 1].isWhitespace())) end = i + 1
-    return end
-}
+/** The ends of the complete sentences in [text] after [from]. */
+internal fun sentenceEnds(text: String, from: Int) = (from until text.length - 1)
+    .filter { text[it] == '\n' || (text[it] in ".!?:;" && text[it + 1].isWhitespace()) }.map { it + 1 }
 
 /** [markdown] as it should be read aloud. */
 fun speakable(markdown: String) = markdown

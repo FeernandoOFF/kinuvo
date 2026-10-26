@@ -152,12 +152,19 @@ final class AppleSpeech: NSObject, SpeechEngine {
         let generation = lock.withLock { self.generation }
         // The synthesizer ends an utterance with an empty buffer, sometimes more than one.
         var ended = false
+        // Played once whole: Personal Voice can synthesize slower than real time, and a player running dry crackles.
+        var speech = [AVAudioPCMBuffer]()
         synthesizer.write(utterance) { [weak self] buffer in
             guard let buffer = buffer as? AVAudioPCMBuffer, let copy = buffer.copy() as? AVAudioPCMBuffer else { return }
             self?.audio.async {
-                guard let self, self.lock.withLock({ self.generation == generation }), !ended else { return }
+                guard let self, self.lock.withLock({ self.generation == generation }) else { return }
+                guard !ended else {
+                    if copy.frameLength > 0 { self.log.error("Dropped \(copy.frameLength) frames of speech after its end") }
+                    return
+                }
                 if copy.frameLength == 0 {
                     ended = true
+                    speech.forEach { self.player.scheduleBuffer($0) }
                     // The last buffer is empty; a frame of silence after the speech reports when it has played.
                     let end = AVAudioPCMBuffer(pcmFormat: self.playback, frameCapacity: 1)!
                     end.frameLength = 1
@@ -171,7 +178,8 @@ final class AppleSpeech: NSObject, SpeechEngine {
                         self.synthesizeNext()
                     }
                 } else if let converted = converted(copy, to: self.playback, with: &self.converter) {
-                    self.player.scheduleBuffer(converted)
+                    speech.append(converted)
+                    return
                 } else {
                     self.log.error("Couldn't convert speech from \(copy.format)")
                 }
@@ -220,6 +228,8 @@ final class AppleSpeech: NSObject, SpeechEngine {
     }
 
     private func start() throws {
+        // Setting the category again drops the speaker override, and the route change restarts the engine on the main thread.
+        if active && engine.isRunning { return }
         let session = AVAudioSession.sharedInstance()
         try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothA2DP])
         try session.setActive(true)
@@ -233,6 +243,7 @@ final class AppleSpeech: NSObject, SpeechEngine {
             // Route and session changes stop the engine; it's started again for what's still to say.
             NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
                 guard let self, self.active, !self.engine.isRunning else { return }
+                self.log.notice("Audio configuration changed; restarting the engine")
                 // The microphone's format may have changed with the route.
                 self.engine.inputNode.removeTap(onBus: 0)
                 self.installTap()
