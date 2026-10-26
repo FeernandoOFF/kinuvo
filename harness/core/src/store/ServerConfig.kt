@@ -22,10 +22,20 @@ data class ServerConfig(
     val search: ServiceSettings = ServiceSettings(),
     val notifications: ServiceSettings = ServiceSettings(),
     val rules: TrustRules = TrustRules(),
+    val providers: Map<String, ModelProviderConfig> = emptyMap(),
 ) {
     fun service(kind: ServiceKind) = if (kind == ServiceKind.Search) search else notifications
     fun service(kind: ServiceKind, settings: ServiceSettings) = if (kind == ServiceKind.Search) copy(search = settings) else copy(notifications = settings)
 }
+
+@Serializable
+data class ModelProviderConfig(
+    val name: String? = null,
+    val baseUrl: String? = null,
+    val models: List<kinuvo.protocol.ModelInfo> = emptyList(),
+    val apiKeyEnv: String? = null,
+    val apiKeyRequired: Boolean = true,
+)
 
 @Serializable
 data class ReflectionConfig(val provider: String? = null, val model: String? = null)
