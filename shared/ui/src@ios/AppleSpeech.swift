@@ -8,6 +8,7 @@ import KotlinModules
  * voice processing, so the microphone hears the user but not the reply (echo cancellation). Runs on the main thread.
  */
 final class AppleSpeech: NSObject, SpeechEngine {
+    var halfDuplex: Bool { false }
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
     private let synthesizer = AVSpeechSynthesizer()

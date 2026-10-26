@@ -54,6 +54,9 @@ internal class FilePreferences(dir: File) : Preferences {
 }
 
 internal actual val platformModule = module {
+    if (currentPlatform == Platform.MacOS || currentPlatform == Platform.Windows) {
+        single<kinuvo.app.session.SpeechEngine> { kinuvo.ui.session.DesktopSpeechEngine() }
+    }
     single<DeviceReader> { DesktopDeviceReader() }
     single<DeviceCredentials> { DesktopCredentials(System.getenv("KINUVO_HOME")?.let(::File) ?: File(System.getProperty("user.home"), ".kinuvo")) }
     single<Preferences> {
