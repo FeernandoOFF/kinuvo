@@ -22,7 +22,7 @@ class SessionMessages(private val model: AgentModel) {
         return initial.withMessages { system + messages(history.activeHistory()) }
     }
 
-    fun messages(history: List<SessionEntry>): List<Message> = history.flatMap { entry ->
+    fun messages(history: List<SessionEntry>): List<Message> = mergeAssistants(history.flatMap { entry ->
         if (entry is SessionEntry.Compaction) return@flatMap messages(entry.history)
         val block = prompt("session") {
             when (entry) {
@@ -31,8 +31,9 @@ class SessionMessages(private val model: AgentModel) {
                 is SessionEntry.AssistantMessage -> assistant(entry.text)
                 is SessionEntry.ToolCall -> toolCall(MessagePart.Tool.Call(entry.id, entry.name, entry.args))
                 is SessionEntry.ToolResult -> toolResult(MessagePart.Tool.Result(entry.id, entry.name, entry.output, entry.isError))
-                is SessionEntry.Reasoning -> if (entry.encrypted != null) reasoning(
-                    MessagePart.Reasoning(content = emptyList(), summary = listOf(entry.text), encrypted = entry.encrypted, id = entry.id)
+                is SessionEntry.Reasoning -> if ((entry.format ?: "openai-responses") == model.reasoningFormat && (entry.encrypted != null || model.reasoningFormat == "deepseek")) reasoning(
+                    MessagePart.Reasoning(content = if (model.reasoningInContent && entry.text.isNotEmpty()) listOf(entry.text) else emptyList(),
+                        summary = if (model.reasoningInContent) null else listOf(entry.text), encrypted = entry.encrypted, id = entry.id)
                 )
                 is SessionEntry.Activation -> system(activation(entry))
                 else -> Unit
@@ -49,12 +50,24 @@ class SessionMessages(private val model: AgentModel) {
         if (entry is SessionEntry.ToolResult && entry.attachments.isNotEmpty())
             block + messages(listOf(SessionEntry.UserMessage(TOOL_FILES, attachments = entry.attachments)))
         else block
+    })
+
+    private fun mergeAssistants(messages: List<Message>): List<Message> = buildList {
+        messages.forEach { message ->
+            val previous = lastOrNull()
+            if (previous is Message.Assistant && message is Message.Assistant) {
+                val combined = previous.copy(parts = previous.parts + message.parts)
+                entries += combined to (entry(previous).orEmpty() + entry(message).orEmpty())
+                removeAt(lastIndex)
+                add(combined)
+            } else add(message)
+        }
     }
 
     fun entries(messages: List<Message>): List<SessionEntry> = messages.flatMap { entry(it) ?: when (it) {
         is Message.System -> listOf(SessionEntry.Context(it.textContent()))
         is Message.User -> listOf(SessionEntry.UserMessage(it.textContent()))
-        is Message.Assistant -> assistantEntries(it)
+        is Message.Assistant -> assistantEntries(it, model.reasoningFormat)
     } }
 
     fun user(message: Message): Boolean = entry(message)?.any { it is SessionEntry.UserMessage && !it.text.startsWith(TOOL_FILES) } == true
@@ -69,9 +82,9 @@ class SessionMessages(private val model: AgentModel) {
     }
 }
 
-internal fun assistantEntries(message: Message.Assistant): List<SessionEntry> = message.parts.mapNotNull { part -> when (part) {
+internal fun assistantEntries(message: Message.Assistant, format: String = "openai-responses"): List<SessionEntry> = message.parts.mapNotNull { part -> when (part) {
     is MessagePart.Text -> part.text.takeIf { it.isNotEmpty() }?.let { SessionEntry.AssistantMessage(it) }
-    is MessagePart.Reasoning -> SessionEntry.Reasoning((part.summary?.takeIf { it.isNotEmpty() } ?: part.content).joinToString("\n\n"), part.id, part.encrypted)
+    is MessagePart.Reasoning -> SessionEntry.Reasoning((part.summary?.takeIf { it.isNotEmpty() } ?: part.content).joinToString("\n\n"), part.id, part.encrypted, format = format)
     is MessagePart.Tool.Call -> SessionEntry.ToolCall(part.id ?: Uuid.random().toString(), part.tool, part.args)
     else -> null
 } }

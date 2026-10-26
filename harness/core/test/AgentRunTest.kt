@@ -157,7 +157,7 @@ class AgentRunTest {
         val entries = store.entries(agent, session.id).filterNot { it is SessionEntry.Measurement }
         assertEquals("Noted!", (entries.last() as SessionEntry.AssistantMessage).text)
         assertIs<SessionEntry.ToolResult>(entries[entries.size - 2]).also { assertEquals(false, it.isError) }
-        val reasoning = SessionEntry.Reasoning("should remember", "rs1", "enc")
+        val reasoning = SessionEntry.Reasoning("should remember", "rs1", "enc", format = "openai-responses")
         assertEquals(reasoning, entries.filterIsInstance<SessionEntry.Reasoning>().single().copy(messageId = null))
         assertEquals("enc", seenHistories[1].flatMap { it.parts }.filterIsInstance<MessagePart.Reasoning>().single().encrypted)
     }

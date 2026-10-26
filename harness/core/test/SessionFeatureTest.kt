@@ -16,6 +16,44 @@ import kotlin.test.*
 
 class SessionFeatureTest {
     @Test
+    fun googleSignaturesStayWithEachCallInContinuationAndStoredHistory() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent, "")
+        var requests = 0
+        val model = scriptedModel { prompt, _ ->
+            if (requests++ == 0) flowOf(
+                StreamFrame.ReasoningComplete(null, emptyList(), encrypted = "sig1"),
+                StreamFrame.ToolCallComplete("first", "read", "{}"),
+                StreamFrame.ReasoningComplete(null, emptyList(), encrypted = "sig2"),
+                StreamFrame.ToolCallComplete("second", "read", "{}"),
+                StreamFrame.End(),
+            ) else {
+                val parts = prompt.messages.filterIsInstance<ai.koog.prompt.message.Message.Assistant>().first().parts
+                assertEquals(listOf("sig1", "first", "sig2", "second"), parts.map {
+                    when (it) {
+                        is ai.koog.prompt.message.MessagePart.Reasoning -> it.encrypted
+                        is ai.koog.prompt.message.MessagePart.Tool.Call -> it.id
+                        else -> error("Unexpected part")
+                    }
+                })
+                flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
+            }
+        }.copy(reasoningInContent = true, reasoningFormat = "google")
+        AgentRun(home.agent, home.store, model, emptyList()).run(session.id, "go").toList()
+        assertEquals(2, requests)
+        val entries = home.store.entries(home.agent, session.id).filter {
+            it is SessionEntry.Reasoning || it is SessionEntry.ToolCall
+        }
+        assertEquals(listOf("sig1", "first", "sig2", "second"), entries.map {
+            when (it) {
+                is SessionEntry.Reasoning -> it.encrypted
+                is SessionEntry.ToolCall -> it.id
+                else -> error("Unexpected entry")
+            }
+        })
+    }
+
+    @Test
     fun llmCallsAndEachResultAreDurableBeforeTheNextToolStarts() = runTest {
         val home = TestHome()
         val session = home.store.createSession(home.agent, "")

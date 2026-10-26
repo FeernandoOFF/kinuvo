@@ -1,0 +1,33 @@
+{
+  "name": "mobile/provider-models",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "models.list"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"providers\":[{\"id\":\"anthropic\",\"name\":\"Anthropic\",\"models\":[{\"id\":\"demo-model\",\"name\":\"Demo model\",\"reasoning\":[]}]},{\"id\":\"google\",\"name\":\"Google\",\"models\":[{\"id\":\"demo-model\",\"name\":\"Demo model\",\"reasoning\":[]}]},{\"id\":\"openrouter\",\"name\":\"OpenRouter\",\"models\":[{\"id\":\"demo-model\",\"name\":\"Demo model\",\"reasoning\":[]}]},{\"id\":\"deepseek\",\"name\":\"DeepSeek\",\"models\":[{\"id\":\"demo-model\",\"name\":\"Demo model\",\"reasoning\":[]}]},{\"id\":\"mistral\",\"name\":\"Mistral\",\"models\":[{\"id\":\"demo-model\",\"name\":\"Demo model\",\"reasoning\":[]}]},{\"id\":\"alibaba\",\"name\":\"Alibaba (DashScope)\",\"models\":[{\"id\":\"demo-model\",\"name\":\"Demo model\",\"reasoning\":[]}]},{\"id\":\"ollama\",\"name\":\"Ollama\",\"models\":[{\"id\":\"demo-model\",\"name\":\"Demo model\",\"reasoning\":[]}]},{\"id\":\"local-models\",\"name\":\"Local models\",\"models\":[{\"id\":\"demo-model\",\"name\":\"Demo model\",\"reasoning\":[]}]},{\"id\":\"codex\",\"name\":\"ChatGPT / Codex\",\"models\":[{\"id\":\"e2e-model\",\"name\":\"Demo model\",\"reasoning\":[]}]}]}}"
+        }
+      }
+    }
+  ]
+}

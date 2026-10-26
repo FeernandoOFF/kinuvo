@@ -1,0 +1,33 @@
+{
+  "name": "mobile/providers",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "providers.list"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":[{\"id\":\"anthropic\",\"name\":\"Anthropic\",\"apiKey\":{\"configured\":false,\"storage\":\"Server keychain\",\"saved\":false}},{\"id\":\"google\",\"name\":\"Google\",\"apiKey\":{\"configured\":false,\"storage\":\"Server keychain\",\"saved\":false}},{\"id\":\"openrouter\",\"name\":\"OpenRouter\",\"apiKey\":{\"configured\":false,\"storage\":\"Server keychain\",\"saved\":false}},{\"id\":\"deepseek\",\"name\":\"DeepSeek\",\"apiKey\":{\"configured\":false,\"storage\":\"Server keychain\",\"saved\":false}},{\"id\":\"mistral\",\"name\":\"Mistral\",\"apiKey\":{\"configured\":false,\"storage\":\"Server keychain\",\"saved\":false}},{\"id\":\"alibaba\",\"name\":\"Alibaba (DashScope)\",\"apiKey\":{\"configured\":false,\"storage\":\"Server keychain\",\"saved\":false}},{\"id\":\"ollama\",\"name\":\"Ollama\"},{\"id\":\"local-models\",\"name\":\"Local models\"},{\"id\":\"codex\",\"name\":\"ChatGPT / Codex\",\"account\":{\"signedIn\":true}}]}"
+        }
+      }
+    }
+  ]
+}

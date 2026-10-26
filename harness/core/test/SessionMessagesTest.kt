@@ -11,6 +11,52 @@ class SessionMessagesTest {
     private val messages = SessionMessages(scriptedModel { _, _ -> emptyFlow() })
 
     @Test
+    fun providerSwitchDropsForeignReasoningButKeepsLegacyOpenAI() {
+        val history = listOf(
+            SessionEntry.Reasoning("legacy", encrypted = "openai-ciphertext"),
+            SessionEntry.Reasoning("thought", encrypted = "signature", format = "anthropic"),
+            SessionEntry.AssistantMessage("answer"),
+        )
+        val openai = messages.prompt("", history).messages.single().parts
+        assertEquals("openai-ciphertext", openai.filterIsInstance<MessagePart.Reasoning>().single().encrypted)
+        val anthropic = SessionMessages(scriptedModel { _, _ -> emptyFlow() }.copy(reasoningFormat = "anthropic", reasoningInContent = true))
+        val native = anthropic.prompt("", history).messages.single().parts
+        assertEquals("signature", native.filterIsInstance<MessagePart.Reasoning>().single().encrypted)
+        assertEquals("answer", native.filterIsInstance<MessagePart.Text>().single().text)
+    }
+
+    @Test
+    fun deepSeekReplaysUnsignedReasoningWithToolCall() {
+        val converter = SessionMessages(scriptedModel { _, _ -> emptyFlow() }.copy(reasoningFormat = "deepseek", reasoningInContent = true))
+        val history = listOf(
+            SessionEntry.Reasoning("need a tool", format = "deepseek"),
+            SessionEntry.ToolCall("call", "lookup", "{}"),
+            SessionEntry.ToolResult("call", "lookup", "found"),
+        )
+        val prompt = converter.prompt("", history)
+        val parts = prompt.messages.first().parts
+        assertEquals(listOf("need a tool"), (parts.first() as MessagePart.Reasoning).content)
+        assertIs<MessagePart.Tool.Call>(parts.last())
+        assertEquals(history, converter.entries(prompt.messages))
+    }
+
+    @Test
+    fun googleSignatureMarkerSharesAssistantWithItsCall() {
+        val converter = SessionMessages(scriptedModel { _, _ -> emptyFlow() }.copy(reasoningFormat = "google", reasoningInContent = true))
+        val history = listOf(
+            SessionEntry.Reasoning("", encrypted = "google-signature", format = "google"),
+            SessionEntry.ToolCall("call", "lookup", "{}"),
+        )
+        val prompt = converter.prompt("", history)
+        val parts = prompt.messages.single().parts
+        val marker = parts.first() as MessagePart.Reasoning
+        assertTrue(marker.content.isEmpty())
+        assertEquals("google-signature", marker.encrypted)
+        assertIs<MessagePart.Tool.Call>(parts.last())
+        assertEquals(history, converter.entries(prompt.messages))
+    }
+
+    @Test
     fun identicalMessagesKeepTheirOwnIdentity() {
         val history = listOf(SessionEntry.AssistantMessage("same", "first"), SessionEntry.AssistantMessage("same", "second"))
         val prompt = messages.prompt("", history)

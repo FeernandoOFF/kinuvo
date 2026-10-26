@@ -67,7 +67,7 @@ sealed interface SessionEntry {
 
     /** Reasoning summary; [encrypted] is replayed to the model so it keeps its reasoning across turns. */
     @Serializable @SerialName("reasoning")
-    data class Reasoning(val text: String, val id: String? = null, val encrypted: String? = null, val messageId: String? = null) : SessionEntry
+    data class Reasoning(val text: String, val id: String? = null, val encrypted: String? = null, val messageId: String? = null, val format: String? = null) : SessionEntry
 
     @Serializable @SerialName("tool_call")
     data class ToolCall(val id: String, val name: String, val args: String, val identity: ToolIdentity? = null) : SessionEntry

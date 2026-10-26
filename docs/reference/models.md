@@ -33,6 +33,78 @@ Tool definitions have stable ordering and recursively sorted schema object keys.
 
 Compaction can summarize completed tool exchanges within the current turn while keeping its user request, current Context and activated Skills. The full transcript remains on disk. Input estimates include tool definitions and reserve output space for known context windows; oversized summaries are chunked, and requests that still cannot fit are rejected before inference.
 
+## Other Koog providers
+
+JVM and embedded mobile Servers also include these [Koog clients](https://docs.koog.ai/llm-providers/):
+
+| Provider ID | Provider | Server environment variable |
+| --- | --- | --- |
+| `anthropic` | Anthropic | `ANTHROPIC_API_KEY` |
+| `google` | Google Gemini | `GOOGLE_API_KEY` |
+| `deepseek` | DeepSeek | `DEEPSEEK_API_KEY` |
+| `openrouter` | OpenRouter | `OPENROUTER_API_KEY` |
+| `mistral` | Mistral | `MISTRAL_API_KEY` |
+| `alibaba` | Alibaba DashScope | `DASHSCOPE_API_KEY` |
+| `ollama` | Ollama | No key required; optional `OLLAMA_API_KEY` |
+
+Configure keys and Secret references in **Settings → Model providers**, then refresh models. Saved keys use the same storage and precedence as OpenAI, with each provider's ID as the keychain account and credential filename prefix. Providers are separate choices in the Agent and Session model pickers. Ollama discovers locally installed models at `http://localhost:11434`; this address is relative to the Server.
+
+### OpenAI-compatible endpoints
+
+Add entries to `providers` in the Server home's `config.yaml`, then restart the Server. Each entry's key becomes a provider ID. Use an API base URL including its version prefix: the client appends `models` and `chat/completions`. These endpoints use Koog's Chat Completions adapter.
+
+```yaml
+providers:
+  local-models:
+    type: openai-compatible
+    name: Local models
+    baseUrl: http://localhost:1234/v1/
+    apiKeyRequired: false
+  hosted-models:
+    type: openai-compatible
+    name: Hosted models
+    baseUrl: https://models.example.com/v1/
+    apiKeyEnv: HOSTED_MODELS_API_KEY
+```
+
+Authenticated custom providers default to `OPENAI_COMPATIBLE_API_KEY` when `apiKeyEnv` is omitted. Set their keys through Model providers settings or the named Server environment variable. Set `apiKeyRequired: false` for unauthenticated local endpoints; keys from the environment are still sent when present.
+
+An optional `models` list replaces discovery for endpoints without a model-list API. It can also specify known capabilities:
+
+```yaml
+providers:
+  local-models:
+    type: openai-compatible
+    baseUrl: http://localhost:1234/v1/
+    apiKeyRequired: false
+    models:
+      - id: my-model
+        tools: true
+        input: [text, image]
+        reasoning: []
+        context: 32768
+```
+
+Built-in providers accept the same `name`, `baseUrl`, `apiKeyEnv`, and `models` overrides under their IDs. For native providers, `baseUrl` replaces the API origin; Koog appends that provider's own versioned paths. Endpoint configuration is read at Server startup. Custom model IDs are sent unchanged. New adapters currently use the provider's default reasoning settings; Codex and OpenAI Responses retain their existing reasoning controls.
+
+Google replies are buffered through Koog’s complete-response API to preserve Gemini thought signatures during tool continuations (Koog 1.3’s streaming parser drops them).
+
+### Amazon Bedrock
+
+Bedrock is available on JVM Servers. Add a `bedrock` entry (or a custom ID with `type: bedrock`) and restart:
+
+```yaml
+providers:
+  bedrock:
+    region: eu-west-1
+    models:
+      - id: eu.anthropic.claude-sonnet-4-5-20250929-v1:0
+        tools: true
+        input: [text, image]
+```
+
+The AWS SDK uses its default credential chain, including process environment credentials, AWS profiles and workload roles. Region defaults to `AWS_REGION`, then `AWS_DEFAULT_REGION`, then `us-east-1`. Bedrock uses Koog's Converse adapter. Specify model or inference-profile IDs available to your AWS account; without `models`, the picker shows Koog's built-in model definitions, which do not imply account access. Bedrock is omitted from mobile Servers because Koog's client is JVM-only. Its current schema converter cannot preserve external MCP schemas, so those tools are excluded for Bedrock; built-in tools remain available.
+
 ## Cache and offline use
 
 The Server saves successful discovery and metadata in `~/.kinuvo/cache/models.json` with owner-only permissions. Provider discovery refreshes after an hour; Models.dev metadata refreshes after 24 hours. Each fetch has a ten-second timeout. Failed refreshes keep the last successful result, show a warning and throttle automatic retries for a minute. “Refresh models” bypasses the cache and retry throttle.
