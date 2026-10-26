@@ -1,5 +1,6 @@
 package kinuvo.cli
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import com.github.ajalt.clikt.command.CoreSuspendingCliktCommand
 import com.github.ajalt.clikt.command.main
 import com.github.ajalt.clikt.core.Context
@@ -24,8 +25,11 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.TimeZone
 
+private val log by lazy { KotlinLogging.logger("kinuvo.cli") }
+
 /** `kinuvo [serve] [--host 0.0.0.0] [--port 8787]`, `kinuvo login`, or a management command (see `--help`). */
 fun main(args: Array<String>): Unit = runBlocking {
+    System.setProperty("kotlin-logging.logStartupMessage", "false")
     Kinuvo(LocalAccess, listOf(Serve(), Login(), ServiceCommands()), default = { serve("127.0.0.1", HarnessServer.DEFAULT_PORT) }).main(args)
 }
 
@@ -78,10 +82,10 @@ private suspend fun serve(host: String, port: Int, publicUrl: String? = null, tr
             desktop.connect()
         }
         server.advertise()
-        println("Kinuvo Server listening at $bind:$bound${network.publicUrl?.let { "; HTTPS address $it" }.orEmpty()}")
-        if (route != null) println("Tailscale HTTPS: ${route.url} (private to your tailnet; the Serve route persists until disabled)")
-        if (computer) println("Computer use enabled: Server desktop (cua-driver).")
-        println("Pairing is closed. Run `kinuvo pair --manage` for a management Device or `kinuvo pair` for ordinary access.")
+        log.info { "Server listening at $bind:$bound${network.publicUrl?.let { "; HTTPS address $it" }.orEmpty()}" }
+        if (route != null) log.info { "Tailscale HTTPS: ${route.url} (private to your tailnet; the Serve route persists until disabled)" }
+        if (computer) log.info { "Computer use enabled: Server desktop (cua-driver)." }
+        log.info { "Pairing is closed. Run `kinuvo pair --manage` for a management Device or `kinuvo pair` for ordinary access." }
         Runtime.getRuntime().addShutdownHook(shutdown)
         ready = true
         awaitCancellation()
@@ -90,7 +94,7 @@ private suspend fun serve(host: String, port: Int, publicUrl: String? = null, tr
         try { server.stop() } finally {
             try { desktop?.close() } finally {
                 if (!ready) kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
-                    runCatching { route?.rollback() }.onFailure { System.err.println("Could not remove the new Tailscale route; check `tailscale serve status`.") }
+                    runCatching { route?.rollback() }.onFailure { log.warn(it) { "Could not remove the new Tailscale route; check `tailscale serve status`." } }
                 }
             }
         }

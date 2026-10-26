@@ -1,5 +1,6 @@
 package kinuvo.harness.mcp
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.harness.core.Keychain
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -15,6 +16,8 @@ import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
+
+private val log = KotlinLogging.logger("kinuvo.mcp.signins")
 
 /**
  * MCP sign-ins, one file per server under [dir], encrypted with a key kept in the OS keychain (whose entries are too
@@ -63,7 +66,7 @@ class McpSignIns(private val dir: File, private val keychain: Keychain? = Keycha
         }
         if (k == null) {
             keyless = true
-            System.err.println("MCP sign-ins: no keychain, keeping them unencrypted in $dir (owner-only)")
+            log.warn { "No keychain, keeping MCP sign-ins unencrypted in $dir (owner-only)" }
             return null
         }
         return SecretKeySpec(Base64.getDecoder().decode(k), "AES").also { key = it }

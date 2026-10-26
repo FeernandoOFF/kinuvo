@@ -24,7 +24,8 @@ internal class ServiceCommands : Group(
 
 /** What the service runs: [jar] with this JVM, serving on [host]:[port], logging to [log]. */
 internal data class ServiceSpec(val java: String, val jar: String, val host: String, val port: Int, val log: String, val env: Map<String, String>, val computer: Boolean = false, val tailscale: Boolean = false, val tailscalePort: Int = 443) {
-    val command get() = listOf(java, "-jar", jar, "serve", "--host", host, "--port", port.toString()) +
+    val outputLog get() = File(File(log).parentFile, "service-output.log").path
+    val command get() = listOf(java, "-Dlogback.configurationFile=logback-service.xml", "-Dkinuvo.log.file=$log", "-jar", jar, "serve", "--host", host, "--port", port.toString()) +
         (if (computer) listOf("--computer") else emptyList()) +
         (if (tailscale) listOf("--tailscale", "--tailscale-port", tailscalePort.toString()) else emptyList())
 }
@@ -73,8 +74,8 @@ internal class Launchd(private val home: File = File(System.getProperty("user.ho
         appendLine("  <key>RunAtLoad</key><true/>")
         appendLine("  <key>KeepAlive</key><true/>")
         appendLine("  <key>ThrottleInterval</key><integer>10</integer>")
-        appendLine("  <key>StandardOutPath</key><string>${xml(spec.log)}</string>")
-        appendLine("  <key>StandardErrorPath</key><string>${xml(spec.log)}</string>")
+        appendLine("  <key>StandardOutPath</key><string>${xml(spec.outputLog)}</string>")
+        appendLine("  <key>StandardErrorPath</key><string>${xml(spec.outputLog)}</string>")
         appendLine("</dict>")
         appendLine("</plist>")
     }
@@ -136,8 +137,8 @@ internal class Systemd(home: File = File(System.getProperty("user.home"))) : Ser
         spec.env.forEach { (k, v) -> appendLine("Environment=${quote("$k=$v")}") }
         appendLine("Restart=always")
         appendLine("RestartSec=10")
-        appendLine("StandardOutput=append:${spec.log}")
-        appendLine("StandardError=append:${spec.log}")
+        appendLine("StandardOutput=append:${spec.outputLog}")
+        appendLine("StandardError=append:${spec.outputLog}")
         appendLine()
         appendLine("[Install]")
         appendLine("WantedBy=default.target")
@@ -199,7 +200,8 @@ private class InstallService : CoreSuspendingCliktCommand("install") {
         val installed = File(home, "bin/kinuvo.jar").apply { parentFile.mkdirs() }
         val log = File(home, "logs/server.log")
         ownerOnly(log)
-        val env = listOfNotNull("PATH", "KINUVO_HOME", "LANG", "KINUVO_PUBLIC_URL", "KINUVO_TRUSTED_PROXIES", "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS").mapNotNull { k -> System.getenv(k)?.let { k to it } }.toMap()
+        ownerOnly(File(home, "logs/service-output.log"))
+        val env = listOfNotNull("PATH", "KINUVO_HOME", "LANG", "KINUVO_LOG_LEVEL", "KINUVO_PUBLIC_URL", "KINUVO_TRUSTED_PROXIES", "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS").mapNotNull { k -> System.getenv(k)?.let { k to it } }.toMap()
         val java = File(System.getProperty("java.home"), "bin/java").path
         val manager = ServiceManager.current()
         val servicePid = Regex("""pid (\d+)""").find(manager.state())?.groupValues?.get(1)?.toLong()
@@ -268,12 +270,13 @@ private class ServiceLogs : CoreSuspendingCliktCommand("logs") {
     private val follow by option("-f", "--follow").flag()
     private val lines by option("-n", "--lines").int().default(100)
 
-    override fun help(context: Context) = "Print the end of the service's log."
+    override fun help(context: Context) = "Print the end of the service's logs."
 
     override suspend fun run() {
-        val log = File(kinuvoHome().toString(), "logs/server.log")
-        if (!log.exists()) throw CliktError("No log yet at $log")
-        val args = listOf("tail", "-n", lines.toString()) + (if (follow) listOf("-f") else emptyList()) + log.path
+        val directory = File(kinuvoHome().toString(), "logs")
+        val logs = listOf(File(directory, "server.log"), File(directory, "service-output.log")).filter { it.exists() }
+        if (logs.isEmpty()) throw CliktError("No logs yet at $directory")
+        val args = listOf("tail", "-n", lines.toString()) + (if (follow) listOf("-F") else emptyList()) + logs.map { it.path }
         ProcessBuilder(args).inheritIO().start().waitFor()
     }
 }

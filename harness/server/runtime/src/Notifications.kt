@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.harness.core.Agent
 import kinuvo.harness.core.Notification
 import kinuvo.protocol.AgentEvent
@@ -10,6 +11,8 @@ import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+
+private val log = KotlinLogging.logger("kinuvo.notifications")
 
 /**
  * Notifies the user about Sessions no client in the foreground is watching: an Approval or `ask_user` form waiting, a
@@ -57,7 +60,8 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            println("Notification failed: ${harness.secrets.redact(e.message ?: e.toString())}")
+            val failure = harness.secrets.redact(e.stackTraceToString())
+            log.warn { "Notification failed:\n$failure" }
         }
     }
 

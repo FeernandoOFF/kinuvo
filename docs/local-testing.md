@@ -71,6 +71,16 @@ replace the installed jar, then restart and verify it. Keep its existing home,
 port and network configuration. macOS uses one launch-service label across data
 homes; only its assigned checkout should manage it.
 
+JVM diagnostics use kotlin-logging through SLF4J and Logback. Interactive commands
+and the desktop app log to stderr, leaving CLI results on stdout. `KINUVO_LOG_LEVEL`
+sets the minimum level (default `INFO`). Installed services use
+`logback-service.xml` and `-Dkinuvo.log.file=<home>/logs/server.log`: the file rolls
+daily or at 10 MB, with seven days of compressed archives capped at 100 MB.
+Raw process output, including failures before logging starts, goes to
+`logs/service-output.log`. `service logs` shows both files and `--follow` follows
+their names across rotation. Reinstall existing service definitions after this
+logging change so process output and the rolling file have separate paths.
+
 Mobile apps use their own application containers. To keep two versions installed
 with independent app data, use separate application IDs or separate devices.
 Separate Server homes alone do not isolate mobile app installations. On iOS, the

@@ -39,6 +39,8 @@ private class HapticNotifier(context: Context) : Notifier {
 }
 
 internal actual val platformModule = module {
+    System.setProperty("kotlin-logging-to-android-native", "true")
+    System.setProperty("kotlin-logging.logStartupMessage", "false")
     single<EmbeddedServer> { AndroidEmbeddedServer(androidContext()) }
     single<DeviceReader> { AndroidContactsReader(androidContext()) }
     single<kinuvo.app.computer.ComputerDriver> { AndroidComputer(androidContext()) }
