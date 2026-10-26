@@ -30,13 +30,11 @@ data class ServerConfig(
 
 @Serializable
 data class ModelProviderConfig(
-    val type: String? = null,
     val name: String? = null,
     val baseUrl: String? = null,
     val models: List<kinuvo.protocol.ModelInfo> = emptyList(),
     val apiKeyEnv: String? = null,
     val apiKeyRequired: Boolean = true,
-    val region: String? = null,
 )
 
 @Serializable

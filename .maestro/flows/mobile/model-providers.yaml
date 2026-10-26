@@ -27,14 +27,9 @@ properties:
       text: "Model providers"
     direction: DOWN
 - tapOn: "Model providers"
-- assertVisible: "Anthropic"
+- assertVisible: "Hosted models"
 - assertVisible: "API key required"
 - takeScreenshot: providers-api-keys
-- scrollUntilVisible:
-    element:
-      text: "Ollama"
-    direction: DOWN
-- assertVisible: "Ollama"
 - scrollUntilVisible:
     element:
       text: "Local models"

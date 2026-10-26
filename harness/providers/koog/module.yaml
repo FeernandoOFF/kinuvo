@@ -5,19 +5,11 @@ product:
 dependencies:
   - ../../core: exported
   - ai.koog:prompt-executor-openai-client:1.3.0
-  - ai.koog:prompt-executor-anthropic-client:1.3.0
-  - ai.koog:prompt-executor-google-client:1.3.0-beta
-  - ai.koog:prompt-executor-deepseek-client:1.3.0-beta
-  - ai.koog:prompt-executor-openrouter-client:1.3.0
-  - ai.koog:prompt-executor-mistralai-client:1.3.0-beta
-  - ai.koog:prompt-executor-dashscope-client:1.3.0-beta
-  - ai.koog:prompt-executor-ollama-client:1.3.0
   - ai.koog:http-client-ktor:1.3.0
   - io.ktor:ktor-client-content-negotiation:3.6.0
   - io.ktor:ktor-serialization-kotlinx-json:3.6.0
 
 dependencies@jvm:
-  - ai.koog:prompt-executor-bedrock-client:1.3.0
   - io.ktor:ktor-client-java:3.6.0
 
 dependencies@android:

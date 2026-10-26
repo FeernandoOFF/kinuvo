@@ -375,7 +375,7 @@ class ServerClientTest {
                 val (_, entries, live) = reconnected.catchUp(first)
                 assertEquals(LiveState(running = true, approval = approval), live)
                 assertTrue(SessionEntry.UserMessage("make skill") in entries)
-                assertEquals("c1", entries.filterIsInstance<SessionEntry.ToolCall>().single().id)
+                assertEquals("c1", (entries.last() as SessionEntry.ToolCall).id)
                 assertEquals(listOf(entries.last()), reconnected.catchUp(first, after = entries.size - 1).entries)
                 assertEquals(SessionStatus.Waiting, reconnected.call(Api.Sessions, SessionsParams("default")).sessions.single { it.id == first }.status)
                 val idle = async(start = CoroutineStart.UNDISPATCHED) { reconnected.statuses(first).first { it == SessionStatus.Idle } }

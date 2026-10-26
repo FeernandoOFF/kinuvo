@@ -282,6 +282,14 @@ class ScreenshotTest {
             val ui = settingsAt(Route.Settings("main", SettingsSection.Providers))
             HarnessTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers, deviceCode = "codex" to kinuvo.protocol.DeviceCode("https://auth.openai.com/codex/device", "ABCD-1234", 0))), SettingsActions()) }
         }
+        render("settings-compatible-providers", 900, 1050) {
+            val providers = listOf(
+                ProviderInfo("hosted-models", "Hosted models", apiKey = ProviderApiKeyStatus(false, "Server keychain")),
+                ProviderInfo("local-models", "Local models"),
+            )
+            val ui = settingsAt(Route.Settings("main", SettingsSection.Providers))
+            HarnessTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers)), SettingsActions()) }
+        }
         render("settings-provider-key", 900, 850) {
             val ui = settingsAt(Route.Settings("main", SettingsSection.Providers))
             val key = ProviderApiKeyStatus(true, "~/.kinuvo/credentials/openai-reference (reference only)", true, "\${pass://Kinuvo/OpenAI/api key}")
