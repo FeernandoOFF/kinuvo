@@ -12,5 +12,7 @@ data class AgentModel(
     val parameters: (String) -> LLMParams = { LLMParams() },
     val attachments: ((Attachment) -> ByteArray)? = null,
     val instructionsInPrompt: Boolean = true,
+    val reasoningInContent: Boolean = false,
+    val reasoningFormat: String = "openai-responses",
     val failure: (Throwable) -> Throwable = { it },
 )

@@ -23,11 +23,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlin.uuid.Uuid
 
-internal class StreamResponse(private val identity: (String) -> ToolIdentity? = { null }) {
+internal class StreamResponse(private val format: String = "openai-responses", private val identity: (String) -> ToolIdentity? = { null }) {
     var messageId: String? = null
     val text = StringBuilder()
     private val entries = mutableListOf<SessionEntry>()
-    val reasoning get() = entries.filterIsInstance<SessionEntry.Reasoning>()
+    val history get() = entries.toList()
     val calls get() = entries.filterIsInstance<SessionEntry.ToolCall>()
     var end: StreamFrame.End? = null
         private set
@@ -40,7 +40,7 @@ internal class StreamResponse(private val identity: (String) -> ToolIdentity? = 
         when (frame) {
             is StreamFrame.TextDelta -> text.append(frame.text)
             is StreamFrame.ReasoningComplete -> entries += SessionEntry.Reasoning(
-                (frame.summary?.takeIf { it.isNotEmpty() } ?: frame.content).joinToString("\n\n"), frame.id, frame.encrypted, messageId)
+                (frame.summary?.takeIf { it.isNotEmpty() } ?: frame.content).joinToString("\n\n"), frame.id, frame.encrypted, messageId, format)
             is StreamFrame.ToolCallComplete -> entries += SessionEntry.ToolCall(
                 frame.id ?: Uuid.random().toString(), frame.name, frame.content, identity(frame.name))
             is StreamFrame.End -> end = frame
@@ -48,8 +48,8 @@ internal class StreamResponse(private val identity: (String) -> ToolIdentity? = 
         }
     }
 
-    fun messages(messages: SessionMessages) = messages.messages(reasoning +
-        listOfNotNull(text.takeIf { it.isNotEmpty() }?.let { SessionEntry.AssistantMessage(it.toString(), messageId) }) + calls)
+    fun messages(messages: SessionMessages) = messages.messages(history +
+        listOfNotNull(text.takeIf { it.isNotEmpty() }?.let { SessionEntry.AssistantMessage(it.toString(), messageId) }))
 }
 
 /** Streaming and sequential controlled tool execution, wired into the caller's preparation nodes. */
