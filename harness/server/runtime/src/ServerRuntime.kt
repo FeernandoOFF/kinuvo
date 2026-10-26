@@ -399,11 +399,7 @@ class ServerRuntime(
         } ?: harness.newSession(agent).id
         val effective = harness.capabilities(agent, sessionId, null, capabilities)
         effective.chat.requireReady()
-        attachments.forEach { attachment -> effective.input(when {
-            attachment.mimeType.startsWith("image/") -> "image"
-            attachment.mimeType.startsWith("text/") || attachment.mimeType == "application/json" -> "text"
-            else -> "file"
-        }).requireReady() }
+        attachments.forEach { attachment -> effective.attachment(attachment.mimeType).requireReady() }
         val (activation, message) = (if (ServerFeature.Skills in capabilities.features) harness.slashActivation(agent, p.text) else null) ?: (null to p.text)
         val run = runs.start(agent, sessionId, message, activation, attachments = attachments, voice = p.voice, onDone = { reflector.ran(agent, sessionId) }) { harness.runner(agent, sessionId) }
         return SendResult(sessionId, run.id, message, activation)

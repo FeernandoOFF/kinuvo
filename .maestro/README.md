@@ -54,6 +54,7 @@ Add `--skip-build` when the current debug build is already installed. These flow
 exercise the default Compose shell on Android and iOS:
 
 - `chat.yaml`: pairing, Session creation, message sending and the pushed reply.
+- `attachment-picker.yaml`: Files remains enabled for a model with text and image modalities and opens the native file picker.
 - `pairing-rejected.yaml`: an expired pairing code stays on the connection screen.
 - `board.yaml`: load Tasks, create one, receive a live Task update, and show Done.
 - `knowledge.yaml`: empty search, matching search, Note details, linked Notes and back navigation.

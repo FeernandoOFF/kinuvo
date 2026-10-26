@@ -24,6 +24,7 @@ class CodexProvider(override val auth: CodexAuth = CodexAuth(), private val atta
     override val name = "ChatGPT / Codex"
     override val catalogId = "openai"
     override suspend fun models() = discoverCodexModels(discovery.value)
+    override fun fileTypes(model: ModelInfo?) = responsesFileTypes(model)
 
     override val usage: StateFlow<Usage?> = _usage
     override val modelProviders get() = listOf(this)

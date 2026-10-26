@@ -1,5 +1,8 @@
 package kinuvo.harness.server
 
+import kinuvo.protocol.ATTACHMENT_MIME_TYPES
+import kinuvo.protocol.attachmentInput
+
 import kinuvo.harness.core.*
 import kinuvo.harness.core.routines.RoutineReportTool
 import kinuvo.harness.core.routines.RoutineRun
@@ -216,13 +219,23 @@ open class HarnessRuntime(
         val prepared = prepare(agent, sessionId, settings)
         val info = prepared.effective.info
         val chat = prepared.chat
+        val fileTypes = prepared.effective.provider?.fileTypes(info).orEmpty()
         fun input(kind: String): CapabilityState = when {
             kind != "text" && ServerFeature.Attachments !in server.features -> CapabilityState.unsupported("Attachments are not installed on this Server")
+            kind == "file" && fileTypes.isNotEmpty() -> chat
             info?.input == null -> if (kind == "text") chat else CapabilityState.unknown("Model input support is unknown")
             kind !in info.input.orEmpty() -> CapabilityState.unsupported("This model does not accept $kind input")
             else -> chat
         }
-        return SessionCapabilities(revision, server, chat, listOf("text", "image", "file", "audio").associateWith(::input), prepared.catalog)
+        val attachments = ATTACHMENT_MIME_TYPES.associateWith { mime ->
+            when {
+                ServerFeature.Attachments !in server.features -> CapabilityState.unsupported("Attachments are not installed on this Server")
+                attachmentInput(mime) != "file" -> input(attachmentInput(mime))
+                mime in fileTypes -> chat
+                else -> CapabilityState.unsupported("This file type isn't supported by this provider and model")
+            }
+        }
+        return SessionCapabilities(revision, server, chat, listOf("text", "image", "file", "audio").associateWith(::input), prepared.catalog, attachments)
     }
 
     /**

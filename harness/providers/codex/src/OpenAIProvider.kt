@@ -55,6 +55,8 @@ class OpenAIProvider(
     override suspend fun availability(model: String) = if (keyValue().isNullOrBlank())
         CapabilityState.unavailable("Set an API key in Settings → Model providers, or OPENAI_API_KEY on the Server", "needs_api_key") else CapabilityState()
 
+    override fun fileTypes(model: ModelInfo?) = responsesFileTypes(model)
+
     override suspend fun models(): List<ModelInfo> {
         val response = http.get("models")
         check(response.status.isSuccess()) { "OpenAI model discovery failed (${response.status.value})" }

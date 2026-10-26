@@ -15,6 +15,9 @@ interface ModelProvider {
     val catalogId: String? get() = null
     suspend fun models(): List<kinuvo.protocol.ModelInfo> = emptyList()
     suspend fun availability(model: String): kinuvo.protocol.CapabilityState = kinuvo.protocol.CapabilityState()
+    /** Native file MIME types accepted by this endpoint, separately from model input modalities. */
+    fun fileTypes(model: ModelInfo?): Set<String> = if (model?.input.orEmpty().any { it == "file" || it == "document" })
+        ATTACHMENT_MIME_TYPES.filter { attachmentInput(it) == "file" }.toSet() else emptySet()
     fun model(config: AgentConfig): AgentModel
     fun model(config: AgentConfig, info: kinuvo.protocol.ModelInfo?): AgentModel = model(config)
     /** Plan usage, for providers that report it. */
