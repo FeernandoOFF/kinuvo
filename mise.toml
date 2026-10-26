@@ -12,7 +12,7 @@ run = './scripts/project-run.sh --check-server ./kotlin run -m cli -- serve --ho
 
 [tasks.desktop]
 description = "Run the desktop app with this checkout's data"
-run = "./scripts/project-run.sh --check-server ./kotlin run -m desktop"
+run = "./scripts/project-run.sh --check-server ./scripts/desktop.sh"
 
 [tasks.android]
 description = "Build, install and launch the Android app"
