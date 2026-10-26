@@ -9,6 +9,8 @@ Use the Session's voice controls to start Voice chat. For **Dictation**, speak i
 
 Speech recognition and synthesis run on the Device in the shipped mode. The Agent and its model still run through the selected Server and provider, so recognized text can be processed by a cloud model.
 
+Desktop speech is available on macOS and Windows; see [Desktop speech](../desktop-voice.md) for setup and platform requirements. Desktop Voice chat releases the microphone while the Agent thinks and speaks, then resumes listening.
+
 Implementation: [voice interfaces](https://github.com/FeernandoOFF/kinuvo/blob/main/shared/app/src/session/Voice.kt).
 
 <div class="k-future">

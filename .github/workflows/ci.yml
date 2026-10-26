@@ -45,3 +45,16 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  windows-speech:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build unpackaged desktop speech helper
+        shell: powershell
+        run: ./scripts/build-windows-speech.ps1
+      - name: Run native SAPI synthesis and dictation recognition
+        shell: powershell
+        run: |
+          ./build/KinuvoSpeech.exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw 'Native speech self-test failed' }
