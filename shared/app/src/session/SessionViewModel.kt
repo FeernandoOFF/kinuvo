@@ -132,12 +132,11 @@ data class ChatState(
     val skills get() = capabilities?.server.supports(ServerFeature.Skills)
     /** Why nothing can be sent, or null when chat works. */
     val chatBlocked get() = capabilities?.chat?.takeUnless { it.actionable }?.let { it.reason ?: "Chat is unavailable" }
-    val photos get() = capabilities?.attachable("image")
-    val files get() = capabilities?.attachable("file")
+    val photos get() = capabilities?.attachment("image/jpeg")
+    val files get() = capabilities?.let { caps ->
+        ATTACHMENT_MIME_TYPES.map(caps::attachment).let { types -> types.firstOrNull { it.actionable } ?: types.first() }
+    }
 }
-
-private fun SessionCapabilities.attachable(kind: String) =
-    if (ServerFeature.Attachments in server.features) input(kind) else CapabilityState.unsupported("Attachments are not available on this Server")
 
 /**
  * [route] fills in as the Agent and Session resolve or a new Session is created. [data] is the Session as the
@@ -362,6 +361,10 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         val issue = when {
             all.size > MAX_ATTACHMENTS -> "Attach up to 4 files"
             pending.any { attachmentMimeType(it.upload.name) == null } -> "This file type isn't supported"
+            else -> pending.firstNotNullOfOrNull { p ->
+                state.value.capabilities?.attachment(p.attachment.mimeType)?.takeUnless { it.actionable }?.let { it.reason ?: "This attachment is unavailable" }
+            }
+        } ?: when {
             pending.any { it.attachment.size == 0 } -> "Empty files cannot be attached"
             pending.any { it.attachment.size > MAX_ATTACHMENT_BYTES } -> "Files must be 10 MB or smaller"
             all.sumOf { it.attachment.size } > MAX_ATTACHMENT_TOTAL_BYTES -> "Attachments must total 20 MB or less"
