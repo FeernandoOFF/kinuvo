@@ -63,7 +63,8 @@ class SessionMessages(private val model: AgentModel) {
     private fun RequestMessagePartsBuilder.attach(list: List<Attachment>) = list.forEach { a ->
         val bytes = requireNotNull(model.attachments) { "This provider has no attachment storage" }(a)
         val content = AttachmentContent.Binary.Bytes(bytes)
-        if (a.mimeType.startsWith("image/")) image(AttachmentSource.Image(content, a.mimeType.substringAfter('/'), a.mimeType, a.name))
+        if (kinuvo.protocol.attachmentInput(a.mimeType) == "text") text("\n\nFile: ${a.name}\n${bytes.decodeToString()}\n\n")
+        else if (a.mimeType.startsWith("image/")) image(AttachmentSource.Image(content, a.mimeType.substringAfter('/'), a.mimeType, a.name))
         else file(AttachmentSource.File(content = content, format = a.name.substringAfterLast('.'), mimeType = a.mimeType, fileName = a.name))
     }
 }

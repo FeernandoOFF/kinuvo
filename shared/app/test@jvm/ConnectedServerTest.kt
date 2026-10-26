@@ -26,6 +26,33 @@ class ConnectedServerTest {
     private val serverJobs = mutableListOf<Job>()
     private val stores = mutableListOf<ViewModelStore>()
     private fun store() = ViewModelStore().also(stores::add)
+    @Test fun selectedAttachmentsRespectLegacyAndExplicitServerSupport() = withOwner { owner, _, _ ->
+        val legacy = SessionCapabilities(server = ServerCapabilities("test", setOf(ServerFeature.Attachments)), inputs = mapOf(
+            "text" to CapabilityState(), "image" to CapabilityState(), "file" to CapabilityState.unsupported("No native files"),
+        ))
+        for (caps in listOf(legacy, legacy.copy(attachments = mapOf("text/plain" to CapabilityState(), "image/png" to CapabilityState())))) {
+            connect(owner, Script("A", caps))
+            val store = store()
+            val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat("agent", null))
+            store.put("session", vm)
+            vm.state.first { it.capabilities == caps }
+            vm.addAttachments(listOf(UploadAttachmentParams("note.txt", "aGk=")))
+            if (caps.attachments == null) {
+                assertTrue(vm.state.value.attachments.isEmpty())
+                assertEquals("No native files", vm.state.value.errors.last())
+            } else {
+                assertEquals(listOf("note.txt"), vm.state.value.attachments.map { it.upload.name })
+                assertTrue(vm.state.value.errors.isEmpty())
+            }
+            val before = vm.state.value.attachments
+            vm.addAttachments(listOf(UploadAttachmentParams("note.pdf", "aGk=")))
+            assertEquals(before, vm.state.value.attachments)
+            assertTrue(vm.state.value.errors.isNotEmpty())
+            vm.addAttachments(listOf(UploadAttachmentParams("photo.png", "aGk=")))
+            assertEquals(before.size + 1, vm.state.value.attachments.size)
+            store.clearAndJoin()
+        }
+    }
     @Test fun lateBoardLoadsAndErrorsCannotReplaceTheNewServer() = withOwner { owner, _, _ ->
         for (error in listOf(false, true)) {
             val a = Script("A")
@@ -360,7 +387,7 @@ class ConnectedServerTest {
         owner.activate()
     }
 
-    private class Script(private val name: String) : FrameConnection {
+    private class Script(private val name: String, private val capabilities: SessionCapabilities? = null) : FrameConnection {
         private val frames = Channel<Frame>(Channel.UNLIMITED)
         override val incoming = frames.receiveAsFlow()
         private val held = ConcurrentHashMap<String, Boolean>()
@@ -399,6 +426,8 @@ class ConnectedServerTest {
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
                 Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo("agent", name, "none")))
                 Api.Models.name -> reply(request, Api.Models, ModelsCatalog())
+                Api.Capabilities.name -> if (capabilities != null) reply(request, Api.Capabilities, capabilities)
+                    else frames.send(Frame.Response(request.id, false, error = "Unsupported in test: ${request.method}"))
                 Api.Providers.name -> reply(request, Api.Providers, emptyList())
                 Api.TaskLists.name -> reply(request, Api.TaskLists, listOf(TaskListInfo("list", "List")))
                 Api.Tasks.name -> reply(request, Api.Tasks, listOf(TaskInfo("task", "list", "List", name)))

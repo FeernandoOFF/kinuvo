@@ -22,7 +22,10 @@ fun openAIModel(config: AgentConfig, client: LLMClient, info: ModelInfo? = null,
 fun openAIModel(config: AgentConfig, executor: PromptExecutor, info: ModelInfo? = null,
     attachments: ((Attachment) -> ByteArray)? = null,
 ): AgentModel {
-    val model = (info ?: ModelInfo(config.model)).llModel(LLMProvider.OpenAI, listOf(LLMCapability.OpenAIEndpoint.Responses))
+    val model = (info ?: ModelInfo(config.model)).llModel(LLMProvider.OpenAI, buildList {
+        add(LLMCapability.OpenAIEndpoint.Responses)
+        if (responsesFileTypes(info).isNotEmpty()) add(LLMCapability.Document)
+    })
     return AgentModel(executor, model, parameters = { instructions ->
         OpenAIResponsesParams(
             store = false,
@@ -32,6 +35,15 @@ fun openAIModel(config: AgentConfig, executor: PromptExecutor, info: ModelInfo? 
             additionalProperties = mapOf("instructions" to JsonPrimitive(instructions)),
         )
     }, attachments = attachments, instructionsInPrompt = false, failure = { friendly(config, it) })
+}
+
+internal fun responsesFileTypes(model: ModelInfo?): Set<String> = buildSet {
+    if ("text" in model?.input.orEmpty()) {
+        add("application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+        add("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        add("application/vnd.openxmlformats-officedocument.presentationml.presentation")
+    }
+    if ("image" in model?.input.orEmpty()) add("application/pdf")
 }
 
 private fun friendly(config: AgentConfig, e: Throwable): Throwable {

@@ -35,7 +35,9 @@ class AttachmentsTest {
             client.connect()
             val a = client.call(Api.UploadAttachment, UploadAttachmentParams("note.md", Base64.encode("read me".encodeToByteArray())))
             val sent = client.call(Api.Send, SendParams("default", text = "", attachments = listOf(a.id)))
-            assertEquals(1, seen.await().parts.filterIsInstance<MessagePart.Attachment>().size)
+            val message = seen.await()
+            assertTrue(message.parts.none { it is MessagePart.Attachment })
+            assertTrue(message.parts.filterIsInstance<MessagePart.Text>().any { "File: note.md\n" in it.text })
             assertEquals("read me", Base64.decode(client.call(Api.Attachment, AttachmentRef(a.id)).base64).decodeToString())
             assertFails { client.call(Api.Send, SendParams("default", attachments = listOf("../bad"), text = "")) }
             assertFails { client.call(Api.Send, SendParams("default", attachments = List(5) { a.id }, text = "")) }

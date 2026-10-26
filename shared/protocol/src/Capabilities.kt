@@ -85,8 +85,15 @@ data class SessionCapabilities(
     val chat: CapabilityState = CapabilityState(),
     val inputs: Map<String, CapabilityState> = emptyMap(),
     val tools: List<ResolvedTool> = emptyList(),
+    /** Accepted attachment MIME types, resolved from the model and provider's file handling. Null from older Servers. */
+    val attachments: Map<String, CapabilityState>? = null,
 ) {
     fun input(kind: String) = inputs[kind] ?: CapabilityState.unsupported("This model does not accept $kind input")
+    fun attachment(mimeType: String): CapabilityState = when {
+        ServerFeature.Attachments !in server.features -> CapabilityState.unsupported("Attachments are not available on this Server")
+        attachments != null -> attachments[mimeType] ?: CapabilityState.unsupported("This file type isn't supported by this provider and model")
+        else -> input(if (mimeType.startsWith("image/")) "image" else "file")
+    }
 }
 
 @Serializable

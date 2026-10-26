@@ -1,0 +1,33 @@
+{
+  "name": "mobile/attachment-capabilities",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "session.capabilities"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"server\":{\"serverId\":\"e2e-server\",\"features\":[\"Attachments\"]},\"inputs\":{\"text\":{},\"image\":{},\"file\":{\"support\":\"Unsupported\",\"reason\":\"This model does not accept file input\"}},\"attachments\":{\"text/plain\":{},\"image/jpeg\":{},\"image/png\":{},\"application/pdf\":{}}}}"
+        }
+      }
+    }
+  ]
+}

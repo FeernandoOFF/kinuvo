@@ -1,0 +1,40 @@
+appId: ${APP_ID}
+tags:
+  - regression
+  - android
+  - ios
+properties:
+  apiProfile: mobile-attachments
+  apiVerifications:
+    - stub: mobile/attachment-capabilities
+      atLeast: 1
+---
+- launchApp
+- assertVisible: "Connect a server"
+- tapOn: "From kinuvo pair"
+- inputText: "123456"
+- tapOn: "Connect"
+- assertVisible: "Start a session with E2E Agent"
+- tapOn: "Attach"
+- assertVisible:
+    text: "Photos"
+    enabled: true
+- assertVisible:
+    text: "Files"
+    enabled: true
+- tapOn: "Files"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - assertVisible: "Browse"
+      - tapOn:
+          text: "Cancel"
+          index: 1
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible: "Recent"
+      - back
+- assertVisible: "Message"
