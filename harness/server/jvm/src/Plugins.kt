@@ -3,6 +3,7 @@ package kinuvo.harness.server
 import kinuvo.harness.anytype.AnytypePlugin
 import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.codex.OpenAIProvider
+import kinuvo.harness.koog.compatibleProviders
 import kinuvo.harness.core.HarnessPlugin
 import kinuvo.harness.core.SecretProvider
 import kinuvo.harness.core.Secrets
@@ -19,7 +20,8 @@ import kinuvo.harness.reminders.RemindersPlugin
 /** The model providers a JVM host offers. */
 fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (HarnessPlugin) -> Unit = {}): List<HarnessPlugin> {
     val attachments = kinuvo.harness.core.store.FileAttachments(kotlinx.io.files.Path(files.home, "attachments"))::bytes
-    return listOf({ CodexProvider(attachments = attachments) }, { OpenAIProvider(files, secrets, attachments) }).map { it().also(installed) }
+    return (listOf(CodexProvider(attachments = attachments), OpenAIProvider(files, secrets, attachments)) +
+        compatibleProviders(files, secrets, attachments)).onEach(installed)
 }
 
 /** What a JVM host (desktop, the `kinuvo` command) runs with. */

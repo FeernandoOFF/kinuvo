@@ -37,7 +37,7 @@ class OpenAIProvider(
     constructor(files: AgentFiles, secrets: Secrets = Secrets(), attachments: ((Attachment) -> ByteArray)? = null) :
         this(OpenAIKey(files, secrets), attachments)
 
-    private constructor(key: OpenAIKey, attachments: ((Attachment) -> ByteArray)?) :
+    private constructor(key: StoredProviderKey, attachments: ((Attachment) -> ByteArray)?) :
         this(key::resolve, attachments, apiKey = key)
 
     val promptExecutor get() = executor.value

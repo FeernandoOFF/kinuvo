@@ -15,6 +15,7 @@ import android.os.IBinder
 import kinuvo.harness.codex.CodexAuth
 import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.codex.OpenAIProvider
+import kinuvo.harness.koog.compatibleProviders
 import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.FileAttachments
@@ -67,7 +68,7 @@ internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedSer
             EmbeddedServerHost.create(home, plugins = listOf(
                 CodexProvider(CodexAuth(PrivateFile(Path(home, "codex-auth.json"))), attachments),
                 OpenAIProvider(files, attachments = attachments), McpPlugin(files), FirecrawlPlugin(), NtfyPlugin(), ExecutorPlugin(), AnytypePlugin(files),
-            ), continuous = true, features = BUILT_IN_FEATURES, peers = { SharedPeers(it, auth) })
+            ) + compatibleProviders(files, attachments = attachments), continuous = true, features = BUILT_IN_FEATURES, peers = { SharedPeers(it, auth) })
                 .also { server = it; listenLocked(it) }
         }
     }
