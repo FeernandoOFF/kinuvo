@@ -1,0 +1,49 @@
+---
+title: "Your Agents. Your Server."
+description: "A self-hosted personal AI assistant that remembers you and works across your devices."
+template: splash
+hero:
+  title: Your Agents. Your Server.
+  tagline: A personal AI assistant you host yourself. Talk to named Agents that remember you, work with your notes, run Routines and Tasks, and use the tools on every device you pair.
+  actions:
+    - text: Getting started
+      link: /kinuvo/start/install/
+      icon: right-arrow
+    - text: GitHub
+      link: https://github.com/FeernandoOFF/kinuvo
+      icon: external
+      variant: secondary
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+import Crew from './.site/components/Crew.astro';
+import Parts from './.site/components/Parts.astro';
+import Install from './.site/components/Install.astro';
+import demo from './assets/demo.gif';
+
+<Crew />
+
+<figure class="k-demo">
+  <img src={demo.src} alt="Kinuvo: pair your Devices, choose where the model, harness and tools run, and approve what the Agent does" />
+</figure>
+
+<Parts />
+
+<section class="k-features">
+<CardGrid>
+  <Card title="Approvals" icon="approve-check">
+    Every tool call has a Risk. Choose a Risk tolerance, save Trust rules, and Deny rules always win. [How Approvals work](./concepts/approvals.md).
+  </Card>
+  <Card title="Your notes" icon="document">
+    Knowledge stays in your own Markdown folders or Anytype space, following your Conventions. [Connect your notes](./guides/notes.md).
+  </Card>
+  <Card title="Reflection" icon="pencil">
+    After a Session, Agents curate Memory and propose Knowledge changes and Skill drafts for you to approve. [About Reflection](./concepts/reflection.md).
+  </Card>
+  <Card title="Routines" icon="rocket">
+    Agents run prompts on a schedule and only notify you when there's something new. [Routines and Tasks](./concepts/routines-and-tasks.md).
+  </Card>
+</CardGrid>
+</section>
+
+<Install />

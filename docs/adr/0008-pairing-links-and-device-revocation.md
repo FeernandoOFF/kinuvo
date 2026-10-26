@@ -1,4 +1,7 @@
-# Pairing links prefill; paired Devices manage access
+---
+title: "Pairing links prefill; paired Devices manage access"
+description: "Kinuvo pairing links prefill; paired Devices manage access."
+---
 
 QR codes hold `kinuvo://pair?server=<encoded address>&code=<code>` for the phone's camera to open the installed app, or `http(s)://<server>/#pair=<code>` for its web app. Links only fill the Connect form; the user taps Pair. The browser removes the fragment immediately, keeping the code out of HTTP requests and subsequent browser history. We use the system camera to avoid in-app camera dependencies and permissions; desktop URL-scheme registration is out of scope.
 

@@ -1,4 +1,7 @@
-# Attachments
+---
+title: "Attachments"
+description: "Kinuvo attachments."
+---
 
 The composer’s + menu offers Photos and Files on iOS, Android, and desktop. Selected images have previews; files show their name and size. Remove a selection before sending, or send attachments without text. Failed sends retain the draft and selections. Successfully uploaded files are reused when retrying a failed send.
 

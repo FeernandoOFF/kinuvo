@@ -1,4 +1,7 @@
-# Local Agent traces
+---
+title: "Local Agent traces"
+description: "Kinuvo local Agent traces."
+---
 
 The JVM and Android Servers install Koog's OpenTelemetry feature for chat turns and Reflection. Traces stay in `<Server home>/traces/spans-0.jsonl` through `spans-3.jsonl`. Each line is an OTLP JSON `ExportTraceServiceRequest`, written by the OpenTelemetry SDK logging exporter. Files rotate at 4 MiB each, retaining four files (about 16 MiB; each final export batch can cross the rotation threshold). The directory is owner-only on POSIX systems. Spans flush when each Agent run closes; the Server closes the file sink at shutdown.
 

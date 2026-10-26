@@ -1,4 +1,7 @@
-# Knowledge as native notes, with the user's conventions
+---
+title: "Knowledge as native notes, with the user's conventions"
+description: "Kinuvo knowledge as native notes, with the user's conventions."
+---
 
 Kinuvo first modelled Knowledge as its own ontology: Entities of Kinuvo types (`person`, `project`…) with aliases, typed links and a dated log, which each provider had to map onto its system. That broke on real data: an Anytype space keeps people as `profile` ("Human"), so `person` searches missed them; links and facts that didn't map went into a hidden `kinuvo_entity_data` property instead of the note; existing note bodies couldn't be changed at all. And it fixed one way of organizing notes for every user.
 

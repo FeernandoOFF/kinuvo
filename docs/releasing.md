@@ -1,4 +1,7 @@
-# Releasing
+---
+title: "Releasing"
+description: "Kinuvo releasing."
+---
 
 Push a `v*` tag; [the release workflow](../.github/workflows/release.yml) builds everything and publishes a GitHub release. Tags with a suffix (`v0.2.0-beta.1`) become prereleases.
 

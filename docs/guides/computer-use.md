@@ -1,4 +1,7 @@
-# Computer use
+---
+title: "Computer use"
+description: "Kinuvo computer use."
+---
 
 Agents with the `computer` tool group see and control a Computer: a paired Device that allowed it under
 Settings → This Device's tools, or the CLI's desktop enabled with `--computer`.

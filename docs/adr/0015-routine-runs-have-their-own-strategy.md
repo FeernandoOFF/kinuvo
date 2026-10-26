@@ -1,4 +1,7 @@
-# Routine runs have their own strategy
+---
+title: "Routine runs have their own strategy"
+description: "Kinuvo routine runs have their own strategy."
+---
 
 Routine runs (Heartbeat included) used the chat strategy and told the user whatever the Agent replied unless it was exactly `[SILENT]`. They now run `routineStrategy`, a Koog graph of Gather → Work → Decide → Deliver. Gather writes the run's first message (when it runs, its schedule, how the last run ended, then the prompt); Work is chat's history/compaction/tool loop; Decide settles the outcome; Deliver saves it to the Session and notifies.
 

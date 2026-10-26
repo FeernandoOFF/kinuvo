@@ -1,4 +1,7 @@
-# Browser access
+---
+title: "Browser access"
+description: "Kinuvo browser access."
+---
 
 The Server includes the web app. Open it at the Server's own HTTPS address, then pair that browser. Native apps can also use explicit private HTTP/WS addresses; remote browser sign-in requires HTTPS even over Tailscale.
 

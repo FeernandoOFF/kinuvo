@@ -1,4 +1,7 @@
-# Voice providers: a Device pipeline, a Server pipeline, or speech to speech
+---
+title: "Voice providers: a Device pipeline, a Server pipeline, or speech to speech"
+description: "Kinuvo voice providers: a Device pipeline, a Server pipeline, or speech to speech."
+---
 
 Voice chat ships on-device only: the Device's recognizer turns speech into a message (`voice = true`), the Agent replies as usual, and the Device's voice reads the reply aloud. A proof of concept (git stash `voice: server STT/processing/TTS + OpenAI realtime POC`) added two more modes; it was rolled back unreleased, keeping the seam to bring them back:
 

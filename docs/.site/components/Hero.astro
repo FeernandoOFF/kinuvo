@@ -1,0 +1,191 @@
+---
+// Replaces Starlight's hero: the pitch on the left, Milo acting out a request on the right.
+import { LinkButton } from '@astrojs/starlight/components';
+
+const { data } = Astro.locals.starlightRoute.entry;
+const { title = data.title, tagline, actions = [] } = data.hero ?? {};
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+---
+
+<section class="k-hero">
+  <div class="k-copy">
+    <p class="k-eyebrow">Self-hosted · Open source · MIT</p>
+    <h1 id="_top">{title}</h1>
+    {tagline && <p class="k-tagline" set:html={tagline} />}
+    <div class="k-actions">
+      {actions.map(({ text, link, icon, variant }) => (
+        <LinkButton href={link} variant={variant} icon={icon?.name}>{text}</LinkButton>
+      ))}
+    </div>
+    <a class="k-jump" href={`${base}#install`}>Install the Server and apps ↓</a>
+  </div>
+
+  <div class="k-stage" aria-label="Milo, an Agent, takes a request, asks for approval and finishes it">
+    <div class="k-glow" aria-hidden="true"></div>
+    <div class="k-chat" aria-hidden="true">
+      <div class="k-msg k-user" data-step="ask">Remind me to call Ana tomorrow at 10</div>
+      <div class="k-msg k-agent k-typing" data-step="work"><span></span><span></span><span></span></div>
+      <div class="k-approval" data-step="approve">
+        <div class="k-approval-title"><span class="k-risk">Medium risk</span> Add a reminder?</div>
+        <div class="k-approval-body">Call Ana · tomorrow, 10:00</div>
+        <div class="k-approval-actions"><span class="k-allow">Allow once</span><span class="k-deny">Deny</span></div>
+      </div>
+      <div class="k-msg k-agent" data-step="done">Done. I'll remind you tomorrow at 10. ✓</div>
+    </div>
+    <div class="k-milo">
+      <kinuvo-avatar artboard="Tangerine Drop" pokeable>
+        <img src={`${base}avatars/avatar-tangerine-drop-idle.png`} alt="" />
+      </kinuvo-avatar>
+      <div class="k-name"><strong>Milo</strong> <span class="k-status">is listening</span></div>
+    </div>
+  </div>
+</section>
+
+<script>
+  import { AvatarState, type KinuvoAvatar } from './avatar';
+
+  const stage = document.querySelector<HTMLElement>('.k-stage')!;
+  const milo = stage.querySelector<KinuvoAvatar>('kinuvo-avatar')!;
+  const status = stage.querySelector<HTMLElement>('.k-status')!;
+  const step = (name: string) => stage.querySelector<HTMLElement>(`[data-step="${name}"]`)!;
+  const scenes: [number, () => void][] = [
+    [0, () => { stage.dataset.scene = 'ask'; milo.state = AvatarState.Listening; status.textContent = 'is listening'; }],
+    [1800, () => { stage.dataset.scene = 'work'; milo.state = AvatarState.Working; status.textContent = 'is working'; }],
+    [3600, () => { stage.dataset.scene = 'approve'; milo.state = AvatarState.NeedsYou; status.textContent = 'needs you'; }],
+    [5800, () => { stage.dataset.scene = 'allowed'; }],
+    [6500, () => { stage.dataset.scene = 'done'; milo.state = AvatarState.Idle; milo.poke(); status.textContent = 'is done'; }],
+    [10500, () => { stage.dataset.scene = 'reset'; }],
+  ];
+  const loop = 11200;
+
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    stage.dataset.scene = 'done';
+    status.textContent = 'is done';
+  } else {
+    let timers: number[] = [];
+    const play = () => {
+      timers = scenes.map(([at, run]) => window.setTimeout(run, at));
+      timers.push(window.setTimeout(play, loop));
+    };
+    step('approve').querySelector('.k-allow')!.addEventListener('click', () => {
+      if (stage.dataset.scene !== 'approve') return;
+      timers.forEach(clearTimeout);
+      stage.dataset.scene = 'allowed';
+      timers = [window.setTimeout(() => { scenes[4][1](); timers.push(window.setTimeout(play, 4500)); }, 500)];
+    });
+    play();
+  }
+</script>
+
+<style>
+  .k-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    gap: clamp(1.5rem, 4vw, 4rem);
+    align-items: center;
+    padding-block: clamp(2rem, 6vw, 5rem) clamp(1.5rem, 4vw, 3rem);
+  }
+  .k-eyebrow {
+    display: inline-block;
+    font-size: .8rem;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--sl-color-accent-high);
+    background: var(--sl-color-accent-low);
+    padding: .3rem .75rem;
+    border-radius: 999px;
+    margin: 0 0 1.25rem;
+  }
+  h1 {
+    font-family: Libron, Georgia, serif;
+    font-weight: 400;
+    font-size: clamp(2.8rem, 6.2vw, 5rem);
+    line-height: 1.02;
+    letter-spacing: -.04em;
+    color: var(--sl-color-white);
+    margin: 0;
+  }
+  .k-tagline {
+    font-size: 1.1rem;
+    line-height: 1.7;
+    color: var(--sl-color-gray-2);
+    max-width: 52ch;
+    margin: 1.25rem 0 0;
+  }
+  .k-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.75rem; }
+  .k-jump { display: inline-block; margin-top: 1.25rem; font-size: .9rem; color: var(--sl-color-gray-3); text-decoration: none; }
+  .k-jump:hover { color: var(--sl-color-accent-high); }
+
+  .k-stage {
+    position: relative;
+    min-height: 26rem;
+    border-radius: 28px;
+    border: 1px solid var(--sl-color-hairline);
+    background: var(--kinuvo-panel);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 1.5rem;
+    box-shadow: 0 30px 60px -30px rgba(80, 45, 25, .25);
+  }
+  .k-glow {
+    position: absolute;
+    inset: auto -20% -45% -20%;
+    height: 85%;
+    background: radial-gradient(closest-side, color-mix(in srgb, var(--kinuvo-accent) 28%, transparent), transparent);
+    pointer-events: none;
+  }
+  .k-chat { position: relative; display: flex; flex-direction: column; gap: .6rem; min-height: 12.5rem; }
+  .k-msg, .k-approval {
+    max-width: 85%;
+    font-size: .95rem;
+    line-height: 1.45;
+    padding: .65rem .95rem;
+    border-radius: 16px;
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity .35s ease, transform .35s ease;
+    display: none;
+  }
+  .k-user { align-self: flex-end; background: var(--kinuvo-subtle); border-bottom-right-radius: 6px; color: var(--sl-color-white); }
+  .k-agent { align-self: flex-start; background: var(--sl-color-accent-low); color: var(--sl-color-accent-high); border-bottom-left-radius: 6px; }
+  .k-typing { display: none; gap: .3rem; }
+  .k-typing span { width: .45rem; height: .45rem; border-radius: 50%; background: currentColor; animation: k-dot 1s infinite ease-in-out; }
+  .k-typing span:nth-child(2) { animation-delay: .15s; }
+  .k-typing span:nth-child(3) { animation-delay: .3s; }
+  @keyframes k-dot { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
+  .k-approval {
+    align-self: flex-start;
+    background: var(--sl-color-bg);
+    border: 1px solid color-mix(in srgb, var(--kinuvo-accent) 45%, var(--sl-color-hairline));
+  }
+  .k-approval-title { font-weight: 600; color: var(--sl-color-white); display: flex; align-items: center; gap: .5rem; }
+  .k-risk { font-size: .72rem; font-weight: 600; color: #b7791f; background: color-mix(in srgb, #b7791f 14%, transparent); padding: .1rem .5rem; border-radius: 999px; }
+  .k-approval-body { color: var(--sl-color-gray-2); margin: .25rem 0 .65rem; font-size: .9rem; }
+  .k-approval-actions { display: flex; gap: .5rem; align-items: center; }
+  .k-allow { cursor: pointer; background: var(--kinuvo-accent); color: #fff; font-weight: 600; font-size: .85rem; padding: .35rem .8rem; border-radius: 8px; transition: transform .2s ease, box-shadow .2s ease; }
+  .k-deny { color: var(--sl-color-gray-3); font-size: .85rem; padding: .35rem .5rem; }
+
+  .k-stage[data-scene='ask'] [data-step='ask'],
+  .k-stage[data-scene='work'] :is([data-step='ask'], [data-step='work']),
+  .k-stage:is([data-scene='approve'], [data-scene='allowed']) :is([data-step='ask'], [data-step='approve']),
+  .k-stage[data-scene='done'] :is([data-step='ask'], [data-step='done']) { display: flex; flex-direction: column; animation: k-in .35s ease forwards; }
+  .k-stage[data-scene='work'] [data-step='work'] { flex-direction: row; }
+  .k-stage[data-scene='allowed'] .k-allow { transform: scale(.94); box-shadow: 0 0 0 4px color-mix(in srgb, var(--kinuvo-accent) 30%, transparent); }
+  .k-stage[data-scene='reset'] .k-chat { opacity: 0; transition: opacity .5s ease; }
+  @keyframes k-in { to { opacity: 1; transform: none; } }
+
+  .k-milo { position: relative; display: flex; align-items: center; gap: 1rem; }
+  .k-milo kinuvo-avatar { width: clamp(120px, 14vw, 170px); height: clamp(120px, 14vw, 170px); cursor: pointer; }
+  .k-name { font-size: 1rem; color: var(--sl-color-gray-2); }
+  .k-name strong { font-family: Libron, Georgia, serif; font-size: 1.6rem; font-weight: 700; color: var(--sl-color-white); display: block; }
+  .k-stage[data-scene='approve'] .k-status { color: var(--sl-color-accent-high); font-weight: 600; }
+
+  @media (max-width: 50rem) {
+    .k-hero { grid-template-columns: 1fr; }
+    .k-stage { min-height: 0; gap: 1rem; }
+    .k-chat { min-height: 10.5rem; }
+  }
+</style>

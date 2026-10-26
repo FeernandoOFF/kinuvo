@@ -1,4 +1,7 @@
-# One place for tools; a catalog once there are many
+---
+title: "One place for tools; a catalog once there are many"
+description: "Kinuvo one place for tools; a catalog once there are many."
+---
 
 Tools are set up once on the Server and then given to Agents. A shared MCP server lists the Agents that use it (`agents` in the shared `mcp.json`; absent means every Agent), and new servers are shared by default; an Agent's own `mcp.json` still adds servers only it uses. Built-in tool groups stay in each Agent's `tools:`, edited together from Settings → Tools & MCP.
 

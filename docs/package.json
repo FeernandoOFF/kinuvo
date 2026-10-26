@@ -1,0 +1,18 @@
+{
+  "name": "kinuvo-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build && node .site/check-links.mjs",
+    "preview": "astro preview",
+    "preview:tailscale": "astro dev --host 100.82.82.99 --port 4410",
+    "check:links": "node .site/check-links.mjs"
+  },
+  "dependencies": {
+    "@astrojs/markdown-satteri": "0.4.5",
+    "@astrojs/starlight": "0.42.7",
+    "@rive-app/canvas": "^2.47.1",
+    "astro": "7.4.2"
+  }
+}

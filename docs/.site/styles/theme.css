@@ -1,0 +1,114 @@
+@font-face { font-family: Inter; src: url('../public/fonts/inter_regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: Inter; src: url('../public/fonts/inter_semibold.ttf') format('truetype'); font-weight: 600; font-style: normal; font-display: swap; }
+@font-face { font-family: Inter; src: url('../public/fonts/inter_bold.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: Inter; src: url('../public/fonts/inter_italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: Libron; src: url('../public/fonts/libron_regular.ttf') format('truetype'); font-weight: 400; font-style: normal; font-display: swap; }
+@font-face { font-family: Libron; src: url('../public/fonts/libron_bold.ttf') format('truetype'); font-weight: 700; font-style: normal; font-display: swap; }
+@font-face { font-family: Libron; src: url('../public/fonts/libron_italic.ttf') format('truetype'); font-weight: 400; font-style: italic; font-display: swap; }
+@font-face { font-family: Libron; src: url('../public/fonts/libron_bolditalic.ttf') format('truetype'); font-weight: 700; font-style: italic; font-display: swap; }
+
+:root {
+  --sl-font: Inter, system-ui, sans-serif;
+  --sl-font-system: Inter, system-ui, sans-serif;
+  --sl-color-white: #edede6;
+  --sl-color-gray-1: #edede6;
+  --sl-color-gray-2: #b8b5ac;
+  --sl-color-gray-3: #9c9a92;
+  --sl-color-gray-4: #3f3e3b;
+  --sl-color-gray-5: #30302e;
+  --sl-color-gray-6: #1f1e1d;
+  --sl-color-black: #262624;
+  --sl-color-bg: #262624;
+  --sl-color-text: #edede6;
+  --sl-color-text-muted: #9c9a92;
+  --sl-color-bg-inline-code: #30302e;
+  --sl-color-accent-low: #482e25;
+  --sl-color-accent: #d97757;
+  --sl-color-accent-high: #eaa88f;
+  --sl-color-bg-sidebar: #1f1e1d;
+  --sl-color-bg-nav: #262624;
+  --sl-color-hairline: #3f3e3b;
+  --sl-color-hairline-light: #3f3e3b;
+  --kinuvo-panel: #30302e;
+  --kinuvo-subtle: #353533;
+  --kinuvo-accent: #d97757;
+  --sl-content-width: 48rem;
+}
+:root[data-theme='light'] {
+  --sl-color-white: #1f1e1b;
+  --sl-color-gray-1: #1f1e1b;
+  --sl-color-gray-2: #514d46;
+  --sl-color-gray-3: #75716a;
+  --sl-color-gray-4: #b3afa5;
+  --sl-color-gray-5: #e3e0d6;
+  --sl-color-gray-6: #f0eee6;
+  --sl-color-gray-7: #f3f1ea;
+  --sl-color-black: #faf9f5;
+  --sl-color-bg: #faf9f5;
+  --sl-color-text: #1f1e1b;
+  --sl-color-text-muted: #75716a;
+  --sl-color-bg-inline-code: #fff;
+  --sl-color-accent-low: #f3dfd5;
+  --sl-color-accent: #c96442;
+  --sl-color-accent-high: #8f3d24;
+  --sl-color-bg-sidebar: #f3f1ea;
+  --sl-color-bg-nav: #faf9f5;
+  --sl-color-hairline: #e3e0d6;
+  --sl-color-hairline-light: #e3e0d6;
+  --kinuvo-panel: #fff;
+  --kinuvo-subtle: #f0eee6;
+  --kinuvo-accent: #c96442;
+}
+h1, h2, h3, h4, .site-title, .hero .tagline, .card .title {
+  font-family: Libron, Georgia, serif;
+}
+.site-title { color: var(--sl-color-white); font-size: 1.65rem; }
+h1, .hero h1 { font-weight: 400; letter-spacing: -.035em; }
+.hero h1 { max-width: 14ch; font-size: clamp(3rem, 6vw, 4.8rem); line-height: 1.08; }
+.hero .tagline { font-family: var(--sl-font); font-size: 1.05rem; line-height: 1.75; max-width: 58ch; }
+.hero { padding-block: 3.5rem 1rem; }
+.hero .actions { gap: .75rem; }
+.sl-link-button { border-radius: 10px; }
+.sl-link-button.primary { background: var(--kinuvo-accent); border-color: var(--kinuvo-accent); color: #1f1e1b; font-weight: 600; }
+:root[data-theme='light'] .sl-link-button.primary { background: #a84b2c; border-color: #a84b2c; color: #fff; }
+.card { border-radius: 16px; background: var(--kinuvo-panel); border-color: var(--sl-color-hairline); }
+.card .icon { background: var(--kinuvo-subtle); border-color: var(--sl-color-hairline); color: var(--sl-color-accent-high); border-radius: 10px; }
+.expressive-code pre, .starlight-aside { border-radius: 10px; }
+.pagination-links a { border-radius: 10px; }
+[aria-current='page'], [aria-current='page']:hover { background: var(--sl-color-accent-low); color: var(--sl-color-accent-high); }
+
+.hero .actions { align-items: center; }
+.sl-markdown-content a:not(.sl-link-button) { text-underline-offset: .18em; }
+.sl-markdown-content table { font-size: .9rem; }
+
+/* Live avatars: the still shows until Rive draws. */
+kinuvo-avatar { display: block; position: relative; }
+kinuvo-avatar > img, kinuvo-avatar > canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transition: opacity .3s ease; }
+kinuvo-avatar > canvas { opacity: 0; }
+kinuvo-avatar.live > canvas { opacity: 1; }
+kinuvo-avatar.live > img { opacity: 0; }
+
+/* Landing */
+[data-has-hero] .sl-markdown-content > * + * { margin-top: 0; }
+.k-demo { margin: 0; padding: clamp(.5rem, 1.2vw, .8rem); border-radius: 24px; background: var(--kinuvo-subtle); border: 1px solid var(--sl-color-hairline); }
+.k-demo img { display: block; width: 100%; border-radius: 16px; }
+.k-features { padding-top: 1rem; }
+
+/* Future enhancements: what's planned, set apart from what ships today. */
+.k-future {
+  margin-top: 2.5rem;
+  padding: 1rem 1.25rem 1.1rem;
+  border: 1.5px dashed color-mix(in srgb, var(--kinuvo-accent) 60%, var(--sl-color-hairline));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--kinuvo-accent) 6%, transparent);
+}
+.k-future > p:first-child { margin: 0 0 .5rem; }
+.k-future > p:first-child strong {
+  display: inline-flex; align-items: center; gap: .45rem;
+  font-size: .75rem; letter-spacing: .07em; text-transform: uppercase;
+  color: var(--sl-color-accent-high);
+}
+.k-future > p:first-child strong::before { content: '✦'; font-size: .9rem; }
+.k-future ul { margin: 0; padding-left: 1.1rem; }
+.k-future li { color: var(--sl-color-gray-2); }
+.k-future li::marker { color: var(--kinuvo-accent); }

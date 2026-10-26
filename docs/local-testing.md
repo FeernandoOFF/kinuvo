@@ -1,4 +1,7 @@
-# Isolated local testing
+---
+title: "Isolated local testing"
+description: "Kinuvo isolated local testing."
+---
 
 Use separate Git worktrees and data homes when testing incompatible versions.
 Each checkout keeps its own ignored pins; switching to a bugfix branch inside that
