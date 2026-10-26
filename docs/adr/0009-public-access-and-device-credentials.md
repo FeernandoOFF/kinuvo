@@ -1,4 +1,7 @@
-# Public access keeps one owner and separates Device credentials
+---
+title: "Public access keeps one owner and separates Device credentials"
+description: "Kinuvo public access keeps one owner and separates Device credentials."
+---
 
 Public hosting uses a loopback Server behind a trusted HTTPS proxy, exact browser-origin checks, explicit high-entropy pairing windows, and bounded unauthenticated work. We keep opaque, hashed Device credentials rather than introducing accounts or JWTs: this remains one owner's Server, while pairing explicitly grants ordinary or management access. Ordinary Devices cannot manage access, change Server configuration, or answer Approvals.
 

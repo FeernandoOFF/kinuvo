@@ -1,45 +1,24 @@
 # Kinuvo
 
-A self-hosted personal AI assistant. You talk to one or more named Agents that remember you across conversations, work with your Knowledge (Obsidian, Anytype), run Routines and Tasks, use MCP servers and Skills, and can operate a computer. One Server runs the Agents; the desktop, Android and web apps and the `kinuvo` CLI connect to it.
+A self-hosted personal AI assistant. Talk to named Agents that remember you across conversations, work with your Knowledge (Obsidian, Anytype), run Routines and Tasks, and use MCP servers, Skills and Computers. One Server owns your Agents; your Devices connect to it.
+
+![Kinuvo: pair your Devices, choose where the model, harness and tools run, and approve what the Agent does](docs/assets/demo.gif)
 
 ## Install
 
-The Server and CLI, with a bundled Java runtime, for Linux, Apple silicon Macs and Windows:
+macOS and Linux:
 
 ```sh
-# macOS and Linux
 curl -fsSL https://raw.githubusercontent.com/FeernandoOFF/kinuvo/main/install.sh | sh
 ```
 
+Windows PowerShell:
+
 ```powershell
-# Windows
 irm https://raw.githubusercontent.com/FeernandoOFF/kinuvo/main/install.ps1 | iex
 ```
 
-Then:
-
-```sh
-kinuvo login                 # sign in to a model provider
-kinuvo                       # run the Server on 127.0.0.1:8787
-kinuvo service install       # or run it in the background, started at login
-kinuvo pair --manage         # pair the desktop or Android app
-```
-
-Run the installer again to upgrade. `KINUVO_VERSION=v0.1.0` pins a release.
-
-### Docker
-
-```sh
-docker run -d --name kinuvo -p 127.0.0.1:8787:8787 -v kinuvo:/data ghcr.io/feernandooff/kinuvo
-docker exec -it kinuvo kinuvo login
-docker exec -it kinuvo kinuvo pair --manage
-```
-
-### Apps
-
-Download the desktop app (`.dmg` for Apple silicon Macs, `.deb`, Windows `.zip`) and the Android `.apk` from [Releases](https://github.com/FeernandoOFF/kinuvo/releases/latest). The desktop apps are not code-signed yet; see [docs/releasing.md](docs/releasing.md#unsigned-macos-and-windows-apps) to open them.
-
-For private HTTPS through Tailscale, run `kinuvo service install --tailscale` or `kinuvo serve --tailscale`, then open the Web link from `kinuvo pair`. See [browser access](docs/browser-access.md) for setup, temporary sign-in and session lifetimes. For a public domain and HTTPS proxy, see [public hosting](docs/public-hosting.md).
+[Documentation and getting started](https://feernandooff.github.io/kinuvo/) · [Download apps](https://github.com/FeernandoOFF/kinuvo/releases/latest)
 
 ## Build from source
 
@@ -51,7 +30,7 @@ Uses the [Kotlin Toolchain](https://kotlin-toolchain.org) (`./kotlin`, no instal
 ./kotlin test -p jvm
 ```
 
-See [AGENTS.md](AGENTS.md) for the layout and [CONTEXT.md](CONTEXT.md) for terms.
+In a pinned development checkout, use the mise commands in [local testing](docs/local-testing.md). See [AGENTS.md](AGENTS.md) for layout, [CONTEXT.md](CONTEXT.md) for terms and [releasing](docs/releasing.md) for packaging.
 
 ## License
 

@@ -1,0 +1,132 @@
+---
+// Install: the Server in one line, then the apps that connect to it.
+import { Code, Tabs, TabItem } from '@astrojs/starlight/components';
+
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const repo = 'https://github.com/FeernandoOFF/kinuvo';
+const releases = `${repo}/releases/latest`;
+const apps = [
+  {
+    name: 'Desktop',
+    detail: 'macOS (Apple silicon), Linux .deb and Windows. Can also run the Server for you.',
+    link: releases,
+    cta: 'Download from Releases',
+    note: 'Not code-signed yet',
+    noteLink: `${base}start/install/`,
+    icon: 'M3 5h18v11H3z M9 20h6 M12 16v4',
+  },
+  {
+    name: 'Android',
+    detail: 'Install the APK from Releases, or build it from source.',
+    link: releases,
+    cta: 'Get the APK',
+    soon: 'Google Play soon',
+    icon: 'M8 3h8a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 16 21H8a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 8 3z M11 18h2',
+  },
+  {
+    name: 'iPhone',
+    detail: 'Build it from source with Xcode while the App Store release is on its way.',
+    link: `${repo}/blob/main/apps/ios/README.md`,
+    cta: 'Build from source',
+    soon: 'App Store soon',
+    icon: 'M8 3h8a1.5 1.5 0 0 1 1.5 1.5v15A1.5 1.5 0 0 1 16 21H8a1.5 1.5 0 0 1-1.5-1.5v-15A1.5 1.5 0 0 1 8 3z M10 5.5h4',
+  },
+  {
+    name: 'Browser',
+    detail: 'Every Server ships a web app. Reach it privately through Tailscale or your own HTTPS domain.',
+    link: `${base}guides/browser-access/`,
+    cta: 'Set up browser access',
+    icon: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z M3 12h18 M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9s1.2-6.4 3.7-9z',
+  },
+];
+---
+
+<section class="k-install" id="install">
+  <h2>Up and running in a few minutes</h2>
+
+  <ol class="k-steps">
+    <li>
+      <div class="k-step-head"><span class="k-num">1</span><h3>Run the Server</h3></div>
+      <p>The Server runs your Agents and keeps their data. Install it with a bundled Java runtime, sign in to a model provider, and start it.</p>
+      <Tabs syncKey="os">
+        <TabItem label="macOS / Linux">
+          <Code lang="sh" code={`curl -fsSL https://raw.githubusercontent.com/FeernandoOFF/kinuvo/main/install.sh | sh\nkinuvo login\nkinuvo service install`} />
+        </TabItem>
+        <TabItem label="Windows">
+          <Code lang="powershell" code={`irm https://raw.githubusercontent.com/FeernandoOFF/kinuvo/main/install.ps1 | iex\nkinuvo login\nkinuvo service install`} />
+        </TabItem>
+        <TabItem label="Docker">
+          <Code lang="sh" code={`docker run -d --name kinuvo -p 127.0.0.1:8787:8787 -v kinuvo:/data ghcr.io/feernandooff/kinuvo\ndocker exec -it kinuvo kinuvo login`} />
+        </TabItem>
+      </Tabs>
+    </li>
+
+    <li>
+      <div class="k-step-head"><span class="k-num">2</span><h3>Get the apps</h3></div>
+      <div class="k-apps">
+        {apps.map((app) => (
+          <a class="k-app" href={app.link}>
+            <div class="k-app-top">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d={app.icon} /></svg>
+              {app.soon && <span class="k-soon">{app.soon}</span>}
+            </div>
+            <strong>{app.name}</strong>
+            <p>{app.detail}</p>
+            <span class="k-cta">{app.cta} →</span>
+          </a>
+        ))}
+      </div>
+      <p class="k-small">The desktop apps aren't code-signed yet. <a href={`${base}start/install/`}>How to open them</a>.</p>
+    </li>
+
+    <li>
+      <div class="k-step-head"><span class="k-num">3</span><h3>Pair your Devices</h3></div>
+      <p>Show a pairing QR code, scan it with the app, and the Device is connected. Each code works once, for ten minutes.</p>
+      <Code lang="sh" code="kinuvo pair --manage" />
+      <a class="k-more" href={`${base}start/install/`}>Read the full Getting started guide →</a>
+    </li>
+  </ol>
+</section>
+
+<style>
+  .k-install { padding-block: clamp(2.5rem, 6vw, 4.5rem); scroll-margin-top: 5rem; }
+  h2 { font-size: clamp(1.7rem, 3.4vw, 2.4rem); text-align: center; margin: 0 0 2.25rem; letter-spacing: -.02em; }
+  .k-steps { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.25rem; }
+  .k-steps > li {
+    min-width: 0;
+    margin: 0;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    border-radius: 22px;
+    border: 1px solid var(--sl-color-hairline);
+    background: var(--kinuvo-panel);
+  }
+  .k-step-head { display: flex; align-items: center; gap: .75rem; }
+  .k-step-head h3 { margin: 0; font-size: 1.45rem; }
+  .k-num {
+    width: 2rem; height: 2rem; border-radius: 50%;
+    display: grid; place-items: center;
+    background: var(--sl-color-accent-low); color: var(--sl-color-accent-high);
+    font-weight: 700; font-size: .95rem; flex-shrink: 0;
+  }
+  .k-steps p { color: var(--sl-color-gray-2); line-height: 1.65; margin: .75rem 0 1rem; }
+  .k-apps { display: grid; grid-template-columns: repeat(4, 1fr); gap: .85rem; margin-top: 1rem; }
+  .k-app {
+    display: flex; flex-direction: column; gap: .35rem;
+    padding: 1.1rem; border-radius: 16px;
+    border: 1px solid var(--sl-color-hairline);
+    background: var(--sl-color-bg);
+    text-decoration: none; color: inherit;
+    transition: transform .2s ease, border-color .2s ease, box-shadow .2s ease;
+  }
+  .k-app:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--kinuvo-accent) 55%, var(--sl-color-hairline)); box-shadow: 0 14px 30px -18px rgba(80, 45, 25, .35); }
+  .k-app-top { display: flex; justify-content: space-between; align-items: flex-start; min-height: 2rem; }
+  .k-app svg { width: 1.6rem; height: 1.6rem; fill: none; stroke: var(--sl-color-accent-high); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .k-app strong { font-family: Libron, Georgia, serif; font-size: 1.2rem; color: var(--sl-color-white); }
+  .k-app p { font-size: .88rem; margin: 0; flex: 1; }
+  .k-cta { font-size: .85rem; font-weight: 600; color: var(--sl-color-accent-high); margin-top: .35rem; }
+  .k-soon { font-size: .7rem; font-weight: 600; letter-spacing: .03em; padding: .2rem .55rem; border-radius: 999px; background: var(--kinuvo-subtle); color: var(--sl-color-gray-2); border: 1px dashed var(--sl-color-gray-4); white-space: nowrap; }
+  .k-small { font-size: .85rem; margin-bottom: 0 !important; }
+  .k-more { display: inline-block; margin-top: .9rem; font-weight: 600; color: var(--sl-color-accent-high); text-decoration: none; }
+  @media (max-width: 60rem) { .k-apps { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 30rem) { .k-apps { grid-template-columns: 1fr; } }
+</style>

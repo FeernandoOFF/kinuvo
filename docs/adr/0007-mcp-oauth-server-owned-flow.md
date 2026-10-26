@@ -1,4 +1,7 @@
-# MCP OAuth: Server-owned flow, client-relayed callback
+---
+title: "MCP OAuth: Server-owned flow, client-relayed callback"
+description: "Kinuvo mCP OAuth: Server-owned flow, client-relayed callback."
+---
 
 HTTP MCP servers that answer 401 need the user to sign in through OAuth (the MCP authorization spec), and the Kotlin MCP SDK has no client support for it. The Server may run headless or on another machine while the browser opens on a Device, so the Server owns the flow: discovery (the 401's `WWW-Authenticate` → protected resource metadata → authorization server metadata), dynamic client registration (or a configured `oauth.clientId`), the PKCE verifier, the token exchange and refresh. A Device only opens the URL and hands back the URL the browser returned to (`mcp.login` → `mcp.loginComplete`); tokens never reach clients or Agents.
 

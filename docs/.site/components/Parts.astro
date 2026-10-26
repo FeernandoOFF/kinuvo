@@ -1,0 +1,46 @@
+---
+// An Agent is a model, a harness and tools; each can run somewhere different.
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const parts = [
+  { name: 'Model', does: 'thinks', places: ['Cloud · OpenAI / Codex', 'On-device · Apple'] },
+  { name: 'Harness', does: 'remembers and acts', places: ['Your laptop', 'A home server', 'Docker', 'Your phone'] },
+  { name: 'Tools', does: 'do things', places: ['Mac · computer use', 'Phone · reminders', 'Container · shell', 'MCP servers'] },
+];
+---
+
+<section class="k-parts">
+  <h2>An Agent is three things. You choose where each runs.</h2>
+  <div class="k-cols">
+    {parts.map((part, i) => (
+      <div class="k-col" style={`--i:${i}`}>
+        <div class="k-part"><strong>{part.name}</strong><span>{part.does}</span></div>
+        <ul>{part.places.map((p) => <li>{p}</li>)}</ul>
+      </div>
+    ))}
+  </div>
+  <a class="k-more" href={`${base}concepts/model-harness-tools/`}>How the parts fit together →</a>
+</section>
+
+<style>
+  .k-parts { padding-block: clamp(2.5rem, 6vw, 4.5rem); text-align: center; }
+  h2 { font-size: clamp(1.7rem, 3.4vw, 2.4rem); margin: 0 auto 2rem; max-width: 22ch; letter-spacing: -.02em; }
+  .k-cols { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: left; }
+  .k-col { display: flex; flex-direction: column; gap: .5rem; }
+  .k-part {
+    display: flex; flex-direction: column;
+    padding: 1rem 1.15rem; border-radius: 18px;
+    border: 2px solid var(--sl-color-white);
+    background: var(--kinuvo-panel);
+  }
+  .k-part strong { font-family: Libron, Georgia, serif; font-size: 1.5rem; color: var(--sl-color-white); line-height: 1.1; }
+  .k-part span { font-size: .85rem; color: var(--sl-color-gray-3); }
+  ul { list-style: none; padding: 0; margin: 0; display: grid; gap: .45rem; }
+  li {
+    margin: 0; padding: .6rem .9rem; border-radius: 12px;
+    background: var(--kinuvo-subtle); border: 1px solid var(--sl-color-hairline);
+    font-size: .9rem; color: var(--sl-color-gray-2);
+  }
+  .k-col:hover li:first-child, .k-col li:hover { border-color: var(--kinuvo-accent); color: var(--sl-color-accent-high); background: var(--sl-color-accent-low); }
+  .k-more { display: inline-block; margin-top: 1.5rem; font-weight: 600; color: var(--sl-color-accent-high); text-decoration: none; }
+  @media (max-width: 45rem) { .k-cols { grid-template-columns: 1fr; } }
+</style>

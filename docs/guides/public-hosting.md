@@ -1,4 +1,7 @@
-# Public hosting
+---
+title: "Public hosting"
+description: "Kinuvo public hosting."
+---
 
 Run one Server for one owner's Devices. Ordinary access shares that owner's Agents, Sessions and Tasks; it does not create a separate user account. Unrelated users need separate instances and data directories.
 
@@ -13,7 +16,7 @@ kinuvo serve --host 127.0.0.1 --port 8787 --public-url https://kinuvo.example.co
 KINUVO_DOMAIN=kinuvo.example.com caddy run --config docs/deployment/Caddyfile
 ```
 
-The example [Caddyfile](deployment/Caddyfile) terminates TLS, proxies both HTTP and WebSockets, and sets security headers. Caddy obtains and renews the certificate and redirects HTTP to HTTPS. The Server listens on loopback; public mode refuses a non-loopback binding and fails if its configured port is occupied, instead of silently choosing another port. Native clients connect using `https://kinuvo.example.com` or `wss://kinuvo.example.com/ws`. The web client must be opened at the Server's own origin. A bare public hostname defaults to WSS. Plain WS remains available for explicit private IPs, localhost, single-label LAN names, `.local` names, and Tailscale's private IP range.
+The example [Caddyfile](../deployment/Caddyfile) terminates TLS, proxies both HTTP and WebSockets, and sets security headers. Caddy obtains and renews the certificate and redirects HTTP to HTTPS. The Server listens on loopback; public mode refuses a non-loopback binding and fails if its configured port is occupied, instead of silently choosing another port. Native clients connect using `https://kinuvo.example.com` or `wss://kinuvo.example.com/ws`. The web client must be opened at the Server's own origin. A bare public hostname defaults to WSS. Plain WS remains available for explicit private IPs, localhost, single-label LAN names, `.local` names, and Tailscale's private IP range.
 
 To install the Server as a service:
 

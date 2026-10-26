@@ -1,4 +1,7 @@
-# Models and provider plugins
+---
+title: "Models and provider plugins"
+description: "Kinuvo models and provider plugins."
+---
 
 Choose an Agent's provider and model in Settings → Agent → Model. The composer can choose a different provider/model for one Session; “Agent's model” clears that choice and its reasoning setting. Changes take effect on the next run. Both places support custom model IDs and a manual refresh.
 

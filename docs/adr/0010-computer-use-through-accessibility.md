@@ -1,4 +1,7 @@
-# Computer use goes through each platform's accessibility interface
+---
+title: "Computer use goes through each platform's accessibility interface"
+description: "Kinuvo computer use goes through each platform's accessibility interface."
+---
 
 Agents control Computers (paired phones and computers that allowed it) through the platform's accessibility interface: Android's Accessibility service on the phone, and cua-driver (macOS AX, Windows UI Automation, Linux AT-SPI) on desktops. Every capture returns numbered elements and a screenshot, and actions prefer elements over coordinates. Text-only models can still act from the elements, element numbers survive small layout shifts, and a stale number is refused rather than mis-tapped. We rejected Maestro and adb for phones, because they need a host machine attached, and Android's screen-capture API for screenshots, because it asks for consent on the phone every session, which nobody can give from a remote Live view. Accessibility screenshots need Android 11; Android 8–10 phones are controlled by elements alone. We use cua-driver rather than a JVM `Robot`, which has no accessibility tree and moves the user's real cursor.
 

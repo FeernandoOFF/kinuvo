@@ -1,4 +1,7 @@
-# Multiplatform core with domain repositories over files
+---
+title: "Multiplatform core with domain repositories over files"
+description: "Kinuvo multiplatform core with domain repositories over files."
+---
 
 `harness/core` targets jvm, android and ios so the same engine can run on-device. Storage goes through domain repositories (`Store`, `AgentDocs`, `RoutineRepository`, `SkillRepository`, `TrustRulesRepository`) rather than a thin filesystem wrapper: domain code (`Agent`, Instructions, tools, `Routines`, `ApprovalPolicy`) never sees a path, and only the `store` package knows the `~/.kinuvo` layout (`AgentFiles`). The file implementations use kotlinx-io and live in common code; the few platform bits (symlink-safe delete, owner-only permissions, process environment) are `expect`/`actual`. This keeps the on-disk layout unchanged (no migration) and lets SQLite replace one repository at a time.
 

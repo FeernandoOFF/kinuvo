@@ -1,4 +1,7 @@
-# Deterministic approvals by Risk tolerance
+---
+title: "Deterministic approvals by Risk tolerance"
+description: "Kinuvo deterministic approvals by Risk tolerance."
+---
 
 Approvals were a yes/no per tool plus two-word shell prefixes, which asked for harmless commands and could be fooled by shell syntax. Now every tool call is assessed as Low, Medium or High Risk by plain code, and each Agent's Risk tolerance (strict, default, relaxed, full) decides which levels run without asking. The model has no say, so a prompt injection can't talk its way past an Approval (Vellum's model; Hermes and OpenClaw also ask an auxiliary LLM, which we leave out for now).
 

@@ -1,4 +1,7 @@
-# Secret references resolved by the Server, Proton Pass first
+---
+title: "Secret references resolved by the Server, Proton Pass first"
+description: "Kinuvo secret references resolved by the Server, Proton Pass first."
+---
 
 Keys used to live in plain text in config (`knowledge.yaml`'s Anytype key) or in `.env` files read for `${VAR}`. Now any config value can hold a Secret reference in the password manager's own URI syntax, inside the same `${…}` as variables: `${pass://Vault/Item/field}`. The Server resolves it when the value is used (an MCP server or exec backend starts, Anytype is called), keeps the value in memory for five minutes (refreshable), and never writes it or sends it to clients; settings show the reference instead. Each read carries a reason naming its consumer (`Kinuvo: MCP server github (Agent default)`). Agents never see values and have no tool to read secrets.
 

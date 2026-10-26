@@ -1,4 +1,7 @@
-# Plugin manifests describe contributions; the host grants access
+---
+title: "Plugin manifests describe contributions; the host grants access"
+description: "Kinuvo plugin manifests describe contributions; the host grants access."
+---
 
 Manifest format 1 describes a plugin's tools, typed providers, settings schemas and requested named resources. Native plugins derive their manifest from their typed contributions and declare per-run tool discovery; static manifests must declare every exported tool. Unsupported formats fail before activation. The same data contract is intended for a future WASM adapter, without changing provider roles or model tool identities.
 

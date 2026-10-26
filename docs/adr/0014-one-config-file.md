@@ -1,4 +1,7 @@
-# One config file for the Server, one per Agent
+---
+title: "One config file for the Server, one per Agent"
+description: "Kinuvo one config file for the Server, one per Agent."
+---
 
 Server-wide settings were spread over `knowledge.yaml`, `tasks.yaml`, `search.yaml`, `notifications.yaml`, `approvals.yaml` and `timezone` in the home folder. They now live in one `config.yaml` (`ServerConfig`), a section each: `timezone`, `knowledge`, `tasks`, `search`, `notifications`, `rules` (Trust and Deny rules for every Agent). New Server-wide settings, such as `voice`, get a section there too. Likewise an Agent's own Trust and Deny rules moved from its `approvals.yaml` into `rules` in its `agent.yaml`, next to its Risk tolerance (`approvals`).
 
