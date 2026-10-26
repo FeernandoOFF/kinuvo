@@ -1,6 +1,7 @@
 package kinuvo.harness.server
 
 import ch.qos.logback.classic.LoggerContext
+import ch.qos.logback.core.rolling.RollingFileAppender
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -71,11 +72,14 @@ object LoggingProbe {
         log.debug { debugBuilt = true; "debug-detail" }
         log.info { "ready" }
         log.error(IllegalStateException("probe failure")) { "operation failed" }
+        val context = LoggerFactory.getILoggerFactory() as LoggerContext
         if (args.single().toBoolean()) {
-            repeat(200) { index -> log.info { "entry $index: ${"x".repeat(100)}" } }
+            repeat(8) { index -> log.info { "entry $index: ${"x".repeat(100)}" } }
             log.info { "last-entry" }
+            // Finish asynchronous compression before the short-lived probe exits.
+            (context.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME).getAppender("FILE") as RollingFileAppender<*>).rollingPolicy.stop()
         }
         println("result:$debugBuilt")
-        (LoggerFactory.getILoggerFactory() as LoggerContext).stop()
+        context.stop()
     }
 }
