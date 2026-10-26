@@ -186,8 +186,14 @@ internal fun VoiceGlow(state: VoiceChatState, modifier: Modifier = Modifier) {
 /** A reply being read aloud, as it's spoken: its text up to [reached] in full color, the rest dimmed. */
 @Composable
 internal fun SpokenText(text: String, reached: Int, modifier: Modifier = Modifier) {
-    val plain = remember(text) { speakable(text) }
-    val split = remember(text, reached) { speakable(text.take(reached)).length.coerceAtMost(plain.length) }
+    // Converted a line at a time, keeping finished lines: redoing a long reply on every streamed token stalls the main thread.
+    val lines = remember { HashMap<String, String>() }
+    fun plain(markdown: String): String {
+        val parts = markdown.split('\n')
+        return parts.mapIndexed { i, line -> if (i < parts.lastIndex) lines.getOrPut(line) { speakable(line) } else speakable(line) }.joinToString("\n").trim()
+    }
+    val plain = remember(text) { plain(text) }
+    val split = remember(text, reached) { plain(text.take(reached)).length.coerceAtMost(plain.length) }
     val spoken = LocalContentColor.current
     val rest = color(mutedColor)
     BasicText(buildAnnotatedString {

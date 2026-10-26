@@ -9,9 +9,10 @@ class VoiceTest {
     @Test
     fun speaksOnlyFinishedSentences() {
         val text = "Sure. It's 3.5 km away! Want the"
-        assertEquals("Sure. It's 3.5 km away!".length, sentenceEnd(text, 0))
-        assertEquals(text.length, sentenceEnd(text, text.length))
-        assertEquals("One\n".length, sentenceEnd("One\nTwo", 0))
+        assertEquals(listOf("Sure.".length, "Sure. It's 3.5 km away!".length), sentenceEnds(text, 0))
+        assertEquals(listOf("Sure. It's 3.5 km away!".length), sentenceEnds(text, "Sure.".length))
+        assertEquals(emptyList(), sentenceEnds(text, text.length))
+        assertEquals(listOf("One\n".length), sentenceEnds("One\nTwo", 0))
     }
 
     @Test
