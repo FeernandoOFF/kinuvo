@@ -202,7 +202,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             val withShell = top !is Route.Settings && top != Route.Connect && top != Route.NewAgent && (top as? Route.Artifacts)?.fullScreen != true
             val beside = !compact && shell.open && withShell
             val windowChrome = LocalWindowChrome.current
-            val screens = @Composable {
+            val content = @Composable {
                 NavDisplay(
                     backStack = backStack,
                     onBack = back,
@@ -295,6 +295,9 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                     },
                 )
             }
+            // Moved, not rebuilt, when rotating or resizing across the compact width, so open screens keep running, e.g. voice chat.
+            val current by rememberUpdatedState(content)
+            val screens = remember { movableContentOf { current() } }
             CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers) {
                 val blur by animateDpAsState(if (shell.quickChat || popovers.active) 16.dp else 0.dp)
                 val screenInsets = if (top == Route.NewAgent || top == Route.Connect) WindowInsets(0) else WindowInsets.safeDrawing
