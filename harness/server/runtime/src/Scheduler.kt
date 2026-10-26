@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import kinuvo.harness.core.Agent
 import kinuvo.harness.core.routines.RoutineRun
@@ -19,6 +20,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+
+private val log = KotlinLogging.logger("kinuvo.scheduler")
 
 /**
  * Fires due Routines. It sleeps until the soonest next run and wakes early whenever a Routine changes.
@@ -111,7 +114,7 @@ class Scheduler(
             ?: return record(agent, routine, RunStatus.Skipped, "HEARTBEAT.md is empty") else routine.prompt
         val attached = routine.sessionId?.takeIf { harness.store.entries(agent, it).isNotEmpty() }
         if (routine.sessionId != null && attached == null) {
-            println("Routine ${routine.id}: Session ${routine.sessionId} is gone; starting new Sessions instead")
+            log.warn { "Routine ${routine.id}: Session ${routine.sessionId} is gone; starting new Sessions instead" }
             harness.routines.update(agent, routine.id) { it.copy(sessionId = null) }
         }
         if (attached != null) {

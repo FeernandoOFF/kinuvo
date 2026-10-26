@@ -1,7 +1,10 @@
 package kinuvo.harness.server
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import java.net.URI
 import java.net.InetAddress
+
+private val log = KotlinLogging.logger("kinuvo.security")
 
 class NetworkSecurity(publicUrl: String? = null, trustedProxies: Set<String> = setOf("127.0.0.1", "::1")) {
     val trustedProxies = trustedProxies.map(::literalAddress).toSet()
@@ -68,7 +71,7 @@ internal class NetworkLimits(private val clock: () -> Long = { System.nanoTime()
         val time = clock()
         if (state.logged?.let { time - it < 60_000 } == true) return
         state.logged = time
-        System.err.println("Kinuvo access denied: $reason (source=$source)")
+        log.warn { "Access denied: $reason (source=$source)" }
     }
     @Synchronized
     fun close(source: String) { sources[source]?.let { it.connections--; connections-- } }

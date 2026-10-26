@@ -1,0 +1,11 @@
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <target>System.err</target>
+        <encoder>
+            <pattern>%date{ISO8601} %-5level [%thread] %logger - %msg%n</pattern>
+        </encoder>
+    </appender>
+    <root level="${KINUVO_LOG_LEVEL:-INFO}">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+</configuration>

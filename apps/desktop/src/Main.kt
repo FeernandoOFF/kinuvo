@@ -63,6 +63,7 @@ private class CuaComputerDriver(private val desktop: DesktopComputer = DesktopCo
 }
 
 fun main() {
+    System.setProperty("kotlin-logging.logStartupMessage", "false")
     startKinuvo(module {
         single<EmbeddedServer> { HarnessEmbeddedServer }
         single<ComputerDriver> { CuaComputerDriver() }

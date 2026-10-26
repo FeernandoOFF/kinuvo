@@ -1,19 +1,23 @@
 package kinuvo.harness.server
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import co.touchlab.stately.collections.ConcurrentMutableSet
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.TaskInfo
 import kinuvo.protocol.taskPrompt
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+
+private val log = KotlinLogging.logger("kinuvo.tasks")
 
 /**
  * Starts Agents on their Tasks: every few minutes, and whenever a Task changes, each Task that's ready (to do, assigned,
@@ -30,6 +34,7 @@ class TaskDispatcher(private val harness: HarnessRuntime, private val runs: Runs
     fun start() {
         harness.tasks.onChange { wake.trySend(Unit) }
         loop = scope.launch {
+            log.info { "Dispatcher started" }
             guarded("reconcile") { harness.tasks.reconcile { it.id in active } }
             while (true) {
                 tick()
@@ -55,6 +60,7 @@ class TaskDispatcher(private val harness: HarnessRuntime, private val runs: Runs
             if (!claimed) return
             val session = harness.newSession(agent)
             harness.tasks.started(task.id, session.id)
+            log.info { "Task ${task.id}: starting Agent ${agent.id}, Session ${session.id}" }
             var reply: String? = null
             var completed = false
             runs.start(agent, session.id, prompt(task), onEvent = { event ->
@@ -74,10 +80,10 @@ class TaskDispatcher(private val harness: HarnessRuntime, private val runs: Runs
                 }
             }) { harness.runner(agent, session.id, taskId = task.id) }
             started = true
-        } catch (e: CancellationException) {
-            throw e
         } catch (e: Exception) {
-            println("Task ${task.id}: couldn't start: ${e.message}")
+            currentCoroutineContext().ensureActive()
+            val failure = harness.secrets.redact(e.stackTraceToString())
+            log.warn { "Task ${task.id}: couldn't start:\n$failure" }
         } finally {
             if (!started) withContext(NonCancellable) { if (claimed) done(task.id) else active.remove(task.id) }
         }
@@ -90,10 +96,10 @@ class TaskDispatcher(private val harness: HarnessRuntime, private val runs: Runs
 
     private suspend fun <T> guarded(what: String, block: suspend () -> T): T? = try {
         block()
-    } catch (e: CancellationException) {
-        throw e
     } catch (e: Exception) {
-        println("Tasks: couldn't $what: ${e.message}")
+        currentCoroutineContext().ensureActive()
+        val failure = harness.secrets.redact(e.stackTraceToString())
+        log.warn { "Couldn't $what; dispatcher will keep checking:\n$failure" }
         null
     }
 
