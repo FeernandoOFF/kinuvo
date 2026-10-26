@@ -7,7 +7,7 @@ import kinuvo.harness.apple.AppleLanguageModel
 import kinuvo.harness.apple.AppleProvider
 import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.codex.OpenAIProvider
-import kinuvo.harness.koog.koogProviders
+import kinuvo.harness.koog.compatibleProviders
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.knowledgeConfig
 import kinuvo.harness.core.store.saveKnowledgeConfig
@@ -61,7 +61,7 @@ internal class IosEmbeddedServer : EmbeddedServer {
                     knowledge.path?.let(moved::get)?.let { files.saveKnowledgeConfig(knowledge.copy(path = it)) }
                 }
                 EmbeddedServerHost.create(home, plugins = listOf(AppleProvider(model), CodexProvider(), OpenAIProvider(AgentFiles(home)), McpPlugin(AgentFiles(home)), FirecrawlPlugin(), NtfyPlugin(),
-                    ExecutorPlugin(), AnytypePlugin(AgentFiles(home))) + koogProviders(AgentFiles(home), attachments = kinuvo.harness.core.store.FileAttachments(Path(home, "attachments"))::bytes)).also { host ->
+                    ExecutorPlugin(), AnytypePlugin(AgentFiles(home))) + compatibleProviders(AgentFiles(home), attachments = kinuvo.harness.core.store.FileAttachments(Path(home, "attachments"))::bytes)).also { host ->
                     server = host
                     localHost = host
                     MainScope().launch { host.runtime.runActivity.collect { backgroundRuns?.update(it.runs, it.steps) } }

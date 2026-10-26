@@ -61,7 +61,7 @@ internal class RunSession(
     private var request = 0
     var messageId = ""
         private set
-    val response = StreamResponse(model.reasoningFormat) { identities[it] }
+    val response = StreamResponse { identities[it] }
     val calls get() = response.calls
     val requests = ModelRequests(agent.config, { if (compressing) RequestKind.Compaction else kind }) {
         append(SessionEntry.Measurement(it))
@@ -94,10 +94,11 @@ internal class RunSession(
     suspend fun saveResponse() = withContext(NonCancellable) {
         if (responseSaved) return@withContext
         responseSaved = true
-        response.history.forEach { append(it) }
+        response.reasoning.forEach { append(it) }
         if (response.text.isNotEmpty()) append(SessionEntry.AssistantMessage(
             if (response.success) text() else "${text()}\n\n[interrupted]", messageId))
         requests.finish(response.success)
+        calls.forEach { append(it) }
     }
 
     fun text() = response.text.toString()
