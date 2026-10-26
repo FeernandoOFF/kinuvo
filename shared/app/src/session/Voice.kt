@@ -36,9 +36,11 @@ interface Synthesizer {
 
 /**
  * The Device's own recognizer and voice (Apple's on iOS): the default for every part of Voice chat the Server's
- * [VoiceSetup] doesn't provide. Both share one audio session, so the microphone can stay open while speaking.
+ * [VoiceSetup] doesn't provide. Engines without echo cancellation use [SpeechEngine.halfDuplex].
  */
 interface SpeechEngine : Transcriber, Synthesizer {
+    /** Releases the microphone during Agent replies to avoid transcribing speaker output. */
+    val halfDuplex: Boolean get() = false
     /** Stops listening and speaking and releases the audio. */
     override fun stop()
 }
@@ -193,7 +195,7 @@ class SpeechVoiceChat(
      * still thinking, only a whole sentence does, since silence and noise can be heard as a word or two.
      */
     private fun hear() {
-        if (state.value.paused) return
+        if (state.value.paused || state.value.phase == VoicePhase.Off) return
         transcriber.listen(
             untilPause = true,
             onPartial = { text ->
@@ -249,7 +251,7 @@ class SpeechVoiceChat(
     private fun send(text: String) {
         state.update { it.copy(phase = VoicePhase.Thinking, heard = "") }
         said.clear()
-        hear()
+        if (device.halfDuplex) transcriber.stop() else hear()
         reply = scope.launch {
             // A run that was just cut short may still be stopping.
             session.state.first { !it.running }
@@ -257,6 +259,7 @@ class SpeechVoiceChat(
             session.send(text, voice = true)
             speakReply(before)
             state.update { if (it.phase == VoicePhase.Thinking || it.phase == VoicePhase.Speaking) it.copy(phase = VoicePhase.Listening, spoken = emptyMap()) else it }
+            if (device.halfDuplex && !state.value.paused && state.value.phase == VoicePhase.Listening) hear()
         }
     }
 

@@ -127,12 +127,31 @@ package_desktop() {
   fi
   case $os in
     macos)
-      "$java_home/bin/jpackage" --type dmg --icon apps/desktop/icons/Kinuvo.icns "${args[@]}"
-      cp "$work"/out/*.dmg "$dist/Kinuvo-desktop-$os-$arch.dmg" ;;
+      ./scripts/build-mac-speech.sh >/dev/null
+      cp -R build/KinuvoSpeech.app "$work/input/"
+      args+=(--java-options '-Dcompose.application.resources.dir=$APPDIR')
+      local identity=dev.kinuvo.desktop
+      if [ -f .kinuvo-home ]; then identity="$identity.local$(printf %s "$PWD" | shasum | cut -c1-10)"; fi
+      args+=(--mac-package-identifier "$identity")
+      "$java_home/bin/jpackage" --type app-image --icon apps/desktop/icons/Kinuvo.icns "${args[@]}"
+      local bundle="$work/out/Kinuvo.app"
+      /usr/libexec/PlistBuddy -c 'Add :NSSpeechRecognitionUsageDescription string Kinuvo turns speech into messages for your Agent. Apple may process audio when on-device recognition is unavailable.' "$bundle/Contents/Info.plist"
+      /usr/libexec/PlistBuddy -c 'Set :NSMicrophoneUsageDescription Kinuvo listens while Voice chat or Dictation is active.' "$bundle/Contents/Info.plist"
+      codesign --force --deep --sign - "$bundle"
+      if [ "${KINUVO_DESKTOP_APP_IMAGE:-0}" = 1 ]; then
+        # Replace only the generated app image; do not merge stale runtime files into it.
+        rm -rf "$dist/Kinuvo.app"
+        cp -R "$bundle" "$dist/"
+      else
+        "$java_home/bin/jpackage" --type dmg --app-image "$bundle" --dest "$work/dmg"
+        cp "$work"/dmg/*.dmg "$dist/Kinuvo-desktop-$os-$arch.dmg"
+      fi ;;
     linux)
       "$java_home/bin/jpackage" --type deb --linux-shortcut --linux-package-name kinuvo-desktop --icon apps/desktop/icons/Kinuvo.png "${args[@]}"
       cp "$work"/out/*.deb "$dist/Kinuvo-desktop-$os-$arch.deb" ;;
     windows)
+      powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-speech.ps1 -OutputPath "$(cygpath -w "$work/input/KinuvoSpeech.exe")"
+      args+=(--java-options '-Dcompose.application.resources.dir=$APPDIR')
       "$java_home/bin/jpackage" --type app-image --icon apps/desktop/icons/Kinuvo.ico "${args[@]}"
       archive "$work/out/Kinuvo" "Kinuvo-desktop-$os-$arch" ;;
   esac
