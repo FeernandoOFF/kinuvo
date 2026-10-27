@@ -63,6 +63,7 @@ exercise the default Compose shell on Android and iOS:
 - `tool-error.yaml`: a failed tool result and the Agent's error reply.
 - `approval-deny.yaml`: deny with a note and verify that exact decision reaches the Server.
 - `session-details.yaml`: favorite and rename the open Session from its "…" menu, then find it under Favorites.
+- `model-providers.yaml`: show API-key providers and keyless local endpoints in Model providers settings.
 - `computers.yaml`: Live view of a Computer: a pushed frame, Take over, a key from the controls and Hand back.
 - `session-return.yaml`: receive an event on Board, return to the Session, then background/resume without losing its transcript or resending the message.
 

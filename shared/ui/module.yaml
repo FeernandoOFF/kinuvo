@@ -32,6 +32,7 @@ dependencies@ios:
   - ../../harness/server/embedded
   - ../../harness/providers/apple: exported
   - ../../harness/providers/codex
+  - ../../harness/providers/koog
   - ../../harness/plugins/mcp
   - ../../harness/plugins/firecrawl
   - ../../harness/plugins/ntfy
@@ -47,6 +48,7 @@ dependencies@jvm:
 dependencies@android:
   - ../../harness/server/embedded
   - ../../harness/providers/codex
+  - ../../harness/providers/koog
   - ../../harness/plugins/mcp
   - ../../harness/plugins/firecrawl
   - ../../harness/plugins/ntfy

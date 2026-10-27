@@ -16,6 +16,7 @@ modules:
   - harness/plugins/reminders
   - harness/providers/apple
   - harness/providers/codex
+  - harness/providers/koog
   - harness/server/embedded
   - harness/server/jvm
   - harness/server/runtime
