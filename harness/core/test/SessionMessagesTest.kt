@@ -11,6 +11,21 @@ class SessionMessagesTest {
     private val messages = SessionMessages(scriptedModel { _, _ -> emptyFlow() })
 
     @Test
+    fun compatibleEndpointsSkipOpenAIReasoningOnProviderSwitch() {
+        val model = scriptedModel { _, _ -> emptyFlow() }
+        val history = listOf(
+            SessionEntry.Reasoning("summary", "reasoning-id", "openai-ciphertext"),
+            SessionEntry.AssistantMessage("answer"),
+            SessionEntry.UserMessage("continue"),
+        )
+        val compatible = SessionMessages(model.copy(replayReasoning = false)).prompt("", history)
+        assertTrue(compatible.messages.flatMap { it.parts }.none { it is MessagePart.Reasoning })
+        assertEquals(listOf("answer", "continue"), compatible.messages.flatMap { it.parts }.filterIsInstance<MessagePart.Text>().map { it.text })
+        val openai = SessionMessages(model).prompt("", history)
+        assertEquals("openai-ciphertext", openai.messages.flatMap { it.parts }.filterIsInstance<MessagePart.Reasoning>().single().encrypted)
+    }
+
+    @Test
     fun identicalMessagesKeepTheirOwnIdentity() {
         val history = listOf(SessionEntry.AssistantMessage("same", "first"), SessionEntry.AssistantMessage("same", "second"))
         val prompt = messages.prompt("", history)

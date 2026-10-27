@@ -31,7 +31,7 @@ class SessionMessages(private val model: AgentModel) {
                 is SessionEntry.AssistantMessage -> assistant(entry.text)
                 is SessionEntry.ToolCall -> toolCall(MessagePart.Tool.Call(entry.id, entry.name, entry.args))
                 is SessionEntry.ToolResult -> toolResult(MessagePart.Tool.Result(entry.id, entry.name, entry.output, entry.isError))
-                is SessionEntry.Reasoning -> if (entry.encrypted != null) reasoning(
+                is SessionEntry.Reasoning -> if (model.replayReasoning && entry.encrypted != null) reasoning(
                     MessagePart.Reasoning(content = emptyList(), summary = listOf(entry.text), encrypted = entry.encrypted, id = entry.id)
                 )
                 is SessionEntry.Activation -> system(activation(entry))

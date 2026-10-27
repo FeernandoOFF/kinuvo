@@ -33,6 +33,43 @@ Tool definitions have stable ordering and recursively sorted schema object keys.
 
 Compaction can summarize completed tool exchanges within the current turn while keeping its user request, current Context and activated Skills. The full transcript remains on disk. Input estimates include tool definitions and reserve output space for known context windows; oversized summaries are chunked, and requests that still cannot fit are rejected before inference.
 
+## OpenAI-compatible endpoints
+
+JVM and embedded mobile Servers can connect to OpenAI-compatible Chat Completions APIs through Koog. Add named endpoints to `providers` in the Server home's `config.yaml`, then restart the Server:
+
+```yaml
+providers:
+  local-models:
+    name: Local models
+    baseUrl: http://localhost:1234/v1/
+    apiKeyRequired: false
+  hosted-models:
+    name: Hosted models
+    baseUrl: https://models.example.com/v1/
+    apiKeyEnv: HOSTED_MODELS_API_KEY
+```
+
+Each entry's key becomes a provider ID in the Agent and Session model pickers. Include the API version prefix in `baseUrl`: the client appends `models` and `chat/completions`. Addresses are relative to the Server. Local runtimes such as Ollama can be configured through their OpenAI-compatible API.
+
+Authenticated endpoints default to `OPENAI_COMPATIBLE_API_KEY` when `apiKeyEnv` is omitted. Configure their keys or Secret references in **Settings → Model providers**, or set the named Server environment variable. Each endpoint has separate credential storage using its provider ID. Set `apiKeyRequired: false` for unauthenticated endpoints; a configured environment key is still sent when present.
+
+An optional `models` list replaces discovery and describes known capabilities:
+
+```yaml
+providers:
+  local-models:
+    baseUrl: http://localhost:1234/v1/
+    apiKeyRequired: false
+    models:
+      - id: my-model
+        tools: true
+        input: [text, image]
+        reasoning: []
+        context: 32768
+```
+
+Model IDs are sent unchanged. Unknown capabilities remain unspecified. Text and image attachments use the existing shared conversion; native document attachments and provider-specific reasoning extensions are not supported by this adapter. OpenAI encrypted reasoning from an existing Session is omitted when switching to a compatible endpoint. Codex, OpenAI Responses, and Apple on-device inference retain their existing behavior.
+
 ## Cache and offline use
 
 The Server saves successful discovery and metadata in `~/.kinuvo/cache/models.json` with owner-only permissions. Provider discovery refreshes after an hour; Models.dev metadata refreshes after 24 hours. Each fetch has a ten-second timeout. Failed refreshes keep the last successful result, show a warning and throttle automatic retries for a minute. “Refresh models” bypasses the cache and retry throttle.
