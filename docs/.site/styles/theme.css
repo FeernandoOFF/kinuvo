@@ -82,7 +82,7 @@ h1, .hero h1 { font-weight: 400; letter-spacing: -.035em; }
 .sl-markdown-content table { font-size: .9rem; }
 
 /* Live avatars: the still shows until Rive draws. */
-kinuvo-avatar { display: block; position: relative; }
+kinuvo-avatar { display: block; position: relative; aspect-ratio: 1; }
 kinuvo-avatar > img, kinuvo-avatar > canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; transition: opacity .3s ease; }
 kinuvo-avatar > canvas { opacity: 0; }
 kinuvo-avatar.live > canvas { opacity: 1; }
@@ -112,3 +112,22 @@ kinuvo-avatar.live > img { opacity: 0; }
 .k-future ul { margin: 0; padding-left: 1.1rem; }
 .k-future li { color: var(--sl-color-gray-2); }
 .k-future li::marker { color: var(--kinuvo-accent); }
+
+/* The Agent picked on the landing page themes the site: --agent and --agent-on come from agents.ts. */
+@property --agent { syntax: '<color>'; inherits: true; initial-value: #c96442; }
+:root[data-agent] {
+  transition: --agent .5s ease;
+  --kinuvo-accent: var(--agent);
+  --sl-color-accent: var(--agent);
+  --sl-color-accent-low: color-mix(in srgb, var(--agent) 24%, #262624);
+  --sl-color-accent-high: color-mix(in srgb, var(--agent) 55%, #ffffff);
+}
+:root[data-agent][data-theme='light'] {
+  --sl-color-accent-low: color-mix(in srgb, var(--agent) 16%, #faf9f5);
+  --sl-color-accent-high: color-mix(in srgb, var(--agent) 58%, #1f1e1b);
+}
+:root[data-agent] .sl-link-button.primary,
+:root[data-agent][data-theme='light'] .sl-link-button.primary { background: var(--agent); border-color: var(--agent); color: var(--agent-on); }
+
+/* Decorations (the landing's floating pills, glows) may extend past the viewport; never scroll sideways for them. */
+html { overflow-x: clip; }
