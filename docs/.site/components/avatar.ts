@@ -26,6 +26,8 @@ export class KinuvoAvatar extends HTMLElement {
   private inputs = new Map<string, StateMachineInput>();
   private pending = AvatarState.Idle as number;
   private resize = new ResizeObserver(() => this.rive?.resizeDrawingSurfaceToCanvas());
+  // Offscreen avatars stop rendering.
+  private visible = new IntersectionObserver(([e]) => (e.isIntersecting ? this.rive?.play() : this.rive?.pause()));
 
   connectedCallback() {
     const artboard = this.getAttribute('artboard') ?? 'Tangerine Drop';
@@ -55,6 +57,7 @@ export class KinuvoAvatar extends HTMLElement {
     });
     avatars.add(this);
     this.resize.observe(this);
+    this.visible.observe(this);
     if (this.hasAttribute('pokeable')) {
       this.addEventListener('pointerenter', () => this.poke());
       this.addEventListener('click', () => this.poke());
@@ -64,6 +67,7 @@ export class KinuvoAvatar extends HTMLElement {
   disconnectedCallback() {
     avatars.delete(this);
     this.resize.disconnect();
+    this.visible.disconnect();
     this.rive?.cleanup();
   }
 

@@ -19,7 +19,7 @@ export default defineConfig({
     head: [{
       tag: 'script',
       // Apply the Agent picked on the landing page before first paint, on every page.
-      content: `try{const a=JSON.parse(localStorage.getItem('kinuvo-agent')),c={'Tangerine Drop':['#F87828','#1F1E1B'],'Lilac Cloud':['#A888F0','#1F1E1B'],'Mint Pill':['#20C880','#1F1E1B'],'Coral Bloom':['#F86868','#1F1E1B'],'Sky Peak':['#2888F8','#FFFFFF'],'Honey Star':['#F8B020','#1F1E1B'],'Berry Orb':['#E05098','#FFFFFF'],'Cocoa Bloop':['#986040','#FFFFFF']}[a&&a.artboard];if(c){const r=document.documentElement;r.style.setProperty('--agent',c[0]);r.style.setProperty('--agent-on',c[1]);r.dataset.agent=a.artboard}}catch(e){}`,
+      content: `try{const a=JSON.parse(localStorage.getItem('kinuvo-agent')),c={'Tangerine Drop':['#F87828','#1F1E1B'],'Lilac Cloud':['#A888F0','#1F1E1B'],'Mint Pill':['#20C880','#1F1E1B'],'Coral Bloom':['#F86868','#1F1E1B'],'Sky Peak':['#2888F8','#1F1E1B'],'Honey Star':['#F8B020','#1F1E1B'],'Berry Orb':['#E05098','#1F1E1B'],'Cocoa Bloop':['#986040','#FFFFFF']}[a&&a.artboard];if(c){const r=document.documentElement;r.style.setProperty('--agent',c[0]);r.style.setProperty('--agent-on',c[1]);r.dataset.agent=a.artboard}}catch(e){}`,
     }],
     markdown: { processedDirs: ['./'] },
     social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/FeernandoOFF/kinuvo' }],

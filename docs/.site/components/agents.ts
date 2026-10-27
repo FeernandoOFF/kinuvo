@@ -8,15 +8,20 @@ export const looks: AgentLook[] = [
   { artboard: 'Lilac Cloud', color: '#A888F0', on: '#1F1E1B', name: 'Luna' },
   { artboard: 'Mint Pill', color: '#20C880', on: '#1F1E1B', name: 'Pip' },
   { artboard: 'Coral Bloom', color: '#F86868', on: '#1F1E1B', name: 'Rosa' },
-  { artboard: 'Sky Peak', color: '#2888F8', on: '#FFFFFF', name: 'Sky' },
+  { artboard: 'Sky Peak', color: '#2888F8', on: '#1F1E1B', name: 'Sky' },
   { artboard: 'Honey Star', color: '#F8B020', on: '#1F1E1B', name: 'Sunny' },
-  { artboard: 'Berry Orb', color: '#E05098', on: '#FFFFFF', name: 'Bea' },
+  { artboard: 'Berry Orb', color: '#E05098', on: '#1F1E1B', name: 'Bea' },
   { artboard: 'Cocoa Bloop', color: '#986040', on: '#FFFFFF', name: 'Coco' },
 ];
 
 const key = 'kinuvo-agent';
 
 export interface Agent { look: AgentLook; name: string }
+
+/** Whether the visitor has already picked an Agent (storage can be unavailable). */
+export const picked = () => {
+  try { return !!localStorage.getItem(key); } catch { return false; }
+};
 
 export const current = (): Agent => {
   try {
@@ -33,7 +38,7 @@ export const choose = (agent: Agent) => {
   root.style.setProperty('--agent', agent.look.color);
   root.style.setProperty('--agent-on', agent.look.on);
   root.dataset.agent = agent.look.artboard;
-  localStorage.setItem(key, JSON.stringify({ artboard: agent.look.artboard, name: agent.name === agent.look.name ? '' : agent.name }));
+  try { localStorage.setItem(key, JSON.stringify({ artboard: agent.look.artboard, name: agent.name === agent.look.name ? '' : agent.name })); } catch {}
   document.dispatchEvent(new CustomEvent('kinuvo:agent', { detail: agent }));
 };
 
