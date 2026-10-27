@@ -1,191 +1,1143 @@
 ---
-// Replaces Starlight's hero: the pitch on the left, Milo acting out a request on the right.
-import { LinkButton } from '@astrojs/starlight/components';
+// The landing page is the onboarding: a pinned device walks through setting up an Agent while the story scrolls past.
+// Every screen is a small, interactive recreation of the app (shared/ui onboarding look); each also plays on its own.
+import { siAndroid, siApple, siLinux } from 'simple-icons';
+import { looks, still } from './agents';
+import Icon from './Icon.astro';
 
-const { data } = Astro.locals.starlightRoute.entry;
-const { title = data.title, tagline, actions = [] } = data.hero ?? {};
 const base = import.meta.env.BASE_URL.replace(/\/?$/, '/');
+const steps = [
+  { id: 'agent', eyebrow: 'Your Agent', title: 'Pick your Agent', body: 'Tap one to meet them, then give yours a name. The whole page takes its colour.' },
+  { id: 'home', eyebrow: 'Where it runs', title: 'You choose where it lives', body: 'On this device, or on a Server at home that all your Devices share. Either way, your Agents’ data stays on machines you own.' },
+  { id: 'mind', eyebrow: 'Model', title: 'Pick its brain', body: 'Use your ChatGPT sign-in, Apple’s on-device model where available, or any OpenAI-compatible provider, local or hosted. The provider decides where messages are processed.' },
+  { id: 'tools', eyebrow: 'Tools and Approvals', title: 'Helpful, never reckless', body: 'Give it your notes, reminders and web search. Safe reads just happen. Anything riskier waits for your OK.' },
+  { id: 'learn', eyebrow: 'Learning and Knowledge', title: 'It learns on its own', body: 'After a chat, your Agent reflects and updates its own Memory. It can also propose changes to your notes, in a Markdown folder or Anytype, but only with your OK.' },
+  { id: 'remind', eyebrow: 'Reminders and Tasks', title: 'Works with your apps', body: 'Add a Task in Apple Reminders or Kinuvo’s own list and tag your Agent with @. It does it and notifies you when it’s done.' },
+  { id: 'voice', eyebrow: 'Voice', title: 'Or just talk', body: 'Dictate a message or have a voice chat. Speech is recognised and read aloud on your Device.' },
+  { id: 'computer', eyebrow: 'Computer use', title: 'Hands on, only when you allow', body: 'Pair a Mac or an Android phone and your Agent can use its apps while you watch. It asks first, one app at a time.' },
+  { id: 'everywhere', eyebrow: 'Every device', title: 'Start here, finish there', body: 'One Agent, one chat, on iPhone, Android, Mac, Windows, Linux and in the browser. Pair a Device with a QR code and pick up where you left off.' },
+  { id: 'install', eyebrow: 'Get started', title: 'Ready in minutes', body: 'Get the desktop app. It can run your Server while it’s open. Scan the QR code with your phone to pair.' },
+];
+const tools = [
+  { icon: 'note', name: 'Notes', sub: 'Markdown folder or Anytype', risk: 'Low', on: true },
+  { icon: 'alarm', name: 'Reminders', sub: 'Apple Reminders', risk: 'Medium', on: true },
+  { icon: 'globe', name: 'Web', sub: 'Search the web', risk: 'Low', on: true },
+  { icon: 'laptop', name: 'Your Mac', sub: 'Computer use', risk: 'High', on: false },
+];
+const convo = [
+  { me: false, text: 'What’s on today?' },
+  { me: true, text: 'Call with Ana at 10. Run at 6, but rain after 5.' },
+  { me: false, text: 'Move the run to 4.' },
+  { me: true, text: 'Done. Your run is at 4:00.', fresh: true },
+];
+// Simple Icons has no Windows mark, so it is drawn here.
+const windows = 'M0 0h11.4v11.4H0zM12.6 0H24v11.4H12.6zM0 12.6h11.4V24H0zM12.6 12.6H24V24H12.6z';
+const platforms = [
+  { name: 'iPhone', path: siApple.path }, { name: 'Android', path: siAndroid.path }, { name: 'macOS', path: siApple.path },
+  { name: 'Windows', path: windows }, { name: 'Linux', path: siLinux.path }, { name: 'Browser', icon: 'globe' },
+];
+// The backdrop is deliberately quiet: one small Agent per look in the outer margins, and a few soft washes of the picked Agent's colour.
+const sprites = looks.map((look, i) => ({
+  look,
+  x: [4, 96, 5, 95, 4, 96, 5, 95][i],
+  y: ['16svh', '28svh', '24%', '36%', '50%', '62%', '75%', '88%'][i],
+  size: 40 + (i % 3) * 6,
+  spin: (i % 2 ? 1 : -1) * (6 + i),
+  dur: 6 + (i % 4),
+}));
+const washes = [{ x: 8, y: 6, d: 760 }, { x: 94, y: 40, d: 820 }, { x: 6, y: 74, d: 760 }];
 ---
 
-<section class="k-hero">
-  <div class="k-copy">
-    <p class="k-eyebrow">Self-hosted · Open source · MIT</p>
-    <h1 id="_top">{title}</h1>
-    {tagline && <p class="k-tagline" set:html={tagline} />}
-    <div class="k-actions">
-      {actions.map(({ text, link, icon, variant }) => (
-        <LinkButton href={link} variant={variant} icon={icon?.name}>{text}</LinkButton>
+<section class="ob" data-guide-hero>
+  <div class="ob-bg" aria-hidden="true">
+    {[0, 1, 2].map((d) => (
+      <div class="ob-layer" style={`--k:${[0.05, 0.1, -0.05][d]}`}>
+        {washes.filter((_, i) => i === d).map((w) => <span class="ob-blob" style={`--x:${w.x}%;--y:${w.y}%;--d:${w.d}px`}></span>)}
+        {sprites.filter((_, i) => i % 3 === d).map((s) => (
+          <span class="ob-fa" data-left={s.x < 50 ? '' : undefined} style={`--x:${s.x}%;--y:${s.y};--w:${s.size}px;--r:${s.spin}deg;--t:${s.dur}s`}>
+            <img src={still(s.look.artboard)} alt="" loading="lazy" decoding="async" />
+          </span>
+        ))}
+      </div>
+    ))}
+    <div class="ob-tex"><div class="ob-grain"></div></div>
+    <div class="ob-fade"></div>
+  </div>
+  <header class="ob-intro">
+    <h1 id="_top">Your Agents. <span>Your Server.</span></h1>
+    <p class="ob-lede">A personal AI that remembers you, helps with everyday life, and runs on a machine you own.</p>
+    <div class="ob-cta ob-intro-cta">
+      <a class="ob-btn" href={`${base}start/install/`}>Getting started</a>
+      <a class="ob-btn ob-btn-ghost" href="#step-agent">See how it works ↓</a>
+    </div>
+    <div class="ob-guide">
+      <p class="ob-guide-label" id="ob-guide-label">Pick your Agent</p>
+      <div class="ob-picker" role="group" aria-labelledby="ob-guide-label">
+        {looks.map((look, i) => (
+          <button type="button" aria-pressed={i === 0 ? 'true' : 'false'} data-artboard={look.artboard} style={`--c:${look.color};--i:${i}`} title={`${look.name} · ${look.artboard}`} aria-label={`${look.name}, ${look.artboard}`}>
+            <img src={still(look.artboard)} alt="" />
+          </button>
+        ))}
+      </div>
+      <p class="ob-hi" aria-live="polite"><strong data-agent-name>Milo</strong> will show you around.</p>
+    </div>
+  </header>
+  <div class="ob-steps">
+    {steps.map((s, i) => (
+      <article class="ob-step" id={`step-${s.id}`} data-step={i}>
+        <p class="ob-eyebrow"><span class="ob-num">{String(i + 1).padStart(2, '0')}</span>{s.eyebrow}</p>
+        <h2>{s.title}</h2>
+        <p class="ob-body">{s.body}</p>
+        {s.id === 'install' && (
+          <div class="ob-cta">
+            <a class="ob-btn" href={`${base}start/install/`}>Getting started →</a>
+            <a class="ob-btn ob-btn-ghost" href={`${base}#install`}>All downloads ↓</a>
+          </div>
+        )}
+      </article>
+    ))}
+  </div>
+  <div class="ob-track">
+  <div class="ob-stage">
+    <div class="ob-caption" aria-hidden="true">
+      {steps.map((s) => (
+        <div class="ob-cap">
+          <p class="ob-eyebrow"><span class="ob-num">{String(steps.indexOf(s) + 1).padStart(2, '0')}</span>{s.eyebrow}</p>
+          <h2>{s.title}</h2>
+          <p class="ob-body">{s.body}</p>
+        </div>
       ))}
     </div>
-    <a class="k-jump" href={`${base}#install`}>Install the Server and apps ↓</a>
-  </div>
-
-  <div class="k-stage" aria-label="Milo, an Agent, takes a request, asks for approval and finishes it">
-    <div class="k-glow" aria-hidden="true"></div>
-    <div class="k-chat" aria-hidden="true">
-      <div class="k-msg k-user" data-step="ask">Remind me to call Ana tomorrow at 10</div>
-      <div class="k-msg k-agent k-typing" data-step="work"><span></span><span></span><span></span></div>
-      <div class="k-approval" data-step="approve">
-        <div class="k-approval-title"><span class="k-risk">Medium risk</span> Add a reminder?</div>
-        <div class="k-approval-body">Call Ana · tomorrow, 10:00</div>
-        <div class="k-approval-actions"><span class="k-allow">Allow once</span><span class="k-deny">Deny</span></div>
+    <div class="ob-rig">
+    <div class="ob-device" data-step="0" data-shape="phone">
+      <div class="ob-chrome" aria-hidden="true"><i></i><i></i><i></i><span>Kinuvo</span></div>
+      <div class="ob-bar">
+        <kinuvo-avatar class="ob-mini" artboard={looks[0].artboard}><img src={still(looks[0].artboard)} alt="" /></kinuvo-avatar>
+        <ol class="ob-dots" aria-label="Setup progress">
+          {steps.map((_, i) => <li data-dot={i}></li>)}
+        </ol>
       </div>
-      <div class="k-msg k-agent" data-step="done">Done. I'll remind you tomorrow at 10. ✓</div>
+
+      <div class="ob-pages">
+        <!-- 1 · Pick an Agent -->
+        <div class="ob-page" data-page="0">
+          <div class="p-pick">
+            <kinuvo-avatar class="p-pick-me" artboard={looks[0].artboard} pokeable><img src={still(looks[0].artboard)} alt="" /></kinuvo-avatar>
+            <h3><span class="p-hey">Hey, I’m </span><span data-agent-name>Milo</span></h3>
+            <p class="p-hint"><Icon name="pointer" /> <span data-hint>Tap one to try it</span></p>
+            <div class="p-looks" role="group" aria-label="Pick your Agent">
+              {looks.map((look, i) => (
+                <button type="button" aria-pressed={i === 0 ? 'true' : 'false'} data-artboard={look.artboard} style={`--c:${look.color};--i:${i}`} title={`${look.name} · ${look.artboard}`} aria-label={`${look.name}, ${look.artboard}`}>
+                  <img src={still(look.artboard)} alt={look.artboard} />
+                </button>
+              ))}
+            </div>
+            <input class="p-name" type="text" maxlength="20" autocomplete="off" spellcheck="false" placeholder="Milo" aria-label="Your Agent’s name" />
+          </div>
+        </div>
+
+        <!-- 2 · Where it runs -->
+        <div class="ob-page" data-page="1">
+          <h3>Where should I live?</h3>
+          <p class="p-sub">You can change this later.</p>
+          <div class="p-homes">
+            <button type="button" class="p-card" data-home="device" aria-pressed="false"><b><Icon name="smartphone" /></b><strong>This device</strong><span>The Server runs on this phone</span></button>
+            <button type="button" class="p-card" data-home="server" aria-pressed="true"><b><Icon name="server" /></b><strong>Your Server</strong><span>Shared by all your Devices</span></button>
+          </div>
+          <div class="p-net" data-home="server">
+            <div class="p-node-me"><Icon name="smartphone" /></div>
+            <div class="p-link"><div class="p-wire"><i></i><i></i><i></i></div></div>
+            <div class="p-hosts"><span><Icon name="laptop" /> Laptop</span><span><Icon name="home" /> Home server</span><span><Icon name="server" /> Mac mini</span></div>
+            <div class="p-local"><Icon name="lock" /> Runs on this phone</div>
+          </div>
+        </div>
+
+        <!-- 3 · Model -->
+        <div class="ob-page" data-page="2">
+          <h3>Pick my model</h3>
+          <p class="p-sub">It powers every chat.</p>
+          <div class="p-providers">
+            <button type="button" class="p-provider" data-provider="apple" aria-pressed="true"><b><Icon name="apple" /></b><span><strong>Apple</strong><em>On this device</em></span><i class="p-tag">If available</i></button>
+            <button type="button" class="p-provider" data-provider="codex" aria-pressed="false"><b><Icon name="cloud" /></b><span><strong>OpenAI</strong><em>ChatGPT sign-in</em></span><i class="p-tag">Signed in</i></button>
+            <button type="button" class="p-provider" data-provider="compat" aria-pressed="false"><b><Icon name="server" /></b><span><strong>OpenAI-compatible</strong><em>Local or hosted</em></span><i class="p-tag">Custom</i></button>
+          </div>
+          <div class="p-models">
+            <ul data-for="apple"><li class="on">Apple on-device model</li></ul>
+            <ul data-for="codex" hidden><li class="on">Latest model</li><li>Faster, smaller model</li></ul>
+            <ul data-for="compat" hidden><li class="on">Models from your endpoint</li></ul>
+          </div>
+        </div>
+
+        <!-- 4 · Tools and Approvals -->
+        <div class="ob-page" data-page="3">
+          <h3>What can I use?</h3>
+          <ul class="p-tools">
+            {tools.map((t) => (
+              <li>
+                <b><Icon name={t.icon} /></b><span><strong>{t.name}</strong><em>{t.sub}</em></span>
+                <i class={`p-risk p-risk-${t.risk.toLowerCase()}`}>{t.risk}</i>
+                <button type="button" class="p-switch" role="switch" aria-checked={t.on ? 'true' : 'false'} aria-label={`Use ${t.name}`}></button>
+              </li>
+            ))}
+          </ul>
+          <div class="p-chat">
+            <p class="p-msg p-you">Remind me to call Ana tomorrow</p>
+            <div class="p-approve">
+              <p><b><Icon name="alert" /></b> Add a reminder? <i class="p-risk p-risk-medium">Medium</i></p>
+              <span class="p-cmd">Call Ana tomorrow at 10</span>
+              <div class="p-actions"><button type="button" data-answer="once">Allow once</button><button type="button" data-answer="always">Always allow</button><button type="button" data-answer="deny">Deny</button></div>
+            </div>
+            <p class="p-msg p-agent p-result"></p>
+          </div>
+        </div>
+
+        <!-- 5 · Learning and Knowledge -->
+        <div class="ob-page" data-page="4">
+          <div class="p-chat">
+            <p class="p-msg p-you">I moved to Dublin last month!</p>
+            <p class="p-msg p-agent p-congrats">Congrats! How are you settling in?</p>
+          </div>
+          <p class="p-auto"><Icon name="check" /><span><strong>Memory updated</strong> · Lives in Dublin</span></p>
+          <div class="p-reflect">
+            <p class="p-reflect-head"><Icon name="sparkles" /> Change to your notes</p>
+            <p class="p-reflect-what">Knowledge update</p>
+            <pre class="p-diff"><del>− Lives in Cork</del><ins>+ Lives in Dublin</ins></pre>
+            <div class="p-actions"><button type="button" data-review="approve">Approve</button><button type="button" data-review="reject">Reject</button></div>
+          </div>
+          <div class="p-note">
+            <p class="p-note-head"><Icon name="note" /> People / You · <em>Markdown</em></p>
+            <ul><li>Runs on Sundays</li><li class="p-note-home">Lives in Cork</li></ul>
+          </div>
+        </div>
+
+        <!-- 6 · Reminders and Tasks: a Task that mentions the Agent gets done -->
+        <div class="ob-page" data-page="5">
+          <div class="p-banner"><img class="p-me-still" src={still(looks[0].artboard)} alt="" /><span><strong data-agent-name>Milo</strong><em>Done: table for 2, Friday 8pm</em></span><i>now</i></div>
+          <h3>Reminders</h3>
+          <p class="p-sub">Your list, your app. <span data-agent-name>Milo</span> joins in when tagged.</p>
+          <ul class="p-tasks">
+            <li><b>○</b><span><strong>Renew passport</strong><em>Friday</em></span></li>
+            <li class="p-mine"><b>○</b><span><strong>@<span data-agent-name>Milo</span> book a table for Friday</strong><em class="p-task-state">Waiting</em></span></li>
+            <li><b>○</b><span><strong>Water the plants</strong><em>Today</em></span></li>
+          </ul>
+        </div>
+
+        <!-- 7 · Voice -->
+        <div class="ob-page" data-page="6">
+          <div class="p-voice" data-phase="">
+            <p class="p-voice-state">Hold to talk</p>
+            <p class="p-voice-you"></p>
+            <p class="p-voice-me"></p>
+            <div class="p-wave" aria-hidden="true">{Array.from({ length: 14 }, () => <i></i>)}</div>
+            <button type="button" class="p-mic" aria-label="Hold to talk"><Icon name="mic" /></button>
+          </div>
+        </div>
+
+        <!-- 8 · Computer use -->
+        <div class="ob-page" data-page="7">
+          <p class="p-watch"><span class="p-live"></span> Watching <strong>Mac mini</strong></p>
+          <div class="p-mac">
+            <div class="p-menubar"><Icon name="apple" /><b>Calendar</b><span>File</span><span>Edit</span><span>View</span><em><Icon name="wifi" /><Icon name="battery" />9:41</em></div>
+            <div class="p-win">
+              <div class="p-win-bar"><i></i><i></i><i></i><span>Calendar</span><button type="button" tabindex="-1" class="p-mac-btn"><Icon name="plus" /> New event</button></div>
+              <div class="p-win-body">
+                <aside class="p-cal-side"><p>Calendars</p><span><i style="--d:#5b8def"></i>Work</span><span><i style="--d:var(--kinuvo-accent)"></i>Home</span><span><i style="--d:#e5a03c"></i>Family</span></aside>
+                <div class="p-cal-day">
+                  <p class="p-cal-date">Monday 26</p>
+                  <div class="p-hour"><em>9</em><span class="p-ev">Dentist</span></div>
+                  <div class="p-hour"><em>10</em><span class="p-ev p-ev-new">Call Ana</span></div>
+                  <div class="p-hour"><em>11</em></div>
+                  <div class="p-hour"><em>12</em><span class="p-ev p-ev-lunch">Lunch</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="p-dock">
+              <span style="--t:#5b8def"><Icon name="folder" /></span><span style="--t:#ffffff;color:#e5484d" class="p-dock-cal"><Icon name="calendar" /></span><span style="--t:#e5a03c"><Icon name="note" /></span><span style="--t:#2f9e6a"><Icon name="message" /></span><span style="--t:#3b82f6"><Icon name="compass" /></span><span class="p-dock-me"><img class="p-me-still" src={still(looks[0].artboard)} alt="" /></span>
+            </div>
+            <span class="p-cursor" aria-hidden="true"></span>
+          </div>
+          <div class="p-approve p-approve-app">
+            <p><b><Icon name="alert" /></b> Allow in <strong>Calendar</strong>?</p>
+            <div class="p-actions"><button type="button" data-app="once">Allow once</button><button type="button" data-app="always">Always allow in Calendar</button></div>
+          </div>
+        </div>
+
+        <!-- 9 · Every device: one conversation, three screens -->
+        <div class="ob-page" data-page="8">
+          <div class="x-scene" role="img" aria-label="The same chat open on a laptop, a tablet and a phone">
+            <div class="x-dev x-laptop">
+              <div class="x-screen">
+                <div class="x-top"><i></i><i></i><i></i></div>
+                <div class="x-app">
+                  <div class="x-rail">
+                    <img class="p-me-still" src={still(looks[0].artboard)} alt="" /><img src={still(looks[2].artboard)} alt="" /><img src={still(looks[6].artboard)} alt="" /><span>+</span>
+                  </div>
+                  <aside class="x-side">
+                    <p class="x-brand">Kinuvo<Icon name="note" /></p>
+                    <span class="x-nav"><Icon name="folder" />Board</span>
+                    <span class="x-nav"><Icon name="note" />Knowledge</span>
+                    <span class="x-nav"><Icon name="sparkles" />Artifacts</span>
+                    <span class="x-label">Favorites</span>
+                    <span class="x-row"><i>#</i>Lisbon trip</span>
+                    <span class="x-label">Chats</span>
+                    <span class="x-row on"><Icon name="alarm" />Morning brief</span>
+                    <span class="x-row"><i>#</i>Gift for Mum</span>
+                    <span class="x-label">Routines</span>
+                    <span class="x-row"><Icon name="alarm" />Weekly plan</span>
+                  </aside>
+                  <section class="x-chat">
+                    <p class="x-title"><b>Morning brief</b><span>···</span></p>
+                    {convo.map((m) => <p class:list={['x-msg', m.me ? 'x-ai' : 'x-you', { 'x-new': m.fresh }]}>{m.text}</p>)}
+                    <div class="x-input"><span>Chat with Kinuvo</span><Icon name="mic" /><b>↑</b></div>
+                  </section>
+                </div>
+              </div>
+              <div class="x-base"></div>
+            </div>
+            <div class="x-dev x-tablet">
+              <div class="x-screen">
+                <section class="x-chat">
+                  <p class="x-title"><b>Morning brief</b></p>
+                  {convo.map((m) => <p class:list={['x-msg', m.me ? 'x-ai' : 'x-you', { 'x-new': m.fresh }]}>{m.text}</p>)}
+                  <div class="x-input"><span>Chat with Kinuvo</span><Icon name="mic" /><b>↑</b></div>
+                </section>
+              </div>
+            </div>
+            <div class="x-dev x-phone">
+              <div class="x-screen">
+                <section class="x-chat">
+                  <p class="x-title"><img class="p-me-still" src={still(looks[0].artboard)} alt="" /><span>···</span></p>
+                  {convo.slice(1).map((m) => <p class:list={['x-msg', m.me ? 'x-ai' : 'x-you', { 'x-new': m.fresh }]}>{m.text}</p>)}
+                  <div class="x-input"><span>Chat with Kinuvo</span><b>↑</b></div>
+                </section>
+              </div>
+            </div>
+          </div>
+          <div class="p-platforms">{platforms.map((p) => <span title={p.name}>{p.path ? <svg viewBox="0 0 24 24" aria-hidden="true"><path d={p.path} /></svg> : <Icon name={p.icon!} />}{p.name}</span>)}</div>
+        </div>
+
+        <!-- 10 · Get started: download, it runs the Server, scan -->
+        <div class="ob-page" data-page="9">
+          <div class="p-dl-head"><img class="p-me-still" src={still(looks[0].artboard)} alt="" /><span><strong>Set up Kinuvo</strong><em>Three quick steps</em></span></div>
+          <ol class="p-flow">
+            <li><b><Icon name="download" /></b><span><strong>Download the app</strong><em>For Mac, Windows or Linux</em></span><i class="p-st"></i></li>
+            <li><b><Icon name="server" /></b><span><strong>It runs your Server</strong><em>While the app is open</em></span><i class="p-st"></i></li>
+            <li>
+              <b><Icon name="smartphone" /></b><span><strong>Scan the QR with your phone</strong><em>That pairs it. Done.</em></span><i class="p-st"></i>
+              <div class="p-qr"><div><img src={`${base}qr.png`} alt="Pairing QR code" /><p><strong>Scan with the Kinuvo app</strong><span>Works once, for ten minutes</span><em><Icon name="check" /> iPhone connected</em></p></div></div>
+            </li>
+          </ol>
+        </div>
+      </div>
+
+      <button type="button" class="ob-next">Continue</button>
+      <a class="ob-next" href={`${base}start/install/`} hidden>Get started</a>
     </div>
-    <div class="k-milo">
-      <kinuvo-avatar artboard="Tangerine Drop" pokeable>
-        <img src={`${base}avatars/avatar-tangerine-drop-idle.png`} alt="" />
-      </kinuvo-avatar>
-      <div class="k-name"><strong>Milo</strong> <span class="k-status">is listening</span></div>
     </div>
+  </div>
   </div>
 </section>
 
 <script>
   import { AvatarState, type KinuvoAvatar } from './avatar';
+  import { choose, current, looks, picked as hasPicked, still, type Agent } from './agents';
 
-  const stage = document.querySelector<HTMLElement>('.k-stage')!;
-  const milo = stage.querySelector<KinuvoAvatar>('kinuvo-avatar')!;
-  const status = stage.querySelector<HTMLElement>('.k-status')!;
-  const step = (name: string) => stage.querySelector<HTMLElement>(`[data-step="${name}"]`)!;
-  const scenes: [number, () => void][] = [
-    [0, () => { stage.dataset.scene = 'ask'; milo.state = AvatarState.Listening; status.textContent = 'is listening'; }],
-    [1800, () => { stage.dataset.scene = 'work'; milo.state = AvatarState.Working; status.textContent = 'is working'; }],
-    [3600, () => { stage.dataset.scene = 'approve'; milo.state = AvatarState.NeedsYou; status.textContent = 'needs you'; }],
-    [5800, () => { stage.dataset.scene = 'allowed'; }],
-    [6500, () => { stage.dataset.scene = 'done'; milo.state = AvatarState.Idle; milo.poke(); status.textContent = 'is done'; }],
-    [10500, () => { stage.dataset.scene = 'reset'; }],
-  ];
-  const loop = 11200;
+  const root = document.querySelector<HTMLElement>('.ob')!;
+  const device = root.querySelector<HTMLElement>('.ob-device')!;
+  const stepEls = [...root.querySelectorAll<HTMLElement>('.ob-step')];
+  const caps = [...root.querySelectorAll<HTMLElement>('.ob-cap')];
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const narrow = matchMedia('(max-width: 56rem) and (min-height: 500px)');
+  const $ = <T extends HTMLElement = HTMLElement>(sel: string, el: ParentNode = device) => el.querySelector<T>(sel)!;
+  const $$ = <T extends HTMLElement = HTMLElement>(sel: string, el: ParentNode = device) => [...el.querySelectorAll<T>(sel)];
 
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    stage.dataset.scene = 'done';
-    status.textContent = 'is done';
-  } else {
-    let timers: number[] = [];
-    const play = () => {
-      timers = scenes.map(([at, run]) => window.setTimeout(run, at));
-      timers.push(window.setTimeout(play, loop));
-    };
-    step('approve').querySelector('.k-allow')!.addEventListener('click', () => {
-      if (stage.dataset.scene !== 'approve') return;
-      timers.forEach(clearTimeout);
-      stage.dataset.scene = 'allowed';
-      timers = [window.setTimeout(() => { scenes[4][1](); timers.push(window.setTimeout(play, 4500)); }, 500)];
+  // One timeline at a time: changing step cancels whatever the previous screen was playing.
+  let timers: number[] = [];
+  const later = (fn: () => void, ms: number) => { timers.push(window.setTimeout(fn, reduced ? 0 : ms)); };
+  // With reduced motion nothing answers itself: Approvals and reviews wait for the visitor.
+  const auto = (fn: () => void, ms: number) => { if (!reduced) later(fn, ms); };
+  const hush = () => { timers.forEach(clearTimeout); timers = []; };
+  const typeInto = (el: HTMLElement, text: string, ms = 28, done?: () => void) => {
+    el.textContent = '';
+    if (reduced) { el.textContent = text; done?.(); return; }
+    [...text].forEach((ch, i) => later(() => { el.textContent += ch; if (i === text.length - 1) done?.(); }, i * ms));
+  };
+
+  // ---- the Agent: every avatar in the page follows the pick ----
+  let agent: Agent = current();
+  let picked = hasPicked();
+  const avatars = () => $$<KinuvoAvatar>('kinuvo-avatar', root);
+  const mood = (state: number, poke = false) => avatars().forEach((a) => { a.state = state; if (poke) a.poke(); });
+  const hint = $('[data-hint]');
+  const pickers = () => $$<HTMLButtonElement>('.p-looks button, .ob-picker button', root);
+  const dress = () => {
+    avatars().forEach((el) => {
+      if (el.getAttribute('artboard') === agent.look.artboard) return;
+      const next = document.createElement('kinuvo-avatar') as KinuvoAvatar;
+      for (const a of el.attributes) next.setAttribute(a.name, a.value);
+      next.setAttribute('artboard', agent.look.artboard);
+      next.innerHTML = `<img src="${still(agent.look.artboard)}" alt="">`;
+      el.replaceWith(next);
     });
-    play();
-  }
+    pickers().forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.artboard === agent.look.artboard)));
+    document.querySelectorAll('[data-agent-name]').forEach((el) => (el.textContent = agent.name));
+    $$<HTMLImageElement>('.p-me-still', root).forEach((img) => (img.src = still(agent.look.artboard)));
+    name.placeholder = agent.look.name;
+    root.toggleAttribute('data-picked', picked);
+    $('.p-pick h3').toggleAttribute('data-long', agent.name.length > 9);
+    hint.textContent = !picked ? 'Tap one to try it' : agent.name !== agent.look.name ? `Nice to meet you, ${agent.name}!` : 'Looking good! Give me a name.';
+  };
+  const name = $<HTMLInputElement>('.p-name');
+  dress();
+  if (agent.name !== agent.look.name) name.value = agent.name;
+
+  // Both pickers (the one under the title and the one in the phone) choose the same Agent.
+  const pick = (b: HTMLButtonElement) => {
+    const look = looks.find((l) => l.artboard === b.dataset.artboard)!;
+    picked = true;
+    agent = { look, name: name.value.trim() || look.name };
+    choose(agent);
+    dress();
+    pickers().filter((x) => x.dataset.artboard === look.artboard).forEach((x) => {
+      x.classList.remove('hop');
+      void x.offsetWidth;
+      x.classList.add('hop');
+    });
+    later(() => mood(AvatarState.Listening, true), 350);
+    later(() => mood(AvatarState.Idle), 1600);
+  };
+  pickers().forEach((b) => b.addEventListener('click', () => pick(b)));
+  name.addEventListener('focus', () => mood(AvatarState.Listening));
+  name.addEventListener('blur', () => mood(AvatarState.Idle));
+  name.addEventListener('input', () => { picked = true; agent = { look: agent.look, name: name.value.trim() || agent.look.name }; choose(agent); dress(); });
+
+  // ---- 2 · where it runs ----
+  $$<HTMLButtonElement>('.p-homes [data-home]').forEach((b) => b.addEventListener('click', () => {
+    $$('.p-homes [data-home]').forEach((c) => c.setAttribute('aria-pressed', String(c === b)));
+    $('.p-net').dataset.home = b.dataset.home!;
+    mood(AvatarState.Listening, true);
+    later(() => mood(AvatarState.Idle), 1200);
+  }));
+
+  // ---- 3 · model ----
+  $$<HTMLButtonElement>('.p-provider').forEach((b) => b.addEventListener('click', () => {
+    $$('.p-provider').forEach((c) => c.setAttribute('aria-pressed', String(c === b)));
+    $$('.p-models ul').forEach((u) => (u.hidden = u.dataset.for !== b.dataset.provider));
+    const page = $('[data-page="2"]');
+    page.dataset.phase = 'think';
+    mood(AvatarState.Working);
+    later(() => { page.dataset.phase = ''; mood(AvatarState.Idle, true); }, 1400);
+  }));
+  $$('.p-models li').forEach((li) => li.addEventListener('click', () => li.parentElement!.querySelectorAll('li').forEach((x) => x.classList.toggle('on', x === li))));
+
+  // ---- 4 · tools and approvals ----
+  $$<HTMLButtonElement>('.p-switch').forEach((s) => s.addEventListener('click', () => s.setAttribute('aria-checked', String(s.getAttribute('aria-checked') !== 'true'))));
+  const answer = (how: string) => {
+    const page = $('[data-page="3"]');
+    if (page.dataset.phase !== 'ask') return;
+    hush();
+    page.dataset.phase = 'done';
+    $('.p-result', page).textContent = how === 'deny' ? 'Okay, I won’t add it.' : how === 'always' ? 'Added ✓ I won’t ask again.' : 'Added ✓';
+    mood(how === 'deny' ? AvatarState.Idle : AvatarState.Working);
+    later(() => mood(AvatarState.Idle, true), 1200);
+  };
+  $$<HTMLButtonElement>('[data-answer]').forEach((b) => b.addEventListener('click', () => answer(b.dataset.answer!)));
+
+  // ---- 5 · learning ----
+  const review = (how: string) => {
+    const page = $('[data-page="4"]');
+    if (page.dataset.phase !== 'review') return;
+    hush();
+    page.dataset.phase = how;
+    $('.p-note-home', page).textContent = how === 'approve' ? 'Lives in Dublin' : 'Lives in Cork';
+    mood(AvatarState.Idle, true);
+  };
+  $$<HTMLButtonElement>('[data-review]').forEach((b) => b.addEventListener('click', () => review(b.dataset.review!)));
+
+  // ---- 7 · voice ----
+  const voice = $('.p-voice');
+  const voiceState = $('.p-voice-state');
+  const talk = (heard: string) => {
+    hush();
+    voice.dataset.phase = 'listen';
+    mood(AvatarState.Listening);
+    voiceState.textContent = 'Listening…';
+    $('.p-voice-me').textContent = '';
+    typeInto($('.p-voice-you'), heard, 45);
+    later(() => {
+      voice.dataset.phase = 'speak';
+      mood(AvatarState.Working);
+      voiceState.textContent = 'Speaking';
+      typeInto($('.p-voice-me'), 'Two things: call Ana at 10, and your long run at 6.', 30, () => later(() => {
+        voice.dataset.phase = '';
+        voiceState.textContent = 'Hold to talk';
+        mood(AvatarState.Idle);
+      }, 900));
+    }, 1900);
+  };
+  let held = false;
+  $('.p-mic').addEventListener('pointerdown', (e) => {
+    e.preventDefault();
+    held = true;
+    hush();
+    voice.dataset.phase = 'listen';
+    mood(AvatarState.Listening);
+    voiceState.textContent = 'Listening… let go to send';
+    $('.p-voice-you').textContent = '';
+    $('.p-voice-me').textContent = '';
+  });
+  const release = (e: Event) => {
+    if (!held) return;
+    held = false;
+    if (e.type === 'pointercancel') { voice.dataset.phase = ''; voiceState.textContent = 'Hold to talk'; mood(AvatarState.Idle); return; }
+    talk('Anything I should know today?');
+  };
+  addEventListener('pointerup', release);
+  addEventListener('pointercancel', release);
+
+  // ---- 8 · computer use ----
+  const allowApp = () => {
+    const page = $('[data-page="7"]');
+    if (page.dataset.phase !== 'ask') return;
+    hush();
+    page.dataset.phase = 'click';
+    mood(AvatarState.Working);
+    later(() => { page.dataset.phase = 'done'; mood(AvatarState.Idle, true); }, 700);
+  };
+  $$<HTMLButtonElement>('[data-app]').forEach((b) => b.addEventListener('click', allowApp));
+
+  // ---- what each screen plays when it arrives ----
+  const enter: Record<number, () => void> = {
+    0: () => mood(AvatarState.Idle),
+    1: () => mood(AvatarState.Idle),
+    2: () => mood(AvatarState.Idle),
+    3: () => {
+      const page = $('[data-page="3"]');
+      page.dataset.phase = '';
+      mood(AvatarState.Working);
+      later(() => { page.dataset.phase = 'ask'; mood(AvatarState.NeedsYou); }, 1300);
+      auto(() => answer('once'), 7000);
+    },
+    4: () => {
+      const page = $('[data-page="4"]');
+      page.dataset.phase = '';
+      $('.p-note-home', page).textContent = 'Lives in Cork';
+      later(() => { page.dataset.phase = 'think'; mood(AvatarState.Working); }, 900);
+      later(() => { page.dataset.phase = 'review'; mood(AvatarState.NeedsYou); }, 2400);
+      auto(() => review('approve'), 8000);
+    },
+    5: () => {
+      const page = $('[data-page="5"]');
+      const mine = $('.p-mine', page);
+      const state = $('.p-task-state', page);
+      page.dataset.phase = '';
+      mine.dataset.state = '';
+      state.textContent = 'Waiting';
+      mood(AvatarState.Idle);
+      later(() => { mine.dataset.state = 'doing'; state.textContent = 'In progress'; mood(AvatarState.Working); }, 1200);
+      later(() => { mine.dataset.state = 'done'; state.textContent = 'Done'; page.dataset.phase = 'done'; mood(AvatarState.Idle, true); }, 3800);
+    },
+    6: () => later(() => talk('What’s on today?'), 1200),
+    7: () => {
+      const page = $('[data-page="7"]');
+      page.dataset.phase = '';
+      mood(AvatarState.Working);
+      later(() => (page.dataset.phase = 'move'), 600);
+      later(() => { page.dataset.phase = 'ask'; mood(AvatarState.NeedsYou); }, 1900);
+      auto(allowApp, 5600);
+    },
+    8: () => mood(AvatarState.Idle, true),
+    9: () => {
+      const page = $('[data-page="9"]');
+      page.dataset.phase = '';
+      const rows = $$('.p-flow li', page);
+      const flow = (n: number) => rows.forEach((r, i) => (r.dataset.state = i < n ? 'done' : i === n ? 'now' : ''));
+      flow(-1);
+      if (reduced) { flow(2); page.dataset.phase = 'qr'; return; }
+      later(() => flow(0), 600);
+      later(() => flow(1), 2300);
+      later(() => { flow(2); page.dataset.phase = 'qr'; }, 4000);
+      later(() => { flow(3); page.dataset.phase = 'paired'; mood(AvatarState.Idle, true); }, 6800);
+    },
+  };
+
+  // ---- following the scroll ----
+  const shapes: Record<number, string> = { 8: 'multi', 9: 'app' };
+  const next = $<HTMLButtonElement>('button.ob-next');
+  const go = $<HTMLAnchorElement>('a.ob-next');
+  let active = -1;
+  const show = (i: number) => {
+    if (i === active || i < 0) return;
+    active = i;
+    hush();
+    device.dataset.step = String(i);
+    device.dataset.shape = shapes[i] ?? 'phone';
+    $$('.ob-page').forEach((p) => {
+      const n = Number(p.dataset.page);
+      p.dataset.at = n === i ? 'now' : n < i ? 'past' : 'next';
+      p.inert = n !== i;
+    });
+    $$('[data-dot]').forEach((d) => {
+      const n = Number(d.dataset.dot);
+      d.dataset.state = n < i ? 'done' : n === i ? 'now' : '';
+    });
+    stepEls.forEach((s, n) => s.classList.toggle('is-now', n === i));
+    // Phones pin the active step's text above the device instead of scrolling it.
+    caps.forEach((c, n) => c.classList.toggle('is-now', n === i));
+    const last = i === stepEls.length - 1;
+    next.hidden = last;
+    go.hidden = !last;
+    enter[i]?.();
+  };
+  show(0);
+
+  // ---- the intro: the device peeks from below the title, then rises into place as you scroll ----
+  // Geometry is measured when the layout changes; scrolling only does arithmetic and writes.
+  const stage = root.querySelector<HTMLElement>('.ob-stage')!;
+  const rig = root.querySelector<HTMLElement>('.ob-rig')!;
+  const intro = root.querySelector<HTMLElement>('.ob-intro')!;
+  const guide = root.querySelector<HTMLElement>('.ob-guide')!;
+  const caption = root.querySelector<HTMLElement>('.ob-caption')!;
+  const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+  let g = { fit: 1, peek: 0, end: 0, dx: 0, introTop: 0, introH: 1, line: 0, tops: [] as number[] };
+  const layout = () => {
+    const small = narrow.matches;
+    const vh = stage.clientHeight;
+    const dh = device.offsetHeight;
+    const dw = device.offsetWidth;
+    const cap = small ? caption.offsetHeight : 0;
+    const box = root.getBoundingClientRect();
+    const st = stage.getBoundingClientRect();
+    // The device is laid out at full size and scaled to fit: below the pinned text on phones, in the right-hand column on desktop.
+    const fit = small
+      ? Math.min(innerWidth >= 640 ? 1.25 : 1, (vh - cap - 20) / dh, (stage.clientWidth - 24) / dw)
+      : Math.min(1, (vh - 112) / dh, (stage.clientWidth * 0.44) / dw);
+    // At rest the device's top sits just below the intro (so it peeks under the fold); at the end it is centred.
+    const top = intro.offsetTop + guide.offsetTop + guide.offsetHeight + 72;
+    const rootTop = box.top + scrollY;
+    g = {
+      fit,
+      peek: top + (dh * fit) / 2 - vh / 2,
+      end: small ? cap / 2 : 28,
+      // Glide to the middle of the right-hand column of the content, wherever the full-width stage is centred.
+      dx: (small ? box.left + box.width / 2 : box.left + box.width * 0.75) - (st.left + st.width / 2),
+      introTop: rootTop + intro.offsetTop,
+      introH: intro.offsetHeight,
+      line: innerHeight * 0.5,
+      tops: stepEls.map((el) => el.getBoundingClientRect().top + scrollY),
+    };
+  };
+  let queued = false;
+  const place = () => {
+    queued = false;
+    const y = scrollY;
+    const p = Math.min(1, Math.max(0, (y - g.introTop) / (g.introH * 0.7)));
+    const e = ease(p);
+    rig.style.transform = `translate3d(${e * g.dx}px, ${g.peek + (g.end - g.peek) * e}px, 0) scale(${g.fit})`;
+    stage.style.setProperty('--p', p.toFixed(3));
+    intro.style.setProperty('--p', p.toFixed(3));
+    intro.inert = p > 0.6;
+    // The active step is the last one whose top has passed the reading line, so any jump lands on the right screen.
+    let at = 0;
+    if (p >= 0.98) g.tops.forEach((t, n) => { if (t <= y + g.line) at = n; });
+    show(at);
+  };
+  const queue = () => { if (!queued) { queued = true; requestAnimationFrame(place); } };
+  const relayout = () => { layout(); queue(); };
+  addEventListener('scroll', queue, { passive: true });
+  addEventListener('resize', relayout);
+  const observer = new ResizeObserver(relayout);
+  [device, caption, root.querySelector('.ob-steps')!].forEach((el) => observer.observe(el));
+  document.fonts?.ready.then(relayout);
+  layout();
+  place();
+
+  next.addEventListener('click', () => {
+    const target = stepEls[active + 1];
+    const offset = narrow.matches ? 72 : innerHeight * 0.3;
+    window.scrollTo({ top: target.getBoundingClientRect().top + scrollY - offset, behavior: reduced ? 'auto' : 'smooth' });
+  });
 </script>
 
 <style>
-  .k-hero {
-    display: grid;
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-    gap: clamp(1.5rem, 4vw, 4rem);
-    align-items: center;
-    padding-block: clamp(2rem, 6vw, 5rem) clamp(1.5rem, 4vw, 3rem);
+  /* ---------- the backdrop: Agents and colour behind everything, drifting at three depths ---------- */
+  /* The three layers move on the scroll timeline (no JS); texture is one viewport-sized sticky layer. */
+  .ob-bg { --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='u%72l(%23n)'/%3E%3C/svg%3E"); position: absolute; inset: -4rem calc(50% - 50vw) 0; z-index: 0; pointer-events: none; overflow: clip; }
+  :global(:root[data-theme='light']) .ob-bg { --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='u%72l(%23n)'/%3E%3C/svg%3E"); }
+  .ob-layer { position: absolute; inset: 0; will-change: transform; }
+  @supports (animation-timeline: scroll()) {
+    .ob-layer { animation: ob-drift linear both; animation-timeline: scroll(root block); }
   }
-  .k-eyebrow {
-    display: inline-block;
-    font-size: .8rem;
-    font-weight: 600;
-    letter-spacing: .06em;
-    text-transform: uppercase;
-    color: var(--sl-color-accent-high);
-    background: var(--sl-color-accent-low);
-    padding: .3rem .75rem;
-    border-radius: 999px;
-    margin: 0 0 1.25rem;
-  }
-  h1 {
-    font-family: Libron, Georgia, serif;
-    font-weight: 400;
-    font-size: clamp(2.8rem, 6.2vw, 5rem);
-    line-height: 1.02;
-    letter-spacing: -.04em;
-    color: var(--sl-color-white);
-    margin: 0;
-  }
-  .k-tagline {
-    font-size: 1.1rem;
-    line-height: 1.7;
-    color: var(--sl-color-gray-2);
-    max-width: 52ch;
-    margin: 1.25rem 0 0;
-  }
-  .k-actions { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.75rem; }
-  .k-jump { display: inline-block; margin-top: 1.25rem; font-size: .9rem; color: var(--sl-color-gray-3); text-decoration: none; }
-  .k-jump:hover { color: var(--sl-color-accent-high); }
+  @keyframes ob-drift { to { transform: translate3d(0, calc(var(--k) * 1000svh), 0); } }
+  .ob-tex { position: sticky; top: 0; height: 100svh; }
+  .ob-grain { position: absolute; inset: 0; background: var(--grain) 0 0 / 180px; opacity: .06; }
+  :global(:root[data-theme='light']) .ob-grain { opacity: .08; }
+  .ob-fade { position: absolute; inset: auto 0 0; height: 14rem; background: linear-gradient(transparent, var(--sl-color-bg)); }
+  .ob-blob { position: absolute; left: var(--x); top: var(--y); width: var(--d); aspect-ratio: 1; margin: calc(var(--d) / -2) 0 0 calc(var(--d) / -2); border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--kinuvo-accent) 24%, transparent), transparent); opacity: .5; }
+  :global(:root[data-theme='light']) .ob-blob { background: radial-gradient(closest-side, color-mix(in srgb, var(--kinuvo-accent) 20%, transparent), transparent); opacity: .7; }
+  .ob-fa { position: absolute; left: var(--x); top: var(--y); width: var(--w); margin: calc(var(--w) / -2) 0 0 calc(var(--w) / -2); opacity: .6; }
+  .ob-fa img { display: block; width: 100%; rotate: var(--r); animation: ob-bob var(--t) ease-in-out infinite; }
 
-  .k-stage {
-    position: relative;
-    min-height: 26rem;
-    border-radius: 28px;
-    border: 1px solid var(--sl-color-hairline);
-    background: var(--kinuvo-panel);
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 1.5rem;
-    box-shadow: 0 30px 60px -30px rgba(80, 45, 25, .25);
+  /* ---------- layout: the story scrolls, the device stays ---------- */
+  /* The stage is a full-height sticky layer; --p (0 → 1) is how far the intro has scrolled away. */
+  .ob { position: relative; }
+  .ob-intro, .ob-stage { --p: 0; }
+  .ob-intro {
+    position: relative; z-index: 1; min-height: calc(100vh - 4rem);
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center;
+    padding: clamp(1.5rem, 6vh, 4rem) 1rem 0;
+    opacity: calc(1 - var(--p) * 1.6); transform: translateY(calc(var(--p) * -60px));
   }
-  .k-glow {
-    position: absolute;
-    inset: auto -20% -45% -20%;
-    height: 85%;
-    background: radial-gradient(closest-side, color-mix(in srgb, var(--kinuvo-accent) 28%, transparent), transparent);
-    pointer-events: none;
-  }
-  .k-chat { position: relative; display: flex; flex-direction: column; gap: .6rem; min-height: 12.5rem; }
-  .k-msg, .k-approval {
-    max-width: 85%;
-    font-size: .95rem;
-    line-height: 1.45;
-    padding: .65rem .95rem;
-    border-radius: 16px;
-    opacity: 0;
-    transform: translateY(8px);
-    transition: opacity .35s ease, transform .35s ease;
-    display: none;
-  }
-  .k-user { align-self: flex-end; background: var(--kinuvo-subtle); border-bottom-right-radius: 6px; color: var(--sl-color-white); }
-  .k-agent { align-self: flex-start; background: var(--sl-color-accent-low); color: var(--sl-color-accent-high); border-bottom-left-radius: 6px; }
-  .k-typing { display: none; gap: .3rem; }
-  .k-typing span { width: .45rem; height: .45rem; border-radius: 50%; background: currentColor; animation: k-dot 1s infinite ease-in-out; }
-  .k-typing span:nth-child(2) { animation-delay: .15s; }
-  .k-typing span:nth-child(3) { animation-delay: .3s; }
-  @keyframes k-dot { 0%, 100% { opacity: .3; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-3px); } }
-  .k-approval {
-    align-self: flex-start;
-    background: var(--sl-color-bg);
-    border: 1px solid color-mix(in srgb, var(--kinuvo-accent) 45%, var(--sl-color-hairline));
-  }
-  .k-approval-title { font-weight: 600; color: var(--sl-color-white); display: flex; align-items: center; gap: .5rem; }
-  .k-risk { font-size: .72rem; font-weight: 600; color: #b7791f; background: color-mix(in srgb, #b7791f 14%, transparent); padding: .1rem .5rem; border-radius: 999px; }
-  .k-approval-body { color: var(--sl-color-gray-2); margin: .25rem 0 .65rem; font-size: .9rem; }
-  .k-approval-actions { display: flex; gap: .5rem; align-items: center; }
-  .k-allow { cursor: pointer; background: var(--kinuvo-accent); color: #fff; font-weight: 600; font-size: .85rem; padding: .35rem .8rem; border-radius: 8px; transition: transform .2s ease, box-shadow .2s ease; }
-  .k-deny { color: var(--sl-color-gray-3); font-size: .85rem; padding: .35rem .5rem; }
+  .ob-intro h1 { font-size: clamp(3rem, 7vw, 5.6rem); line-height: .95; }
+  .ob-intro h1 span { display: block; color: color-mix(in srgb, var(--sl-color-white) 45%, transparent); }
+  .ob-lede { margin: 1.1rem auto 0; max-width: 36ch; font-size: clamp(1.05rem, 1.6vw, 1.25rem); line-height: 1.5; color: var(--sl-color-gray-2); }
+  .ob-intro-cta { justify-content: center; margin-top: 1.5rem; }
+  .ob-guide { margin-top: 1.9rem; display: flex; flex-direction: column; align-items: center; }
+  .ob-guide-label { margin: 0 0 .5rem; font-size: .7rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--sl-color-gray-3); }
+  .ob-picker { display: flex; justify-content: center; gap: .35rem; }
+  .ob-picker button { width: 3rem; height: 3rem; padding: .5rem; border-radius: 50%; border: 0; background: transparent; cursor: pointer; transition: transform .25s cubic-bezier(.3, 1.6, .5, 1), box-shadow .2s; }
+  .ob-picker img { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .ob-picker button:hover { transform: translateY(-3px); }
+  .ob-picker button[aria-pressed='true'] { box-shadow: inset 0 0 0 2px var(--c); transform: scale(1.12); }
+  .ob-picker button:focus-visible, .p-looks button:focus-visible { outline: 3px solid var(--c); outline-offset: 2px; }
+  .ob:not([data-picked]) .ob-picker button { animation: ob-nudge 2.8s ease-in-out calc(var(--i) * .1s + .8s) infinite; }
+  .ob-picker button.hop, .p-looks button.hop { animation: ob-hop .6s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes ob-nudge { 0%, 40%, 100% { translate: 0 0; } 20% { translate: 0 -6px; } }
+  @keyframes ob-hop { 40% { transform: translateY(-12px) scale(1.2); } }
+  .ob-hi { margin: .9rem 0 0; font-size: .95rem; color: var(--sl-color-gray-3); }
+  .ob-hi strong { color: var(--sl-color-accent-high); font-weight: 600; }
+  .ob-steps { position: relative; z-index: 1; width: 50%; padding-bottom: 25vh; }
+  .ob-caption, .ob-cap { display: none; }
+  @keyframes ob-cap { from { opacity: 0; transform: translateY(10px); } }
+  .ob-step { min-height: 88vh; display: flex; flex-direction: column; justify-content: center; opacity: .25; transform: translateY(14px); transition: opacity .5s ease, transform .6s cubic-bezier(.2, .8, .2, 1); scroll-margin-top: 4rem; }
+  .ob-step.is-now { opacity: 1; transform: none; }
+  .ob-eyebrow { display: flex; align-items: center; gap: .6rem; margin: 0 0 1rem; font-size: .8rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--sl-color-accent-high); }
+  .ob-num { font-variant-numeric: tabular-nums; padding: .15rem .5rem; border-radius: 999px; background: var(--sl-color-accent-low); }
+  .ob h1 { margin: 0; font-family: Libron, Georgia, serif; font-weight: 400; font-size: clamp(3rem, 6.4vw, 5.4rem); line-height: .98; letter-spacing: -.045em; color: var(--sl-color-white); }
+  .ob h2 { margin: 0; font-family: Libron, Georgia, serif; font-weight: 700; font-size: clamp(2rem, 4vw, 3.1rem); line-height: 1.04; letter-spacing: -.03em; color: var(--sl-color-white); }
+  .ob-body { margin: 1.1rem 0 0; max-width: 40ch; font-size: 1.1rem; line-height: 1.65; color: var(--sl-color-gray-2); }
+  .ob-cta { display: flex; flex-wrap: wrap; gap: .75rem; margin-top: 1.75rem; }
+  .ob-btn { display: inline-flex; align-items: center; padding: .9rem 1.3rem; border-radius: 12px; font-weight: 600; text-decoration: none; background: var(--kinuvo-accent); color: var(--agent-on, #fff); transition: transform .2s; }
+  .ob-btn:hover { transform: translateY(-2px); }
+  .ob-btn-ghost { background: transparent; color: var(--sl-color-white); border: 1.5px solid var(--sl-color-gray-4); }
 
-  .k-stage[data-scene='ask'] [data-step='ask'],
-  .k-stage[data-scene='work'] :is([data-step='ask'], [data-step='work']),
-  .k-stage:is([data-scene='approve'], [data-scene='allowed']) :is([data-step='ask'], [data-step='approve']),
-  .k-stage[data-scene='done'] :is([data-step='ask'], [data-step='done']) { display: flex; flex-direction: column; animation: k-in .35s ease forwards; }
-  .k-stage[data-scene='work'] [data-step='work'] { flex-direction: row; }
-  .k-stage[data-scene='allowed'] .k-allow { transform: scale(.94); box-shadow: 0 0 0 4px color-mix(in srgb, var(--kinuvo-accent) 30%, transparent); }
-  .k-stage[data-scene='reset'] .k-chat { opacity: 0; transition: opacity .5s ease; }
-  @keyframes k-in { to { opacity: 1; transform: none; } }
+  .ob-track { position: absolute; inset: 0 calc(50% - 50vw); z-index: 3; pointer-events: none; overflow: clip; }
+  .ob-stage { position: sticky; top: 0; height: 100vh; pointer-events: none; perspective: 1400px; }
+  .ob-rig { position: absolute; inset: 0; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); place-items: center; will-change: transform; }
+  .ob-rig > * { grid-area: 1 / 1; }
+  .ob-device { pointer-events: auto; transform: rotateX(calc((1 - var(--p)) * 14deg)) scale(calc(1.06 - var(--p) * .06)); transform-origin: 50% 0; }
+  @keyframes ob-bob { 50% { transform: translateY(-12px); } }
 
-  .k-milo { position: relative; display: flex; align-items: center; gap: 1rem; }
-  .k-milo kinuvo-avatar { width: clamp(120px, 14vw, 170px); height: clamp(120px, 14vw, 170px); cursor: pointer; }
-  .k-name { font-size: 1rem; color: var(--sl-color-gray-2); }
-  .k-name strong { font-family: Libron, Georgia, serif; font-size: 1.6rem; font-weight: 700; color: var(--sl-color-white); display: block; }
-  .k-stage[data-scene='approve'] .k-status { color: var(--sl-color-accent-high); font-weight: 600; }
+  /* ---------- the device, which changes shape ---------- */
+  .ob-device {
+    --w: 340px; --h: clamp(590px, calc(100vh - 150px), 700px);
+    position: relative; width: var(--w); height: var(--h); border-radius: 44px; overflow: hidden;
+    display: flex; flex-direction: column;
+    background: #faf9f5; color: #1f1e1b; border: 9px solid #1b1a18;
+    box-shadow: 0 50px 90px -40px rgba(40, 25, 15, .55);
+    font-family: Inter, system-ui, sans-serif;
+    transition: width .7s cubic-bezier(.65, 0, .25, 1), height .7s cubic-bezier(.65, 0, .25, 1), border-radius .7s ease, border-width .5s ease, border-color .5s ease, background .5s ease, color .5s ease, box-shadow .5s;
+  }
+  .ob-device::before { content: ''; position: absolute; inset: 0 0 auto; height: 45%; pointer-events: none; transition: opacity .5s; background: radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--kinuvo-accent) 22%, transparent), transparent); }
+  .ob-device[data-shape='multi'] { --w: 680px; --h: 560px; overflow: visible; border-radius: 0; border-width: 0; background: transparent; box-shadow: none; }
+  .ob-device[data-shape='app'] { --w: 540px; --h: 600px; border-radius: 14px; border-width: 1px; border-color: #d9d5ca; }
+  .ob-device:is([data-shape='multi'], [data-shape='app'])::before { opacity: 0; }
 
-  @media (max-width: 50rem) {
-    .k-hero { grid-template-columns: 1fr; }
-    .k-stage { min-height: 0; gap: 1rem; }
-    .k-chat { min-height: 10.5rem; }
+  .ob-chrome { display: none; align-items: center; gap: 6px; height: 30px; flex-shrink: 0; padding: 0 12px; background: #f3f1ea; border-bottom: 1px solid #e3e0d6; font-size: .72rem; color: #75716a; }
+  .ob-chrome i { width: 10px; height: 10px; border-radius: 50%; background: #ff5f57; }
+  .ob-chrome i:nth-child(2) { background: #febc2e; }
+  .ob-chrome i:nth-child(3) { background: #28c840; }
+  .ob-chrome span { margin: 0 auto; padding-right: 40px; }
+  .ob-device[data-shape='app'] .ob-chrome { display: flex; }
+
+  .ob-bar { position: relative; display: flex; align-items: center; gap: .6rem; padding: 1.7rem 1.1rem .3rem; }
+  .ob-device:not([data-shape='phone']) .ob-bar { display: none; }
+  .ob-mini { width: 34px; flex-shrink: 0; }
+  .ob-dots { display: flex; align-items: center; flex: 1; margin: 0; padding: 0; list-style: none; }
+  .ob-dots li { flex: 1; height: 4px; margin: 0 2px; border-radius: 99px; background: #e3e0d6; overflow: hidden; position: relative; }
+  .ob-dots li::after { content: ''; position: absolute; inset: 0; background: var(--kinuvo-accent); transform: scaleX(0); transform-origin: left; transition: transform .5s ease; }
+  .ob-dots li[data-state='done']::after, .ob-dots li[data-state='now']::after { transform: scaleX(1); }
+
+  .ob-pages { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  .ob-device[data-shape='multi'] .ob-pages { overflow: visible; }
+  .ob-page { position: absolute; inset: 0; padding: .9rem 1.3rem 1rem; overflow: hidden; display: flex; flex-direction: column; justify-content: safe center; transition: transform .6s cubic-bezier(.65, 0, .25, 1), opacity .45s ease; }
+  .ob-page:not([data-at]):not([data-page='0']) { opacity: 0; visibility: hidden; }
+  .ob-page[data-at='past'] { transform: translateX(-35%); opacity: 0; }
+  .ob-page[data-at='next'] { transform: translateX(35%); opacity: 0; }
+  .ob-page h3 { margin: .2rem 0 .3rem; font-family: Libron, Georgia, serif; font-size: 1.5rem; line-height: 1.1; letter-spacing: -.02em; color: inherit; }
+  .p-sub { margin: 0 0 1rem; font-size: .85rem; color: #75716a; }
+
+  .ob-device .ob-next { flex-shrink: 0; margin: 0 1.1rem 1.1rem; padding: .85rem; border: 0; border-radius: 999px; cursor: pointer; background: #1f1e1b; color: #faf9f5; font: 600 .95rem Libron, Georgia, serif; transition: transform .2s ease, background .3s; }
+  .ob-device .ob-next:hover { transform: translateY(-2px); background: color-mix(in srgb, var(--kinuvo-accent) 35%, #1f1e1b); }
+  .ob-device a.ob-next { display: block; text-align: center; text-decoration: none; }
+  .ob-device .ob-next[hidden] { display: none; }
+
+  /* ---------- shared pieces ---------- */
+  .ob-device button { font: inherit; color: inherit; }
+  .p-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; margin-top: .55rem; }
+  .p-actions button { min-height: 2.4rem; padding: .4rem .65rem; border-radius: 9px; border: 1px solid #e3e0d6; background: #fff; font-size: .74rem; font-weight: 600; cursor: pointer; transition: transform .15s ease; }
+  .ob-device .p-actions button:first-child { background: var(--kinuvo-accent); border-color: var(--kinuvo-accent); color: var(--agent-on, #fff); }
+  .p-actions button:hover { transform: translateY(-1px); }
+  .ob-device .p-actions button[data-answer='deny'], .ob-device .p-actions button[data-review='reject'] { color: #c0392b; border-color: transparent; background: transparent; }
+  .p-risk { font-style: normal; font-size: .62rem; font-weight: 700; padding: .12rem .45rem; border-radius: 99px; }
+  .p-risk-low { color: #2f855a; background: #e3f3ea; }
+  .p-risk-medium { color: #b7791f; background: #f8efdc; }
+  .p-risk-high { color: #c0392b; background: #f9e1de; }
+  .p-chat { display: flex; flex-direction: column; gap: .4rem; }
+  .p-msg { margin: 0; max-width: 85%; padding: .5rem .75rem; border-radius: 14px; font-size: .8rem; line-height: 1.4; }
+  .p-you { align-self: flex-end; background: #ece9e1; border-bottom-right-radius: 4px; }
+  .p-agent { align-self: flex-start; background: color-mix(in srgb, var(--kinuvo-accent) 16%, #fff); border-bottom-left-radius: 4px; }
+  @keyframes ob-pop { from { opacity: 0; transform: translateY(10px) scale(.97); } }
+  .p-approve { padding: .65rem .7rem; border-radius: 14px; background: #fff; border: 1.5px solid color-mix(in srgb, #c0392b 35%, #e3e0d6); box-shadow: 0 10px 24px -14px rgba(192, 57, 43, .5); }
+  .p-approve p { margin: 0; display: flex; align-items: center; gap: .35rem; font-size: .8rem; font-weight: 600; }
+  .p-approve b { color: #c0392b; }
+  .p-cmd { display: block; margin-top: .45rem; padding: .4rem .55rem; border-radius: 8px; background: #f3f1ea; font-size: .72rem; }
+
+  /* 1 · pick an Agent */
+  .p-pick { display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .p-pick-me { width: 36%; margin: 0 auto .4rem; cursor: pointer; }
+  .p-pick h3 { max-width: 100%; font-size: 1.8rem; margin-bottom: .55rem; overflow-wrap: anywhere; }
+  .p-pick h3[data-long] { font-size: 1.4rem; }
+  .p-pick h3[data-long] .p-hey { display: none; }
+  .p-hint { display: inline-flex; align-items: center; gap: .4rem; margin: 0 0 .85rem; padding: .35rem .85rem; border-radius: 99px; font-size: .78rem; font-weight: 600; background: color-mix(in srgb, var(--kinuvo-accent) 14%, #fff); color: color-mix(in srgb, var(--kinuvo-accent) 70%, #1f1e1b); animation: ob-tap 1.8s ease-in-out infinite; }
+  .p-hint :global(.icon) { font-size: 1rem; animation: ob-point 1.8s ease-in-out infinite; }
+  .ob[data-picked] .p-hint, .ob[data-picked] .p-hint :global(.icon) { animation: none; }
+  @keyframes ob-tap { 50% { transform: scale(1.05); } }
+  @keyframes ob-point { 50% { transform: translateY(3px) rotate(-8deg); } }
+  .p-looks { display: grid; grid-template-columns: repeat(4, 1fr); gap: .55rem; width: 100%; margin-bottom: .9rem; }
+  .p-looks button { aspect-ratio: 1; min-height: 2.75rem; padding: .45rem; border-radius: 16px; border: 2px solid #ece9e1; background: #fff; cursor: pointer; transition: transform .25s cubic-bezier(.3, 1.6, .5, 1), border-color .2s, box-shadow .2s; }
+  .ob:not([data-picked]) .p-looks button:not([aria-pressed='true']) { animation: ob-ping 2.2s ease-out calc(var(--i) * .15s) infinite; }
+  @keyframes ob-ping { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--c) 45%, transparent); } 60%, 100% { box-shadow: 0 0 0 9px transparent; } }
+  .p-looks button:hover { transform: translateY(-3px) rotate(-6deg); border-color: var(--c); }
+  .p-looks button[aria-pressed='true'] { border-color: var(--c); transform: scale(1.08); box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent), 0 8px 16px -8px var(--c); }
+  .p-looks img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .p-name { width: 100%; padding: .6rem .8rem; border-radius: 12px; border: 1.5px solid #e3e0d6; background: #fff; font: inherit; font-size: .9rem; color: #1f1e1b; text-align: center; }
+  .p-name:focus { outline: none; border-color: var(--kinuvo-accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--kinuvo-accent) 20%, transparent); }
+
+  /* 2 · where it runs */
+  .p-homes { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+  .p-card { display: flex; flex-direction: column; gap: .2rem; text-align: left; padding: .75rem; border-radius: 16px; border: 1.5px solid #e3e0d6; background: #fff; cursor: pointer; transition: border-color .25s, transform .25s, box-shadow .25s; }
+  .p-card b { font-size: 1.4rem; color: var(--kinuvo-accent); line-height: 1; margin-bottom: .2rem; }
+  .p-card strong { font-family: Libron, Georgia, serif; font-size: .95rem; }
+  .p-card span { font-size: .7rem; color: #75716a; }
+  .p-card[aria-pressed='true'] { border-color: var(--kinuvo-accent); box-shadow: 0 8px 20px -12px var(--kinuvo-accent); transform: translateY(-2px); }
+  /* A flex row, so the parts never overlap whatever the font size. */
+  .p-net { position: relative; display: flex; align-items: center; gap: .5rem; height: 9rem; margin-top: .5rem; padding: 0 .8rem; border-radius: 18px; background: #f3f1ea; overflow: hidden; }
+  .p-node-me { flex: none; margin-left: 0; font-size: 2rem; line-height: 0; color: #1f1e1b; transition: margin .6s cubic-bezier(.65, 0, .25, 1), font-size .6s, translate .6s; }
+  .p-link { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: .45rem; transition: opacity .4s; }
+  .p-wire { position: relative; width: 100%; height: 2px; background: repeating-linear-gradient(90deg, #d9d5ca 0 6px, transparent 6px 12px); }
+  .p-wire i { position: absolute; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--kinuvo-accent); animation: ob-flow 1.8s linear infinite; }
+  .p-wire i:nth-child(2) { animation-delay: .6s; }
+  .p-wire i:nth-child(3) { animation-delay: 1.2s; }
+  @keyframes ob-flow { from { left: 0; opacity: 0; } 15%, 85% { opacity: 1; } to { left: 100%; opacity: 0; } }
+  .p-hosts { flex: none; display: grid; gap: .35rem; transition: opacity .4s; }
+  .p-hosts span { display: inline-flex; align-items: center; gap: .35rem; font-size: .72rem; padding: .35rem .6rem; border-radius: 10px; background: #fff; border: 1px solid #e3e0d6; white-space: nowrap; }
+  .p-local { display: inline-flex; align-items: center; gap: .35rem; position: absolute; left: 50%; bottom: 1rem; translate: -50% 0; white-space: nowrap; font-size: .75rem; padding: .35rem .7rem; border-radius: 99px; background: #e3f3ea; color: #2f855a; opacity: 0; transition: opacity .4s; }
+  .p-net[data-home='device'] .p-node-me { margin-left: calc(50% - 1.7rem); font-size: 3.4rem; translate: 0 -.8rem; }
+  .p-net[data-home='device'] .p-link, .p-net[data-home='device'] .p-hosts { opacity: 0; }
+  .p-net[data-home='device'] .p-local { opacity: 1; }
+
+  /* 3 · model */
+  .p-providers { display: grid; gap: .45rem; }
+  .p-provider { display: flex; align-items: center; gap: .7rem; padding: .7rem .8rem; border-radius: 14px; border: 1.5px solid #e3e0d6; background: #fff; text-align: left; cursor: pointer; transition: border-color .25s, box-shadow .25s; }
+  .p-provider b { width: 2rem; height: 2rem; border-radius: 10px; display: grid; place-items: center; background: #1f1e1b; color: #fff; font-size: 1.05rem; }
+  .p-provider span { display: flex; flex-direction: column; flex: 1; }
+  .p-provider strong { font-size: .88rem; }
+  .p-provider em { font-style: normal; font-size: .7rem; color: #75716a; }
+  .p-tag { font-style: normal; font-size: .62rem; font-weight: 700; padding: .15rem .45rem; border-radius: 99px; background: #e3f3ea; color: #2f855a; }
+  .p-provider:not([data-provider='apple']) .p-tag { background: #ece9e1; color: #75716a; }
+  .p-provider[aria-pressed='true'] { border-color: var(--kinuvo-accent); box-shadow: 0 8px 20px -12px var(--kinuvo-accent); }
+  .p-models { margin-top: .9rem; }
+  .p-models ul { list-style: none; margin: 0; padding: .3rem; border-radius: 14px; background: #fff; border: 1px solid #e3e0d6; animation: ob-pop .4s ease; }
+  .p-models li { margin: 0; padding: .55rem .6rem; border-radius: 10px; font-size: .82rem; cursor: pointer; display: flex; justify-content: space-between; }
+  .p-models li.on { background: color-mix(in srgb, var(--kinuvo-accent) 14%, #fff); font-weight: 600; }
+  .p-models li.on::after { content: '✓'; color: var(--kinuvo-accent); }
+  @keyframes ob-dot { 50% { transform: translateY(-4px); opacity: .4; } }
+
+  /* 4 · tools and approvals */
+  .p-tools { list-style: none; margin: 0 0 .7rem; padding: 0; display: grid; gap: .3rem; }
+  .p-tools li { margin: 0; display: flex; align-items: center; gap: .55rem; padding: .35rem .55rem; border-radius: 12px; background: #fff; border: 1px solid #ece9e1; }
+  .p-tools b { width: 1.7rem; display: grid; place-items: center; font-size: 1.05rem; color: #514d46; }
+  .p-tools span { display: flex; flex-direction: column; flex: 1; }
+  .p-tools strong { font-size: .8rem; }
+  .p-tools em { font-style: normal; font-size: .65rem; color: #75716a; }
+  .p-switch { position: relative; width: 2.1rem; height: 1.2rem; flex-shrink: 0; border-radius: 99px; border: 0; background: #d9d5ca; position: relative; cursor: pointer; transition: background .25s; }
+  .p-switch::before { content: ''; position: absolute; inset: -.85rem -.45rem; }
+  .p-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: calc(1.2rem - 4px); height: calc(1.2rem - 4px); border-radius: 50%; background: #fff; transition: transform .25s cubic-bezier(.3, 1.4, .5, 1); box-shadow: 0 1px 3px rgba(0, 0, 0, .2); }
+  .p-switch[aria-checked='true'] { background: var(--kinuvo-accent); }
+  .p-switch[aria-checked='true']::after { transform: translateX(.9rem); }
+  [data-page='3'] .p-chat { min-height: 11rem; }
+  [data-page='3'] .p-approve, [data-page='3'] .p-result { display: none; }
+  [data-page='3'][data-phase='ask'] .p-approve, [data-page='3'][data-phase='done'] .p-result { display: block; animation: ob-pop .45s cubic-bezier(.2, .9, .3, 1.2); }
+
+  /* 5 · learning */
+  [data-page='4'] .p-congrats { opacity: 0; transition: opacity .4s; }
+  [data-page='4']:is([data-phase='think'], [data-phase='review'], [data-phase='approve'], [data-phase='reject']) .p-congrats { opacity: 1; }
+  .p-auto { display: flex; align-items: center; gap: .4rem; margin: .7rem 0 0; font-size: .76rem; color: #514d46; opacity: 0; transition: opacity .4s; }
+  .p-auto :global(.icon) { color: #2f855a; }
+  [data-page='4']:is([data-phase='think'], [data-phase='review'], [data-phase='approve'], [data-phase='reject']) .p-auto { opacity: 1; }
+  .p-reflect { margin-top: .8rem; padding: .7rem .75rem; border-radius: 14px; background: #fff; border: 1px solid #e3e0d6; box-shadow: 0 12px 26px -16px rgba(40, 25, 15, .4); opacity: 0; transform: translateY(14px); transition: opacity .4s, transform .5s cubic-bezier(.2, .9, .3, 1.2); }
+  [data-page='4']:is([data-phase='review'], [data-phase='approve'], [data-phase='reject']) .p-reflect { opacity: 1; transform: none; }
+  .p-reflect p { margin: 0; }
+  .p-reflect-head { display: flex; align-items: center; gap: .35rem; font-size: .8rem; font-weight: 700; color: color-mix(in srgb, var(--kinuvo-accent) 70%, #1f1e1b); }
+  .ob-device .p-reflect-what { margin-top: .35rem; font-size: .74rem; font-weight: 600; }
+  .p-diff { margin: .35rem 0 0; padding: .4rem .5rem; border-radius: 8px; background: #faf9f5; font-size: .72rem; line-height: 1.6; display: grid; }
+  .p-diff del { color: #c0392b; background: #f9e1de; text-decoration: none; padding: 0 .3rem; border-radius: 4px; }
+  .p-diff ins { color: #2f855a; background: #e3f3ea; text-decoration: none; padding: 0 .3rem; border-radius: 4px; }
+  [data-page='4'][data-phase='approve'] .p-reflect .p-actions::after { content: '✓ Saved to Knowledge'; font-size: .74rem; font-weight: 700; color: #2f855a; }
+  [data-page='4'][data-phase='reject'] .p-reflect .p-actions::after { content: 'Kept as it was'; font-size: .74rem; color: #75716a; }
+  [data-page='4']:is([data-phase='approve'], [data-phase='reject']) .p-reflect .p-actions button { display: none; }
+  .p-note { margin-top: .6rem; padding: .6rem .75rem; border-radius: 14px; background: #f3f1ea; }
+  .p-note-head { display: flex; align-items: center; gap: .35rem; margin: 0 0 .3rem; font-size: .72rem; font-weight: 600; }
+  .p-note-head em { font-weight: 400; color: #75716a; }
+  .p-note ul { margin: 0; padding-left: 1rem; font-size: .74rem; line-height: 1.6; }
+  .p-note li { margin: 0; }
+  [data-page='4'][data-phase='approve'] .p-note-home { background: #e3f3ea; color: #2f855a; border-radius: 4px; padding: 0 .3rem; animation: ob-pop .5s ease; }
+
+  /* 6 · reminders */
+  .p-tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; }
+  .p-tasks li { margin: 0; display: flex; gap: .6rem; align-items: flex-start; padding: .6rem .7rem; border-radius: 12px; background: #fff; border: 1px solid #ece9e1; transition: border-color .3s, background .3s; }
+  .p-tasks b { font-weight: 400; font-size: 1.1rem; line-height: 1; color: #9c9a92; width: 1.1rem; height: 1.1rem; display: grid; place-items: center; }
+  .p-tasks li > span { display: flex; flex-direction: column; gap: .1rem; }
+  .p-tasks strong { font-size: .84rem; }
+  .p-tasks em { font-style: normal; font-size: .7rem; color: #75716a; }
+  .p-mine { border-color: color-mix(in srgb, var(--kinuvo-accent) 40%, #ece9e1); }
+  .p-mine[data-state='doing'] b { border: 2px solid color-mix(in srgb, var(--kinuvo-accent) 25%, #fff); border-top-color: var(--kinuvo-accent); border-radius: 50%; font-size: 0; animation: ob-spin .8s linear infinite; }
+  .p-mine[data-state='done'] { background: color-mix(in srgb, var(--kinuvo-accent) 8%, #fff); }
+  .p-mine[data-state='done'] b { background: var(--kinuvo-accent); color: var(--agent-on, #fff); border-radius: 50%; font-size: .7rem; }
+  .p-mine[data-state='done'] b::after { content: '✓'; }
+  .p-mine[data-state='done'] b { font-size: 0; }
+  .p-mine[data-state='done'] b::after { font-size: .7rem; }
+  .p-banner { display: flex; align-items: center; gap: .6rem; margin-bottom: .6rem; padding: .55rem .7rem; border-radius: 16px; background: #fff; box-shadow: 0 12px 26px -14px rgba(40, 25, 15, .45), 0 0 0 1px rgba(0, 0, 0, .05); opacity: 0; transform: translateY(-1.2rem); transition: opacity .35s, transform .5s cubic-bezier(.2, .9, .3, 1.2); }
+  [data-page='5'][data-phase='done'] .p-banner { opacity: 1; transform: none; }
+  .p-banner img { width: 2rem; height: 2rem; object-fit: contain; }
+  .p-banner span { display: grid; flex: 1; min-width: 0; }
+  .p-banner strong { font-size: .8rem; }
+  .p-banner em { font-style: normal; font-size: .74rem; color: #514d46; }
+  .p-banner i { font-style: normal; font-size: .66rem; color: #9c9a92; }
+
+  /* 7 · voice */
+  .p-voice { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: .6rem; padding-bottom: .4rem; text-align: center; }
+  .p-voice-state { margin: 0 0 auto; padding: .3rem .8rem; border-radius: 99px; background: #ece9e1; font-size: .72rem; font-weight: 600; }
+  .p-voice-you { margin: 0; font-family: Libron, Georgia, serif; font-size: 1.35rem; min-height: 1.7rem; }
+  .p-voice-me { margin: 0; font-size: .85rem; line-height: 1.5; color: #514d46; min-height: 2.6rem; max-width: 16rem; }
+  .p-wave { display: flex; align-items: center; gap: 4px; height: 3rem; }
+  .p-wave i { width: 5px; height: 6px; border-radius: 3px; background: var(--kinuvo-accent); opacity: .35; }
+  .p-voice:is([data-phase='listen'], [data-phase='speak']) .p-wave i { opacity: 1; animation: ob-wave .9s ease-in-out infinite; }
+  .p-wave i:nth-child(odd) { animation-delay: -.3s; }
+  .p-wave i:nth-child(3n) { animation-delay: -.6s; }
+  @keyframes ob-wave { 0%, 100% { height: 6px; } 50% { height: 2.6rem; } }
+  .ob-device .p-mic { display: grid; place-items: center; width: 4.5rem; color: var(--agent-on, #fff); height: 4.5rem; border-radius: 50%; border: 0; background: var(--kinuvo-accent); font-size: 1.9rem; cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none; transition: transform .2s; }
+  .p-voice[data-phase='listen'] .p-mic { transform: scale(1.12); animation: ob-ring 1.2s ease-out infinite; }
+  @keyframes ob-ring { from { box-shadow: 0 0 0 0 color-mix(in srgb, var(--kinuvo-accent) 55%, transparent); } to { box-shadow: 0 0 0 22px transparent; } }
+
+  /* 8 · computer use */
+  .p-watch { margin: .2rem 0 .6rem; display: flex; align-items: center; gap: .4rem; font-size: .8rem; }
+  .p-live { width: 8px; height: 8px; border-radius: 50%; background: #e5484d; animation: ob-dot 1.2s ease-in-out infinite; }
+  .p-mac { position: relative; height: 17rem; border-radius: 12px; overflow: hidden; background: radial-gradient(120% 90% at 20% 0%, #f6d3c2, transparent 60%), linear-gradient(135deg, color-mix(in srgb, var(--kinuvo-accent) 35%, #c7b8f0), #8fb3e8); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .08); }
+  .p-menubar { display: flex; align-items: center; gap: .55rem; height: 18px; padding: 0 .55rem; background: rgba(255, 255, 255, .55); backdrop-filter: blur(8px); font-size: .56rem; color: #1f1e1b; }
+  .p-menubar b { font-weight: 700; }
+  .p-menubar em { margin-left: auto; display: inline-flex; align-items: center; gap: .35rem; font-style: normal; font-weight: 600; }
+  .p-win { position: absolute; left: 6%; right: 6%; top: 28px; bottom: 46px; border-radius: 9px; overflow: hidden; background: #fff; box-shadow: 0 14px 30px -10px rgba(0, 0, 0, .45), 0 0 0 .5px rgba(0, 0, 0, .2); display: flex; flex-direction: column; }
+  .p-win-bar { position: relative; display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 .5rem; background: #f3f1ea; border-bottom: 1px solid #e3e0d6; flex-shrink: 0; }
+  .p-win-bar i { width: 7px; height: 7px; border-radius: 50%; background: #ff5f57; }
+  .p-win-bar i:nth-child(2) { background: #febc2e; }
+  .p-win-bar i:nth-child(3) { background: #28c840; }
+  .p-win-bar span { position: absolute; left: 50%; translate: -50% 0; font-size: .56rem; font-weight: 600; color: #75716a; }
+  .ob-device .p-mac-btn { margin-left: auto; display: inline-flex; align-items: center; gap: .15rem; padding: .12rem .4rem; border: 0; border-radius: 5px; background: #1f1e1b; color: #fff; font-size: .5rem; font-weight: 700; white-space: nowrap; pointer-events: none; transition: transform .15s, background .2s; }
+  [data-page='7'][data-phase='click'] .p-mac-btn { transform: scale(.9); background: var(--kinuvo-accent); }
+  .p-win-body { flex: 1; display: grid; grid-template-columns: 30% 1fr; min-height: 0; }
+  .p-cal-side { display: flex; flex-direction: column; gap: .2rem; padding: .4rem; background: #f6f4ee; border-right: 1px solid #ece9e1; font-size: .52rem; }
+  .p-cal-side p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0 0 .15rem; font-size: .46rem; font-weight: 700; color: #75716a; text-transform: uppercase; letter-spacing: .05em; }
+  .p-cal-side span { display: flex; align-items: center; gap: .25rem; }
+  .p-cal-side i { width: 6px; height: 6px; border-radius: 2px; background: var(--d); }
+  .p-cal-day { padding: .35rem .45rem; }
+  .p-cal-date { margin: 0 0 .2rem; font-size: .62rem; font-weight: 700; }
+  .p-hour { position: relative; display: flex; align-items: center; gap: .3rem; height: 1.15rem; border-top: 1px solid #f0eee6; }
+  .p-hour em { width: .9rem; font-style: normal; font-size: .46rem; color: #9c9a92; }
+  .p-ev { flex: 1; padding: .08rem .3rem; border-radius: 4px; font-size: .5rem; font-weight: 600; background: #e4ecfb; border-left: 2px solid #5b8def; }
+  .p-ev-lunch { background: #fbf0dc; border-left-color: #e5a03c; }
+  .p-ev-new { opacity: 0; transform: scale(.9); transition: opacity .4s, transform .45s cubic-bezier(.3, 1.6, .5, 1); background: color-mix(in srgb, var(--kinuvo-accent) 18%, #fff); border-left-color: var(--kinuvo-accent); }
+  [data-page='7'][data-phase='done'] .p-ev-new { opacity: 1; transform: none; }
+  .p-dock { position: absolute; left: 50%; bottom: 7px; translate: -50% 0; display: flex; gap: 5px; padding: 4px 6px; border-radius: 11px; background: rgba(255, 255, 255, .45); backdrop-filter: blur(8px); box-shadow: 0 0 0 .5px rgba(255, 255, 255, .6); }
+  .p-dock span { width: 24px; height: 24px; border-radius: 6px; display: grid; place-items: center; background: var(--t, #fff); color: #fff; font-size: .8rem; box-shadow: 0 2px 4px rgba(0, 0, 0, .15); }
+  .p-dock .p-dock-me { background: #faf9f5; }
+  .p-dock-me img { width: 19px; height: 19px; object-fit: contain; }
+  .p-cursor { position: absolute; left: 20%; top: 85%; width: 14px; height: 18px; background: #1f1e1b; clip-path: polygon(0 0, 100% 62%, 52% 64%, 72% 100%, 56% 100%, 38% 68%, 0 90%); transition: left 1.2s cubic-bezier(.65, 0, .25, 1), top 1.2s cubic-bezier(.65, 0, .25, 1); }
+  [data-page='7']:is([data-phase='move'], [data-phase='ask'], [data-phase='click'], [data-phase='done']) .p-cursor { left: 81%; top: 12%; }
+  [data-page='7'] .p-approve-app { margin-top: .7rem; opacity: 0; transform: translateY(10px); transition: opacity .35s, transform .45s cubic-bezier(.2, .9, .3, 1.2); }
+  [data-page='7'][data-phase='ask'] .p-approve-app { opacity: 1; transform: none; }
+
+  /* 9 · every device: one conversation on three screens, drawn after the app (rail, sidebar, plain Agent replies, composer) */
+  .ob-device [data-page='8'] { padding: 0; overflow: visible; }
+  .x-scene { --u: 44; position: relative; flex-shrink: 0; width: calc(var(--u) * 1em); height: 27em; margin: 0 auto; font-size: calc(var(--w) / var(--u)); font-family: Libron, Georgia, serif; }
+  .x-dev { position: absolute; color: #1f1e1b; }
+  .x-screen { background: #faf9f5; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 2em 3em -1.6em rgba(40, 25, 15, .55); }
+  .x-laptop { left: .9em; top: 1.2em; width: 29em; }
+  .x-laptop .x-screen { height: 19em; border: .4em solid #1b1a18; border-radius: .9em .9em 0 0; }
+  .x-base { height: .8em; margin: 0 -.9em; border-radius: 0 0 1em 1em; background: linear-gradient(#d9d5ca, #aaa498); box-shadow: 0 1.2em 2em -1em rgba(40, 25, 15, .5); }
+  .x-tablet { left: 24.6em; top: 8.6em; width: 12.6em; height: 17.8em; }
+  .x-tablet .x-screen { height: 100%; border: .5em solid #1b1a18; border-radius: 1.4em; }
+  .x-phone { left: 35.6em; top: 5em; width: 8.4em; height: 17.8em; }
+  .x-phone .x-screen { height: 100%; border: .4em solid #1b1a18; border-radius: 1.5em; }
+  .x-top { display: flex; align-items: center; gap: .35em; height: 1.5em; padding: 0 .7em; background: #f3f1ea; border-bottom: 1px solid #e3e0d6; flex-shrink: 0; }
+  .x-top i { width: .55em; height: .55em; border-radius: 50%; background: #ff5f57; }
+  .x-top i:nth-child(2) { background: #febc2e; }
+  .x-top i:nth-child(3) { background: #28c840; }
+  .x-app { display: flex; flex: 1; min-height: 0; }
+  .x-rail { width: 2.6em; flex-shrink: 0; padding: .6em 0; display: flex; flex-direction: column; align-items: center; gap: .45em; background: #ece9e1; }
+  .x-rail img { width: 1.7em; height: 1.7em; padding: .15em; border-radius: 50%; background: #fff; object-fit: contain; }
+  .x-rail span { width: 1.7em; height: 1.7em; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #514d46; font-size: 1em; }
+  .x-side { width: 10.4em; flex-shrink: 0; padding: .7em .5em; background: #f3f1ea; border-right: 1px solid #e3e0d6; font-size: .66em; display: flex; flex-direction: column; gap: .15em; }
+  .x-brand { display: flex; justify-content: space-between; align-items: center; margin: 0 .3em .6em; font-weight: 700; font-size: 1.15em; }
+  .x-nav, .x-row { display: flex; align-items: center; gap: .5em; padding: .4em .5em; border-radius: .7em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #75716a; }
+  .x-row { color: #1f1e1b; }
+  .x-row i { width: 1.1em; font-style: normal; color: #9c9a92; text-align: center; }
+  .x-row.on { background: #e5e1d6; }
+  .x-label { margin: .7em .5em .1em; font-size: .78em; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #75716a; }
+  .x-chat { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: .8em 1em .8em; }
+  .x-laptop .x-chat { font-size: .74em; padding-right: 8em; }
+  .x-tablet .x-chat { font-size: .72em; padding-right: 2.6em; }
+  .x-phone .x-chat { font-size: .72em; padding: 1.2em .8em .8em; }
+  .x-title { display: flex; justify-content: space-between; align-items: center; margin: 0 0 .9em; font-size: 1.1em; color: #75716a; }
+  .x-title b { color: #1f1e1b; }
+  .x-title img { width: 1.6em; }
+  .x-msg { margin: 0 0 .7em; max-width: 90%; line-height: 1.4; font-family: Inter, system-ui, sans-serif; }
+  .x-you { align-self: flex-end; max-width: 84%; padding: .55em .85em; border-radius: 1.2em; background: #ece9e1; }
+  .x-ai { align-self: flex-start; }
+  .x-input { display: flex; align-items: center; gap: .6em; margin: auto 0 0; padding: .6em .7em .6em .9em; border: 1px solid color-mix(in srgb, var(--kinuvo-accent) 35%, #e3e0d6); border-radius: 1.4em; background: #fff; color: #9c9a92; }
+  .x-input span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .x-input b { width: 1.8em; height: 1.8em; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center; background: var(--kinuvo-accent); color: var(--agent-on, #fff); font-family: Inter, system-ui, sans-serif; font-size: 1em; }
+  [data-page='8'][data-at='now'] .x-new { animation: x-in 7s cubic-bezier(.2, .9, .3, 1.2) infinite; }
+  [data-page='8'][data-at='now'] .x-tablet .x-new { animation-delay: .3s; }
+  [data-page='8'][data-at='now'] .x-phone .x-new { animation-delay: .6s; }
+  @keyframes x-in { 0%, 6% { opacity: 0; transform: translateY(.8em) scale(.94); } 12%, 90% { opacity: 1; transform: none; } 97%, 100% { opacity: 0; } }
+  .p-platforms { display: flex; justify-content: center; flex-wrap: wrap; gap: .3rem; padding: .5rem; }
+  .p-platforms span { display: inline-flex; align-items: center; gap: .35rem; font-size: .66rem; font-weight: 600; padding: .3rem .6rem; border-radius: 99px; background: #fff; border: 1px solid #e3e0d6; color: #1f1e1b; }
+  .p-platforms svg { width: .9rem; height: .9rem; fill: #1f1e1b; }
+  .p-platforms :global(.icon) { font-size: .9rem; }
+  [data-page='8'][data-at='now'] .p-platforms span { animation: ob-pop .5s ease backwards; }
+  [data-page='8'][data-at='now'] .p-platforms span:nth-child(2) { animation-delay: .08s; }
+  [data-page='8'][data-at='now'] .p-platforms span:nth-child(3) { animation-delay: .16s; }
+  [data-page='8'][data-at='now'] .p-platforms span:nth-child(4) { animation-delay: .24s; }
+  [data-page='8'][data-at='now'] .p-platforms span:nth-child(5) { animation-delay: .32s; }
+  [data-page='8'][data-at='now'] .p-platforms span:nth-child(6) { animation-delay: .4s; }
+
+  /* 10 · get started: download, it runs the Server, scan */
+  .ob-device [data-page='9'] { padding: 1.3rem 1.5rem 1.2rem; gap: 1rem; justify-content: flex-start; }
+  .p-dl-head { display: flex; align-items: center; gap: .8rem; }
+  .p-dl-head img { width: 2.8rem; height: 2.8rem; object-fit: contain; }
+  .p-dl-head span { display: grid; }
+  .p-dl-head strong { font-family: Libron, Georgia, serif; font-size: 1.3rem; }
+  .p-dl-head em { font-style: normal; font-size: .78rem; color: #75716a; }
+  .p-flow { list-style: none; margin: 0; padding: 0; display: grid; gap: .5rem; }
+  .p-flow li { margin: 0; display: flex; align-items: center; gap: .8rem; padding: .7rem .85rem; border-radius: 14px; background: #fff; border: 1.5px solid #ece9e1; opacity: .55; transition: opacity .35s, border-color .35s, box-shadow .35s; }
+  .p-flow li[data-state] { opacity: 1; }
+  .p-flow li[data-state='now'] { border-color: var(--kinuvo-accent); box-shadow: 0 8px 20px -12px var(--kinuvo-accent); }
+  .p-flow b { width: 2.3rem; height: 2.3rem; border-radius: 11px; display: grid; place-items: center; background: #f3f1ea; color: #514d46; font-size: 1.1rem; transition: background .35s, color .35s; }
+  .p-flow li[data-state='now'] b { background: var(--kinuvo-accent); color: var(--agent-on, #fff); }
+  .p-flow span { display: grid; flex: 1; min-width: 0; }
+  .p-flow strong { font-size: .88rem; }
+  .p-flow em { font-style: normal; font-size: .72rem; color: #75716a; }
+  .p-st { flex-shrink: 0; width: 1.35rem; height: 1.35rem; border-radius: 50%; border: 2px solid #e3e0d6; display: grid; place-items: center; font-size: .75rem; font-style: normal; font-weight: 700; color: var(--agent-on, #fff); }
+  .p-flow li[data-state='now'] .p-st { border-color: color-mix(in srgb, var(--kinuvo-accent) 25%, #fff); border-top-color: var(--kinuvo-accent); animation: ob-spin .8s linear infinite; }
+  .p-flow li[data-state='done'] .p-st { background: var(--kinuvo-accent); border-color: var(--kinuvo-accent); }
+  .p-flow li[data-state='done'] .p-st::after { content: '✓'; }
+  @keyframes ob-spin { to { transform: rotate(360deg); } }
+  .p-flow li:last-child { flex-wrap: wrap; }
+  .p-qr { display: grid; grid-template-rows: 0fr; flex-basis: 100%; transition: grid-template-rows .5s ease; }
+  .p-qr > div { min-height: 0; overflow: hidden; display: flex; align-items: center; gap: 1rem; opacity: 0; transition: opacity .4s; }
+  [data-page='9']:is([data-phase='qr'], [data-phase='paired']) .p-qr { grid-template-rows: 1fr; }
+  [data-page='9']:is([data-phase='qr'], [data-phase='paired']) .p-qr > div { opacity: 1; padding-top: .7rem; }
+  .p-qr img { width: 88px; height: 88px; flex-shrink: 0; border-radius: 8px; border: 1px solid #ece9e1; padding: 4px; background: #fff; }
+  .p-qr p { margin: 0; display: grid; gap: .2rem; font-size: .82rem; }
+  .p-qr span { color: #75716a; font-size: .74rem; }
+  .p-qr em { display: inline-flex; align-items: center; gap: .3rem; font-style: normal; color: #2f855a; font-weight: 700; opacity: 0; transition: opacity .4s; }
+  [data-page='9'][data-phase='paired'] .p-qr em { opacity: 1; }
+
+  /* ---------- short screens: tighter chrome so the screens keep their content at a readable scale ---------- */
+  @media (max-height: 800px) {
+    .ob-bar { padding-top: 1.1rem; }
+    .ob-page { padding: .6rem 1.1rem .5rem; }
+    .ob-page h3 { font-size: 1.3rem; margin-bottom: .15rem; }
+    .p-sub { margin-bottom: .55rem; }
+    .ob-device .ob-next { margin: 0 1rem .8rem; padding: .6rem; }
+    .p-tools { gap: .2rem; margin-bottom: .5rem; }
+    .p-tools li { padding: .2rem .5rem; }
+    .p-tools em { display: none; }
+    .p-pick-me { width: 24%; }
+    .p-pick h3 { font-size: 1.5rem; margin-bottom: .35rem; }
+    .p-hint { margin-bottom: .55rem; }
+    .p-looks { gap: .4rem; margin-bottom: .6rem; }
+    .p-card { padding: .55rem; }
+    .p-net { height: 7rem; margin-top: .4rem; }
+    .p-provider { padding: .5rem .7rem; }
+    .p-models { margin-top: .6rem; }
+    .p-approve { padding: .5rem .6rem; }
+    .p-auto { margin-top: .4rem; }
+    .p-reflect { margin-top: .4rem; }
+    .p-note { margin-top: .4rem; }
+    .p-mac { height: 14rem; }
+    .ob-device [data-page='9'] { padding: 1rem 1.3rem .8rem; gap: .6rem; }
+    .p-flow li { padding: .5rem .75rem; }
+    .p-qr img { width: 72px; height: 72px; }
+  }
+
+  /* ---------- small screens: the text pins to the top, the device fits below it, the story scrolls beneath ---------- */
+  @media (max-width: 56rem) and (min-height: 500px) {
+    .ob-stage { top: 3.5rem; height: calc(100svh - 3.5rem); }
+    .ob-caption { display: grid; position: absolute; inset: 0 0 auto; z-index: 1; padding: .8rem 1rem 1rem; background: linear-gradient(var(--sl-color-bg) 90%, transparent); opacity: clamp(0, calc((var(--p) - .6) * 2.5), 1); }
+    .ob-cap { display: block; grid-area: 1 / 1; visibility: hidden; }
+    .ob-cap.is-now { visibility: visible; }
+    .ob-cap.is-now > * { animation: ob-cap .45s cubic-bezier(.2, .8, .2, 1) both; }
+    .ob-cap.is-now > :nth-child(2) { animation-delay: .05s; }
+    .ob-cap.is-now > :nth-child(3) { animation-delay: .1s; }
+    .ob-cap .ob-eyebrow { margin-bottom: .45rem; font-size: .7rem; }
+    .ob-cap h2 { font-size: 1.4rem; line-height: 1.1; }
+    .ob-cap .ob-body { margin-top: .4rem; font-size: .9rem; line-height: 1.4; }
+    .ob-step { visibility: hidden; }
+    .ob-device { transform: none; flex-shrink: 0; --h: clamp(590px, calc(100svh - 3.5rem - 215px), 680px); }
+    .ob-device[data-shape='multi'] { --w: 440px; --h: 640px; }
+    .ob-device[data-shape='app'] { --w: 440px; --h: 600px; }
+    .x-scene { --u: 34; height: 36.4em; }
+    .x-rail, .x-side, .x-laptop .x-input, .x-phone .x-title { display: none; }
+    .x-laptop { left: 4.5em; top: 0; width: 25em; }
+    .x-laptop .x-screen { height: 17.2em; }
+    .x-laptop .x-chat { font-size: .9em; padding-right: 1em; }
+    .x-tablet { left: 1.4em; top: 19.6em; width: 16em; height: 16.8em; }
+    .x-tablet .x-chat { font-size: .78em; padding-right: 1em; }
+    .x-phone { left: 19.6em; top: 19.6em; width: 12em; height: 16.8em; }
+    .x-phone .x-chat { font-size: .78em; padding-top: .9em; }
+
+    .p-tools em { display: none; }
+    .p-pick-me { width: 30%; }
+    .ob-steps { width: 100%; padding-bottom: 20svh; }
+    .ob-step, .ob-step:first-child { min-height: 110svh; }
+    .ob-intro { min-height: calc(100svh - 3.5rem); padding-top: 1.25rem; }
+    .ob-intro h1 { font-size: clamp(2.6rem, 11vw, 4rem); }
+    .ob-lede { margin-top: .8rem; font-size: 1.02rem; }
+    .ob-intro-cta { margin-top: 1.1rem; gap: .5rem; flex-wrap: nowrap; }
+    .ob-intro-cta .ob-btn { padding: .75rem 1rem; font-size: .92rem; white-space: nowrap; }
+    .ob-guide { margin-top: 1.3rem; }
+    .ob-guide-label { margin-bottom: .6rem; }
+    .ob-hi { margin-top: .7rem; font-size: .9rem; }
+  }
+  /* The story text starts at the page edge on mid-width screens: keep the left lane clear. */
+  @media (min-width: 56rem) and (max-width: 80rem) {
+    .ob-fa[data-left] { display: none; }
+  }
+  @media (max-width: 56rem) {
+    .ob-fa { display: none; }
+  }
+  @media (max-width: 40rem) {
+    .ob-picker { display: grid; grid-template-columns: repeat(4, 3.25rem); gap: .3rem .6rem; }
+  }
+  @media (min-width: 40rem) and (max-width: 56rem) and (min-height: 500px) {
+    .ob-caption { padding-inline: max(1.5rem, calc(50% - 22rem)); }
+    .ob-cap h2 { font-size: 1.9rem; }
+    .ob-cap .ob-body { font-size: 1.05rem; max-width: 46ch; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ob *, .ob *::before, .ob *::after { animation: none !important; transition: none !important; }
   }
 </style>
