@@ -1,5 +1,5 @@
 ---
-// Install: the Server in one line, then the apps that connect to it, then pairing. The picked Agent waits at the end.
+// Install: lead with the desktop app (it can run the Server), then pairing, then the standalone Server for those who want it. The picked Agent waits at the end.
 import { Code, Tabs, TabItem } from '@astrojs/starlight/components';
 import { siAndroid, siApple, siLinux } from 'simple-icons';
 import { looks, still } from './agents';
@@ -10,50 +10,31 @@ const repo = 'https://github.com/FeernandoOFF/kinuvo';
 const releases = `${repo}/releases/latest`;
 const windows = 'M3 5.4 10.4 4.4v7.1H3zM11.4 4.2 21 2.9v8.6h-9.6zM3 12.5h7.4v7.1L3 18.6zM11.4 12.5H21v8.6l-9.6-1.3z';
 const apps = [
-  { name: 'Desktop', detail: 'macOS, Linux and Windows. Can also run the Server for you.', link: releases, cta: 'Download', icon: 'laptop', logos: [siApple.path, siLinux.path, windows] },
-  { name: 'Android', detail: 'Install the APK from Releases, or build it from source.', link: releases, cta: 'Get the APK', soon: 'Google Play soon', icon: 'smartphone', logos: [siAndroid.path] },
-  { name: 'iPhone', detail: 'Build it with Xcode while the App Store release is on its way.', link: `${repo}/blob/main/apps/ios/README.md`, cta: 'Build from source', soon: 'App Store soon', icon: 'smartphone', logos: [siApple.path] },
-  { name: 'Browser', detail: 'Every Server ships a web app. Reach it through Tailscale or your own domain.', link: `${base}guides/browser-access/`, cta: 'Set up access', icon: 'compass', logos: [] },
+  { name: 'Desktop', detail: 'Mac, Windows or Linux. Can run your Server for you.', link: releases, cta: 'Download', icon: 'laptop', logos: [siApple.path, siLinux.path, windows] },
+  { name: 'Android', detail: 'Download the APK, or build it yourself.', link: releases, cta: 'Get the APK', soon: 'Google Play soon', icon: 'smartphone', logos: [siAndroid.path] },
+  { name: 'iPhone', detail: 'Build it with Xcode for now. The App Store release is on its way.', link: `${repo}/blob/main/apps/ios/README.md`, cta: 'Build it yourself', soon: 'App Store soon', icon: 'smartphone', logos: [siApple.path] },
+  { name: 'Browser', detail: 'Every Server includes a web app. Reach it with Tailscale or your own domain.', link: `${base}guides/browser-access/`, cta: 'Set up access', icon: 'compass', logos: [] },
 ];
 ---
 
-<section class="k-install" id="install" data-guide="That's the tour! Set up your Server, grab the apps, and I'll be waiting for you." data-guide-state="idle">
+<section class="k-install" id="install" data-guide="That's the tour! Grab the app, pair your phone, and I'll be waiting for you." data-guide-state="idle">
   <header class="k-head">
     <p class="k-eyebrow">Install</p>
-    <h2>Up and running in a few minutes</h2>
-    <p class="k-lede">One Server for your Agents, then an app on every Device you own.</p>
+    <h2>Up and running in minutes</h2>
+    <p class="k-lede">Get the desktop app, scan a QR code with your phone, done.</p>
   </header>
 
   <ol class="k-steps">
     <li>
       <span class="k-num">1</span>
       <div class="k-body">
-        <h3>Run the Server</h3>
-        <p>It runs your Agents and keeps their data. The installer bundles its own Java runtime; sign in to a model provider and start it as a service.</p>
-        <Tabs syncKey="os">
-          <TabItem label="macOS / Linux">
-            <Code lang="sh" code={`curl -fsSL https://raw.githubusercontent.com/FeernandoOFF/kinuvo/main/install.sh | sh\nkinuvo login\nkinuvo service install`} />
-          </TabItem>
-          <TabItem label="Windows">
-            <Code lang="powershell" code={`irm https://raw.githubusercontent.com/FeernandoOFF/kinuvo/main/install.ps1 | iex\nkinuvo login\nkinuvo service install`} />
-          </TabItem>
-          <TabItem label="Docker">
-            <Code lang="sh" code={`docker run -d --name kinuvo -p 127.0.0.1:8787:8787 -v kinuvo:/data ghcr.io/feernandooff/kinuvo\ndocker exec -it kinuvo kinuvo login`} />
-          </TabItem>
-        </Tabs>
-      </div>
-    </li>
-
-    <li>
-      <span class="k-num">2</span>
-      <div class="k-body">
-        <h3>Get the apps</h3>
-        <p>Desktop, phone or browser: they all talk to the same Server.</p>
+        <h3>Get the app</h3>
+        <p>Start with the desktop app. It can run your Server for you, so there’s nothing else to install.</p>
         <div class="k-apps">
-          {apps.map((app) => (
-            <a class="k-app" href={app.link}>
+          {apps.map((app, i) => (
+            <a class:list={['k-app', { 'k-first': i === 0 }]} href={app.link}>
               <span class="k-app-icon"><Icon name={app.icon} /></span>
-              {app.soon && <span class="k-soon">{app.soon}</span>}
+              {i === 0 ? <span class="k-soon k-start">Start here</span> : app.soon && <span class="k-soon">{app.soon}</span>}
               <strong>{app.name}</strong>
               <span class="k-app-detail">{app.detail}</span>
               <span class="k-app-foot">
@@ -68,19 +49,37 @@ const apps = [
     </li>
 
     <li>
-      <span class="k-num">3</span>
+      <span class="k-num">2</span>
       <div class="k-body">
-        <h3>Pair your Devices</h3>
-        <p>Show a pairing QR code and scan it with the app. Each code works once, for ten minutes.</p>
+        <h3>Pair your phone</h3>
+        <p>Show the pairing QR code and scan it with the Kinuvo app. Each code works once, for ten minutes. Running the Server from a terminal? Ask it for a code:</p>
         <Code lang="sh" code="kinuvo pair --manage" />
       </div>
     </li>
+
   </ol>
+
+  <aside class="k-optional">
+    <span class="k-tag">Optional</span>
+    <h3>Give the Server its own home</h3>
+    <p>Run it on a home server, a Mac mini or in Docker, so every Device can reach it even when your laptop is closed. The installer bundles its own Java runtime.</p>
+    <Tabs syncKey="os">
+      <TabItem label="macOS / Linux">
+        <Code lang="sh" code={`curl -fsSL https://raw.githubusercontent.com/FeernandoOFF/kinuvo/main/install.sh | sh\nkinuvo login\nkinuvo service install`} />
+      </TabItem>
+      <TabItem label="Windows">
+        <Code lang="powershell" code={`irm https://raw.githubusercontent.com/FeernandoOFF/kinuvo/main/install.ps1 | iex\nkinuvo login\nkinuvo service install`} />
+      </TabItem>
+      <TabItem label="Docker">
+        <Code lang="sh" code={`docker run -d --name kinuvo -p 127.0.0.1:8787:8787 -v kinuvo:/data ghcr.io/feernandooff/kinuvo\ndocker exec -it kinuvo kinuvo login`} />
+      </TabItem>
+    </Tabs>
+  </aside>
 
   <div class="k-done">
     <span class="k-me"><kinuvo-avatar artboard={looks[0].artboard} pokeable><img src={still(looks[0].artboard)} alt="" /></kinuvo-avatar></span>
-    <p><strong>That’s it.</strong> <span data-agent-name>Milo</span> will be waiting for you.</p>
-    <a class="k-go" href={`${base}start/install/`}>Read the Getting started guide →</a>
+    <p><strong>That’s it.</strong> <span data-agent-name>Milo</span> is waiting for you.</p>
+    <a class="k-go" href={`${base}start/install/`}>Open the Getting started guide →</a>
   </div>
 </section>
 
@@ -113,6 +112,7 @@ const apps = [
   .k-steps { list-style: none; padding: 0; margin: 0; }
   .k-steps > li { position: relative; display: grid; grid-template-columns: 2.5rem minmax(0, 1fr); gap: clamp(1rem, 3vw, 1.75rem); margin: 0; padding-bottom: clamp(2rem, 5vw, 3rem); }
   .k-steps > li::before { content: ''; position: absolute; left: calc(1.25rem - 1px); top: 2.9rem; bottom: .4rem; width: 2px; border-radius: 2px; background: linear-gradient(var(--kinuvo-accent), color-mix(in srgb, var(--kinuvo-accent) 10%, transparent)); opacity: .55; }
+  .k-steps > li:last-child::before { display: none; }
   .k-num {
     width: 2.5rem; height: 2.5rem; border-radius: 50%; display: grid; place-items: center;
     background: var(--kinuvo-accent); color: var(--agent-on, #fff); font-weight: 700;
@@ -133,6 +133,8 @@ const apps = [
   .k-app:hover { transform: translateY(-3px); border-color: color-mix(in srgb, var(--kinuvo-accent) 60%, var(--sl-color-hairline)); box-shadow: 0 18px 36px -22px color-mix(in srgb, var(--kinuvo-accent) 60%, #000); }
   .k-app-icon { width: 2.4rem; height: 2.4rem; margin-bottom: .45rem; border-radius: 12px; display: grid; place-items: center; font-size: 1.2rem; background: var(--sl-color-accent-low); color: var(--sl-color-accent-high); }
   .k-soon { position: absolute; top: 1.1rem; right: 1.1rem; padding: .2rem .55rem; border-radius: 999px; font-size: .68rem; font-weight: 600; color: var(--sl-color-gray-2); background: var(--kinuvo-subtle); border: 1px dashed var(--sl-color-gray-5); white-space: nowrap; }
+  .k-soon.k-start { color: var(--sl-color-accent-high); background: var(--sl-color-accent-low); border: 1px solid color-mix(in srgb, var(--kinuvo-accent) 40%, transparent); }
+  .k-first { border-color: color-mix(in srgb, var(--kinuvo-accent) 45%, var(--sl-color-hairline)); }
   .k-app strong { font-family: Libron, Georgia, serif; font-size: 1.25rem; color: var(--sl-color-white); }
   .k-app-detail { flex: 1; font-size: .9rem; line-height: 1.5; color: var(--sl-color-gray-2); }
   .k-app-foot { display: flex; align-items: center; justify-content: space-between; margin-top: .7rem; padding-top: .75rem; border-top: 1px solid var(--sl-color-hairline); }
@@ -143,6 +145,12 @@ const apps = [
   .k-logos svg { display: block; flex-shrink: 0; width: .95rem; height: .95rem; margin: 0; fill: var(--sl-color-gray-3); }
   .k-small { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; margin: .9rem 0 0; font-size: .85rem; color: var(--sl-color-gray-3); }
   .k-small a { color: var(--sl-color-accent-high); }
+
+  /* The standalone Server is an optional extra, not a numbered step. */
+  .k-optional { margin: 0 0 2rem calc(2.5rem + clamp(1rem, 3vw, 1.75rem)); padding: 1.2rem 1.4rem; border-radius: 18px; border: 1.5px dashed var(--sl-color-gray-5); }
+  .k-tag { display: inline-block; margin-bottom: .5rem; padding: .15rem .6rem; border-radius: 999px; background: var(--kinuvo-subtle); color: var(--sl-color-gray-2); font-size: .7rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+  .k-optional h3 { margin: 0; font-size: 1.35rem; letter-spacing: -.02em; }
+  .k-optional > p { margin: .4rem 0 1rem; max-width: 60ch; color: var(--sl-color-gray-2); line-height: 1.6; }
 
   /* The Agent picked on the landing page waits at the end. */
   .k-done {
@@ -163,7 +171,7 @@ const apps = [
     .k-steps > li { grid-template-columns: 2rem minmax(0, 1fr); }
     .k-num { width: 2rem; height: 2rem; font-size: .9rem; }
     .k-steps > li::before { left: calc(1rem - 1px); top: 2.4rem; }
-    .k-done { margin-left: 0; }
+    .k-done, .k-optional { margin-left: 0; }
     .k-go { width: 100%; text-align: center; }
   }
 </style>
