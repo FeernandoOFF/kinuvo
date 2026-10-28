@@ -10,7 +10,20 @@ import kinuvo.ui.board.*
 
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.hoverable
@@ -52,8 +65,9 @@ import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
 
 /**
- * The app shell: the rail of Agents and the shown [agent]'s column of pinned screens and Sessions. [view] is the screen
- * open beside it, to highlight.
+ * The app shell: the rail of Home, owners and the Server, and the column for what the rail selected: Home's
+ * destinations, or the shown [agent]'s Sessions. [view] is the screen open beside it, to highlight. With [home], the
+ * column lists Home. On Settings the rail stands alone, beside Settings' own sections.
  */
 data class ShellState(
     val agents: List<AgentInfo> = emptyList(),
@@ -66,6 +80,7 @@ data class ShellState(
     val routines: Map<String, List<Routine>> = emptyMap(),
     /** Whether this Device has management access, which watching and taking over Computers needs. */
     val management: Boolean = true,
+    val home: Boolean = false,
 ) {
     val sessions get() = agent?.let { lists[it.id] }?.sessions.orEmpty()
     val hasMore get() = agent?.let { lists[it.id] }?.hasMore == true
@@ -74,6 +89,11 @@ data class ShellState(
     private val unattached get() = attached.mapNotNull { it.sessionId }.toSet().let { ids -> sessions.filter { it.id !in ids } }
     val favorites get() = unattached.filter { it.favorite }
     val chats get() = unattached.filter { !it.favorite }
+    val settings get() = view is Route.Settings
+    private val everySession get() = lists.values.flatMap { it.sessions }.distinctBy { it.id }
+    /** Sessions across Agents waiting on an Approval or an answer, and those running, for Home's column. */
+    val waiting get() = everySession.filter { it.status == SessionStatus.Waiting }
+    val running get() = everySession.filter { it.status == SessionStatus.Running }
 
     /** An Agent has news when one of its Sessions runs, waits on the user or finished while elsewhere. */
     fun hasNews(agentId: String) = lists[agentId]?.sessions.orEmpty().any { it.status != SessionStatus.Idle || it.id in finished }
@@ -88,10 +108,17 @@ class ShellActions(
     val onSelect: (String) -> Unit = {},
     val onLoadMore: () -> Unit = {},
     val onSettings: () -> Unit = {},
+    /** Opens the shown Agent's settings beside the open screen. */
+    val onAgentSettings: () -> Unit = {},
+    /** Selects Home in the rail. */
+    val onHome: () -> Unit = {},
+    val onToday: () -> Unit = {},
     val onBoard: () -> Unit = {},
     val onKnowledge: () -> Unit = {},
     val onArtifacts: () -> Unit = {},
     val onComputers: () -> Unit = {},
+    /** Opens one Agent's Session from Home's column. */
+    val onOpenSession: (agentId: String, sessionId: String) -> Unit = { _, _ -> },
     val onSelectServer: (Server) -> Unit = {},
     val onAddServer: () -> Unit = {},
     /** Opens a saved Server's settings. */
@@ -107,7 +134,8 @@ class ShellActions(
 /**
  * Shell layout state that outlives screens: whether it's [open] beside them on wide layouts or [revealed] from under them
  * on phones, whether phones show the [quickChat] and its [draft], which [ShellSection]s are [collapsed], remembered in
- * [prefs] across launches, and whether [allChats] are listed.
+ * [prefs] across launches, whether [allChats] are listed, the Session search [query] and which Routines show their
+ * [expanded] earlier runs.
  */
 @Stable
 class ShellChrome(open: MutableState<Boolean>, private val prefs: Preferences? = null) {
@@ -115,6 +143,8 @@ class ShellChrome(open: MutableState<Boolean>, private val prefs: Preferences? =
     var revealed by mutableStateOf(false)
     var quickChat by mutableStateOf(false)
     val draft = TextFieldState()
+    val query = TextFieldState()
+    var expanded by mutableStateOf(emptySet<String>())
     private var collapsedGroups by mutableStateOf(
         prefs?.get(COLLAPSED)?.split(',')?.mapNotNull { name -> ShellSection.entries.firstOrNull { it.name == name } }?.toSet().orEmpty())
     var collapsed: Set<ShellSection>
@@ -138,17 +168,20 @@ fun rememberShellChrome(): ShellChrome {
     return remember(open, prefs) { ShellChrome(open, prefs) }
 }
 
-/** The rail and the Agent's column. [fill] lays it out for phones, where it's revealed from under the screens. */
+/**
+ * The rail and the column. [fill] lays it out for phones, where it's revealed from under the screens. On Settings, only
+ * the rail shows: Settings lists its own sections beside it.
+ */
 @Composable
-fun Shell(state: ShellState, actions: ShellActions, chrome: ShellChrome, modifier: Modifier = Modifier, fill: Boolean = false) {
+fun Shell(state: ShellState, actions: ShellActions, chrome: ShellChrome, modifier: Modifier = Modifier, fill: Boolean = false, column: Boolean = true) {
     if (fill) PhoneShell(state, actions, chrome, modifier)
     else Row(modifier.fillMaxHeight().background(color(railColor))) {
-        AgentRail(state, actions)
-        ColumnPanel(Modifier.width(ColumnWidth)) { AgentColumn(state, actions, chrome) }
+        OwnerRail(state, actions)
+        if (!state.settings && column) ColumnPanel(Modifier.width(ColumnWidth)) { ContextColumn(state, actions, chrome) }
     }
 }
 
-private val ColumnWidth = 240.dp
+private val ColumnWidth = 248.dp
 internal val RailWidth = 72.dp
 
 /** The column sits in the rail with a rounded corner, Discord-style, instead of a straight seam. */
@@ -156,10 +189,11 @@ internal val RailWidth = 72.dp
 private fun ColumnPanel(modifier: Modifier, content: @Composable () -> Unit) =
     Box(modifier.fillMaxHeight().clip(RoundedCornerShape(topStart = 16.dp)).background(color(sidebarColor))) { content() }
 
-/**
- * Phones, edge to edge: settings and Server top the rail and the other Agents stack at its foot, above the shown one,
- * whose avatar starts the bar opening [QuickChat].
- */
+@Composable
+private fun ContextColumn(state: ShellState, actions: ShellActions, chrome: ShellChrome, bottom: Dp = 0.dp) =
+    if (state.home) HomeColumn(state, actions, bottom) else AgentColumn(state, actions, chrome, bottom)
+
+/** Phones, edge to edge: the same rail and column, with the bar opening [QuickChat] floating over their foot. */
 @Composable
 private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellChrome, modifier: Modifier) {
     val insets = WindowInsets.safeDrawing
@@ -167,61 +201,49 @@ private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellCh
     val clear = QuickChatBarHeight + insets.only(WindowInsetsSides.Bottom).asPaddingValues().calculateBottomPadding()
     Box(modifier.fillMaxSize().background(color(railColor)).windowInsetsPadding(insets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
         Row(Modifier.fillMaxSize()) {
-            Column(Modifier.width(RailWidth).fillMaxHeight().padding(top = 8.dp, bottom = clear), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                RailItem("Settings", selected = false, news = false, onClick = actions.onSettings, enabled = state.agent != null) {
-                    Icon(Lucide.Settings, Modifier.size(20.dp), tint = color(mutedColor))
-                }
-                ServerPicker(state.servers, actions)
-                HorizontalSeparator(Modifier.width(32.dp))
-                LazyColumn(Modifier.weight(1f).fillMaxWidth(), reverseLayout = true, verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.Bottom)) {
-                    items(state.agents.filter { it.id != state.agent?.id }, key = { it.id }) { agent ->
-                        Box(Modifier.animateItem()) {
-                            RailItem(agent.name, selected = false, news = state.hasNews(agent.id), onClick = { actions.onSelectAgent(agent.id) }) { AgentAvatar(agent, 40.dp, state = state.avatarState(agent.id)) }
-                        }
-                    }
-                    item(key = "new") {
-                        RailItem("New agent", selected = false, news = false, onClick = actions.onAddAgent, enabled = state.agent != null) {
-                            Icon(Lucide.Plus, Modifier.size(20.dp), tint = color(successColor))
-                        }
-                    }
-                }
-            }
-            ColumnPanel(Modifier.weight(1f)) { AgentColumn(state, actions, chrome, bottom = clear) }
+            OwnerRail(state, actions, Modifier.windowInsetsPadding(insets.only(WindowInsetsSides.Bottom)), top = 8.dp)
+            ColumnPanel(Modifier.weight(1f)) { ContextColumn(state, actions, chrome, bottom = clear) }
         }
-        QuickChatBar(state.agent, chrome.draft, Modifier.align(Alignment.BottomStart).windowInsetsPadding(insets.only(WindowInsetsSides.Bottom))) { chrome.quickChat = true }
+        QuickChatBar(state.agent, chrome.draft, Modifier.align(Alignment.BottomStart).padding(start = RailWidth).windowInsetsPadding(insets.only(WindowInsetsSides.Bottom))) { chrome.quickChat = true }
     }
 }
 
+/** Home at the top, the owners scrolling between dividers, and the Server and Settings fixed at the foot. */
 @Composable
-private fun AgentRail(state: ShellState, actions: ShellActions) {
+private fun OwnerRail(state: ShellState, actions: ShellActions, modifier: Modifier = Modifier, top: Dp? = null) {
     Column(
         // A touch wider where the window buttons sit over it, so they clear the column.
-        Modifier.width(if ((LocalWindowChrome.current?.leadingInset ?: 0.dp) > 0.dp) 80.dp else RailWidth).fillMaxHeight().background(color(railColor)).padding(top = LocalWindowChrome.current?.height ?: 12.dp, bottom = 12.dp),
+        modifier.width(if ((LocalWindowChrome.current?.leadingInset ?: 0.dp) > 0.dp) 80.dp else RailWidth).fillMaxHeight().background(color(railColor))
+            .padding(top = top ?: LocalWindowChrome.current?.height ?: 12.dp, bottom = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        RailItem("Home", selected = state.home && !state.settings, news = state.waiting.isNotEmpty(), onClick = actions.onHome) {
+            Icon(Lucide.House, Modifier.size(20.dp), tint = color(if (state.home && !state.settings) onBackgroundColor else mutedColor))
+        }
+        HorizontalSeparator(Modifier.width(32.dp))
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             state.agents.forEachIndexed { i, agent ->
-                val selected = agent.id == state.agent?.id
-                RailItem(if (i < 9) "${agent.name} ${shortcut("${i + 1}", shift = true)}" else agent.name, selected, news = state.hasNews(agent.id), onClick = { actions.onSelectAgent(agent.id) }) {
+                val selected = !state.home && !state.settings && agent.id == state.agent?.id
+                RailItem(agent.name, selected, news = state.hasNews(agent.id), onClick = { actions.onSelectAgent(agent.id) }, shortcut = if (i < 9) shortcut("${i + 1}", shift = true) else null) {
                     AgentAvatar(agent, 40.dp, state = state.avatarState(agent.id))
                 }
             }
-            HorizontalSeparator(Modifier.width(32.dp))
             RailItem("New agent", selected = false, news = false, onClick = actions.onAddAgent, enabled = state.agent != null) {
                 Icon(Lucide.Plus, Modifier.size(20.dp), tint = color(successColor))
             }
         }
-        RailItem("Settings ${shortcut(",")}", selected = false, news = false, onClick = actions.onSettings, enabled = state.agent != null) {
-            Icon(Lucide.Settings, Modifier.size(20.dp), tint = color(mutedColor))
-        }
+        HorizontalSeparator(Modifier.width(32.dp))
         ServerPicker(state.servers, actions)
+        RailItem("Settings", selected = state.settings, news = false, onClick = actions.onSettings, enabled = state.agent != null, shortcut = shortcut(",")) {
+            Icon(Lucide.Settings, Modifier.size(20.dp), tint = color(if (state.settings) onBackgroundColor else mutedColor))
+        }
     }
 }
 
-/** A rail button with a pill on the left edge: tall when [selected], a dot when it has [news]. */
+/** A rail button with a pill on the left edge: tall when [selected], a dot when it has [news]. [name] is read out; the tooltip adds the [shortcut]. */
 @Composable
-private fun RailItem(label: String, selected: Boolean, news: Boolean, onClick: () -> Unit, enabled: Boolean = true, content: @Composable () -> Unit) {
+private fun RailItem(name: String, selected: Boolean, news: Boolean, onClick: () -> Unit, enabled: Boolean = true, shortcut: String? = null, content: @Composable () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     val pill by animateDpAsState(when {
@@ -233,51 +255,113 @@ private fun RailItem(label: String, selected: Boolean, news: Boolean, onClick: (
     val shape = if (selected || hovered) Theme[shapes][largeShape] else RoundedCornerShape(50)
     Box(Modifier.fillMaxWidth().height(48.dp)) {
         Box(Modifier.align(Alignment.CenterStart).width(4.dp).height(pill).background(color(onBackgroundColor), RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)))
-        Box(Modifier.align(Alignment.Center)) { Tooltip(side = TooltipSide.End, panel = { TooltipPanel { Text(label, fontSize = 12.sp) } }) {
+        Box(Modifier.align(Alignment.Center)) { Tooltip(side = TooltipSide.End, panel = { TooltipPanel { Text(listOfNotNull(name, shortcut).joinToString(" "), fontSize = 12.sp) } }) {
             Box(
                 Modifier.size(48.dp).clip(shape)
                     .background(if (selected) color(selectedControlColor) else color(panelColor))
                     .hoverable(interaction)
                     .clickable(interaction, Theme[indications][defaultIndication], enabled = enabled, onClick = onClick)
-                    .semantics { stateDescription = if (selected) "Selected" else "" },
+                    .clearAndSetSemantics {
+                        contentDescription = name
+                        role = Role.Button
+                        stateDescription = if (selected) "Selected" else ""
+                        if (selected) this.selected = true
+                        if (!enabled) disabled()
+                        onClick { onClick(); true }
+                    },
                 contentAlignment = Alignment.Center,
             ) { content() }
         } }
     }
 }
 
+/** Home's column: Today, the Server-wide screens, and the exact Sessions that wait on the user or run now. */
+@Composable
+private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
+    val view = state.view
+    val byId = state.agents.associateBy { it.id }
+    Column(Modifier.fillMaxSize()) {
+        TitleBarRow(leading = false, trailing = false) {
+            Text("Home", Modifier.weight(1f).padding(horizontal = 8.dp), fontWeight = FontWeight.Bold, singleLine = true)
+        }
+        HorizontalSeparator()
+        LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp + bottom), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            item(key = "today") {
+                Pinned(Lucide.Inbox, "Today", view == Route.Home, true, actions.onToday, count = state.waiting.size.takeIf { it > 0 })
+            }
+            item(key = "board") {
+                Pinned(Lucide.SquareKanban, "Board", view == Route.Board || view is Route.Task, state.capabilities.supports(ServerFeature.Tasks), actions.onBoard)
+            }
+            item(key = "server") { GroupHeader("On this Server") }
+            item(key = "server-rows") {
+                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
+                    if (state.management && state.capabilities?.features?.contains(ServerFeature.Computer) == true)
+                        Pinned(Lucide.MonitorSmartphone, "Computers", view is Route.Computers, true, actions.onComputers)
+                    Pinned(Lucide.BookOpen, "Knowledge", view is Route.Knowledge, state.capabilities.supports(ServerFeature.Knowledge), actions.onKnowledge)
+                    Pinned(Lucide.Shapes, "Artifacts", view is Route.Artifacts, state.capabilities.supports(ServerFeature.Artifacts), actions.onArtifacts)
+                }
+            }
+            fun LazyListScope.sessions(title: String, sessions: List<SessionInfo>) {
+                if (sessions.isEmpty()) return
+                item(key = "group:$title") { GroupHeader(title) }
+                items(sessions, key = { "$title:${it.id}" }) { s ->
+                    val selected = (view as? Route.Chat)?.sessionId == s.id
+                    ListRow(selected, { actions.onOpenSession(s.agentId, s.id) }, leading = { AgentAvatar(byId[s.agentId], 18.dp) }) {
+                        Column(Modifier.weight(1f)) {
+                            Text(s.title, singleLine = true, overflow = TextOverflow.Ellipsis)
+                            Text(byId[s.agentId]?.name ?: s.agentId, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                        }
+                        SessionStatusIcon(s.status, false)
+                    }
+                }
+            }
+            sessions("Needs you", state.waiting)
+            sessions("Running", state.running)
+        }
+    }
+}
+
+/**
+ * The shown Agent's column: its settings and a new Session by its name, a search of its Sessions, then Favorites, recent
+ * Sessions with each Routine's runs folded under the latest, the Routines continuing one Session, and older Sessions.
+ */
 @Composable
 private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellChrome, bottom: Dp = 0.dp) {
     val list = rememberLazyListState()
     val chats = state.chats
     val favorites = state.favorites
     val attached = state.attached
-    // Only pages once every chat is listed, or the few recent ones would load them all.
-    val paging = state.hasMore && (chats.isEmpty() || chrome.allChats)
+    val query = chrome.query.text.toString().trim()
+    val searching = query.isNotEmpty()
+    // Only pages once every chat is listed, or the few recent ones would load them all. Searching pages through the rest.
+    val paging = state.hasMore && (chats.isEmpty() || chrome.allChats || searching)
     // Restarts per page, since a page of only attached Sessions adds no rows to scroll to.
-    LaunchedEffect(list, paging, state.sessions.size) {
-        snapshotFlow { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index == list.layoutInfo.totalItemsCount - 1 }
+    LaunchedEffect(list, paging, state.sessions.size, searching) {
+        if (searching && paging) actions.onLoadMore()
+        else snapshotFlow { list.layoutInfo.visibleItemsInfo.lastOrNull()?.index == list.layoutInfo.totalItemsCount - 1 }
             .collect { atEnd -> if (atEnd && paging) actions.onLoadMore() }
     }
     Column(Modifier.fillMaxSize()) {
         TitleBarRow(leading = false, trailing = false) {
             Text(state.agent?.name ?: "…", Modifier.weight(1f).padding(horizontal = 8.dp), fontWeight = FontWeight.Bold, singleLine = true, overflow = TextOverflow.Ellipsis)
+            HeaderButton(Lucide.Settings2, "Agent settings", actions.onAgentSettings, enabled = state.agent != null)
             HeaderButton(Lucide.SquarePen, "New session ${shortcut("N")}", actions.onNew, enabled = state.agent != null)
         }
         HorizontalSeparator()
-        LazyColumn(Modifier.weight(1f), list, contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp + bottom), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-            item(key = "pinned") {
-                Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Pinned(Lucide.SquareKanban, "Board", state.view is Route.Board, state.capabilities.supports(ServerFeature.Tasks), actions.onBoard)
-                    Pinned(Lucide.BookOpen, "Knowledge", state.view is Route.Knowledge, state.capabilities.supports(ServerFeature.Knowledge), actions.onKnowledge)
-                    Pinned(Lucide.Shapes, "Artifacts", state.view is Route.Artifacts, state.capabilities.supports(ServerFeature.Artifacts), actions.onArtifacts)
-                    if (state.management && state.capabilities?.features?.contains(ServerFeature.Computer) == true)
-                        Pinned(Lucide.MonitorSmartphone, "Computers", state.view is Route.Computers, true, actions.onComputers)
-                }
-            }
+        SessionSearch(chrome.query, state.agent?.name, Modifier.padding(start = 8.dp, top = 8.dp, end = 8.dp))
+        LazyColumn(Modifier.weight(1f), list, contentPadding = PaddingValues(start = 8.dp, top = 4.dp, end = 8.dp, bottom = 8.dp + bottom), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             val selected = (state.view as? Route.Chat)?.sessionId
-            fun LazyListScope.rows(sessions: List<SessionInfo>) = items(sessions, key = { it.id }) { session ->
+            fun LazyListScope.rows(sessions: List<SessionInfo>, prefix: String = "") = items(sessions, key = { prefix + it.id }) { session ->
                 SessionRow(session, session.id == selected, session.id in state.finished) { actions.onSelect(session.id) }
+            }
+            if (searching) {
+                val found = (favorites + chats + state.sessions.filter { s -> attached.any { it.sessionId == s.id } }).distinctBy { it.id }.search(query)
+                item(key = "results") { GroupHeader(if (state.hasMore) "Searching older sessions…" else "${found.size} found") }
+                rows(found)
+                if (found.isEmpty() && !state.hasMore) item(key = "none") {
+                    Text("No sessions match", Modifier.padding(horizontal = 10.dp, vertical = 12.dp), color = color(mutedColor), fontSize = 13.sp)
+                }
+                return@LazyColumn
             }
             fun needsLook(sessions: List<SessionInfo>) = sessions.filter { it.id == selected || it.status != SessionStatus.Idle || it.id in state.finished }
             if (favorites.isNotEmpty()) {
@@ -290,12 +374,31 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 rows(if (collapsed) needsLook(favorites) else favorites)
             }
             if (chats.isNotEmpty()) {
-                val more = chats.size > RECENT_CHATS || state.hasMore
-                item(key = "chats") { GroupHeader("Chats", !chrome.allChats, if (more) ({ chrome.allChats = !chrome.allChats }) else null) }
-                rows(if (chrome.allChats) chats else chats.take(RECENT_CHATS) + needsLook(chats.drop(RECENT_CHATS)))
+                val groups = chats.groupRoutineRuns()
+                val more = groups.size > RECENT_CHATS || state.hasMore
+                item(key = "chats") { GroupHeader("Sessions", !chrome.allChats, if (more) ({ chrome.allChats = !chrome.allChats }) else null) }
+                val shown = if (chrome.allChats) groups else groups.take(RECENT_CHATS) + groups.drop(RECENT_CHATS).filter { g -> needsLook(listOf(g.session) + g.earlier).isNotEmpty() }
+                shown.forEach { group ->
+                    val key = group.session.routine?.id
+                    val open = key != null && (key in chrome.expanded || group.earlier.any { it.id == selected })
+                    item(key = group.session.id) {
+                        SessionRow(group.session, group.session.id == selected, group.session.id in state.finished) { actions.onSelect(group.session.id) }
+                    }
+                    if (key != null && group.earlier.isNotEmpty()) {
+                        item(key = "earlier:$key") {
+                            ListRow(false, { chrome.expanded = if (open) chrome.expanded - key else chrome.expanded + key }, Modifier.padding(start = 16.dp),
+                                leading = { Icon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp)) }) {
+                                Text("${group.earlier.size} earlier", Modifier.weight(1f), color = color(mutedColor), fontSize = 13.sp, singleLine = true)
+                            }
+                        }
+                        if (open) items(group.earlier, key = { it.id }) { run ->
+                            Box(Modifier.padding(start = 16.dp)) { SessionRow(run, run.id == selected, run.id in state.finished) { actions.onSelect(run.id) } }
+                        }
+                    }
+                }
                 if (!chrome.allChats && more) item(key = "allChats") {
-                    ListRow(false, { chrome.allChats = true }, leading = { Icon(Lucide.ChevronDown, Modifier.size(16.dp), tint = color(mutedColor)) }) {
-                        Text("Show more", Modifier.weight(1f), color = color(mutedColor), singleLine = true)
+                    ListRow(false, { chrome.allChats = true }, leading = { Icon(Lucide.History, Modifier.size(16.dp), tint = color(mutedColor)) }) {
+                        Text("Older sessions", Modifier.weight(1f), color = color(mutedColor), singleLine = true)
                     }
                 }
             }
@@ -323,6 +426,25 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
     }
 }
 
+/** Filters the Agent's Sessions by title. */
+@Composable
+private fun SessionSearch(query: TextFieldState, agent: String?, modifier: Modifier = Modifier) {
+    val shape = Theme[shapes][mediumShape]
+    Row(
+        modifier.fillMaxWidth().height(34.dp).clip(shape).background(color(backgroundColor).copy(alpha = 0.6f), shape).border(1.dp, color(borderColor), shape).padding(horizontal = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(Lucide.Search, Modifier.size(14.dp), tint = color(mutedColor))
+        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+            if (query.text.isEmpty()) Text(agent?.let { "Search $it's sessions" } ?: "Search sessions", fontSize = 13.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            BasicTextField(query, Modifier.fillMaxWidth().semantics { contentDescription = "Search sessions" }, textStyle = TextStyle(fontSize = 13.sp, color = color(onBackgroundColor)),
+                lineLimits = TextFieldLineLimits.SingleLine, cursorBrush = SolidColor(color(accentColor)))
+        }
+        if (query.text.isNotEmpty()) Icon(Lucide.X, Modifier.size(14.dp).clickable { query.clearText() }, tint = color(mutedColor), contentDescription = "Clear search")
+    }
+}
+
 @Composable
 private fun MenuLabel(icon: ImageVector, text: String) = Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
     Icon(icon, Modifier.size(16.dp))
@@ -330,8 +452,11 @@ private fun MenuLabel(icon: ImageVector, text: String) = Row(verticalAlignment =
 }
 
 @Composable
-private fun Pinned(icon: ImageVector, label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit) =
-    ListRow(selected, onClick, enabled = enabled, leading = { Icon(icon, Modifier.size(16.dp)) }) { Text(label, Modifier.weight(1f), singleLine = true) }
+private fun Pinned(icon: ImageVector, label: String, selected: Boolean, enabled: Boolean, onClick: () -> Unit, count: Int? = null) =
+    ListRow(selected, onClick, enabled = enabled, leading = { Icon(icon, Modifier.size(16.dp)) }) {
+        Text(label, Modifier.weight(1f), singleLine = true)
+        count?.let { Badge("$it") }
+    }
 
 /** A section's heading; with [onToggle], it collapses the section. */
 @Composable
@@ -428,7 +553,7 @@ private fun ServerPicker(
             }
         },
     ) {
-        RailItem(menu.active?.label ?: "Server", selected = false, news = false, onClick = { showPairing = false; open = true }) {
+        RailItem("Server: ${menu.active?.label ?: "none"}", selected = false, news = false, onClick = { showPairing = false; open = true }) {
             Icon(Lucide.Server, Modifier.size(20.dp), tint = color(mutedColor))
         }
     }

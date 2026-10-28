@@ -8,6 +8,7 @@ import kinuvo.app.board.*
 import kinuvo.app.knowledge.*
 import kinuvo.app.navigation.*
 import kinuvo.app.artifacts.*
+import kinuvo.app.home.*
 
 import kinuvo.client.KinuvoClient
 import org.koin.core.KoinApplication
@@ -37,6 +38,8 @@ private val appModule = module {
     viewModel { (transcriber: Transcriber) -> DictationViewModel(transcriber) }
     viewModel { (route: Route.Settings) -> SettingsViewModel(get(), get(), get(), route) }
     viewModel { BoardViewModel(get()) }
+    viewModel { AgentInspectorViewModel(get()) }
+    viewModel { (app: AppViewModel) -> HomeViewModel(app.state, get()) }
     viewModel { (route: Route.Knowledge) -> KnowledgeViewModel(get(), route) }
     viewModel { (client: KinuvoClient, route: Route.Artifacts) -> ArtifactsViewModel(client, route, get()) }
     viewModel { (client: KinuvoClient, route: Route.Computers) -> kinuvo.app.computer.ComputersViewModel(client, route, get()) }

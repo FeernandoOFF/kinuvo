@@ -16,7 +16,17 @@ import kinuvo.ui.artifacts.*
 import kinuvo.ui.routine.*
 import kinuvo.ui.navigation.*
 
+import kinuvo.app.home.*
+import kinuvo.ui.home.*
+import kinuvo.ui.design.Reveal
+
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import com.composables.ui.components.VerticalSeparator
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.composables.ui.theme.LocalInteractionMode
+import com.composables.ui.theme.InteractionMode
 import com.composables.ui.theme.backgroundColor
 import com.composables.ui.components.Text
 import androidx.compose.ui.ImageComposeScene
@@ -446,7 +458,134 @@ class ScreenshotTest {
             HarnessTheme(dark = true) { Shell(shellState, ShellActions(), chrome) }
         }
         render("shell-board", 1400, 800) {
-            HarnessTheme(dark = false) { Shell(shellState.copy(view = Route.Board), ShellActions(), ShellChrome(androidx.compose.runtime.mutableStateOf(true))) }
+            HarnessTheme(dark = false) { Shell(shellState.copy(view = Route.Board, home = true), ShellActions(), ShellChrome(androidx.compose.runtime.mutableStateOf(true))) }
+        }
+    }
+
+    /** Accepted Owner rail v4 with fixed dates and real screen content, including the inspector's phone states. */
+    @Test fun renderOwnerRailToday() {
+        val zone = kotlinx.datetime.TimeZone.of("Europe/Dublin")
+        val at = kotlin.time.Instant.parse("2026-10-27T18:00:00Z").toEpochMilliseconds()
+        val owners = listOf(AgentInfo("echo", "Echo", "host"), AgentInfo("hearth", "Hearth", "host"), AgentInfo("research", "Researcher", "container"))
+        val runs = listOf(
+            SessionInfo("20261027-130500-review", "echo", "Review and publish", SessionStatus.Running, task = "review"),
+            SessionInfo("20261026-210000-journal", "echo", "Evening journal", SessionStatus.Waiting, routine = RoutineRef("journal", "Evening journal")),
+            SessionInfo("20261025-210000-journal", "echo", "Evening journal", routine = RoutineRef("journal", "Evening journal"), answered = true),
+            SessionInfo("20261024-210000-journal", "echo", "Evening journal", routine = RoutineRef("journal", "Evening journal"), answered = true),
+            SessionInfo("20261025-120000-finance", "echo", "Finance plans", favorite = true),
+            SessionInfo("20261023-140000-slides", "echo", "Presentation outline"),
+            SessionInfo("20261022-160000-review", "echo", "Review outline", task = "review"),
+            SessionInfo("20261027-150000-boiler", "hearth", "Book boiler service", SessionStatus.Waiting, task = "boiler"),
+            SessionInfo("20261027-170000-groceries", "hearth", "Groceries for the week", SessionStatus.Running),
+            SessionInfo("20261027-160000-compare", "research", "Compare train routes", SessionStatus.Running),
+        )
+        val planned = listOf(
+            Routine("journal", "echo", "Evening journal", "Reflect on today, one question at a time.", Trigger.Cron("0 21 * * *"), "Europe/Dublin",
+                nextRunAt = at + 3 * 3_600_000, lastRunAt = at - 21 * 3_600_000, lastSessionId = runs[1].id, lastStatus = RunStatus.Ok, lastReport = "Monday's reflection is ready."),
+            Routine("brief", "hearth", "Home upkeep", "Review the house checklist.", Trigger.Cron("0 9 * * *"), "Europe/Dublin", nextRunAt = at + 15 * 3_600_000),
+        )
+        val tasks = listOf(
+            TaskInfo("review", "writing", "Writing", "Review and publish", "Review the outline, check references and publish the finished article.", "2026-10-27", TaskStatus.InProgress, "echo", listOf(runs[6].id, runs[0].id)),
+            TaskInfo("launch", "work", "Launch", "Draft launch email", due = "2026-10-29", assignee = "echo"),
+            TaskInfo("boiler", "house", "Home", "Book boiler service", due = "2026-10-30", status = TaskStatus.Waiting, assignee = "hearth", sessionIds = listOf(runs[7].id)),
+            TaskInfo("receipts", "house", "Home", "File October receipts", due = "2026-10-31"),
+        )
+        val byAgent = runs.groupBy { it.agentId }
+        val routineMap = planned.groupBy { it.agentId }
+        val remote = Server.Remote("ws://home:8788/ws", "test", "Home Server", "home")
+        val capabilities = ServerCapabilities("home", ServerFeature.entries.toSet())
+        val shell = ShellState(owners, owners[0], byAgent.mapValues { SessionList(it.value) }, view = Route.Chat("echo", runs[1].id),
+            servers = ServerMenuState(listOf(remote), remote), routines = routineMap, capabilities = capabilities)
+        val home = HomeUi(Today.of(at, zone, byAgent, routineMap, tasks, setOf(runs[5].id)), owners, "Home Server", at, zone, tasks = true)
+        val details = AgentDetails(owners[0], AgentSettings("gpt-5.6-sol", "medium", "default", "host", provider = "codex"),
+            "Warm and curious; helps you think clearly.", "Be direct and kind. Ask one question at a time. Never send anything on my behalf without an Approval.")
+        val inspected = InspectorState("echo", details = details, draft = AgentDraft.of(details), models = modelCatalog)
+        val host = InspectorHost(owners, capabilities)
+        val chat = ChatState(agent = owners[0], sessions = runs.filter { it.agentId == "echo" }, selected = runs[1].id, loaded = true,
+            defaults = details.settings, models = modelCatalog, items = listOf(
+                ChatItem.User("u1", "Let's reflect on Monday before I start planning tomorrow."),
+                ChatItem.Assistant("a1", "Hey Fernando, how did Monday land? Last week's notes had you helping David through a production deployment and making room for Mockstro. What happened today that felt worth keeping?"),
+            ))
+        @Composable fun theme(phone: Boolean = false, content: @Composable () -> Unit) {
+            HarnessTheme(dark = true) {
+                CompositionLocalProvider(LocalInteractionMode provides if (phone) InteractionMode.Touch else InteractionMode.Pointer) {
+                    content()
+                }
+            }
+        }
+        @Composable fun transcript() = ChatContent(chat, ConnectionState.Connected("home"), null, ChatActions(), wide = false, onToggleShell = {})
+        for (panel in listOf(false, true)) render("owner-rail-chat${if (panel) "-inspector" else ""}-desktop", 1440, 900) {
+            theme {
+                Row(Modifier.fillMaxSize()) {
+                    Shell(shell, ShellActions(), remember { ShellChrome(mutableStateOf(true)) })
+                    VerticalSeparator()
+                    Box(Modifier.weight(1f)) { ChatContent(chat, ConnectionState.Connected("home"), usage, ChatActions(), wide = true, onToggleShell = {}) }
+                    if (panel) { VerticalSeparator(); AgentInspectorContent(inspected, host, InspectorActions(), sheet = false) }
+                }
+            }
+        }
+        render("owner-rail-chat-inspector-tablet", 728, 900) {
+            theme { Row(Modifier.fillMaxSize()) {
+                Shell(shell, ShellActions(), remember { ShellChrome(mutableStateOf(true)) }, column = false)
+                VerticalSeparator()
+                Box(Modifier.weight(1f)) { ChatContent(chat, ConnectionState.Connected("home"), null, ChatActions(), wide = true, onToggleShell = {}) }
+                VerticalSeparator()
+                AgentInspectorContent(inspected, host, InspectorActions(), sheet = false)
+            } }
+        }
+        render("owner-rail-home-desktop", 1440, 900) {
+            theme { Row(Modifier.fillMaxSize()) {
+                Shell(shell.copy(home = true, view = Route.Home), ShellActions(), remember { ShellChrome(mutableStateOf(true)) })
+                VerticalSeparator()
+                Box(Modifier.weight(1f)) { HomeContent(home, HomeActions(onToggleShell = {}), wide = true) }
+            } }
+        }
+        val settingsRoute = Route.Settings("echo", SettingsSection.Overview)
+        val settingsUi = SettingsUi(SettingsState(settingsRoute, AgentConfig(details), routines = planned.filter { it.agentId == "echo" }), owners, at, capabilities = capabilities)
+        render("owner-rail-settings-desktop", 1440, 900) {
+            theme { Row(Modifier.fillMaxSize()) {
+                Shell(shell.copy(view = settingsRoute), ShellActions(), remember { ShellChrome(mutableStateOf(true)) })
+                Box(Modifier.weight(1f)) { SettingsContent(settingsUi, SettingsActions()) }
+            } }
+        }
+        render("owner-rail-home-phone", 390, 844) { theme(true) { HomeContent(home, HomeActions(onToggleShell = {}), wide = false) } }
+        render("owner-rail-home-back-phone", 390, 844) { theme(true) { HomeContent(home, HomeActions(onToggleShell = {}, onBack = {}), wide = false) } }
+        render("owner-rail-chat-phone", 390, 844) { theme(true) { transcript() } }
+        render("owner-rail-task-chat-back-phone", 390, 844) { theme(true) {
+            ChatContent(chat.copy(selected = runs[6].id, items = listOf(
+                ChatItem.User("u1", "Review the article outline before publishing."),
+                ChatItem.Assistant("a1", "The outline is ready. I checked the references and added a clearer closing section."),
+            )), ConnectionState.Connected("home"), null, ChatActions(), wide = false, onToggleShell = {}, onBack = {})
+        } }
+        for (isHome in listOf(false, true)) render("owner-rail-drawer-${if (isHome) "home" else "agent"}-phone", 390, 844) {
+            theme(true) { Reveal(true, {}, behind = {
+                Shell(shell.copy(home = isHome, view = if (isHome) Route.Home else shell.view), ShellActions(), remember { ShellChrome(mutableStateOf(true)) }, fill = true)
+            }) { if (isHome) HomeContent(home, HomeActions(onToggleShell = {}), wide = false) else transcript() } }
+        }
+        for (risk in listOf(false, true)) render("owner-rail-inspector-${if (risk) "risk" else "medium"}-phone", 390, 844) {
+            theme(true) { Box(Modifier.fillMaxSize()) {
+                transcript()
+                AgentInspectorContent(if (risk) inspected.copy(pages = listOf(InspectorPage.Approvals)) else inspected, host, InspectorActions(), sheet = true)
+            } }
+        }
+        val dirty = inspected.copy(draft = inspected.draft!!.copy(name = "Echo revised"), guard = InspectorExit.Close)
+        render("owner-rail-inspector-guard-phone", 390, 844) {
+            theme(true) { Box(Modifier.fillMaxSize()) { transcript(); AgentInspectorContent(dirty, host, InspectorActions(), sheet = true) } }
+        }
+        render("owner-rail-inspector-guard-desktop", 1440, 900) {
+            theme { Box(Modifier.fillMaxSize()) {
+                Row(Modifier.fillMaxSize()) {
+                    Shell(shell, ShellActions(), remember { ShellChrome(mutableStateOf(true)) })
+                    VerticalSeparator()
+                    Box(Modifier.weight(1f)) { ChatContent(chat, ConnectionState.Connected("home"), null, ChatActions(), wide = true) }
+                    VerticalSeparator()
+                    AgentInspectorContent(dirty, host, InspectorActions(), sheet = false, showGuard = false)
+                }
+                InspectorGuard(dirty, host, InspectorActions())
+            } }
+        }
+        render("owner-rail-task-runs", 900, 700) {
+            theme { TaskContent(TaskUi(tasks[0], true, owners, runs.associateBy { it.id }), {}, { _, _ -> }) }
         }
     }
 

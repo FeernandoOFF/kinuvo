@@ -1,0 +1,49 @@
+{
+  "name": "mobile/agent-update",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "agent.update"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.agentId",
+              "equalTo": "e2e"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.name",
+              "matches": ".+"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"info\":{\"id\":\"e2e\",\"name\":\"{{jsonPath message.body '$.params.name'}}\",\"exec\":\"local\"},\"settings\":{\"model\":\"e2e-model\",\"reasoning\":\"medium\",\"approvals\":\"default\",\"exec\":\"local\",\"provider\":\"codex\"},\"identity\":\"Helps test Kinuvo\",\"soul\":\"Test Agent\"}}"
+        }
+      }
+    }
+  ]
+}

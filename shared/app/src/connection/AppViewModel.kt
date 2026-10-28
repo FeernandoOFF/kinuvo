@@ -34,13 +34,15 @@ sealed interface Connection {
 /**
  * Everything app-wide the UI shows. [agentId] is the Agent the shell shows; [sessions] mirrors the [SessionRepository]:
  * session lists and finished marks; [pairing] is set when the connected Server can pair other Devices; [capabilities]
- * are the connected Server's features; [routines] mirrors the [RoutineRepository] for the Agents shown.
+ * are the connected Server's features; [routines] mirrors the [RoutineRepository] for the Agents shown. With [home], the
+ * shell's column lists Home's destinations instead of [agentId]'s Sessions.
  */
 data class AppState(
     val connection: Connection = Connection.Connecting(),
     val servers: List<Server> = emptyList(),
     val agents: List<AgentInfo> = emptyList(),
     val agentId: String? = null,
+    val home: Boolean = false,
     val sessions: RepositoryState = RepositoryState(),
     val usage: Usage? = null,
     val pairing: PairingInfo? = null,
@@ -252,10 +254,14 @@ class AppViewModel(
     /** The Session last shown for [agentId], or a new one. */
     fun lastView(agentId: String) = views[agentId] ?: Route.Chat(agentId)
 
-    fun draft(slot: String): String = drafts[slot].orEmpty()
-    fun saveDraft(slot: String, text: String) {
-        if (text.isEmpty()) drafts.remove(slot) else drafts[slot] = text
+    /** A Session's unsent text, kept per Server and Session, or per screen until a new Session has an ID. */
+    fun draft(route: Route.Chat): String = drafts[draftKey(route)] ?: drafts[route.slot].orEmpty()
+    fun saveDraft(route: Route.Chat, text: String) {
+        drafts.remove(route.slot)
+        if (text.isEmpty()) drafts.remove(draftKey(route)) else drafts[draftKey(route)] = text
     }
+
+    private fun draftKey(route: Route.Chat) = route.sessionId?.let { "${currentServer?.key}/${route.agentId}/$it" } ?: route.slot
 
     /** Called only by the navigation host for its active destination, including Back. */
     fun showView(route: Route) {
@@ -266,14 +272,21 @@ class AppViewModel(
             views[id] = route
             showAgent(id)
         }
+        if (route.home) showHome()
     }
+
+    /** Lists Home's destinations in the shell's column; the shown Agent stays selected for its return. */
+    fun showHome() = state.update { it.copy(home = true) }
 
     /** An unresolved active screen must not replace a newer Agent selection. */
     fun resolveView(requested: Route.Chat, resolved: Route.Chat): Route.Chat? = resolved.takeIf {
         requested.agentId == state.value.agentId || requested.agentId == null && selecting?.isActive != true
     }
 
-    /** Selects the shell Agent and decides which Session the host should show. */
+    /**
+     * Selects the shell Agent and decides which Session the host should show: the one it last showed for [agentId], or
+     * its latest. On [compact] layouts other screens stay open until a Session is picked from the column.
+     */
     fun selectAgent(agentId: String, current: Route?, compact: Boolean, onOpen: (Route.Chat) -> Unit) {
         val previous = state.value.agentId
         selecting?.cancel()
@@ -282,6 +295,7 @@ class AppViewModel(
         if (compact) {
             if (current == null || current is Route.Chat && current.agentId != agentId) onOpen(lastView(agentId))
         } else if (agentId != previous || current !is Route.Chat || current.agentId != agentId) {
+            views[agentId]?.let { return onOpen(it) }
             val lifetime = serverLifetime
             selecting = viewModelScope.launch {
                 val session = latestSession(agentId)
@@ -292,7 +306,7 @@ class AppViewModel(
 
     /** Shows [agentId] in the shell, loading its Sessions' first page and Routines once. */
     fun showAgent(agentId: String) {
-        state.update { it.copy(agentId = agentId) }
+        state.update { it.copy(agentId = agentId, home = false) }
         if (agentId !in state.value.sessions.lists) repo.loadSessions(agentId)
         if (agentId !in state.value.routines) routines.load(agentId)
     }
@@ -360,7 +374,6 @@ class AppViewModel(
                     val remembered = servers.remember(current, result.token, result.capabilities.serverId, result.serverName)
                     state.update { s -> s.copy(connection = Connection.Ready(client, remembered), servers = servers.all, capabilities = result.capabilities) }
                 }
-                state.value.agentId?.let(routines::load)
                 refreshAgents()
             }
         }
@@ -384,6 +397,8 @@ class AppViewModel(
     private fun setAgents(agents: List<AgentInfo>) {
         state.update { it.copy(agents = agents) }
         agents.filter { it.id !in state.value.sessions.lists }.forEach { repo.loadSessions(it.id) }
+        // Home lists every Agent's next and latest runs.
+        agents.filter { it.id !in state.value.routines }.forEach { routines.load(it.id) }
     }
 
     override fun onCleared() {
