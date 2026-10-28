@@ -19,6 +19,9 @@ properties:
 ---
 - runFlow: ../../shared/pair-mobile.yaml
 - tapOn: "Agents and sessions"
+- tapOn:
+    text: "Home"
+    above: "New agent"
 - tapOn: "Knowledge"
 - tapOn: "Search people, projects, places…"
 - inputText: "Missing"

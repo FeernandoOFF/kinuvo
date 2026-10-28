@@ -52,6 +52,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -118,6 +119,7 @@ fun ChatScreen(
     onSettings: (agentId: String) -> Unit,
     onNavigate: (Route) -> Unit = {},
     onToggleShell: (() -> Unit)? = null,
+    onBack: (() -> Unit)? = null,
 ) {
     val appState by app.state.collectAsState()
     val current by session.state.collectAsState()
@@ -134,8 +136,10 @@ fun ChatScreen(
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { voice?.background(); dictation?.stop() }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { voice?.foreground() }
     val draft = rememberRichTextState()
-    remember(draft) { draft.setMarkdown(app.draft(route.slot)) }
-    DisposableEffect(draft, route.slot) { onDispose { app.saveDraft(route.slot, draft.toMarkdown()) } }
+    remember(draft) { draft.setMarkdown(app.draft(route)) }
+    // Saved under the Session once it has an ID, so it comes back wherever the Session is reopened from.
+    val drafted by rememberUpdatedState(route)
+    DisposableEffect(draft, route.slot) { onDispose { app.saveDraft(drafted, draft.toMarkdown()) } }
     LaunchedEffect(route.agentId, route.sessionId, current.resolving) { session.shown() }
     val state = ChatState(
         agent = appState.agents.firstOrNull { it.id == route.agentId },
@@ -201,6 +205,7 @@ fun ChatScreen(
         compose = route.compose && route.sessionId == null,
         draft = draft,
         onToggleShell = onToggleShell ?: { if (wide) shell.open = !shell.open else shell.revealed = true },
+        onBack = onBack,
     )
 }
 
@@ -266,6 +271,7 @@ fun ChatContent(
     compose: Boolean = false,
     onToggleShell: (() -> Unit)? = null,
     draft: RichTextState = rememberRichTextState(),
+    onBack: (() -> Unit)? = null,
 ) {
     // Hoisted above the layout so the draft and scroll survive rotation and process death.
     val messages = rememberLazyListState()
@@ -280,6 +286,7 @@ fun ChatContent(
 
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
         val wide = wide ?: (maxWidth >= 720.dp)
+        val compactHeader = maxWidth < 520.dp
         val toggle = onToggleShell
 
         fun step(delta: Int) {
@@ -318,7 +325,7 @@ fun ChatContent(
         Column(Modifier.fillMaxSize().onFocusChanged { rootFocused = it.isFocused }.focusRequester(root).focusable().onPreviewKeyEvent(::onKey)) {
             // Touch screens get floating bubbles; pointers, at any width, a toolbar in the title bar.
             val floating = !wide && LocalInteractionMode.current == InteractionMode.Touch
-            if (!floating) TopBar(state, usage, actions) {
+            if (!floating) TopBar(state, usage, actions, compact = compactHeader) {
                 HeaderControls(wide, toggle, actions.onNew.takeIf { !wide && state.selected != null })
             }
             // The composer floats over the messages, which scroll on under its blur.
@@ -335,7 +342,7 @@ fun ChatContent(
                 }
                 state.voice?.let { VoiceGlow(it, Modifier.align(Alignment.BottomCenter)) }
                 androidx.compose.animation.AnimatedVisibility(dropping, Modifier.matchParentSize(), enter = fadeIn(), exit = fadeOut()) { DropOverlay() }
-                if (floating) FloatingBar(state, usage, actions, toggle, Modifier.align(Alignment.TopCenter))
+                if (floating) FloatingBar(state, usage, actions, toggle, onBack, Modifier.align(Alignment.TopCenter))
                 androidx.compose.animation.AnimatedVisibility(voice != null, Modifier.align(Alignment.TopCenter).padding(top = if (floating) FloatingBarHeight + 8.dp else 12.dp),
                     enter = fadeIn() + slideInVertically(spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow)) { -it },
                     exit = fadeOut() + slideOutVertically { -it }) {
@@ -357,7 +364,8 @@ fun ChatContent(
                         if (!dictation.dictating) dictated = null
                     }
                     val settings: @Composable RowScope.() -> Unit = {
-                        state.defaults?.let { ComposerSettings(state.settings, it, state.models, actions.onConfigure, actions.onAttach, !state.running, actions.onRefreshModels, state.photos, state.files) }
+                        state.defaults?.let { ComposerSettings(state.settings, it, state.models, actions.onConfigure, actions.onAttach, !state.running, actions.onRefreshModels, state.photos, state.files,
+                            agent = state.agent?.name, onAgentDefaults = actions.onSettings.takeIf { state.agent != null }) }
                     }
                     val attachments: @Composable () -> Unit = { if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         state.attachments.forEach { a -> key(a.id) { AttachmentChip(a.attachment, a.upload.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onRemove = if (state.running) null else ({ actions.onRemoveAttachment(a.id) })) } }
@@ -433,37 +441,27 @@ private fun HeaderControls(wide: Boolean, onToggle: (() -> Unit)?, onNew: (() ->
 
 /** Phones: no title, just bubbles floating over the top of the messages, which fade out under them. */
 @Composable
-private fun FloatingBar(state: ChatState, usage: Usage?, actions: ChatActions, onToggle: (() -> Unit)?, modifier: Modifier) {
+private fun FloatingBar(state: ChatState, usage: Usage?, actions: ChatActions, onToggle: (() -> Unit)?, onBack: (() -> Unit)?, modifier: Modifier) {
     val background = color(backgroundColor)
     Box(modifier.fillMaxWidth().height(FloatingBarHeight).background(Brush.verticalGradient(0.6f to background, 1f to background.copy(alpha = 0f)))) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-            onToggle?.let { Bubble { BubbleButton(Lucide.Menu, "Agents and sessions", it) } }
-            Spacer(Modifier.weight(1f))
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (onBack != null) FloatingBubble(Lucide.ArrowLeft, "Back", onBack)
+            else onToggle?.let { FloatingBubble(Lucide.Menu, "Agents and sessions", it) }
+            val title = (state.sessions.firstOrNull { it.id == state.selected } ?: state.info)?.title
+            state.agent?.let { agent ->
+                FloatingPill(actions.onSettings, "${agent.name} settings", fill = true, leading = { AgentAvatar(agent, 28.dp) }) {
+                    Text(agent.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, singleLine = true, overflow = TextOverflow.Ellipsis)
+                    Text(title ?: "New session", fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            if (state.agent == null) Spacer(Modifier.weight(1f))
             PhoneActions(state, usage, actions)
         }
     }
 }
 
-private val FloatingBarHeight = 72.dp
+private val FloatingBarHeight = FloatingClearance
 private val VoiceStatusHeight = 44.dp
-
-/** Phone header buttons sit in round bubbles, a pill when there are several. */
-@Composable
-private fun Bubble(content: @Composable RowScope.() -> Unit) {
-    val shape = RoundedCornerShape(50)
-    Row(
-        Modifier.height(44.dp).clip(shape).background(color(panelColor), shape).border(1.dp, color(borderColor), shape).padding(horizontal = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        content = content,
-    )
-}
-
-@Composable
-private fun BubbleButton(icon: ImageVector, label: String, onClick: () -> Unit) {
-    IconButton(onClick = onClick, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(onBackgroundColor), modifier = Modifier.size(40.dp)) {
-        Icon(icon, Modifier.size(20.dp), contentDescription = label)
-    }
-}
 
 /** The phone header's trailing bubble: a new Session once this one has started, and the rest under "…". */
 @Composable
@@ -502,20 +500,33 @@ internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit,
 }
 
 @Composable
-private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, controls: @Composable () -> Unit) {
+private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compact: Boolean, controls: @Composable () -> Unit) {
     TitleBarRow {
         controls()
         Spacer(Modifier.width(6.dp))
         val selected = state.sessions.firstOrNull { it.id == state.selected } ?: state.info
         Row(Modifier.weight(1f).padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            state.agent?.let { agent ->
+                Tooltip(side = TooltipSide.Bottom, panel = { TooltipPanel { Text("${agent.name}'s settings ${shortcut(",")}", fontSize = 12.sp) } }) {
+                    Row(Modifier.titleBarControl().clip(RoundedCornerShape(50)).clickable(onClickLabel = "${agent.name}'s settings", onClick = actions.onSettings)
+                        .semantics(mergeDescendants = true) { contentDescription = "${agent.name}'s settings" }
+                        .background(color(panelColor)).padding(start = 4.dp, end = if (compact) 4.dp else 10.dp, top = 3.dp, bottom = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        AgentAvatar(agent, 20.dp)
+                        if (!compact) Text(agent.name, fontSize = 13.sp, singleLine = true)
+                    }
+                }
+                if (!compact) Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
+            }
             Text(
-                selected?.title ?: state.agent?.name ?: "…",
+                selected?.title ?: if (state.agent != null) "New session" else "…",
                 Modifier.weight(1f, fill = false),
+                color = if (selected == null) color(mutedColor) else androidx.compose.ui.graphics.Color.Unspecified,
                 fontWeight = FontWeight.Normal,
                 singleLine = true,
                 overflow = TextOverflow.Ellipsis,
             )
-            selected?.let { SessionBadge(it) }
+            selected?.let { SessionBadge(it, compact) }
         }
         ChatStatistics(usage, remember(state.items) { state.items.requestMetrics() }, state.selected)
         if (selected != null) SessionMenu(selected, actions) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
@@ -609,9 +620,9 @@ private const val OfflineAfter = 8_000L
 
 /** Marks a Session an Agent started on its own: a Task run or a Routine's. */
 @Composable
-private fun SessionBadge(session: SessionInfo) = when {
-    session.task != null -> Badge("Task", Lucide.SquareKanban)
-    session.routine != null -> Badge("Routine", Lucide.AlarmClock)
+private fun SessionBadge(session: SessionInfo, compact: Boolean = false) = when {
+    session.task != null -> if (compact) Icon(Lucide.SquareKanban, Modifier.size(14.dp), contentDescription = "Task run") else Badge("Task", Lucide.SquareKanban)
+    session.routine != null -> if (compact) Icon(Lucide.AlarmClock, Modifier.size(14.dp), contentDescription = "Routine run") else Badge("Routine", Lucide.AlarmClock)
     else -> Unit
 }
 

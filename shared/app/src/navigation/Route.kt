@@ -18,6 +18,14 @@ sealed interface Route {
     @Serializable
     data object Connect : Route
 
+    /** The Server's Today: what needs the user, what runs now and next, Tasks due and recent results, across Agents. */
+    @Serializable
+    data object Home : Route
+
+    /** One Task from the Board with the Sessions of its runs. */
+    @Serializable
+    data class Task(val id: String) : Route
+
     /**
      * One Session of one Agent. A null [agentId] opens the first Agent's latest Session; a null [sessionId] is a new Session.
      * [slot] keeps the screen (and its ViewModel) when the route is filled in place, e.g. once a new Session is created.
@@ -57,6 +65,9 @@ sealed interface Route {
         fun chat(view: LastView?) = Chat(view?.agentId, view?.sessionId)
     }
 }
+
+/** Screens the shell lists under Home rather than under an Agent. */
+val Route.home get() = this == Route.Home || this is Route.Task || this == Route.Board || this is Route.Knowledge || this is Route.Artifacts || this is Route.Computers
 
 @Serializable
 enum class SettingsSection(val title: String, val server: Boolean = false) {
