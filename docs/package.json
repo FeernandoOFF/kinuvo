@@ -14,5 +14,8 @@
     "@astrojs/starlight": "0.42.7",
     "@rive-app/canvas": "^2.47.1",
     "astro": "7.4.2"
+  },
+  "devDependencies": {
+    "simple-icons": "^16.36.0"
   }
 }
