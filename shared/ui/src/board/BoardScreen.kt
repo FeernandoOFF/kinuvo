@@ -9,6 +9,8 @@ import kinuvo.ui.navigation.*
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,7 +31,7 @@ import kinuvo.protocol.*
 import kinuvo.ui.design.*
 
 @Composable
-fun BoardScreen(app: AppViewModel, board: BoardViewModel, onBack: (() -> Unit)?, onOpenSession: (Route.Chat) -> Unit, onSettings: () -> Unit) {
+fun BoardScreen(app: AppViewModel, board: BoardViewModel, onBack: (() -> Unit)?, onOpenSession: (Route.Chat) -> Unit, onSettings: () -> Unit, onOpenTask: (String) -> Unit = {}) {
     val appState by app.state.collectAsState()
     val state by board.state.collectAsState()
     BoardContent(
@@ -43,6 +45,7 @@ fun BoardScreen(app: AppViewModel, board: BoardViewModel, onBack: (() -> Unit)?,
             onUpdate = board::update,
             onOpenSession = { agentId, sessionId -> onOpenSession(Route.Chat(agentId, sessionId)) },
             onSettings = onSettings,
+            onOpenTask = onOpenTask,
         ),
     )
 }
@@ -61,6 +64,8 @@ class BoardActions(
     val onUpdate: (UpdateTaskParams) -> Unit = {},
     val onOpenSession: (agentId: String, sessionId: String) -> Unit = { _, _ -> },
     val onSettings: () -> Unit = {},
+    /** Opens a Task with all its runs. */
+    val onOpenTask: (taskId: String) -> Unit = {},
 )
 
 /** Kanban columns of the user's Tasks, scrolling sideways when they don't fit. */
@@ -113,7 +118,8 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
     val assignee = agents.firstOrNull { it.id == task.assignee }
     Panel(Modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(12.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(task.title, fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Text(task.title, Modifier.clip(Theme[shapes][smallShape]).clickable(onClickLabel = "Open task") { actions.onOpenTask(task.id) },
+                fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis)
             if (task.notes.isNotBlank()) {
                 Text(task.notes.trim(), color = color(mutedColor), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }

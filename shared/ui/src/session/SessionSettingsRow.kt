@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.alpha
+import com.composables.ui.theme.smallShape
 import androidx.compose.ui.draw.clip
 import com.composables.ui.theme.largeShape
 import com.composables.ui.theme.shapes
@@ -59,13 +60,15 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Composer's left-to-right controls: attach, when to ask before acting, and model and reasoning effort. [photos] and
- * [files] say whether each attachment kind is accepted; null when unknown.
+ * Composer's left-to-right controls: attach, and this Session's own settings: when to ask before acting, and model and
+ * reasoning effort. Unset, they follow the [agent]'s defaults, which [onAgentDefaults] opens. [photos] and [files] say
+ * whether each attachment kind is accepted; null when unknown.
  */
 @Composable
 internal fun RowScope.ComposerSettings(
     settings: SessionSettings, defaults: AgentSettings, models: ModelsCatalog, onChange: (SessionSettings) -> Unit, onAttach: (AttachmentSource) -> Unit = {},
     canAttach: Boolean = true, onRefreshModels: () -> Unit = {}, photos: CapabilityState? = null, files: CapabilityState? = null,
+    agent: String? = null, onAgentDefaults: (() -> Unit)? = null,
 ) {
     var attachOpen by remember { mutableStateOf(false) }
     var approvalsOpen by remember { mutableStateOf(false) }
@@ -96,7 +99,20 @@ internal fun RowScope.ComposerSettings(
     val approvalOptions = listOf<String?>(null) + APPROVALS.keys
     fun approvalTitle(option: String?) = if (option == null) "Agent's setting (${defaults.approvals})" else option.replaceFirstChar { it.uppercase() }
     val pickApproval = { option: String? -> approvalsOpen = false; onChange(settings.copy(approvals = option)) }
-    val approvalsButton: @Composable () -> Unit = { ControlButton(Lucide.Hand, "Ask before acting: $approvals") { approvalsOpen = true } }
+    val approvalsButton: @Composable () -> Unit = { ControlButton(Lucide.Hand, "Ask before acting in this Session: $approvals") { approvalsOpen = true } }
+    // Says whose settings these are, and leads to the Agent's defaults that every other Session follows.
+    val scope: @Composable (close: () -> Unit) -> Unit = { close ->
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("This Session only", fontSize = 12.sp, color = color(mutedColor))
+            onAgentDefaults?.let { open ->
+                Row(Modifier.clip(Theme[shapes][smallShape]).clickable { close(); open() }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Lucide.Settings2, Modifier.size(14.dp), tint = color(accentColor))
+                    Text("Edit ${agent ?: "the Agent"}'s defaults", fontSize = 13.sp, color = color(accentColor))
+                }
+            }
+        }
+    }
 
     if (sheets) {
         attachButton()
@@ -108,6 +124,7 @@ internal fun RowScope.ComposerSettings(
         }
         approvalsButton()
         Popover(approvalsOpen, { approvalsOpen = false }, "Ask before acting") {
+            scope { approvalsOpen = false }
             approvalOptions.forEach { option ->
                 ListRow(settings.approvals == option, { pickApproval(option) }) {
                     Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
@@ -136,6 +153,7 @@ internal fun RowScope.ComposerSettings(
             panel = {
                 DropdownMenuPanel {
                     DropdownMenuLabel { Text("Ask before acting", fontSize = 12.sp) }
+                    scope { approvalsOpen = false }
                     approvalOptions.forEach { option ->
                         DropdownMenuItem(
                             onClick = { pickApproval(option) },
@@ -159,6 +177,7 @@ internal fun RowScope.ComposerSettings(
     // The menu measures its content's intrinsic width, which the effort track can't give, so it gets a fixed one.
     val modelPicker: @Composable (width: Modifier) -> Unit = { width ->
         if (!listing) Column(width.padding(8.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(Modifier.fillMaxWidth()) { scope(closeModel) }
             Row(Modifier.clickable { listing = true }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(selected?.name ?: settings.model ?: defaults.model, Modifier.weight(1f, fill = false), singleLine = true, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.width(6.dp))

@@ -25,6 +25,10 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.input.pointer.util.addPointerInputChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -123,7 +127,8 @@ fun Reveal(
     }
 
     Box(Modifier.fillMaxSize().then(swipe)) {
-        Box(Modifier.width(width).fillMaxHeight().offset { IntOffset((-widthPx * 0.12f * (1 - progress())).roundToInt(), 0) }) { behind() }
+        Box(Modifier.width(width).fillMaxHeight().offset { IntOffset((-widthPx * 0.12f * (1 - progress())).roundToInt(), 0) }
+            .then(if (x == 0f) Modifier.clearAndSetSemantics {} else Modifier)) { behind() }
         // Taps on content's empty space would otherwise fall through to behind.
         Box(Modifier.offset { IntOffset(x.roundToInt(), 0) }.fillMaxSize().pointerInput(Unit) {}
             .graphicsLayer { shape = shape(); clip = true; shadowElevation = 12.dp.toPx() * progress() }
@@ -131,10 +136,11 @@ fun Reveal(
                 drawContent()
                 if (x > 0f) drawOutline(shape().createOutline(size, layoutDirection, this), border.copy(alpha = border.alpha * progress()), style = Stroke(3.dp.toPx()))
             }) {
-            content()
+            Box(Modifier.fillMaxSize().then(if (x == widthPx) Modifier.clearAndSetSemantics {} else Modifier)) { content() }
             if (x > 0f) Box(
                 Modifier.fillMaxSize().graphicsLayer { alpha = progress() * 0.16f }.background(color(scrimColor))
-                    .clickable(remember { MutableInteractionSource() }, indication = null) { onOpenChange(false) },
+                    .clickable(remember { MutableInteractionSource() }, indication = null, role = Role.Button, onClickLabel = "Close navigation") { onOpenChange(false) }
+                    .semantics { contentDescription = "Close navigation" },
             )
         }
     }
