@@ -33,7 +33,7 @@ private val appModule = module {
     viewModel { OnboardingViewModel(get()) }
     viewModel { AppViewModel(get(), get(), get(), get()) }
     viewModel { (client: KinuvoClient, route: Route.Chat) -> SessionViewModel(client, get(), route) }
-    viewModel { (engine: SpeechEngine, session: SessionViewModel) -> VoiceViewModel(engine, session) }
+    viewModel { (engine: SpeechEngine, session: SessionViewModel) -> VoiceViewModel(engine, session, getOrNull()) }
     viewModel { (transcriber: Transcriber) -> DictationViewModel(transcriber) }
     viewModel { (route: Route.Settings) -> SettingsViewModel(get(), get(), get(), route) }
     viewModel { BoardViewModel(get()) }

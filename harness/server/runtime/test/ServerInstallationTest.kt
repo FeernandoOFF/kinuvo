@@ -2,15 +2,28 @@ package kinuvo.harness.server
 
 import kinuvo.harness.core.*
 import kinuvo.harness.core.store.*
+import kinuvo.harness.core.voice.VoiceConfig
+import kinuvo.harness.core.voice.VoiceProviderConfig
 import kinuvo.protocol.*
+import kotlin.test.*
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.TimeZone
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemTemporaryDirectory
-import kotlin.test.*
-import kotlin.uuid.Uuid
 
 class ServerInstallationTest {
+    @Test fun installsVoicePartsWithoutResolvingKeysOrCallingProviders() = runTest {
+        val files = AgentFiles(home)
+        files.updateConfig { it.copy(voice = VoiceConfig(synthesis =
+            VoiceProviderConfig(model = "test", apiKey = "\${UNRESOLVED_VOICE_KEY}"))) }
+        val dependencies = ServerInstallation.assemble(files)
+        try {
+            assertEquals(VoiceSetup(synthesizer = true), HarnessRuntime(dependencies).voice.setup)
+            files.updateConfig { it.copy(timezone = "Europe/Dublin") }
+            assertNotNull(files.config().voice.synthesis)
+        } finally { dependencies.resources.close() }
+    }
     @Test fun duplicateNamedInstancesFailDuringAssemblyAndCloseTheirResources() = runTest {
         var closes = 0
         fun plugin() = object : HarnessPlugin {

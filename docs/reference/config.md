@@ -5,7 +5,7 @@ description: "Every config.yaml field, with types, defaults and examples."
 
 The Server home contains `config.yaml` (usually `~/.kinuvo/config.yaml`). It holds Server-wide settings. Missing fields use the defaults below; saves omit defaults. Settings writes are serialized and the file is owner-only because options may contain API keys.
 
-MCP stays in `mcp.json`, environment values in `.env`, and Agent settings in [agent.yaml](agent.md). Listen addresses, ports and HTTPS deployment are [CLI options](cli.md), not fields here. No `voice` field is shipped.
+MCP stays in `mcp.json`, environment values in `.env`, and Agent settings in [agent.yaml](agent.md). Listen addresses, ports and HTTPS deployment are [CLI options](cli.md), not fields here.
 
 ## Top-level fields
 
@@ -19,6 +19,7 @@ MCP stays in `mcp.json`, environment values in `.env`, and Agent settings in [ag
 | `search` | object | `{provider: null, options: {}}` | Web search service |
 | `notifications` | object | `{provider: null, options: {}}` | Notification service |
 | `rules` | object | Empty lists below | Trust and Deny rules for every Agent |
+| `voice` | object | `{transcription: null, synthesis: null}` | Optional Server speech providers; restart to apply |
 
 ## Knowledge
 
@@ -79,6 +80,35 @@ Provider option values are strings and support `${VAR}` and [Secret references](
 | ntfy | `topic` | Required | A long random topic subscribed to in the ntfy app |
 | ntfy | `url` | `https://ntfy.sh` | Change for a self-hosted service |
 | ntfy | `token` | Unset | Access token for a protected topic |
+
+## Voice
+
+`voice.transcription` (speech to text / STT) and `voice.synthesis` (text to speech / TTS) each accept a provider object or `null`. Null keeps that part on the Device. These providers are independent of the Agent's model provider and can use different endpoints and keys.
+
+| Provider field | Type | Default | Meaning |
+| --- | --- | --- | --- |
+| `type` | string | `openai-compatible` | The supported audio HTTP protocol |
+| `url` | string | `https://api.openai.com/v1` | API base URL, including `/v1` or the provider's equivalent prefix |
+| `model` | string | Required | Model ID accepted by that endpoint |
+| `apiKey` | string or null | `null` | Bearer token; supports `${VAR}` and [Secret references](secrets.md); omit for keyless services |
+| `voice` | string | `alloy` | Synthesis voice ID accepted by the provider |
+| `language` | string or null | `null` | Optional transcription language code, such as `en` |
+
+URLs must use HTTPS, or HTTP on `localhost`, `127.0.0.1` or `::1`. Credentials, query parameters and fragments in URLs are refused. Redirects are not followed. URLs and model IDs are literal; only `apiKey` expands references, resolved on each request through the Server's Secrets cache.
+
+```yaml
+voice:
+  transcription:
+    url: http://127.0.0.1:8000/v1
+    model: your-transcription-model
+  synthesis:
+    url: https://speech.example.com/v1
+    model: your-speech-model
+    voice: your-voice-id
+    apiKey: ${VOICE_API_KEY}
+```
+
+Put `VOICE_API_KEY` in the Server's environment or home `.env`, then restart the Server and start a new Voice chat on a supported Device. For OpenAI itself, omit `url` and use model and voice IDs available to your account. See [Voice](../guides/voice.md) for Device support, audio limits and privacy.
 
 ## Trust and Deny rules
 

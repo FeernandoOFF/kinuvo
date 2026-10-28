@@ -26,6 +26,116 @@ class ConnectedServerTest {
     private val serverJobs = mutableListOf<Job>()
     private val stores = mutableListOf<ViewModelStore>()
     private fun store() = ViewModelStore().also(stores::add)
+
+    private class VoiceDevice : SpeechEngine {
+        var authorizations = 0
+        var synthesisError: String? = null
+        var speeches = mutableListOf<String>()
+        override fun authorize(completion: (String?) -> Unit) { authorizations++; completion(null) }
+        override fun listen(untilPause: Boolean, onPartial: (String) -> Unit, onFinal: (String) -> Unit, onError: (String) -> Unit) {}
+        override fun speak(text: String, onDone: () -> Unit) { speeches += text; onDone() }
+        override fun speak(text: String, onDone: () -> Unit, onError: (String) -> Unit) {
+            synthesisError?.let(onError) ?: speak(text, onDone)
+        }
+        override fun stopSpeaking() {}
+        override fun stop() {}
+    }
+
+    private class VoiceClips : VoiceAudio {
+        var authorizations = 0
+        var recorded: (String) -> Unit = {}
+        val playing = Channel<Pair<String, () -> Unit>>(Channel.UNLIMITED)
+        override fun authorizeMicrophone(completion: (String?) -> Unit) { authorizations++; completion(null) }
+        override fun record(untilPause: Boolean, onRecorded: (String) -> Unit, onError: (String) -> Unit) { recorded = onRecorded }
+        override fun finishRecording() { recorded("recording") }
+        override fun stopRecording() {}
+        override fun play(base64: String, onDone: () -> Unit, onError: (String) -> Unit) { playing.trySend(base64 to onDone) }
+        override fun stopPlayback() {}
+    }
+
+    @Test fun serverTranscriptionUsesMicrophoneOnlyAndDeviceSynthesisStillWorks() = withOwner { owner, _, _ ->
+        val script = Script("transcript")
+        connect(owner, script)
+        val device = VoiceDevice()
+        val audio = VoiceClips()
+        val engine = ServerSpeechEngine(device, audio, owner, owner.scope) { VoiceSetup(transcriber = true) }
+        engine.authorize { assertNull(it) }
+        assertEquals(1, audio.authorizations)
+        assertEquals(0, device.authorizations)
+        val heard = CompletableDeferred<String>()
+        engine.listen(false, {}, { fail("A held turn must finish asynchronously") }, { fail(it) })
+        engine.finish { heard.complete(requireNotNull(it)) }
+        assertEquals("transcript", heard.await())
+        assertEquals("recording", ProtocolJson.decodeFromJsonElement(Api.Transcribe.params, script.requests.single { it.method == Api.Transcribe.name }.params).base64)
+        engine.speak("Device reply") {}
+        assertEquals(listOf("Device reply"), device.speeches)
+        val failed = CompletableDeferred<String>()
+        engine.listen(true, {}, {}, { failed.complete(it) })
+        device.synthesisError = "Device synthesis failed"
+        engine.speak("Failure") { fail("Failed synthesis was reported as spoken") }
+        assertEquals("Device synthesis failed", failed.await())
+        assertEquals(listOf("Device reply"), device.speeches)
+        val timedOut = CompletableDeferred<String>()
+        engine.listen(false, {}, { timedOut.complete(it) }, { fail(it) })
+        audio.recorded("recording")
+        assertEquals("transcript", timedOut.await())
+        var finished: String? = null
+        engine.finish { finished = it }
+        assertEquals("transcript", finished)
+        engine.stop()
+    }
+
+    @Test fun serverSynthesisQueuesChunksInOrderAndCompletesOnlyAfterPlayback() = withOwner { owner, _, _ ->
+        val script = Script("speech")
+        connect(owner, script)
+        val device = VoiceDevice()
+        val audio = VoiceClips()
+        val engine = ServerSpeechEngine(device, audio, owner, owner.scope) { VoiceSetup(synthesizer = true) }
+        engine.authorize { assertNull(it) }
+        assertEquals(1, device.authorizations)
+        val failure = CompletableDeferred<String>()
+        engine.listen(true, {}, {}, { failure.complete(it) })
+        var done = 0
+        engine.speak("a".repeat(250)) { done++ }
+        engine.speak("Second") { done++ }
+        repeat(3) { index ->
+            val clip = audio.playing.receive()
+            assertEquals("speech", clip.first)
+            assertEquals(if (index == 2) 1 else 0, done)
+            clip.second()
+        }
+        yield()
+        assertEquals(2, done)
+        val requests = script.requests.filter { it.method == Api.Synthesize.name }.map { ProtocolJson.decodeFromJsonElement(Api.Synthesize.params, it.params).text }
+        assertEquals(listOf("a".repeat(240), "a".repeat(10), "Second"), requests)
+        assertTrue(device.speeches.isEmpty())
+        script.rejectVoice = true
+        engine.speak("Failure") { done++ }
+        assertEquals("Provider failed", failure.await())
+        assertTrue(device.speeches.isEmpty())
+        engine.stop()
+    }
+
+    @Test fun stoppingOrSwitchingServersDropsLateVoiceRequestsAndCallbacks() = withOwner { owner, _, _ ->
+        for (switch in listOf(false, true)) {
+            val a = Script("old")
+            connect(owner, a)
+            val audio = VoiceClips()
+            val scope = owner.scope
+            val engine = ServerSpeechEngine(VoiceDevice(), audio, owner, scope) { VoiceSetup(transcriber = true, synthesizer = true) }
+            scope.coroutineContext.job.invokeOnCompletion { engine.stop() }
+            engine.authorize { assertNull(it) }
+            a.hold(Api.Transcribe.name)
+            engine.listen(true, {}, { fail("Stale transcript") }, { fail(it) })
+            audio.recorded("recording")
+            a.blocked.receive()
+            if (switch) connect(owner, Script("new")) else engine.stop()
+            a.release.complete(Unit)
+            a.finished.await()
+            yield()
+            assertTrue(audio.playing.tryReceive().isFailure)
+        }
+    }
     @Test fun selectedAttachmentsRespectLegacyAndExplicitServerSupport() = withOwner { owner, _, _ ->
         val legacy = SessionCapabilities(server = ServerCapabilities("test", setOf(ServerFeature.Attachments)), inputs = mapOf(
             "text" to CapabilityState(), "image" to CapabilityState(), "file" to CapabilityState.unsupported("No native files"),
@@ -388,6 +498,7 @@ class ConnectedServerTest {
     }
 
     private class Script(private val name: String, private val capabilities: SessionCapabilities? = null) : FrameConnection {
+        var rejectVoice = false
         private val frames = Channel<Frame>(Channel.UNLIMITED)
         override val incoming = frames.receiveAsFlow()
         private val held = ConcurrentHashMap<String, Boolean>()
@@ -422,6 +533,9 @@ class ConnectedServerTest {
 
         private suspend fun respond(request: Frame.Request) {
             when (request.method) {
+                Api.Transcribe.name -> reply(request, Api.Transcribe, name)
+                Api.Synthesize.name -> if (rejectVoice) frames.send(Frame.Response(request.id, false, error = "Provider failed"))
+                    else reply(request, Api.Synthesize, SpeechAudio(name))
                 Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", name, capabilities = ServerCapabilities("test"), management = true))
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
                 Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo("agent", name, "none")))

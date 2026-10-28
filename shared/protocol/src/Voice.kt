@@ -13,3 +13,16 @@ data class VoiceSetup(
     val synthesizer: Boolean = false,
     val speechToSpeech: Boolean = false,
 )
+
+/** WAV clips are base64 encoded; audio stays out of Session history. */
+@Serializable
+data class TranscribeParams(val base64: String)
+
+@Serializable
+data class SynthesizeParams(val text: String)
+
+@Serializable
+data class SpeechAudio(val base64: String)
+
+@Serializable
+data class CancelVoiceParams(val requestId: String)

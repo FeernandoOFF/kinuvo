@@ -134,6 +134,9 @@ sealed interface SessionChange {
 }
 
 object Api {
+    val Transcribe = Method("voice.transcribe", TranscribeParams.serializer(), String.serializer())
+    val Synthesize = Method("voice.synthesize", SynthesizeParams.serializer(), SpeechAudio.serializer())
+    val CancelVoice = Method("voice.cancel", CancelVoiceParams.serializer(), Unit.serializer())
     val Capabilities = Method("session.capabilities", CapabilitiesParams.serializer(), SessionCapabilities.serializer())
     val CapabilitiesChanged = EventType("capabilities.changed", Unit.serializer())
     val Models = Method("models.list", ModelsParams.serializer(), ModelsCatalog.serializer())

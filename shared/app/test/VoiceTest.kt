@@ -6,6 +6,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class VoiceTest {
+    @Test fun speechChunksKeepWordsAndSurrogatePairsTogether() {
+        val text = "hello ".repeat(60).trim()
+        val chunks = speechChunks(text)
+        assertEquals(text, chunks.joinToString(" "))
+        assertEquals(true, chunks.all { it.length <= 240 && it.endsWith("hello") })
+        val emoji = "a".repeat(239) + "😀 tail"
+        assertEquals(emoji, speechChunks(emoji).joinToString(""))
+    }
     @Test
     fun speaksOnlyFinishedSentences() {
         val text = "Sure. It's 3.5 km away! Want the"
