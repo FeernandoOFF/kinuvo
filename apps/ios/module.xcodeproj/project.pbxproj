@@ -14,6 +14,7 @@
 		A8E591E0DDAD4A838B177105 /* ../../shared/ui/src@ios/AppleBackgroundRuns.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177106 /* ../../shared/ui/src@ios/AppleBackgroundRuns.swift */; };
 		A8E591E0DDAD4A838B177103 /* ../../shared/ui/src@ios/AppleFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177104 /* ../../shared/ui/src@ios/AppleFolderAccess.swift */; };
 		A8E591E0DDAD4A838B177009 /* AppleSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B17700A /* AppleSpeech.swift */; };
+		B9F602F1EEBE4B949C288001 /* NativeVoiceAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9F602F1EEBE4B949C288002 /* NativeVoiceAudio.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -26,6 +27,7 @@
 		A8E591E0DDAD4A838B177106 /* ../../shared/ui/src@ios/AppleBackgroundRuns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/AppleBackgroundRuns.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B177104 /* ../../shared/ui/src@ios/AppleFolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/AppleFolderAccess.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B17700A /* AppleSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/AppleSpeech.swift"; sourceTree = SOURCE_ROOT; };
+		B9F602F1EEBE4B949C288002 /* NativeVoiceAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/NativeVoiceAudio.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -66,6 +68,7 @@
 				A8E591E0DDAD4A838B177008 /* AppleKeychain.swift */,
 				A8E591E0DDAD4A838B177006 /* AppleLanguageModel.swift */,
 				A8E591E0DDAD4A838B17700A /* AppleSpeech.swift */,
+				B9F602F1EEBE4B949C288002 /* NativeVoiceAudio.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -166,6 +169,7 @@
 				A8E591E0DDAD4A838B177007 /* AppleKeychain.swift in Sources */,
 				A8E591E0DDAD4A838B177005 /* AppleLanguageModel.swift in Sources */,
 				A8E591E0DDAD4A838B177009 /* AppleSpeech.swift in Sources */,
+				B9F602F1EEBE4B949C288001 /* NativeVoiceAudio.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

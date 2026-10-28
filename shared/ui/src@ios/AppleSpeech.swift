@@ -127,8 +127,13 @@ final class AppleSpeech: NSObject, SpeechEngine {
     }
 
     func speak(text: String, onDone: @escaping () -> Void) {
+        speak(text: text, onDone: onDone, onError: { _ in })
+    }
+
+    func speak(text: String, onDone: @escaping () -> Void, onError: @escaping (String) -> Void) {
         do { try start() } catch {
             log.error("Couldn't start audio to speak: \(error.localizedDescription)")
+            onError(error.localizedDescription)
             onDone()
             return
         }
@@ -211,6 +216,8 @@ final class AppleSpeech: NSObject, SpeechEngine {
         engine.stop()
         try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
+
+    func finish(onFinal: @escaping (String?) -> Void) { stop(); onFinal(nil) }
 
     func stopListening() {
         listening = nil

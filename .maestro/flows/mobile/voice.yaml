@@ -1,0 +1,36 @@
+appId: ${APP_ID}
+tags:
+  - regression
+  - android
+  - ios
+properties:
+  apiProfile: mobile-voice
+  apiVerifications:
+    - stub: mobile/voice-capabilities
+      atLeast: 1
+---
+- launchApp:
+    permissions:
+      all: allow
+- assertVisible: "Connect a server"
+- tapOn: "From kinuvo pair"
+- inputText: "123456"
+- tapOn: "Connect"
+- assertVisible: "Start a session with E2E Agent"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Voice chat"
+      - assertVisible: "Listening"
+      - tapOn: "Pause"
+      - assertVisible: "Paused · hold to talk"
+      - tapOn: "Resume"
+      - assertVisible: "Listening"
+      - tapOn: "End voice chat"
+      - assertVisible: "Message"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible: "Voice chat (coming soon)"

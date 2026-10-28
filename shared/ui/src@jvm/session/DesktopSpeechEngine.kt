@@ -1,6 +1,7 @@
 package kinuvo.ui.session
 
 import kinuvo.app.session.SpeechEngine
+import kinuvo.app.session.VoiceAudio
 import kinuvo.protocol.Platform
 import kinuvo.protocol.currentPlatform
 import kotlinx.serialization.json.*
@@ -10,7 +11,7 @@ import javax.swing.SwingUtilities
 /** JSON lines to the bundled native speech helper. Callbacks run on the UI thread. */
 internal class DesktopSpeechEngine(
     private val launch: () -> Process = ::launchSpeechHelper,
-) : SpeechEngine {
+) : SpeechEngine, VoiceAudio {
     override val halfDuplex = true
     private var process: Process? = null
     private var next = 0
@@ -20,6 +21,8 @@ internal class DesktopSpeechEngine(
     private var final: (String) -> Unit = {}
     private var error: (String) -> Unit = {}
     private val spoken = mutableMapOf<Int, () -> Unit>()
+    private var recorded: (String) -> Unit = {}
+    private val playbackErrors = mutableMapOf<Int, (String) -> Unit>()
     private val shutdown = Thread { process?.destroy() }
 
     private fun helper(): Process {
@@ -57,12 +60,13 @@ internal class DesktopSpeechEngine(
             "authorized" -> if (authorization?.first == id) authorization?.also { authorization = null }?.second?.invoke(text.ifBlank { null })
             "partial" -> if (id == listening && id != 0) partial(text)
             "final" -> if (id == listening && id != 0) { listening = 0; final(text) }
+            "recorded" -> if (id == listening && id != 0) { listening = 0; recorded(text) }
             "error" -> if (id == listening && id != 0 || id in spoken) {
                 listening = 0
-                error(text)
+                (playbackErrors.remove(id) ?: error)(text)
                 spoken.remove(id)?.invoke()
             }
-            "done" -> spoken.remove(id)?.invoke()
+            "done" -> { playbackErrors.remove(id); spoken.remove(id)?.invoke() }
         }
     }
 
@@ -74,7 +78,7 @@ internal class DesktopSpeechEngine(
         val active = listening != 0 || spoken.isNotEmpty()
         listening = 0
         auth?.invoke(message)
-        if (active) error(message)
+        if (active) (playbackErrors.values.firstOrNull() ?: error)(message)
         finishSpeaking()
     }
 
@@ -91,14 +95,20 @@ internal class DesktopSpeechEngine(
     }
 
     override fun speak(text: String, onDone: () -> Unit) {
+        speak(text, onDone) { error(it) }
+    }
+
+    override fun speak(text: String, onDone: () -> Unit, onError: (String) -> Unit) {
         val id = ++next
         spoken[id] = onDone
+        playbackErrors[id] = onError
         runCatching { command("speak", id, text) }.onFailure { failed(it.message ?: "Cannot speak") }
     }
 
     private fun finishSpeaking() {
         val callbacks = spoken.values.toList()
         spoken.clear()
+        playbackErrors.clear()
         callbacks.forEach { it() }
     }
 
@@ -112,6 +122,33 @@ internal class DesktopSpeechEngine(
         listening = 0
         if (process?.isAlive == true) runCatching { command("stop") }.onFailure { failed(it.message ?: "Cannot stop listening") }
         stopSpeaking()
+    }
+
+    override fun authorizeMicrophone(completion: (String?) -> Unit) {
+        val id = ++next
+        authorization = id to completion
+        runCatching { command("authorizeMicrophone", id) }.onFailure { failed("Cannot access the microphone") }
+    }
+
+    override fun record(untilPause: Boolean, onRecorded: (String) -> Unit, onError: (String) -> Unit) {
+        recorded = onRecorded; error = onError
+        listening = ++next
+        runCatching { command("record", listening, untilPause = untilPause) }.onFailure { failed("Cannot record audio") }
+    }
+
+    override fun finishRecording() { runCatching { command("finishRecording") }.onFailure { failed("Cannot finish recording") } }
+    override fun stopRecording() { listening = 0; if (process?.isAlive == true) runCatching { command("stopRecording") } }
+
+    override fun play(base64: String, onDone: () -> Unit, onError: (String) -> Unit) {
+        val id = ++next
+        spoken[id] = onDone
+        playbackErrors[id] = onError
+        runCatching { command("play", id, base64) }.onFailure { failed("Cannot play audio") }
+    }
+
+    override fun stopPlayback() {
+        if (process?.isAlive == true) runCatching { command("stopPlayback") }
+        finishSpeaking()
     }
 }
 

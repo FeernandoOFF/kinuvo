@@ -1,16 +1,16 @@
 package kinuvo.app.session
 
-import kinuvo.app.connection.*
-import kinuvo.app.agent.*
-import kinuvo.app.navigation.*
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import kinuvo.app.agent.*
+import kinuvo.app.connection.*
+import kinuvo.app.navigation.*
+import kinuvo.app.session.CompletionSource
 import kinuvo.client.ConnectionState
 import kinuvo.client.DisconnectedException
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
-import kinuvo.app.session.CompletionSource
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -179,6 +179,9 @@ data class SessionState(
 /** One Session screen: a view of the Session in the [SessionRepository], plus sending, stopping, Approvals and answers. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class SessionViewModel(private val client: KinuvoClient, private val repo: SessionRepository, route: Route.Chat) : ViewModel() {
+    internal val voiceConnection get() = repo.connection
+    internal val voiceSetup get() = state.value.capabilities?.server?.voice ?: client.lastConnect?.capabilities?.voice ?: VoiceSetup()
+    internal fun bindVoice(scope: CoroutineScope) = repo.connection.bind(scope, client)
     val state: StateFlow<SessionState>
         field = MutableStateFlow(SessionState(route))
     val connection: StateFlow<ConnectionState> = client.state

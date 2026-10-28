@@ -8,6 +8,64 @@ import javax.swing.SwingUtilities
 import kotlin.test.*
 
 class DesktopSpeechTest {
+    @Test fun synthesisReportsMissingHelperWithoutStartingRecognition() {
+        val speech = DesktopSpeechEngine { error("Helper missing") }
+        var error: String? = null
+        var completions = 0
+        SwingUtilities.invokeAndWait { speech.speak("Hello", { completions++ }, { error = it }) }
+        assertEquals("Helper missing", error)
+        assertEquals(1, completions)
+    }
+
+    @Test fun synthesisReportsHelperErrorsAndExitWithoutStartingRecognition() {
+        for (exit in listOf(false, true)) {
+            val helper = Helper()
+            val speech = DesktopSpeechEngine { helper }
+            val failed = CountDownLatch(1)
+            var completions = 0
+            SwingUtilities.invokeAndWait {
+                speech.speak("Hello", { completions++ }, {
+                    assertTrue(SwingUtilities.isEventDispatchThread())
+                    assertTrue(it.isNotBlank())
+                    failed.countDown()
+                })
+                if (exit) helper.destroy()
+            }
+            if (!exit) { helper.emit("error", 1, "SAPI synthesis failed"); helper.emit("done", 1) }
+            failed.awaitCallback()
+            SwingUtilities.invokeAndWait { assertEquals(1, completions); speech.stop(); if (!exit) helper.destroy() }
+        }
+    }
+
+    @Test fun recordsWavAndReportsPlaybackErrorsWhileIgnoringStoppedRecordings() {
+        val helper = Helper()
+        val speech = DesktopSpeechEngine { helper }
+        val authorized = CountDownLatch(1)
+        val recorded = CountDownLatch(1)
+        val failed = CountDownLatch(1)
+        var done = 0
+        SwingUtilities.invokeAndWait { speech.authorizeMicrophone { assertNull(it); authorized.countDown() } }
+        helper.emit("authorized", 1)
+        authorized.awaitCallback()
+        SwingUtilities.invokeAndWait {
+            assertTrue("authorizeMicrophone" in helper.commands.toString())
+            speech.record(true, { assertEquals("wav", it); recorded.countDown() }, { fail(it) })
+            speech.finishRecording()
+        }
+        helper.emit("recorded", 2, "wav")
+        recorded.awaitCallback()
+        SwingUtilities.invokeAndWait {
+            speech.record(false, { fail("Stopped recording was delivered") }, { fail(it) })
+            speech.stopRecording()
+            speech.play("wav", { done++ }, { assertEquals("Cannot decode", it); failed.countDown() })
+        }
+        helper.emit("recorded", 3, "old")
+        helper.emit("error", 4, "Cannot decode")
+        helper.emit("done", 4)
+        failed.awaitCallback()
+        SwingUtilities.invokeAndWait { assertEquals(1, done); speech.stop(); helper.destroy() }
+    }
+
     private class Helper : Process() {
         val events = PipedOutputStream()
         private val input = PipedInputStream(events)

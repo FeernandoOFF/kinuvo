@@ -14,6 +14,7 @@ func emit(_ event: String, _ id: Int = 0, _ text: String = "") {
 final class Speech: NSObject, AVSpeechSynthesizerDelegate {
     let audio = AVAudioEngine()
     let synth = AVSpeechSynthesizer()
+    let clips = NativeVoiceAudio()
     var request: SFSpeechAudioBufferRecognitionRequest?
     var task: SFSpeechRecognitionTask?
     var recognizer: SFSpeechRecognizer?
@@ -85,6 +86,15 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
     func handle(_ command: [String: Any]) {
         let id = command["id"] as? Int ?? 0
         switch command["op"] as? String {
+        case "authorizeMicrophone": clips.authorizeMicrophone { emit("authorized", id, $0 ?? "") }
+        case "record":
+            stopListening()
+            clips.record(untilPause: command["untilPause"] as? Bool ?? true,
+                onRecorded: { emit("recorded", id, $0) }, onError: { emit("error", id, $0) })
+        case "finishRecording": clips.finishRecording()
+        case "stopRecording": clips.stopRecording()
+        case "play": clips.play(base64: command["text"] as? String ?? "", onDone: { emit("done", id) }, onError: { emit("error", id, $0) })
+        case "stopPlayback": clips.stopPlayback()
         case "authorize":
             SFSpeechRecognizer.requestAuthorization { status in
                 guard status == .authorized else {

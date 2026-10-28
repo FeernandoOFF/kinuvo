@@ -14,6 +14,7 @@ struct KinuvoApp: App {
         FolderPicker_iosKt.installFolderAccess(access: AppleFolderAccess())
         LocalServer_iosKt.installBackgroundRuns(keeper: AppleBackgroundRuns())
         Speech_iosKt.installSpeechEngine(engine: AppleSpeech())
+        Speech_iosKt.installVoiceAudio(audio: NativeVoiceAudio())
     }
     var body: some Scene {
         WindowGroup {

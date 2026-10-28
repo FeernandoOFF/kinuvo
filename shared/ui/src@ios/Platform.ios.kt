@@ -3,7 +3,6 @@ package kinuvo.ui
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 import kinuvo.app.session.*
-
 import org.koin.dsl.bind
 import org.koin.dsl.module
 import platform.Foundation.NSTimeZone
@@ -38,6 +37,7 @@ internal actual val platformModule = module {
     single<EmbeddedServer> { IosEmbeddedServer() }
     single<DeviceReader> { IosDeviceReader() }
     single<SpeechEngine> { checkNotNull(nativeSpeech) }
+    single<VoiceAudio> { checkNotNull(nativeVoiceAudio) }
     single { HapticNotifier() } bind Notifier::class
     single<DeviceCredentials> { get<MobileTestMode>().takeIf { it.override != null }?.credentials ?: IosCredentials() }
     single<Preferences> { get<MobileTestMode>().takeIf { it.override != null }?.preferences ?: UserDefaultsStore() }

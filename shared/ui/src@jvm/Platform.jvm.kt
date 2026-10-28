@@ -1,23 +1,26 @@
 package kinuvo.ui
 
+import java.awt.Desktop
+import java.io.File
+import java.net.InetAddress
+import java.net.URI
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
-
+import kinuvo.app.session.SpeechEngine
+import kinuvo.app.session.VoiceAudio
 import kinuvo.client.LoopbackCallback
 import kinuvo.client.oauthState
 import kinuvo.protocol.McpRedirect
 import kinuvo.protocol.Platform
 import kinuvo.protocol.currentPlatform
+import kinuvo.ui.session.DesktopSpeechEngine
+import kinuvo.ui.session.DesktopVoiceAudio
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import org.koin.dsl.module
-import java.awt.Desktop
-import java.net.URI
-import java.io.File
-import java.net.InetAddress
 
 /** Opens the default browser and catches its return on localhost ([McpRedirect.Loopback]). */
 internal class LoopbackBrowser : OAuthBrowser {
@@ -55,7 +58,11 @@ internal class FilePreferences(dir: File) : Preferences {
 
 internal actual val platformModule = module {
     if (currentPlatform == Platform.MacOS || currentPlatform == Platform.Windows) {
-        single<kinuvo.app.session.SpeechEngine> { kinuvo.ui.session.DesktopSpeechEngine() }
+        single { DesktopSpeechEngine() }
+        single<SpeechEngine> { get<DesktopSpeechEngine>() }
+        single<VoiceAudio> {
+            if (currentPlatform == Platform.MacOS) get<DesktopSpeechEngine>() else DesktopVoiceAudio()
+        }
     }
     single<DeviceReader> { DesktopDeviceReader() }
     single<DeviceCredentials> { DesktopCredentials(System.getenv("KINUVO_HOME")?.let(::File) ?: File(System.getProperty("user.home"), ".kinuvo")) }

@@ -44,7 +44,7 @@ tags. Mockstro injects `APP_ID` from the selected platform configuration. Keep
 common behavior in shared flows; use native Maestro platform conditions for
 interactions that differ.
 
-Run all eleven shared flows on iOS (smoke and regression) with:
+Run the shared flows on iOS (smoke and regression) with:
 
 ```sh
 ./mockstrow --dev --owner agent --platform ios run --headless --tags smoke,regression
@@ -64,6 +64,7 @@ exercise the default Compose shell on Android and iOS:
 - `approval-deny.yaml`: deny with a note and verify that exact decision reaches the Server.
 - `session-details.yaml`: favorite and rename the open Session from its "…" menu, then find it under Favorites.
 - `model-providers.yaml`: show API-key providers and keyless local endpoints in Model providers settings.
+- `voice.yaml`: select Server speech from capabilities on iOS, start recording with microphone access, pause, resume and end; Android keeps its unavailable Voice chat control.
 - `computers.yaml`: Live view of a Computer: a pushed frame, Take over, a key from the controls and Hand back.
 - `session-return.yaml`: receive an event on Board, return to the Session, then background/resume without losing its transcript or resending the message.
 
@@ -79,6 +80,12 @@ verify the client's rendering, decisions and lifecycle; actual tool execution is
 covered by the harness's own tests. Background/resume uses Maestro's
 [`launchApp: stopApp: false`](https://docs.maestro.dev/reference/commands-available/launchapp)
 to retain the running process.
+
+The iOS Voice chat flow uses the real microphone adapter. Its simulator host needs
+an audio input device; granting microphone permission alone does not provide one.
+A host without input reports "No microphone input is available" and cannot verify
+recording, pause or resume. Provider HTTP contracts and client routing are covered
+separately by the core and app tests.
 
 Each flow asserts the relevant received WebSocket requests as well as the UI.
 Server pushes happen after UI readiness assertions, without fixed sleeps. Mockstro

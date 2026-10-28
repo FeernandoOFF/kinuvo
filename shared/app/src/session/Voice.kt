@@ -25,12 +25,15 @@ interface Transcriber {
     fun listen(untilPause: Boolean, onPartial: (String) -> Unit, onFinal: (String) -> Unit, onError: (String) -> Unit)
     /** Stops listening and releases the microphone. */
     fun stop()
+    /** Finishes a recorded turn asynchronously; null uses the latest Device transcript. */
+    fun finish(onFinal: (String?) -> Unit) { stop(); onFinal(null) }
 }
 
 /** Reads text aloud. Callbacks arrive on the main thread. */
 interface Synthesizer {
     /** Queues [text] after anything still being spoken; [onDone] fires once it's spoken or stopped. */
     fun speak(text: String, onDone: () -> Unit)
+    fun speak(text: String, onDone: () -> Unit, onError: (String) -> Unit) = speak(text, onDone)
     fun stopSpeaking()
 }
 
@@ -86,11 +89,16 @@ interface VoiceChat {
     fun foreground()
 }
 
-/** The Device does every part for now; Server-provided ones ([VoiceSetup]) get their Device client here. */
-class VoiceViewModel(device: SpeechEngine, session: SessionViewModel) : ViewModel() {
-    val chat: VoiceChat = SpeechVoiceChat(device, session, viewModelScope)
+/** Uses each Server-provided part when Voice chat starts; Dictation keeps using the Device recognizer. */
+class VoiceViewModel(device: SpeechEngine, session: SessionViewModel, audio: VoiceAudio? = null) : ViewModel() {
+    private val engine = ServerSpeechEngine(device, audio, session.voiceConnection, viewModelScope) {
+        session.voiceSetup
+    }
+    val chat: VoiceChat = SpeechVoiceChat(engine, session, viewModelScope)
 
     init {
+        session.bindVoice(viewModelScope)
+        viewModelScope.coroutineContext[Job]?.invokeOnCompletion { chat.end() }
         viewModelScope.launch {
             session.state.map { it.voiceRequested }.distinctUntilChanged().filter { it }.collect { session.voiceStarted(); chat.start() }
         }
@@ -141,7 +149,7 @@ class SpeechVoiceChat(
         if (state.value.phase == VoicePhase.Off) return
         cutIn()
         release()
-        state.update { it.copy(phase = VoicePhase.Listening, paused = true, heard = "", spoken = emptyMap()) }
+        state.update { it.copy(phase = VoicePhase.Listening, paused = true, holding = false, heard = "", spoken = emptyMap()) }
     }
 
     override fun resume() {
@@ -164,10 +172,12 @@ class SpeechVoiceChat(
 
     override fun letGo() {
         if (!state.value.holding) return
-        val text = state.value.heard
-        transcriber.stop()
-        state.update { it.copy(holding = false) }
-        if (text.isBlank()) hear() else send(text)
+        transcriber.finish { final ->
+            if (!state.value.holding) return@finish
+            val text = final ?: state.value.heard
+            state.update { it.copy(holding = false) }
+            if (text.isBlank()) hear() else send(text)
+        }
     }
 
     override fun background() {
