@@ -1,0 +1,179 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-inspector
+  apiVerifications:
+    - stub: mobile/connect-features
+      exactly: 1
+    - stub: ws/create-session
+      exactly: 1
+    - stub: ws/chat-send
+      exactly: 1
+    - stub: mobile/agent-details
+      atLeast: 1
+    - stub: ws/models
+      atLeast: 1
+    - stub: mobile/agent-update
+      exactly: 0
+---
+- runFlow: ../../shared/start-chat.yaml
+- takeScreenshot: 01-chat-before-swipe
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - swipe:
+          start: 8%,50%
+          end: 80%,50%
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: 2%,50%
+          end: 80%,50%
+- assertVisible:
+    text: "Home"
+    above: "New agent"
+- assertVisible: "E2E Agent"
+- assertVisible: "New agent"
+- assertVisible: "Server: .*"
+- assertVisible: "Settings"
+- assertVisible: "Search sessions"
+- assertVisible: "Agent settings"
+- takeScreenshot: 02-drawer-open-by-edge-swipe
+- assertNotVisible: "Board"
+- assertNotVisible: "Knowledge"
+- swipe:
+    start: 70%,50%
+    end: 10%,50%
+- assertNotVisible: "Settings"
+- takeScreenshot: 03-drawer-closed-by-swipe
+- tapOn: "Agents and sessions"
+- assertVisible: "Settings"
+- tapOn:
+    text: "Home"
+    above: "New agent"
+- assertVisible: "Today"
+- assertVisible: "Board"
+- assertVisible: "ON THIS SERVER"
+- assertVisible: "Knowledge"
+- assertNotVisible: "Search sessions"
+- takeScreenshot: 04-drawer-home-column
+- tapOn: "Today"
+- assertVisible: "Nothing needs you, no Session is running and no run is scheduled."
+- assertVisible: "Needs you"
+- assertVisible: "Running now"
+- assertVisible: "Next up"
+- assertVisible: "Due this week"
+- assertVisible: "New results"
+- assertVisible: "Nothing is waiting on you."
+- assertVisible: "No Session is running."
+- assertVisible: "No Routine is scheduled."
+- assertVisible: "No new results in the last two days."
+- assertVisible: "Home, Today"
+- assertNotVisible: "Home and agents"
+- takeScreenshot: 05-today-with-back
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: Back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - assertVisible: "Back"
+      - tapOn: "Back"
+- assertNotVisible: "Needs you"
+- assertVisible: "Hello from Maestro"
+- assertVisible: "Hello from WireMock"
+- takeScreenshot: 06-chat-after-back
+- tapOn: "Message"
+- inputText: "Draft survives the sheet"
+- tapOn: "Hello from WireMock"
+- tapOn: "E2E Agent settings"
+- extendedWaitUntil:
+    visible: "Agent settings · every Session"
+    timeout: 10000
+- takeScreenshot: 07-agent-settings-sheet
+- assertVisible: "Close Agent settings"
+- assertVisible: "Resize sheet"
+- assertVisible: "Name"
+- assertVisible: "Personality.*"
+- assertVisible: "No unsaved changes"
+- tapOn: "Resize sheet"
+- takeScreenshot: 07b-agent-settings-sheet-tall
+- scrollUntilVisible:
+    element:
+      text: "Soul"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: "Risk tolerance"
+    direction: DOWN
+- tapOn: "Risk tolerance"
+- assertVisible: "Anything that changes things"
+- assertVisible: "Never ask"
+- assertNotVisible: "Agent settings · every Session"
+- takeScreenshot: 08-risk-tolerance-nested
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: Back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Back"
+- assertVisible: "Agent settings · every Session"
+- scrollUntilVisible:
+    element:
+      text: "Risk tolerance"
+    direction: DOWN
+- tapOn: "Risk tolerance"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: Back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Back"
+- assertVisible: "Agent settings · every Session"
+- scrollUntilVisible:
+    element:
+      text: "Name"
+    direction: UP
+- tapOn:
+    text: "E2E Agent"
+    below: "Name"
+- eraseText
+- inputText: "Renamed"
+- assertVisible: "Unsaved: Name"
+- takeScreenshot: 09-sheet-dirty
+- tapOn: "Agent settings · every Session"
+- tapOn: "Close Agent settings"
+- assertVisible: "Unsaved changes to E2E Agent"
+- assertVisible: "Keep editing"
+- takeScreenshot: 10-unsaved-changes-dialog
+- tapOn: "Keep editing"
+- assertNotVisible: "Unsaved changes to E2E Agent"
+- assertVisible: "Unsaved: Name"
+- tapOn: "Close Agent settings"
+- assertVisible: "Unsaved changes to E2E Agent"
+- tapOn:
+    text: "Discard"
+    rightOf: "Keep editing"
+- assertNotVisible: "Unsaved changes to E2E Agent"
+- assertNotVisible: "Agent settings · every Session"
+- assertVisible: "Hello from Maestro"
+- assertVisible: "Hello from WireMock"
+- assertVisible: "Draft survives the sheet"
+- takeScreenshot: 11-chat-after-discard-draft-kept

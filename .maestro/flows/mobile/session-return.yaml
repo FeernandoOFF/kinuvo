@@ -23,6 +23,9 @@ properties:
 ---
 - runFlow: ../../shared/start-chat.yaml
 - tapOn: "Agents and sessions"
+- tapOn:
+    text: "Home"
+    above: "New agent"
 - tapOn: "Board"
 - assertVisible: "Plan mobile tests"
 - runScript:
