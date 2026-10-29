@@ -1,5 +1,8 @@
 package kinuvo.ui.screen
 
+import kinuvo.ui.navigation.PageHeader
+import kinuvo.ui.navigation.PageAction
+
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.*
 import androidx.compose.foundation.lazy.*
@@ -56,7 +59,11 @@ internal fun LiveViewContent(state: LiveViewState, actions: LiveActions, back: (
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor)).safeDrawingPadding().imePadding()) {
         val wide = maxWidth >= 760.dp
         Column(Modifier.fillMaxSize()) {
-            TitleBarRow(trailing = false) {
+            if (back == null) PageHeader(Lucide.MonitorSmartphone, state.screen?.title ?: "Screens",
+                subtitle = state.screen?.currentUrl, actions = buildList {
+                    if (state.error != null || !state.connected) add(PageAction(Lucide.RefreshCw, "Reconnect", actions.retry))
+                    add(PageAction(Lucide.LayoutGrid, "Screens", { overview = !overview }))
+                }) else TitleBarRow(trailing = false) {
                 back?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
                 Column(Modifier.weight(1f)) {
                     Text(state.screen?.title ?: "Screens", maxLines = 1)
