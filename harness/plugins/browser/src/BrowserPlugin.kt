@@ -40,9 +40,9 @@ class BrowserPlugin(home: File, override val browser: BrowserRuntime = BrowserRu
             else -> Risk.Medium
         }
         override val descriptor = ToolDescriptor("browser_${action.name.lowercase()}", when (action) {
-            BrowserAction.Open -> "Open a tab in this Session. text is an HTTP(S) URL; private hosts are allowed."
+            BrowserAction.Open -> "Open a tab in this Session. text is an HTTP(S) URL, a bare host or a Google search; private hosts are allowed."
             BrowserAction.Capture -> "Capture the tab's visible semantic elements, revision and screenshot."
-            BrowserAction.Navigate -> "Navigate tab to text (HTTP(S) URL)."
+            BrowserAction.Navigate -> "Navigate tab to text: an HTTP(S) URL, a bare host or a Google search."
             BrowserAction.Click -> "Click ref from the most recent capture with its revision. May submit or change data."
             BrowserAction.Type -> "Fill ref with text using its capture revision."
             BrowserAction.Scroll -> "Scroll vertically by pixels (positive down)."

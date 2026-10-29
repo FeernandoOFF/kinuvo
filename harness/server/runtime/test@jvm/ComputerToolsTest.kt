@@ -62,7 +62,9 @@ class ComputerToolsTest {
             val source = computers.screen("mac")
             assertEquals(ScreenRef("computer", "mac"), source.ref)
             assertEquals(ScreenDelivery.CaptureRefresh, source.capabilities.delivery)
-            assertTrue(source.capabilities.windows)
+            assertFalse(source.capabilities.windows)
+            assertFalse("list_windows" in source.capabilities.inputs)
+            assertTrue("tap" in source.capabilities.inputs)
             val sample = withTimeout(5000) { source.frames().first() }
             assertEquals("paired-image", sample.image)
             assertEquals(100, sample.width)

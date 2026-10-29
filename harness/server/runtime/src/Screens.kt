@@ -48,7 +48,7 @@ internal class Screens(
             validate(current)
             requireNotNull(browser()).tabs(current).map { tab ->
                 val ref = ScreenRef("browser", tab.id, current)
-                ScreenInfo(ref, tab.title, source(ref).capabilities, if (failures[ref] == null) ScreenStatus.Ready else ScreenStatus.Failed, gate(ref).state.value)
+                ScreenInfo(ref, tab.title, source(ref).capabilities, if (failures[ref] == null) ScreenStatus.Ready else ScreenStatus.Failed, gate(ref).state.value, currentUrl = tab.url)
             }
         }
     }
@@ -112,14 +112,15 @@ internal class Screens(
         val ref = watch.ref
         return watch.view.input(holder, p.input, gate(ref)) { action ->
             require(action.kind.action in source(ref).capabilities.inputs) { "Unsupported Screen input" }
-            require(action.element == null) { "Screen input uses displayed coordinates" }
-            if (ref.source == "computer") computers.input(ref.id, action)
+
+            if (ref.source == "computer") computers.input(ref.id, ComputerAction(ComputerActionKind.entries.single { it.action == action.kind.action },
+                x = action.x, y = action.y, toX = action.toX, toY = action.toY, text = action.text, key = action.key, direction = action.direction))
             else {
                 val kind = when (action.kind) {
-                    ComputerActionKind.Tap -> BrowserAction.Click
-                    ComputerActionKind.Type -> BrowserAction.Type
-                    ComputerActionKind.Key -> BrowserAction.Key
-                    ComputerActionKind.Scroll -> BrowserAction.Scroll
+                    ScreenActionKind.Tap -> BrowserAction.Click
+                    ScreenActionKind.Type -> BrowserAction.Type
+                    ScreenActionKind.Key -> BrowserAction.Key
+                    ScreenActionKind.Scroll -> BrowserAction.Scroll
                     else -> error("Unsupported Browser input")
                 }
                 requireNotNull(browser()).userCommand(BrowserCommand(requireNotNull(ref.owner), kind, ref.id,
@@ -145,9 +146,15 @@ internal class Screens(
     }
 
     suspend fun command(holder: String, p: ScreenCommand) {
-        require(p.screen.source == "browser" && p.action in setOf(BrowserAction.Navigate, BrowserAction.Close))
+        require(p.screen.source == "browser" && p.action in setOf(ScreenCommandKind.Navigate, ScreenCommandKind.Close))
+        // Closing a tab needs no takeover, unless another Device holds it; the Agent sees it gone on its next step.
+        if (p.action == ScreenCommandKind.Close) {
+            gate(p.screen).state.value.holder?.let { check(it == holder) { "Another Device controls this tab" } }
+            requireNotNull(browser()).userCommand(BrowserCommand(requireNotNull(p.screen.owner), BrowserAction.Close, p.screen.id))
+            return
+        }
         gate(p.screen).input(holder, p.generation) {
-            requireNotNull(browser()).userCommand(BrowserCommand(requireNotNull(p.screen.owner), p.action, p.screen.id, text = p.text))
+            requireNotNull(browser()).userCommand(BrowserCommand(requireNotNull(p.screen.owner), if (p.action == ScreenCommandKind.Navigate) BrowserAction.Navigate else BrowserAction.Close, p.screen.id, text = p.text))
         }
         Unit
     }
