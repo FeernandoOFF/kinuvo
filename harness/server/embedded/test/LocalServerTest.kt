@@ -203,7 +203,7 @@ class EmbeddedServerHostTest {
             val server = EmbeddedServerHost.create(home, listOf(provider))
             val client = client(server)
             try {
-                assertEquals(setOf(ServerFeature.DeviceTools, ServerFeature.Computer, ServerFeature.Knowledge, ServerFeature.Tasks), client.lastConnect?.capabilities?.features)
+                assertEquals(setOf(ServerFeature.DeviceTools, ServerFeature.Computer, ServerFeature.Knowledge, ServerFeature.Tasks, ServerFeature.Screens), client.lastConnect?.capabilities?.features)
                 val offered = client.lastConnect?.capabilities
                 assertFalse(offered.offers(Integration.Exec) || offered.offers(Integration.Secrets) || offered.offers(Integration.Mcp))
                 assertTrue(offered.offers(Integration.Tasks, "local") && offered.offers(Integration.Knowledge, "markdown"))

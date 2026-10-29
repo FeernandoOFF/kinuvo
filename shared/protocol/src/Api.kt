@@ -42,7 +42,7 @@ class EventType<T>(val name: String, val payload: KSerializer<T>)
 data class AgentInfo(val id: String, val name: String, val exec: String, val avatar: String? = null, val executionKind: ExecutionKind = ExecutionKind.Native, val connectionId: String? = null, val host: String? = null, val readiness: ExecutionReadiness = ExecutionReadiness(true, true))
 
 object ProtocolVersion {
-    const val Current = 2
+    const val Current = 3
     const val Mismatch = "protocol_mismatch: Update the Server and Device to matching versions"
     fun requireCompatible(version: Int) { require(version == Current) { Mismatch } }
 }
@@ -52,7 +52,7 @@ object ProtocolVersion {
 data class ConnectParams(val device: String, val token: String? = null, val pairingCode: String? = null, val timeZone: String? = null, val deviceTools: Set<DeviceToolKind> = emptySet(), @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current)
 
 @Serializable
-data class ConnectResult(val token: String, val serverName: String, val usage: Usage? = null, val capabilities: ServerCapabilities, val management: Boolean, @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current)
+data class ConnectResult(val token: String, val serverName: String, val usage: Usage? = null, val capabilities: ServerCapabilities, val management: Boolean, @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current, val deviceId: String? = null)
 
 @Serializable
 data class AgentRef(val agentId: String)
@@ -144,6 +144,18 @@ sealed interface SessionChange {
 }
 
 object Api {
+    val ScreenOpen = Method("screens.open", kinuvo.protocol.ScreenOpen.serializer(), ScreenInfo.serializer())
+    val Screens = Method("screens.list", BrowserOwner.serializer().nullable, ListSerializer(ScreenInfo.serializer()))
+    val ScreenWatch = Method("screens.watch", kinuvo.protocol.ScreenWatch.serializer(), ScreenSubscription.serializer())
+    val ScreenUnwatch = Method("screens.unwatch", String.serializer(), Unit.serializer())
+    val ScreenAck = Method("screens.ack", ScreenFrameAck.serializer(), Unit.serializer())
+    val ScreenControl = Method("screens.control", ScreenControlRequest.serializer(), kinuvo.protocol.ScreenControl.serializer())
+    val ScreenInput = Method("screens.input", ScreenInputRequest.serializer(), ScreenInputResult.serializer())
+    val ScreenCommand = Method("screens.command", kinuvo.protocol.ScreenCommand.serializer(), Unit.serializer())
+    val ScreensChanged = EventType("screens.changed", BrowserOwner.serializer().nullable)
+    val ScreenFrame = EventType("screens.frame", kinuvo.protocol.ScreenFrame.serializer())
+    val ScreenStatus = EventType("screens.status", ScreenStreamStatus.serializer())
+
     val BrowserTabs = Method("browser.tabs", BrowserOwner.serializer(), ListSerializer(BrowserTab.serializer()))
     val BrowserCommand = Method("browser.command", kinuvo.protocol.BrowserCommand.serializer(), BrowserFrame.serializer().nullable)
     val BrowserChanged = EventType("browser.changed", BrowserOwner.serializer())

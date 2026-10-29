@@ -1,4 +1,6 @@
-# Server-owned Browser
+---
+title: "Server-owned Browser"
+---
 
 The JVM Server (desktop and CLI) offers a controlled Chromium browser, separate
 from paired Computers. Enable **Browser** in an Agent's tools. In a Session,
@@ -52,13 +54,13 @@ and `browser.command`, with `browser.changed` notifications. These methods use
 the existing paired/authenticated management channel and never return a CDP
 address. URL query strings and fragments are omitted from tab metadata. Input is never automatically retried after disconnect/error.
 
-Verification commands (in a pinned checkout):
+Verification commands:
 
 ```sh
 mise run kotlin -- test -m browser -p jvm
 mise run kotlin -- test -m jvm -p jvm --include-classes='*BrowserServerTest'
-mise run kotlin -- test -m app -p jvm --include-classes='*BrowserStateTest'
-mise run kotlin -- test -m ui -p jvm --include-classes='*BrowserScreenTest'
+mise run kotlin -- test -m app -p jvm --include-classes='*LiveViewModelTest'
+mise run kotlin -- test -m ui -p jvm --include-classes='*LiveViewScreenTest'
 mise run kotlin -- package -m cli -f executable-jar
 mise run exec -- env KINUVO_BROWSER_PACKAGED_JAR="$PWD/build/tasks/_cli_executableJarJvm/cli-jvm-executable.jar" mise run kotlin -- test -m jvm -p jvm --include-classes='*BrowserServerTest'
 ```
@@ -96,10 +98,17 @@ Kinuvo never changes host sysctls or disables Chromium's sandbox.
 
 ## Protocol compatibility
 
-This restoration requires explicit protocol version **2** on both sides of the
+The shared Screens interface requires explicit protocol version **3** on both sides of the
 connection. A missing or different version is incompatible: the Server rejects
 it before pairing/authentication, capabilities or cookie rotation. Browser HTTP
 authentication returns 409. Updated clients check the response version before
 decoding feature enums and preserve saved credentials on a protocol mismatch.
-Update the Server and Device together. The later unified Screens contract may
-require another version change; this stage adds no legacy management mapping.
+Update the Server and Device together. The unified Screens contract replaces
+legacy management mutations.
+
+The active management API is `screens.*`, through `ScreensClient`. Legacy Browser
+commands and Computer input/control/watch RPCs return migration errors. Holds
+belong to authenticated Devices and require the current generation to change;
+input also requires a frame drawn and acknowledged on that connection. Browser
+held recovery restores suspended, until explicit handback. Apps using the previous
+management controls need the shared Screens UI migration.

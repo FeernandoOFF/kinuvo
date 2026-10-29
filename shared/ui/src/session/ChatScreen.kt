@@ -1,5 +1,7 @@
 package kinuvo.ui.session
 
+import kinuvo.protocol.ScreenRef
+
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
@@ -121,6 +123,7 @@ fun ChatScreen(
     onNavigate: (Route) -> Unit = {},
     onToggleShell: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null,
+    dock: BrowserDock? = null,
 ) {
     val appState by app.state.collectAsState()
     val current by session.state.collectAsState()
@@ -197,8 +200,14 @@ fun ChatScreen(
             onEditAnswer = session::editAnswer,
             onOpenArtifact = { onNavigate(Route.Artifacts(it)) },
             onWatch = { onNavigate(Route.Computers()) },
+            onScreen = { screen, reason ->
+                val owner = screen.owner
+                if (owner != null && dock != null) dock.show(screen, reason)
+                else onNavigate(if (owner == null) Route.Computers(screen.id, reason) else Route.Browser(owner.agentId, owner.sessionId, screen, reason))
+            },
             onBrowser = if (current.capabilities?.server.supports(ServerFeature.Browser) && route.agentId != null && route.sessionId != null)
-                ({ onNavigate(Route.Browser(requireNotNull(route.agentId), requireNotNull(route.sessionId))) }) else null,
+                ({ dock?.toggle?.invoke() ?: onNavigate(Route.Browser(requireNotNull(route.agentId), requireNotNull(route.sessionId))) }) else null,
+            browserOpen = dock?.open == true,
             onLoadOlder = session::loadOlder,
             onSettings = { route.agentId?.let(onSettings) },
             onRename = session::rename,
@@ -246,7 +255,9 @@ class ChatActions(
     val onOpenArtifact: (id: String) -> Unit = {},
     /** Opens Live view of the Computers an Agent controls. */
     val onWatch: () -> Unit = {},
+    val onScreen: (ScreenRef, String?) -> Unit = { _, _ -> },
     val onBrowser: (() -> Unit)? = null,
+    val browserOpen: Boolean = false,
     val onLoadOlder: () -> Unit = {},
     val onSettings: () -> Unit = {},
     val onRename: (String) -> Unit = {},
@@ -267,6 +278,9 @@ class ChatActions(
     /** Ends an external Session's harness process; its transcript stays. */
     val onCloseSession: () -> Unit = {},
 )
+
+/** The Browser panel beside a wide chat: [toggle] shows or hides it; [show] opens it on the Screen a card points at. */
+class BrowserDock(val open: Boolean, val toggle: () -> Unit, val show: (ScreenRef, String?) -> Unit)
 
 /** The Servers saved on this Device, for the shell's menu; [active] is the connected one. */
 data class ServerMenuState(
@@ -491,6 +505,7 @@ private fun PhoneActions(state: ChatState, usage: Usage?, actions: ChatActions) 
     val selected = state.selected?.let { id -> state.sessions.firstOrNull { it.id == id } ?: state.info }
     Bubble {
         if (state.selected != null) BubbleButton(Lucide.SquarePen, "New session", actions.onNew)
+        actions.onBrowser?.let { BubbleButton(Lucide.Globe, "Browser", it) }
         SessionMenu(selected, actions, state, extra = { close ->
             DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
         }) { open -> BubbleButton(Lucide.Ellipsis, "More", open) }
@@ -556,7 +571,7 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
         Popover(statistics, { statistics = false }, "Statistics") {
             ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth())
         }
-        actions.onBrowser?.let { HeaderButton(Lucide.Globe, "Browser", it) }
+        actions.onBrowser?.let { HeaderButton(if (actions.browserOpen) Lucide.PanelRightClose else Lucide.Globe, if (actions.browserOpen) "Hide Browser" else "Browser", it) }
     }
 }
 

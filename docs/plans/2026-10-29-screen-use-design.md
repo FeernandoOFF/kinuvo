@@ -1,4 +1,6 @@
-# Screen use: one Live view for Computers and Browser — design
+---
+title: "Screen use: one Live view for Computers and Browser — design"
+---
 
 Date: 2026-10-29. Design only, nothing implemented. Implementation waits for the user's sign-off. Inputs: [research](2026-10-29-screen-use-research.md) (Codex), current HEAD `0ad0aac`, removed Browser at `5cc083d^`, OpenBot `nightly-labs/openbot@c389f44` (PolyForm Noncommercial: the flow is the reference, no code, styles or assets reused). Mockups: [2026-10-29-screen-use-mockups.html](2026-10-29-screen-use-mockups.html).
 

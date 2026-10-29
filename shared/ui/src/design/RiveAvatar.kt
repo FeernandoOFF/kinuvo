@@ -1,6 +1,8 @@
 package kinuvo.ui.design
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
@@ -31,7 +33,8 @@ internal fun RiveStill(file: String, modifier: Modifier, artboard: String?, stat
     val image by produceState<ImageBitmap?>(null, file, artboard, state) {
         value = runCatching { Res.readBytes(if (file == "files/avatars.riv" && artboard != null) "files/${avatarStill(artboard, state)}.png" else file.removeSuffix(".riv") + ".png").decodeToImageBitmap() }.getOrNull()
     }
-    image?.let { Image(it, contentDescription = null, modifier = modifier) }
+    // Keeps its size while loading, so restored scroll positions aren't clamped by a shorter first layout.
+    Box(modifier) { image?.let { Image(it, contentDescription = null, modifier = Modifier.fillMaxSize()) } }
 }
 
 internal fun avatarStill(artboard: String, state: AvatarState) = "avatar-${artboard.lowercase().replace(" ", "-")}-${state.name.lowercase()}"
