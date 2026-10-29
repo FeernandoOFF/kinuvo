@@ -75,12 +75,20 @@ jobs:
         env:
           RESTORED_BUILD: ${{ steps.build.outputs.cache-matched-key }}
         run: |
-          if ! ./kotlin test -p jvm $MODULES; then
-            if [ -z "$RESTORED_BUILD" ]; then exit 1; fi
-            echo '::warning::Retrying without cached incremental state'
+          set -o pipefail
+          if ! ./kotlin test -p jvm $MODULES 2>&1 | tee "$RUNNER_TEMP/kotlin-tests.log"; then
+            if [ -z "$RESTORED_BUILD" ] && ! grep -q "Unable to download checksums" "$RUNNER_TEMP/kotlin-tests.log"; then
+              exit 1
+            fi
+            echo '::warning::Retrying with downloaded metadata and clean build state'
             rm -rf build
             ./kotlin test -p jvm $MODULES
           fi
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kotlin-logs-${{ matrix.suite }}
+          path: build/logs
       - if: github.ref == 'refs/heads/main' && steps.dependencies.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
