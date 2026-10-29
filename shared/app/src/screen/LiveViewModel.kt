@@ -99,7 +99,7 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
     }
     private suspend fun reconcile() {
         val device = repository.device()
-        val all = repository.list(owner).filter { it.ref.owner == null || (owner != null && it.ref.owner == owner) }
+        val all = repository.list(owner).filter { it.ref.owner == owner }
         state.update { s ->
             val selected = s.selected?.takeIf { ref -> all.any { it.ref == ref } } ?: all.firstOrNull { owner != null && it.ref.owner == owner }?.ref ?: all.firstOrNull()?.ref
             s.copy(screens = all, selected = selected, device = device, loaded = true,

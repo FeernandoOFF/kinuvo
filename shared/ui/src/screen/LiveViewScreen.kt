@@ -54,7 +54,9 @@ internal class LiveActions(
     val input: (ScreenFrame, List<ScreenAction>) -> Unit = { _, _ -> }, val drawn: (ScreenFrame) -> Unit = {},
     val decodeFailed: () -> Unit = {}, val retry: () -> Unit = {}, val overview: (List<ScreenRef>) -> Unit = {},
     val close: (ScreenRef) -> Unit = {},
-)
+) {
+    fun copy(select: (ScreenRef) -> Unit) = LiveActions(select, takeover, open, command, input, drawn, decodeFailed, retry, overview, close)
+}
 
 /**
  * One layout for every Screen: a Browser's tabs and address above, a Computer list beside on wide windows, the Screen
@@ -89,7 +91,8 @@ internal fun LiveViewContent(state: LiveViewState, actions: LiveActions, back: (
             if (tabs) TabStrip(state, actions)
             state.screen?.takeIf { it.capabilities.navigation }?.let { AddressBar(state, actions) }
             Banner(state)
-            Row(Modifier.weight(1f)) {
+            if (docked && !wide && overview) ScreenOverview(state, actions.copy(select = { actions.select(it); overview = false }), Modifier.weight(1f).fillMaxWidth(), grid = true)
+            else Row(Modifier.weight(1f)) {
                 if (wide && overview && tabs) {
                     ScreenOverview(state, actions, Modifier.width(240.dp).fillMaxHeight())
                     VerticalSeparator()
@@ -105,11 +108,11 @@ internal fun LiveViewContent(state: LiveViewState, actions: LiveActions, back: (
                 }
             }
         }
-        if (!wide && tabs) BottomSheet(overview, onDismissRequest = { overview = false }, header = { Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (!wide && !docked && tabs) BottomSheet(overview, onDismissRequest = { overview = false }, header = { Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Screens · ${state.screens.size}", Modifier.weight(1f))
             if (tabs) Button(onClick = { actions.open("about:blank") }, enabled = state.connected, style = ButtonStyle.Ghost) { Text("New tab") }
         } }) {
-            ScreenOverview(state, LiveActions(select = { actions.select(it); overview = false }, open = actions.open, command = actions.command, drawn = actions.drawn, overview = actions.overview, close = actions.close), Modifier.weight(1f), grid = true)
+            ScreenOverview(state, actions.copy(select = { actions.select(it); overview = false }), Modifier.weight(1f), grid = true)
         }
     }
 }
