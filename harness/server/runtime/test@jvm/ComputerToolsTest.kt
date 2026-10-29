@@ -6,6 +6,9 @@ import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.*
 import java.awt.Color
 import java.awt.image.BufferedImage
@@ -51,6 +54,23 @@ class ComputerToolsTest {
     }
 
     private fun args(action: String, values: JsonObjectBuilder.() -> Unit = {}) = buildJsonObject { put("action", action); values() }
+
+    @Test fun computerSourceAdvertisesRefreshAndPairsImageWithGeometry() = runBlocking {
+        tools()
+        screen = screen.copy(screenshot = "paired-image")
+        try {
+            val source = computers.screen("mac")
+            assertEquals(ScreenRef("computer", "mac"), source.ref)
+            assertEquals(ScreenDelivery.CaptureRefresh, source.capabilities.delivery)
+            assertTrue(source.capabilities.windows)
+            val sample = withTimeout(5000) { source.frames().first() }
+            assertEquals("paired-image", sample.image)
+            assertEquals(100, sample.width)
+            assertEquals(60, sample.height)
+            assertEquals("100:60:macOS", sample.geometry)
+            assertFalse(requests.last().elements)
+        } finally { computers.close() }
+    }
 
     @Test fun capabilitiesFilterToolsAndActionsAndRejectUnsupportedComputers() = runTest {
         val tools = tools(ComputerActionKind.android)
