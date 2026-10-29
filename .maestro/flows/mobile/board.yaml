@@ -15,6 +15,9 @@ properties:
 ---
 - runFlow: ../../shared/pair-mobile.yaml
 - tapOn: "Agents and sessions"
+- tapOn:
+    text: "Home"
+    above: "New agent"
 - tapOn: "Board"
 - assertVisible: "Plan mobile tests"
 - tapOn: "New task"

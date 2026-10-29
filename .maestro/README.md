@@ -44,7 +44,7 @@ tags. Mockstro injects `APP_ID` from the selected platform configuration. Keep
 common behavior in shared flows; use native Maestro platform conditions for
 interactions that differ.
 
-Run all eleven shared flows on iOS (smoke and regression) with:
+Run all shared flows on iOS (smoke and regression) with:
 
 ```sh
 ./mockstrow --dev --owner agent --platform ios run --headless --tags smoke,regression
@@ -56,16 +56,23 @@ exercise the default Compose shell on Android and iOS:
 - `chat.yaml`: pairing, Session creation, message sending and the pushed reply.
 - `attachment-picker.yaml`: Files remains enabled for a model with text and image modalities and opens the native file picker.
 - `pairing-rejected.yaml`: an expired pairing code stays on the connection screen.
-- `board.yaml`: load Tasks, create one, receive a live Task update, and show Done.
-- `knowledge.yaml`: empty search, matching search, Note details, linked Notes and back navigation.
+- `home-inspector.yaml`: owner rail and Home on phones: open the drawer by an edge swipe and the bubble, Home → Today, Back to the chat, then the Agent settings bottom sheet from the Agent pill (nested Risk tolerance page and Back, unsaved-changes dialog with Keep editing and Discard) with the transcript and composer draft intact; no `agent.update` is sent.
+- `agent-settings-save.yaml`: rename the Agent in the Agent settings sheet, Save, and verify the `agent.update` request; the sheet stays open and shows Saved.
+- `board.yaml`: open Board from Home in the drawer, load Tasks, create one, receive a live Task update, and show Done.
+- `knowledge.yaml`: open Knowledge from Home in the drawer, empty search, matching search, Note details, linked Notes and back navigation.
 - `approval-streaming.yaml`: streamed text, a tool Approval, Allow once, and the completed reply.
 - `tool-success.yaml`: a tool call, its result, and the completed reply.
 - `tool-error.yaml`: a failed tool result and the Agent's error reply.
 - `approval-deny.yaml`: deny with a note and verify that exact decision reaches the Server.
 - `session-details.yaml`: favorite and rename the open Session from its "…" menu, then find it under Favorites.
 - `model-providers.yaml`: show API-key providers and keyless local endpoints in Model providers settings.
-- `computers.yaml`: Live view of a Computer: a pushed frame, Take over, a key from the controls and Hand back.
-- `session-return.yaml`: receive an event on Board, return to the Session, then background/resume without losing its transcript or resending the message.
+- `computers.yaml`: open Computers from Home in the drawer, Live view of a Computer: a pushed frame, Take over, a key from the controls and Hand back.
+- `session-return.yaml`: open Board from Home, receive an event on Board, return to the Session, then background/resume without losing its transcript or resending the message.
+
+On phones the drawer is an owner rail (Home, Agents, New agent, Server, Settings) beside a column: the
+Agent's Sessions, or with Home selected Today, Board and the Server-wide Computers, Knowledge and Artifacts.
+Flows reach those screens with `tapOn: "Agents and sessions"`, `tapOn: "Home"`, then the destination.
+`mobile-inspector` serves `agent.get` from `mobile/agent-details` and `agent.update` from `mobile/agent-update`.
 
 All flows under `flows/mobile/` run unchanged on Android and iOS. Run the shared
 suite on Android with:

@@ -1,0 +1,31 @@
+{
+  "mappings": [
+    "mobile/agent-details",
+    "ws/agents",
+    "ws/capabilities",
+    "ws/catch-up",
+    "ws/chat-send",
+    "mobile/connect-features",
+    "ws/create-session",
+    "ws/device-tools",
+    "ws/models",
+    "ws/presence",
+    "ws/routines",
+    "ws/session",
+    "ws/sessions",
+    "ws/skills",
+    "ws/unsubscribe",
+    "ws/upgrade",
+    "ws/providers",
+    "mobile/task-lists",
+    "mobile/tasks",
+    "mobile/task-create",
+    "mobile/knowledge-changes",
+    "mobile/knowledge-search",
+    "mobile/knowledge-project",
+    "mobile/knowledge-person",
+    "mobile/knowledge-empty",
+    "mobile/knowledge-typing",
+    "mobile/agent-update"
+  ]
+}
