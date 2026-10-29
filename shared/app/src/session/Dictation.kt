@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 
 /** [text] is what's been dictated, kept after it stops until the next dictation, so the composer gets the final words. */
-data class DictationState(val dictating: Boolean = false, val text: String = "", val error: String? = null)
+data class DictationState(val dictating: Boolean = false, val text: String = "", val error: String? = null, val finishing: Boolean = false)
 
 /**
  * The composer's text while dictating: [base] is what goes before the dictated words not in it yet, from [taken] on.
@@ -26,26 +26,38 @@ class DictationViewModel(private val transcriber: Transcriber) : ViewModel() {
     val state: StateFlow<DictationState>
         field = MutableStateFlow(DictationState())
 
-    /** Starts dictating, or stops. */
+    private var generation = 0
+
+    /** Starts dictating, or finishes the recording. */
     fun toggle() {
-        if (state.value.dictating) return stop()
+        if (state.value.dictating) {
+            if (state.value.finishing) return
+            val epoch = generation
+            state.update { it.copy(finishing = true) }
+            transcriber.finish(state.value.text, { text ->
+                if (generation == epoch) { state.update { it.copy(text = text, finishing = false) }; stop() }
+            }, { if (generation == epoch) fail(it) })
+            return
+        }
+        val epoch = ++generation
         state.value = DictationState(dictating = true)
         transcriber.authorize { error ->
-            if (!state.value.dictating) return@authorize
+            if (generation != epoch || !state.value.dictating) return@authorize
             if (error != null) fail(error)
             else transcriber.listen(
                 untilPause = false,
-                onPartial = { text -> state.update { if (it.dictating) it.copy(text = text) else it } },
-                onFinal = { text -> state.update { if (it.dictating) it.copy(text = text) else it }; stop() },
-                onError = ::fail,
+                onPartial = { text -> state.update { if (generation == epoch && it.dictating) it.copy(text = text) else it } },
+                onFinal = { text -> if (generation == epoch) { state.update { it.copy(text = text) }; stop() } },
+                onError = { if (generation == epoch) fail(it) },
             )
         }
     }
 
     fun stop() {
         if (!state.value.dictating) return
+        generation++
         transcriber.stop()
-        state.update { it.copy(dictating = false) }
+        state.update { it.copy(dictating = false, finishing = false) }
     }
 
     /** Stops and drops what was dictated, e.g. once it's been sent. */
@@ -55,6 +67,7 @@ class DictationViewModel(private val transcriber: Transcriber) : ViewModel() {
     }
 
     private fun fail(error: String) {
+        generation++
         transcriber.stop()
         state.value = DictationState(error = error)
     }

@@ -1,7 +1,5 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.testing.*
-
 import kinuvo.harness.core.*
 import kinuvo.harness.core.artifacts.*
 import kinuvo.harness.core.knowledge.*
@@ -12,6 +10,8 @@ import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.tasks.*
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.WebSearch
+import kinuvo.harness.core.voice.VoiceProviders
+import kinuvo.harness.testing.*
 import kinuvo.protocol.*
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -100,6 +100,6 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
             catalogReads++
             ModelsCatalog(providers.map { ProviderModels(it.id, it.name, it.models(), false) })
         }, { fetch(it) })
-    fun runtime(model: AgentModel? = null, features: Set<ServerFeature> = BUILT_IN_FEATURES) =
-        HarnessRuntime(dependencies, modelFactory = model?.let { { _: AgentConfig -> it } }, builtInFeatures = features)
+    fun runtime(model: AgentModel? = null, features: Set<ServerFeature> = BUILT_IN_FEATURES, voice: VoiceProviders = dependencies.voice) =
+        HarnessRuntime(dependencies, modelFactory = model?.let { { _: AgentConfig -> it } }, builtInFeatures = features, voice = voice)
 }

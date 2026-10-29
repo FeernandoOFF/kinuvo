@@ -20,6 +20,9 @@ class MiseTest(unittest.TestCase):
             path = self.root / name
             path.write_text(probe)
             path.chmod(0o755)
+        builder = self.root / "scripts/build-local-voice.sh"
+        builder.write_text("#!/bin/sh\nexit 0\n")
+        builder.chmod(0o755)
         self.env = {k: v for k, v in os.environ.items()
                     if not k.startswith(("KINUVO_", "MISE_"))}
         self.env.update(MISE_TRUSTED_CONFIG_PATHS=str(self.root),

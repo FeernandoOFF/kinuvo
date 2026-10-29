@@ -23,6 +23,8 @@ interface Transcriber {
     fun authorize(completion: (String?) -> Unit)
     /** Transcribes the microphone, replacing any earlier listen; with [untilPause], [onFinal] fires once the user pauses. */
     fun listen(untilPause: Boolean, onPartial: (String) -> Unit, onFinal: (String) -> Unit, onError: (String) -> Unit)
+    /** Finalizes an offline recording; streaming engines already have [text]. */
+    fun finish(text: String, onFinal: (String) -> Unit, onError: (String) -> Unit) { stop(); onFinal(text) }
     /** Stops listening and releases the microphone. */
     fun stop()
 }
@@ -31,6 +33,7 @@ interface Transcriber {
 interface Synthesizer {
     /** Queues [text] after anything still being spoken; [onDone] fires once it's spoken or stopped. */
     fun speak(text: String, onDone: () -> Unit)
+    fun speak(text: String, onDone: () -> Unit, onError: (String) -> Unit) { speak(text, onDone) }
     fun stopSpeaking()
 }
 
@@ -86,9 +89,10 @@ interface VoiceChat {
     fun foreground()
 }
 
-/** The Device does every part for now; Server-provided ones ([VoiceSetup]) get their Device client here. */
-class VoiceViewModel(device: SpeechEngine, session: SessionViewModel) : ViewModel() {
-    val chat: VoiceChat = SpeechVoiceChat(device, session, viewModelScope)
+/** Resolves Server parts at each start; the Device owns capture, playback and unset system speech parts. */
+class VoiceViewModel(device: SpeechEngine, session: SessionViewModel, server: ConnectedServer? = null) : ViewModel() {
+    private val engine = if (server != null) ServerSpeech(device, server) else device
+    val chat: VoiceChat = SpeechVoiceChat(engine, session, viewModelScope)
 
     init {
         viewModelScope.launch {
@@ -116,12 +120,15 @@ class SpeechVoiceChat(
     /** Words of the reply spoken so far, to tell the user talking from the reply's echo. */
     private val said = mutableSetOf<String>()
     private var resumeInView = false
+    private var speechGeneration = 0
+    private var listenGeneration = 0
 
     override fun start() {
         if (state.value.phase != VoicePhase.Off) return
         state.value = VoiceChatState(VoicePhase.Starting, speaker = state.value.speaker)
+        val epoch = ++listenGeneration
         transcriber.authorize { error ->
-            if (state.value.phase != VoicePhase.Starting) return@authorize
+            if (listenGeneration != epoch || state.value.phase != VoicePhase.Starting) return@authorize
             if (error != null) state.value = VoiceChatState(error = error)
             else {
                 state.update { it.copy(phase = VoicePhase.Listening) }
@@ -154,20 +161,27 @@ class SpeechVoiceChat(
         if (state.value.phase in setOf(VoicePhase.Off, VoicePhase.Starting) || state.value.holding) return
         cutIn()
         state.update { it.copy(phase = VoicePhase.Listening, holding = true, heard = "", spoken = emptyMap()) }
+        val epoch = ++listenGeneration
         transcriber.listen(
             untilPause = false,
-            onPartial = { text -> if (state.value.holding) state.update { it.copy(heard = text) } },
-            onFinal = { text -> if (state.value.holding) state.update { it.copy(heard = text) } },
-            onError = ::fail,
+            onPartial = { text -> if (listenGeneration == epoch && state.value.holding) state.update { it.copy(heard = text) } },
+            onFinal = { text -> if (listenGeneration == epoch && state.value.holding) state.update { it.copy(heard = text) } },
+            onError = { if (listenGeneration == epoch) fail(it) },
         )
     }
 
     override fun letGo() {
         if (!state.value.holding) return
         val text = state.value.heard
-        transcriber.stop()
-        state.update { it.copy(holding = false) }
-        if (text.isBlank()) hear() else send(text)
+        val epoch = ++listenGeneration
+        state.update { it.copy(holding = false, phase = VoicePhase.Thinking) }
+        transcriber.finish(text, { result ->
+            // Holding talks through a pause, so the turn is sent even while paused.
+            if (listenGeneration == epoch && state.value.phase != VoicePhase.Off) {
+                state.update { it.copy(phase = VoicePhase.Listening) }
+                if (result.isBlank()) hear() else send(result)
+            }
+        }, { if (listenGeneration == epoch) fail(it) })
     }
 
     override fun background() {
@@ -196,9 +210,11 @@ class SpeechVoiceChat(
      */
     private fun hear() {
         if (state.value.paused || state.value.phase == VoicePhase.Off) return
+        val epoch = ++listenGeneration
         transcriber.listen(
             untilPause = true,
             onPartial = { text ->
+                if (listenGeneration != epoch) return@listen
                 when (state.value.phase) {
                     VoicePhase.Listening -> state.update { it.copy(heard = text) }
                     VoicePhase.Speaking -> if (isUser(text)) {
@@ -209,6 +225,7 @@ class SpeechVoiceChat(
                 }
             },
             onFinal = { text ->
+                if (listenGeneration != epoch) return@listen
                 when (state.value.phase) {
                     VoicePhase.Listening -> if (text.isBlank()) hear() else send(text)
                     VoicePhase.Thinking -> if (isUser(text)) {
@@ -219,7 +236,7 @@ class SpeechVoiceChat(
                     else -> {}
                 }
             },
-            onError = ::fail,
+            onError = { if (listenGeneration == epoch) fail(it) },
         )
     }
 
@@ -231,6 +248,8 @@ class SpeechVoiceChat(
     }
 
     private fun release() {
+        listenGeneration++
+        speechGeneration++
         synthesizer.stopSpeaking()
         if (transcriber !== device) transcriber.stop()
         device.stop()
@@ -239,6 +258,8 @@ class SpeechVoiceChat(
     private fun isUser(text: String) = interrupts(text, said)
 
     private fun cutIn() {
+        listenGeneration++
+        speechGeneration++
         reply?.cancel()
         synthesizer.stopSpeaking()
         // A send still on its way starts its run once it lands, so stop after it.
@@ -251,7 +272,7 @@ class SpeechVoiceChat(
     private fun send(text: String) {
         state.update { it.copy(phase = VoicePhase.Thinking, heard = "") }
         said.clear()
-        if (device.halfDuplex) transcriber.stop() else hear()
+        if (device.halfDuplex) { listenGeneration++; transcriber.stop() } else hear()
         reply = scope.launch {
             // A run that was just cut short may still be stopping.
             session.state.first { !it.running }
@@ -276,17 +297,24 @@ class SpeechVoiceChat(
         }
         fun say(text: String, item: String? = null, end: Int = 0) {
             if (!state.value.speaker) return
+            if (text.length > 1000) {
+                text.chunked(1000).forEach { say(it, item, end) }
+                return
+            }
             val words = speakable(text).ifBlank { return }
             said += words(words)
             pending.update { it + 1 }
             state.update { s -> s.copy(phase = VoicePhase.Speaking, spoken = if (item != null && item !in s.spoken) s.spoken + (item to 0) else s.spoken) }
             playing.addLast(item to end)
             if (playing.size == 1) reach()
-            synthesizer.speak(words) {
-                pending.update { it - 1 }
-                playing.removeFirstOrNull()
-                reach()
-            }
+            val epoch = speechGeneration
+            synthesizer.speak(words, {
+                if (speechGeneration == epoch) {
+                    pending.update { it - 1 }
+                    playing.removeFirstOrNull()
+                    reach()
+                }
+            }, { if (speechGeneration == epoch) fail(it) })
         }
         // Sending finishes before the Server starts the run, so the reply is done only once the run has started and ended.
         var started = false

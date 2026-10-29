@@ -302,11 +302,12 @@ private fun SettingsSection.icon(): ImageVector = when (this) {
     SettingsSection.Secrets -> Lucide.KeyRound
     SettingsSection.Search -> Lucide.Search
     SettingsSection.Notifications -> Lucide.Bell
+    SettingsSection.LocalVoice -> Lucide.Mic
     SettingsSection.DeviceTools -> Lucide.Plug
 }
 
 private fun SettingsSection.count(ui: SettingsUi): Int? = when (this) {
-    SettingsSection.Overview, SettingsSection.Agent, SettingsSection.Workspace, SettingsSection.Tools, SettingsSection.DeviceTools -> null
+    SettingsSection.Overview, SettingsSection.Agent, SettingsSection.Workspace, SettingsSection.Tools, SettingsSection.DeviceTools, SettingsSection.LocalVoice -> null
     SettingsSection.Routines -> ui.state.routines?.count { it.enabled }
     SettingsSection.Skills -> ui.config.skills?.count { it.active }
     SettingsSection.Mcp -> ui.config.mcp?.count { it.active }
@@ -320,6 +321,7 @@ private fun SectionPane(
     rootBack: (() -> Unit)?,
 ) {
     val route = ui.route
+    if (section == SettingsSection.LocalVoice) return DetailPane(rootBack, "Voice") { kinuvo.ui.voice.ServerVoiceSettings() }
     if (section == SettingsSection.DeviceTools) return DeviceToolsSettingsPane(Pane(ui, actions, go, rootBack))
     if (section == SettingsSection.Overview) return AgentContent(ui, { actions.onNavigate(it, true) }, rootBack, actions.onDeleteAgent)
     if (ui.capabilities != null && !ui.available(section)) return DetailPane(rootBack, section.title) { Text(UNAVAILABLE, color = color(mutedColor)) }
@@ -377,7 +379,7 @@ private fun SettingsSection.noun() = when (this) {
     SettingsSection.Skills -> "a skill"
     SettingsSection.Mcp -> "an MCP server"
     SettingsSection.Hub -> "a set of tools"
-    SettingsSection.Connection, SettingsSection.Providers, SettingsSection.Harnesses, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications, SettingsSection.DeviceTools -> "a setting"
+    SettingsSection.Connection, SettingsSection.Providers, SettingsSection.Harnesses, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications, SettingsSection.DeviceTools, SettingsSection.LocalVoice -> "a setting"
 }
 
 /** A section's list: title with an add button, an intro, then its [rows], or a spinner while [loading]. */

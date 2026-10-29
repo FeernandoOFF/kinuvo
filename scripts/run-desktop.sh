@@ -12,11 +12,10 @@ fi
 for argument in "$@"; do
     if [ "$argument" = --compose-hot-reload ]; then
         ./scripts/build-mac-speech.sh >/dev/null
-        exec ./kotlin run -m desktop "$@"
+        exec ./kotlin run -m desktop --jvm-args=--enable-native-access=ALL-UNNAMED "$@"
     fi
 done
-# TCC attributes helper requests to the responsible app. A bare JVM launched by
-# a terminal cannot reliably request both speech and microphone access.
+# Launch the host app through LaunchServices so it owns in-process TCC requests.
 speech_java=${JAVA_HOME:-}
 case "$speech_java" in *jbr*) ;; *) speech_java= ;; esac
 find_speech_java() {
@@ -36,5 +35,4 @@ fi
 JAVA_HOME="$speech_java" KINUVO_DESKTOP_APP_IMAGE=1 ./scripts/package.sh desktop
 umask 077
 mkdir -p "$KINUVO_HOME/logs"
-exec open -n -W --env "KINUVO_HOME=$KINUVO_HOME" --env "KINUVO_EMBEDDED_PORT=$KINUVO_EMBEDDED_PORT" \
-    --stdout "$KINUVO_HOME/logs/desktop-output.log" --stderr "$KINUVO_HOME/logs/desktop-error.log" "$PWD/dist/Kinuvo.app" --args "$@"
+exec python3 scripts/launch-desktop.py "$PWD/dist/Kinuvo.app" "$@"

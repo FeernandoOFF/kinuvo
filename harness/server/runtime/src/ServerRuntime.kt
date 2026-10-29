@@ -1,32 +1,37 @@
 package kinuvo.harness.server
 
-import io.github.oshai.kotlinlogging.KotlinLogging
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import co.touchlab.stately.collections.ConcurrentMutableSet
-import co.touchlab.stately.concurrency.withLock
 import co.touchlab.stately.concurrency.Lock
+import co.touchlab.stately.concurrency.withLock
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.harness.core.Agent
 import kinuvo.harness.server.execution.executionSnapshot
 import kinuvo.harness.core.routines.NEW_SESSIONS
 import kinuvo.harness.core.routines.with
+import kinuvo.harness.core.voice.Audio
+import kinuvo.harness.core.voice.AudioFormat
+import kinuvo.harness.core.voice.MAX_RECORDING_BYTES
+import kinuvo.harness.core.voice.VoiceProviders
 import kinuvo.protocol.*
+import kotlin.concurrent.atomics.AtomicLong
+import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.concurrent.atomics.incrementAndFetch
+import kotlin.io.encoding.Base64
+import kotlin.time.TimeSource
 import kotlinx.coroutines.*
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedSendChannelException
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
+import kotlinx.datetime.TimeZone
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kotlinx.datetime.TimeZone
-import kotlin.concurrent.atomics.incrementAndFetch
-import kotlin.concurrent.atomics.AtomicLong
-import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 private val log = KotlinLogging.logger("kinuvo.server")
 
@@ -42,6 +47,7 @@ class ServerRuntime(
     externalSessions: List<kinuvo.harness.server.execution.ExternalSession> = emptyList(),
     persistExternal: (List<kinuvo.harness.server.execution.ExternalSession>) -> Unit = {},
     val remoteLinks: kinuvo.harness.server.execution.RemoteLinks = kinuvo.harness.server.execution.RemoteLinks(),
+    private val serverVoice: ServerVoice? = null,
     private val prepareAttachment: (UploadAttachmentParams) -> UploadAttachmentParams = { it },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -96,6 +102,10 @@ class ServerRuntime(
     private val reflector = Reflector(harness, scope, runs::isActive)
     private val dispatcher = TaskDispatcher(harness, runs, scope)
     private val seq = AtomicLong(0)
+    /** A selected downloaded model takes precedence over configured OpenAI-compatible providers. */
+    private val voice get() = serverVoice?.providers.let { local ->
+        VoiceProviders(local?.transcriber ?: harness.voice.transcriber, harness.voice.processor, local?.synthesizer ?: harness.voice.synthesizer, harness.voice.speechToSpeech)
+    }
     private var scheduling = false
     private var started = false
     private var closed = false
@@ -104,7 +114,7 @@ class ServerRuntime(
 
     val capabilities get() = ServerCapabilities(harness.serverId, harness.features + setOf(ServerFeature.Screens) + if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet(),
         if (foregroundOnly) ExecutionLifetime.Foreground else ExecutionLifetime.Continuous,
-        if (scheduling) WakeSupport.Scheduled else WakeSupport.None, integrations = (harness.integrations + (if (executionFactory != null) mapOf(Integration.Harness to setOf("acp", "remote")) else mapOf(Integration.Harness to setOf("remote")))).mapKeys { it.key.name }, platform = harness.platform, voice = harness.voice.setup)
+        if (scheduling) WakeSupport.Scheduled else WakeSupport.None, integrations = (harness.integrations + (if (executionFactory != null) mapOf(Integration.Harness to setOf("acp", "remote")) else mapOf(Integration.Harness to setOf("remote")))).mapKeys { it.key.name }, platform = harness.platform, voice = voice.setup)
     /** Runs going and the events they've produced; a foreground-only host keeps them alive while it can. */
     val runActivity get() = runs.activity
 
@@ -161,7 +171,7 @@ class ServerRuntime(
             runs.stopAll()
             clients.block { it.toList() }.forEach { it.disconnect() }
         } finally {
-            try { scope.coroutineContext[Job]?.cancelAndJoin() } finally { harness.close() }
+            try { serverVoice?.close(); scope.coroutineContext[Job]?.cancelAndJoin() } finally { harness.close() }
         }
     }
 
@@ -298,6 +308,7 @@ class ServerRuntime(
         val client = Client(connection)
         val requests = CoroutineScope(currentCoroutineContext() + SupervisorJob(currentCoroutineContext()[Job]))
         val outstanding = Semaphore(security.concurrentRequests)
+        val voiceRequests = ConcurrentMutableMap<String, Job>()
         val timeout = requests.launch { delay(security.authenticationTimeoutMillis); client.disconnect() }
         val validity = requests.launch {
             while (isActive) { delay(security.validationIntervalMillis); if (!client.valid() && client.closeAfterResponse == null) client.disconnect() }
@@ -321,7 +332,9 @@ class ServerRuntime(
             withTimeout(15_000) { connection.send(frame) }
             client.delivered(frame)
             if (frame is Frame.Response && frame.id == client.closeAfterResponse) client.disconnect()
-        } } finally { client.disconnect() } }
+        } } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { log.debug(e) { "Closing a connection: write failed" } }
+        finally { client.disconnect() } }
         var authed = false
         try {
             connection.incoming.collect { decoded ->
@@ -362,13 +375,27 @@ class ServerRuntime(
                     }
                     return@collect
                 }
+                if (request.method == Api.CancelVoice.name) {
+                    client.outbox.send(respond(request, Api.CancelVoice) { voiceRequests[it.requestId]?.cancelAndJoin() })
+                    return@collect
+                }
+                val voice = request.method == Api.Transcribe.name || request.method == Api.Synthesize.name
+                if (voice && request.id in voiceRequests) {
+                    client.outbox.send(Frame.Response(request.id, false, error = "Voice request is already active"))
+                    return@collect
+                }
                 val stateful = request.method in setOf(Api.CatchUp.name, Api.Unsubscribe.name, Api.Send.name, Api.Stop.name, Api.Presence.name, Api.DeviceTools.name, Api.RevokeDevice.name, Api.RotateToken.name)
                 if (!outstanding.tryAcquire()) { log.warn { "Closing a connection: over ${security.concurrentRequests} requests at once (${request.method})" }; client.disconnect(); return@collect }
                 if (stateful) {
                     try { client.outbox.send(handle(request, client)) } finally { outstanding.release() }
-                } else requests.launch {
-                    // A reply for a connection that closed meanwhile has nowhere to go.
-                    try { client.outbox.send(handle(request, client)) } catch (_: ClosedSendChannelException) {} finally { outstanding.release() }
+                } else {
+                    val job = requests.launch(start = CoroutineStart.LAZY) {
+                        // A reply for a connection that closed meanwhile has nowhere to go.
+                        try { client.outbox.send(handle(request, client)) } catch (_: ClosedSendChannelException) {}
+                    }
+                    if (voice) voiceRequests[request.id] = job
+                    job.invokeOnCompletion { if (voice) voiceRequests.remove(request.id); outstanding.release() }
+                    job.start()
                 }
             }
         } finally {
@@ -391,6 +418,22 @@ class ServerRuntime(
         if (!client.authenticated(auth::management) && r.method !in DEVICE_METHODS)
             return Frame.Response(r.id, ok = false, error = "This action requires management access")
         return when (r.method) {
+        Api.VoiceModels.name -> respond(r, Api.VoiceModels) { serverVoice?.state() ?: VoiceModelsState() }
+        Api.VoiceSetup.name -> respond(r, Api.VoiceSetup) { voice.setup }
+        Api.VoiceDownload.name -> respond(r, Api.VoiceDownload) { requireNotNull(serverVoice).download(it) }
+        Api.VoiceCancelDownload.name -> respond(r, Api.VoiceCancelDownload) { requireNotNull(serverVoice).cancelDownload() }
+        Api.VoiceRemove.name -> respond(r, Api.VoiceRemove) { requireNotNull(serverVoice).remove(it); changedCapabilities() }
+        Api.VoiceSelect.name -> respond(r, Api.VoiceSelect) { requireNotNull(serverVoice).select(it); changedCapabilities() }
+        Api.VoiceLanguage.name -> respond(r, Api.VoiceLanguage) { requireNotNull(serverVoice).language(it) }
+        Api.Transcribe.name -> respond(r, Api.Transcribe) { p ->
+            val provider = checkNotNull(voice.transcriber) { "Server transcription is not configured" }
+            require(p.base64.length <= (MAX_RECORDING_BYTES + 2) / 3 * 4) { "Recording is too large" }
+            provider.transcribe(Audio(Base64.decode(p.base64), AudioFormat.Wav))
+        }
+        Api.Synthesize.name -> respond(r, Api.Synthesize) { p ->
+            val provider = checkNotNull(voice.synthesizer) { "Server synthesis is not configured" }
+            SpeechAudio(Base64.encode(provider.synthesize(p.text).bytes))
+        }
         Api.Capabilities.name -> respond(r, Api.Capabilities) { executions.registration(it.agentId)?.let { a ->
             val info = externalInfo(a)
             val lost = it.sessionId?.let { id -> external.snapshot(id).phase == ExecutionPhase.Lost } == true
