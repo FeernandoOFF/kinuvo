@@ -1,0 +1,7 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Desktop launcher instance marker, not a credential"
+regexTarget = "line"
+regexes = ['''token = '--kinuvo-launch-id=' \+ uuid\.uuid4\(\)\.hex''']
