@@ -1,5 +1,7 @@
 package kinuvo.ui.session
 
+import kinuvo.protocol.ScreenRef
+
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
@@ -197,6 +199,10 @@ fun ChatScreen(
             onEditAnswer = session::editAnswer,
             onOpenArtifact = { onNavigate(Route.Artifacts(it)) },
             onWatch = { onNavigate(Route.Computers()) },
+            onScreen = { screen, reason ->
+                val owner = screen.owner
+                onNavigate(if (owner == null) Route.Computers(screen.id, reason) else Route.Browser(owner.agentId, owner.sessionId, screen, reason))
+            },
             onBrowser = if (current.capabilities?.server.supports(ServerFeature.Browser) && route.agentId != null && route.sessionId != null)
                 ({ onNavigate(Route.Browser(requireNotNull(route.agentId), requireNotNull(route.sessionId))) }) else null,
             onLoadOlder = session::loadOlder,
@@ -246,6 +252,7 @@ class ChatActions(
     val onOpenArtifact: (id: String) -> Unit = {},
     /** Opens Live view of the Computers an Agent controls. */
     val onWatch: () -> Unit = {},
+    val onScreen: (ScreenRef, String?) -> Unit = { _, _ -> },
     val onBrowser: (() -> Unit)? = null,
     val onLoadOlder: () -> Unit = {},
     val onSettings: () -> Unit = {},
