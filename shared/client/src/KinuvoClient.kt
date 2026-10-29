@@ -158,8 +158,18 @@ class KinuvoClient(
         val response = try {
             ws.send(frame)
             deferred.await()
+        } catch (e: CancellationException) {
+            if (method == Api.Transcribe || method == Api.Synthesize) withContext(NonCancellable) {
+                withTimeoutOrNull(5_000) {
+                    if (session === ws) runCatching {
+                        ws.send(Frame.Request("$id:cancel", Api.CancelVoice.name,
+                            ProtocolJson.encodeToJsonElement(Api.CancelVoice.params, CancelVoiceParams(id))))
+                    }
+                }
+            }
+            throw e
         } finally {
-            synchronizedPending { pending.remove(id) }
+            withContext(NonCancellable) { synchronizedPending { pending.remove(id) } }
         }
         if (!response.ok) {
             val message = response.error ?: "Request failed"

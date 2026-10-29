@@ -47,8 +47,8 @@ class ServerSpeechTest {
                 val payload = when (r.method) {
                     "connect" -> ProtocolJson.encodeToJsonElement(ConnectResult("token", "Server", capabilities = ServerCapabilities("server"), management = true))
                     Api.VoiceSetup.name -> ProtocolJson.encodeToJsonElement(setup)
-                    Api.VoiceTranscribe.name -> JsonPrimitive("Server words")
-                    Api.VoiceSynthesize.name -> ProtocolJson.encodeToJsonElement(VoiceClip("AQI="))
+                    Api.Transcribe.name -> JsonPrimitive("Server words")
+                    Api.Synthesize.name -> ProtocolJson.encodeToJsonElement(SpeechAudio("AQI="))
                     else -> buildJsonObject {}
                 }
                 frames.send(Frame.Response(r.id, true, payload))
@@ -81,10 +81,10 @@ class ServerSpeechTest {
             assertEquals(0, device.local)
             val staleCapture = device.recorded
             speech.stop()
-            val before = calls.count { it == Api.VoiceTranscribe.name }
+            val before = calls.count { it == Api.Transcribe.name }
             staleCapture(byteArrayOf(1, 0))
             runCurrent()
-            assertEquals(before, calls.count { it == Api.VoiceTranscribe.name })
+            assertEquals(before, calls.count { it == Api.Transcribe.name })
             setup = VoiceSetup()
             val refreshed = CompletableDeferred<Unit>()
             speech.authorize { assertNull(it); refreshed.complete(Unit) }
@@ -96,7 +96,7 @@ class ServerSpeechTest {
             setup = VoiceSetup(transcriber = true, synthesizer = true)
             speech.authorize { assertNull(it) }
             runCurrent()
-            drop = Api.VoiceTranscribe.name
+            drop = Api.Transcribe.name
             var failure: String? = null
             speech.listen(false, {}, { error("Timed-out transcription completed") }, { failure = it })
             device.recorded(byteArrayOf(1, 0))
@@ -104,10 +104,10 @@ class ServerSpeechTest {
             advanceTimeBy(135_001)
             runCurrent()
             assertTrue(failure.orEmpty().contains("Server transcription timed out"))
-            assertTrue(Api.VoiceCancel.name in calls)
+            assertTrue(Api.CancelVoice.name in calls)
             assertEquals(2, device.local, "Server timeouts must not fall back to Device speech")
             speech.stop()
-            drop = Api.VoiceSynthesize.name
+            drop = Api.Synthesize.name
             speech.authorize { assertNull(it) }
             runCurrent()
             failure = null
@@ -139,5 +139,14 @@ class ServerSpeechTest {
             assertTrue(authorizationFailure.orEmpty().contains("Loading Server voice settings timed out"))
             speech.stop()
         } finally { server.close(); client.close(); Dispatchers.resetMain() }
+    }
+
+    @Test fun recordingsUploadAsWavAndRepliesSynthesizeInChunks() {
+        val clip = wav(byteArrayOf(1, 2, 3, 4))
+        assertEquals("RIFF", clip.copyOfRange(0, 4).decodeToString())
+        assertEquals(48, clip.size)
+        assertContentEquals(byteArrayOf(1, 2, 3, 4), clip.copyOfRange(44, 48))
+        val chunks = speechChunks("word ".repeat(200))
+        assertTrue(chunks.size > 1 && chunks.all { it.length <= 240 })
     }
 }

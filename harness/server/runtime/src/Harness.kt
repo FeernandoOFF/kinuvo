@@ -65,7 +65,7 @@ open class HarnessRuntime(
     val secrets: Secrets = dependencies.secrets,
     private val builtInFeatures: Set<ServerFeature> = BUILT_IN_FEATURES,
     private val platformDescription: String = platform.displayName,
-    val voice: VoiceProviders = VoiceProviders(),
+    val voice: VoiceProviders = dependencies.voice,
     /** How long an unattended Routine run waits for an Approval before skipping the call. */
     private val routineApprovalWait: Duration = 30.minutes,
 ) : ServerSettings by dependencies.settings {

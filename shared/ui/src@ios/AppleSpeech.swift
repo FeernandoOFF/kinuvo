@@ -520,6 +520,8 @@ private final class AppleServerAudio: NSObject, AVAudioPlayerDelegate {
     private var tapped = false
     private var deadline: DispatchWorkItem?
     private var observers = [NSObjectProtocol]()
+    private var engineObserver: NSObjectProtocol?
+    private var restarts = 0
     private var audible = 0
     private var quiet = 0
     func authorize(_ completion: @escaping (String?) -> Void) {
@@ -529,7 +531,11 @@ private final class AppleServerAudio: NSObject, AVAudioPlayerDelegate {
     }
     private func session() throws {
         let session = AVAudioSession.sharedInstance()
-        try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
+        // Matches Device speech; changing options or selecting HFP renegotiates Bluetooth routes mid-recording.
+        let options: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetoothA2DP]
+        if session.category != .playAndRecord || session.mode != .default || session.categoryOptions != options {
+            try session.setCategory(.playAndRecord, mode: .default, options: options)
+        }
         try session.setActive(true)
     }
     func recordOnQueue(_ untilPause: Bool, _ completion: @escaping (KotlinByteArray) -> Void, _ error: @escaping (String) -> Void) {
@@ -541,49 +547,9 @@ private final class AppleServerAudio: NSObject, AVAudioPlayerDelegate {
                 throw Failure("Allow microphone access for Kinuvo in Settings")
             }
             try session()
-            let engine = AVAudioEngine()
-            self.engine = engine
-            let node = engine.inputNode
-            let source = node.outputFormat(forBus: 0)
-            guard ServerAudioPCM.valid(node.inputFormat(forBus: 0)), ServerAudioPCM.valid(source), let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false), let converter = AVAudioConverter(from: source, to: target) else { throw Failure("The microphone has no usable audio format. Check the audio route and try again.") }
-            let fail: (String) -> Void = { [weak self] message in
-                self?.queue.async {
-                    guard let self, self.token == epoch else { return }
-                    self.failRecording(message)
-                }
-            }
-            // Let the input retain its negotiated format instead of setting a hardware format on the tap.
-            node.installTap(onBus: 0, bufferSize: 2048, format: nil) { buffer, _ in
-                guard buffer.format == source else { fail("The microphone audio format changed. Try recording again."); return }
-                guard buffer.frameLength > 0 else { return }
-                guard let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: AVAudioFrameCount(Double(buffer.frameLength) * 16000 / source.sampleRate) + 32) else { fail("Couldn't allocate microphone audio buffer"); return }
-                var supplied = false
-                var conversionError: NSError?
-                let status = converter.convert(to: output, error: &conversionError) { _, status in
-                    if supplied { status.pointee = .noDataNow; return nil }
-                    supplied = true; status.pointee = .haveData; return buffer
-                }
-                guard status != .error, conversionError == nil, let result = ServerAudioPCM.samples(output) else {
-                    fail(conversionError?.localizedDescription ?? "Couldn't convert microphone audio")
-                    return
-                }
-                let (pcm, power) = result
-                self.queue.async {
-                    guard self.token == epoch else { return }
-                    self.samples.append(contentsOf: pcm.prefix(max(0, 480000 - self.samples.count)))
-                    if power > 0.000064 { self.audible += pcm.count; self.quiet = 0 } else { self.quiet += pcm.count }
-                    if self.samples.count >= 480000 || (untilPause && self.audible >= 2400 && self.quiet >= 20800) || (self.audible == 0 && self.samples.count >= 160000) { self.finishOnQueue() }
-                }
-            }
-            tapped = true; engine.prepare(); try engine.start()
+            try startCapture(untilPause, epoch)
             let center = NotificationCenter.default
             observers = [
-                center.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
-                    self?.queue.async {
-                        guard let self, self.token == epoch, self.engine?.isRunning == false else { return }
-                        self.failRecording("The microphone audio route changed. Try recording again.")
-                    }
-                },
                 center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] _ in
                     self?.queue.async {
                         guard let self, self.token == epoch else { return }
@@ -601,6 +567,59 @@ private final class AppleServerAudio: NSObject, AVAudioPlayerDelegate {
             deadline = timer; queue.asyncAfter(deadline: .now() + 30, execute: timer)
         } catch let reason { stopOnQueue(); error((reason as? Failure)?.message ?? reason.localizedDescription) }
     }
+    /** (Re)builds the input graph, keeping samples captured so far; Bluetooth and headset changes swap the input format. */
+    private func startCapture(_ untilPause: Bool, _ epoch: UUID) throws {
+        if let old = engine {
+            if let observer = engineObserver { NotificationCenter.default.removeObserver(observer); engineObserver = nil }
+            old.stop()
+            if tapped { old.inputNode.removeTap(onBus: 0); tapped = false }
+            engine = nil
+        }
+        let engine = AVAudioEngine()
+        self.engine = engine
+        let node = engine.inputNode
+        let source = node.outputFormat(forBus: 0)
+        guard ServerAudioPCM.valid(node.inputFormat(forBus: 0)), ServerAudioPCM.valid(source), let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false), let converter = AVAudioConverter(from: source, to: target) else { throw Failure("The microphone has no usable audio format. Check the audio route and try again.") }
+        let fail: (String) -> Void = { [weak self] message in
+            self?.queue.async {
+                guard let self, self.token == epoch else { return }
+                self.failRecording(message)
+            }
+        }
+        let restart: () -> Void = { [weak self] in
+            self?.queue.async {
+                guard let self, self.token == epoch, self.engine === engine else { return }
+                self.restarts += 1
+                guard self.restarts <= 4 else { self.failRecording("The microphone audio route keeps changing. Try recording again."); return }
+                do { try self.startCapture(untilPause, epoch) } catch let reason { self.failRecording((reason as? Failure)?.message ?? reason.localizedDescription) }
+            }
+        }
+        node.installTap(onBus: 0, bufferSize: 2048, format: nil) { buffer, _ in
+            guard buffer.format == source else { restart(); return }
+            guard buffer.frameLength > 0 else { return }
+            guard let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: AVAudioFrameCount(Double(buffer.frameLength) * 16000 / source.sampleRate) + 32) else { fail("Couldn't allocate microphone audio buffer"); return }
+            var supplied = false
+            var conversionError: NSError?
+            let status = converter.convert(to: output, error: &conversionError) { _, status in
+                if supplied { status.pointee = .noDataNow; return nil }
+                supplied = true; status.pointee = .haveData; return buffer
+            }
+            guard status != .error, conversionError == nil, let result = ServerAudioPCM.samples(output) else {
+                fail(conversionError?.localizedDescription ?? "Couldn't convert microphone audio")
+                return
+            }
+            let (pcm, power) = result
+            self.queue.async {
+                guard self.token == epoch, self.engine === engine else { return }
+                self.samples.append(contentsOf: pcm.prefix(max(0, 480000 - self.samples.count)))
+                if power > 0.000064 { self.audible += pcm.count; self.quiet = 0 } else { self.quiet += pcm.count }
+                if self.samples.count >= 480000 || (untilPause && self.audible >= 2400 && self.quiet >= 20800) || (self.audible == 0 && self.samples.count >= 160000) { self.finishOnQueue() }
+            }
+        }
+        tapped = true
+        engineObserver = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { _ in restart() }
+        engine.prepare(); try engine.start()
+    }
     func finishOnQueue() {
         guard let completion = captured else { return }
         guard !samples.isEmpty else { failRecording("No microphone audio arrived. Check the audio route and try again."); return }
@@ -616,6 +635,8 @@ private final class AppleServerAudio: NSObject, AVAudioPlayerDelegate {
     }
     func stopOnQueue() {
         observers.forEach { NotificationCenter.default.removeObserver($0) }; observers.removeAll()
+        if let observer = engineObserver { NotificationCenter.default.removeObserver(observer); engineObserver = nil }
+        restarts = 0
         token = UUID(); deadline?.cancel(); deadline = nil
         engine?.stop()
         if tapped { engine?.inputNode.removeTap(onBus: 0); tapped = false }

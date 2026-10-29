@@ -4,8 +4,9 @@ description: "Native speech recognition and synthesis on macOS and Windows."
 ---
 
 Desktop Dictation and Voice chat default to the operating system’s speech recognition
-and voices. A macOS Server also offers [downloaded voice models](device-local-voice.md)
-under Settings → Server → Voice, shared by paired macOS and iOS Devices. No API key is needed. Voice chat pauses listening while the Agent
+and voices. No API key is needed for Device speech. A Server can replace either part with a
+[downloaded voice model](device-local-voice.md) (Settings → Server → Voice) or an
+[OpenAI-compatible provider](guides/voice.md#openai-compatible-speech-providers). Voice chat pauses listening while the Agent
 thinks and speaks, then resumes; interrupting spoken replies uses Pause or hold to talk; speaking over replies is not supported.
 
 ## macOS
@@ -27,11 +28,16 @@ process audio online when on-device recognition is unavailable.
 
 Run `mise run desktop` from Git Bash. The task builds the native speech helper
 using Windows’ bundled .NET Framework compiler. Requires x64 Windows, .NET
-Framework 4.8+, an installed desktop speech recognizer and voice, and microphone
-access for desktop apps in Windows Settings.
+Framework 4.8+ for Device speech, and microphone access for desktop apps in Windows
+Settings. Device transcription needs an installed desktop speech recognizer;
+Device synthesis needs an installed voice.
 
 Speech uses local Windows SAPI. If no recognizer is available, install a speech
 language under **Settings → Time & language → Speech**.
+
+With Server transcription, only microphone access is needed; an installed Device
+recognizer is required only for Device transcription and Dictation. Server synthesis
+plays WAV audio through the Device output instead of using an installed voice.
 
 ## macOS bridge regression check
 

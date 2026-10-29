@@ -38,9 +38,16 @@ data class VoiceModel(
 data class VoiceModelsState(val models: List<VoiceModel> = emptyList(), val installed: Set<String> = emptySet(), val transcription: String? = null, val synthesis: String? = null, val language: String = "en", val downloading: String? = null, val downloaded: Long = 0, val error: String? = null, val supported: Boolean = false)
 @Serializable
 data class VoiceSelection(val kind: VoiceModelKind, val id: String? = null)
+
+/** WAV clips are base64 encoded; audio stays out of Session history. */
 @Serializable
-data class VoiceRecording(val id: String, val pcm: String)
+data class TranscribeParams(val base64: String)
+
 @Serializable
-data class VoiceText(val id: String, val text: String)
+data class SynthesizeParams(val text: String)
+
 @Serializable
-data class VoiceClip(val wav: String)
+data class SpeechAudio(val base64: String)
+
+@Serializable
+data class CancelVoiceParams(val requestId: String)
