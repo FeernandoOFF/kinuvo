@@ -649,12 +649,11 @@ class ScreenshotTest {
         render("nav-phone-skill", 390, 844) {
             sheet(SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Skills, itemKey(ConfigScope.Agent, "evening-journal")), AgentConfig(details, skills = listOf(skill.info)), skill = skill), owners, at, capabilities = capabilities))
         }
-        val computerList = kinuvo.app.computer.ComputersState(listOf(
-            ComputerInfo("phone", "samsung SM-F936B", "Android", true),
-            ComputerInfo("mac", "Mac mini", "macOS", true, ComputerControl.Agent),
-            ComputerInfo("ipad", "iPad", "iOS", false),
+        val screenList = kinuvo.app.screen.LiveViewState(screens = listOf(
+            ScreenInfo(ScreenRef("computer", "phone"), "Phone", ScreenCapabilities(ScreenDelivery.CaptureRefresh, setOf("tap")), ScreenStatus.Ready),
+            ScreenInfo(ScreenRef("computer", "mac"), "Mac mini", ScreenCapabilities(ScreenDelivery.CaptureRefresh, setOf("tap")), ScreenStatus.Ready),
         ))
-        render("nav-phone-computers", 390, 700) { phone { kinuvo.ui.computer.ComputerList(computerList, {}, {}) } }
+        render("nav-phone-computers", 390, 700) { phone { kinuvo.ui.screen.ScreenOverview(screenList, kinuvo.ui.screen.LiveActions()) } }
         render("nav-phone-knowledge-scope", 390, 844) { phone { KnowledgeContent(knowledge.copy(agents = owners, state = knowledge.state.copy(route = Route.Knowledge())), KnowledgeActions()) } }
         render("nav-phone-mcp-preset", 390, 1000) {
             phone { SettingsContent(tools(presetItem(McpCatalog.first { it.id == "notion" })).let { it.copy(state = it.state.copy(route = it.route.copy(editing = true))) }, SettingsActions(onBack = {}), sidebar = false) }
@@ -833,18 +832,6 @@ class ScreenshotTest {
                 }
             }
         }
-    }
-
-    @Test
-    fun renderComputerControls() {
-        for (dark in listOf(false, true)) for (platform in listOf(Platform.Android, Platform.MacOS, Platform.Windows))
-            render("computer-controls-${platform.displayName.lowercase()}-${if (dark) "dark" else "light"}", 400, if (platform == Platform.Android) 170 else 330) {
-                HarnessTheme(dark = dark) {
-                    Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(12.dp)) {
-                        kinuvo.ui.computer.ComputerControls(platform, {}, {})
-                    }
-                }
-            }
     }
 
     @Test

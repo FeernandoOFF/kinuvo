@@ -25,7 +25,13 @@ import kinuvo.ui.design.*
 /** An `ask_user` form waiting in the chat, filled in from [drafts]; [ChatActions.onAnswer] gets the answers by question ID, or null to skip. */
 @Composable
 internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String, Map<String, List<String>>>, actions: ChatActions) =
-    QuestionsCard(asked, drafts, actions.onEditAnswer, actions.onAnswer)
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        asked.screen?.let { screen ->
+            Button(onClick = { actions.onScreen(screen, asked.title) }, style = ButtonStyle.Outlined) { Text("Open requested Live view") }
+            Text("Hand back in Live view when finished. Answering or skipping keeps Takeover paused.", color = color(mutedColor))
+        }
+        QuestionsCard(asked, drafts, actions.onEditAnswer, actions.onAnswer)
+    }
 
 /** [skip] names the button that answers null. */
 @Composable
