@@ -48,7 +48,7 @@ internal class Screens(
             validate(current)
             requireNotNull(browser()).tabs(current).map { tab ->
                 val ref = ScreenRef("browser", tab.id, current)
-                ScreenInfo(ref, tab.title, source(ref).capabilities, if (failures[ref] == null) ScreenStatus.Ready else ScreenStatus.Failed, gate(ref).state.value)
+                ScreenInfo(ref, tab.title, source(ref).capabilities, if (failures[ref] == null) ScreenStatus.Ready else ScreenStatus.Failed, gate(ref).state.value, currentUrl = tab.url)
             }
         }
     }

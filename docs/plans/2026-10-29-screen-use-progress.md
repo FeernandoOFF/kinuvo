@@ -466,3 +466,71 @@ Browser history buttons need additional common commands before they can be expos
 Browser operations still share the confined Playwright dispatcher; Computer capture
 is honestly one-second CaptureRefresh. All earlier backend integration/performance
 proof gaps remain as recorded in stage 2. No claim of device behavior or smoothness.
+
+# Live view correction implementation (2026-10-29)
+
+Replaced the full-width debug/control stack with a compact title/subtitle header,
+canvas taking all remaining height, canvas-edge control status and state border,
+and a phone bottom action bar / compact desktop control row. One contextual
+banner carries errors, disconnected recovery or the Agent's request. Desktop
+address uses a monospace field; watching is read-only, holder editing is prefilled
+and IME Go navigates. Phone subtitle opens that field only for the holder.
+
+Gesture handlers are keyed by Screen, subscription, epoch, control generation and
+interaction mode, rather than each decoded frame. The gesture latches the paired
+bitmap/sample and local bounds; displayed frames remain latched until completion,
+so newer acknowledgements cannot invalidate a gesture mid-touch. Latest-frame
+stream buffering remains bounded and existing input validation remains in place.
+The UI regression replaces frame and geometry between press and release and
+asserts dispatch still uses the first frame. Dragging scroll-capable Screens sends
+remote scroll; pinch/pan stays local. Zoom shows a percentage and Fit action.
+
+ScreenInfo now carries nullable sanitized currentUrl from Browser tab metadata;
+main-frame navigation publishes change notifications. ScreenCapabilities carries
+accepted key/modifier lists. Browser supplies its actual keyboard support;
+Computer supplies supported named keys only when its adapter advertises Key and
+its known platform accepts them. UI uses these lists without source-kind checks.
+Holder-only keyboard tray has text/Send, IME Done and horizontal named buttons;
+the arbitrary freeform key field is removed.
+
+Overview now opens/closes on desktop, with a 220dp themed rail, rounded 16:10
+thumbnail cards, selection border and human status labels. Phone uses a two-column
+sheet and New tab header action. Missing frames keep equal-size placeholders.
+Lazy visible indices exclude the trailing creation action; visible subscription
+caps and disposal remain unchanged. Shared state records frame receipt time for
+the disconnected stale-frame label. Global Live view accepts all Server-returned
+Screens, including owned Browser tabs; Session-scoped views still exclude other
+owners. Selection rejects Screens absent from the Server list. Tests cover both.
+
+Validation used sequential scoped mise commands and isolated
+KINUVO_HOME=/private/tmp/kinuvo-ui-correction. No pins or OS HOME were changed.
+Temporary ignored mise.local.toml overrode only the kotlin task and was removed
+when finished. Initial sandboxed compilation could not access Kotlin caches;
+subsequent checks used elevated compiler-cache access. No device, installation,
+app launch, Mockstro, native-capture implementation, push or PR.
+
+- Full UI suite before final layout refinements: 90/90 passed.
+- Final focused LiveViewScreenTest: 2/2 passed (render matrix and frame-replacement gesture).
+- Full app: 152/152 passed, including global/Session owner isolation.
+- Protocol: 24/24 passed.
+- Runtime: 87/87 passed, including the parent's
+  validScreenAcksDoNotConsumeTheRequestAllowance test; parent files left unstaged.
+- Browser: 4/4 passed, including advertised keys/modifiers and real managed Chromium.
+- Scoped desktop JVM, Android and iOS Simulator ARM64 builds succeeded.
+
+Rendered matrix under shared/ui/build/screens/: live-{390,1200}-{watch,held,request,
+suspended,reconnect,offline,empty,keyboard,overview}.png. Inspected actual PNGs
+using view_image: live-390-held.png, live-1200-keyboard.png,
+live-390-overview.png and live-1200-overview.png. Selected canvas and overview
+cards contain the actual fixture bitmap rather than placeholder text. Inspection
+removed a duplicate phone New tab action and reduced desktop control width.
+Logs: /private/tmp/correction-*.log and /private/tmp/ui-correction-verified.log.
+
+## Unresolved questions and limits
+
+No product questions. Mobile behavior remains for manual user testing; builds do
+not establish runtime behavior. Native Computer continuous capture remains separate
+research; existing accessibility refresh fallback is unchanged. Landscape Browser
+frames on phones retain substantial letterboxing while the canvas owns the available
+height. Detailed Agent step events are not fabricated. Close is offered for the
+selected controllable tab; other tabs require selecting and taking control first.

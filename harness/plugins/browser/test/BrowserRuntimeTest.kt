@@ -43,6 +43,9 @@ class BrowserRuntimeTest {
             runtime.command(BrowserCommand(owner, BrowserAction.Close, closed.tab.id))
             val source = runtime.screen(owner, first.tab.id)
             assertEquals(ScreenDelivery.Continuous, source.capabilities.delivery)
+            assertTrue(source.capabilities.keys.containsAll(listOf("Tab", "Escape", "Backspace", "ArrowUp", "ArrowDown", "Enter")))
+            assertFalse("Home" in source.capabilities.keys)
+            assertTrue("Control" in source.capabilities.modifiers)
             val frames = Channel<ScreenSample>(Channel.UNLIMITED)
             val watching = launch { source.frames().collect { frames.send(it) } }
             val red = withTimeout(15_000) { frames.receive() }
