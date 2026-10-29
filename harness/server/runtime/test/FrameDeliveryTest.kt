@@ -8,7 +8,7 @@ import kotlin.test.*
 
 class FrameDeliveryTest {
     @Test fun incompatibleProtocolsAreRejectedBeforeAuthentication() = runBlocking {
-        for (params in listOf("""{"device":"legacy"}""", """{"device":"future","protocolVersion":3}""")) {
+        for (params in listOf("""{"device":"legacy"}""", """{"device":"future","protocolVersion":4}""")) {
             val requests = Channel<Frame>(Channel.UNLIMITED)
             val response = CompletableDeferred<Frame.Response>()
             var authenticated = false

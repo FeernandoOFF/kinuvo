@@ -54,6 +54,11 @@ class BrowserPlugin(home: File, override val browser: BrowserRuntime = BrowserRu
             if (action in setOf(BrowserAction.Click, BrowserAction.Type)) { add(parameter("revision", "Capture revision")); add(parameter("ref", "Element ref")) }
             if (action in setOf(BrowserAction.Open, BrowserAction.Navigate, BrowserAction.Type)) add(parameter("text", "URL or text"))
         }, optionalParameters = if (action in setOf(BrowserAction.Scroll, BrowserAction.Wait)) listOf(ToolParameterDescriptor("pixels", "Pixels to scroll or milliseconds to wait", ToolParameterType.Integer)) else emptyList())
+        override suspend fun bind(args: JsonObject): suspend () -> Unit {
+            val gate = if (action == BrowserAction.Open) browser.openingGate(owner) else browser.gate(owner, args.requireString("tab"))
+            val generation = gate.state.value.generation
+            return { check(gate.state.value.generation == generation) { "Screen control changed while awaiting Approval; capture again" } }
+        }
         private fun command(args: JsonObject) = BrowserCommand(owner, action, args.string("tab"), args.string("revision"), args.string("ref"), args.string("text"), y = args["pixels"]?.jsonPrimitive?.intOrNull)
         override suspend fun execute(args: JsonObject): String = render(browser.command(command(args)))
         override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {

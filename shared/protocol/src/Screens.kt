@@ -17,7 +17,7 @@ enum class ScreenStatus { Provisioning, Ready, Unavailable, Failed }
 
 @Serializable
 data class ScreenControl(val generation: Long = 0, val holder: String? = null, val suspended: Boolean = false,
-    val draining: Boolean = false)
+    val draining: Boolean = false, val closed: Boolean = false)
 
 @Serializable
 data class ScreenInfo(val ref: ScreenRef, val title: String, val capabilities: ScreenCapabilities,
@@ -41,3 +41,24 @@ data class ScreenInput(val frame: ScreenFrameAck, val geometry: String, val gene
 
 @Serializable
 data class ScreenInputResult(val applied: Int, val message: String? = null)
+
+@Serializable
+data class ScreenWatch(val screen: ScreenRef, val thumbnail: Boolean = false)
+
+@Serializable
+data class ScreenSubscription(val id: String, val epoch: String)
+
+@Serializable
+data class ScreenControlRequest(val screen: ScreenRef, val generation: Long, val take: Boolean, val steal: Boolean = false)
+
+@Serializable
+data class ScreenInputRequest(val subscription: String, val input: ScreenInput)
+
+@Serializable
+data class ScreenCommand(val screen: ScreenRef, val generation: Long, val action: BrowserAction, val text: String? = null)
+
+@Serializable
+data class ScreenStreamStatus(val subscription: String, val status: ScreenStatus, val message: String? = null)
+
+@Serializable
+data class ScreenOpen(val owner: BrowserOwner, val url: String = "about:blank")

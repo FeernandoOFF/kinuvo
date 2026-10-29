@@ -73,12 +73,16 @@ class SessionLog(private val store: Store) : Store by store {
     override suspend fun createSession(agent: Agent, instructions: String, routine: RoutineRef?): SessionInfo =
         store.createSession(agent, instructions, routine).also { info -> lock.withLock { changed(info) } }
 
-    override suspend fun deleteSession(agent: Agent, sessionId: String) = lock.withLock {
+    var onDelete: suspend (Agent, String) -> Unit = { _, _ -> }
+    override suspend fun deleteSession(agent: Agent, sessionId: String) {
+        onDelete(agent, sessionId)
+        lock.withLock {
         store.deleteSession(agent, sessionId)
         counts -= sessionId
         live -= sessionId
         subscribers -= sessionId
         Unit
+        }
     }
 
     /** Drops entries from [size] on and sends subscribers a fresh window, since the entries they hold changed. */

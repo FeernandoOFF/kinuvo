@@ -96,10 +96,17 @@ Kinuvo never changes host sysctls or disables Chromium's sandbox.
 
 ## Protocol compatibility
 
-This restoration requires explicit protocol version **2** on both sides of the
+The shared Screens interface requires explicit protocol version **3** on both sides of the
 connection. A missing or different version is incompatible: the Server rejects
 it before pairing/authentication, capabilities or cookie rotation. Browser HTTP
 authentication returns 409. Updated clients check the response version before
 decoding feature enums and preserve saved credentials on a protocol mismatch.
-Update the Server and Device together. The later unified Screens contract may
-require another version change; this stage adds no legacy management mapping.
+Update the Server and Device together. The unified Screens contract replaces
+legacy management mutations.
+
+The active management API is `screens.*`, through `ScreensClient`. Legacy Browser
+commands and Computer input/control/watch RPCs return migration errors. Holds
+belong to authenticated Devices and require the current generation to change;
+input also requires a frame drawn and acknowledged on that connection. Browser
+held recovery restores suspended, until explicit handback. Apps using the previous
+management controls need the shared Screens UI migration.

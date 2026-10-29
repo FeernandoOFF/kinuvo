@@ -63,6 +63,7 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
         p.soul?.let { docs.write(agent.id, AgentDoc.Soul, it) }
         p.rules?.let { rules -> harness.trustRules.update(agent.id) { rules.clean() } }
         if (execChanged) harness.release(agent)
+        else if ("browser" in old.tools && "browser" !in config.tools) harness.browser?.release(agent.id)
         val updated = agent(agent.id)
         if (updated.info() != before) onAgentsChanged(agents())
         details(updated)
@@ -90,6 +91,7 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
         check(runs.close(agent, sessionIds(agent))) { "Agent '$id' has an active run; stop it first" }
         try {
             harness.release(agent)
+            harness.browser?.deleteAgent(agent.id)
             store.deleteAgent(agent)
             harness.mcp.removeAgent(agent.id)
         } catch (e: Exception) {
