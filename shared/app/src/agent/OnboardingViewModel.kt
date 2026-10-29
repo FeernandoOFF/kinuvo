@@ -45,6 +45,10 @@ val OnboardingSteps = (0..6).toList()
 /** A new Agent skips the Server, model and user steps: its Identity and Soul. */
 val AgentSteps = listOf(4, 5)
 const val ConnectStep = 6
+/** A new Agent's first step on a Server with Harness connections: where it runs; see [agentSteps]. */
+const val HarnessStep = 7
+/** Picking a linked Server's shared Agents, instead of an Identity and Soul. */
+const val PickStep = 8
 /** What the Connect step offers to set up, in order. */
 val ConnectSections = listOf(SettingsSection.Secrets, SettingsSection.Knowledge, SettingsSection.Tasks, SettingsSection.Notifications,
     SettingsSection.Search, SettingsSection.Workspace, SettingsSection.Mcp)
@@ -72,8 +76,32 @@ data class OnboardingState(
     val connected: Map<SettingsSection, Boolean> = emptyMap(),
     /** The section being set up from the Connect step. */
     val setup: SettingsSection? = null,
+    /** Where a new Agent runs, and the Server's Harness connections; null when it has none to offer. */
+    val harness: HarnessChoice = HarnessChoice.Kinuvo,
+    val connections: List<HarnessConnectionStatus>? = null,
+    /** An ACP Agent's working folder on the Server's machine. */
+    val cwd: String = "",
+    /** The selected Server's machine, as labels name it. */
+    val server: String = "this Server",
+    /** The Agents a linked Server shares, null until discovered, and those picked to add. */
+    val shared: List<AgentInfo>? = null,
+    val picked: Set<String> = emptySet(),
+    /** The Server's external Agents, to tell which shared ones were added already. */
+    val registrations: List<AgentRegistration> = emptyList(),
 ) {
     fun moved(delta: Int) = copy(step = steps.getOrElse(steps.indexOf(step) + delta) { step }, error = null)
+
+    fun choose(choice: HarnessChoice) = copy(harness = choice, steps = agentSteps(choice), error = null, shared = null, picked = emptySet())
+
+    /** A shared Agent's ID here when it's already been added from this linked Server. */
+    fun added(remoteId: String, registrations: List<AgentRegistration>) =
+        (harness as? HarnessChoice.Remote)?.let { h -> registrations.firstOrNull { it.connectionId == h.connectionId && it.remoteAgentId == remoteId }?.id }
+
+    val connection get() = when (val h = harness) {
+        is HarnessChoice.Acp -> connections?.firstOrNull { it.config.id == h.connectionId }
+        is HarnessChoice.Remote -> connections?.firstOrNull { it.config.id == h.connectionId }
+        HarnessChoice.Kinuvo -> null
+    }
 
     val modelReady: Boolean get() {
         val account = providers.firstOrNull { it.id == provider }
@@ -88,18 +116,28 @@ class OnboardingViewModel(private val config: ConfigRepository) : ViewModel() {
         field = MutableStateFlow(OnboardingState())
     private var loading: Job? = null
 
-    init { if (config.connection.client != null) config.connection.bind(viewModelScope) }
+    private val harnesses get() = config.connection.harnesses
+
+    init {
+        if (config.connection.client != null) config.connection.bind(viewModelScope)
+        viewModelScope.launch { harnesses.state.collect { h -> edit { it.copy(connections = h.connections, registrations = h.catalog?.agents.orEmpty()) } } }
+    }
 
     fun edit(change: (OnboardingState) -> OnboardingState) { state.update(change) }
 
     /** Starts a new Agent with [from]'s model, a name and look the [others] don't use. */
-    fun newAgent(from: AgentInfo, others: List<AgentInfo>) {
+    fun newAgent(from: AgentInfo, others: List<AgentInfo>, harnessed: Boolean = false) {
         val looks = others.map { it.avatarArtboard }
-        edit { OnboardingState(step = AgentSteps.first(), steps = AgentSteps,
+        val connections = harnesses.state.value.connections
+        val steps = if (harnessed) agentSteps(HarnessChoice.Kinuvo) else AgentSteps
+        edit { OnboardingState(step = steps.first(), steps = steps, connections = connections, registrations = harnesses.state.value.catalog?.agents.orEmpty(),
             agentName = NameIdeas.shuffled().firstOrNull { name -> others.none { it.name == name } } ?: NameIdeas.random(),
             avatar = AvatarArtboards.indices.firstOrNull { AvatarArtboards[it] !in looks } ?: 0) }
         load(from, identity = false)
     }
+
+    /** Leads a new Agent with where it runs once the Server turns out to offer harnesses, unless the user moved on. */
+    fun offerHarnesses() = edit { if (it.steps == AgentSteps && it.step == AgentSteps.first()) it.copy(steps = agentSteps(it.harness), step = HarnessStep) else it }
 
     fun load(agent: AgentInfo?, identity: Boolean = true) {
         loading?.cancel()
@@ -112,6 +150,16 @@ class OnboardingViewModel(private val config: ConfigRepository) : ViewModel() {
             edit { it.copy(details = details, catalog = catalog, providers = providers, provider = details.settings.provider,
                 model = details.settings.model, agentName = if (identity) details.info.name else it.agentName,
                 avatar = if (identity) AvatarArtboards.indexOf(details.info.avatarArtboard).coerceAtLeast(0) else it.avatar) }
+        }
+    }
+
+    /** Lists what the chosen linked Server shares with this one. */
+    fun discover() {
+        val h = state.value.harness as? HarnessChoice.Remote ?: return
+        val linkId = (state.value.connection?.config?.connection as? ExecutionConnection.Remote)?.serverId ?: return
+        attempt {
+            val agents = harnesses.discover(linkId)
+            edit { if (it.harness == h) it.copy(shared = agents) else it }
         }
     }
 
@@ -179,12 +227,34 @@ class OnboardingViewModel(private val config: ConfigRepository) : ViewModel() {
         onDone()
     }
 
-    /** Creates the Agent, with an ID from its name that none of [taken] has, and opens it with [onCreated]. */
-    fun create(taken: List<String>, onCreated: (String) -> Unit) = attempt {
+    /** Creates the Agent, with an ID from its name that none of [taken] has, and opens it with [onCreated]; [agents] are the Server's, whose names a linked Server's Agents avoid. */
+    fun create(taken: List<String>, onCreated: (String) -> Unit, agents: List<AgentInfo> = emptyList()) = attempt {
         val s = state.value
-        require(s.details != null && s.agentName.isNotBlank()) { "Name your Agent." }
-        val base = s.agentName.trim().lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').ifEmpty { "agent" }
-        val id = generateSequence(1) { it + 1 }.map { if (it == 1) base else "$base-$it" }.first { it !in taken }
+        require(s.agentName.isNotBlank()) { "Name your Agent." }
+        val id = uniqueId(s.agentName, taken)
+        when (val h = s.harness) {
+            is HarnessChoice.Acp -> {
+                cwdProblem(s.cwd)?.let { error(it) }
+                harnesses.register(AgentRegistration(id, s.agentName.trim(), h.connectionId, AvatarArtboards[s.avatar], cwd = s.cwd.trim()))
+                return@attempt onCreated(id)
+            }
+            is HarnessChoice.Remote -> {
+                val host = s.connection?.config?.host ?: s.connection?.config?.name ?: "the other Server"
+                val picked = s.shared.orEmpty().filter { it.id in s.picked }
+                require(picked.isNotEmpty()) { "Pick at least one Agent." }
+                val ids = taken.toMutableList()
+                val names = mutableListOf<AgentInfo>()
+                picked.forEach { remote ->
+                    val name = remoteName(remote.name, host, agents + names)
+                    val id = uniqueId(name, ids).also { ids += it }
+                    harnesses.register(AgentRegistration(id, name, h.connectionId, remote.avatar, remoteAgentId = remote.id))
+                    names += AgentInfo(id, name, "external")
+                }
+                return@attempt onCreated(names.first().id)
+            }
+            HarnessChoice.Kinuvo -> Unit
+        }
+        require(s.details != null) { "Connect to a Server first." }
         config.createAgent(CreateAgentParams(id, s.agentName.trim()))
         config.updateAgent(update(id, s))
         onCreated(id)

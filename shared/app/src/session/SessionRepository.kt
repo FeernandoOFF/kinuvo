@@ -153,6 +153,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         val id = update.sessionId
         val data = state.value.sessions[id] ?: return
         when (val change = update.change) {
+            is SessionChange.Window -> put(id, data.copy(firstSeq = change.firstSeq, entries = change.entries, live = change.state, loaded = true))
             is SessionChange.Reset -> put(id, data.copy(firstSeq = change.firstSeq, entries = emptyList()))
             is SessionChange.Entry -> when {
                 change.seq < data.seen -> Unit

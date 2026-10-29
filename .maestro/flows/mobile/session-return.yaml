@@ -37,7 +37,17 @@ properties:
 - assertVisible: "Hello from Maestro"
 - assertVisible: "Hello from WireMock"
 - assertVisible: "Reply received while on Board"
-- pressKey: Home
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: Home
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - launchApp:
+          appId: com.apple.Preferences
 - assertNotVisible: "Reply received while on Board"
 - launchApp:
     stopApp: false

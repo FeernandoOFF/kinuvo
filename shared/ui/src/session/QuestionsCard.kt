@@ -24,7 +24,13 @@ import kinuvo.ui.design.*
 
 /** An `ask_user` form waiting in the chat, filled in from [drafts]; [ChatActions.onAnswer] gets the answers by question ID, or null to skip. */
 @Composable
-internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String, Map<String, List<String>>>, actions: ChatActions) {
+internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String, Map<String, List<String>>>, actions: ChatActions) =
+    QuestionsCard(asked, drafts, actions.onEditAnswer, actions.onAnswer)
+
+/** [skip] names the button that answers null. */
+@Composable
+internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String, Map<String, List<String>>>,
+    onEdit: (questionsId: String, questionId: String, value: List<String>) -> Unit, onAnswer: (Map<String, List<String>>?) -> Unit, skip: String = "Skip") {
     val answers = asked.questions.associate { it.id to it.default } + drafts[asked.questionsId].orEmpty()
     val ready = asked.questions.none { it.required && answers[it.id].orEmpty().none(String::isNotBlank) }
     Panel(
@@ -39,10 +45,10 @@ internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String,
                 Icon(Lucide.MessageCircleQuestionMark, Modifier.size(18.dp), tint = color(accentColor))
                 Text(asked.title ?: "Questions for you", fontWeight = FontWeight.Normal)
             }
-            asked.questions.forEach { q -> key(q.id) { QuestionField(q, answers[q.id].orEmpty()) { actions.onEditAnswer(asked.questionsId, q.id, it) } } }
+            asked.questions.forEach { q -> key(q.id) { QuestionField(q, answers[q.id].orEmpty()) { onEdit(asked.questionsId, q.id, it) } } }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { actions.onAnswer(answers) }, enabled = ready, style = ButtonStyle.Primary) { Text(if (asked.questions.isEmpty()) "Check again" else "Submit") }
-                Button(onClick = { actions.onAnswer(null) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip") }
+                Button(onClick = { onAnswer(answers) }, enabled = ready, style = ButtonStyle.Primary) { Text(if (asked.questions.isEmpty()) "Check again" else "Submit") }
+                Button(onClick = { onAnswer(null) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text(skip) }
             }
         }
     }

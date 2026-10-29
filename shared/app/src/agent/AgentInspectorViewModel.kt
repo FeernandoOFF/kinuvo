@@ -26,10 +26,14 @@ data class AgentDraft(
     val model: String,
     val reasoning: String,
     val approvals: String,
+    /** An ACP Agent's working folder; [kind] decides what the draft can change. */
+    val cwd: String = "",
+    val kind: ExecutionKind = ExecutionKind.Native,
 ) {
-    /** Only what differs from [details]. */
+    /** Only what differs from [details]; an external Agent's edits are in [registration] instead. */
     fun changes(details: AgentDetails): UpdateAgentParams {
         val s = details.settings
+        if (kind != ExecutionKind.Native) return UpdateAgentParams(details.info.id)
         return UpdateAgentParams(
             details.info.id,
             name = name.trim().takeIf { it != details.info.name },
@@ -42,18 +46,32 @@ data class AgentDraft(
         )
     }
 
-    /** Why it can't be saved: a name that's missing, too long or another Agent's, or no model. */
+    /** An external Agent's registration with this draft's name and working folder; null when neither changed. */
+    fun registration(details: AgentDetails): AgentRegistration? {
+        val info = details.info
+        val connectionId = info.connectionId?.takeIf { kind != ExecutionKind.Native } ?: return null
+        val folder = if (kind == ExecutionKind.Acp) cwd.trim() else details.cwd
+        if (name.trim() == info.name && folder == details.cwd) return null
+        return AgentRegistration(info.id, name.trim(), connectionId, info.avatar, folder, details.remoteAgentId)
+    }
+
+    /** Why it can't be saved: a name that's missing, too long or another Agent's, no model, or an ACP Agent's working folder. */
     fun problems(agentId: String, agents: List<AgentInfo>): List<String> = buildList {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) add("Name is required")
         else if (trimmed.length > MaxName) add("Name is at most $MaxName characters")
         else if (agents.any { it.id != agentId && it.name.trim().equals(trimmed, ignoreCase = true) }) add("Another Agent is called $trimmed")
-        if (model.isBlank()) add("Pick a model")
+        when (kind) {
+            ExecutionKind.Native -> if (model.isBlank()) add("Pick a model")
+            ExecutionKind.Acp -> cwdProblem(cwd)?.let(::add)
+            ExecutionKind.Remote -> Unit
+        }
     }
 
     companion object {
         const val MaxName = 40
-        fun of(d: AgentDetails) = AgentDraft(d.info.name, d.identity, d.soul, d.settings.provider, d.settings.model, d.settings.reasoning, d.settings.approvals)
+        fun of(d: AgentDetails) = AgentDraft(d.info.name, d.identity, d.soul, d.settings.provider, d.settings.model, d.settings.reasoning, d.settings.approvals,
+            d.cwd.orEmpty(), d.info.executionKind)
     }
 }
 
@@ -83,11 +101,15 @@ data class InspectorState(
     val guard: InspectorExit? = null,
     val left: Boolean = false,
     val errors: List<String> = emptyList(),
+    /** An external Agent's Harness connection, and whether it's being checked. */
+    val connection: HarnessConnectionStatus? = null,
+    val checking: Boolean = false,
 ) {
     val open get() = agentId != null
     val page get() = pages.lastOrNull() ?: InspectorPage.Agent
     val changes get() = details?.let { d -> draft?.changes(d) }?.takeIf { it != UpdateAgentParams(it.agentId) }
-    val dirty get() = changes != null
+    val registration get() = details?.let { d -> draft?.registration(d) }
+    val dirty get() = changes != null || registration != null
 }
 
 /** Opens, edits and saves one Agent's defaults; nothing unsaved is dropped without the user choosing to. */
@@ -95,9 +117,22 @@ class AgentInspectorViewModel(private val config: ConfigRepository) : ViewModel(
     val state: StateFlow<InspectorState>
         field = MutableStateFlow(InspectorState())
     private var watching: Job? = null
+    private val harnesses get() = config.connection.harnesses
 
     init {
         config.connection.bind(viewModelScope)
+        viewModelScope.launch {
+            harnesses.state.collect { h ->
+                state.update { s -> s.copy(connection = h.connections?.firstOrNull { it.config.id == s.details?.info?.connectionId },
+                    checking = s.details?.info?.connectionId in h.checking) }
+            }
+        }
+    }
+
+    /** Checks the inspected external Agent's harness again. */
+    fun check() {
+        val id = state.value.details?.info?.connectionId ?: return
+        viewModelScope.launch { catching { config.connection.run { harnesses.check(id) } }.onFailure { e -> state.update { it.copy(errors = listOf(e.message ?: e.toString())) } } }
     }
 
     /** Shows [agentId]; false while unsaved edits to another Agent wait on the user. */
@@ -132,11 +167,16 @@ class AgentInspectorViewModel(private val config: ConfigRepository) : ViewModel(
         val draft = s.draft ?: return
         val problems = draft.problems(details.info.id, agents)
         if (problems.isNotEmpty()) return state.update { it.copy(errors = problems) }
-        val changes = s.changes ?: return then()
+        val changes = s.changes
+        val registration = s.registration
+        if (changes == null && registration == null) return then()
         state.update { it.copy(saving = true, errors = emptyList()) }
         viewModelScope.launch {
             try {
-                config.connection.run { config.updateAgent(changes) }
+                config.connection.run {
+                    if (registration != null) { harnesses.register(registration); config.loadDetails(details.info.id).join() }
+                    else config.updateAgent(changes!!)
+                }
                 state.update { it.copy(saving = false, saved = true, draft = it.details?.let(AgentDraft::of)) }
                 then()
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -184,7 +224,8 @@ class AgentInspectorViewModel(private val config: ConfigRepository) : ViewModel(
                 state.update { s ->
                     // Unedited, the draft follows the saved settings, e.g. after a save elsewhere.
                     val unedited = s.draft == null || s.details?.let(AgentDraft::of) == s.draft
-                    s.copy(details = d, draft = if (unedited) AgentDraft.of(d) else s.draft)
+                    s.copy(details = d, draft = if (unedited) AgentDraft.of(d) else s.draft,
+                        connection = harnesses.state.value.connections?.firstOrNull { it.config.id == d.info.connectionId })
                 }
             }
         }

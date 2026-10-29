@@ -57,7 +57,10 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
                 }
                 val token = Uuid.random().toString()
                 val auth = peers(EmbeddedPeers(token))
-                val runtime = ServerRuntime(harness, auth, "On this device", foregroundOnly = !continuous)
+                val executionStorage = kinuvo.harness.server.execution.ExecutionStorage(home)
+                val runtime = ServerRuntime(harness, auth, "On this device", foregroundOnly = !continuous,
+                    remoteLinks = kinuvo.harness.server.execution.remoteLinks(home), executionRegistry = executionStorage.registry,
+                    externalSessions = executionStorage.sessions(), persistExternal = executionStorage::saveSessions)
                 runtime.start(schedule = continuous)
                 return EmbeddedServerHost(runtime, token)
             } catch (e: Throwable) {

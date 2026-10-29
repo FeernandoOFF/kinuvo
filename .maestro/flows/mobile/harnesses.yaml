@@ -1,0 +1,34 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-harnesses
+  apiVerifications:
+    - stub: mobile/harnesses
+      atLeast: 1
+---
+- launchApp
+- assertVisible: "Connect a server"
+- tapOn: "From kinuvo pair"
+- inputText: "123456"
+- hideKeyboard
+- runFlow:
+    when:
+      visible: "Connect"
+    commands:
+      - tapOn: "Connect"
+- assertVisible: "Start a session with E2E Agent"
+- tapOn: "Agents and sessions"
+- tapOn: "Settings"
+- scrollUntilVisible:
+    element:
+      text: "Harnesses"
+    direction: DOWN
+- tapOn: "Harnesses"
+- assertVisible: "Claude Agent"
+- assertVisible: "Ready"
+- assertVisible: "Add ACP command"
+- assertVisible: "Link a Kinuvo Server"
+- takeScreenshot: harness-settings

@@ -4,6 +4,7 @@ product: jvm/lib
 dependencies:
   - ../../core: exported
   - ../runtime: exported
+  - ../../execution/acp
   - ../../plugins/anytype
   - ../../plugins/exec
   - ../../plugins/executor

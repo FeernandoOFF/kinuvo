@@ -39,7 +39,7 @@ class Method<P, R>(val name: String, val params: KSerializer<P>, val result: KSe
 class EventType<T>(val name: String, val payload: KSerializer<T>)
 
 @Serializable
-data class AgentInfo(val id: String, val name: String, val exec: String, val avatar: String? = null)
+data class AgentInfo(val id: String, val name: String, val exec: String, val avatar: String? = null, val executionKind: ExecutionKind = ExecutionKind.Native, val connectionId: String? = null, val host: String? = null, val readiness: ExecutionReadiness = ExecutionReadiness(true, true))
 
 /** Exactly one of [token] (a paired device) or [pairingCode] (first connection) is set. [timeZone] is the Device's IANA zone. */
 @Serializable
@@ -116,6 +116,10 @@ data class SessionUpdate(val agentId: String, val sessionId: String, val change:
 
 @Serializable
 sealed interface SessionChange {
+    /** Atomically replaces a mutable transcript window and its live state. */
+    @Serializable @SerialName("window")
+    data class Window(val firstSeq: Int, val entries: List<SessionEntry>, val state: LiveState) : SessionChange
+
     /** A persisted entry; [seq] is its position in the Session. */
     @Serializable @SerialName("entry")
     data class Entry(val seq: Int, val entry: SessionEntry) : SessionChange
@@ -237,6 +241,25 @@ object Api {
     val Service = Method("service.settings", ServiceRef.serializer(), ServiceSetup.serializer())
     val SaveService = Method("service.save", SaveServiceParams.serializer(), ServiceSetup.serializer())
     val TestService = Method("service.test", TestServiceParams.serializer(), ServiceTestResult.serializer())
+
+    val ProbeHarnessConnection = Method("execution.connection.check", HarnessConnection.serializer(), ExecutionProbe.serializer())
+    val ExecutionCatalogChanged = EventType("execution.catalog.changed", kinuvo.protocol.ExecutionCatalog.serializer())
+    val ResumeExecution = Method("execution.resume", ExecutionRef.serializer(), kinuvo.protocol.ExecutionSnapshot.serializer())
+    val CloseExecution = Method("execution.close", ExecutionRef.serializer(), Unit.serializer())
+    val ExecutionSnapshot = Method("execution.snapshot", ExecutionRef.serializer(), kinuvo.protocol.ExecutionSnapshot.serializer())
+    val ExecutionAnswer = Method("execution.answer", kinuvo.protocol.ExecutionAnswer.serializer(), Boolean.serializer())
+    val ExecutionChanged = EventType("execution.changed", kinuvo.protocol.ExecutionSnapshot.serializer())
+    val SaveRemoteLink = Method("execution.remote.save", kinuvo.protocol.SaveRemoteLink.serializer(), Unit.serializer())
+    val GrantExecution = Method("execution.exposure.grant", ExposureGrant.serializer(), String.serializer())
+    val ExecutionGrants = Method("execution.exposure.list", Unit.serializer(), ListSerializer(ExposureGrant.serializer()))
+    val RevokeExecution = Method("execution.exposure.revoke", ExecutionRef.serializer(), Unit.serializer())
+    val RemoteExecution = Method("execution.remote.call", RemoteExecutionCall.serializer(), RemoteExecutionResult.serializer())
+    val DiscoverRemote = Method("execution.remote.discover", ExecutionRef.serializer(), RemoteExecutionResult.serializer())
+    val ExecutionCatalog = Method("execution.catalog", Unit.serializer(), kinuvo.protocol.ExecutionCatalog.serializer())
+    val SaveHarnessConnection = Method("execution.connection.save", HarnessConnection.serializer(), HarnessConnectionStatus.serializer())
+    val DeleteHarnessConnection = Method("execution.connection.delete", ExecutionRef.serializer(), Unit.serializer())
+    val RegisterExternalAgent = Method("execution.agent.save", AgentRegistration.serializer(), AgentRegistration.serializer())
+    val UnregisterExternalAgent = Method("execution.agent.delete", ExecutionRef.serializer(), Unit.serializer())
 
     val Update = EventType("session.update", SessionUpdate.serializer())
     /** A Session was created, renamed or changed status; sent to every client. */

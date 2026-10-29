@@ -48,7 +48,7 @@ data class ExecTestResult(
 
 /** An Agent with its settings, the text of its IDENTITY.md and SOUL.md, and its Trust and Deny rules. */
 @Serializable
-data class AgentDetails(val info: AgentInfo, val settings: AgentSettings, val identity: String, val soul: String, val rules: TrustRules = TrustRules(), val userNotes: String = "")
+data class AgentDetails(val info: AgentInfo, val settings: AgentSettings, val identity: String, val soul: String, val rules: TrustRules = TrustRules(), val userNotes: String = "", val managed: Boolean = false, val cwd: String? = null, val remoteAgentId: String? = null)
 
 /** A new Agent from the default template, or a copy of [cloneFrom]'s settings, Identity, Soul and Skills. */
 @Serializable

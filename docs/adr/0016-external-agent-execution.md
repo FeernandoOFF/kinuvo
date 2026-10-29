@@ -1,0 +1,12 @@
+---
+title: "External Agents use Server-owned execution connections"
+description: "Separate Agent registration, harness execution and client synchronization."
+---
+
+Kinuvo supports its native harness, existing local ACP v2 installations and selected Agents on another Kinuvo Server. The managing Server owns registrations, connections, client synchronization and the displayed transcript; the executing harness owns model context, instructions, tools and tool policy. A model provider remains part of the native harness and does not represent an external Agent.
+
+ACP v2 supplies the external execution lifecycle: prompt acceptance is separate from foreground completion, questions and Approvals are requests, and connection loss is distinct from successful completion. The SDK and subprocess transport stay in a JVM-only module. Native execution stays in-process. The Server retains its own transcript and pending-interaction handling because ACP alone does not provide paginated client catch-up or multi-Device response ownership. Saved history does not imply that the harness can resume its model context.
+
+Remote Kinuvo connections use dedicated execution grants rather than management credentials. The source checks Agent exposure and grant-owned Session access for every operation. Source tool policy is authoritative; revocation denies further access. The initial remote adapter polls source snapshots, and does not relay remote Agents again, preventing connection cycles. Native and external execution share `ExecutionDispatch` for Session creation, snapshots, answers, send and stop. Native delegates retain SessionLog, Runs and the native Approval/Question brokers; native model history remains internal. `harness/execution/api` owns the KMP contracts and generic state/broker in `kinuvo.execution.api`, depending only on the public protocol. The JVM ACP adapter depends on this API and the ACP SDK in production; only its coordinator integration tests depend on Server runtime. Server runtime owns routing, registration, persistence and remote transport. Model providers remain native harness dependencies, never execution API or ACP dependencies.
+
+External runtime installation and account configuration remain with the user. Controls are shown only when supported; external Routines, automatic policy substitution and native Reflection are not implied by registering an external Agent. Teams and delegation will call the same execution module with explicit caller scope and shared context.
