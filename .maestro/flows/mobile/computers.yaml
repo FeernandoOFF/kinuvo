@@ -23,6 +23,8 @@ properties:
     text: "Home"
     above: "New agent"
 - tapOn: "Computers"
+- runFlow: ../../shared/assert-no-back.yaml
+- tapOn: "Pixel"
 - assertVisible: "Idle"
 - assertVisible: "Waiting for the screen…"
 - runScript:

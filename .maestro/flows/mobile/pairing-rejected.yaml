@@ -9,11 +9,10 @@ properties:
     - stub: mobile/connect-rejected
       exactly: 1
 ---
-- launchApp
-- assertVisible: "Connect a server"
-- tapOn: "From kinuvo pair"
-- inputText: "000000"
-- tapOn: "Connect"
+- runFlow:
+    file: ../../shared/open-pairing.yaml
+    env:
+      PAIRING_CODE: "000000"
 - assertVisible: "Pairing code expired"
-- assertVisible: "Connect a server"
+- assertVisible: "Connect to a Server"
 - assertNotVisible: "Start a session with E2E Agent"

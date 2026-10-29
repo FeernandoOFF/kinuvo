@@ -1,7 +1,6 @@
 #!/bin/sh
 set -eu
 kinuvo_project_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-. "$kinuvo_project_root/scripts/project-env.sh"
 "$kinuvo_project_root/scripts/build-local-voice.sh"
 source="$kinuvo_project_root/shared/ui/native/macos"
 library="$kinuvo_project_root/build/libKinuvoSpeech.dylib"

@@ -45,7 +45,7 @@ sealed interface AgentEvent {
 
     /** `ask_user` is waiting for the user's answers via `questions.respond`. */
     @Serializable @SerialName("QUESTIONS_ASKED")
-    data class QuestionsAsked(val questionsId: String, val toolCallId: String, val title: String?, val questions: List<Question>) : AgentEvent
+    data class QuestionsAsked(val questionsId: String, val toolCallId: String, val title: String?, val questions: List<Question>, val screen: ScreenRef? = null) : AgentEvent
 
     @Serializable @SerialName("QUESTIONS_ANSWERED")
     data class QuestionsAnswered(val toolCallId: String) : AgentEvent

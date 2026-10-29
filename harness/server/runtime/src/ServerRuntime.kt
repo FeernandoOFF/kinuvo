@@ -20,6 +20,7 @@ import kotlin.concurrent.atomics.incrementAndFetch
 import kotlin.io.encoding.Base64
 import kotlin.time.TimeSource
 import kotlinx.coroutines.*
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ClosedSendChannelException
 import kotlinx.coroutines.flow.filterNotNull
@@ -81,6 +82,7 @@ class ServerRuntime(
     private suspend fun sendExternal(client: Client, agentId: String, id: String) {
         client.externalChanges.offer(id, external.snapshot(id))
     }
+    private val screenBudget = ScreenBudget()
     private val clients = ConcurrentMutableSet<Client>()
     private val runs = Runs(harness.log, scope)
     private val nativeExecution = kinuvo.execution.api.NativeExecutionDispatch(
@@ -110,7 +112,7 @@ class ServerRuntime(
     private val lifecycle = Mutex()
     private val executionManagement = Mutex()
 
-    val capabilities get() = ServerCapabilities(harness.serverId, harness.features + if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet(),
+    val capabilities get() = ServerCapabilities(harness.serverId, harness.features + setOf(ServerFeature.Screens) + if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet(),
         if (foregroundOnly) ExecutionLifetime.Foreground else ExecutionLifetime.Continuous,
         if (scheduling) WakeSupport.Scheduled else WakeSupport.None, integrations = (harness.integrations + (if (executionFactory != null) mapOf(Integration.Harness to setOf("acp", "remote")) else mapOf(Integration.Harness to setOf("remote")))).mapKeys { it.key.name }, platform = harness.platform, voice = voice.setup)
     /** Runs going and the events they've produced; a foreground-only host keeps them alive while it can. */
@@ -125,7 +127,11 @@ class ServerRuntime(
 
     private fun changedCapabilities() = broadcast(Api.CapabilitiesChanged, Unit)
     init {
-        harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
+        harness.browser?.authorize { owner ->
+            browserOwner(owner)
+            check("browser" in agent(owner.agentId).config.tools) { "Browser is disabled for this Agent" }
+        }
+        harness.log.onDelete = { a, id -> harness.browser?.deleteSession(BrowserOwner(a.id, id)) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
         if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) runs.stop(it.id) }
     }
 
@@ -144,7 +150,8 @@ class ServerRuntime(
             harness.knowledge.onChange { broadcast(Api.KnowledgeChanged, it) }
             harness.tasks.onChange { broadcast(Api.TaskChanged, it) }
             harness.artifacts.onChange { broadcast(Api.ArtifactChanged, it) }
-            harness.computers.onChange = { broadcast(Api.ComputersChanged, it) }
+            harness.browser?.onChange { broadcast(Api.BrowserChanged, it); broadcast(Api.ScreensChanged, it) }
+            harness.computers.onChange = { broadcast(Api.ComputersChanged, it); broadcast(Api.ScreensChanged, null) }
             if (schedule) { scheduler.start(); dispatcher.start() }
             scheduling = schedule
         } catch (e: Throwable) {
@@ -205,6 +212,9 @@ class ServerRuntime(
         val externalSubscriptions = ConcurrentMutableMap<String, Long>()
         val browser = connection.credential != null
         val outbox = Channel<Frame>(OUTBOX_SIZE)
+        val screenFrames = ScreenFrameLane()
+        val screens = Screens(harness.computers, { harness.browser }, ::browserOwner, scope, { requireNotNull(deviceId) }, screenBudget,
+            screenFrames::offer, { screenFrames.remove(it.subscription); offer(frame(Api.ScreenStatus, it)) })
         @kotlin.concurrent.Volatile override var watching = true
         @kotlin.concurrent.Volatile var token: String? = null
         private val credentialLock = Lock()
@@ -269,6 +279,8 @@ class ServerRuntime(
         }
 
         fun disconnect() {
+            screenFrames.close()
+            deviceId?.let { id -> scope.launch { screens.close(id) } }
             externalChanges.close()
             clients.remove(this)
             detachTools()
@@ -299,14 +311,25 @@ class ServerRuntime(
         val voiceRequests = ConcurrentMutableMap<String, Job>()
         val timeout = requests.launch { delay(security.authenticationTimeoutMillis); client.disconnect() }
         val validity = requests.launch {
-            while (isActive) { delay(security.validationIntervalMillis); if (!client.valid()) client.disconnect() }
+            while (isActive) { delay(security.validationIntervalMillis); if (!client.valid() && client.closeAfterResponse == null) client.disconnect() }
         }
         var window = TimeSource.Monotonic.markNow()
         var messages = 0
-        val writer = requests.launch { try { for (frame in client.outbox) {
+        var screenAcks = 0
+        val writer = requests.launch { try { while (isActive) {
+            val next = client.outbox.tryReceive().getOrNull()?.let { false to it } ?: select<Pair<Boolean, Frame?>> {
+                client.outbox.onReceiveCatching { it.isClosed to it.getOrNull() }
+                client.screenFrames.ready.onReceiveCatching { signal ->
+                    signal.isClosed to if (signal.isClosed) null else client.screenFrames.poll()?.let { frame(Api.ScreenFrame, it) }
+                }
+            }
+            val frame = next.second ?: if (next.first) break else continue
             if (!client.subscribed(frame)) { client.delivered(frame); continue }
-            if (!client.valid() && (frame !is Frame.Response || frame.id != client.closeAfterResponse)) { client.disconnect(); break }
-            connection.send(frame)
+            if (!client.valid() && (frame !is Frame.Response || frame.id != client.closeAfterResponse)) {
+                if (client.closeAfterResponse != null) { client.delivered(frame); continue }
+                client.disconnect(); break
+            }
+            withTimeout(15_000) { connection.send(frame) }
             client.delivered(frame)
             if (frame is Frame.Response && frame.id == client.closeAfterResponse) client.disconnect()
         } } catch (e: CancellationException) { throw e }
@@ -315,9 +338,16 @@ class ServerRuntime(
         var authed = false
         try {
             connection.incoming.collect { decoded ->
-                if (window.elapsedNow().inWholeMilliseconds >= 60_000) { window = TimeSource.Monotonic.markNow(); messages = 0 }
+                if (window.elapsedNow().inWholeMilliseconds >= 60_000) { window = TimeSource.Monotonic.markNow(); messages = 0; screenAcks = 0 }
+                if (authed && client.valid() && client.closeAfterResponse == null && decoded is Frame.Request && decoded.method == Api.ScreenAck.name) {
+                    if (++screenAcks > security.screenAcksPerMinute) { client.disconnect(); return@collect }
+                    val response = handle(decoded, client)
+                    if (!response.ok && ++messages > security.messagesPerMinute) { client.disconnect(); return@collect }
+                    client.outbox.send(response)
+                    return@collect
+                }
                 if (++messages > security.messagesPerMinute) { log.warn { "Closing a connection: over ${security.messagesPerMinute} messages a minute" }; client.disconnect(); return@collect }
-                if (authed && !client.valid()) { client.disconnect(); return@collect }
+                if (authed && !client.valid()) { if (client.closeAfterResponse == null) client.disconnect(); return@collect }
                 if (client.closeAfterResponse != null) return@collect
                 if (decoded is Frame.Response && authed) { client.response(decoded); return@collect }
                 val request = decoded as? Frame.Request ?: return@collect
@@ -325,6 +355,7 @@ class ServerRuntime(
                 if (request.method == Api.Connect.name) {
                     val response = respond(request, Api.Connect) { p ->
                         check(!authed) { "Already connected" }
+                        ProtocolVersion.requireCompatible(p.protocolVersion)
                         val supplied = connection.credential ?: p.token
                         client.linked = supplied?.let { remoteLinks.exposure(it) != null } == true
                         val token = (if (client.linked) supplied else auth.authenticate(p.device, supplied, if (connection.credential == null) p.pairingCode else null))
@@ -332,7 +363,7 @@ class ServerRuntime(
                         client.token = token
                         if (!client.linked) client.refreshTools(p.deviceTools, initial = true)
                         if (!client.linked && auth.management(token)) p.timeZone?.let { zone -> runCatching { harness.timeZone = TimeZone.of(zone) } }
-                        ConnectResult(token, name, harness.usage.value, capabilities, !client.linked && auth.management(token))
+                        ConnectResult(token, name, harness.usage.value, capabilities, !client.linked && auth.management(token), deviceId = client.deviceId)
                     }
                     if (!response.ok) client.closeAfterResponse = request.id
                     client.outbox.send(response)
@@ -547,15 +578,32 @@ class ServerRuntime(
         }
         Api.RevokeDevice.name -> respond(r, Api.RevokeDevice) { p ->
             check(client.authenticated(auth::management) || client.deviceId == p.id) { "This action requires management access" }
+            if (client.deviceId == p.id) client.closeAfterResponse = r.id
             check(auth.revoke(p.id)) { "No paired Device '${p.id}'" }
             clients.block { it.filter { c -> c.deviceId == p.id && c !== client } }.forEach { it.disconnect() }
             if (client.deviceId == p.id) client.closeAfterResponse = r.id
             broadcast(Api.DevicesChanged, Unit)
         }
+        Api.ScreenOpen.name -> respond(r, Api.ScreenOpen) { client.screens.open(requireNotNull(client.deviceId), it) }
+        Api.Screens.name -> respond(r, Api.Screens) { client.screens.list(it) }
+        Api.ScreenWatch.name -> respond(r, Api.ScreenWatch) { client.screens.watch(it) }
+        Api.ScreenUnwatch.name -> respond(r, Api.ScreenUnwatch) { client.screens.unwatch(it); client.screenFrames.remove(it) }
+        Api.ScreenAck.name -> respond(r, Api.ScreenAck) { client.screens.ack(it) }
+        Api.ScreenControl.name -> respond(r, Api.ScreenControl) { client.screens.control(requireNotNull(client.deviceId), it) }
+        Api.ScreenInput.name -> respond(r, Api.ScreenInput) { client.screens.input(requireNotNull(client.deviceId), it) }
+        Api.ScreenCommand.name -> respond(r, Api.ScreenCommand) { client.screens.command(requireNotNull(client.deviceId), it) }
+        Api.BrowserTabs.name -> respond(r, Api.BrowserTabs) { p ->
+            browserOwner(p)
+            requireNotNull(harness.browser) { "Browser is unavailable on this Server" }.tabs(p)
+        }
+        Api.BrowserCommand.name -> respond(r, Api.BrowserCommand) { p ->
+            browserOwner(p.owner)
+            error("Use screens.control and frame-bound screens.input/command")
+        }
         Api.Computers.name -> respond(r, Api.Computers) { harness.computers.list() }
-        Api.WatchComputer.name -> respond(r, Api.WatchComputer) { if (it.watch) harness.computers.watch(it.computerId, client.watcher) else harness.computers.unwatch(it.computerId, client.watcher) }
-        Api.ComputerInput.name -> respond(r, Api.ComputerInput) { harness.computers.input(it.computerId, it.action) }
-        Api.Takeover.name -> respond(r, Api.Takeover) { harness.computers.takeover(it.computerId, it.take) }
+        Api.WatchComputer.name -> respond(r, Api.WatchComputer) { error("Use bounded screens.watch") }
+        Api.ComputerInput.name -> respond(r, Api.ComputerInput) { error("Use frame-bound screens.input") }
+        Api.Takeover.name -> respond(r, Api.Takeover) { error("Use generation-bound screens.control") }
         Api.Providers.name -> respond(r, Api.Providers) { logins.list() }
         Api.SetProviderApiKey.name -> respond(r, Api.SetProviderApiKey) { logins.saveApiKey(it.provider, it.value) }
         Api.LoginProvider.name -> respond(r, Api.LoginProvider) { logins.login(it.provider) }
@@ -597,6 +645,11 @@ class ServerRuntime(
             ExecutionRequestKind.Question -> harness.questions.respond(answer.requestId, ProtocolJson.decodeFromJsonElement(QuestionsParams.serializer(), answer.answer).also { require(it.questionsId == answer.requestId) }.answers)
             null -> false
         }
+    }
+
+    private suspend fun browserOwner(owner: BrowserOwner) {
+        val a = agent(owner.agentId)
+        check(harness.store.entries(a, owner.sessionId).isNotEmpty()) { "No Session '${owner.sessionId}'" }
     }
 
     private suspend fun send(p: SendParams): SendResult {
@@ -648,12 +701,13 @@ class ServerRuntime(
 
     private fun <T> broadcast(type: EventType<T>, payload: T) {
         val text = frame(type, payload)
-        val managementOnly = type.name == Api.ExecutionCatalogChanged.name
+        val managementOnly = type.name in setOf(Api.ExecutionCatalogChanged.name, Api.ScreensChanged.name, Api.BrowserChanged.name, Api.ComputersChanged.name)
         clients.block { it.toList() }.filter { !managementOnly || it.authenticated(auth::management) }.forEach { it.offer(text) }
     }
 
     private fun <T> frame(type: EventType<T>, payload: T): Frame.Event = Frame.Event(type.name, ProtocolJson.encodeToJsonElement(type.payload, payload), seq.incrementAndFetch())
 
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
     private suspend fun <P, R> respond(r: Frame.Request, method: Method<P, R>, block: suspend (P) -> R): Frame.Response =
         try {
             val params = ProtocolJson.decodeFromJsonElement(method.params, r.params)
@@ -661,7 +715,7 @@ class ServerRuntime(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Frame.Response(r.id, ok = false, error = e.message ?: e.toString())
+            Frame.Response(r.id, ok = false, error = if (method == Api.Connect && e is kotlinx.serialization.MissingFieldException && "protocolVersion" in e.missingFields) ProtocolVersion.Mismatch else e.message ?: e.toString())
         }
 
     private fun <R> encode(serializer: KSerializer<R>, value: R): JsonElement = ProtocolJson.encodeToJsonElement(serializer, value)

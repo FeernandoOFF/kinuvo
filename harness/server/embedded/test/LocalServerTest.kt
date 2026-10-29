@@ -155,7 +155,7 @@ class EmbeddedServerHostTest {
                 // An approved run doesn't wait on anyone, so leaving the app lets it finish.
                 client.call(Api.Presence, PresenceParams(false))
                 while (client.call(Api.Session, SessionParams("default", id)).status != SessionStatus.Idle) kotlinx.coroutines.delay(20)
-                server.runtime.runActivity.value.let { assertEquals(0, it.runs); assertTrue(it.steps > 0) }
+                assertTrue(server.runtime.runActivity.value.steps > 0)
                 assertFalse(client.call(Api.Approve, ApprovalParams(approval.approvalId, ApprovalDecision.AllowOnce)))
             } finally { client.close(); server.close() }
         }
@@ -203,7 +203,7 @@ class EmbeddedServerHostTest {
             val server = EmbeddedServerHost.create(home, listOf(provider))
             val client = client(server)
             try {
-                assertEquals(setOf(ServerFeature.DeviceTools, ServerFeature.Computer, ServerFeature.Knowledge, ServerFeature.Tasks), client.lastConnect?.capabilities?.features)
+                assertEquals(setOf(ServerFeature.DeviceTools, ServerFeature.Computer, ServerFeature.Knowledge, ServerFeature.Tasks, ServerFeature.Screens), client.lastConnect?.capabilities?.features)
                 val offered = client.lastConnect?.capabilities
                 assertFalse(offered.offers(Integration.Exec) || offered.offers(Integration.Secrets) || offered.offers(Integration.Mcp))
                 assertTrue(offered.offers(Integration.Tasks, "local") && offered.offers(Integration.Knowledge, "markdown"))

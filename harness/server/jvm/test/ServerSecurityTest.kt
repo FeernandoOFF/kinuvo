@@ -184,6 +184,15 @@ class ServerSecurityTest {
             }
             assertEquals(HttpStatusCode.Forbidden, forbidden.status)
             assertEquals(code, server.auth.pairingCode)
+            val incompatible = http.post("http://127.0.0.1:$port/auth/session") {
+                header("Origin", "https://kinuvo.example.com"); header("X-Forwarded-Proto", "https")
+                header(HttpHeaders.ContentType, "application/json")
+                setBody("""{"device":"legacy","pairingCode":"$code"}""")
+            }
+            assertEquals(HttpStatusCode.Conflict, incompatible.status)
+            assertEquals(ProtocolVersion.Mismatch, incompatible.bodyAsText())
+            assertNull(incompatible.headers[HttpHeaders.SetCookie])
+            assertEquals(code, server.auth.pairingCode)
             val accepted = http.post("http://127.0.0.1:$port/auth/session") {
                 header("Origin", "https://kinuvo.example.com"); header("X-Forwarded-Proto", "https")
                 header(HttpHeaders.ContentType, "application/json")

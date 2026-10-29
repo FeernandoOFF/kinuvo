@@ -7,6 +7,11 @@ import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
@@ -27,10 +32,13 @@ class Computers(
     private val questions: () -> Broker<Map<String, List<String>>?>,
 ) : HarnessPlugin {
     override val definition = PluginDefinition("kinuvo.computer", "Computer")
+    var browserService: () -> BrowserService? = { null }
     var paired: () -> List<ToolDevice> = { emptyList() }
     /** Every Computer, whenever one's availability, control or Takeover request changes. */
     var onChange: (List<ComputerInfo>) -> Unit = {}
     private val connections = MutableStateFlow(emptyMap<String, suspend (ComputerRequest) -> ComputerResult>())
+    private val gates = co.touchlab.stately.collections.ConcurrentMutableMap<String, ScreenGate>()
+    fun gate(id: String): ScreenGate = gates.block { it.getOrPut(id) { ScreenGate() } }
     private val locks = mutableMapOf<String, Mutex>()
     private val locksLock = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -108,8 +116,8 @@ class Computers(
             result.screen?.platform?.let { p -> if (platforms.value[computer.id] != p) platforms.update { it + (computer.id to p) } }
             // A Takeover started or ended on the Computer itself shows in any answer it gives; under the lock, answers apply in order.
             val c = controls.value[computer.id]
-            if (result.userControl && c?.user != true) control(computer.id) { it.copy(user = true, local = true) }
-            else if (!result.userControl && c?.local == true && result.status != DeviceToolStatus.Unavailable) control(computer.id) { it.copy(user = false, local = false) }
+            if (result.userControl && c?.user != true) { gate(computer.id).local(true); control(computer.id) { it.copy(user = true, local = true) } }
+            else if (!result.userControl && c?.local == true && result.status != DeviceToolStatus.Unavailable) { gate(computer.id).local(false); control(computer.id) { it.copy(user = false, local = false) } }
             result
         }
         if (request.action != null || request.elements) push(computer, result.screen, result.message)
@@ -117,10 +125,25 @@ class Computers(
     }
 
     /** An Agent's [request]: it waits while the user controls [computer], and is refused if they took over meanwhile. */
+    private val captures = co.touchlab.stately.collections.ConcurrentMutableMap<Pair<String, String>, Long>()
+
     suspend fun act(computer: Computer, request: ComputerRequest): ComputerResult {
+        val gate = gate(computer.id)
+        val generation = gate.state.value.generation
         awaitUser(computer)
         control(computer.id) { it.copy(agentAt = now()) }
-        val result = perform(computer, request, agent = true)
+        val result = try { gate.agent(generation) {
+            if (request.action != null && request.capture != null) check(captures[computer.id to request.capture] == generation) { "Screen control changed; capture again" }
+            perform(computer, request, agent = true).also { result ->
+                result.screen?.let { screen -> captures.block { history ->
+                    if (history.size >= 256) history.keys.firstOrNull()?.let(history::remove)
+                    history[computer.id to screen.capture] = generation
+                } }
+            }
+        }
+        } catch (e: IllegalStateException) {
+            return ComputerResult(DeviceToolStatus.Skipped, "Screen control changed; capture again before acting.")
+        }
         if (!result.userControl) return result
         awaitUser(computer)
         return ComputerResult(DeviceToolStatus.Skipped, "The user took over ${computer.name} and has handed it back; capture again before acting.")
@@ -142,6 +165,7 @@ class Computers(
         val computer = computer(id)
         if (controls.value[id]?.user != true) control(id) { it.copy(user = true, local = false) }
         val result = perform(computer, ComputerRequest(action, elements = false, user = true))
+        check(result.status == DeviceToolStatus.Ready) { result.message ?: "Computer input failed" }
         return ComputerFrame(info(computer), result.screen, result.message)
     }
 
@@ -150,6 +174,31 @@ class Computers(
         control(id) { if (take) it.copy(user = true, local = false) else it.copy(user = false, local = false, request = null) }
         val result = perform(computer, ComputerRequest(elements = false, release = !take))
         return ComputerFrame(info(computer), result.screen, result.message)
+    }
+
+    fun screen(id: String): ScreenSource {
+        val computer = computer(id)
+        return object : ScreenSource {
+            override val ref = ScreenRef("computer", id)
+            override val capabilities = ScreenCapabilities(ScreenDelivery.CaptureRefresh, computer.actions.map { it.action }.intersect(ScreenActionKind.entries.map { it.action }.toSet()),
+                windows = false, keys = if (ComputerActionKind.Key !in computer.actions) emptyList() else when (computer.platform.lowercase()) {
+                    "android" -> listOf("Back", "Home", "Recents", "Notifications", "Quick_settings")
+                    "macos", "windows", "linux" -> listOf("Tab", "Escape", "Backspace", "Up", "Down", "Left", "Right", "Enter")
+                    else -> emptyList()
+                })
+            override fun frames(thumbnail: Boolean): Flow<ScreenSample> = callbackFlow {
+                val watcher: (ComputerFrame) -> Unit = { frame ->
+                    if (!frame.computer.available || frame.screen == null && frame.message != null) close(IllegalStateException(frame.message ?: "Computer is offline"))
+                    frame.screen?.let { screen ->
+                        screen.screenshot?.takeIf { it.length <= 4 * 1024 * 1024 }?.let { image ->
+                            trySend(ScreenSample(image, screen.width, screen.height, "${screen.width}:${screen.height}:${screen.platform}"))
+                        }
+                    }
+                }
+                watch(id, watcher)
+                awaitClose { unwatch(id, watcher) }
+            }.buffer(Channel.CONFLATED)
+        }
     }
 
     /** Sends [watcher] Live view frames of the Computer [id] until [unwatch]: after every action, and about once a second. */
@@ -205,7 +254,7 @@ class Computers(
     )
 
     override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
-        if (!enabled(run)) return PluginTools()
+        if (!enabled(run)) return PluginTools(if ("browser" in run.agent.config.tools && run.sessionId != null) listOf(TakeoverTool(run)) else emptyList())
         all().filter { it.available && it.id !in probed.value }.forEach { probed.update { ids -> ids + it.id }; probe(it) }
         val available = all().any { it.available }
         val state = if (available) CapabilityState() else CapabilityState.unavailable("Allow computer use under This Device's tools on a paired Device", "no_computer")
@@ -329,6 +378,12 @@ class Computers(
             ),
         )
 
+        override suspend fun bind(args: JsonObject): suspend () -> Unit {
+            val gate = gate(choose(args).id)
+            val generation = gate.state.value.generation
+            return { check(gate.state.value.generation == generation) { "Screen control changed while awaiting Approval; capture again" } }
+        }
+
         override val kind = kinuvo.harness.core.tools.ToolKind.ComputerAction
 
         override fun assess(args: JsonObject): Assessment {
@@ -422,10 +477,11 @@ class Computers(
             "request_takeover", "Ask the user to take over a Computer for a step only they should do (sign-in, one-time code, CAPTCHA, payment, " +
                 "permission dialog) and wait until they hand it back or skip.",
             requiredParameters = listOf(ToolParameterDescriptor("reason", "What the user should do, briefly", ToolParameterType.String)),
-            optionalParameters = listOf(ToolParameterDescriptor("computer", "Id from the Computer list tool; needed when several are available", ToolParameterType.String)),
+            optionalParameters = listOf(ToolParameterDescriptor("computer", "Id from the Computer list tool; needed when several are available", ToolParameterType.String), ToolParameterDescriptor("tab", "Browser tab id in this Session", ToolParameterType.String)),
         )
         override suspend fun execute(args: JsonObject): String = error("A Takeover needs a Session")
         override suspend fun execute(args: JsonObject, callId: String): String {
+            args.string("tab")?.let { return browserTakeover(context, it, args.requireString("reason"), callId) }
             val computer = choose(args)
             val reason = args.requireString("reason").trim().take(300).trimEnd('.')
             val sessionId = requireNotNull(context.sessionId)
@@ -433,7 +489,7 @@ class Computers(
             control(computer.id) { it.copy(request = reason) }
             try {
                 log.publish(context.agent, sessionId, AgentEvent.QuestionsAsked(pending.id, callId, "Take over ${computer.name}: $reason. Open Computers to watch and act, then hand it back.",
-                    listOf(Question("note", "Note for the Agent (optional)", placeholder = "Done, or what happened"))))
+                    listOf(Question("note", "Note for the Agent (optional)", placeholder = "Done, or what happened")), ScreenRef("computer", computer.id)))
                 val outcome = coroutineScope {
                     val answer = async { pending.await() }
                     val handedBack = async {
@@ -450,7 +506,7 @@ class Computers(
                     } finally { answer.cancel(); handedBack.cancel() }
                 }
                 // Answering the form ends the Takeover, also one started on the Computer itself.
-                takeover(computer.id, take = false)
+                if (outcome != null) takeover(computer.id, take = false)
                 return if (outcome == null) "The user skipped the Takeover of ${computer.name}. Don't do that step yourself; ask how to continue."
                     else "The user finished on ${computer.name}${if (outcome.isNotEmpty()) " and noted: $outcome" else ""}. Capture again before acting."
             } finally {
@@ -461,9 +517,37 @@ class Computers(
         }
     }
 
+    private suspend fun browserTakeover(context: RunContext, tab: String, reason: String, callId: String): String {
+        val owner = BrowserOwner(context.agent.id, requireNotNull(context.sessionId))
+        val browser = requireNotNull(browserService())
+        val gate = browser.gate(owner, tab)
+        val before = gate.state.value.generation
+        val pending = questions().register()
+        try {
+            log.publish(context.agent, owner.sessionId, AgentEvent.QuestionsAsked(pending.id, callId,
+                "Take over Browser: ${reason.take(300)}", listOf(Question("note", "Note for the Agent (optional)")), ScreenRef("browser", tab, owner)))
+            return coroutineScope {
+                val answer = async { pending.await() }
+                val handback = async {
+                    val held = gate.state.first { it.closed || it.generation > before && it.holder != null && !it.draining }
+                    if (held.closed) held else gate.state.first { it.closed || it.generation > held.generation && it.holder == null && !it.draining }
+                }
+                try {
+                    select {
+                        answer.onAwait { "Takeover question answered or abandoned; completion unconfirmed. Wait for explicit handback and capture again." }
+                        handback.onAwait { if (it.closed) "Browser closed; completion unconfirmed." else "The user handed the Browser back. Capture again before acting; completion unconfirmed." }
+                    }
+                } finally { answer.cancel(); handback.cancel() }
+            }
+        } finally {
+            pending.close()
+            withContext(NonCancellable) { log.publish(context.agent, owner.sessionId, AgentEvent.QuestionsAnswered(callId)) }
+        }
+    }
+
     companion object {
         private const val AGENT_ACTIVE_MS = 15_000L
-        private const val FRAME_MS = 300L
+        private const val FRAME_MS = 1000L
         private val SERVER_ACTIONS = setOf(ComputerActionKind.Zoom, ComputerActionKind.VerifyState)
         private val ACTIONS = ComputerActionKind.entries.filter { it !in setOf(ComputerActionKind.ListApps, ComputerActionKind.ListWindows) }.associateBy { it.action }
         /** System screens where a wrong tap changes security or installs software. */

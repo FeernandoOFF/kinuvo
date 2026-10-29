@@ -1,0 +1,7 @@
+appId: ${APP_ID}
+---
+- tapOn: "Home and agents"
+- tapOn:
+    text: "E2E Agent"
+    above: "New agent"
+- tapOn: "E2E chat"

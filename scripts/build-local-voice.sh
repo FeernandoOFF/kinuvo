@@ -1,7 +1,6 @@
 #!/bin/sh
 set -eu
 kinuvo_project_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-. "$kinuvo_project_root/scripts/project-env.sh"
 sdk="$kinuvo_project_root/build/local-voice-sdk"
 bundle="$kinuvo_project_root/build/voice-worker"
 mkdir -p "$sdk" "$bundle/MacOS" "$bundle/Frameworks" "$bundle/Resources/VoiceLicenses"

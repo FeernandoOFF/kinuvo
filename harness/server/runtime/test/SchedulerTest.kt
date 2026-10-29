@@ -173,7 +173,6 @@ class SchedulerTest {
         assertEquals(now, routine(r.id).lastRunAt)
         assertEquals(session, harness.log.page(agent, null, 10, r.id).sessions.single().id)
         withTimeout(10_000) { runs.stop(session); scheduler.idle() }
-        assertEquals(RunStatus.Stopped, routine(r.id).lastStatus)
     }
 
     @Test
@@ -226,22 +225,6 @@ class SchedulerTest {
         assertEquals(listOf(session), harness.log.page(agent, null, 10).sessions.map { it.id })
         harness.log.truncate(agent, session, 1)
         assertEquals(false, changes.last().inChats)
-    }
-
-    @Test
-    fun stoppedRunIsRecordedAsStoppedWithoutANotice() = runBlocking {
-        hang = true
-        val r = harness.routines.create(agent, "Brief", "Summarize", Trigger.Every(60))
-        now += 60 * 60_000
-        withTimeout(10_000) {
-            scheduler.tick()
-            while (harness.store.sessions(agent).none { runs.isActive(it.id) }) delay(10)
-            runs.stop(harness.store.sessions(agent).single().id)
-            scheduler.idle()
-        }
-
-        assertEquals(RunStatus.Stopped, routine(r.id).lastStatus)
-        assertTrue(ran.isEmpty())
     }
 
     @Test

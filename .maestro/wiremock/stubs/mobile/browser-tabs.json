@@ -1,0 +1,33 @@
+{
+  "name": "mobile/browser-tabs",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "screens.list"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":[{\"ref\":{\"source\":\"browser\",\"id\":\"browser-tab\",\"owner\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\"}},\"title\":\"Private site\",\"currentUrl\":\"http://lab.internal\",\"status\":\"Ready\",\"capabilities\":{\"delivery\":\"Continuous\",\"inputs\":[\"tap\",\"type\",\"key\",\"scroll\"],\"tabs\":true,\"navigation\":true},\"control\":{}}]}"
+        }
+      }
+    }
+  ]
+}
