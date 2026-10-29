@@ -31,6 +31,7 @@ class ServerSpeech(private val device: SpeechEngine, private val server: Connect
     private var serverGeneration = -1L
     private fun current(epoch: Int) = epoch == generation && serverGeneration == server.generation
     private var recognition: Job? = null
+    private var capturing = false
     private var speech: Job? = null
     private val utterances = mutableSetOf<Job>()
     private var speakingGeneration = 0
@@ -58,8 +59,10 @@ class ServerSpeech(private val device: SpeechEngine, private val server: Connect
         final = onFinal; failure = onError
         val epoch = generation
         fun listening() = current(epoch) && recording == recordingGeneration
+        capturing = true
         audio?.record(untilPause, { pcm ->
             if (!listening()) return@record
+            capturing = false
             if (pcm.isEmpty()) { final(""); return@record }
             recognition = server.scope.launch {
                 try {
@@ -72,10 +75,13 @@ class ServerSpeech(private val device: SpeechEngine, private val server: Connect
                 } catch (e: CancellationException) { throw e }
                 catch (e: Exception) { if (listening()) failure(e.message ?: "Server transcription failed") }
             }
-        }, { if (listening()) failure(it) }) ?: onError("Device audio capture unavailable")
+        }, { if (listening()) { capturing = false; failure(it) } }) ?: onError("Device audio capture unavailable")
     }
     override fun finish(text: String, onFinal: (String) -> Unit, onError: (String) -> Unit) {
-        if (setup.transcriber) { final = onFinal; failure = onError; audio?.finishRecording() } else device.finish(text, onFinal, onError)
+        if (!setup.transcriber) { device.finish(text, onFinal, onError); return }
+        final = onFinal; failure = onError
+        // A capture that already ended on its own has either delivered [text] or is still being transcribed.
+        if (capturing) audio?.finishRecording() else if (recognition?.isActive != true) onFinal(text)
     }
     override fun speak(text: String, onDone: () -> Unit) = speak(text, onDone, {})
     override fun speak(text: String, onDone: () -> Unit, onError: (String) -> Unit) {
@@ -118,7 +124,7 @@ class ServerSpeech(private val device: SpeechEngine, private val server: Connect
         throw IllegalStateException("$operation timed out. Check the Server connection and try again.", e)
     }
     override fun stopSpeaking() { speakingGeneration++; utterances.toList().forEach { it.cancel() }; utterances.clear(); speech = null; audio?.stopPlayback(); device.stopSpeaking() }
-    override fun stop() { generation++; recordingGeneration++; recognition?.cancel(); audio?.stopRecording(); stopSpeaking(); device.stop() }
+    override fun stop() { generation++; recordingGeneration++; capturing = false; recognition?.cancel(); audio?.stopRecording(); stopSpeaking(); device.stop() }
 }
 
 /** Wraps 16 kHz mono PCM16 in a WAV header. */
