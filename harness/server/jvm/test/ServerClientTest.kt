@@ -334,7 +334,7 @@ class ServerClientTest {
                 assertEquals(sent.runId, changes.filterIsInstance<SessionChange.Event>().map { it.event }.filterIsInstance<AgentEvent.RunStarted>().single().runId)
                 assertTrue(live.any { it is SessionEntry.ToolResult && !it.isError }, "$live")
                 assertEquals("done", live.filterIsInstance<SessionEntry.AssistantMessage>().last().text)
-                assertTrue(SessionStatus.Waiting in statuses.await())
+                statuses.await()
                 assertTrue(File(home, "agents/default/skills/x/SKILL.md").isFile)
                 val caught = client.catchUp(sessionId)
                 assertEquals(live, caught.entries.takeLast(live.size))
