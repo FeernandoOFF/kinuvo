@@ -102,7 +102,7 @@ class BrowserServerTest {
             assertFailsWith<IllegalStateException> { ordinary.call(Api.ScreenAck, ack) }
             client.call(Api.ScreenAck, ack)
             val input = ScreenInputRequest(subscription.id, ScreenInput(ack, image.sample.geometry, initial.control.generation, 0,
-                listOf(ComputerAction(ComputerActionKind.Key, key = "Tab"))))
+                listOf(ScreenAction(ScreenActionKind.Key, key = "Tab"))))
             assertEquals(1, client.call(Api.ScreenInput, input).applied)
             assertFailsWith<IllegalStateException> { client.call(Api.ScreenInput, input) }
             // Responses use the durable lane even while a viewer stops drawing.
@@ -117,7 +117,7 @@ class BrowserServerTest {
                 control
             }
             assertFailsWith<IllegalStateException> { client.call(Api.ScreenAck, ack) }
-            assertFailsWith<IllegalStateException> { client.call(Api.ScreenCommand, ScreenCommand(ref, initial.control.generation, BrowserAction.Navigate, "about:blank")) }
+            assertFailsWith<IllegalStateException> { client.call(Api.ScreenCommand, ScreenCommand(ref, initial.control.generation, ScreenCommandKind.Navigate, "about:blank")) }
             if (jar == null) {
                 client.close()
                 server!!.stop()
@@ -142,7 +142,7 @@ class BrowserServerTest {
                 assertFailsWith<IllegalStateException> { second.call(Api.ScreenControl, ScreenControlRequest(ref, held.generation, true)) }
                 val stolen = second.call(Api.ScreenControl, ScreenControlRequest(ref, held.generation, true, steal = true))
                 assertNotEquals(held.holder, stolen.holder)
-                assertFailsWith<IllegalStateException> { client.call(Api.ScreenCommand, ScreenCommand(ref, held.generation, BrowserAction.Close)) }
+                assertFailsWith<IllegalStateException> { client.call(Api.ScreenCommand, ScreenCommand(ref, held.generation, ScreenCommandKind.Close)) }
                 client.call(Api.RevokeDevice, DeviceRef(requireNotNull(stolen.holder)))
                 val revoked = withTimeout(5000) {
                     var value = client.call(Api.Screens, owner).single { it.ref == ref }.control
@@ -150,7 +150,7 @@ class BrowserServerTest {
                     value
                 }
                 val finalHold = client.call(Api.ScreenControl, ScreenControlRequest(ref, revoked.generation, true))
-                client.call(Api.ScreenCommand, ScreenCommand(ref, finalHold.generation, BrowserAction.Close))
+                client.call(Api.ScreenCommand, ScreenCommand(ref, finalHold.generation, ScreenCommandKind.Close))
             } finally { second.close() }
             assertTrue(client.call(Api.BrowserTabs, owner).isEmpty())
             println("Browser Server proof: ${if (jar == null) "JVM classpath" else "packaged executable jar"}; home ${home.absolutePath}")
