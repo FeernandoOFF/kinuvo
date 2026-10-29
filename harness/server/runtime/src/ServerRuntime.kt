@@ -350,7 +350,7 @@ class ServerRuntime(
                         client.token = token
                         if (!client.linked) client.refreshTools(p.deviceTools, initial = true)
                         if (!client.linked && auth.management(token)) p.timeZone?.let { zone -> runCatching { harness.timeZone = TimeZone.of(zone) } }
-                        ConnectResult(token, name, harness.usage.value, capabilities, !client.linked && auth.management(token))
+                        ConnectResult(token, name, harness.usage.value, capabilities, !client.linked && auth.management(token), deviceId = client.deviceId)
                     }
                     if (!response.ok) client.closeAfterResponse = request.id
                     client.outbox.send(response)

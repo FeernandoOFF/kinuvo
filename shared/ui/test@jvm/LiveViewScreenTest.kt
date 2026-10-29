@@ -34,10 +34,12 @@ class LiveViewScreenTest {
             val info = ScreenInfo(ref,"Cedar — Your account",ScreenCapabilities(ScreenDelivery.Continuous,setOf("tap","scroll","type","key"),navigation=true,tabs=true,keys=listOf("Tab", "Escape", "Enter")),ScreenStatus.Ready,control, active=mode=="watch", currentUrl="https://cedar.example/account")
             val state = LiveViewState(screens=if(mode=="empty") emptyList() else listOf(info), selected=ref, connected=mode!="offline", loaded=true, device="device", subscription=ScreenSubscription("sub","epoch"),frame=if(mode=="empty") null else frame,displayed=frame,owner=owner, frameReceivedAt="2026-10-29T16:00:00Z", pending=mode=="reconnect", requestReason=if(mode=="request") "Sign in to continue" else null)
             val drawn = mutableListOf<ScreenFrame>()
-            ImageComposeScene(width*2,height*2,Density(2f), content={ HarnessTheme(dark=true) { LiveViewContent(state,LiveActions(drawn = { drawn.add(it) }),{}) } }).use { scene ->
+            ImageComposeScene(width*2,height*2,Density(2f), content={ HarnessTheme(dark=true) { androidx.compose.runtime.CompositionLocalProvider(kinuvo.ui.navigation.LocalHomeChrome provides kinuvo.ui.navigation.HomeChrome({}, width >= 760)) { LiveViewContent(state,LiveActions(drawn = { drawn.add(it) }), ({}).takeIf { width < 760 }) } } }).use { scene ->
                 repeat(15) { scene.render(it*100_000_000L); Thread.sleep(10) }
                 if (mode != "empty") assertEquals(listOf(frame), drawn)
                 val tree = scene.semanticsOwners.flatMap { nodes(it.rootSemanticsNode) }
+                assertEquals(width < 760, tree.any { "Back" in it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() })
+                if (width >= 760) assertTrue(tree.any { it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty().any { label -> label.startsWith("Toggle sidebar") } })
                 val texts = tree.flatMap { it.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } }
                 assertTrue(texts.isNotEmpty())
                 assertTrue(if (mode == "empty") texts.any { it.startsWith("No screens") } else "Cedar — Your account" in texts)

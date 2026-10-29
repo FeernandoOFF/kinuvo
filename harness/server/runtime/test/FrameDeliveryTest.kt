@@ -38,7 +38,9 @@ class FrameDeliveryTest {
             withTimeout(10_000) {
                 requests.send(Frame.Request("connect", Api.Connect.name,
                     ProtocolJson.encodeToJsonElement(ConnectParams.serializer(), ConnectParams("viewer", token = "token"))))
-                assertTrue(responses.receive().ok)
+                val connected = responses.receive()
+                assertTrue(connected.ok)
+                assertEquals("viewer", ProtocolJson.decodeFromJsonElement(ConnectResult.serializer(), connected.payload).deviceId)
                 requests.send(Frame.Request("watch", Api.ScreenWatch.name,
                     ProtocolJson.encodeToJsonElement(ScreenWatch.serializer(), ScreenWatch(ScreenRef("computer", "source")))))
                 assertTrue(responses.receive().ok)

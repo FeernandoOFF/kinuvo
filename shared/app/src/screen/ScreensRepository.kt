@@ -28,7 +28,7 @@ internal class ConnectedScreens(private val connection: ConnectedServer) : Scree
     override val frames = screens.frames
     override val status = screens.status
     override val changes = screens.changes
-    override suspend fun device() = connection.call { it.call(Api.PairedDevices, Unit).single { it.current }.id }
+    override suspend fun device() = connection.call { requireNotNull(it.lastConnect?.deviceId) { "Reconnect to identify this Device" } }
     override suspend fun list(owner: BrowserOwner?) = connection.run { screens.list(owner) }
     override suspend fun watch(ref: ScreenRef, thumbnail: Boolean) = connection.run { screens.watch(ref, thumbnail) }
     override suspend fun unwatch(id: String) = connection.run { screens.unwatch(id) }
