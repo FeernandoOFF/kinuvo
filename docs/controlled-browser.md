@@ -52,13 +52,13 @@ and `browser.command`, with `browser.changed` notifications. These methods use
 the existing paired/authenticated management channel and never return a CDP
 address. URL query strings and fragments are omitted from tab metadata. Input is never automatically retried after disconnect/error.
 
-Verification commands (in a pinned checkout):
+Verification commands:
 
 ```sh
 mise run kotlin -- test -m browser -p jvm
 mise run kotlin -- test -m jvm -p jvm --include-classes='*BrowserServerTest'
-mise run kotlin -- test -m app -p jvm --include-classes='*BrowserStateTest'
-mise run kotlin -- test -m ui -p jvm --include-classes='*BrowserScreenTest'
+mise run kotlin -- test -m app -p jvm --include-classes='*LiveViewModelTest'
+mise run kotlin -- test -m ui -p jvm --include-classes='*LiveViewScreenTest'
 mise run kotlin -- package -m cli -f executable-jar
 mise run exec -- env KINUVO_BROWSER_PACKAGED_JAR="$PWD/build/tasks/_cli_executableJarJvm/cli-jvm-executable.jar" mise run kotlin -- test -m jvm -p jvm --include-classes='*BrowserServerTest'
 ```

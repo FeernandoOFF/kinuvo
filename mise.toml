@@ -1,79 +1,39 @@
-[tasks.init]
-description = "Pin this checkout's data home and port: init /absolute/home port"
-run = "python3 scripts/init-checkout.py"
-
-[tasks.home]
-description = "Show this checkout's pinned data home"
-run = "./scripts/project-run.sh printenv KINUVO_HOME"
-
 [tasks.server]
-description = "Run this checkout's Server on its pinned port"
-run = './scripts/project-run.sh --check-server ./kotlin run -m cli -- serve --host 127.0.0.1 --port "$(cat .kinuvo-port)"'
+description = "Run the Server (KINUVO_HOME selects its data)"
+run = "./kotlin run -m cli -- serve --host 127.0.0.1"
 
 [tasks.desktop]
-description = "Run the desktop app with this checkout's data"
-run = '''
-#!/bin/sh
-exec ./scripts/project-run.sh --check-server sh -s -- "$@" <<'DESKTOP'
-set -eu
-if [ "$(uname -s)" != Darwin ]; then
-    case "$(uname -s)" in
-        MINGW* | MSYS* | CYGWIN*) powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-speech.ps1 ;;
-    esac
-    exec ./kotlin run -m desktop "$@"
-fi
-for argument in "$@"; do
-    if [ "$argument" = --compose-hot-reload ]; then
-        ./scripts/build-mac-speech.sh >/dev/null
-        exec ./kotlin run -m desktop "$@"
-    fi
-done
-# TCC attributes helper requests to the responsible app. A bare JVM launched by
-# a terminal cannot reliably request both speech and microphone access.
-speech_java=${JAVA_HOME:-}
-case "$speech_java" in *jbr*) ;; *) speech_java= ;; esac
-find_speech_java() {
-    for release in "$HOME/Library/Caches/JetBrains/Kotlin/extract.cache/"*/jbr*/Contents/Home/release; do
-        [ -f "$release" ] || continue
-        case "$(head -n 1 "$release")" in
-            'JAVA_VERSION="25.'*) printf '%s\n' "${release%/release}"; return ;;
-        esac
-    done
-}
-if [ -z "$speech_java" ]; then speech_java=$(find_speech_java); fi
-if [ -z "$speech_java" ]; then
-    ./kotlin build -m desktop -p jvm
-    speech_java=$(find_speech_java)
-fi
-[ -n "$speech_java" ] || { echo 'Set JAVA_HOME to a JetBrains Runtime 25 SDK to package macOS Voice chat.' >&2; exit 1; }
-JAVA_HOME="$speech_java" KINUVO_DESKTOP_APP_IMAGE=1 ./scripts/package.sh desktop
-umask 077
-mkdir -p "$KINUVO_HOME/logs"
-exec open -n -W --env "KINUVO_HOME=$KINUVO_HOME" --env "KINUVO_EMBEDDED_PORT=$KINUVO_EMBEDDED_PORT" \
-    --stdout "$KINUVO_HOME/logs/desktop-output.log" --stderr "$KINUVO_HOME/logs/desktop-error.log" "$PWD/dist/Kinuvo.app" --args "$@"
-DESKTOP
-'''
+description = "Run the desktop app (KINUVO_HOME selects its data)"
+run = "./scripts/run-desktop.sh"
+
+[tasks."desktop:personal"]
+description = "Run desktop with the personal home (default ~/.kinuvo, port 8787)"
+run = 'KINUVO_HOME="${KINUVO_PERSONAL_HOME:-$HOME/.kinuvo}" KINUVO_EMBEDDED_PORT="${KINUVO_PERSONAL_PORT:-8787}" ./scripts/run-desktop.sh'
+
+[tasks."desktop:test"]
+description = "Run desktop with the test home (default ~/.kinuvo-test, port 8791)"
+run = 'KINUVO_HOME="${KINUVO_TEST_HOME:-$HOME/.kinuvo-test}" KINUVO_EMBEDDED_PORT="${KINUVO_TEST_PORT:-8791}" ./scripts/run-desktop.sh'
 
 [tasks.android]
 description = "Build, install and launch the Android app"
-run = "./scripts/project-run.sh ./kotlin run -m android"
+run = "./kotlin run -m android"
 
 [tasks.ios]
 description = "Build, install and launch the iOS app"
-run = "./scripts/project-run.sh ./kotlin run -m ios"
+run = "./kotlin run -m ios"
 
 [tasks.cli]
-description = "Run CLI commands against this checkout's home"
-run = "./scripts/project-run.sh ./kotlin run -m cli --"
+description = "Run CLI commands (KINUVO_HOME selects its data)"
+run = "./kotlin run -m cli --"
 
 [tasks.kotlin]
-description = "Run Kotlin Toolchain commands with this checkout's environment"
-run = "./scripts/project-run.sh ./kotlin"
+description = "Run Kotlin Toolchain commands"
+run = "./kotlin"
 
 [tasks.exec]
-description = "Run any command with this checkout's environment"
-run = "./scripts/project-run.sh"
+description = "Run a command from the checkout root"
+run = 'exec "$@"'
 
 [tasks."test:tasks"]
-description = "Test task argument forwarding and checkout isolation"
+description = "Test mise task arguments and desktop home selection"
 run = "python3 scripts/test-mise.py"

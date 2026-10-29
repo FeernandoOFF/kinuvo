@@ -6,8 +6,6 @@
 # JAVA_HOME must be a JetBrains Runtime 25 SDK (jlink, jpackage and jmods).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-kinuvo_project_root=$PWD
-. "$kinuvo_project_root/scripts/project-env.sh"
 
 target=${1:?cli or desktop}
 version=${2:-dev}
@@ -131,7 +129,6 @@ package_desktop() {
       cp -R build/KinuvoSpeech.app "$work/input/"
       args+=(--java-options '-Dcompose.application.resources.dir=$APPDIR')
       local identity=dev.kinuvo.desktop
-      if [ -f .kinuvo-home ]; then identity="$identity.local$(printf %s "$PWD" | shasum | cut -c1-10)"; fi
       args+=(--mac-package-identifier "$identity")
       "$java_home/bin/jpackage" --type app-image --icon apps/desktop/icons/Kinuvo.icns "${args[@]}"
       local bundle="$work/out/Kinuvo.app"
