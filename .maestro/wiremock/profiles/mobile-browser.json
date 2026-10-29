@@ -1,0 +1,25 @@
+{
+  "mappings": [
+    "ws/agent",
+    "ws/agents",
+    "ws/catch-up",
+    "ws/chat-send",
+    "mobile/browser-connect",
+    "ws/create-session",
+    "ws/device-tools",
+    "ws/models",
+    "ws/presence",
+    "ws/routines",
+    "ws/session",
+    "ws/sessions",
+    "ws/skills",
+    "ws/unsubscribe",
+    "ws/upgrade",
+    "ws/providers",
+    "mobile/browser-capabilities",
+    "mobile/browser-tabs",
+    "mobile/browser-frame",
+    "mobile/browser-ack",
+    "mobile/browser-unwatch"
+  ]
+}

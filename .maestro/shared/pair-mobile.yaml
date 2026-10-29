@@ -1,18 +1,9 @@
 appId: ${APP_ID}
 ---
-- launchApp
-- assertVisible: "Connect a server"
-- tapOn: "From kinuvo pair"
-- inputText: "123456"
 - runFlow:
-    when:
-      platform: iOS
-    commands:
-      - hideKeyboard
-      - waitForAnimationToEnd
-- runFlow:
-    when:
-      visible: "Connect"
-    commands:
-      - tapOn: "Connect"
-- assertVisible: "Start a session with E2E Agent"
+    file: open-pairing.yaml
+    env:
+      PAIRING_CODE: "123456"
+- extendedWaitUntil:
+    visible: "Start a session with E2E Agent"
+    timeout: 20000

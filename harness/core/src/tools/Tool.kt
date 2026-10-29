@@ -56,10 +56,10 @@ object ToolNames {
     const val CALL_TOOL = "call_tool"
 
     /** The built-in tools an Agent's `tools:` can turn on. */
-    val OPTIONAL = listOf(MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, RUN_CODE, COMPUTER)
+    val OPTIONAL = listOf(MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, RUN_CODE, COMPUTER, "browser")
     val DEFAULT = OPTIONAL
     /** Groups a plugin provides, offered only where one is installed. */
-    val FROM_PLUGINS = setOf(RUN_CODE)
+    val FROM_PLUGINS = setOf(RUN_CODE, "browser")
 }
 
 enum class ToolKind { Standard, Shell, ComputerAction, AskUser }
@@ -72,6 +72,7 @@ interface Tool {
     val risk: Risk get() = Risk.Medium
     /** What a call with [args] would do; by default the whole tool at its [risk]. */
     fun assess(args: JsonObject): Assessment = Assessment(listOf(Action(risk, listOf(descriptor.name))))
+    suspend fun bind(args: JsonObject): suspend () -> Unit = {}
     suspend fun execute(args: JsonObject): String
     suspend fun execute(args: JsonObject, callId: String): String = execute(args)
     /** Lets a tool call the [run]'s other tools, e.g. from a Script. */

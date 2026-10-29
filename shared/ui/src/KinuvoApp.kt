@@ -77,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.CircleX
 import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Minimize2
 import com.composables.icons.lucide.Server
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
@@ -301,8 +302,11 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     val update = if (active?.slot != route.slot) resolved.route else app.resolveView(route, resolved.route)
                                     update?.let(backStack::update)
                                 }
-                                ChatScreen(app, session, !compact, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
-                                    onBack = back.takeIf { backStack.getOrNull(backStack.lastIndex - 1)?.home == true })
+                                val browser = route.agentId?.let { agent -> route.sessionId?.let { Route.Browser(agent, it) } }
+                                kinuvo.ui.screen.BrowserDockHost(browser.takeIf { !compact }, "dock/${app.serverLifetime}", onExpand = history::open) { dock ->
+                                    ChatScreen(app, session, !compact, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
+                                        onBack = back.takeIf { backStack.getOrNull(backStack.lastIndex - 1)?.home == true }, dock = dock)
+                                }
                             }
                         }
                         entry<Route.Settings>(metadata = { if (it.home) emptyMap() else SettingsTransitions(compact) }) { route ->
@@ -341,11 +345,31 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 ))
                             }
                         }
-                        entry<Route.Computers> { route ->
+                        entry<Route.Browser> { route ->
                             val client = (connection as? Connection.Ready)?.client
-                            if (client == null) Loading(connection)
-                            else kinuvo.ui.computer.ComputersScreen(koinViewModel<kinuvo.app.computer.ComputersViewModel>(key = "computers/${app.serverLifetime}") { parametersOf(client, route) },
-                                onOpen = { history.open(Route.Computers(it)) }, onBack = back.takeIf { history.canGoBack && route.computer != null })
+                            if (client == null) Loading(connection) else {
+                                val live = koinViewModel<kinuvo.app.screen.LiveViewModel>(key = "live/${app.serverLifetime}/$route") { parametersOf(route) }
+                                val showChat = !compact && maxWidth >= 1200.dp
+                                val chat = Route.Chat(route.agentId, route.sessionId)
+                                val dock = PageAction(Lucide.Minimize2, "Dock beside chat") {
+                                    if ((backStack.getOrNull(backStack.lastIndex - 1) as? Route.Chat)?.sessionId == route.sessionId) back() else history.open(chat)
+                                }
+                                Row(Modifier.fillMaxSize()) {
+                                    if (showChat) {
+                                        val session = koinViewModel<SessionViewModel>(key = "live-chat/${app.serverLifetime}/${route.agentId}/${route.sessionId}") { parametersOf(client, chat) }
+                                        Box(Modifier.width(360.dp).fillMaxHeight()) {
+                                            ChatScreen(app, session, false, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open)
+                                        }
+                                        VerticalSeparator()
+                                    }
+                                    Box(Modifier.weight(1f)) { kinuvo.ui.screen.LiveViewScreen(live, back.takeIf { compact && history.canGoBack }, extra = if (compact) emptyList() else listOf(dock)) }
+                                }
+                            }
+                        }
+                        entry<Route.Computers> { route ->
+                            if (connection !is Connection.Ready) Loading(connection)
+                            else kinuvo.ui.screen.ComputersScreen(koinViewModel<kinuvo.app.screen.LiveViewModel>(key = "live/${app.serverLifetime}/$route") { parametersOf(route) },
+                                list = route.computer == null, onOpen = { history.open(Route.Computers(it.id)) }, back = back.takeIf { history.canGoBack })
                         }
                         entry<Route.Knowledge> { route ->
                             val knowledge = koinViewModel<KnowledgeViewModel>(key = "knowledge/${app.serverLifetime}/${route.note}") { parametersOf(route) }

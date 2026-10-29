@@ -107,16 +107,22 @@ _Avoid_: Sandbox, runtime, environment
 A page, chart or document (HTML, SVG, Markdown, CSV, JSON or text) an Agent makes for the user, kept in `~/.kinuvo/artifacts` and shared by all Agents; only its latest content is kept. Opened from the chat or the Artifacts screen.
 _Avoid_: Attachment, canvas
 
+**Screen**:
+A surface an Agent can see and control, such as a Computer display or a Browser tab.
+
+**Browser**:
+A Server-owned browser whose tabs belong to an Agent and Session. Each tab is a Screen with its own Takeover.
+
 **Computer**:
 A screen an Agent can see and control with computer use: a paired phone or computer that allowed it under This Device's tools. Its numbered elements and screenshot come from the platform's accessibility interface.
 _Avoid_: Host, sandbox, VM
 
 **Live view**:
-Watching a Computer's screen while an Agent uses it, from any Device with management access.
+Watching a Screen while an Agent uses it, from any Device with management access.
 _Avoid_: Screen sharing, mirror, stream
 
 **Takeover**:
-The user controlling a Computer themselves, from Live view or the phone's own overlay, while Agents wait; an Agent can ask for one for sign-ins, codes, payments or permission dialogs. It ends when the user hands the Computer back.
+The user controlling a Screen themselves, from Live view or the phone's own overlay, while Agents wait; an Agent can ask for one for sign-ins, codes, payments or permission dialogs. It ends when the user explicitly hands the Screen back; a disconnected Takeover remains suspended.
 _Avoid_: Handoff, manual mode
 
 **Workspace**:

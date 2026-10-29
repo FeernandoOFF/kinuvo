@@ -1,0 +1,44 @@
+{
+  "name": "mobile/browser-frame",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "screens.watch"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"id\":\"browser-sub\",\"epoch\":\"browser-epoch\"}}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"screens.frame\",\"seq\":1,\"payload\":{\"screen\":{\"source\":\"browser\",\"id\":\"browser-tab\",\"owner\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\"}},\"subscription\":\"browser-sub\",\"epoch\":\"browser-epoch\",\"sequence\":1,\"sample\":{\"image\":\"iVBORw0KGgoAAAANSUhEUgAAAIAAAABQCAIAAABeYuqzAAAAqElEQVR4nO3RsQkAMAzAsPz/bIdC556RwQIfYNCc+7TYrB/EAwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2H2laxqC4EjqVAAAAAElFTkSuQmCC\",\"width\":128,\"height\":80,\"geometry\":\"fixture\"}}}"
+        }
+      }
+    }
+  ]
+}

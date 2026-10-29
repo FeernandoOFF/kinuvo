@@ -1,0 +1,287 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-settings-journey
+  apiVerifications:
+    - stub: mobile/connect-settings
+      exactly: 1
+    - stub: ws/create-session
+      exactly: 1
+    - stub: ws/chat-send
+      exactly: 1
+    - stub: mobile/agent-update
+      exactly: 1
+    - stub: mobile/settings-skill-save
+      exactly: 1
+    - stub: mobile/server-rules
+      atLeast: 1
+    - stub: mobile/providers
+      atLeast: 1
+    - stub: mobile/harnesses
+      atLeast: 1
+---
+- runFlow: ../../shared/start-chat.yaml
+- takeScreenshot: 01-chat-before-swipe
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - swipe:
+          start: 8%,50%
+          end: 80%,50%
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: 2%,50%
+          end: 80%,50%
+- assertVisible:
+    text: "Home"
+    above: "New agent"
+- assertVisible: "E2E Agent"
+- assertVisible: "New agent"
+- assertVisible: "Server: .*"
+- assertVisible: "Settings"
+- assertVisible: "Search sessions"
+- assertVisible: "Agent settings"
+- takeScreenshot: 02-drawer-open-by-edge-swipe
+- assertNotVisible: "Board"
+- assertNotVisible: "Knowledge"
+- swipe:
+    start: 70%,50%
+    end: 10%,50%
+- assertNotVisible: "Settings"
+- takeScreenshot: 03-drawer-closed-by-swipe
+- tapOn: "Agents and sessions"
+- assertVisible: "Settings"
+- tapOn:
+    text: "Home"
+    above: "New agent"
+- assertVisible: "Today"
+- assertVisible: "Board"
+- assertVisible: "ON THIS SERVER"
+- assertVisible: "Knowledge"
+- assertNotVisible: "Search sessions"
+- takeScreenshot: 04-drawer-home-column
+- tapOn: "Today"
+- assertVisible: "Nothing needs you, no Session is running and no run is scheduled."
+- assertVisible: "Needs you"
+- assertVisible: "Running now"
+- assertVisible: "Next up"
+- assertVisible: "Due this week"
+- assertVisible: "New results"
+- assertVisible: "Nothing is waiting on you."
+- assertVisible: "No Session is running."
+- assertVisible: "No Routine is scheduled."
+- assertVisible: "No new results in the last two days."
+- assertVisible: "Home and agents"
+- runFlow: ../../shared/assert-no-back.yaml
+- takeScreenshot: 05-today-without-back
+- runFlow: ../../shared/return-to-chat.yaml
+- assertNotVisible: "Needs you"
+- assertVisible: "Hello from Maestro"
+- assertVisible: "Hello from WireMock"
+- takeScreenshot: 06-chat-after-back
+- tapOn: "Message"
+- inputText: "Draft survives the sheet"
+- tapOn: "Hello from WireMock"
+- tapOn: "E2E Agent settings"
+- extendedWaitUntil:
+    visible: "Agent settings · every Session"
+    timeout: 10000
+- takeScreenshot: 07-agent-settings-sheet
+- assertNotVisible: "Close Agent settings"
+- assertNotVisible: "Resize sheet"
+- assertVisible: "Name"
+- assertVisible: "Personality.*"
+- assertNotVisible: "Save"
+- takeScreenshot: 07b-agent-settings-sheet-tall
+- scrollUntilVisible:
+    element:
+      text: "Soul"
+    direction: DOWN
+- scrollUntilVisible:
+    element:
+      text: "Risk tolerance"
+    direction: DOWN
+- tapOn: "Risk tolerance"
+- assertVisible: "Anything that changes things"
+- assertVisible: "Never ask"
+- assertNotVisible: "Agent settings · every Session"
+- takeScreenshot: 08-risk-tolerance-nested
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: Back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - runFlow: ../../shared/tap-back.yaml
+- assertVisible: "Agent settings · every Session"
+- scrollUntilVisible:
+    element:
+      text: "Risk tolerance"
+    direction: DOWN
+- tapOn: "Risk tolerance"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - pressKey: Back
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - runFlow: ../../shared/tap-back.yaml
+- assertVisible: "Agent settings · every Session"
+- scrollUntilVisible:
+    element:
+      text: "Name"
+    direction: UP
+- tapOn:
+    text: "E2E Agent"
+    below: "Name"
+- eraseText
+- inputText: "Renamed"
+- assertVisible: "Save"
+- takeScreenshot: 09-sheet-dirty
+- tapOn: "Agent settings · every Session"
+- swipe:
+    start: 50%,14%
+    end: 50%,85%
+- assertVisible: 'Discard changes\?'
+- assertVisible: "Keep editing"
+- takeScreenshot: 10-unsaved-changes-dialog
+- tapOn: "Keep editing"
+- assertNotVisible: 'Discard changes\?'
+- assertVisible: "Save"
+- swipe:
+    start: 50%,14%
+    end: 50%,85%
+- assertVisible: 'Discard changes\?'
+- tapOn:
+    text: "Discard"
+    rightOf: "Keep editing"
+- assertNotVisible: 'Discard changes\?'
+- assertNotVisible: "Agent settings · every Session"
+- assertVisible: "Hello from Maestro"
+- assertVisible: "Hello from WireMock"
+- assertVisible: "Draft survives the sheet"
+- takeScreenshot: 11-chat-after-discard-draft-kept
+- tapOn: "E2E Agent settings"
+- scrollUntilVisible:
+    element:
+      text: "Skills"
+    direction: DOWN
+- tapOn: "Skills"
+- tapOn: "daily"
+- tapOn: "Edit"
+- tapOn: "Original instructions"
+- eraseText
+- inputText: "Unsaved instructions"
+- tapOn: "Edit daily"
+- runFlow: ../../shared/tap-back.yaml
+- assertVisible: 'Discard changes\?'
+- tapOn: "Discard"
+- tapOn: "Edit"
+- assertVisible: "Original instructions"
+- assertNotVisible: "Unsaved instructions"
+- tapOn: "Original instructions"
+- eraseText
+- inputText: "Saved instructions"
+- tapOn: "Edit daily"
+- tapOn: "Save"
+- assertNotVisible: 'Discard changes\?'
+- assertVisible: "Daily planning instructions"
+- runFlow: ../../shared/tap-back.yaml
+- runFlow: ../../shared/tap-back.yaml
+- scrollUntilVisible:
+    element:
+      text: "Workspace"
+    direction: DOWN
+- tapOn: "Workspace"
+- assertVisible: "Shell and files"
+- runFlow: ../../shared/assert-back.yaml
+- assertNotVisible: "Agent settings · every Session"
+- assertNotVisible: "Save"
+- runFlow: ../../shared/tap-back.yaml
+- assertVisible: "Workspace"
+- swipe:
+    start: 50%,14%
+    end: 50%,85%
+- tapOn: "Agents and sessions"
+- tapOn:
+    text: "Home"
+    above: "New agent"
+- tapOn: "Routines"
+- assertVisible: ".*E2E Agent, change Agent"
+- runFlow: ../../shared/assert-no-back.yaml
+- tapOn: "New routine"
+- tapOn: "Morning brief"
+- inputText: "Unsaved routine"
+- tapOn: "New routine"
+- runFlow: ../../shared/tap-back.yaml
+- assertVisible: 'Discard changes\?'
+- tapOn: "Keep editing"
+- assertVisible: "Unsaved routine"
+- runFlow: ../../shared/tap-back.yaml
+- tapOn: "Discard"
+- tapOn: "New routine"
+- assertNotVisible: "Unsaved routine"
+- runFlow: ../../shared/tap-back.yaml
+- tapOn: "Home and agents"
+- tapOn: "Tools & MCP"
+- assertVisible: ".*E2E Agent, change Agent"
+- runFlow: ../../shared/assert-no-back.yaml
+- tapOn: "Built-in tools"
+- assertVisible: "Memory"
+- runFlow: ../../shared/assert-back.yaml
+- runFlow: ../../shared/tap-back.yaml
+- tapOn: "Home and agents"
+- tapOn: "Settings"
+- runFlow: ../../shared/assert-no-back.yaml
+- tapOn: "Model providers"
+- assertVisible: "Hosted models"
+- scrollUntilVisible:
+    element:
+      text: "Local models"
+    direction: DOWN
+- assertVisible: "No sign-in needed"
+- runFlow: ../../shared/assert-back.yaml
+- runFlow: ../../shared/tap-back.yaml
+- runFlow: ../../shared/assert-no-back.yaml
+- tapOn: "Harnesses"
+- assertVisible: "Claude Agent"
+- assertVisible: "Link a Kinuvo Server"
+- runFlow: ../../shared/tap-back.yaml
+- swipe:
+    start: 50%,14%
+    end: 50%,85%
+- runFlow: ../../shared/return-to-chat.yaml
+- tapOn: "E2E Agent settings"
+- extendedWaitUntil:
+    visible: "Agent settings · every Session"
+    timeout: 10000
+- assertNotVisible: "Save"
+- tapOn:
+    text: "E2E Agent"
+    below: "Name"
+- eraseText
+- inputText: "Renamed"
+- assertVisible: "Save"
+- tapOn: "Agent settings · every Session"
+- tapOn: "Save"
+- assertNotVisible: "Save"
+- assertVisible: "Agent settings · every Session"
+- swipe:
+    start: 50%,14%
+    end: 50%,85%
+- assertNotVisible: "Agent settings · every Session"
+- assertVisible: "Hello from Maestro"
+- assertVisible: "Hello from WireMock"

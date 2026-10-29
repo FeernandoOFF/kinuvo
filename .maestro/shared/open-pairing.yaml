@@ -1,0 +1,24 @@
+appId: ${APP_ID}
+---
+- launchApp
+- extendedWaitUntil:
+    visible: "Your agents, on your own Server."
+    timeout: 20000
+- runFlow:
+    when:
+      visible: "Enter address and code"
+    commands:
+      - tapOn: "Enter address and code"
+- runFlow:
+    when:
+      notVisible: "Code from the Server"
+    commands:
+      - tapOn: "Connect to a Server"
+- tapOn: "Code from the Server"
+- inputText: ${PAIRING_CODE}
+- tapOn: "Use the address and code your Server shows.*"
+- scrollUntilVisible:
+    element:
+      text: "Connect"
+    direction: DOWN
+- tapOn: "Connect"

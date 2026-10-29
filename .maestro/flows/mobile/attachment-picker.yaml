@@ -9,12 +9,7 @@ properties:
     - stub: mobile/attachment-capabilities
       atLeast: 1
 ---
-- launchApp
-- assertVisible: "Connect a server"
-- tapOn: "From kinuvo pair"
-- inputText: "123456"
-- tapOn: "Connect"
-- assertVisible: "Start a session with E2E Agent"
+- runFlow: ../../shared/pair-mobile.yaml
 - tapOn: "Attach"
 - assertVisible:
     text: "Photos"

@@ -59,7 +59,10 @@ sealed interface Route {
 
     /** Live view of the Computers Agents can control, with [computer] (an ID) shown when set. */
     @Serializable
-    data class Computers(val computer: String? = null) : Route
+    data class Computers(val computer: String? = null, val reason: String? = null) : Route
+
+    @Serializable
+    data class Browser(val agentId: String, val sessionId: String, val screen: kinuvo.protocol.ScreenRef? = null, val reason: String? = null) : Route
 
     companion object {
         fun chat(view: LastView?) = Chat(view?.agentId, view?.sessionId)

@@ -7,6 +7,7 @@ data class ConnectionSecurity(
     val validationIntervalMillis: Long = 30_000,
     val concurrentRequests: Int = 8,
     val messagesPerMinute: Int = 600,
+    val screenAcksPerMinute: Int = 15_000,
 )
 
 internal val DEVICE_METHODS = setOf(

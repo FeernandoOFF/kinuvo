@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kinuvo Live view mockups</title>
+<style>
+html, body { margin: 0; padding: 0; background: transparent; }
+.sm {
+  --k-bg: var(--background, #FAF9F5);
+  --k-fg: var(--foreground, #1F1E1B);
+  --k-mute: var(--muted-foreground, #75716A);
+  --k-sub: var(--muted, #F0EEE6);
+  --k-card: var(--card, #FFFFFF);
+  --k-line: var(--border, #E3E0D6);
+  --k-agent: var(--primary, #C96442);
+  --k-on-agent: var(--primary-foreground, #FFFFFF);
+  --k-warn: var(--warning, #B7791F);
+  --k-ok: var(--success, #2F855A);
+  --k-r: var(--radius, 10px);
+  --k-mono: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-family: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif);
+  color: var(--k-fg);
+  font-size: 13px;
+  line-height: 1.4;
+  max-width: 728px;
+}
+.sm *, .sm *::before, .sm *::after { box-sizing: border-box; }
+.sm button { font: inherit; color: inherit; cursor: pointer; }
+.sm button:focus-visible, .sm input:focus-visible { outline: 2px solid var(--k-agent); outline-offset: 2px; }
+
+/* switches */
+.sw { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 0 0 10px; }
+.sw-g { display: flex; flex-wrap: wrap; gap: 4px; }
+.sw-l { font-size: 11px; letter-spacing: .04em; text-transform: uppercase; color: var(--k-mute); margin-right: 2px; }
+.sw button { border: 1px solid var(--k-line); background: var(--k-card); border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+.sw button[aria-pressed="true"] { background: var(--k-fg); color: var(--k-bg); border-color: var(--k-fg); }
+.note { margin: 0 0 8px; color: var(--k-mute); font-size: 12px; }
+.note b { color: var(--k-fg); font-weight: 600; }
+.cap { margin: 10px 0 0; font-size: 12px; color: var(--k-mute); }
+.cap strong { color: var(--k-fg); font-weight: 600; }
+
+/* state visibility */
+.sm[data-state="agent"] [data-s]:not([data-s~="agent"]),
+.sm[data-state="request"] [data-s]:not([data-s~="request"]),
+.sm[data-state="control"] [data-s]:not([data-s~="control"]),
+.sm[data-state="overview"] [data-s]:not([data-s~="overview"]),
+.sm[data-state="elsewhere"] [data-s]:not([data-s~="elsewhere"]),
+.sm[data-state="reconnect"] [data-s]:not([data-s~="reconnect"]) { display: none !important; }
+.sm[data-device="desktop"] .ph-wrap, .sm[data-device="phone"] .dk { display: none; }
+
+/* control colour per state: the frame knows who is driving */
+.sm { --edge: var(--k-line); --edge-ink: var(--k-fg); }
+.sm[data-state="agent"] { --edge: var(--k-agent); --edge-ink: var(--k-on-agent); }
+.sm[data-state="request"] { --edge: var(--k-warn); --edge-ink: #fff; }
+.sm[data-state="control"] { --edge: var(--k-ok); --edge-ink: #fff; }
+.sm[data-state="elsewhere"] { --edge: var(--k-mute); --edge-ink: #fff; }
+.sm[data-state="reconnect"] { --edge: var(--k-line); --edge-ink: var(--k-fg); }
+
+/* shared bits */
+.chip { display: inline-flex; align-items: center; gap: 5px; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+.chip i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; display: inline-block; }
+.chip.agent { color: var(--k-agent); background: color-mix(in srgb, var(--k-agent) 12%, transparent); }
+.chip.warn { color: var(--k-warn); background: color-mix(in srgb, var(--k-warn) 14%, transparent); }
+.chip.ok { color: var(--k-ok); background: color-mix(in srgb, var(--k-ok) 14%, transparent); }
+.chip.mute { color: var(--k-mute); background: var(--k-sub); }
+.chip.agent i { animation: pulse 1.4s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+.btn { border: 1px solid var(--k-line); background: var(--k-card); border-radius: calc(var(--k-r) - 2px); padding: 5px 10px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.btn.primary { background: var(--k-fg); color: var(--k-bg); border-color: var(--k-fg); }
+.btn.ok { background: var(--k-ok); color: #fff; border-color: var(--k-ok); }
+.btn.warn { background: var(--k-warn); color: #fff; border-color: var(--k-warn); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--k-mute); }
+.mono { font-family: var(--k-mono); font-size: 11px; }
+.muted { color: var(--k-mute); }
+.ico { width: 14px; height: 14px; display: inline-block; vertical-align: -2px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* canvas + simulated site */
+.canvas { position: relative; border-radius: 8px; box-shadow: 0 0 0 3px var(--edge); background: #fff; overflow: hidden; transition: box-shadow .25s; }
+.edge-tag { position: absolute; top: 0; left: 10px; z-index: 3; background: var(--edge); color: var(--edge-ink); font-size: 10.5px; font-weight: 600; padding: 2px 8px 3px; border-radius: 0 0 6px 6px; max-width: calc(100% - 20px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mock-tag { position: absolute; right: 6px; bottom: 5px; z-index: 3; font-size: 9px; letter-spacing: .05em; text-transform: uppercase; color: #5b6b69; background: rgba(255,255,255,.85); padding: 1px 5px; border-radius: 4px; }
+.site { --s-ink: #12302E; --s-brand: #0E4D4A; --s-pale: #EEF4F3; font-family: Georgia, "Iowan Old Style", serif; color: var(--s-ink); background: var(--s-pale); width: 100%; aspect-ratio: 16 / 10; display: flex; flex-direction: column; font-size: 10px; }
+.site-top { background: var(--s-brand); color: #fff; display: flex; align-items: center; gap: 6px; padding: 5% 4% 3%; padding-top: 4.5%; font-size: 1em; }
+.site-top b { font-weight: 600; letter-spacing: .02em; }
+.site-logo { width: 1.3em; height: 1.3em; border-radius: 50% 50% 50% 0; background: #F2C14E; }
+.site-top span { margin-left: auto; opacity: .75; font-family: system-ui, sans-serif; font-size: .85em; }
+.site-main { flex: 1; display: grid; place-items: center; }
+.site-card { width: 52%; background: #fff; border-radius: 6px; padding: 5% 5.5%; box-shadow: 0 1px 0 rgba(0,0,0,.06), 0 6px 18px rgba(14,77,74,.08); position: relative; }
+.site-card h4 { margin: 0 0 3%; font-size: 1.35em; font-weight: 500; }
+.site-card p { margin: 0 0 5%; font-family: system-ui, sans-serif; font-size: .9em; color: #4a5d5b; }
+.site-field { border: 1px solid #c7d4d2; border-radius: 4px; padding: 3.5% 4%; font-family: system-ui, sans-serif; font-size: .95em; margin-bottom: 5%; color: #12302E; }
+.site-btn { background: var(--s-brand); color: #fff; border-radius: 4px; text-align: center; padding: 3.5%; font-family: system-ui, sans-serif; font-size: .95em; font-weight: 600; position: relative; }
+.otp { display: flex; gap: 3%; margin-bottom: 6%; }
+.otp span { flex: 1; aspect-ratio: 4/5; border: 1px solid #c7d4d2; border-radius: 4px; display: grid; place-items: center; font-family: system-ui, sans-serif; font-weight: 600; font-size: 1.2em; }
+.otp span.f { border-color: var(--s-brand); box-shadow: 0 0 0 2px rgba(14,77,74,.18); }
+.otp span.f::after { content: ""; width: 1px; height: 45%; background: var(--s-ink); animation: blink 1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+/* agent target marker */
+.marker { position: absolute; z-index: 2; width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%; border: 2px solid var(--k-agent); background: color-mix(in srgb, var(--k-agent) 18%, transparent); animation: ring 1.6s ease-out infinite; pointer-events: none; }
+@keyframes ring { 0% { transform: scale(.7); } 70% { transform: scale(1.05); } 100% { transform: scale(.7); } }
+.marker-l { position: absolute; z-index: 2; transform: translate(16px, -50%); background: var(--k-agent); color: var(--k-on-agent); font-family: var(--font-sans, system-ui, sans-serif); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 6px; white-space: nowrap; pointer-events: none; }
+/* stale / overlays */
+.sm[data-state="reconnect"] .site { filter: grayscale(.85) brightness(.92); opacity: .55; }
+.veil { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; }
+.veil-card { background: var(--k-card); color: var(--k-fg); border: 1px solid var(--k-line); border-radius: var(--k-r); padding: 10px 12px; max-width: 78%; text-align: center; box-shadow: 0 8px 24px rgba(0,0,0,.12); font-size: 12px; }
+.veil-card b { display: block; font-size: 13px; margin-bottom: 2px; }
+.spin { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--k-line); border-top-color: var(--k-fg); display: inline-block; vertical-align: -3px; margin-right: 4px; animation: rot .9s linear infinite; }
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* ---------- desktop ---------- */
+.dk { border: 1px solid var(--k-line); border-radius: calc(var(--k-r) + 2px); overflow: hidden; background: var(--k-bg); }
+.dk-bar { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--k-line); font-size: 11.5px; background: var(--k-sub); }
+.dk-bar .muted { margin-left: auto; }
+.dk-body { display: grid; grid-template-columns: 172px 132px 1fr; min-height: 420px; }
+.chat { border-right: 1px solid var(--k-line); padding: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 11.5px; min-width: 0; }
+.who { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.ava { width: 18px; height: 18px; border-radius: 50%; background: conic-gradient(from 200deg, var(--k-agent), #E9B872, var(--k-agent)); flex: none; }
+.msg-u { align-self: flex-end; background: var(--k-sub); border-radius: 10px 10px 2px 10px; padding: 5px 8px; max-width: 92%; }
+.tool { border: 1px solid var(--k-line); border-radius: 6px; padding: 4px 6px; display: flex; gap: 5px; align-items: center; color: var(--k-mute); background: var(--k-card); }
+.tool .mono { color: var(--k-fg); }
+.ask { border: 1px solid color-mix(in srgb, var(--k-warn) 45%, var(--k-line)); background: color-mix(in srgb, var(--k-warn) 8%, var(--k-card)); border-radius: 8px; padding: 7px 8px; display: grid; gap: 5px; }
+.ask b { color: var(--k-warn); font-size: 11px; }
+.composer { margin-top: auto; border: 1px solid var(--k-line); border-radius: 8px; padding: 6px 8px; color: var(--k-mute); background: var(--k-card); }
+.rail { border-right: 1px solid var(--k-line); padding: 10px 8px; display: flex; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--k-sub) 55%, var(--k-bg)); min-width: 0; }
+.rail h5, .ov h5 { margin: 2px 2px 0; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--k-mute); font-weight: 600; }
+.card { display: block; width: 100%; text-align: left; border: 1px solid var(--k-line); background: var(--k-card); border-radius: 8px; padding: 4px; }
+.card[aria-current="true"] { border-color: var(--edge); box-shadow: 0 0 0 1px var(--edge); }
+.thumb { aspect-ratio: 16/10; border-radius: 5px; overflow: hidden; position: relative; background: #EEF4F3; }
+.thumb .t-top { height: 18%; background: #0E4D4A; }
+.thumb .t-card { position: absolute; left: 26%; right: 26%; top: 32%; bottom: 14%; background: #fff; border-radius: 3px; }
+.thumb.mail { background: #F6F5FB; } .thumb.mail .t-top { background: #4B4A8C; }
+.thumb.mail .t-card { left: 6%; right: 6%; top: 28%; bottom: 8%; background: repeating-linear-gradient(#fff 0 18%, #ECEBF5 18% 22%); }
+.thumb.mac { background: linear-gradient(160deg, #39424E, #1F2630); }
+.thumb.mac .t-top { height: 7%; background: rgba(255,255,255,.18); }
+.thumb.mac .t-card { left: 12%; right: 30%; top: 22%; bottom: 22%; background: #ECEFF3; border-radius: 3px; }
+.thumb.phone { background: #F4F2EC; }
+.thumb.phone .t-top { display: none; }
+.thumb.phone .t-card { left: 38%; right: 38%; top: 8%; bottom: 8%; background: #2B2A27; border-radius: 4px; }
+.thumb.off { filter: grayscale(1); opacity: .45; }
+.card-t { display: flex; align-items: center; gap: 4px; margin-top: 4px; padding: 0 2px; font-size: 11px; font-weight: 600; overflow: hidden; }
+.card-t span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card-d { padding: 0 2px 1px; font-size: 10px; color: var(--k-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--k-line); }
+.dot.agent { background: var(--k-agent); } .dot.warn { background: var(--k-warn); } .dot.ok { background: var(--k-ok); } .dot.mute { background: var(--k-mute); }
+.newtab { border: 1px dashed var(--k-line); background: transparent; border-radius: 8px; padding: 6px; font-size: 11px; color: var(--k-mute); }
+.live { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lv-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.lv-title { min-width: 0; flex: 1; }
+.lv-title div:first-child { font-weight: 650; font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lv-title div:last-child { font-size: 11px; color: var(--k-mute); }
+.addr { display: flex; align-items: center; gap: 4px; }
+.addr button { border: 0; background: transparent; width: 24px; height: 24px; border-radius: 6px; color: var(--k-mute); }
+.addr button:hover { background: var(--k-sub); }
+.url { flex: 1; display: flex; align-items: center; gap: 6px; border: 1px solid var(--k-line); border-radius: 999px; padding: 3px 10px; background: var(--k-card); min-width: 0; }
+.url .mono { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.url .lock { color: var(--k-ok); }
+.url[aria-disabled="true"] { opacity: .6; }
+.activity { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--k-mute); }
+.activity b { color: var(--k-fg); font-weight: 600; }
+.banner { display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 7px 9px; font-size: 11.5px; }
+.banner.warn { background: color-mix(in srgb, var(--k-warn) 10%, var(--k-card)); border: 1px solid color-mix(in srgb, var(--k-warn) 40%, var(--k-line)); }
+.banner.mute { background: var(--k-sub); border: 1px solid var(--k-line); }
+.banner.ok { background: color-mix(in srgb, var(--k-ok) 9%, var(--k-card)); border: 1px solid color-mix(in srgb, var(--k-ok) 35%, var(--k-line)); }
+.banner > div { flex: 1; min-width: 0; }
+.tray { border: 1px solid var(--k-line); border-radius: 8px; background: var(--k-card); padding: 6px; display: grid; gap: 6px; }
+.tray-in { display: flex; gap: 6px; align-items: center; }
+.tray-in input { flex: 1; min-width: 0; border: 1px solid var(--k-line); border-radius: 6px; padding: 5px 8px; font: inherit; font-size: 12px; background: var(--k-bg); color: var(--k-fg); }
+.keys { display: flex; gap: 4px; flex-wrap: wrap; }
+.keys button { border: 1px solid var(--k-line); border-bottom-width: 2px; background: var(--k-bg); border-radius: 5px; padding: 2px 7px; font-size: 11px; font-family: var(--k-mono); min-width: 28px; }
+.toast { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 5; background: var(--k-fg); color: var(--k-bg); font-size: 11.5px; padding: 6px 10px; border-radius: 8px; width: max-content; max-width: 88%; box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+.ov { padding: 12px; display: flex; flex-direction: column; gap: 10px; grid-column: 2 / 4; }
+.ov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.src { border: 1px solid var(--k-line); border-radius: 8px; padding: 8px; display: flex; gap: 8px; align-items: center; background: var(--k-card); font-size: 11.5px; }
+.bar { height: 4px; background: var(--k-sub); border-radius: 4px; overflow: hidden; margin-top: 4px; }
+.bar i { display: block; height: 100%; width: 64%; background: var(--k-fg); }
+@media (max-width: 640px) {
+  .dk-body { grid-template-columns: 112px 1fr; }
+  .chat { display: none; }
+  .ov { grid-column: 1 / 3; }
+}
+
+/* ---------- phone ---------- */
+.ph-wrap { display: flex; gap: 16px; align-items: flex-start; justify-content: center; flex-wrap: wrap; }
+.ph { width: 300px; height: 620px; border-radius: 34px; border: 8px solid #1b1a18; background: var(--k-bg); position: relative; overflow: hidden; display: flex; flex-direction: column; flex: none; }
+.ph-status { height: 26px; display: flex; align-items: center; justify-content: space-between; padding: 0 18px; font-size: 11px; font-weight: 600; }
+.ph-notch { position: absolute; top: 6px; left: 50%; transform: translateX(-50%); width: 84px; height: 20px; background: #1b1a18; border-radius: 12px; }
+.ph-top { display: flex; align-items: center; gap: 6px; padding: 4px 10px 8px; }
+.ph-top .back { border: 0; background: transparent; width: 32px; height: 32px; border-radius: 50%; font-size: 18px; line-height: 1; }
+.ph-top .tt { flex: 1; min-width: 0; }
+.ph-top .tt div:first-child { font-weight: 650; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ph-top .tt div:last-child { font-size: 10.5px; color: var(--k-mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tabs-btn { border: 1.5px solid var(--k-fg); background: transparent; border-radius: 6px; min-width: 26px; height: 24px; font-size: 11px; font-weight: 700; }
+.ph-canvas-wrap { padding: 0 10px; }
+.ph .canvas { border-radius: 6px; }
+.zoomed .site { transform: scale(1.9); transform-origin: 50% 64%; }
+.zoom-badge { position: absolute; left: 6px; bottom: 5px; z-index: 3; font-size: 9.5px; font-weight: 600; background: rgba(0,0,0,.6); color: #fff; padding: 1px 6px; border-radius: 4px; }
+.ph-ctx { flex: 1; padding: 10px 12px 0; display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: hidden; font-size: 12px; }
+.ph-ctx .ask { font-size: 12px; }
+.ph-hint { font-size: 11px; color: var(--k-mute); display: flex; gap: 6px; align-items: center; }
+.ph-bottom { padding: 8px 10px 16px; display: flex; gap: 8px; align-items: center; border-top: 1px solid var(--k-line); background: var(--k-bg); }
+.ph-bottom .side { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--k-line); background: var(--k-card); display: grid; place-items: center; }
+.ph-bottom .side[aria-pressed="true"] { background: var(--k-fg); color: var(--k-bg); border-color: var(--k-fg); }
+.ph-bottom .main { flex: 1; height: 44px; border-radius: 12px; font-size: 14px; font-weight: 650; border: 1px solid var(--k-fg); background: var(--k-fg); color: var(--k-bg); }
+.ph-bottom .main.ok { background: var(--k-ok); border-color: var(--k-ok); color: #fff; }
+.ph-bottom .main.warn { background: var(--k-warn); border-color: var(--k-warn); color: #fff; }
+.ph-bottom .main[disabled] { opacity: .45; cursor: not-allowed; }
+.ph-tray { margin-top: auto; padding: 6px 10px 8px; display: grid; gap: 6px; }
+.ph-kb { height: 150px; background: color-mix(in srgb, var(--k-sub) 80%, #c9c6bd); display: grid; grid-template-rows: repeat(4, 1fr); gap: 6px; padding: 8px 4px 10px; }
+.ph-kb div { display: flex; gap: 4px; justify-content: center; }
+.ph-kb span { flex: 1; max-width: 24px; background: var(--k-card); border-radius: 4px; box-shadow: 0 1px 0 rgba(0,0,0,.18); }
+.ph-kb div:last-child span { max-width: 140px; }
+.ph-kb-l { text-align: center; font-size: 9.5px; color: var(--k-mute); letter-spacing: .05em; text-transform: uppercase; margin-top: -2px; }
+.sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 8; background: var(--k-card); border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.18); padding: 8px 12px 18px; display: flex; flex-direction: column; gap: 8px; max-height: 78%; }
+.scrim { position: absolute; inset: 0; z-index: 7; background: rgba(20,18,15,.35); }
+.grab { width: 36px; height: 4px; border-radius: 4px; background: var(--k-line); margin: 0 auto 4px; }
+.sheet-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.ph-side-note { max-width: 300px; font-size: 12px; color: var(--k-mute); align-self: center; }
+.ph-side-note h6 { margin: 0 0 4px; font-size: 12px; color: var(--k-fg); }
+.ph-side-note ul { margin: 0; padding-left: 16px; }
+.ph-side-note li { margin-bottom: 3px; }
+@media (prefers-reduced-motion: reduce) { .sm * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="sm" id="sm" data-state="agent" data-device="desktop" role="region" aria-label="Kinuvo Live view mockups">
+  <p class="note"><b>Mockup:</b> "Larkspur Energy" and every page here are simulated. Not built, not live proof. The colour of the frame edge shows who is in control.</p>
+
+  <div class="sw" role="group" aria-label="Mockup controls">
+    <span class="sw-l" id="lbl-state">State</span>
+    <div class="sw-g" role="group" aria-labelledby="lbl-state">
+      <button type="button" data-set-state="agent" aria-pressed="true">Agent working</button>
+      <button type="button" data-set-state="request" aria-pressed="false">Takeover requested</button>
+      <button type="button" data-set-state="control" aria-pressed="false">You're in control</button>
+      <button type="button" data-set-state="overview" aria-pressed="false">Tabs &amp; screens</button>
+      <button type="button" data-set-state="elsewhere" aria-pressed="false">Controlled elsewhere</button>
+      <button type="button" data-set-state="reconnect" aria-pressed="false">Reconnecting &amp; errors</button>
+    </div>
+    <span class="sw-l" id="lbl-dev">View</span>
+    <div class="sw-g" role="group" aria-labelledby="lbl-dev">
+      <button type="button" data-set-device="desktop" aria-pressed="true">Desktop</button>
+      <button type="button" data-set-device="phone" aria-pressed="false">Phone</button>
+    </div>
+  </div>
+
+  <!-- ================= DESKTOP ================= -->
+  <div class="dk" aria-label="Desktop app mockup">
+    <div class="dk-bar"><span class="ava" aria-hidden="true"></span><strong>Wren</strong><span class="muted">Session · Pay the October energy bill</span></div>
+    <div class="dk-body">
+      <aside class="chat" aria-label="Conversation">
+        <div class="msg-u">Pay the October energy bill, it's in the Larkspur account.</div>
+        <div class="who"><span class="ava" aria-hidden="true"></span>Wren</div>
+        <div>Opening Larkspur Energy in your Browser and signing in.</div>
+        <div class="tool"><span class="mono">browser_type</span> email</div>
+        <div class="tool" data-s="agent"><span class="spin" aria-hidden="true"></span><span class="mono">browser_click</span> Continue</div>
+        <div class="tool" data-s="request control elsewhere reconnect overview"><span class="mono">browser_click</span> Continue</div>
+        <div class="ask" data-s="request overview">
+          <b>Wren needs you</b>
+          <div>Enter the 6-digit code Larkspur texted to your phone.</div>
+          <button class="btn warn" type="button" data-go="control">Take over</button>
+        </div>
+        <div class="ask" data-s="control elsewhere reconnect">
+          <b>Waiting for you</b>
+          <div>Wren continues after you hand the Browser back.</div>
+        </div>
+        <div class="composer">Message Wren…</div>
+      </aside>
+
+      <nav class="rail" aria-label="Screens in this Session" data-s="agent request control elsewhere reconnect">
+        <h5>This Session</h5>
+        <button class="card" type="button" aria-current="true" aria-label="Larkspur Energy tab, selected">
+          <div class="thumb"><div class="t-top"></div><div class="t-card"></div></div>
+          <div class="card-t"><span class="dot agent" data-s="agent"></span><span class="dot warn" data-s="request"></span><span class="dot ok" data-s="control"></span><span class="dot mute" data-s="elsewhere reconnect"></span><span>Larkspur Energy</span></div>
+          <div class="card-d">my.larkspur.example</div>
+        </button>
+        <button class="card" type="button" aria-label="Bills tab on home.lan">
+          <div class="thumb mail"><div class="t-top"></div><div class="t-card"></div></div>
+          <div class="card-t"><span class="dot"></span><span>Bills · Paperless</span></div>
+          <div class="card-d">docs.home.lan</div>
+        </button>
+        <h5>Computers</h5>
+        <button class="card" type="button" aria-label="Desk Mac computer">
+          <div class="thumb mac" data-s="agent request control elsewhere"><div class="t-top"></div><div class="t-card"></div></div>
+          <div class="thumb mac off" data-s="reconnect"><div class="t-top"></div><div class="t-card"></div></div>
+          <div class="card-t"><span class="dot" data-s="agent request control elsewhere"></span><span class="dot mute" data-s="reconnect"></span><span>Desk Mac</span></div>
+          <div class="card-d" data-s="agent request control elsewhere">macOS · idle</div>
+          <div class="card-d" data-s="reconnect">Offline for 4 min</div>
+        </button>
+      </nav>
+
+      <section class="live" aria-label="Live view" data-s="agent request control elsewhere reconnect">
+        <div class="lv-head">
+          <div class="lv-title"><div>Larkspur Energy · Sign in</div><div>Browser tab · Wren · this Session</div></div>
+          <span class="chip agent" data-s="agent"><i></i>Wren is working</span>
+          <span class="chip warn" data-s="request"><i></i>Needs you</span>
+          <span class="chip ok" data-s="control"><i></i>You're in control</span>
+          <span class="chip mute" data-s="elsewhere"><i></i>Controlled from Phone</span>
+          <span class="chip mute" data-s="reconnect"><span class="spin" aria-hidden="true"></span>Reconnecting</span>
+          <button class="btn" type="button" data-s="agent" data-go="control">Take over</button>
+          <button class="btn warn" type="button" data-s="request" data-go="control">Take over</button>
+          <button class="btn ok" type="button" data-s="control" data-go="agent">Hand back</button>
+          <button class="btn" type="button" data-s="elsewhere" data-go="control">Take over here</button>
+          <button class="btn" type="button" data-s="reconnect" disabled aria-disabled="true">Hand back</button>
+        </div>
+        <div class="addr">
+          <button type="button" aria-label="Back" data-s="control" title="Back">‹</button>
+          <button type="button" aria-label="Forward" data-s="control" title="Forward">›</button>
+          <button type="button" aria-label="Reload" data-s="control" title="Reload">↻</button>
+          <div class="url" aria-label="Address" data-s="control"><span class="lock" aria-hidden="true">●</span><span class="mono">https://my.larkspur.example/sign-in/verify</span></div>
+          <div class="url" aria-disabled="true" title="Take over to navigate" data-s="agent request elsewhere reconnect"><span class="lock" aria-hidden="true">●</span><span class="mono" data-s="agent">my.larkspur.example/sign-in</span><span class="mono" data-s="request elsewhere reconnect">my.larkspur.example/sign-in/verify</span></div>
+        </div>
+
+        <div class="canvas" aria-label="Browser frame">
+          <div class="edge-tag" data-s="agent">Wren · clicking “Continue”</div>
+          <div class="edge-tag" data-s="request">Wren asked you to take over</div>
+          <div class="edge-tag" data-s="control">You · keys and taps go to this tab</div>
+          <div class="edge-tag" data-s="elsewhere">Phone is controlling this tab</div>
+          <div class="edge-tag" data-s="reconnect">Last frame 12 s ago · input paused</div>
+          <div class="site-wrap" data-s="agent">
+            <div class="site"><div class="site-top"><span class="site-logo"></span><b>Larkspur Energy</b><span>Help</span></div>
+              <div class="site-main"><div class="site-card"><h4>Sign in</h4><p>Pay bills and see your usage.</p>
+                <div class="site-field">alex@home.lan</div><div class="site-btn">Continue</div></div></div></div>
+            <div class="marker" style="left:50%; top:76%"></div><div class="marker-l" style="left:50%; top:76%">Continue</div>
+          </div>
+          <div class="site-wrap" data-s="request control elsewhere reconnect">
+            <div class="site"><div class="site-top"><span class="site-logo"></span><b>Larkspur Energy</b><span>Help</span></div>
+              <div class="site-main"><div class="site-card"><h4>Check your phone</h4><p>Enter the code sent to •••• 0142.</p>
+                <div class="otp" data-s="request elsewhere reconnect"><span></span><span></span><span></span><span></span><span></span><span></span></div>
+                <div class="otp" data-s="control"><span>4</span><span>8</span><span>2</span><span class="f"></span><span></span><span></span></div>
+                <div class="site-btn">Verify</div></div></div></div>
+          </div>
+          <div class="veil" data-s="reconnect"><div class="veil-card"><b><span class="spin" aria-hidden="true"></span>Reconnecting to Home Server</b>Input is paused until a fresh frame arrives. Nothing you typed is resent.</div></div>
+          <div class="toast" data-s="reconnect" role="status">Your last key may not have reached the Browser. Check the code before typing again.</div>
+          <span class="mock-tag">mockup</span>
+        </div>
+
+        <div class="activity" data-s="agent"><span class="ava" aria-hidden="true"></span><span><b>Wren</b> typed your email, now clicking <b>Continue</b>.</span></div>
+        <div class="banner warn" data-s="request" role="status"><div><b>Enter the 6-digit code Larkspur texted to your phone.</b><br><span class="muted">Wren waits until you hand back. Your input goes only to this tab.</span></div></div>
+        <div class="tray" data-s="control" aria-label="Keyboard">
+          <div class="tray-in"><input aria-label="Type into the Browser" value="482" readonly><button class="btn" type="button">Send</button></div>
+          <div class="keys" aria-label="Keys this Browser accepts"><button type="button">Tab</button><button type="button">Esc</button><button type="button">⌫</button><button type="button">←</button><button type="button">→</button><button type="button">↑</button><button type="button">↓</button><button type="button">Enter</button></div>
+        </div>
+        <div class="banner mute" data-s="elsewhere"><div><b>Phone took over at 14:02.</b> Wren waits. Taking over here moves control to this Mac and stops the Phone's input.</div></div>
+      </section>
+
+      <section class="ov" aria-label="Tabs and screens" data-s="overview">
+        <div class="lv-head"><div class="lv-title"><div>Tabs &amp; screens</div><div>Wren's Browser in this Session, and your Computers</div></div><button class="btn" type="button">New tab</button></div>
+        <h5>Browser · this Session</h5>
+        <div class="ov-grid">
+          <button class="card" type="button" aria-label="Larkspur Energy, needs you" data-go="request">
+            <div class="thumb"><div class="t-top"></div><div class="t-card"></div></div>
+            <div class="card-t"><span class="dot warn"></span><span>Larkspur Energy</span></div>
+            <div class="card-d">Needs you · my.larkspur.example</div>
+          </button>
+          <button class="card" type="button" aria-label="Bills tab">
+            <div class="thumb mail"><div class="t-top"></div><div class="t-card"></div></div>
+            <div class="card-t"><span class="dot"></span><span>Bills · Paperless</span></div>
+            <div class="card-d">Idle · docs.home.lan</div>
+          </button>
+        </div>
+        <h5>Computers</h5>
+        <div class="ov-grid">
+          <button class="card" type="button" aria-label="Desk Mac">
+            <div class="thumb mac"><div class="t-top"></div><div class="t-card"></div></div>
+            <div class="card-t"><span class="dot"></span><span>Desk Mac</span></div>
+            <div class="card-d">macOS · idle</div>
+          </button>
+          <button class="card" type="button" aria-label="Phone, offline">
+            <div class="thumb phone off"><div class="t-top"></div><div class="t-card"></div></div>
+            <div class="card-t"><span class="dot mute"></span><span>Phone</span></div>
+            <div class="card-d">Android · offline</div>
+          </button>
+        </div>
+        <div class="src"><span class="spin" aria-hidden="true"></span><div style="flex:1"><b>Getting the Browser ready</b> · downloading Chromium (first use)<div class="bar"><i></i></div></div></div>
+      </section>
+    </div>
+  </div>
+
+  <!-- ================= PHONE ================= -->
+  <div class="ph-wrap">
+    <div class="ph" aria-label="Phone app mockup">
+      <div class="ph-notch" aria-hidden="true"></div>
+      <div class="ph-status"><span>14:02</span><span>5G ▮▮▮</span></div>
+      <div class="ph-top">
+        <button class="back" type="button" aria-label="Back to conversation">‹</button>
+        <div class="tt"><div>Larkspur Energy</div><div>my.larkspur.example · Wren</div></div>
+        <button class="tabs-btn" type="button" aria-label="Tabs and screens, 2 tabs" data-go="overview">2</button>
+      </div>
+      <div class="ph-canvas-wrap">
+        <div class="canvas" aria-label="Browser frame">
+          <div class="edge-tag" data-s="agent overview">Wren · clicking “Continue”</div>
+          <div class="edge-tag" data-s="request">Wren asked you to take over</div>
+          <div class="edge-tag" data-s="control">You're in control</div>
+          <div class="edge-tag" data-s="elsewhere">Desk Mac is in control</div>
+          <div class="edge-tag" data-s="reconnect">Last frame 12 s ago</div>
+          <div class="site-wrap" data-s="agent overview">
+            <div class="site"><div class="site-top"><span class="site-logo"></span><b>Larkspur Energy</b><span>Help</span></div>
+              <div class="site-main"><div class="site-card"><h4>Sign in</h4><p>Pay bills and see your usage.</p>
+                <div class="site-field">alex@home.lan</div><div class="site-btn">Continue</div></div></div></div>
+            <div class="marker" style="left:50%; top:76%"></div>
+          </div>
+          <div class="site-wrap" data-s="request elsewhere reconnect">
+            <div class="site"><div class="site-top"><span class="site-logo"></span><b>Larkspur Energy</b><span>Help</span></div>
+              <div class="site-main"><div class="site-card"><h4>Check your phone</h4><p>Enter the code sent to •••• 0142.</p>
+                <div class="otp"><span></span><span></span><span></span><span></span><span></span><span></span></div><div class="site-btn">Verify</div></div></div></div>
+          </div>
+          <div class="site-wrap zoomed" data-s="control">
+            <div class="site"><div class="site-top"><span class="site-logo"></span><b>Larkspur Energy</b><span>Help</span></div>
+              <div class="site-main"><div class="site-card"><h4>Check your phone</h4><p>Enter the code sent to •••• 0142.</p>
+                <div class="otp"><span>4</span><span>8</span><span>2</span><span class="f"></span><span></span><span></span></div><div class="site-btn">Verify</div></div></div></div>
+            <span class="zoom-badge">190% · pinch to zoom</span>
+          </div>
+          <div class="veil" data-s="reconnect"><div class="veil-card"><b><span class="spin" aria-hidden="true"></span>Reconnecting</b>Input paused. Nothing is resent.</div></div>
+          <span class="mock-tag">mockup</span>
+        </div>
+      </div>
+
+      <div class="ph-ctx" data-s="agent overview">
+        <div class="activity"><span class="ava" aria-hidden="true"></span><span><b>Wren</b> typed your email, now clicking <b>Continue</b>.</span></div>
+        <div class="ph-hint">Watching only. Your taps won't reach the page until you take over.</div>
+      </div>
+      <div class="ph-ctx" data-s="request">
+        <div class="ask"><b>Wren needs you</b><div>Enter the 6-digit code Larkspur texted to this phone. Wren waits until you hand back.</div></div>
+        <div class="ph-hint">Pinch to zoom. After you take over, one finger taps and two fingers scroll the page.</div>
+      </div>
+      <div class="ph-tray" data-s="control" aria-label="Keyboard">
+        <div class="tray-in"><input aria-label="Type into the Browser" value="482" readonly><button class="btn" type="button">Send</button></div>
+        <div class="keys"><button type="button">Tab</button><button type="button">Esc</button><button type="button">⌫</button><button type="button">←</button><button type="button">→</button><button type="button">Enter</button></div>
+      </div>
+      <div class="ph-ctx" data-s="elsewhere">
+        <div class="banner mute"><div><b>Desk Mac took over at 14:02.</b> Wren waits. You can move control to this phone.</div></div>
+      </div>
+      <div class="ph-ctx" data-s="reconnect">
+        <div class="banner warn" role="status"><div><b>Your last key may not have arrived.</b><br><span class="muted">Check the code on the page before typing again.</span></div></div>
+        <div class="ph-hint"><span class="spin" aria-hidden="true"></span>Reconnecting to Home Server…</div>
+      </div>
+
+      <div class="ph-bottom" data-s="agent request elsewhere reconnect overview">
+        <button class="side" type="button" aria-label="Keyboard" aria-pressed="false" disabled><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>
+        <button class="main" type="button" data-s="agent overview" data-go="control">Take over</button>
+        <button class="main warn" type="button" data-s="request" data-go="control">Take over</button>
+        <button class="main" type="button" data-s="elsewhere" data-go="control">Take over here</button>
+        <button class="main" type="button" data-s="reconnect" disabled>Hand back</button>
+        <button class="side" type="button" aria-label="Tabs and screens" data-go="overview"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/></svg></button>
+      </div>
+      <div class="ph-bottom" data-s="control">
+        <button class="side" type="button" aria-label="Keyboard" aria-pressed="true"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/></svg></button>
+        <button class="main ok" type="button" data-go="agent">Hand back to Wren</button>
+        <button class="side" type="button" aria-label="Tabs and screens" data-go="overview"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="7" width="14" height="14" rx="2"/><path d="M7 3h12a2 2 0 0 1 2 2v12"/></svg></button>
+      </div>
+      <div class="ph-kb" data-s="control" aria-hidden="true">
+        <div class="ph-kb-l">system keyboard</div>
+        <div><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div>
+        <div><span></span></div>
+      </div>
+
+      <div class="scrim" data-s="overview" data-go="agent" aria-hidden="true"></div>
+      <div class="sheet" data-s="overview" role="dialog" aria-label="Tabs and screens">
+        <div class="grab" aria-hidden="true"></div>
+        <div class="lv-head"><div class="lv-title"><div>Tabs &amp; screens</div><div>Wren's Browser · this Session</div></div><button class="btn" type="button">New tab</button></div>
+        <div class="sheet-grid">
+          <button class="card" type="button" aria-current="true" aria-label="Larkspur Energy, selected" data-go="agent">
+            <div class="thumb"><div class="t-top"></div><div class="t-card"></div></div>
+            <div class="card-t"><span class="dot agent"></span><span>Larkspur</span></div>
+            <div class="card-d">Wren is working</div>
+          </button>
+          <button class="card" type="button" aria-label="Bills tab">
+            <div class="thumb mail"><div class="t-top"></div><div class="t-card"></div></div>
+            <div class="card-t"><span class="dot"></span><span>Bills</span></div>
+            <div class="card-d">docs.home.lan</div>
+          </button>
+        </div>
+        <h5 style="margin:2px 2px 0;font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--k-mute)">Computers</h5>
+        <div class="sheet-grid">
+          <button class="card" type="button" aria-label="Desk Mac">
+            <div class="thumb mac"><div class="t-top"></div><div class="t-card"></div></div>
+            <div class="card-t"><span class="dot"></span><span>Desk Mac</span></div>
+            <div class="card-d">macOS · idle</div>
+          </button>
+          <button class="card" type="button" aria-label="This phone">
+            <div class="thumb phone"><div class="t-top"></div><div class="t-card"></div></div>
+            <div class="card-t"><span class="dot"></span><span>This phone</span></div>
+            <div class="card-d">Android · idle</div>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ph-side-note">
+      <h6 data-s="agent">Watching</h6><h6 data-s="request">Takeover requested</h6><h6 data-s="control">You're in control, keyboard open</h6>
+      <h6 data-s="overview">Tabs &amp; screens sheet</h6><h6 data-s="elsewhere">Another Device holds control</h6><h6 data-s="reconnect">Reconnecting, input outcome unknown</h6>
+      <ul>
+        <li>The frame spans the full width. Pinch zooms the view, never the page.</li>
+        <li>One primary action, in thumb reach, above the safe area.</li>
+        <li data-s="control">The tray sits above the system keyboard: text goes on Send, and the key row shows only keys this Screen accepts.</li>
+        <li data-s="request">The Notification opens here directly, and the reason stays visible without covering the page.</li>
+        <li data-s="overview">The sheet replaces the old 126 dp rail. Cards are live thumbnails, and only visible ones stream.</li>
+        <li data-s="elsewhere">Taking over here moves the generation forward, and the other Device's input is refused.</li>
+        <li data-s="reconnect">The stale frame is greyed and input is off until a fresh frame arrives. Nothing is replayed.</li>
+        <li data-s="agent">Watching only, so input is off. The Agent's target is marked on the frame.</li>
+      </ul>
+    </div>
+  </div>
+
+  <p class="cap"><strong>Signature:</strong> the frame edge and its tag show who drives the Screen. Accent: the Agent acts. Warning: it asks for you. Success: you're in control. Grey: someone else, or stale. The same component serves Computers. Their cards drop the address bar and show platform keys (Back, Home) instead of Tab and Esc.</p>
+</div>
+<script>
+(function () {
+  var root = document.getElementById('sm');
+  function set(attr, value, sel) {
+    root.setAttribute(attr, value);
+    root.querySelectorAll('[' + sel + ']').forEach(function (b) { b.setAttribute('aria-pressed', String(b.getAttribute(sel) === value)); });
+  }
+  root.addEventListener('click', function (e) {
+    var t = e.target.closest('[data-set-state],[data-set-device],[data-go]');
+    if (!t) return;
+    if (t.hasAttribute('data-set-device')) return set('data-device', t.getAttribute('data-set-device'), 'data-set-device');
+    set('data-state', t.getAttribute('data-set-state') || t.getAttribute('data-go'), 'data-set-state');
+  });
+})();
+</script>
+</body>
+</html>

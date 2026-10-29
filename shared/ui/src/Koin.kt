@@ -44,7 +44,12 @@ private val appModule = module {
     viewModel { (app: AppViewModel) -> HomeViewModel(app.state, get()) }
     viewModel { (route: Route.Knowledge) -> KnowledgeViewModel(get(), route) }
     viewModel { (client: KinuvoClient, route: Route.Artifacts) -> ArtifactsViewModel(client, route, get()) }
-    viewModel { (client: KinuvoClient, route: Route.Computers) -> kinuvo.app.computer.ComputersViewModel(client, route, get()) }
+    viewModel { (route: Route) ->
+        val browser = route as? Route.Browser
+        kinuvo.app.screen.LiveViewModel(get<ConnectedServer>(), browser?.let { kinuvo.protocol.BrowserOwner(it.agentId, it.sessionId) },
+            browser?.screen ?: (route as? Route.Computers)?.computer?.let { kinuvo.protocol.ScreenRef("computer", it) }, browser?.reason ?: (route as? Route.Computers)?.reason)
+    }
+
 }
 
 /** Starts DI once per process; [modules] add or override bindings, e.g. an [EmbeddedServer]. */

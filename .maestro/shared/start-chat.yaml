@@ -4,4 +4,10 @@ appId: ${APP_ID}
 - tapOn: "Message"
 - inputText: "Hello from Maestro"
 - tapOn: "Send"
-- assertVisible: "Hello from WireMock"
+# Dismiss the composer keyboard with a normal tap in the conversation area.
+- tapOn:
+    point: 90%,45%
+- extendedWaitUntil:
+    visible: "Hello from WireMock"
+    timeout: 20000
+- tapOn: "Hello from WireMock"

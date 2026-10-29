@@ -16,7 +16,7 @@ import kotlin.io.encoding.Base64
 import kotlin.test.*
 
 class ComputerTest {
-    @Test fun cliDesktopSupportsCaptureLiveViewInputAndTakeover() = runBlocking {
+    @Test fun cliDesktopSupportsLiveViewInputAndTakeoverThroughScreens() = runBlocking {
         withTimeout(10_000) {
             val home = Files.createTempDirectory("kinuvo-cli-computer").toFile()
             val server = HarnessServer(Harness(Path(home.path), plugins = emptyList()))
@@ -39,7 +39,9 @@ class ComputerTest {
             }
             val port = server.start("0.0.0.0", 0, schedule = false)
             val desktop = CliComputer(server, "0.0.0.0", port, DesktopComputer { driver })
-            val observer = KinuvoClient("ws://127.0.0.1:$port/ws", "Observer", server.auth.sessionToken())
+            val bootstrap = KinuvoClient("ws://127.0.0.1:$port/ws", "Bootstrap", server.auth.sessionToken())
+            val code = try { bootstrap.connect(); bootstrap.call(Api.Pairing, PairingParams(refresh = true, management = true)).code } finally { bootstrap.close() }
+            val observer = KinuvoClient("ws://127.0.0.1:$port/ws", "Observer", pairingCode = code)
             try {
                 observer.connect()
                 assertEquals(emptyList(), observer.call(Api.Computers, Unit))
@@ -47,31 +49,25 @@ class ComputerTest {
                 val computer = observer.call(Api.Computers, Unit).single()
                 assertEquals("Server desktop", computer.name)
                 assertTrue(computer.available)
-                assertTrue(server.auth.devices().isEmpty())
-                val frame = observer.call(Api.Takeover, TakeoverParams(computer.id, false))
+                val ref = ScreenRef("computer", computer.id)
+                val frames = async(start = CoroutineStart.UNDISPATCHED) { observer.events(Api.ScreenFrame).first() }
+                val watch = observer.call(Api.ScreenWatch, ScreenWatch(ref))
+                val frame = frames.await()
+                assertEquals(watch.id, frame.subscription)
                 assertFalse(awake)
-                assertEquals("desktop-1", frame.screen?.capture)
-                assertEquals(DesktopComputer { driver }.platform, frame.computer.platform)
-                val watching = async(start = CoroutineStart.UNDISPATCHED) { observer.events(Api.ComputerFrameEvent).first() }
-                observer.call(Api.WatchComputer, WatchComputerParams(computer.id, true))
-                assertEquals(computer.id, watching.await().computer.id)
-                assertFalse(awake)
-                observer.call(Api.WatchComputer, WatchComputerParams(computer.id, false))
-                observer.call(Api.Takeover, TakeoverParams(computer.id, true))
+                observer.call(Api.ScreenAck, ScreenFrameAck(frame.subscription, frame.epoch, frame.sequence))
+                val generation = observer.call(Api.Screens, null).single { it.ref == ref }.control.generation
+                val held = observer.call(Api.ScreenControl, ScreenControlRequest(ref, generation, true))
                 assertTrue(awake)
-                val taken = async(start = CoroutineStart.UNDISPATCHED) { observer.events(Api.ComputerFrameEvent).first() }
-                observer.call(Api.WatchComputer, WatchComputerParams(computer.id, true))
-                assertEquals(ComputerControl.User, taken.await().computer.control)
-                assertTrue(awake)
-                observer.call(Api.WatchComputer, WatchComputerParams(computer.id, false))
-                observer.call(Api.Takeover, TakeoverParams(computer.id, false))
-                assertFalse(awake)
-                val input = observer.call(Api.ComputerInput, ComputerInputParams(computer.id, ComputerAction(ComputerActionKind.Key, key = "ctrl+a")))
-                assertEquals(ComputerControl.User, input.computer.control)
-                assertTrue(awake)
+                assertEquals(ComputerControl.User, observer.call(Api.Computers, Unit).single().control)
+                val input = observer.call(Api.ScreenInput, ScreenInputRequest(watch.id, ScreenInput(ScreenFrameAck(frame.subscription, frame.epoch, frame.sequence),
+                    frame.sample.geometry, held.generation, 0, listOf(ScreenAction(ScreenActionKind.Key, key = "ctrl+a")))))
+                assertEquals(1, input.applied, input.message)
                 assertEquals(listOf("ctrl", "a"), calls.first { it.first == "hotkey" }.second["keys"]?.jsonArray?.map { it.jsonPrimitive.content })
-                assertEquals(ComputerControl.Idle, observer.call(Api.Takeover, TakeoverParams(computer.id, false)).computer.control)
+                observer.call(Api.ScreenControl, ScreenControlRequest(ref, held.generation, false))
                 assertFalse(awake)
+                assertEquals(ComputerControl.Idle, observer.call(Api.Computers, Unit).single().control)
+                observer.call(Api.ScreenUnwatch, watch.id)
                 desktop.close()
                 while (observer.call(Api.Computers, Unit).single().available) delay(10)
                 assertTrue(closed)

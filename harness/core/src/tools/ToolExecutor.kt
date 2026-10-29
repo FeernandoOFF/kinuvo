@@ -2,6 +2,7 @@ package kinuvo.harness.core.tools
 
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.harness.core.*
+import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.Attachment
@@ -40,6 +41,9 @@ class ToolExecutor(
     private suspend fun perform(call: SessionEntry.ToolCall, approvalId: String, stopped: (String) -> Unit): SessionEntry.ToolResult {
         val tool = toolsByName[call.name]
         val verdict = tool?.let { approvals.policy?.decide(it, call.args) } ?: Verdict.Run
+        val binding = try { if (verdict is Verdict.Block) null else tool?.bind(ProtocolJson.parseToJsonElement(call.args).jsonObject) }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { return SessionEntry.ToolResult(call.id, call.name, e.message ?: "Tool binding failed", isError = true) }
         val decision = when {
             verdict is Verdict.Block -> null
             verdict !is Verdict.Ask -> ApprovalDecision.AllowOnce
@@ -77,6 +81,9 @@ class ToolExecutor(
                 isError = true,
             )
             else -> {
+                try { binding?.invoke() }
+                catch (e: CancellationException) { throw e }
+                catch (e: Exception) { return SessionEntry.ToolResult(call.id, call.name, e.message ?: "Screen changed; observe again", isError = true) }
                 if (decision == ApprovalDecision.AlwaysAllow && verdict is Verdict.Ask && tool != null) approvals.policy?.trust(tool, verdict.trustKeys)
                 if (tool?.kind == ToolKind.AskUser) ask(call, approvalId) else execute(call, approvalId, stopped)
             }

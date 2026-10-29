@@ -22,6 +22,8 @@ sealed interface ConnectionState {
 /** Thrown when the server rejects the token or pairing code; retrying won't help. */
 class AuthException(message: String) : Exception(message)
 
+class ProtocolMismatchException : Exception(ProtocolVersion.Mismatch)
+
 /** A request that failed because the connection is down; the client retries on its own. */
 class DisconnectedException(message: String = "Disconnected") : IllegalStateException(message)
 
@@ -107,6 +109,10 @@ class KinuvoClient(
                     _state.value = ConnectionState.Disconnected("Connection lost")
                 } catch (e: CancellationException) {
                     throw e
+                } catch (e: ProtocolMismatchException) {
+                    _state.value = ConnectionState.Disconnected(e.message.orEmpty())
+                    first.completeExceptionally(e)
+                    return@launch
                 } catch (e: AuthException) {
                     _state.value = ConnectionState.Disconnected(e.message ?: "Unauthorized", rejected = true)
                     first.completeExceptionally(e)
@@ -173,7 +179,12 @@ class KinuvoClient(
         }
         if (!response.ok) {
             val message = response.error ?: "Request failed"
+            if (method == Api.Connect && message.startsWith("protocol_mismatch:")) throw ProtocolMismatchException()
             throw if (method == Api.Connect) AuthException(message) else IllegalStateException(message)
+        }
+        if (method == Api.Connect) {
+            val version = (response.payload as? kotlinx.serialization.json.JsonObject)?.get("protocolVersion")
+            if (version?.toString() != ProtocolVersion.Current.toString()) throw ProtocolMismatchException()
         }
         return ProtocolJson.decodeFromJsonElement(method.result, response.payload)
     }
