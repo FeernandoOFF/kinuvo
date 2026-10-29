@@ -3,7 +3,7 @@ title: "Voice providers: a Device pipeline, a Server pipeline, or speech to spee
 description: "Kinuvo voice providers: a Device pipeline, a Server pipeline, or speech to speech."
 ---
 
-Voice chat ships on-device only: the Device's recognizer turns speech into a message (`voice = true`), the Agent replies as usual, and the Device's voice reads the reply aloud. A proof of concept (git stash `voice: server STT/processing/TTS + OpenAI realtime POC`) added two more modes; it was rolled back unreleased, keeping the seam to bring them back:
+Original decision (superseded by the Server model implementation below): the Device's recognizer turns speech into a message (`voice = true`), the Agent replies as usual, and the Device's voice reads the reply aloud. A proof of concept (git stash `voice: server STT/processing/TTS + OpenAI realtime POC`) added two more modes; it was rolled back unreleased, keeping the seam to bring them back:
 
 - **Server**: `VoiceProviders` (`harness/core/src/voice/`) holds the parts it provides. The default holds none.
 - **Protocol**: `ServerCapabilities.voice` is a `VoiceSetup` saying which parts exist; older Servers mean all-Device.
@@ -36,3 +36,21 @@ Audio never passes through `Model.stream`: Agents stay text, and voice providers
 Configuration chooses a provider per part (`transcription`, `processing`, `synthesis`, or `realtime`, each with `type`, `url`, `model`, `apiKey` and options such as `voice`), built into `VoiceProviders` when voice chat starts. Implement the Server parts, then give the Device a client for each: a `Transcriber` that records a turn and calls `voice.prepare`, a `Synthesizer` that calls `voice.synthesize` and plays the clip, and a `VoiceChat` over a voice stream (`voice.start`, `voice.command`, the `voice.event` event) for speech to speech. `VoiceViewModel` picks them from `VoiceSetup` when voice chat starts.
 
 Accepted cost: a third-party provider receives the audio, Agent instructions and recent conversation. Speech-to-speech protocols differ per vendor (OpenAI Realtime, Gemini Live, local models), so each needs its own `SpeechToSpeech` adapter. They differ in sample rates (each adapter declares its own, and the Device converts), in who detects turns and interruptions, and in whether a reply can be truncated where it was cut off. The voice model and the Agent can phrase the same answer differently.
+
+
+## Server-owned downloadable models (implemented)
+
+Model storage, downloads, language and independent transcription/synthesis
+selections now belong to the Server. Management-authenticated `voice.*` methods
+manage verified Tiny/Base Whisper and Supertonic weights. Ordinary paired
+Devices can query `voice.setup`, send bounded PCM16 to `voice.transcribe`, request
+WAV from `voice.synthesize`, and cancel their own inference. Execution links are
+excluded. No provider credentials or filesystem paths are sent to Devices.
+
+The UI-free JVM `harness/voice` module hosts a packaged C inference worker on
+macOS. Desktop and iOS capture/play audio on the Device. Server selections are
+read when Dictation or Voice chat starts, with generation guards across Server
+switches. Missing Server parts use Device system speech; configured failures
+surface as errors. Audio is transient; Agents remain text. Voice chat remains
+half duplex. External speech services, transcript processing and speech to speech
+remain future work. See [Server voice models](../device-local-voice.md).

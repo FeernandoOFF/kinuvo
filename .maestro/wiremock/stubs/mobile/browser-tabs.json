@@ -1,0 +1,37 @@
+{
+  "name": "mobile/browser-tabs",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "browser.tabs"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":[{\"id\":\"browser-tab\",\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"title\":\"Private site\",\"url\":\"http://lab.internal\",\"takeover\":false,\"thumbnail\":\"iVBORw0KGgoAAAANSUhEUgAAAIAAAABQCAIAAABeYuqzAAAAqElEQVR4nO3RsQkAMAzAsPz/bIdC556RwQIfYNCc+7TYrB/EAwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2H2laxqC4EjqVAAAAAElFTkSuQmCC\"}]}"
+        }
+      }
+    }
+  ]
+}

@@ -3,7 +3,7 @@ set -eu
 kinuvo_project_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 . "$kinuvo_project_root/scripts/project-env.sh"
 cd "$kinuvo_project_root"
-[ -f .kinuvo-home ] && [ -f .kinuvo-port ] || { echo "Run mise run init -- /absolute/data/home <port> first" >&2; exit 1; }
+{ [ -n "${KINUVO_RUN_HOME:-}" ] && [ -n "${KINUVO_RUN_PORT:-}" ]; } || { [ -f .kinuvo-home ] && [ -f .kinuvo-port ]; } || { echo "Run mise run init -- /absolute/data/home <port> first" >&2; exit 1; }
 if [ "${1:-}" = --check-server ]; then
     shift
     python3 - "$KINUVO_HOME" <<'CHECK'

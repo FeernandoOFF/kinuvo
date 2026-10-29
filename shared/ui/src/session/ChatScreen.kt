@@ -197,6 +197,8 @@ fun ChatScreen(
             onEditAnswer = session::editAnswer,
             onOpenArtifact = { onNavigate(Route.Artifacts(it)) },
             onWatch = { onNavigate(Route.Computers()) },
+            onBrowser = if (current.capabilities?.server.supports(ServerFeature.Browser) && route.agentId != null && route.sessionId != null)
+                ({ onNavigate(Route.Browser(requireNotNull(route.agentId), requireNotNull(route.sessionId))) }) else null,
             onLoadOlder = session::loadOlder,
             onSettings = { route.agentId?.let(onSettings) },
             onRename = session::rename,
@@ -244,6 +246,7 @@ class ChatActions(
     val onOpenArtifact: (id: String) -> Unit = {},
     /** Opens Live view of the Computers an Agent controls. */
     val onWatch: () -> Unit = {},
+    val onBrowser: (() -> Unit)? = null,
     val onLoadOlder: () -> Unit = {},
     val onSettings: () -> Unit = {},
     val onRename: (String) -> Unit = {},
@@ -553,6 +556,7 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
         Popover(statistics, { statistics = false }, "Statistics") {
             ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth())
         }
+        actions.onBrowser?.let { HeaderButton(Lucide.Globe, "Browser", it) }
     }
 }
 

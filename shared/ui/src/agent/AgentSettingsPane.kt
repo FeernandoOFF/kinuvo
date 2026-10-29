@@ -226,7 +226,7 @@ internal fun NewAgentForm(p: Pane) {
 }
 
 internal val REASONING = listOf("minimal", "low", "medium", "high", "xhigh")
-internal val TOOLS = listOf("memory" to "Memory", "web_fetch" to "Web (fetch, search)", "skills" to "Skills", "schedule" to "Routines", "knowledge" to "Knowledge", "tasks" to "Tasks", "ask_user" to "Ask the user (forms)", "artifact" to "Artifacts", "device_tools" to "Device tools (Contacts, workouts, sleep)", "run_code" to "Scripts (chain tool calls in JavaScript)", "computer" to "Computer use (see and control a screen)")
+internal val TOOLS = listOf("memory" to "Memory", "web_fetch" to "Web (fetch, search)", "skills" to "Skills", "schedule" to "Routines", "knowledge" to "Knowledge", "tasks" to "Tasks", "ask_user" to "Ask the user (forms)", "artifact" to "Artifacts", "device_tools" to "Device tools (Contacts, workouts, sleep)", "run_code" to "Scripts (chain tool calls in JavaScript)", "computer" to "Computer use (see and control a screen)", "browser" to "Browser (Server-owned tabs)")
 internal val APPROVALS = mapOf(
     "strict" to "Every tool call",
     "default" to "Anything that changes things",

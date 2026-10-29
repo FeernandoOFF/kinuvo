@@ -88,3 +88,28 @@ SwiftUI owns the `NavigationStack` and native back navigation. **Board** renders
 Import `KotlinModules` only. `shared/app/src/<feature>` co-locates Repositories, ViewModels and immutable state; `shared/ui/src/<feature>` holds Compose rendering. Transport and wire types remain in `shared/client` and `shared/protocol`. The umbrella exports typed `AppState`, `BoardState`, ViewModels and `Route` data. Flow is a Kotlin interface in the generated Objective-C header, not a Swift `AsyncSequence`: use `NativeApp.observe` / `BoardDestination.observe` for typed main-thread callbacks. Retain the returned `StateObservation` and cancel it on disposal. `BoardDestination.close()` cancels observations and clears its ViewModelStore; `NativeScreenHost.close()` clears hosted destination ViewModels. The Swift representable calls it from `dismantleUIViewController`. Keep `NativeApp` alive for the native shell and close it when that shell ends.
 
 For another native feature, register its shared ViewModel with `DestinationLifetime.own`, observe its `state` with `DestinationLifetime.observe`, and cast the callback value to that feature’s state type in Swift. Generic Flow callbacks erase their Kotlin type in this Objective-C export; the App and Board convenience callbacks are explicitly typed. Close the lifetime when the native destination ends. The native shell owns client activity even while its full-app sheet is shown; that sheet disables Compose’s app-level activity hook.
+
+### Server voice native regression checks
+
+Server transcription uses microphone permission only. Switching between Device and
+Server voice releases the previous audio engine's I/O graph. Recording validates
+both the hardware and tap formats before installing a tap; an interrupted or reset
+recording reports an error and must be started again. Audio callbacks reach shared
+state on the main queue and are ignored after recording stops.
+
+Run the production PCM helper against native AVFoundation buffers and converters
+on the Mac without booting a simulator or opening the microphone:
+
+```sh
+mise run exec -- python3 apps/ios/tests/test-server-audio.py
+```
+
+These checks cover unavailable microphone formats, nonfinite and out-of-range
+samples, empty buffers, and conversion from common iPhone/Bluetooth sample rates.
+The same harness exercises the production recording lifecycle with a substituted
+microphone engine: ten start/cancel/restart cycles, late audio from cancelled
+recordings, repeated stop/finish, interruption and audio-service reset. These
+checks do not reproduce hardware routing or prove an iPhone crash is resolved.
+For that, retain the iPhone's `.ips` crash report and verify recording, reply
+playback, repeated starts/stops, switching Device/Server voice, and headset or
+interruption recovery on a designated device.

@@ -2,9 +2,11 @@
 product: jvm/lib
 
 dependencies:
+  - ../../voice
   - ../../core: exported
   - ../runtime: exported
   - ../../execution/acp
+  - ../../plugins/browser
   - ../../plugins/anytype
   - ../../plugins/exec
   - ../../plugins/executor

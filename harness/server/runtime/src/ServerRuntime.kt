@@ -41,8 +41,10 @@ class ServerRuntime(
     externalSessions: List<kinuvo.harness.server.execution.ExternalSession> = emptyList(),
     persistExternal: (List<kinuvo.harness.server.execution.ExternalSession>) -> Unit = {},
     val remoteLinks: kinuvo.harness.server.execution.RemoteLinks = kinuvo.harness.server.execution.RemoteLinks(),
+    private val serverVoice: ServerVoice? = null,
     private val prepareAttachment: (UploadAttachmentParams) -> UploadAttachmentParams = { it },
 ) {
+    private val voiceRequests = ConcurrentMutableMap<String, Job>()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val executions = executionRegistry
     private val remoteFactory = kinuvo.harness.server.execution.RemoteExecutionFactory(remoteLinks, harness.serverId) { id, online, code ->
@@ -102,7 +104,7 @@ class ServerRuntime(
 
     val capabilities get() = ServerCapabilities(harness.serverId, harness.features + if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet(),
         if (foregroundOnly) ExecutionLifetime.Foreground else ExecutionLifetime.Continuous,
-        if (scheduling) WakeSupport.Scheduled else WakeSupport.None, integrations = (harness.integrations + (if (executionFactory != null) mapOf(Integration.Harness to setOf("acp", "remote")) else mapOf(Integration.Harness to setOf("remote")))).mapKeys { it.key.name }, platform = harness.platform, voice = harness.voice.setup)
+        if (scheduling) WakeSupport.Scheduled else WakeSupport.None, integrations = (harness.integrations + (if (executionFactory != null) mapOf(Integration.Harness to setOf("acp", "remote")) else mapOf(Integration.Harness to setOf("remote")))).mapKeys { it.key.name }, platform = harness.platform, voice = serverVoice?.setup() ?: harness.voice.setup)
     /** Runs going and the events they've produced; a foreground-only host keeps them alive while it can. */
     val runActivity get() = runs.activity
 
@@ -134,6 +136,7 @@ class ServerRuntime(
             harness.knowledge.onChange { broadcast(Api.KnowledgeChanged, it) }
             harness.tasks.onChange { broadcast(Api.TaskChanged, it) }
             harness.artifacts.onChange { broadcast(Api.ArtifactChanged, it) }
+            harness.browser?.onChange { broadcast(Api.BrowserChanged, it) }
             harness.computers.onChange = { broadcast(Api.ComputersChanged, it) }
             if (schedule) { scheduler.start(); dispatcher.start() }
             scheduling = schedule
@@ -154,7 +157,7 @@ class ServerRuntime(
             runs.stopAll()
             clients.block { it.toList() }.forEach { it.disconnect() }
         } finally {
-            try { scope.coroutineContext[Job]?.cancelAndJoin() } finally { harness.close() }
+            try { serverVoice?.close(); scope.coroutineContext[Job]?.cancelAndJoin() } finally { harness.close() }
         }
     }
 
@@ -351,6 +354,19 @@ class ServerRuntime(
         }
     }
 
+    private suspend fun <T> voiceRequest(client: Client, id: String, block: suspend () -> T): T {
+        require(id.length in 1..80)
+        val key = "${client.token}:$id"
+        return coroutineScope {
+            val job = currentCoroutineContext().job
+            voiceRequests.block {
+                check(key !in it && it.size < 8 && it.keys.count { key -> key.startsWith("${client.token}:") } < 2) { "Too many voice requests" }
+                it[key] = job
+            }
+            try { withTimeout(125_000) { block() } } finally { voiceRequests.remove(key) }
+        }
+    }
+
     private suspend fun handle(r: Frame.Request, client: Client): Frame.Response {
         if (client.linked) return when (r.method) {
             Api.Presence.name -> respond(r, Api.Presence) { Unit }
@@ -360,6 +376,16 @@ class ServerRuntime(
         if (!client.authenticated(auth::management) && r.method !in DEVICE_METHODS)
             return Frame.Response(r.id, ok = false, error = "This action requires management access")
         return when (r.method) {
+        Api.VoiceModels.name -> respond(r, Api.VoiceModels) { serverVoice?.state() ?: VoiceModelsState() }
+        Api.VoiceSetup.name -> respond(r, Api.VoiceSetup) { serverVoice?.setup() ?: harness.voice.setup }
+        Api.VoiceDownload.name -> respond(r, Api.VoiceDownload) { requireNotNull(serverVoice).download(it) }
+        Api.VoiceCancelDownload.name -> respond(r, Api.VoiceCancelDownload) { requireNotNull(serverVoice).cancelDownload() }
+        Api.VoiceRemove.name -> respond(r, Api.VoiceRemove) { requireNotNull(serverVoice).remove(it); changedCapabilities() }
+        Api.VoiceSelect.name -> respond(r, Api.VoiceSelect) { requireNotNull(serverVoice).select(it); changedCapabilities() }
+        Api.VoiceLanguage.name -> respond(r, Api.VoiceLanguage) { requireNotNull(serverVoice).language(it) }
+        Api.VoiceTranscribe.name -> respond(r, Api.VoiceTranscribe) { p -> voiceRequest(client, p.id) { requireNotNull(serverVoice).transcribe(p) } }
+        Api.VoiceSynthesize.name -> respond(r, Api.VoiceSynthesize) { p -> voiceRequest(client, p.id) { requireNotNull(serverVoice).synthesize(p) } }
+        Api.VoiceCancel.name -> respond(r, Api.VoiceCancel) { voiceRequests["${client.token}:$it"]?.cancel(); Unit }
         Api.Capabilities.name -> respond(r, Api.Capabilities) { executions.registration(it.agentId)?.let { a ->
             val info = externalInfo(a)
             val lost = it.sessionId?.let { id -> external.snapshot(id).phase == ExecutionPhase.Lost } == true
@@ -509,6 +535,14 @@ class ServerRuntime(
             if (client.deviceId == p.id) client.closeAfterResponse = r.id
             broadcast(Api.DevicesChanged, Unit)
         }
+        Api.BrowserTabs.name -> respond(r, Api.BrowserTabs) { p ->
+            browserOwner(p)
+            requireNotNull(harness.browser) { "Browser is unavailable on this Server" }.tabs(p)
+        }
+        Api.BrowserCommand.name -> respond(r, Api.BrowserCommand) { p ->
+            browserOwner(p.owner)
+            requireNotNull(harness.browser) { "Browser is unavailable on this Server" }.command(p, user = true)
+        }
         Api.Computers.name -> respond(r, Api.Computers) { harness.computers.list() }
         Api.WatchComputer.name -> respond(r, Api.WatchComputer) { if (it.watch) harness.computers.watch(it.computerId, client.watcher) else harness.computers.unwatch(it.computerId, client.watcher) }
         Api.ComputerInput.name -> respond(r, Api.ComputerInput) { harness.computers.input(it.computerId, it.action) }
@@ -554,6 +588,11 @@ class ServerRuntime(
             ExecutionRequestKind.Question -> harness.questions.respond(answer.requestId, ProtocolJson.decodeFromJsonElement(QuestionsParams.serializer(), answer.answer).also { require(it.questionsId == answer.requestId) }.answers)
             null -> false
         }
+    }
+
+    private suspend fun browserOwner(owner: BrowserOwner) {
+        val a = agent(owner.agentId)
+        check(harness.store.entries(a, owner.sessionId).isNotEmpty()) { "No Session '${owner.sessionId}'" }
     }
 
     private suspend fun send(p: SendParams): SendResult {
