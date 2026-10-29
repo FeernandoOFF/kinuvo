@@ -28,11 +28,14 @@ class LiveViewScreenTest {
         val bytes = java.io.ByteArrayOutputStream().also { javax.imageio.ImageIO.write(image,"png",it) }.toByteArray()
         val owner = BrowserOwner("Fern", "Travel planning")
         val ref = ScreenRef("browser", "tab", owner)
+        val previewRef = ref.copy(id = "preview")
+        val missingRef = ref.copy(id = "missing")
         for ((width,height) in listOf(390 to 844, 1200 to 850)) for (mode in listOf("watch", "held", "request", "suspended", "reconnect", "offline", "empty")) {
             val control = when(mode) { "held" -> ScreenControl(1,"device"); "suspended" -> ScreenControl(1,"other",true); else -> ScreenControl() }
             val frame = ScreenFrame(ref,"sub","epoch",1,ScreenSample(Base64.encode(bytes),1280,800,"1280:800"))
             val info = ScreenInfo(ref,"Cedar — Your account",ScreenCapabilities(ScreenDelivery.Continuous,setOf("tap","scroll","type","key"),navigation=true,tabs=true,keys=listOf("Tab", "Escape", "Enter")),ScreenStatus.Ready,control, active=mode=="watch", currentUrl="https://cedar.example/account")
-            val state = LiveViewState(screens=if(mode=="empty") emptyList() else listOf(info), selected=ref, connected=mode!="offline", loaded=true, device="device", subscription=ScreenSubscription("sub","epoch"),frame=if(mode=="empty") null else frame,displayed=frame,owner=owner, frameReceivedAt="2026-10-29T16:00:00Z", pending=mode=="reconnect", requestReason=if(mode=="request") "Sign in to continue" else null)
+            val preview = frame.copy(screen = previewRef, subscription = "preview-sub")
+            val state = LiveViewState(screens=if(mode=="empty") emptyList() else listOf(info, info.copy(ref = previewRef, title = "Cedar — Plans"), info.copy(ref = missingRef, title = "Loading tab")), thumbnails=mapOf(previewRef to preview), selected=ref, connected=mode!="offline", loaded=true, device="device", subscription=ScreenSubscription("sub","epoch"),frame=if(mode=="empty") null else frame,displayed=frame,owner=owner, frameReceivedAt="2026-10-29T16:00:00Z", pending=mode=="reconnect", requestReason=if(mode=="request") "Sign in to continue" else null)
             val drawn = mutableListOf<ScreenFrame>()
             ImageComposeScene(width*2,height*2,Density(2f), content={ HarnessTheme(dark=true) { androidx.compose.runtime.CompositionLocalProvider(kinuvo.ui.navigation.LocalHomeChrome provides kinuvo.ui.navigation.HomeChrome({}, width >= 760)) { LiveViewContent(state,LiveActions(drawn = { drawn.add(it) }), ({}).takeIf { width < 760 }) } } }).use { scene ->
                 repeat(15) { scene.render(it*100_000_000L); Thread.sleep(10) }
@@ -49,6 +52,15 @@ class LiveViewScreenTest {
                     tabs.config[SemanticsActions.OnClick].action!!.invoke()
                     repeat(15) { scene.render(3_000_000_000L + it * 100_000_000L); Thread.sleep(10) }
                     File("build/screens/live-$width-overview.png").writeBytes(scene.render(5_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+                    assertTrue(preview in drawn, "Subscribed thumbnail must render and acknowledge")
+                    val overviewTree = scene.semanticsOwners.flatMap { nodes(it.rootSemanticsNode) }
+                    assertEquals(3, overviewTree.count { "Live screen" in it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() })
+                    assertTrue(overviewTree.any { it.config.getOrNull(SemanticsProperties.Text).orEmpty().any { it.text == "Loading tab" } })
+                    if (width >= 760) {
+                        tabs.config[SemanticsActions.OnClick].action!!.invoke()
+                        repeat(5) { scene.render(6_000_000_000L + it * 100_000_000L) }
+                        assertFalse(scene.semanticsOwners.flatMap { nodes(it.rootSemanticsNode) }.any { it.config.getOrNull(SemanticsProperties.Text).orEmpty().any { it.text == "Cedar — Plans" } })
+                    }
                 }
                 if (mode == "held") {
                     val keyboard = tree.first { it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty().any { it == "Keyboard" } && it.config.getOrNull(SemanticsActions.OnClick) != null }
@@ -65,15 +77,42 @@ class LiveViewScreenTest {
         val bytes = java.io.ByteArrayOutputStream().also { javax.imageio.ImageIO.write(image, "png", it) }.toByteArray()
         val first = ScreenFrame(ScreenRef("computer", "one"), "sub", "epoch", 1, ScreenSample(Base64.encode(bytes), 100, 100, "first"))
         val frame = androidx.compose.runtime.mutableStateOf(first)
-        val sent = mutableListOf<ScreenFrame>()
-        ImageComposeScene(100, 100, Density(1f), content = { HarnessTheme { LiveCanvas(frame.value, true, { f, _ -> sent.add(f) }, {}, {}) } }).use { scene ->
+        val sent = mutableListOf<Pair<ScreenFrame, List<ScreenAction>>>()
+        ImageComposeScene(100, 100, Density(1f), content = { HarnessTheme { LiveCanvas(frame.value, true, { f, actions -> sent.add(f to actions) }, {}, {}) } }).use { scene ->
             repeat(15) { scene.render(it * 100_000_000L); Thread.sleep(10) }
             scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Press, androidx.compose.ui.geometry.Offset(20f,20f), timeMillis = 2000, type = androidx.compose.ui.input.pointer.PointerType.Touch)
             frame.value = first.copy(sequence = 2, sample = first.sample.copy(width = 200, geometry = "second"))
             repeat(15) { scene.render(2_100_000_000L + it * 10_000_000L); Thread.sleep(10) }
             scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Release, androidx.compose.ui.geometry.Offset(20f,20f), timeMillis = 2400, type = androidx.compose.ui.input.pointer.PointerType.Touch)
             scene.render(2_500_000_000L)
-            assertEquals(listOf(first), sent)
+            assertEquals(listOf(first to listOf(ScreenAction(ScreenActionKind.Tap, x = 20, y = 20))), sent)
+        }
+    }
+    @Test fun gestureCannotCrossScreenEpochOrControlGeneration() = javax.swing.SwingUtilities.invokeAndWait {
+        val image = java.awt.image.BufferedImage(100, 100, java.awt.image.BufferedImage.TYPE_INT_RGB)
+        val bytes = java.io.ByteArrayOutputStream().also { javax.imageio.ImageIO.write(image, "png", it) }.toByteArray()
+        val first = ScreenFrame(ScreenRef("computer", "one"), "sub", "epoch", 1, ScreenSample(Base64.encode(bytes), 100, 100, "geometry"))
+        for (change in listOf("screen", "epoch", "generation", "interactive")) {
+            val frame = androidx.compose.runtime.mutableStateOf(first)
+            val generation = androidx.compose.runtime.mutableStateOf(1L)
+            val interactive = androidx.compose.runtime.mutableStateOf(true)
+            val sent = mutableListOf<ScreenFrame>()
+            ImageComposeScene(100, 100, Density(1f), content = { HarnessTheme {
+                LiveCanvas(frame.value, interactive.value, { f, _ -> sent.add(f) }, {}, {}, generation = generation.value)
+            } }).use { scene ->
+                repeat(15) { scene.render(it * 100_000_000L); Thread.sleep(10) }
+                scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Press, androidx.compose.ui.geometry.Offset(20f,20f), timeMillis = 2000, type = androidx.compose.ui.input.pointer.PointerType.Touch)
+                when (change) {
+                    "screen" -> frame.value = first.copy(screen = first.screen.copy(id = "two"))
+                    "epoch" -> frame.value = first.copy(epoch = "next")
+                    "generation" -> generation.value++
+                    else -> interactive.value = false
+                }
+                repeat(15) { scene.render(2_100_000_000L + it * 10_000_000L); Thread.sleep(10) }
+                scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Release, androidx.compose.ui.geometry.Offset(20f,20f), timeMillis = 2400, type = androidx.compose.ui.input.pointer.PointerType.Touch)
+                scene.render(2_500_000_000L)
+                assertTrue(sent.isEmpty(), "Gesture crossed $change")
+            }
         }
     }
     private fun nodes(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::nodes)
