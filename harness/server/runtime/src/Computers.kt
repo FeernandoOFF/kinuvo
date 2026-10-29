@@ -180,8 +180,12 @@ class Computers(
         val computer = computer(id)
         return object : ScreenSource {
             override val ref = ScreenRef("computer", id)
-            override val capabilities = ScreenCapabilities(ScreenDelivery.CaptureRefresh, computer.actions.filterNot { it in SERVER_ACTIONS }.map { it.action }.toSet(),
-                windows = ComputerActionKind.ListWindows in computer.actions)
+            override val capabilities = ScreenCapabilities(ScreenDelivery.CaptureRefresh, computer.actions.map { it.action }.intersect(ScreenActionKind.entries.map { it.action }.toSet()),
+                windows = false, keys = if (ComputerActionKind.Key !in computer.actions) emptyList() else when (computer.platform.lowercase()) {
+                    "android" -> listOf("Back", "Home", "Recents", "Notifications", "Quick_settings")
+                    "macos", "windows", "linux" -> listOf("Tab", "Escape", "Backspace", "Up", "Down", "Left", "Right", "Enter")
+                    else -> emptyList()
+                })
             override fun frames(thumbnail: Boolean): Flow<ScreenSample> = callbackFlow {
                 val watcher: (ComputerFrame) -> Unit = { frame ->
                     if (!frame.computer.available || frame.screen == null && frame.message != null) close(IllegalStateException(frame.message ?: "Computer is offline"))
@@ -485,7 +489,7 @@ class Computers(
             control(computer.id) { it.copy(request = reason) }
             try {
                 log.publish(context.agent, sessionId, AgentEvent.QuestionsAsked(pending.id, callId, "Take over ${computer.name}: $reason. Open Computers to watch and act, then hand it back.",
-                    listOf(Question("note", "Note for the Agent (optional)", placeholder = "Done, or what happened"))))
+                    listOf(Question("note", "Note for the Agent (optional)", placeholder = "Done, or what happened")), ScreenRef("computer", computer.id)))
                 val outcome = coroutineScope {
                     val answer = async { pending.await() }
                     val handedBack = async {

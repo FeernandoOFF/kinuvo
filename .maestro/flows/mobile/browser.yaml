@@ -10,11 +10,13 @@ properties:
       atLeast: 1
     - stub: mobile/browser-frame
       atLeast: 1
+    - stub: mobile/browser-ack
+      atLeast: 1
 ---
 - runFlow: ../../shared/start-chat.yaml
 - tapOn: "Browser"
 - assertVisible: "Private site"
-- assertVisible: "Screen of Browser"
+- assertVisible: "Live screen"
 - assertVisible: "Take over"
 - tapOn: "Back"
 - assertVisible: "Hello from WireMock"

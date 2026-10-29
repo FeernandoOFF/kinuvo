@@ -5,7 +5,7 @@ description: "Commands and options implemented by the kinuvo CLI."
 
 The CLI manages the Server on its own machine. `kinuvo` alone runs a Server. Most management commands connect to the running Server, or briefly start a local Server without scheduling Routines when none is running. Pairing and Device commands require a running Server.
 
-Global options: `-a, --agent ID` selects an Agent (also `KINUVO_AGENT`; defaults to the first Agent), `--version` prints the version, and `--help` shows help. Place Agent selection before the command. `KINUVO_HOME` selects the data home. In a pinned checkout, use [mise commands](../local-testing.md).
+Global options: `-a, --agent ID` selects an Agent (also `KINUVO_AGENT`; defaults to the first Agent), `--version` prints the version, and `--help` shows help. Place Agent selection before the command. `KINUVO_HOME` selects the data home. See [mise commands](../local-testing.md) for personal and test desktop homes.
 
 ## Server and login
 

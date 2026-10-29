@@ -34,7 +34,7 @@ class ScreenViewTest {
         val frame = assertNotNull(view.poll())
         view.ack(ack(frame))
         val input = ScreenInput(ack(frame), "geometry", held.generation, 0,
-            List(3) { ComputerAction(ComputerActionKind.Key, key = "enter") })
+            List(3) { ScreenAction(ScreenActionKind.Key, key = "enter") })
         var calls = 0
         val result = view.input("device", input, gate) { calls++; gate.disconnect("device") }
         assertEquals(1, calls)
@@ -50,7 +50,7 @@ class ScreenViewTest {
         val frame = assertNotNull(view.poll())
         view.ack(ack(frame))
         val input = ScreenInput(ack(frame), "geometry", held.generation, 0,
-            listOf(ComputerAction(ComputerActionKind.Tap, x = 10, y = 10), ComputerAction(ComputerActionKind.Type, text = "test")))
+            listOf(ScreenAction(ScreenActionKind.Tap, x = 10, y = 10), ScreenAction(ScreenActionKind.Type, text = "test")))
         assertFailsWith<IllegalStateException> { view.input("other", input, gate) {} }
         var calls = 0
         assertEquals(1, view.input("device", input, gate) { if (++calls == 2) error("driver failure") }.applied)

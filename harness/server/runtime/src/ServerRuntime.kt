@@ -304,6 +304,7 @@ class ServerRuntime(
         }
         var window = TimeSource.Monotonic.markNow()
         var messages = 0
+        var screenAcks = 0
         val writer = requests.launch { try { while (isActive) {
             val next = client.outbox.tryReceive().getOrNull()?.let { false to it } ?: select<Pair<Boolean, Frame?>> {
                 client.outbox.onReceiveCatching { it.isClosed to it.getOrNull() }
@@ -324,7 +325,14 @@ class ServerRuntime(
         var authed = false
         try {
             connection.incoming.collect { decoded ->
-                if (window.elapsedNow().inWholeMilliseconds >= 60_000) { window = TimeSource.Monotonic.markNow(); messages = 0 }
+                if (window.elapsedNow().inWholeMilliseconds >= 60_000) { window = TimeSource.Monotonic.markNow(); messages = 0; screenAcks = 0 }
+                if (authed && client.valid() && client.closeAfterResponse == null && decoded is Frame.Request && decoded.method == Api.ScreenAck.name) {
+                    if (++screenAcks > security.screenAcksPerMinute) { client.disconnect(); return@collect }
+                    val response = handle(decoded, client)
+                    if (!response.ok && ++messages > security.messagesPerMinute) { client.disconnect(); return@collect }
+                    client.outbox.send(response)
+                    return@collect
+                }
                 if (++messages > security.messagesPerMinute) { log.warn { "Closing a connection: over ${security.messagesPerMinute} messages a minute" }; client.disconnect(); return@collect }
                 if (authed && !client.valid()) { if (client.closeAfterResponse == null) client.disconnect(); return@collect }
                 if (client.closeAfterResponse != null) return@collect
@@ -342,7 +350,7 @@ class ServerRuntime(
                         client.token = token
                         if (!client.linked) client.refreshTools(p.deviceTools, initial = true)
                         if (!client.linked && auth.management(token)) p.timeZone?.let { zone -> runCatching { harness.timeZone = TimeZone.of(zone) } }
-                        ConnectResult(token, name, harness.usage.value, capabilities, !client.linked && auth.management(token))
+                        ConnectResult(token, name, harness.usage.value, capabilities, !client.linked && auth.management(token), deviceId = client.deviceId)
                     }
                     if (!response.ok) client.closeAfterResponse = request.id
                     client.outbox.send(response)

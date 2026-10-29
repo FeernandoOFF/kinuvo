@@ -81,7 +81,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
 
     override fun screen(owner: BrowserOwner, tabId: String): ScreenSource = object : ScreenSource {
         override val ref = ScreenRef("browser", tabId, owner)
-        override val capabilities = ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap", "type", "key", "scroll"), navigation = true, tabs = true)
+        override val capabilities = ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap", "type", "key", "scroll"), navigation = true, tabs = true, keys = listOf("Tab", "Escape", "Backspace", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter"), modifiers = listOf("Control", "Meta", "Alt", "Shift"))
         override fun frames(thumbnail: Boolean): Flow<ScreenSample> = flow {
             withContext(dispatcher) {
                 check(!closed) { "Browser is closed" }
@@ -230,7 +230,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
             check(user || !tab.takeover) { "The user controls this tab; wait for handback before capturing" }
             return@withContext capture(tab, semantic = !user)
         }
-        if (user) check(tab.takeover) { "Take over this tab before sending input" }
+        if (user) check(tab.takeover || c.action == BrowserAction.Close) { "Take over this tab before sending input" }
         else check(!tab.takeover) { "The user controls this tab. Wait for them to hand it back, then capture again." }
         if (!user) check(tab.observedGeneration == tab.gate.state.value.generation) { "Screen control changed; capture again" }
         val page = tab.page
@@ -282,7 +282,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
             }
         }
         page.onClose { gates.remove(ScreenRef("browser", tab.id, owner)); tab.gate.close(); tabs.remove(tab.id); streams.remove(tab.id); persist(); changed(owner) }
-        page.onFrameNavigated { if (it == page.mainFrame()) persist() }
+        page.onFrameNavigated { if (it == page.mainFrame()) { persist(); changed(owner) } }
         page.onDialog { it.dismiss() }
         return tab
     }
@@ -418,7 +418,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
         fun allowed(value: String): Boolean = runCatching {
             if (value == "about:blank") true else URI(value).let { it.scheme?.lowercase() in setOf("http", "https") && !it.host.isNullOrBlank() && it.userInfo == null }
         }.getOrDefault(false)
-        private fun url(value: String): String { require(allowed(value)) { "Browser navigation requires http(s) or about:blank, without embedded credentials" }; return value }
+        private fun url(value: String): String = browserAddress(value).also { require(allowed(it)) { "Browser navigation requires http(s) or about:blank, without embedded credentials" } }
         private fun coordinate(value: Int?, limit: Int): Double { require(value != null && value in 0 until limit) { "Input is outside the browser viewport" }; return value.toDouble() }
         private fun key(value: String): String = value.split('+').joinToString("+") {
             when (it.lowercase()) { "enter", "return" -> "Enter"; "escape" -> "Escape"; "delete" -> "Backspace"; "tab" -> "Tab"; "space" -> "Space"; "up" -> "ArrowUp"; "down" -> "ArrowDown"; "left" -> "ArrowLeft"; "right" -> "ArrowRight"; "ctrl" -> "Control"; "cmd" -> "Meta"; "alt", "option" -> "Alt"; "shift" -> "Shift"; else -> it.take(20) }

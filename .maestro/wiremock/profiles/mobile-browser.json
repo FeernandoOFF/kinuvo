@@ -4,7 +4,7 @@
     "ws/agents",
     "ws/catch-up",
     "ws/chat-send",
-    "ws/connect",
+    "mobile/browser-connect",
     "ws/create-session",
     "ws/device-tools",
     "ws/models",
@@ -18,6 +18,8 @@
     "ws/providers",
     "mobile/browser-capabilities",
     "mobile/browser-tabs",
-    "mobile/browser-frame"
+    "mobile/browser-frame",
+    "mobile/browser-ack",
+    "mobile/browser-unwatch"
   ]
 }

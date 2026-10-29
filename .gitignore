@@ -16,9 +16,7 @@ xcuserdata/
 .maestro/wiremock/*.jar
 shared/ui/avatars/
 
-# Local development data pins and independent checkouts
-/.kinuvo-home
-/.kinuvo-port
+# Independent checkouts
 /.worktrees/
 
 /docs/local-testing.local.md

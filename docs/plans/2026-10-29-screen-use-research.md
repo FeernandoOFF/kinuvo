@@ -1,4 +1,6 @@
-# Computer use + Browser use: research for design
+---
+title: "Computer use + Browser use: research for design"
+---
 
 Date: 2026-10-29. Research only; no implementation, revert, builds, tests, Server/app/device launches, commits or PRs performed.
 
@@ -6,7 +8,7 @@ Date: 2026-10-29. Research only; no implementation, revert, builds, tests, Serve
 
 Kinuvo inspected at `0ad0aacd14dc4b3f2fdee80749742c5d70bead6f`. Removed Browser inspected with `git show 5cc083d^:<path>`, at parent `186587e6fe22f5129adf1581dfacc0099946e990`. Read checkout `AGENTS.md`, `CONTEXT.md`, and `docs/local-testing.md` first. This report uses Computer, Device, Server, Agent, Session, Live view, Takeover and Approval in their Kinuvo meanings. Browser storage profiles are implementation details, not a replacement name for Agent.
 
-Read the first browser summary and paginated the following relevant messages of the [prior exploration](<t3-thread://v2/8d38104a-8049-4f38-80e4-209b37a061fa/a521d05b-87bb-432c-93cc-348f520b8e27>) (positions 0–38, messages view; not the huge activity history). Its substantive summary at position 14 correctly distinguishes Electron Chromium/CDP/persistent profiles, tab thumbnails, and a separate interactive screencast/input connection. Position 19 records earlier user choices: alongside the Server, paired Device access, phone Takeover, sidebar plus Live view sufficient, private-network sites allowed. Those are useful context, not authorization to implement this new design.
+Read the first browser summary and paginated the following relevant messages of the prior exploration (T3 thread a521d05b) (positions 0–38, messages view; not the huge activity history). Its substantive summary at position 14 correctly distinguishes Electron Chromium/CDP/persistent profiles, tab thumbnails, and a separate interactive screencast/input connection. Position 19 records earlier user choices: alongside the Server, paired Device access, phone Takeover, sidebar plus Live view sufficient, private-network sites allowed. Those are useful context, not authorization to implement this new design.
 
 Evidence labels below:
 

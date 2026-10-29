@@ -10,7 +10,7 @@ enum class ScreenDelivery { Continuous, CaptureRefresh }
 
 @Serializable
 data class ScreenCapabilities(val delivery: ScreenDelivery, val inputs: Set<String>, val navigation: Boolean = false,
-    val tabs: Boolean = false, val windows: Boolean = false)
+    val tabs: Boolean = false, val windows: Boolean = false, val keys: List<String> = emptyList(), val modifiers: List<String> = emptyList())
 
 @Serializable
 enum class ScreenStatus { Provisioning, Ready, Unavailable, Failed }
@@ -21,7 +21,7 @@ data class ScreenControl(val generation: Long = 0, val holder: String? = null, v
 
 @Serializable
 data class ScreenInfo(val ref: ScreenRef, val title: String, val capabilities: ScreenCapabilities,
-    val status: ScreenStatus, val control: ScreenControl = ScreenControl(), val active: Boolean = false)
+    val status: ScreenStatus, val control: ScreenControl = ScreenControl(), val active: Boolean = false, val currentUrl: String? = null)
 
 /** Pixels and coordinate metadata are one indivisible source sample. Scroll deltas use CSS/display pixels. */
 @Serializable
@@ -37,7 +37,7 @@ data class ScreenFrameAck(val subscription: String, val epoch: String, val seque
 
 @Serializable
 data class ScreenInput(val frame: ScreenFrameAck, val geometry: String, val generation: Long, val sequence: Long,
-    val actions: List<ComputerAction>)
+    val actions: List<ScreenAction>)
 
 @Serializable
 data class ScreenInputResult(val applied: Int, val message: String? = null)
@@ -55,10 +55,24 @@ data class ScreenControlRequest(val screen: ScreenRef, val generation: Long, val
 data class ScreenInputRequest(val subscription: String, val input: ScreenInput)
 
 @Serializable
-data class ScreenCommand(val screen: ScreenRef, val generation: Long, val action: BrowserAction, val text: String? = null)
+data class ScreenCommand(val screen: ScreenRef, val generation: Long, val action: ScreenCommandKind, val text: String? = null)
 
 @Serializable
 data class ScreenStreamStatus(val subscription: String, val status: ScreenStatus, val message: String? = null)
 
 @Serializable
 data class ScreenOpen(val owner: BrowserOwner, val url: String = "about:blank")
+
+@Serializable
+enum class ScreenCommandKind { Navigate, Close }
+
+@Serializable
+enum class ScreenActionKind(val action: String) {
+    Tap("tap"), DoubleTap("double_tap"), LongPress("long_press"), RightClick("right_click"),
+    Swipe("swipe"), Scroll("scroll"), Type("type"), Key("key")
+}
+
+@Serializable
+data class ScreenAction(val kind: ScreenActionKind, val x: Int? = null, val y: Int? = null,
+    val toX: Int? = null, val toY: Int? = null, val text: String? = null, val key: String? = null,
+    val direction: String? = null)
