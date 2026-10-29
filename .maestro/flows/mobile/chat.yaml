@@ -15,13 +15,4 @@ properties:
     - stub: ws/chat-send
       exactly: 1
 ---
-- launchApp
-- assertVisible: "Connect a server"
-- tapOn: "From kinuvo pair"
-- inputText: "123456"
-- tapOn: "Connect"
-- assertVisible: "Start a session with E2E Agent"
-- tapOn: "Message"
-- inputText: "Hello from Maestro"
-- tapOn: "Send"
-- assertVisible: "Hello from WireMock"
+- runFlow: ../../shared/start-chat.yaml

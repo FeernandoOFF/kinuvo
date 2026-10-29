@@ -11,11 +11,7 @@ properties:
     - stub: mobile/approval-allow
       exactly: 1
 ---
-- runFlow: ../../shared/pair-mobile.yaml
-- tapOn: "Message"
-- inputText: "Hello from Maestro"
-- tapOn: "Send"
-- assertVisible: "Hello from WireMock"
+- runFlow: ../../shared/start-chat.yaml
 - runScript:
     file: ../../shared/send-message.js
     env:

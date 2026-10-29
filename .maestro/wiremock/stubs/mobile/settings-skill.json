@@ -1,0 +1,33 @@
+{
+  "name": "mobile/settings-skill",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "skill.get"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"info\":{\"name\":\"daily\",\"description\":\"Daily planning instructions\",\"scope\":\"Agent\",\"active\":true},\"content\":\"Original instructions\",\"files\":[]}}"
+        }
+      }
+    }
+  ]
+}

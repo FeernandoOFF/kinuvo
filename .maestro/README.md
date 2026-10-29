@@ -53,11 +53,10 @@ Run all shared flows on iOS (smoke and regression) with:
 Add `--skip-build` when the current debug build is already installed. These flows
 exercise the default Compose shell on Android and iOS:
 
+- `settings-journey.yaml`: one connection and chat across Home, Agent settings, nested Back and scroll restoration, Keep editing/Discard, Skill edit/discard/save, Workspace, Routine draft guards, Tools, Model providers, Harnesses, and an Agent rename. Server request checks ensure only the intended saves are sent.
 - `chat.yaml`: pairing, Session creation, message sending and the pushed reply.
 - `attachment-picker.yaml`: Files remains enabled for a model with text and image modalities and opens the native file picker.
 - `pairing-rejected.yaml`: an expired pairing code stays on the connection screen.
-- `home-inspector.yaml`: owner rail and Home on phones: open the drawer by an edge swipe and the bubble, Home → Today, Back to the chat, then the Agent settings bottom sheet from the Agent pill (nested Risk tolerance page and Back, unsaved-changes dialog with Keep editing and Discard) with the transcript and composer draft intact; no `agent.update` is sent.
-- `agent-settings-save.yaml`: rename the Agent in the Agent settings sheet, Save, and verify the `agent.update` request; the sheet stays open and shows Saved.
 - `board.yaml`: open Board from Home in the drawer, load Tasks, create one, receive a live Task update, and show Done.
 - `knowledge.yaml`: open Knowledge from Home in the drawer, empty search, matching search, Note details, linked Notes and back navigation.
 - `approval-streaming.yaml`: streamed text, a tool Approval, Allow once, and the completed reply.
@@ -65,7 +64,6 @@ exercise the default Compose shell on Android and iOS:
 - `tool-error.yaml`: a failed tool result and the Agent's error reply.
 - `approval-deny.yaml`: deny with a note and verify that exact decision reaches the Server.
 - `session-details.yaml`: favorite and rename the open Session from its "…" menu, then find it under Favorites.
-- `model-providers.yaml`: show API-key providers and keyless local endpoints in Model providers settings.
 - `computers.yaml`: open Computers from Home in the drawer, Live view of a Computer: a pushed frame, Take over, a key from the controls and Hand back.
 - `session-return.yaml`: open Board from Home, receive an event on Board, return to the Session, then background/resume without losing its transcript or resending the message.
 
