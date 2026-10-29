@@ -173,12 +173,18 @@ class HarnessTest {
         assertEquals(ExternalPrompt.OpenLink("u", "Open the page", "https://x", "x"), url.prompt())
     }
 
-    @Test fun linkingNeedsASecureAddressANameAndACode() {
+    @Test fun linkingNeedsAnAddressANameAndACodeAndWarnsAboutPlainHttp() {
         assertEquals(listOf("Name is required", "Address is required", "Link code is required"), LinkForm().problems(emptyList()))
         val form = LinkForm("Studio", "studio.example.com", "code")
         assertEquals("wss://studio.example.com:443/ws", form.address)
         assertTrue(form.problems(listOf(claude)).isEmpty())
-        assertEquals(listOf("Use the other Server's https:// address"), form.copy(url = "http://studio.example.com").problems(emptyList()))
+        assertFalse(form.cleartext)
+        val plain = form.copy(url = "http://studio.example.com:8787")
+        assertEquals("ws://studio.example.com:8787/ws", plain.address)
+        assertTrue(plain.problems(emptyList()).isEmpty())
+        assertTrue(plain.cleartext)
+        assertFalse(form.copy(url = "http://192.168.1.20:8787").cleartext)
+        assertEquals(listOf("Use the other Server's http(s) address"), form.copy(url = "ftp://studio.example.com").problems(emptyList()))
         val connection = form.connection(listOf(claude))
         assertEquals(HarnessConnection("studio", "Studio", ExecutionConnection.Remote("studio"), "Studio"), connection)
     }

@@ -177,7 +177,10 @@ fun cwdProblem(cwd: String): String? = when {
  */
 data class LinkForm(val name: String = "", val url: String = "", val token: String = "", val linking: Boolean = false) {
     /** The address as the Server connects to it, or null when it isn't one. */
-    val address get() = runCatching { normalizeUrl(url) }.getOrNull()?.takeIf { it.startsWith("wss://") || it.startsWith("ws://localhost:") || it.startsWith("ws://127.0.0.1:") }
+    val address get() = runCatching { normalizeUrl(url, allowCleartext = true) }.getOrNull()
+
+    /** Whether the link code would cross a public network unencrypted. */
+    val cleartext get() = address?.let { it.startsWith("ws://") && !privateNetworkHost(it.substringAfter("://").substringBefore('/').let { a -> if (a.startsWith('[')) a.substringBefore(']') + "]" else a.substringBefore(':') }) } == true
 
     fun problems(connections: List<HarnessConnectionStatus>): List<String> = buildList {
         val trimmed = name.trim()
@@ -185,7 +188,7 @@ data class LinkForm(val name: String = "", val url: String = "", val token: Stri
         else if (trimmed.length > AgentDraft.MaxName) add("Name is at most ${AgentDraft.MaxName} characters")
         else if (connections.any { it.config.name.trim().equals(trimmed, ignoreCase = true) }) add("Another harness is called $trimmed")
         if (url.isBlank()) add("Address is required")
-        else if (address == null) add("Use the other Server's https:// address")
+        else if (address == null) add("Use the other Server's http(s) address")
         if (token.isBlank()) add("Link code is required")
     }
 

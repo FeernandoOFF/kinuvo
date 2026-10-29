@@ -57,6 +57,7 @@ dependencies@android:
   - io.insert-koin:koin-android:4.2.2: exported
   - androidx.activity:activity-compose:1.13.0
   - androidx.browser:browser:1.9.0
+  - com.google.android.gms:play-services-code-scanner:16.1.0
 
 test-dependencies:
   - $kotlin.test

@@ -64,9 +64,8 @@ class NativeApp {
             initialUrl = state.pendingPair?.server ?: (state.connection as? Connection.Unpaired)?.server?.url ?: koin.get<Device>().serverUrl,
             pending = state.pendingPair,
             initialName = (state.connection as? Connection.Unpaired)?.server?.name.orEmpty(),
-            onRenameServer = viewModel::rename,
-            onForgetServer = { viewModel.forget(it) },
             onCancel = state.returnTo?.let { { viewModel.cancelAddServer() } },
+            from = state.returnTo,
         )
     }
 

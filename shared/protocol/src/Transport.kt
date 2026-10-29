@@ -16,11 +16,12 @@ fun privateNetworkHost(value: String): Boolean {
         parts[0] == 172 && parts[1] in 16..31 || parts[0] == 100 && parts[1] in 64..127 || parts[0] == 169 && parts[1] == 254
 }
 
-fun requireSecureTransport(url: String) {
+/** Checks [url] is a Server address; cleartext ones must be local or private unless [allowCleartext]. */
+fun requireSecureTransport(url: String, allowCleartext: Boolean = false) {
     val scheme = url.substringBefore("://")
     require(scheme in setOf("ws", "wss")) { "Use a WebSocket Server URL" }
     val authority = url.substringAfter("://").substringBefore('/')
     require(authority.isNotBlank() && authority.none { it in "@?#\\" || it.isWhitespace() }) { "Invalid Server address" }
     val host = if (authority.startsWith('[')) authority.substringBefore(']') + "]" else authority.substringBefore(':')
-    require(scheme == "wss" || privateNetworkHost(host)) { "Public Servers require HTTPS/WSS" }
+    require(scheme == "wss" || allowCleartext || privateNetworkHost(host)) { "Public Servers require HTTPS/WSS" }
 }

@@ -42,6 +42,8 @@ class KinuvoClient(
     /** Controls this Device's screen; unlike reads, it works while the app is in the background. */
     private val computer: suspend (ComputerRequest) -> ComputerResult = { ComputerResult(DeviceToolStatus.Unsupported) },
     private val connection: (suspend () -> FrameConnection)? = null,
+    /** Lets a public Server be reached over plain ws://, e.g. a linked Server without TLS. */
+    private val allowCleartext: Boolean = false,
 ) {
     private val http by lazy { httpClient { install(WebSockets) { maxFrameSize = MAX_FRAME_SIZE } } }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -83,7 +85,7 @@ class KinuvoClient(
                 var reader: Job? = null
                 try {
                     val params = ConnectParams(device, token, if (token == null) pairingCode else null, timeZone, deviceTools())
-                    val prepared = if (connection == null) { requireSecureTransport(url); http.prepareConnect(url, params) } else params
+                    val prepared = if (connection == null) { requireSecureTransport(url, allowCleartext); http.prepareConnect(url, params) } else params
                     val ws = connection?.invoke() ?: http.connection(url)
                     socket = ws
                     session = ws

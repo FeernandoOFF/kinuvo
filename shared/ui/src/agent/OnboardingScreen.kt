@@ -7,6 +7,10 @@ import kinuvo.ui.board.*
 import kinuvo.ui.navigation.*
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionLayout
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.*
@@ -94,7 +98,6 @@ private val Subtitles = listOf(
     "Kinuvo's own Agent, or an agent you already use, started by this Server.",
     "Only Agents the other Server shares with linked Servers.",
 )
-private val Pitches = listOf("Remembers what matters to you.", "Checks in while you sleep.", "Researches the web for you.", "Lives on your own Server.")
 private val TraitIcons = listOf(Lucide.Heart to Lucide.Briefcase, Lucide.Smartphone to Lucide.Newspaper, Lucide.Rocket to Lucide.Users, Lucide.Laugh to Lucide.Glasses, Lucide.Flower to Lucide.Flame)
 internal val AvatarInk = listOf(Color(0xFFA98BF0), Color(0xFFFF7A2F), Color(0xFF20C985), Color(0xFFFF6B6B), Color(0xFF2F8CFF), Color(0xFFFFB321), Color(0xFFE0559F), Color(0xFF9C6440))
 private val LocalTint = compositionLocalOf { AvatarInk[0] }
@@ -110,39 +113,41 @@ internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel
     val config = org.koin.compose.koinInject<ConfigRepository>()
     val attached by config.connected.collectAsState()
     LaunchedEffect(ready?.client, attached, a.agents.firstOrNull()?.id) {
-        onboarding.load(a.agents.firstOrNull().takeIf { ready != null && attached })
+        onboarding.load(a.agents.firstOrNull().takeIf { ready != null && attached }, keepLook = true)
     }
-    var local by rememberSaveable { mutableStateOf(a.pendingPair == null && Server.Embedded in a.servers) }
     val url = rememberTextFieldState(a.pendingPair?.server ?: org.koin.compose.koinInject<Device>().serverUrl)
     val code = rememberTextFieldState(a.pendingPair?.code.orEmpty())
     val alias = rememberTextFieldState()
-    LaunchedEffect(a.pendingPair) { a.pendingPair?.let {
-        url.setTextAndPlaceCursorAtEnd(it.server); code.setTextAndPlaceCursorAtEnd(it.code); local = false
-        onboarding.edit { s -> if (s.step == 0) s.copy(step = 1) else s }
-    } }
+    var manual by rememberSaveable { mutableStateOf(a.pendingPair != null) }
+    LaunchedEffect(a.pendingPair) { a.pendingPair?.let { url.setTextAndPlaceCursorAtEnd(it.server); code.setTextAndPlaceCursorAtEnd(it.code); manual = true } }
     LaunchedEffect(url) {
         snapshotFlow { url.text.toString() }.collect { text -> Links.parsePair(text)?.let {
             url.setTextAndPlaceCursorAtEnd(it.server); code.setTextAndPlaceCursorAtEnd(it.code)
         } }
     }
     var advancing by rememberSaveable { mutableStateOf(false) }
+    var scanError by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(s.details, advancing, ready?.client) {
         if (advancing && ready != null && s.details != null) { onboarding.edit { it.copy(step = 2) }; advancing = false }
     }
     LaunchedEffect(a.connection, s.error) { if (a.connection is Connection.Unpaired || s.error != null) advancing = false }
+    // Connecting to a Server only carries on once its Agent has loaded; one already connected carries on right away.
+    val connect = { server: Server ->
+        scanError = null
+        if (ready?.server == server && s.details != null) onboarding.edit { it.copy(step = 2) }
+        else { advancing = true; if (ready?.server == server) onboarding.load(a.agents.firstOrNull(), keepLook = true) else app.use(server) }
+    }
+    val pair = { link: String, pairing: String ->
+        scanError = null; advancing = true; app.pair(link, pairing, alias.value())
+    }
+    val scan = kinuvo.ui.connection.rememberQrScanner { text ->
+        val link = Links.parsePair(text)
+        if (link == null) scanError = "That QR code isn't a Kinuvo pairing code. Pair a device on your Server and scan the code it shows."
+        else pair(link.server, link.code)
+    }
     val account = s.providers.firstOrNull { it.id == s.provider }
     val next = { onboarding.edit { it.moved(1) } }
     val action = when {
-        s.step == 0 -> OnboardingAction("Get started", run = next)
-        s.step == 1 -> OnboardingAction(if (advancing) "Connecting…" else "Continue", !advancing && (local || url.value().isNotBlank() && code.value().isNotBlank())) {
-            val selected = if (local) Server.Embedded else ready?.server?.takeIf {
-                it is Server.Remote && it.url == runCatching { normalizeUrl(url.value()) }.getOrNull()
-            }
-            if (selected != null && ready?.server == selected) {
-                if (s.details != null) onboarding.edit { it.copy(step = 2) }
-                else { advancing = true; onboarding.load(a.agents.firstOrNull()) }
-            } else { advancing = true; if (local) app.use(Server.Embedded) else app.pair(url.value(), code.value(), alias.value()) }
-        }
         s.step == 2 && account?.apiKey != null && s.apiKey.isNotBlank() -> OnboardingAction("Save key") { onboarding.saveKey(s.apiKey) }
         s.step == 2 && account?.account?.signedIn == false && s.deviceCode == null -> OnboardingAction("Sign in to ${account.name}") { onboarding.login() }
         s.step == 2 && account?.account?.signedIn == false -> OnboardingAction("I've signed in") { onboarding.refresh() }
@@ -166,35 +171,21 @@ internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel
             e.type == KeyEventType.KeyDown && e.isShortcutPressed && e.key == Key.LeftBracket && dispatchBack()
         }) {
         OnboardingContent(s, onEdit = onboarding::edit, onChoice = onboarding::choose, action = action, working = advancing,
-            secondary = OnboardingAction("I already have a Server") { local = false; next() },
-            connectionError = (a.connection as? Connection.Unpaired)?.error, home = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Row(Modifier.height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OnboardingPlace(Lucide.Laptop, "This device", "Your Agent's data stays right here.", local, { local = true }, Modifier.weight(1f).fillMaxHeight(), Server.Embedded in a.servers)
-                    OnboardingPlace(Lucide.Cloud, "Remote server", "Take your Agents to every device.", !local, { local = false }, Modifier.weight(1f).fillMaxHeight())
-                }
-                if (Server.Embedded !in a.servers) Text("Local hosting is available in the desktop and Android apps.", color = color(mutedColor), fontSize = 13.sp)
-                AnimatedVisibility(!local, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        a.servers.filterIsInstance<Server.Remote>().forEach { server ->
-                            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(color(subtleColor)).clickable {
-                                if (server.token != null) { advancing = true; app.use(server) }
-                                else { url.setTextAndPlaceCursorAtEnd(server.url); alias.setTextAndPlaceCursorAtEnd(server.name.orEmpty()) }
-                            }.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Icon(Lucide.Server, Modifier.size(16.dp))
-                                Text(server.label, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-                                Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
-                            }
-                        }
-                        OnboardingField("Server address or pairing link") { Input(url, "https://your-server:8787") }
-                        OnboardingField("Pairing code") { Input(code, "Code from the Server") }
-                        OnboardingField("Name on this device (optional)") { Input(alias, "Home server") }
-                        Text("Run kinuvo pair for chat access, or kinuvo pair --manage to configure the Server.", color = color(mutedColor), fontSize = 13.sp)
-                    }
-                }
-            }
-        }, model = { ModelStep(s, onboarding::selectProvider, onboarding::refresh, onboarding::edit) },
-            connect = { ConnectList(s, a.capabilities::allows, onboarding::setUp) })
+            connectionError = (a.connection as? Connection.Unpaired)?.error, welcome = { featured, pokes, poke, tint, insets ->
+                Welcome(WelcomeOptions(
+                    onScan = scan, onLocal = { connect(Server.Embedded) }.takeIf { Server.Embedded in a.servers },
+                    onPair = { pair(url.value(), code.value()) },
+                    servers = a.servers.filterIsInstance<Server.Remote>(),
+                    onServer = { server -> if (server.token != null) connect(server) else { url.setTextAndPlaceCursorAtEnd(server.url); alias.setTextAndPlaceCursorAtEnd(server.name.orEmpty()); manual = true } },
+                    url = url, code = code, name = alias, manual = manual, onManual = { manual = it },
+                    busy = advancing || (a.connection as? Connection.Connecting)?.server != null,
+                    error = scanError ?: (a.connection as? Connection.Unpaired)?.error,
+                ), featured, pokes, poke, tint, insets)
+            }, model = { ModelStep(s, onboarding::selectProvider, onboarding::refresh, onboarding::edit) },
+            connect = {
+                ConnectList(s, a.capabilities::allows, onboarding::setUp)
+                kinuvo.ui.device.DeviceToolsGroup("On this device", "Agents read these from this app, so they can only use them while Kinuvo is open here.")
+            })
         LaunchedEffect(s.step == ConnectStep) { if (s.step == ConnectStep) onboarding.loadConnected() }
         val setup = s.setup
         val agentId = s.details?.info?.id
@@ -220,7 +211,7 @@ private fun ConnectSetup(app: AppViewModel, agentId: String, section: kinuvo.app
 
 private val ConnectInfo = mapOf(
     kinuvo.app.navigation.SettingsSection.Secrets to Triple(Lucide.KeyRound, "Password manager", "Use passwords and API keys without pasting them into settings."),
-    kinuvo.app.navigation.SettingsSection.Knowledge to Triple(Lucide.Library, "Notes", "Your Obsidian vault or Anytype space, so I know your people and projects."),
+    kinuvo.app.navigation.SettingsSection.Knowledge to Triple(Lucide.Library, "Notes", "Where I keep what I learn about your people and projects: built in, or your Obsidian vault or Anytype space."),
     kinuvo.app.navigation.SettingsSection.Tasks to Triple(Lucide.ListChecks, "Tasks", "Your reminders, so I can see and work on your to-dos."),
     kinuvo.app.navigation.SettingsSection.Notifications to Triple(Lucide.Bell, "Notifications", "So I can reach you when something needs you."),
     kinuvo.app.navigation.SettingsSection.Search to Triple(Lucide.Search, "Web search", "Search the web, not just open pages."),
@@ -230,24 +221,12 @@ private val ConnectInfo = mapOf(
 
 @Composable
 internal fun ConnectList(s: OnboardingState, available: (kinuvo.app.navigation.SettingsSection) -> Boolean, onSetUp: (kinuvo.app.navigation.SettingsSection) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    RowGroup {
         ConnectSections.forEach { section ->
             val (icon, title, description) = ConnectInfo.getValue(section)
-            val done = s.connected[section] == true
             val enabled = available(section)
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(color(subtleColor)).clickable(enabled, role = Role.Button) { onSetUp(section) }
-                .alpha(if (enabled) 1f else 0.5f).padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(icon, Modifier.size(18.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(title, fontWeight = FontWeight.SemiBold)
-                    Text(description, color = color(mutedColor), fontSize = 13.sp)
-                }
-                when {
-                    !enabled -> Text("Not on this Server", color = color(mutedColor), fontSize = 13.sp)
-                    done -> Pill("On", tone = Tone.Success, icon = Lucide.CircleCheck)
-                    else -> Text("Set up", color = color(mutedColor), fontSize = 13.sp)
-                }
-                if (enabled) Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
+            GroupRow(title, { onSetUp(section) }, if (enabled) description else "Not on this Server", icon, enabled = enabled) {
+                if (s.connected[section] == true) Pill("On", tone = Tone.Success, icon = Lucide.CircleCheck)
             }
         }
     }
@@ -294,30 +273,33 @@ internal fun HarnessChoices(s: OnboardingState, acp: Boolean, remote: Boolean, a
     /** Opens the Harnesses form: a new ACP command (null), or [LinkItem]. */
     onAdd: (String?) -> Unit) {
     val pick = { choice: HarnessChoice -> onEdit { it.choose(choice) } }
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ChoiceRow(Lucide.Sparkles, "Kinuvo on ${s.server}", "Kinuvo's own Agent. You set its Soul, Memory, Skills and tools.", s.harness == HarnessChoice.Kinuvo) { pick(HarnessChoice.Kinuvo) }
-        if (s.connections == null) return@Column Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
-        SectionLabel("ACP agent on ${s.server}", Modifier.padding(top = 8.dp))
-        val commands = s.connections.orEmpty().filter { it.kind == ExecutionKind.Acp }
-        if (!acp) ChoiceRow(Lucide.SquareTerminal, "ACP agent", "ACP commands need a computer Server. ${s.server.replaceFirstChar { it.uppercase() }} can't run them.", false, enabled = false) {}
-        else {
-            commands.forEach { c ->
-                val used = agents.count { it.connectionId == c.config.id }
-                val subtitle = listOfNotNull((c.config.connection as? ExecutionConnection.Acp)?.command?.firstOrNull(), "used by $used Agent${if (used == 1) "" else "s"}".takeIf { used > 0 }).joinToString(" · ")
-                ChoiceRow(Lucide.SquareTerminal, c.config.name, subtitle, s.harness == HarnessChoice.Acp(c.config.id), enabled = selectable(c),
-                    trailing = { ReadinessPill(readiness(c, s.server)) }) { pick(HarnessChoice.Acp(c.config.id)) }
-            }
-            ChoiceRow(Lucide.Plus, "Add an ACP command…", "Claude Code, Codex, Gemini CLI or another ACP agent already installed on ${s.server}.", false) { onAdd(null) }
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        RowGroup {
+            ChoiceRow(Lucide.Sparkles, "Kinuvo on ${s.server}", "Kinuvo's own Agent. You set its Soul, Memory, Skills and tools.", s.harness == HarnessChoice.Kinuvo) { pick(HarnessChoice.Kinuvo) }
         }
-        SectionLabel("Agents from another Kinuvo Server", Modifier.padding(top = 8.dp))
-        if (!remote) ChoiceRow(Lucide.ArrowLeftRight, "Another Kinuvo Server", "Linking Kinuvo Servers isn't available on ${s.server}.", false, enabled = false) {}
-        else {
-            s.connections.orEmpty().filter { it.kind == ExecutionKind.Remote }.forEach { c ->
-                val used = agents.count { it.connectionId == c.config.id }
-                ChoiceRow(Lucide.ArrowLeftRight, c.config.name, if (used > 0) "$used Agent${if (used == 1) "" else "s"} added" else "Runs Agents it shares with ${s.server}",
-                    s.harness == HarnessChoice.Remote(c.config.id), enabled = selectable(c), trailing = { ReadinessPill(readiness(c, s.server)) }) { pick(HarnessChoice.Remote(c.config.id)) }
+        if (s.connections == null) return@Column Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
+        RowGroup("ACP agent on ${s.server}") {
+            if (!acp) ChoiceRow(Lucide.SquareTerminal, "ACP agent", "ACP commands need a computer Server. ${s.server.replaceFirstChar { it.uppercase() }} can't run them.", false, enabled = false) {}
+            else {
+                s.connections.orEmpty().filter { it.kind == ExecutionKind.Acp }.forEach { c ->
+                    val used = agents.count { it.connectionId == c.config.id }
+                    val subtitle = listOfNotNull((c.config.connection as? ExecutionConnection.Acp)?.command?.firstOrNull(), "used by $used Agent${if (used == 1) "" else "s"}".takeIf { used > 0 }).joinToString(" · ")
+                    ChoiceRow(Lucide.SquareTerminal, c.config.name, subtitle, s.harness == HarnessChoice.Acp(c.config.id), enabled = selectable(c),
+                        trailing = { ReadinessPill(readiness(c, s.server)) }) { pick(HarnessChoice.Acp(c.config.id)) }
+                }
+                GroupRow("Add an ACP command", { onAdd(null) }, "Claude Code, Codex, Gemini CLI or another ACP agent on ${s.server}.", Lucide.Plus)
             }
-            ChoiceRow(Lucide.Link, "Link a Kinuvo Server…", "With a link code from the other Server's Settings › Harnesses › Share Agents.", false) { onAdd(LinkItem) }
+        }
+        RowGroup("Agents from another Kinuvo Server") {
+            if (!remote) ChoiceRow(Lucide.ArrowLeftRight, "Another Kinuvo Server", "Linking Kinuvo Servers isn't available on ${s.server}.", false, enabled = false) {}
+            else {
+                s.connections.orEmpty().filter { it.kind == ExecutionKind.Remote }.forEach { c ->
+                    val used = agents.count { it.connectionId == c.config.id }
+                    ChoiceRow(Lucide.ArrowLeftRight, c.config.name, if (used > 0) "$used Agent${if (used == 1) "" else "s"} added" else "Runs Agents it shares with ${s.server}",
+                        s.harness == HarnessChoice.Remote(c.config.id), enabled = selectable(c), trailing = { ReadinessPill(readiness(c, s.server)) }) { pick(HarnessChoice.Remote(c.config.id)) }
+                }
+                GroupRow("Link a Kinuvo Server", { onAdd(LinkItem) }, "With a link code from the other Server's Settings › Harnesses › Share Agents.", Lucide.Link)
+            }
         }
     }
 }
@@ -330,47 +312,42 @@ internal fun PickAgents(s: OnboardingState, onEdit: ((OnboardingState) -> Onboar
     val registrations = s.registrations
     if (shared.isEmpty()) return Text("$host doesn't share any Agents with ${s.server} yet. Pick some in its Settings › Harnesses › Share Agents.", color = color(mutedColor))
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        shared.forEach { agent ->
+        RowGroup { shared.forEach { agent ->
             val added = s.added(agent.id, registrations) != null
             val on = added || agent.id in s.picked
             ChoiceRow(Lucide.Bot, agent.name, if (added) "Added" else "Runs on $host", on, enabled = !added,
                 trailing = { if (!added && !agent.readiness.online) ReadinessPill(readiness(agent.readiness.state(), agent.name, host, agent.name)) }) {
                 onEdit { it.copy(picked = if (agent.id in it.picked) it.picked - agent.id else it.picked + agent.id) }
             }
-        }
+        } }
         Text("They run on $host, with its settings. Names already used here get \"($host)\" added; rename them later.", color = color(mutedColor), fontSize = 13.sp)
     }
 }
 
+/** A row of a [RowGroup] to pick one of: its icon turns into a check in the Agent's tint when [selected]. */
 @Composable
 private fun ChoiceRow(icon: ImageVector, title: String, description: String, selected: Boolean, enabled: Boolean = true, trailing: @Composable () -> Unit = {}, onClick: () -> Unit) {
     val tint = LocalTint.current
-    val shape = RoundedCornerShape(18.dp)
-    val border by animateColorAsState(if (selected) tint else color(borderColor))
-    Row(Modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.5f).clip(shape).background(color(panelColor)).border(if (selected) 2.dp else 1.dp, border, shape)
-        .clickable(enabled, role = Role.RadioButton, onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(36.dp).clip(CircleShape).background(if (selected) tint.copy(alpha = 0.35f) else color(subtleColor)), contentAlignment = Alignment.Center) {
-            Icon(if (selected) Lucide.Check else icon, Modifier.size(17.dp))
+    val badge by animateColorAsState(if (selected) tint else color(subtleColor))
+    GroupRow(title, onClick, description, enabled = enabled, chevron = false, leading = {
+        Box(Modifier.size(32.dp).clip(CircleShape).background(badge), contentAlignment = Alignment.Center) {
+            Icon(if (selected) Lucide.Check else icon, Modifier.size(16.dp), tint = if (selected) Color.White else color(mutedColor))
         }
-        Column(Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.Bold)
-            if (description.isNotBlank()) Text(description, color = color(mutedColor), fontSize = 13.sp)
-        }
-        trailing()
-    }
+    }) { trailing() }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun OnboardingContent(
     s: OnboardingState,
     onEdit: ((OnboardingState) -> OnboardingState) -> Unit = {},
     onChoice: (Int, Int) -> Unit = { _, _ -> },
     action: OnboardingAction = OnboardingAction("Continue"),
-    secondary: OnboardingAction? = null,
     onClose: (() -> Unit)? = null,
     working: Boolean = false,
     connectionError: String? = null,
-    home: @Composable () -> Unit = {},
+    /** The first step: what Kinuvo is and how to connect, given the featured avatar, its pokes and the tint. */
+    welcome: @Composable (featured: Int, pokes: List<Int>, onPoke: (Int) -> Unit, tint: Color, insets: WindowInsets) -> Unit = { _, _, _, _, _ -> },
     model: @Composable () -> Unit = {},
     connect: @Composable () -> Unit = {},
     harness: @Composable () -> Unit = {},
@@ -384,15 +361,23 @@ internal fun OnboardingContent(
     }
     androidx.navigationevent.compose.NavigationBackHandler(androidx.navigationevent.compose.rememberNavigationEventState(androidx.navigationevent.NavigationEventInfo.None),
         isBackEnabled = back != null) { back?.invoke() }
-    var featured by remember { mutableIntStateOf(0) }
     val pokes = remember { mutableStateListOf(0, 0, 0, 0) }
-    val feature = { i: Int -> featured = i; pokes[i] += 1 }
-    if (s.step == 0) LaunchedEffect(featured) { delay(2800); feature((featured + 1) % pokes.size) }
+    // The Agent introducing itself on the welcome is the one the steps then shape, so coming back starts on it too.
+    var featured by remember { mutableIntStateOf(s.avatar.takeIf { it < pokes.size } ?: 0) }
+    val feature = { i: Int -> featured = i; pokes[i] += 1; onEdit { it.copy(avatar = i) } }
+    // The welcome's Agents take turns introducing themselves until one is tapped.
+    var touring by remember { mutableStateOf(true) }
+    if (s.step == 0 && touring) LaunchedEffect(featured) { delay(4500); feature((featured + 1) % pokes.size) }
     val tint by animateColorAsState(AvatarInk[if (s.step == 0) featured else s.avatar], tween(700))
-    CompositionLocalProvider(LocalTint provides tint) {
+    CompositionLocalProvider(LocalTint provides tint) { SharedTransitionLayout {
+        // Leaving the welcome, its Agent flies to its place in the steps while the rest crossfades.
+        // Each side keeps the state it was shown with, so the steps fading out never see the welcome's step.
+        AnimatedContent(s, contentKey = { it.step == 0 }, transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(300)) }) { s ->
+        CompositionLocalProvider(LocalAgentShare provides AgentShare(this@SharedTransitionLayout, this)) {
+        if (s.step == 0) return@CompositionLocalProvider welcome(featured, pokes, { touring = false; feature(it) }, tint, insets)
         Box(Modifier.fillMaxSize().background(color(backgroundColor)).drawBehind {
             val wide = size.width >= 800.dp.toPx()
-            val center = if (wide) Offset(size.width * 0.27f, size.height * 0.5f) else Offset(size.width / 2, size.height * if (s.step == 0) 0.32f else 0.2f)
+            val center = if (wide) Offset(size.width * 0.27f, size.height * 0.5f) else Offset(size.width / 2, size.height * 0.2f)
             drawRect(Brush.radialGradient(listOf(tint.copy(alpha = 0.34f), tint.copy(alpha = 0f)), center, size.minDimension * if (wide) 0.6f else 0.75f))
         }) {
             BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(insets).imePadding()) {
@@ -401,40 +386,39 @@ internal fun OnboardingContent(
                 val gutter = if (wide) 48.dp else 22.dp
                 Column(Modifier.fillMaxSize().padding(horizontal = gutter, vertical = 12.dp)) {
                     TopBar(s, onEdit, onClose, gutter)
-                    if (s.step == 0) {
-                        if (wide) Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(64.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Box(Modifier.weight(1.1f).fillMaxHeight(), contentAlignment = Alignment.Center) { PrimerStage(featured, pokes, feature, Modifier.fillMaxWidth().aspectRatio(1f)) }
-                            Column(Modifier.weight(1f)) {
-                                PrimerCopy(featured, true)
-                                Spacer(Modifier.height(36.dp))
-                                Cta(action, working, Modifier.widthIn(min = 260.dp))
-                                secondary?.let { TextAction(it, Modifier.widthIn(min = 260.dp)) }
-                            }
-                        } else {
-                            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.BottomCenter) { PrimerStage(featured, pokes, feature, Modifier.fillMaxWidth().aspectRatio(1f)) }
-                            PrimerCopy(featured, false)
-                            Spacer(Modifier.height(28.dp))
-                            Cta(action, working, Modifier.fillMaxWidth())
-                            secondary?.let { TextAction(it, Modifier.fillMaxWidth()) }
-                        }
+                    val form: @Composable ColumnScope.() -> Unit = {
+                        StepForm(s, onEdit, onChoice, wide, model, connect, harness, pick, Modifier.weight(1f).fillMaxWidth())
+                        (s.error ?: connectionError)?.let { Text(it, color = color(destructiveColor), modifier = Modifier.padding(bottom = 10.dp)) }
+                        Cta(action, s.busy || working, if (wide) Modifier.widthIn(min = 260.dp) else Modifier.fillMaxWidth())
+                    }
+                    if (wide) Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(64.dp), verticalAlignment = Alignment.CenterVertically) {
+                        AgentStage(s, onEdit, true, Modifier.weight(1.1f).fillMaxHeight())
+                        Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = 24.dp), content = form)
                     } else {
-                        val form: @Composable ColumnScope.() -> Unit = {
-                            StepForm(s, onEdit, onChoice, wide, home, model, connect, harness, pick, Modifier.weight(1f).fillMaxWidth())
-                            (s.error ?: connectionError)?.let { Text(it, color = color(destructiveColor), modifier = Modifier.padding(bottom = 10.dp)) }
-                            Cta(action, s.busy || working, if (wide) Modifier.widthIn(min = 260.dp) else Modifier.fillMaxWidth())
-                        }
-                        if (wide) Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(64.dp), verticalAlignment = Alignment.CenterVertically) {
-                            AgentStage(s, onEdit, true, Modifier.weight(1.1f).fillMaxHeight())
-                            Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = 24.dp), content = form)
-                        } else {
-                            if (roomy) AgentStage(s, onEdit, false, Modifier.fillMaxWidth().height(if (s.step == 4) 230.dp else 190.dp))
-                            Column(Modifier.weight(1f), content = form)
-                        }
+                        if (roomy) AgentStage(s, onEdit, false, Modifier.fillMaxWidth().height(if (s.step == 4) 230.dp else 190.dp))
+                        Column(Modifier.weight(1f), content = form)
                     }
                 }
             }
         }
-    }
+        }
+        }
+    } }
+}
+
+/** Where the onboarding's Agent is drawn, so [sharedAgent] can move it between the welcome and the steps. */
+@OptIn(ExperimentalSharedTransitionApi::class)
+internal class AgentShare(val transition: SharedTransitionScope, val visibility: AnimatedVisibilityScope)
+
+internal val LocalAgentShare = compositionLocalOf<AgentShare?> { null }
+
+/** Marks the onboarding's Agent, which moves to its new place when the welcome and the steps swap. */
+@OptIn(ExperimentalSharedTransitionApi::class)
+@Composable
+internal fun Modifier.sharedAgent(): Modifier {
+    val share = LocalAgentShare.current ?: return this
+    val state = share.transition.rememberSharedContentState("agent")
+    return with(share.transition) { this@sharedAgent.sharedElement(state, share.visibility) }
 }
 
 @Composable
@@ -448,8 +432,7 @@ private fun TopBar(s: OnboardingState, onEdit: ((OnboardingState) -> OnboardingS
             else onClose?.let { HeaderButton(Lucide.X, "Cancel", it, enabled = !s.busy) }
         }
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-            if (s.step == 0) Text("kinuvo", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            else PhaseTrack(s.steps.filter { it > 0 }, s.step) { step -> if (!s.busy) onEdit { it.copy(step = step, error = null) } }
+            PhaseTrack(s.steps.filter { it > 0 }, s.step) { step -> if (!s.busy) onEdit { it.copy(step = step, error = null) } }
         }
         Spacer(Modifier.width(48.dp))
     }
@@ -484,41 +467,6 @@ private fun PhaseTrack(phases: List<Int>, step: Int, onJump: (Int) -> Unit) {
 }
 
 @Composable
-private fun PrimerStage(featured: Int, pokes: List<Int>, onTap: (Int) -> Unit, modifier: Modifier) {
-    val spots = listOf(Triple(0.32f, 0.34f, 0.46f), Triple(0.76f, 0.24f, 0.34f), Triple(0.26f, 0.76f, 0.32f), Triple(0.7f, 0.7f, 0.42f))
-    BoxWithConstraints(modifier) {
-        val unit = minOf(maxWidth, maxHeight)
-        spots.forEachIndexed { index, (x, y, scale) ->
-            val (fx, fy) = spots[featured].let { it.first to it.second }
-            val gaze = when {
-                index == featured -> Gaze.Forward
-                abs(fx - x) > abs(fy - y) -> if (fx > x) Gaze.Right else Gaze.Left
-                else -> if (fy > y) Gaze.Down else Gaze.Up
-            }
-            val emphasis by animateFloatAsState(if (index == featured) 1.12f else 0.9f, spring(dampingRatio = 0.5f, stiffness = 200f))
-            val size = unit * scale
-            Floating(AvatarArtboards[index], size, gaze, pokes[index], index * 1.7f, Modifier
-                .offset(maxWidth * x - size / 2, maxHeight * y - size / 2)
-                .graphicsLayer { scaleX = emphasis; scaleY = emphasis }
-                .pointerInput(index) { detectTapGestures { onTap(index) } })
-        }
-    }
-}
-
-@Composable
-private fun PrimerCopy(featured: Int, wide: Boolean) {
-    val display = displayStyle(if (wide) 56.sp else 38.sp)
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.heightIn(min = with(androidx.compose.ui.platform.LocalDensity.current) { (display.lineHeight * 2).toDp() }), contentAlignment = Alignment.BottomStart) {
-            AnimatedContent(featured, transitionSpec = {
-                (slideInVertically(spring(dampingRatio = 0.8f, stiffness = 260f)) { it / 2 } + fadeIn()) togetherWith (slideOutVertically { -it / 2 } + fadeOut())
-            }) { Text(Pitches[it], style = display) }
-        }
-        Text("Kinuvo is a personal AI assistant you host yourself. Setup takes about a minute.", color = color(mutedColor), fontSize = if (wide) 18.sp else 16.sp)
-    }
-}
-
-@Composable
 private fun AgentStage(s: OnboardingState, onEdit: ((OnboardingState) -> OnboardingState) -> Unit, wide: Boolean, modifier: Modifier) {
     var poke by remember { mutableIntStateOf(0) }
     LaunchedEffect(s.choices, s.avatar) { poke++ }
@@ -532,7 +480,8 @@ private fun AgentStage(s: OnboardingState, onEdit: ((OnboardingState) -> Onboard
             (slideInHorizontally { if (forward) it / 2 else -it / 2 } + fadeIn() + scaleIn(initialScale = 0.7f)) togetherWith
                 (slideOutHorizontally { if (forward) -it / 2 else it / 2 } + fadeOut() + scaleOut(targetScale = 0.7f))
         }) { avatar ->
-            Floating(AvatarArtboards[avatar], faceSize, gaze, poke, 0f, Modifier.pointerInput(Unit) { detectTapGestures { poke++ } }.semantics { contentDescription = AvatarArtboards[avatar] })
+            Floating(AvatarArtboards[avatar], faceSize, gaze, poke, 0f, Modifier.then(if (avatar == s.avatar) Modifier.sharedAgent() else Modifier)
+                .pointerInput(Unit) { detectTapGestures { poke++ } }.semantics { contentDescription = AvatarArtboards[avatar] })
         }
     }
     if (s.step == SoulStep && !wide) Row(modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -568,7 +517,7 @@ private fun AgentStage(s: OnboardingState, onEdit: ((OnboardingState) -> Onboard
 }
 
 @Composable
-private fun Floating(artboard: String, size: Dp, gaze: Gaze, poke: Int, phase: Float, modifier: Modifier = Modifier) {
+internal fun Floating(artboard: String, size: Dp, gaze: Gaze, poke: Int, phase: Float, modifier: Modifier = Modifier) {
     val bob by rememberInfiniteTransition().animateFloat(0f, 2 * PI.toFloat(), infiniteRepeatable(tween(3800, easing = LinearEasing)))
     val pop = remember { Animatable(1f) }
     LaunchedEffect(poke) { if (poke > 0) { pop.animateTo(1.06f, tween(110)); pop.animateTo(1f, spring(dampingRatio = 0.3f, stiffness = 320f)) } }
@@ -578,7 +527,7 @@ private fun Floating(artboard: String, size: Dp, gaze: Gaze, poke: Int, phase: F
 }
 
 @Composable
-private fun SpeechBubble(text: String, modifier: Modifier, shape: RoundedCornerShape) {
+internal fun SpeechBubble(text: String, modifier: Modifier, shape: RoundedCornerShape) {
     Box(modifier.clip(shape).background(color(panelColor)).border(1.dp, color(borderColor), shape).padding(horizontal = 16.dp, vertical = 12.dp)) {
         AnimatedContent(text, transitionSpec = { fadeIn(tween(240)) togetherWith fadeOut(tween(120)) }) { Text(it, fontSize = 15.sp, lineHeight = 21.sp) }
     }
@@ -587,7 +536,7 @@ private fun SpeechBubble(text: String, modifier: Modifier, shape: RoundedCornerS
 @Composable
 private fun StepForm(
     s: OnboardingState, onEdit: ((OnboardingState) -> OnboardingState) -> Unit, onChoice: (Int, Int) -> Unit, wide: Boolean,
-    home: @Composable () -> Unit, model: @Composable () -> Unit, connect: @Composable () -> Unit, harness: @Composable () -> Unit, pick: @Composable () -> Unit, modifier: Modifier,
+    model: @Composable () -> Unit, connect: @Composable () -> Unit, harness: @Composable () -> Unit, pick: @Composable () -> Unit, modifier: Modifier,
 ) {
     AnimatedContent(s.step, transitionSpec = {
         val forward = s.steps.indexOf(targetState) > s.steps.indexOf(initialState)
@@ -599,7 +548,6 @@ private fun StepForm(
             Text(Subtitles[step - 1], color = color(mutedColor))
             Spacer(Modifier.height(2.dp))
             when (step) {
-                1 -> home()
                 2 -> model()
                 3 -> {
                     DraftField("Your name", s.userName, "Alex") { value -> onEdit { it.copy(userName = value) } }
@@ -689,12 +637,13 @@ private fun PromptEditor(s: OnboardingState, onEdit: ((OnboardingState) -> Onboa
 }
 
 @Composable
-internal fun Cta(action: OnboardingAction, busy: Boolean, modifier: Modifier) {
+internal fun Cta(action: OnboardingAction, busy: Boolean, modifier: Modifier, icon: ImageVector? = null) {
     val enabled = action.enabled && !busy
     val ink by animateColorAsState(color(onBackgroundColor).copy(alpha = if (enabled) 1f else 0.3f))
     Row(modifier.height(56.dp).clip(CircleShape).background(ink).clickable(enabled, role = Role.Button, onClick = action.run).padding(horizontal = 28.dp),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
         if (busy) { Spinner(tint = color(backgroundColor)); Spacer(Modifier.width(10.dp)) }
+        else icon?.let { Icon(it, Modifier.size(18.dp), tint = color(backgroundColor)); Spacer(Modifier.width(10.dp)) }
         AnimatedContent(action.label, transitionSpec = { fadeIn() togetherWith fadeOut() }) {
             Text(it, color = color(backgroundColor), fontWeight = FontWeight.Bold, fontSize = 17.sp)
         }
@@ -705,24 +654,6 @@ internal fun Cta(action: OnboardingAction, busy: Boolean, modifier: Modifier) {
 internal fun TextAction(action: OnboardingAction, modifier: Modifier) {
     Box(modifier.height(48.dp).clip(CircleShape).clickable(action.enabled, role = Role.Button, onClick = action.run), contentAlignment = Alignment.Center) {
         Text(action.label, color = color(mutedColor), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
-    }
-}
-
-@Composable
-internal fun OnboardingPlace(icon: ImageVector, title: String, description: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    val tint = LocalTint.current
-    val shape = RoundedCornerShape(22.dp)
-    val border by animateColorAsState(if (selected) tint else color(borderColor))
-    val badge by animateColorAsState(if (selected) tint.copy(alpha = 0.35f) else color(subtleColor))
-    Column(modifier.alpha(if (enabled) 1f else 0.45f).clip(shape).background(color(panelColor)).border(if (selected) 2.dp else 1.dp, border, shape)
-        .clickable(enabled, role = Role.RadioButton, onClick = onClick).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(44.dp).clip(CircleShape).background(badge), contentAlignment = Alignment.Center) { Icon(icon, Modifier.size(22.dp)) }
-            Spacer(Modifier.weight(1f))
-            AnimatedVisibility(selected, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) { Icon(Lucide.CircleCheck, Modifier.size(20.dp)) }
-        }
-        Text(title, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-        Text(description, color = color(mutedColor), fontSize = 13.sp, lineHeight = 18.sp)
     }
 }
 
@@ -739,51 +670,45 @@ private fun DraftField(label: String, value: String, placeholder: String, secret
     OnboardingField(label) { Input(field, placeholder, secret = secret, capitalize = !secret) }
 }
 
+/** A [DraftField] as a row of a [RowGroup]. */
+@Composable
+private fun DraftRow(label: String, value: String, placeholder: String, secret: Boolean = false, onChange: (String) -> Unit) {
+    val field = rememberTextFieldState(value)
+    LaunchedEffect(value) { if (field.text.toString() != value) field.setTextAndPlaceCursorAtEnd(value) }
+    LaunchedEffect(field) { snapshotFlow { field.text.toString() }.collect(onChange) }
+    FieldRow(label) { Input(field, placeholder, secret = secret, capitalize = !secret) }
+}
+
 @Composable
 internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefresh: () -> Unit, onEdit: ((OnboardingState) -> OnboardingState) -> Unit) {
     val tint = LocalTint.current
     val providers = (s.catalog.providers.map { it.id } + s.providers.map { it.id } + s.provider.takeIf { it.isNotBlank() }.let { listOfNotNull(it) }).distinct()
     val group = s.catalog.providers.firstOrNull { it.id == s.provider }
     val account = s.providers.firstOrNull { it.id == s.provider }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("Provider", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-        HeaderButton(Lucide.RefreshCw, "Refresh models and sign-in", onRefresh, enabled = !s.busy)
-    }
-    providers.forEach { id ->
-        val info = s.providers.firstOrNull { it.id == id }
-        val selected = id == s.provider
-        val shape = RoundedCornerShape(18.dp)
-        val border by animateColorAsState(if (selected) tint else color(borderColor))
-        Row(Modifier.fillMaxWidth().clip(shape).background(color(panelColor)).border(if (selected) 2.dp else 1.dp, border, shape)
-            .clickable(role = Role.RadioButton) { onProvider(id) }.padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Box(Modifier.size(36.dp).clip(CircleShape).background(if (selected) tint.copy(alpha = 0.35f) else color(subtleColor)), contentAlignment = Alignment.Center) {
-                Icon(if (selected) Lucide.Check else Lucide.Brain, Modifier.size(17.dp))
-            }
-            Column(Modifier.weight(1f)) {
-                Text(info?.name ?: s.catalog.providers.firstOrNull { it.id == id }?.name ?: id, fontWeight = FontWeight.Bold)
-                providerStatus(info)?.let { Text(it, color = color(mutedColor), fontSize = 13.sp) }
-            }
+    RowGroup("Provider") {
+        providers.forEach { id ->
+            val info = s.providers.firstOrNull { it.id == id }
+            ChoiceRow(Lucide.Brain, info?.name ?: s.catalog.providers.firstOrNull { it.id == id }?.name ?: id, providerStatus(info).orEmpty(), id == s.provider) { onProvider(id) }
         }
+        ActionRow("Refresh models and sign-in", Lucide.RefreshCw, onRefresh, enabled = !s.busy)
     }
-    if (!group?.models.isNullOrEmpty()) OnboardingField("Model") {
-        Picker((group.models.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model, { id -> group.models.firstOrNull { it.id == id }?.name ?: id }, { value -> onEdit { it.copy(model = value) } })
-    } else key(s.provider) { DraftField("Model ID", s.model, "Enter a model ID") { value -> onEdit { it.copy(model = value) } } }
-    account?.apiKey?.let { key ->
-        key(s.provider) { DraftField(if (key.configured) "Replace API key" else "API key", s.apiKey, "API key or secret reference", secret = true) { value -> onEdit { it.copy(apiKey = value) } } }
-    }
-    s.deviceCode?.let { code ->
-        val uri = LocalUriHandler.current
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(tint.copy(alpha = 0.16f)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Enter this code on the sign-in page", fontSize = 13.sp, color = color(mutedColor))
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(code.code, style = MonoStyle, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-                CopyButton(code.code)
+    RowGroup {
+        if (!group?.models.isNullOrEmpty()) PickerRow("Model", (group.models.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
+            { id -> group.models.firstOrNull { it.id == id }?.name ?: id }, { value -> onEdit { it.copy(model = value) } }, Lucide.Cpu)
+        else key(s.provider) { DraftRow("Model ID", s.model, "Enter a model ID") { value -> onEdit { it.copy(model = value) } } }
+        account?.apiKey?.let { key ->
+            key(s.provider) { DraftRow(if (key.configured) "Replace API key" else "API key", s.apiKey, "API key or secret reference", secret = true) { value -> onEdit { it.copy(apiKey = value) } } }
+        }
+        s.deviceCode?.let { code ->
+            val uri = LocalUriHandler.current
+            GroupBox {
+                Text("Enter this code on the sign-in page", fontSize = 13.sp, color = color(mutedColor))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(code.code, style = MonoStyle, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    CopyButton(code.code)
+                }
             }
-            Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable { runCatching { uri.openUri(code.url) } }.padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Open sign-in page", fontWeight = FontWeight.SemiBold)
-                Icon(Lucide.ExternalLink, Modifier.size(14.dp))
-            }
+            ActionRow("Open sign-in page", Lucide.ExternalLink, { runCatching { uri.openUri(code.url) } })
         }
     }
     (s.catalog.model(s.provider, s.model)?.state?.reason ?: group?.warning ?: s.catalog.warning ?: account?.error)?.let { Text(it, color = color(mutedColor), fontSize = 12.sp) }

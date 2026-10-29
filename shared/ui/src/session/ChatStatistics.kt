@@ -23,24 +23,6 @@ import kinuvo.ui.design.*
 import kotlin.math.roundToInt
 
 @Composable
-internal fun ChatStatistics(usage: Usage?, measurements: List<RequestMetrics>, sessionId: String?, initiallyExpanded: Boolean = false) {
-    var open by remember(sessionId) { mutableStateOf(initiallyExpanded) }
-    val trigger: @Composable () -> Unit = {
-        IconButton(onClick = { open = !open }, style = ButtonStyle.Ghost, modifier = Modifier.size(32.dp).titleBarControl()) {
-            Icon(Lucide.Gauge, Modifier.size(16.dp), contentDescription = "Statistics")
-        }
-    }
-    if (LocalInteractionMode.current == InteractionMode.Touch && LocalPopovers.current != null) {
-        trigger()
-        Popover(open, { open = false }) { ChatStatisticsContent(usage, measurements, Modifier.fillMaxWidth()) }
-    } else DropdownMenu(
-        expanded = open,
-        onExpandedChange = { open = it },
-        panel = { DropdownMenuPanel { ChatStatisticsContent(usage, measurements, Modifier.width(360.dp)) } },
-    ) { trigger() }
-}
-
-@Composable
 internal fun ChatStatisticsContent(usage: Usage?, measurements: List<RequestMetrics>, modifier: Modifier = Modifier) {
     LazyColumn(modifier.heightIn(max = 560.dp), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {

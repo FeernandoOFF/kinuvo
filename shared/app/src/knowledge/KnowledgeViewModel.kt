@@ -23,12 +23,18 @@ data class KnowledgeState(
     val changes: List<KnowledgeChange>? = null,
     val note: Note? = null,
     val errors: List<String> = emptyList(),
-)
+    /** Shows only this Agent's [changes]; null for every Agent's. */
+    val agent: String? = null,
+) {
+    val shownChanges get() = changes?.filter { agent == null || it.agentId == agent }
+}
 
 class KnowledgeViewModel(private val repo: KnowledgeRepository, route: Route.Knowledge) : ViewModel() {
     val state: StateFlow<KnowledgeState>
         field = MutableStateFlow(KnowledgeState(route))
     private var searching: Job? = null
+
+    fun filter(agent: String?) = state.update { it.copy(agent = agent) }
 
     init {
         repo.connection.bind(viewModelScope)

@@ -16,14 +16,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.composables.icons.lucide.CircleCheck
-import com.composables.icons.lucide.CircleX
-import com.composables.icons.lucide.RotateCcw
-import com.composables.icons.lucide.PlugZap
-import com.composables.icons.lucide.FolderOpen
-import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.*
 import com.composables.ui.components.*
-import com.composables.ui.theme.mutedColor
+import com.composables.ui.theme.*
 import kinuvo.protocol.*
 import kinuvo.ui.design.*
 
@@ -48,8 +43,8 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
     LaunchedEffect(provider) { p.actions.onLoadLists(provider) }
     val lists = p.ui.state.providerLists[provider]
     // An empty map shows every list, so start them all as shown.
-    var uses by remember(provider, lists) {
-        mutableStateOf(lists.orEmpty().associate { l ->
+    val initialUses = remember(provider, lists) {
+        lists.orEmpty().associate { l ->
             val agent = if (provider == s.provider) s.lists[l.name] ?: s.lists[l.id] else null
             l.name to when {
                 provider == s.provider && s.lists.isEmpty() -> ListUse.Unassigned
@@ -57,8 +52,9 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
                 agent.isEmpty() -> ListUse.Unassigned
                 else -> p.ui.agents.firstOrNull { it.id == agent }?.let { ListUse.Agent(it) } ?: ListUse.Unassigned
             }
-        })
+        }
     }
+    var uses by remember(provider, lists) { mutableStateOf(initialUses) }
     var defaultList by remember(provider) { mutableStateOf(s.defaultList.takeIf { provider == s.provider }) }
     val startBefore = rememberTextFieldState(s.startBeforeDays.toString())
     val poll = rememberTextFieldState(s.pollMinutes.toString())
@@ -82,30 +78,27 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
     }
     val info = "The Board shows your tasks from the app you pick. Agents start on a task assigned to them when it's due within " +
         "the days below, or right away when it has no date. Write @agent in a task to assign it."
-    DetailPane(p.back, "Tasks", error = p.ui.error, info = info, trailing = { FormActions("Save", ready, p.ui.state.saved, onSave = save) }) {
+    DetailPane(p.back, "Tasks", error = p.ui.error, info = info, trailing = { FormActions("Save", ready, p.ui.state.saved, onSave = save, dirty = provider != s.provider || uses != initialUses || defaultList != s.defaultList || startBefore.value() != s.startBeforeDays.toString() || poll.value() != s.pollMinutes.toString()) }) {
         val reminders = "On the Server, install with brew install steipete/tap/remindctl. Request access below; macOS may ask you to allow the app that launched the Server."
-        FormField("Task app", reminders.takeIf { provider == "reminders" }) { Picker(setup.providers, provider, ::providerName, { provider = it }) }
-        if (provider == "reminders") {
-            ActionButton(Lucide.CircleCheck, if (p.ui.state.testing) "Checking access…" else "Request access / Retry", { p.actions.onAuthorizeTasks(provider) }, enabled = !p.ui.state.testing)
+        RowGroup {
+            PickerRow("Task app", setup.providers, provider, ::providerName, { provider = it }, Lucide.SquareKanban)
+            if (provider == "reminders") ActionRow(if (p.ui.state.testing) "Checking access…" else "Request access", Lucide.ShieldCheck,
+                { p.actions.onAuthorizeTasks(provider) }, enabled = !p.ui.state.testing, subtitle = reminders)
         }
-        DetailGroup("Lists") {
+        RowGroup("Lists") {
             when {
-                lists == null && p.ui.error == null -> Spinner()
-                lists == null -> Text("Couldn’t load lists. Request access or retry.", color = color(mutedColor))
-                lists.isEmpty() -> Text("No lists found.", color = color(mutedColor))
+                lists == null && p.ui.error == null -> GroupBox { Spinner() }
+                lists == null -> GroupRow("Couldn’t load lists", subtitle = "Request access or retry.", tint = color(mutedColor))
+                lists.isEmpty() -> GroupRow("No lists found", tint = color(mutedColor))
                 else -> lists.forEach { list ->
-                    DetailRow(list.name) {
-                        Picker(options, uses[list.name] ?: ListUse.Unassigned, ::useLabel, { uses = uses + (list.name to it) })
-                    }
+                    PickerRow(list.name, options, uses[list.name] ?: ListUse.Unassigned, ::useLabel, { uses = uses + (list.name to it) }, Lucide.List)
                 }
             }
         }
-        DetailGroup("Defaults") {
-            DetailRow("New tasks go to") {
-                Picker(listOf<String?>(null) + shown.map { it.name }, defaultList?.takeIf { d -> shown.any { it.name == d } }, { it ?: "The first list" }, { defaultList = it })
-            }
-            DetailRow("Start before due") { Row(verticalAlignment = Alignment.CenterVertically) { Box(Modifier.width(80.dp)) { Input(startBefore, "3") }; Text("  days") } }
-            DetailRow("Check for tasks") { Row(verticalAlignment = Alignment.CenterVertically) { Text("every  "); Box(Modifier.width(80.dp)) { Input(poll, "5") }; Text("  minutes") } }
+        RowGroup("Defaults") {
+            PickerRow("New tasks go to", listOf<String?>(null) + shown.map { it.name }, defaultList?.takeIf { d -> shown.any { it.name == d } }, { it ?: "The first list" }, { defaultList = it })
+            GroupRow("Start before due", chevron = false) { Input(startBefore, "3", Modifier.width(64.dp)); Text("days", color = color(mutedColor)) }
+            GroupRow("Check for tasks every", chevron = false) { Input(poll, "5", Modifier.width(64.dp)); Text("min", color = color(mutedColor)) }
         }
     }
 }
@@ -131,6 +124,7 @@ internal fun KnowledgeSettingsPane(p: Pane) {
         val reflectionPrompt = rememberTextFieldState(setup.settings.reflectionPrompt ?: DEFAULT_REFLECTION_PROMPT)
         var reflection by remember { mutableStateOf(setup.settings.reflection) }
         var provider by remember { mutableStateOf(setup.settings.provider) }
+        var notes by remember { mutableStateOf(NotesApp.of(setup.settings)) }
         val url = rememberTextFieldState(setup.settings.options["url"] ?: "http://127.0.0.1:31009")
         val apiKey = rememberTextFieldState(setup.settings.options["apiKey"].orEmpty())
         val space = rememberTextFieldState(setup.settings.options["space"].orEmpty())
@@ -139,65 +133,93 @@ internal fun KnowledgeSettingsPane(p: Pane) {
         val conventions = drafts.getOrPut(provider) { TextFieldState() }
         fun current(): KnowledgeSettings {
             val options = if (provider == "anytype") mapOf("url" to url.value(), "apiKey" to apiKey.value(), "space" to space.value()) else setup.settings.options
-            return KnowledgeSettings(path.value().ifEmpty { null }, reflection, provider, options, drafts.mapValues { it.value.text.toString() }, reflectionPrompt.value().takeIf { it != DEFAULT_REFLECTION_PROMPT })
+            return KnowledgeSettings(path.value().ifEmpty { null }.takeIf { notes == NotesApp.Folder }, reflection, provider, options, drafts.mapValues { it.value.text.toString() }, reflectionPrompt.value().takeIf { it != DEFAULT_REFLECTION_PROMPT })
         }
         val info = "Knowledge shared by every Agent: people, projects and places. " +
             "Agents with the Knowledge tool read and update it; you can undo any change from the Knowledge screen."
-        DetailPane(p.back, "Knowledge", error = p.ui.error, info = info, trailing = { FormActions("Save", true, p.ui.state.saved, onSave = { p.actions.onSaveKnowledge(current()) }) }) {
+        DetailPane(p.back, "Knowledge", error = p.ui.error, info = info, trailing = { FormActions("Save", true, p.ui.state.saved, onSave = { p.actions.onSaveKnowledge(current()) }, dirty = formChanged(current(), p.ui.state.saved)) }) {
             val anytype = "Keep Anytype running on the Server with its API enabled. Create an API key in Anytype's settings and give the space ID. " +
                 "Agents use your own types and properties, and add or link text in your notes block by block."
-            FormField("Knowledge app", anytype.takeIf { provider == "anytype" }) {
-                Picker(setup.providers, provider, { if (it == "anytype") "Anytype" else "Markdown / Obsidian" }, { provider = it })
+            RowGroup {
+                PickerRow("Notes", NotesApp.entries.filter { it != NotesApp.Anytype || "anytype" in setup.providers }, notes, NotesApp::label, {
+                    notes = it; provider = if (it == NotesApp.Anytype) "anytype" else "markdown"
+                }, Lucide.Library)
             }
-            if (provider == "anytype") {
-                FormField("API URL") { Input(url, "http://127.0.0.1:31009") }
-                FormField("API key") {
+            Text(when (notes) {
+                NotesApp.BuiltIn -> "Kinuvo keeps them on the Server. Pick your own notes app to use the notes you already have."
+                NotesApp.Folder -> "A folder of Markdown files on the Server, e.g. in your Obsidian vault."
+                NotesApp.Anytype -> anytype
+            }, Modifier.padding(horizontal = 6.dp), color = color(mutedColor), fontSize = 13.sp)
+            if (notes == NotesApp.Anytype) RowGroup("Anytype") {
+                FieldRow("API URL") { Input(url, "http://127.0.0.1:31009") }
+                FieldRow("API key") {
                     SecretField(p, { apiKey.setTextAndPlaceCursorAtEnd(it) }) { trailing ->
                         Input(apiKey, "API key", secret = !isReference(apiKey.value()), trailing = trailing)
                     }
                 }
-                FormField("Space ID") { Input(space, "Space ID") }
-            } else {
-                FormField("Folder", "Blank for the default. To use Obsidian, point it at a folder in your vault, e.g. ~/Vault/Kinuvo.") {
-                    Input(path, "~/.kinuvo/knowledge")
-                }
+                FieldRow("Space ID") { Input(space, "Space ID") }
+            }
+            if (notes == NotesApp.Folder) RowGroup("Folder") {
+                FieldRow("Folder", "On the Server. To use Obsidian, point it at a folder in your vault, e.g. ~/Vault/Kinuvo.") { Input(path, "~/Vault/Kinuvo") }
                 // Only on this device's own Server: a picked folder is a path on this device.
-                val pickFolder = rememberFolderPicker { path.setTextAndPlaceCursorAtEnd(it) }.takeIf { p.ui.server == Server.Embedded }
-                pickFolder?.let { ActionButton(Lucide.FolderOpen, "Choose folder or Obsidian vault", it) }
-                Text("Now: ${setup.folder}", color = color(mutedColor), fontSize = 12.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            }
-            FormField(
-                "Conventions",
-                "How you organize your notes, in your words: which types hold people or companies, where facts go, how you link. " +
-                    "Agents follow them when reading, adding and learning from conversations.",
-            ) {
-                TextArea(
-                    conventions,
-                    if (provider == "anytype") "People are Human (profile) objects; companies are Organization.\nAdd dated facts as bullets under a Timeline heading.\nLink people to their company in the text."
-                    else "People are person notes in People/.\nAdd dated facts as bullets under ## Timeline.\nLink people to their company with [[Company]].",
-                    lines = 5,
-                )
-            }
-            Checkbox(reflection, { reflection = it }) {
-                Column {
-                    Text("Learn from conversations")
-                    Text("After a chat goes quiet, its Agent curates Memory and User Notes, and proposes Knowledge changes and Skills for your review.", color = color(mutedColor), fontSize = 12.sp)
+                rememberFolderPicker { path.setTextAndPlaceCursorAtEnd(it) }.takeIf { p.ui.server == Server.Embedded }?.let {
+                    ActionRow("Choose folder or Obsidian vault", Lucide.FolderOpen, it)
                 }
             }
-            FormField("Reflection prompt", "What Agents should remember and learn. Shared by every Agent on this Server. Knowledge changes and Skill drafts always need your Approval. Conventions and current context are added automatically. Blank uses the default.") {
-                TextArea(reflectionPrompt, "Reflection instructions", lines = 10)
+            if (notes != NotesApp.BuiltIn) RowGroup("Conventions") {
+                FieldRow("How you organize your notes", "In your words: which types hold people or companies, where facts go, how you link. " +
+                    "Agents follow them when reading, adding and learning from conversations.") {
+                    TextArea(
+                        conventions,
+                        if (provider == "anytype") "People are Human (profile) objects; companies are Organization.\nAdd dated facts as bullets under a Timeline heading.\nLink people to their company in the text."
+                        else "People are person notes in People/.\nAdd dated facts as bullets under ## Timeline.\nLink people to their company with [[Company]].",
+                        lines = 5,
+                    )
+                }
             }
-            ActionButton(Lucide.RotateCcw, "Reset prompt to default", { reflectionPrompt.setTextAndPlaceCursorAtEnd(DEFAULT_REFLECTION_PROMPT) })
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                ActionButton(Lucide.PlugZap, "Test", { p.actions.onTestKnowledge(current()) }, enabled = !p.ui.state.testing)
-                if (p.ui.state.testing) Spinner()
+            RowGroup("Learning") {
+                SwitchRow("Learn from conversations", reflection, { reflection = it },
+                    subtitle = "After a chat goes quiet, its Agent curates Memory and User Notes, and proposes Knowledge changes and Skills for your review.")
+                if (reflection) {
+                    // A good default most never change, folded away until asked for.
+                    var editing by remember { mutableStateOf(false) }
+                    val custom = reflectionPrompt.value() != DEFAULT_REFLECTION_PROMPT
+                    GroupRow("Reflection prompt", { editing = !editing }, "What Agents remember and learn from a chat", Lucide.ScrollText,
+                        value = if (custom) "Custom" else "Default", chevron = false) {
+                        Icon(if (editing) Lucide.ChevronUp else Lucide.ChevronDown, Modifier.size(16.dp), tint = color(mutedColor))
+                    }
+                    if (editing) {
+                        FieldRow("Instructions", "Shared by every Agent on this Server. Knowledge changes and Skill drafts always need your Approval. Conventions and current context are added automatically.") {
+                            TextArea(reflectionPrompt, "Reflection instructions", lines = 8)
+                        }
+                        ActionRow("Reset prompt to default", Lucide.RotateCcw, { reflectionPrompt.setTextAndPlaceCursorAtEnd(DEFAULT_REFLECTION_PROMPT) }, enabled = custom)
+                    }
+                }
             }
-            p.ui.state.knowledgeTest?.let { t ->
-                if (t.error != null) Pill("Couldn't read it: ${t.error}", tone = Tone.Danger, icon = Lucide.CircleX)
-                else Pill("Works: ${t.summary}", tone = Tone.Success, icon = Lucide.CircleCheck)
-            }
+            TestGroup(if (p.ui.state.testing) "Testing…" else "Test", !p.ui.state.testing, { p.actions.onTestKnowledge(current()) },
+                p.ui.state.knowledgeTest?.let { t -> t.error?.let { "Couldn't read it: $it" } to t.summary.let { "Works: $it" } })
         }
     }
+}
+
+/** Where Knowledge is kept: Kinuvo's own notes, or the user's notes app. */
+private enum class NotesApp(val label: String) {
+    BuiltIn("Built in"), Folder("Markdown / Obsidian"), Anytype("Anytype");
+
+    companion object {
+        fun of(settings: KnowledgeSettings) = when {
+            settings.provider == "anytype" -> Anytype
+            settings.path != null -> Folder
+            else -> BuiltIn
+        }
+    }
+}
+
+/** A Test row, and what the last test found: [result] is an error, else a success. */
+@Composable
+internal fun TestGroup(label: String, enabled: Boolean, onTest: () -> Unit, result: Pair<String?, String>?) = RowGroup {
+    ActionRow(label, Lucide.PlugZap, onTest, enabled = enabled)
+    result?.let { (error, ok) -> GroupBox { if (error != null) Pill(error, tone = Tone.Danger, icon = Lucide.CircleX) else Pill(ok, tone = Tone.Success, icon = Lucide.CircleCheck) } }
 }
 
 /** A spinner while server-wide settings load; if loading failed, the error and a way to retry. */

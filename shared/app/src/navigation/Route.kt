@@ -67,7 +67,7 @@ sealed interface Route {
 }
 
 /** Screens the shell lists under Home rather than under an Agent. */
-val Route.home get() = this == Route.Home || this is Route.Task || this == Route.Board || this is Route.Knowledge || this is Route.Artifacts || this is Route.Computers
+val Route.home get() = this == Route.Home || this is Route.Task || this == Route.Board || this is Route.Knowledge || this is Route.Artifacts || this is Route.Computers || this is Route.Settings && section?.home == true
 
 @Serializable
 enum class SettingsSection(val title: String, val server: Boolean = false) {
@@ -76,7 +76,7 @@ enum class SettingsSection(val title: String, val server: Boolean = false) {
     /** Name, Identity, Soul and model; also where a new Agent is created. */
     Agent("Personality"), Workspace("Workspace"), Tools("Tools"), Routines("Routines"), Skills("Skills"), Mcp("MCP servers"), DeviceTools("This Device's tools"),
     /** Server-wide, the same whichever Agent is picked. */
-    Connection("Connection", server = true), Providers("Model providers", server = true),
+    Connection("Servers & devices", server = true), Providers("Model providers", server = true),
     /** The ways this Server runs Agents besides Kinuvo itself: ACP commands and linked Kinuvo Servers. */
     Harnesses("Harnesses", server = true),
     /** Every Agent's tools and MCP servers, who can use them, and the rules for all Agents. */
@@ -120,3 +120,6 @@ fun ServerCapabilities?.allows(section: SettingsSection) =
 
 @OptIn(ExperimentalUuidApi::class)
 private fun newSlot() = Uuid.random().toString()
+
+/** Configuration opened from Home, with an Agent selector. */
+val SettingsSection.home get() = this in listOf(SettingsSection.Routines, SettingsSection.Hub, SettingsSection.Mcp, SettingsSection.Tools)
