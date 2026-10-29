@@ -71,4 +71,23 @@ class OwnerRailHistoryTest {
             assertEquals(chat, h.backStack.last())
         }
     }
+
+    @Test fun shellPicksOnCompactLeaveNothingToGoBackToSoTheEdgeSwipeRevealsTheShell() {
+        val chat = Route.Chat("echo", "journal")
+        val h = history(true, Route.Home, chat)
+        for (page in listOf(Route.Board, Route.Knowledge(), Route.Computers(), Route.Settings("echo", SettingsSection.Routines), chat)) {
+            h.switchTo(page)
+            assertEquals(listOf(page), h.backStack.toList())
+            assertFalse(h.canGoBack)
+        }
+        h.open(Route.Knowledge("People/Ana"))
+        assertEquals(2, h.backStack.size)
+    }
+
+    @Test fun shellPicksOnWideKeepHistory() {
+        val chat = Route.Chat("echo", "journal")
+        val h = history(false, Route.Home, chat)
+        h.switchTo(Route.Board)
+        assertEquals(listOf(Route.Home, chat, Route.Board), h.backStack.toList())
+    }
 }

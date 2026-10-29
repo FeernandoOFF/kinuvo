@@ -216,7 +216,7 @@ internal fun NewAgentForm(p: Pane) {
     val name = rememberTextFieldState()
     var from by remember { mutableStateOf<String?>(null) }
     val save = { p.actions.onCreateAgent(CreateAgentParams(id.value(), name.value().ifEmpty { null }, from)) }
-    DetailPane(p.back, "New agent", error = p.ui.error, trailing = { FormActions("Create agent", id.value().isNotEmpty(), p.ui.state.saved, onSave = save, onCancel = p.cancel) }) {
+    DetailPane(p.back, "New agent", error = p.ui.error, trailing = { FormActions("Create agent", id.value().isNotEmpty(), p.ui.state.saved, onSave = save, onCancel = p.cancel, dirty = formChanged(listOf(id.text.toString(), name.text.toString(), from), p.ui.state.saved)) }) {
         FormField("ID", "Lowercase letters, digits and hyphens; names its folder.") { Input(id, "work") }
         FormField("Name") { Input(name, "Work", capitalize = true) }
         FormField("Start from") {

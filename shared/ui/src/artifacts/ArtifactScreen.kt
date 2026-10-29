@@ -1,5 +1,6 @@
 package kinuvo.ui.artifacts
 
+import androidx.compose.foundation.lazy.itemsIndexed
 import kinuvo.app.connection.*
 import kinuvo.app.artifacts.*
 import kinuvo.ui.session.*
@@ -73,33 +74,29 @@ fun ArtifactsContent(state: ArtifactsState, agents: List<AgentInfo>, now: Long, 
         val open = state.route.artifact
         if (open != null && state.route.fullScreen) ArtifactPane(state, agents, now, actions, back = null)
         else if (maxWidth >= 900.dp) Row(Modifier.fillMaxSize()) {
-            Box(Modifier.width(380.dp).fillMaxHeight().background(color(sidebarColor))) { ArtifactList(state, agents, now, actions, actions.onBack) }
+            Box(Modifier.width(380.dp).fillMaxHeight().background(color(sidebarColor))) { ArtifactList(state, agents, now, actions) }
             VerticalSeparator()
             Box(Modifier.weight(1f)) {
                 if (open != null) ArtifactPane(state, agents, now, actions, back = null)
                 else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Pick an artifact to open it.", color = color(mutedColor)) }
             }
         } else if (open != null) ArtifactPane(state, agents, now, actions, actions.onBack)
-        else ArtifactList(state, agents, now, actions, actions.onBack)
+        else ArtifactList(state, agents, now, actions)
     }
 }
 
 @Composable
-private fun ArtifactList(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions, back: (() -> Unit)?) {
+private fun ArtifactList(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions) {
     val query = rememberTextFieldState(state.query)
     LaunchedEffect(query) { snapshotFlow { query.text.toString() }.collect { if (it != state.query) actions.onSearch(it) } }
     Column(Modifier.fillMaxSize()) {
-        TitleBarRow(trailing = false) {
-            back?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
-            Text("Artifacts", Modifier.padding(start = 4.dp).weight(1f), fontWeight = FontWeight.Normal)
-        }
-        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        PageHeader(Lucide.Shapes, "Artifacts", scope = AgentScope(agents, state.agent, "All agents", actions.onFilter).takeIf { agents.size > 1 })
+        Column(Modifier.padding(horizontal = 12.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Input(query, "Search by title…", capitalize = true)
-            if (agents.size > 1) Picker(listOf<String?>(null) + agents.map { it.id }, state.agent, { id -> id?.let { agents.name(it) } ?: "All agents" }, actions.onFilter)
             state.errors.lastOrNull()?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         }
         val all = state.all
-        LazyColumn(Modifier.weight(1f).padding(8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        LazyColumn(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             when {
                 all == null -> item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Spinner() } }
                 state.shown.isEmpty() -> item {
@@ -108,12 +105,9 @@ private fun ArtifactList(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                         Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = color(mutedColor), fontSize = 13.sp,
                     )
                 }
-                else -> items(state.shown, key = { it.id }) { a ->
-                    ListRow(selected = a.id == state.route.artifact, onClick = { actions.onOpen(a.id) }, leading = { Icon(a.type.icon(), Modifier.size(16.dp)) }) {
-                        Column(Modifier.weight(1f)) {
-                            Text(a.title, singleLine = true, overflow = TextOverflow.Ellipsis)
-                            Text("${agents.name(a.agentId)} · ${relative(a.updated, now)}", color = color(mutedColor), fontSize = 12.sp)
-                        }
+                else -> itemsIndexed(state.shown, key = { _, a -> a.id }) { i, a ->
+                    Box(Modifier.groupItem(i, state.shown.size)) {
+                        GroupRow(a.title, { actions.onOpen(a.id) }, "${agents.name(a.agentId)} · ${relative(a.updated, now)}", a.type.icon(), selected = a.id == state.route.artifact, titleLines = 2)
                     }
                 }
             }

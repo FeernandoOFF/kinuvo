@@ -1,5 +1,7 @@
 package kinuvo.ui.connection
 
+import kinuvo.app.navigation.SettingsSection
+import kinuvo.ui.device.icon
 import kinuvo.app.connection.*
 import kinuvo.app.agent.*
 import kinuvo.ui.agent.*
@@ -32,7 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
-import com.composables.ui.theme.mutedColor
+import com.composables.ui.theme.*
 import io.github.alexzhirkevich.qrose.rememberQrCodePainter
 import kinuvo.protocol.*
 import kinuvo.ui.design.*
@@ -96,19 +98,6 @@ internal fun PairingPanel(info: PairingInfo, selected: String?, onSelect: (Strin
 }
 
 @Composable
-private fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
-    Row(Modifier.fillMaxWidth().clip(CircleShape).background(color(subtleColor)).padding(3.dp)) {
-        options.forEachIndexed { i, option ->
-            val on = i == selected
-            Box(Modifier.weight(1f).height(32.dp).clip(CircleShape).background(if (on) color(panelColor) else Color.Transparent)
-                .clickable(role = Role.Tab) { onSelect(i) }.semantics { this.selected = on }, contentAlignment = Alignment.Center) {
-                Text(option, fontSize = 13.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal, color = if (on) color(onBackgroundColor) else color(mutedColor))
-            }
-        }
-    }
-}
-
-@Composable
 private fun CopyAction(label: String, text: String, modifier: Modifier) {
     val clipboard = LocalClipboardManager.current
     var copied by remember { mutableStateOf(false) }
@@ -125,104 +114,87 @@ private fun ActionLabel(icon: androidx.compose.ui.graphics.vector.ImageVector, l
     Text(label, singleLine = true)
 }
 
-@Composable
-internal fun RemoteServerControls(server: Server.Remote, onRename: (Server.Remote, String) -> Unit, onForget: (Server.Remote) -> Unit) {
-    key(server.key, server.name) {
-        val name = rememberTextFieldState(server.name.orEmpty())
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(server.url, color = color(mutedColor), fontSize = 12.sp)
-            FormField("Name on this Device") {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Box(Modifier.weight(1f)) { Input(name, server.address) }
-                    Button({ onRename(server, name.text.toString()) }, enabled = name.text.toString() != server.name.orEmpty(), style = ButtonStyle.Outlined) { Text("Save") }
-                }
-            }
-            ConfirmAction("Forget server", "Unpair this Device and remove this Server here?", { onForget(server) })
-        }
-    }
-}
-
-@Composable
-internal fun ConfirmAction(label: String, question: String, onConfirm: () -> Unit) {
-    var confirming by remember { mutableStateOf(false) }
-    if (!confirming) Button({ confirming = true }, style = ButtonStyle.Outlined) { Text(label) }
-    else Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(question)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button({ confirming = false; onConfirm() }, style = ButtonStyle.Outlined) { Text("Confirm") }
-            Button({ confirming = false }, style = ButtonStyle.Ghost) { Text("Cancel") }
-        }
-    }
-}
-
 /** This Device's saved Servers, one open at a time ([SettingsState.server], else the connected one), and pairing for the connected Server. */
 @Composable
 internal fun ConnectionSettingsPane(p: Pane) {
-    DetailPane(p.back, "Connection") {
+    DetailPane(p.back, SettingsSection.Connection.title) {
         val connected = p.ui.server
         val remotes = p.ui.servers.filterIsInstance<Server.Remote>()
         val shown = remotes.firstOrNull { it.key == p.ui.state.server } ?: connected as? Server.Remote
-        if (p.ui.servers.size > 1) DetailGroup("Servers on this device") {
+        if (p.ui.servers.size > 1) RowGroup("Servers on this device") {
             p.ui.servers.forEach { server ->
-                ListRow(server == shown, { if (server is Server.Remote) p.actions.onPickServer(server.key) }, enabled = server is Server.Remote || server == connected) {
-                    Icon(if (server is Server.Embedded) Lucide.Laptop else Lucide.Server, Modifier.size(16.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(server.label)
-                        if (server is Server.Remote) Text(server.address, color = color(mutedColor), fontSize = 12.sp)
-                    }
+                GroupRow(server.label, { if (server is Server.Remote) p.actions.onPickServer(server.key) }, subtitle = (server as? Server.Remote)?.address,
+                    icon = if (server is Server.Embedded) Lucide.Laptop else Lucide.Server, selected = server == shown && p.ui.servers.size > 1,
+                    enabled = server is Server.Remote || server == connected, chevron = false) {
                     if (server == connected) Pill("Connected", tone = Tone.Success)
                 }
             }
         }
-        if (shown != null) DetailGroup(shown.label) {
-            RemoteServerControls(shown, p.actions.onRenameServer, p.actions.onForgetServer)
-            if (shown == connected)
-                ConfirmAction("Rotate Device credential", "Replace this Device's credential and disconnect its other connections?", p.actions.onRotateToken)
+        if (shown != null) key(shown.key, shown.name) {
+            val name = rememberTextFieldState(shown.name.orEmpty())
+            RowGroup(shown.label) {
+                GroupBox {
+                    Text("Name on this Device", color = color(mutedColor), fontSize = 13.sp)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Box(Modifier.weight(1f)) { Input(name, shown.address) }
+                        Button({ p.actions.onRenameServer(shown, name.text.toString()) }, enabled = name.text.toString() != shown.name.orEmpty(),
+                            style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text("Save") }
+                    }
+                    Text(shown.url, color = color(mutedColor), fontSize = 12.sp)
+                }
+                if (shown == connected) ConfirmRow("Rotate Device credential", Lucide.RotateCcwKey, "Rotate this Device's credential?", p.actions.onRotateToken, "Rotate",
+                    destructive = false, detail = "Its other connections disconnect and need the new credential.")
+                ConfirmRow("Forget server", Lucide.Trash2, "Forget ${shown.label}?", { p.actions.onForgetServer(shown) }, "Forget",
+                    detail = "This Device unpairs and removes the Server. You can pair again with a new code.")
+            }
         } else Text(connected?.label ?: "No Server connected")
-        if (connected is Server.Embedded && p.ui.sharing != null) DetailGroup("Reach this Server from other Devices") {
-            Checkbox(p.ui.sharing, p.actions.onShare) { Text("Listen on the local network and Tailscale") }
-            Text("Other Devices pair with a code from here, then use this Server and its Computers. Keep it off on networks you don't trust.",
-                color = color(mutedColor), fontSize = 12.sp)
+        if (connected is Server.Embedded && p.ui.sharing != null) RowGroup("Reach this Server from other Devices") {
+            GroupRow("Local network and Tailscale", subtitle = "Other Devices pair with a code from here. Keep it off on networks you don't trust.", icon = Lucide.Wifi, chevron = false) {
+                Switch(p.ui.sharing, p.actions.onShare)
+            }
         }
         if (p.ui.capabilities.supports(ServerFeature.Pairing)) {
-            val on = connected?.label?.let { " with $it" }.orEmpty()
-            if (p.ui.management) DetailGroup("Pair a device$on") {
-                val info = p.ui.pairing
-                if (info != null) PairingPanel(info, p.ui.pairingBase, p.actions.onPairingBase, { p.actions.onRefreshPairing(true) }, p.ui.pairingError)
-                else {
-                    p.ui.pairingError?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
-                    Button({ p.actions.onRefreshPairing(false) }, style = ButtonStyle.Outlined) { Text("Get pairing code") }
+            PairedDevices(p.ui.devices, p.actions.onRevokeDevice, p.ui.management, "Devices using ${connected?.label ?: "this Server"}") {
+                if (p.ui.management) {
+                    val info = p.ui.pairing
+                    if (info != null) GroupBox { PairingPanel(info, p.ui.pairingBase, p.actions.onPairingBase, { p.actions.onRefreshPairing(true) }, p.ui.pairingError) }
+                    else {
+                        p.ui.pairingError?.let { GroupBox { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) } }
+                        ActionRow("Pair a device", Lucide.Plus, { p.actions.onRefreshPairing(false) }, subtitle = "A phone, computer or browser, with a one-time code")
+                    }
+                    ConfirmRow("Pair a management device", Lucide.ShieldPlus, "Pair a management device?", p.actions.onManagementPairing, "Get code", destructive = false,
+                        detail = "It will be able to change Server configuration, pair other devices and answer Approvals.")
                 }
-                ConfirmAction("Pair a management Device", "This Device will be able to change Server configuration, pair other Devices and answer Approvals.", p.actions.onManagementPairing)
             }
-            DetailGroup("Paired devices$on") { PairedDevices(p.ui.devices, p.actions.onRevokeDevice, p.ui.management) }
+            Text("Revoking takes effect right away; the device needs a new code to connect again.", Modifier.padding(horizontal = 6.dp), fontSize = 12.sp, color = color(mutedColor))
         }
     }
 }
 
+/** One row per paired Device: what it is, when it was last seen, and Revoke. */
 @Composable
-internal fun PairedDevices(state: DevicesState, onRevoke: (PairedDeviceInfo) -> Unit, management: Boolean = true) {
-    state.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
+internal fun PairedDevices(state: DevicesState, onRevoke: (PairedDeviceInfo) -> Unit, management: Boolean = true, title: String = "Paired devices",
+    actions: @Composable ColumnScope.() -> Unit = {}) {
     val devices = state.devices
-    if (devices == null) { if (state.error == null) Spinner(); return }
-    if (devices.isEmpty()) Text("No paired Devices.", color = color(mutedColor))
-    devices.forEach { device -> key(device.id) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(device.name + if (device.current) " · This device" else "")
-            Text("Paired ${device.pairedAt.substringBefore('T')}", color = color(mutedColor), fontSize = 12.sp)
-            Text(if (device.connected) "Connected" else device.lastSeen?.let { "Last seen ${it.take(16).replace('T', ' ')}" } ?: "Not seen yet", color = color(mutedColor), fontSize = 12.sp)
-            if (device.tools.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                device.tools.forEach { kind -> Pill(kind.name, icon = when (kind) {
-                    DeviceToolKind.Contacts -> Lucide.Contact
-                    DeviceToolKind.Workouts -> Lucide.Dumbbell
-                    DeviceToolKind.Sleep -> Lucide.Moon
-                    DeviceToolKind.Computer -> Lucide.MousePointerClick
-                }) }
-            }
-            Text(if (device.management) "Management access" else "Ordinary access", color = color(mutedColor), fontSize = 12.sp)
-            if (management || device.current) ConfirmAction("Revoke", "${if (device.current) "This Device" else device.name} will need to pair again.", { onRevoke(device) })
-            HorizontalSeparator(Modifier.padding(vertical = 6.dp))
+    RowGroup(title) {
+        state.error?.let { GroupBox { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) } }
+        when {
+            devices == null -> if (state.error == null) GroupBox { Spinner() }
+            devices.isEmpty() -> GroupRow("No paired devices yet", tint = color(mutedColor))
+            else -> devices.forEach { device -> key(device.id) {
+                var asking by remember { mutableStateOf(false) }
+                val seen = if (device.connected) "Connected" else device.lastSeen?.let { "Seen ${it.take(16).replace('T', ' ')}" } ?: "Not seen yet"
+                GroupRow(device.name + if (device.current) " · This device" else "",
+                    subtitle = listOfNotNull(seen, "Management".takeIf { device.management }).joinToString(" · "),
+                    icon = if (device.management) Lucide.ShieldCheck else Lucide.Smartphone, chevron = false) {
+                    device.tools.forEach { Icon(it.icon(), Modifier.size(14.dp), tint = color(mutedColor), contentDescription = it.name) }
+                    if (management || device.current) Button({ asking = true }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small,
+                        contentColor = color(destructiveColor)) { Text("Revoke") }
+                }
+                ConfirmPopover(asking, "Revoke ${if (device.current) "this Device" else device.name}?", "It will need to pair again. Paired ${device.pairedAt.substringBefore('T')}.",
+                    "Revoke", true, { asking = false }) { asking = false; onRevoke(device) }
+            } }
         }
-    } }
+        actions()
+    }
 }

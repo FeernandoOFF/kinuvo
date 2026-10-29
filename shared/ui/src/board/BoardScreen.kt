@@ -31,13 +31,12 @@ import kinuvo.protocol.*
 import kinuvo.ui.design.*
 
 @Composable
-fun BoardScreen(app: AppViewModel, board: BoardViewModel, onBack: (() -> Unit)?, onOpenSession: (Route.Chat) -> Unit, onSettings: () -> Unit, onOpenTask: (String) -> Unit = {}) {
+fun BoardScreen(app: AppViewModel, board: BoardViewModel, onOpenSession: (Route.Chat) -> Unit, onSettings: () -> Unit, onOpenTask: (String) -> Unit = {}) {
     val appState by app.state.collectAsState()
     val state by board.state.collectAsState()
     BoardContent(
         BoardUi(state, appState.agents),
         BoardActions(
-            onBack = onBack,
             onRefresh = board::refresh,
             onShowDone = board::showDone,
             onAdding = board::adding,
@@ -56,7 +55,6 @@ data class BoardUi(val state: BoardState, val agents: List<AgentInfo> = emptyLis
 }
 
 class BoardActions(
-    val onBack: (() -> Unit)? = null,
     val onRefresh: () -> Unit = {},
     val onShowDone: (Boolean) -> Unit = {},
     val onAdding: (Boolean) -> Unit = {},
@@ -73,16 +71,12 @@ class BoardActions(
 fun BoardContent(ui: BoardUi, actions: BoardActions) {
     val columns = TaskStatus.entries.filter { it != TaskStatus.Done || ui.state.showDone }
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
-        TitleBarRow {
-            actions.onBack?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
-            Text("Board", Modifier.padding(start = 4.dp).weight(1f), fontWeight = FontWeight.Normal)
-            Button(onClick = { actions.onShowDone(!ui.state.showDone) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) {
-                Text(if (ui.state.showDone) "Hide done" else "Show done")
-            }
-            HeaderButton(Lucide.RefreshCw, "Refresh", actions.onRefresh)
-            HeaderButton(Lucide.Settings, "Task settings", actions.onSettings)
-            HeaderButton(Lucide.Plus, "New task", { actions.onAdding(true) })
-        }
+        PageHeader(Lucide.SquareKanban, "Board", actions = listOf(
+            PageAction(if (ui.state.showDone) Lucide.EyeOff else Lucide.Eye, if (ui.state.showDone) "Hide done" else "Show done") { actions.onShowDone(!ui.state.showDone) },
+            PageAction(Lucide.RefreshCw, "Refresh", actions.onRefresh),
+            PageAction(Lucide.Settings, "Task settings", actions.onSettings),
+            PageAction(Lucide.Plus, "New task") { actions.onAdding(true) },
+        ))
         ui.error?.let { Box(Modifier.padding(horizontal = 16.dp)) { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) } }
         if (ui.state.adding) Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { NewTaskForm(ui, actions) }
         val tasks = ui.tasks

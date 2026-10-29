@@ -1,5 +1,6 @@
 package kinuvo.ui.routine
 
+import kinuvo.ui.session.HeaderButton
 import kinuvo.app.connection.*
 import kinuvo.ui.agent.*
 import kinuvo.ui.board.*
@@ -34,9 +35,9 @@ internal fun RoutineList(p: Pane) {
             "e.g. “every weekday at 9, summarize my inbox”.",
         "New routine", routines == null,
     ) {
-        items(routines.orEmpty(), key = { it.id }) { r ->
+        if (!routines.isNullOrEmpty()) RowGroup { routines.forEach { r ->
             ItemRow(r.id == ui.route.item, r.icon(), r.name, r.summary(ui.now), { p.go(ui.route.copy(item = r.id, editing = false)) }) { r.statusPill() }
-        }
+        } }
     }
 }
 
@@ -56,16 +57,12 @@ internal fun RoutinePane(p: Pane) {
 @Composable
 private fun RoutineDetail(r: Routine, p: Pane) {
     val (ui, actions) = p.ui to p.actions
-    DetailPane(p.back, r.name, trailing = {
-        Text(if (r.enabled) "On" else "Off", fontSize = 12.sp, color = color(mutedColor))
-        Switch(r.enabled, { actions.onEnabled(r.id, it) }, Modifier.titleBarControl())
-    }) {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            ActionButton(Lucide.Play, "Run now", { actions.onRunNow(r.id) })
-            ActionButton(Lucide.Pencil, "Edit", { p.go(ui.route.copy(editing = true)) })
-            if (!r.heartbeat) DeleteButton("routine", r.id) { actions.onRemove(r.id) }
-        }
+    DetailPane(p.back, r.name, trailing = { HeaderButton(Lucide.Pencil, "Edit", { p.go(ui.route.copy(editing = true)) }) }) {
         ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
+        RowGroup {
+            GroupRow("Runs on schedule", subtitle = if (r.enabled) r.nextRun(ui.now) else "Off", chevron = false) { Switch(r.enabled, { actions.onEnabled(r.id, it) }) }
+            ActionRow("Run now", Lucide.Play, { actions.onRunNow(r.id) })
+        }
         DetailGroup("Schedule") {
             DetailRow("When") { Text(r.trigger.describe()) }
             DetailRow("Time zone") { Text(r.timeZone) }
@@ -95,15 +92,16 @@ private fun RoutineDetail(r: Routine, p: Pane) {
             if (r.prompt.isBlank()) Text("Empty. Edit it here, or ask the agent to add items to its Heartbeat checklist.", color = color(mutedColor), fontSize = 13.sp)
             else Markdown(r.prompt, Modifier.fillMaxWidth())
         }
-        DetailGroup("Recent runs") {
-            if (ui.state.runs.isEmpty()) Text(if (r.sessionId != null) "Runs continue the attached session." else "No runs yet.", color = color(mutedColor), fontSize = 13.sp)
+        RowGroup("Recent runs") {
+            if (ui.state.runs.isEmpty()) GroupRow(if (r.sessionId != null) "Runs continue the attached session." else "No runs yet.", tint = color(mutedColor))
             ui.state.runs.forEach { session ->
-                ListRow(selected = false, onClick = { actions.onOpenSession(session.id) }, leading = { Icon(Lucide.MessageSquare, Modifier.size(15.dp)) }) {
-                    Text(session.id.toRunLabel(), Modifier.weight(1f), singleLine = true)
+                GroupRow(session.id.toRunLabel(), { actions.onOpenSession(session.id) }, icon = Lucide.MessageSquare) {
                     if (session.status != SessionStatus.Idle) Pill(if (session.status == SessionStatus.Running) "Running" else "Waiting", tone = Tone.Accent)
-                    Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
                 }
             }
+        }
+        if (!r.heartbeat) RowGroup {
+            ConfirmRow("Delete routine", Lucide.Trash2, "Delete ${r.name}?", { actions.onRemove(r.id) }, "Delete", detail = "It stops running; its past Sessions stay.")
         }
     }
 }
@@ -138,7 +136,7 @@ private fun RoutineForm(r: Routine?, p: Pane) {
             approvals = approvals,
         ))
     }
-    DetailPane(p.back, r?.let { "Edit ${it.name}" } ?: "New routine", error = p.ui.error, trailing = { FormActions(if (r == null) "Create routine" else "Save", ready, p.ui.state.saved, onSave = save, onCancel = p.cancel) }) {
+    DetailPane(p.back, r?.let { "Edit ${it.name}" } ?: "New routine", error = p.ui.error, trailing = { FormActions(if (r == null) "Create routine" else "Save", ready, p.ui.state.saved, onSave = save, onCancel = p.cancel, dirty = formChanged(listOf(name.text.toString(), prompt.text.toString(), kind, schedule.text.toString(), zone.text.toString(), hours.text.toString(), approvals), p.ui.state.saved)) }) {
         FormField("Name") { Input(name, "Morning brief", capitalize = true) }
         FormField(if (r?.heartbeat == true) "Checklist (HEARTBEAT.md)" else "Prompt", "Runs with only the agent's instructions and Memory, so make it self-contained. If it needs you, it notifies you and waits.") {
             TextArea(prompt, "Summarize my unread email and list anything urgent.")

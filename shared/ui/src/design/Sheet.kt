@@ -2,7 +2,6 @@ package kinuvo.ui.design
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -17,18 +16,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.onClick
-import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.composables.ui.theme.backgroundColor
@@ -37,12 +31,12 @@ import com.composables.ui.theme.scrimColor
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-/**
- * A phone sheet over the dimmed screen: medium height or [tall], toggled by its grabber or by dragging its [header]
- * up and down. Dragging it down from medium, or tapping the scrim, asks to dismiss through [onDismissRequest], which may
- * refuse, e.g. to ask about unsaved changes. [footer] stays above the keyboard and the home indicator while the content
- * scrolls between.
- */
+internal val LocalSheetDrag = staticCompositionLocalOf<Modifier> { Modifier }
+
+/** Whether the content is in a [BottomSheet], e.g. to center its title. */
+val LocalInSheet = staticCompositionLocalOf { false }
+
+/** A 90% height sheet. Swiping down or tapping outside requests dismissal, allowing a draft guard to refuse. */
 @Composable
 fun BottomSheet(
     visible: Boolean,
@@ -52,11 +46,9 @@ fun BottomSheet(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    var tall by rememberSaveable { mutableStateOf(false) }
     AnimatedVisibility(visible, modifier = modifier, enter = fadeIn(), exit = fadeOut()) {
         BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)).imePadding()) {
-            val keyboard = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-            val height by animateDpAsState(if (tall || keyboard) maxHeight - 8.dp else maxHeight * 0.66f)
+            val height = maxHeight * 0.9f
             Box(Modifier.fillMaxSize().background(color(scrimColor))
                 .clickable(remember { MutableInteractionSource() }, indication = null, onClickLabel = "Close", onClick = onDismissRequest))
             val drag = remember { Animatable(0f) }
@@ -69,33 +61,28 @@ fun BottomSheet(
                     .animateEnterExit(enter = slideInVertically { it }, exit = slideOutVertically { it })
                     .offset { IntOffset(0, drag.value.roundToInt().coerceAtLeast(0)) }
                     .shadow(16.dp, shape).clip(shape).background(color(backgroundColor), shape)
+                    .semantics { dismiss { onDismissRequest(); true } }
                     // Swallows taps so they don't reach the scrim.
                     .clickable(remember { MutableInteractionSource() }, indication = null) {},
             ) {
-                Column(
-                    Modifier.fillMaxWidth().draggable(
-                        rememberDraggableState { d -> scope.launch { drag.snapTo(drag.value + d) } },
-                        Orientation.Vertical,
-                        onDragStopped = { v ->
-                            val moved = drag.value
-                            when {
-                                moved < -threshold / 2 || v < -1500f -> tall = true
-                                (moved > threshold || v > 1500f) && tall -> tall = false
-                                moved > threshold || v > 1500f -> onDismissRequest()
-                            }
-                            drag.animateTo(0f)
-                        },
-                    ),
-                ) {
+                val dragModifier = Modifier.draggable(
+                    rememberDraggableState { d -> scope.launch { drag.snapTo(drag.value + d) } },
+                    Orientation.Vertical,
+                    onDragStopped = { velocity ->
+                        if (drag.value > threshold || velocity > 1500f) onDismissRequest()
+                        drag.animateTo(0f)
+                    },
+                )
+                Column(Modifier.fillMaxWidth().then(dragModifier)) {
                     Box(
-                        Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp, bottom = 4.dp).size(48.dp, 20.dp)
-                            .clickable { tall = !tall }
-                            .semantics { role = Role.Button; contentDescription = "Resize sheet"; stateDescription = if (tall) "Expanded" else "Half height" },
+                        Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp, bottom = 4.dp).size(48.dp, 20.dp),
                         contentAlignment = Alignment.Center,
                     ) { Box(Modifier.size(36.dp, 4.dp).background(color(mutedColor).copy(alpha = 0.5f), CircleShape)) }
                     header()
                 }
-                Column(Modifier.weight(1f).fillMaxWidth(), content = content)
+                CompositionLocalProvider(LocalSheetDrag provides dragModifier, LocalInSheet provides true) {
+                    Column(Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)), content = content)
+                }
                 footer?.let { Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)).padding(bottom = 12.dp)) { it() } }
             }
         }

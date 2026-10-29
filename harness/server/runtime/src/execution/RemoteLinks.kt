@@ -23,7 +23,7 @@ class RemoteLinks(initial: RemoteSecrets = RemoteSecrets(), private val persist:
     fun link(id: String): SaveRemoteLink = lock.withLock { requireNotNull(secrets.links.firstOrNull { it.id == id }) { "Remote Server connection is not configured" } }
     fun save(link: SaveRemoteLink) = lock.withLock {
         require(link.id.isNotBlank() && link.token.isNotBlank())
-        require(link.url.startsWith("wss://") || link.url.startsWith("ws://127.0.0.1:") || link.url.startsWith("ws://localhost:")) { "Remote Server requires HTTPS" }
+        requireSecureTransport(link.url, allowCleartext = true)
         val next = secrets.copy(links = secrets.links.filterNot { it.id == link.id } + link)
         persist(next)
         secrets = next

@@ -1,5 +1,6 @@
 package kinuvo.ui.home
 
+import kinuvo.ui.navigation.*
 import kinuvo.app.connection.*
 import kinuvo.app.home.*
 import kinuvo.app.navigation.*
@@ -82,9 +83,6 @@ class HomeActions(
     val onOpenTask: (taskId: String) -> Unit = {},
     val onBoard: () -> Unit = {},
     val onRoutine: (agentId: String, routineId: String) -> Unit = { _, _ -> },
-    /** Shows the shell: beside the screen when wide, revealed from under it on phones. */
-    val onToggleShell: (() -> Unit)? = null,
-    val onBack: (() -> Unit)? = null,
 )
 
 /**
@@ -95,19 +93,12 @@ class HomeActions(
 fun HomeContent(ui: HomeUi, actions: HomeActions, wide: Boolean? = null) {
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
         val isWide = wide ?: (maxWidth >= 720.dp)
-        val floating = !isWide && LocalInteractionMode.current == InteractionMode.Touch
         val twoColumns = maxWidth >= 860.dp
         Column(Modifier.fillMaxSize()) {
-            if (!floating) TitleBarRow {
-                actions.onToggleShell?.let { if (isWide) HeaderButton(Lucide.PanelLeft, "Toggle sidebar ${shortcut(".")}", it) else HeaderButton(Lucide.Menu, "Home and agents", it) }
-                actions.onBack?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
-                Text("Home", Modifier.padding(start = 6.dp), fontWeight = FontWeight.Normal, singleLine = true)
-                Text(listOfNotNull("Today", ui.today.date.long(), ui.server).joinToString(" · "), Modifier.weight(1f).padding(start = 8.dp),
-                    color = color(mutedColor), fontSize = 13.sp, singleLine = true, overflow = TextOverflow.Ellipsis)
-            }
+            PageHeader(Lucide.House, "Home", listOfNotNull("Today", ui.today.date.long().takeIf { isWide }, ui.server).joinToString(" · "))
             Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
                 Column(
-                    Modifier.widthIn(max = 820.dp).fillMaxWidth().padding(horizontal = 16.dp).padding(top = if (floating) FloatingClearance else 20.dp, bottom = 32.dp),
+                    Modifier.widthIn(max = 820.dp).fillMaxWidth().padding(horizontal = 16.dp).padding(top = 20.dp, bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
                     Text(ui.summary(), fontSize = 20.sp, lineHeight = 28.sp, modifier = Modifier.semantics { heading() })
@@ -122,23 +113,6 @@ fun HomeContent(ui: HomeUi, actions: HomeActions, wide: Boolean? = null) {
                     }
                     Results(ui, actions)
                 }
-            }
-        }
-        if (floating) HomeFloatingBar(ui, actions, Modifier.align(Alignment.TopCenter))
-    }
-}
-
-/** Phones: the shell's button and a Home pill float over the top of the page, which fades out under them. */
-@Composable
-private fun HomeFloatingBar(ui: HomeUi, actions: HomeActions, modifier: Modifier) {
-    val background = color(backgroundColor)
-    Box(modifier.fillMaxWidth().height(FloatingClearance).background(Brush.verticalGradient(0.6f to background, 1f to background.copy(alpha = 0f)))) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (actions.onBack != null) FloatingBubble(Lucide.ArrowLeft, "Back", actions.onBack)
-            else actions.onToggleShell?.let { FloatingBubble(Lucide.Menu, "Home and agents", it) }
-            FloatingPill(onClick = actions.onToggleShell ?: {}, label = "Home, Today", leading = { Icon(Lucide.House, Modifier.size(18.dp), tint = color(mutedColor)) }) {
-                Text("Home", fontSize = 14.sp, fontWeight = FontWeight.Medium, singleLine = true)
-                Text(listOfNotNull("Today", ui.server).joinToString(" · "), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             }
         }
     }

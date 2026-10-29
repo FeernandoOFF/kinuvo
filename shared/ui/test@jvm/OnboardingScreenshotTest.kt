@@ -15,6 +15,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.WindowInsets
 import kinuvo.protocol.*
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsNode
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import com.composables.icons.lucide.*
 import kinuvo.ui.design.HarnessTheme
 import org.jetbrains.skia.EncodedImageFormat
@@ -55,14 +59,9 @@ class OnboardingScreenshotTest {
                             provider = "codex", model = "gpt-5.6-sol",
                             catalog = ModelsCatalog(listOf(ProviderModels("codex", "OpenAI Codex", listOf(ModelInfo("gpt-5.6-sol", "GPT-5.6"))))),
                             providers = listOf(ProviderInfo("codex", "OpenAI Codex", account = ProviderAccount(false))))
-                        OnboardingContent(state, action = OnboardingAction(listOf("Get started", "Continue", "Sign in to OpenAI Codex", "Continue", "Continue", "Continue", "Meet Milo")[step]),
-                            secondary = OnboardingAction("I already have a Server"), home = {
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                androidx.compose.foundation.layout.Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                    OnboardingPlace(Lucide.Laptop, "This device", "Your Agent's data stays right here.", true, {}, androidx.compose.ui.Modifier.weight(1f))
-                                    OnboardingPlace(Lucide.Cloud, "Remote server", "Take your Agents to every device.", false, {}, androidx.compose.ui.Modifier.weight(1f))
-                                }
-                            }
+                        val labels = mapOf(2 to "Sign in to OpenAI Codex", 6 to "Meet Milo")
+                        OnboardingContent(state, action = OnboardingAction(labels[step] ?: "Continue"), welcome = { featured, pokes, poke, tint, insets ->
+                            Welcome(WelcomeOptions(onScan = {}, onLocal = {}, onPair = {}), featured, pokes, poke, tint, insets)
                         }, model = { ModelStep(state, {}, {}, {}) },
                             connect = { ConnectList(state.copy(connected = mapOf(kinuvo.app.navigation.SettingsSection.Knowledge to true)),
                                 { it != kinuvo.app.navigation.SettingsSection.Secrets && it != kinuvo.app.navigation.SettingsSection.Workspace }, {}) })
@@ -78,7 +77,65 @@ class OnboardingScreenshotTest {
                 HarnessTheme(dark = false) { OnboardingContent(OnboardingState(step = 4, steps = AgentSteps, agentName = "Wren", avatar = 3), onClose = {}) }
             }
         }
+        val saved = listOf(Server.Remote("wss://home.example/ws", "token", "Home", "home"))
+        render("onboarding-welcome-manual-390", 390, 844) {
+            HarnessTheme(dark = true) {
+                OnboardingContent(OnboardingState(), welcome = { featured, pokes, poke, tint, insets ->
+                    Welcome(WelcomeOptions(onScan = {}, onLocal = null, onPair = {}, servers = saved, manual = true), featured, pokes, poke, tint, insets)
+                })
+            }
+        }
+        render("onboarding-welcome-dark-390", 390, 844) {
+            HarnessTheme(dark = true) {
+                OnboardingContent(OnboardingState(), welcome = { featured, pokes, poke, tint, insets ->
+                    Welcome(WelcomeOptions(onScan = {}, onLocal = null, onPair = {}), featured, pokes, poke, tint, insets)
+                })
+            }
+        }
+        render("onboarding-welcome-desktop-1100", 1100, 850) {
+            HarnessTheme(dark = false) {
+                OnboardingContent(OnboardingState(), welcome = { featured, pokes, poke, tint, insets ->
+                    Welcome(WelcomeOptions(onScan = null, onLocal = {}, onPair = {}, servers = saved), featured, pokes, poke, tint, insets)
+                })
+            }
+        }
         render("onboarding-soul-dark", 1100, 1000) { HarnessTheme(dark = true) { OnboardingContent(OnboardingState(step = 5, avatar = 2)) } }
+    }
+
+    @Test fun theWelcomeAgentIsTheOneTheStepsShape() = javax.swing.SwingUtilities.invokeAndWait {
+        val state = androidx.compose.runtime.mutableStateOf(OnboardingState())
+        ImageComposeScene(390, 844, Density(1f), content = {
+            HarnessTheme(dark = false) {
+                OnboardingContent(state.value, onEdit = { state.value = it(state.value) }, welcome = { featured, pokes, poke, tint, insets ->
+                    Welcome(WelcomeOptions(onScan = {}, onLocal = null, onPair = {}), featured, pokes, poke, tint, insets)
+                })
+            }
+        }).use { scene ->
+            var time = 0L
+            fun frame(ms: Long = 100) { scene.render(time.also { time += ms * 1_000_000 }) }
+            repeat(5) { frame() }
+            val mint = AvatarArtboards[2]
+            fun all(n: SemanticsNode): List<SemanticsNode> = listOf(n) + n.children.flatMap(::all)
+            val target = scene.semanticsOwners.flatMap { all(it.unmergedRootSemanticsNode) }.first {
+                it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains(mint) == true && it.config.getOrNull(SemanticsActions.OnClick) != null
+            }
+            target.config[SemanticsActions.OnClick].action!!.invoke()
+            repeat(5) { frame() }
+            kotlin.test.assertEquals(2, state.value.avatar, "Tapping an Agent on the welcome picks it for the steps")
+            state.value = state.value.copy(step = 2)
+            // Mid-flight frames, kept for checking the move by eye.
+            for (i in 1..4) {
+                frame(90)
+                File("build/screens/onboarding-flight-$i.png").writeBytes(scene.render(time).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+            }
+            repeat(10) { frame() }
+            // Back to the welcome and forward again, with the same Agent introducing itself.
+            state.value = state.value.copy(step = 0)
+            repeat(12) { frame(50) }
+            kotlin.test.assertEquals(2, state.value.avatar)
+            state.value = state.value.copy(step = 2)
+            repeat(12) { frame(50) }
+        }
     }
 
     private fun render(name: String, width: Int, height: Int, requireVisiblePixels: Boolean = false, content: @Composable () -> Unit) = javax.swing.SwingUtilities.invokeAndWait {
