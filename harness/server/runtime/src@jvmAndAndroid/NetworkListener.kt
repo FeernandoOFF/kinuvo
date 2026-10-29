@@ -84,7 +84,12 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                     try {
                         val bytes = withTimeoutOrNull(10_000) { call.receiveChannel().readBuffer(PREAUTH_FRAME_SIZE + 1).readByteArray() }
                         if (bytes == null || bytes.size > PREAUTH_FRAME_SIZE) { call.respondText("Invalid request", status = HttpStatusCode.BadRequest); return@post }
-                        val params = runCatching { ProtocolJson.decodeFromString(ConnectParams.serializer(), bytes.decodeToString()) }.getOrNull()
+                        val raw = runCatching { ProtocolJson.parseToJsonElement(bytes.decodeToString()) }.getOrNull()
+                        val version = (raw as? kotlinx.serialization.json.JsonObject)?.get("protocolVersion")
+                        if (version?.toString() != ProtocolVersion.Current.toString()) {
+                            call.respondText(ProtocolVersion.Mismatch, status = HttpStatusCode.Conflict); return@post
+                        }
+                        val params = runCatching { ProtocolJson.decodeFromJsonElement(ConnectParams.serializer(), raw) }.getOrNull()
                         if (params == null) { call.respondText("Invalid request", status = HttpStatusCode.BadRequest); return@post }
                         val existing = call.request.cookies[SESSION_COOKIE]?.takeIf { auth.cookieMaxAge(it) != null }
                         if (!rotate && existing != null && params.pairingCode == null && params.token == null) {

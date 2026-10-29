@@ -313,6 +313,7 @@ class ServerRuntime(
                 if (request.method == Api.Connect.name) {
                     val response = respond(request, Api.Connect) { p ->
                         check(!authed) { "Already connected" }
+                        ProtocolVersion.requireCompatible(p.protocolVersion)
                         val supplied = connection.credential ?: p.token
                         client.linked = supplied?.let { remoteLinks.exposure(it) != null } == true
                         val token = (if (client.linked) supplied else auth.authenticate(p.device, supplied, if (connection.credential == null) p.pairingCode else null))
@@ -625,6 +626,7 @@ class ServerRuntime(
 
     private fun <T> frame(type: EventType<T>, payload: T): Frame.Event = Frame.Event(type.name, ProtocolJson.encodeToJsonElement(type.payload, payload), seq.incrementAndFetch())
 
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
     private suspend fun <P, R> respond(r: Frame.Request, method: Method<P, R>, block: suspend (P) -> R): Frame.Response =
         try {
             val params = ProtocolJson.decodeFromJsonElement(method.params, r.params)
@@ -632,7 +634,7 @@ class ServerRuntime(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            Frame.Response(r.id, ok = false, error = e.message ?: e.toString())
+            Frame.Response(r.id, ok = false, error = if (method == Api.Connect && e is kotlinx.serialization.MissingFieldException && "protocolVersion" in e.missingFields) ProtocolVersion.Mismatch else e.message ?: e.toString())
         }
 
     private fun <R> encode(serializer: KSerializer<R>, value: R): JsonElement = ProtocolJson.encodeToJsonElement(serializer, value)

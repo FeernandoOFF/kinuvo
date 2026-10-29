@@ -41,12 +41,18 @@ class EventType<T>(val name: String, val payload: KSerializer<T>)
 @Serializable
 data class AgentInfo(val id: String, val name: String, val exec: String, val avatar: String? = null, val executionKind: ExecutionKind = ExecutionKind.Native, val connectionId: String? = null, val host: String? = null, val readiness: ExecutionReadiness = ExecutionReadiness(true, true))
 
+object ProtocolVersion {
+    const val Current = 2
+    const val Mismatch = "protocol_mismatch: Update the Server and Device to matching versions"
+    fun requireCompatible(version: Int) { require(version == Current) { Mismatch } }
+}
+
 /** Exactly one of [token] (a paired device) or [pairingCode] (first connection) is set. [timeZone] is the Device's IANA zone. */
 @Serializable
-data class ConnectParams(val device: String, val token: String? = null, val pairingCode: String? = null, val timeZone: String? = null, val deviceTools: Set<DeviceToolKind> = emptySet())
+data class ConnectParams(val device: String, val token: String? = null, val pairingCode: String? = null, val timeZone: String? = null, val deviceTools: Set<DeviceToolKind> = emptySet(), @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current)
 
 @Serializable
-data class ConnectResult(val token: String, val serverName: String, val usage: Usage? = null, val capabilities: ServerCapabilities, val management: Boolean)
+data class ConnectResult(val token: String, val serverName: String, val usage: Usage? = null, val capabilities: ServerCapabilities, val management: Boolean, @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current)
 
 @Serializable
 data class AgentRef(val agentId: String)

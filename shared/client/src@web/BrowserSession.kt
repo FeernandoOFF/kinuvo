@@ -20,6 +20,7 @@ internal actual suspend fun HttpClient.prepareConnect(url: String, params: Conne
         header(HttpHeaders.ContentType, "application/json")
         setBody(ProtocolJson.encodeToString(ConnectParams.serializer(), request))
     }
+    if (response.status.value == 409) throw ProtocolMismatchException()
     if (response.status.value == 401) throw AuthException("Invalid or expired browser session; pair this Device again")
     check(response.status.value == 204) { "Browser authentication failed (${response.status.value})" }
     return params.copy(token = null, pairingCode = null)

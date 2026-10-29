@@ -33,10 +33,10 @@ element geometry or attributes invalidate them. All operations run on a single
 Playwright thread, serializing tab input. Capturing another semantic snapshot
 also invalidates previous refs; Live view polling does not. Read/wait are Low
 Risk, navigation/open/close Medium, click/fill High. Existing Approval, Trust
-and Deny rules apply. Agent capture/input is refused during Takeover. Password
-fields cannot be filled by Agents. Use user Takeover for passwords, codes,
-CAPTCHAs, payments and security dialogs. No password-manager value injection is
-implemented.
+and Deny rules apply. Agent capture/input is refused during Takeover. By explicit user scope, Browser
+adds no password, OTP or payment-field refusals or per-site Trust rules. Existing
+Agent Risk tolerance, Approval, Trust and Deny rules govern these actions too.
+Typed values must not be logged. No password-manager value injection is implemented.
 
 HTTP and HTTPS private-network/self-hosted sites are intentional. Explicit
 navigation rejects embedded credentials, files and custom protocols; document
@@ -65,7 +65,7 @@ mise run exec -- env KINUVO_BROWSER_PACKAGED_JAR="$PWD/build/tasks/_cli_executab
 
 The runtime test uses a localhost fixture and proves persistent cookies/local
 storage, cross-Agent isolation, ownership, stale refs, Takeover, password-field
-refusal, sandbox-enabled launch over a private pipe, and shutdown with real managed Chromium. The Server test proves
+input under the ordinary Agent policy, sandbox-enabled launch over a private pipe, and shutdown with real managed Chromium. The Server test proves
 management authorization, paired transport, reconnect persistence and control.
 The packaged variant starts the executable jar in an isolated temporary home,
 provisions Chromium there and stops the process afterward. Rendered UI fixtures
@@ -82,3 +82,24 @@ Upstream references: [browser installation](https://playwright.dev/java/docs/bro
 The installer calls the pinned driver's `createProcessBuilder` to run the bundled
 Node CLI; this avoids nested-JAR classpath issues. Browser implementation is
 independent of OpenBot source/assets.
+
+## Ubuntu 24.04 sandbox startup
+
+If AppArmor blocks Chromium's unprivileged user namespaces, an operator can run
+`sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0` for the current
+boot. To persist it, the operator can place
+`kernel.apparmor_restrict_unprivileged_userns=0` in
+`/etc/sysctl.d/60-apparmor-namespace.conf`; remove the file and reboot to undo it.
+This loosens a host-wide restriction. A path-specific AppArmor profile granting
+`userns,` is a narrower alternative. These are administrator-managed choices;
+Kinuvo never changes host sysctls or disables Chromium's sandbox.
+
+## Protocol compatibility
+
+This restoration requires explicit protocol version **2** on both sides of the
+connection. A missing or different version is incompatible: the Server rejects
+it before pairing/authentication, capabilities or cookie rotation. Browser HTTP
+authentication returns 409. Updated clients check the response version before
+decoding feature enums and preserve saved credentials on a protocol mismatch.
+Update the Server and Device together. The later unified Screens contract may
+require another version change; this stage adds no legacy management mapping.

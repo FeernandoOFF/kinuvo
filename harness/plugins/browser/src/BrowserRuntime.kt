@@ -72,7 +72,6 @@ class BrowserRuntime(private val home: File) : BrowserService {
             require(c.revision == tab.revision && tab.revision.isNotEmpty() && fingerprint(page) == tab.fingerprint) { "Stale browser reference; capture again" }
             requireNotNull(tab.refs[c.ref]) { "Unknown browser reference; capture again" }.also {
                 check(it.isVisible) { "Stale browser reference; capture again" }
-                check(it.getAttribute("type")?.lowercase() != "password") { "Ask the user to take over for sign-in" }
             }
         } else null
         invalidate(tab)
@@ -187,9 +186,8 @@ class BrowserRuntime(private val home: File) : BrowserService {
             tab.revision = UUID.randomUUID().toString()
         }
         val elements = if (!semantic) emptyList() else tab.refs.map { (ref, e) ->
-            val password = e.getAttribute("type")?.lowercase() == "password"
             BrowserElement(ref, e.getAttribute("role") ?: e.evaluate("e => e.tagName.toLowerCase()").toString(),
-                if (password) "Password (user Takeover required)" else (e.getAttribute("aria-label") ?: e.getAttribute("placeholder") ?: e.evaluate("e => [...(e.labels || [])].map(l => l.innerText).join(' ')").toString().takeIf { it.isNotBlank() } ?: e.innerText()).take(180))
+                (e.getAttribute("aria-label") ?: e.getAttribute("placeholder") ?: e.evaluate("e => [...(e.labels || [])].map(l => l.innerText).join(' ')").toString().takeIf { it.isNotBlank() } ?: e.innerText()).take(180))
         }
         return BrowserFrame(info(tab), tab.revision, elements, shot(tab.page, 65),
             text = if (semantic) tab.page.evaluate("() => document.body?.innerText || ''").toString().take(24_000) else "")
