@@ -1,0 +1,33 @@
+{
+  "name": "mobile/browser-connect",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "connect"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"token\":\"e2e-token\",\"serverName\":\"E2E Server\",\"management\":true,\"capabilities\":{\"serverId\":\"e2e-server\",\"features\":[\"Browser\"]},\"protocolVersion\":3}}"
+        }
+      }
+    }
+  ]
+}
