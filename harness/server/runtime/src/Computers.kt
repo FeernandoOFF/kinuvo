@@ -7,6 +7,11 @@ import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
@@ -150,6 +155,26 @@ class Computers(
         control(id) { if (take) it.copy(user = true, local = false) else it.copy(user = false, local = false, request = null) }
         val result = perform(computer, ComputerRequest(elements = false, release = !take))
         return ComputerFrame(info(computer), result.screen, result.message)
+    }
+
+    fun screen(id: String): ScreenSource {
+        val computer = computer(id)
+        return object : ScreenSource {
+            override val ref = ScreenRef("computer", id)
+            override val capabilities = ScreenCapabilities(ScreenDelivery.CaptureRefresh, computer.actions.map { it.action }.toSet(),
+                windows = ComputerActionKind.ListWindows in computer.actions)
+            override fun frames(): Flow<ScreenSample> = callbackFlow {
+                val watcher: (ComputerFrame) -> Unit = { frame ->
+                    frame.screen?.let { screen ->
+                        screen.screenshot?.takeIf { it.length <= 4 * 1024 * 1024 }?.let { image ->
+                            trySend(ScreenSample(image, screen.width, screen.height, "${screen.width}:${screen.height}:${screen.platform}"))
+                        }
+                    }
+                }
+                watch(id, watcher)
+                awaitClose { unwatch(id, watcher) }
+            }.buffer(Channel.CONFLATED)
+        }
     }
 
     /** Sends [watcher] Live view frames of the Computer [id] until [unwatch]: after every action, and about once a second. */
