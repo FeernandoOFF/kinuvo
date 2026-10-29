@@ -55,7 +55,8 @@ fun SettingsScreen(
     val route = state.route
     val show = { r: Route.Settings -> onNavigate(r, false) }
     SettingsContent(
-        SettingsUi(state, appState.agents, now, appState.capabilities, (appState.connection as? Connection.Ready)?.server, appState.pairing, appState.pairingBase, appState.pairingError, appState.devices, (appState.connection as? Connection.Ready)?.client?.lastConnect?.management == true, appState.servers, appState.sharing),
+        SettingsUi(state, appState.agents, now, appState.capabilities, (appState.connection as? Connection.Ready)?.server, appState.pairing, appState.pairingBase, appState.pairingError, appState.devices, (appState.connection as? Connection.Ready)?.client?.lastConnect?.management == true, appState.servers, appState.sharing,
+            (appState.connection as? Connection.Ready)?.let { serverLabel(it) } ?: "this Server"),
         SettingsActions(
             onBack = onBack,
             onRenameServer = app::rename,
@@ -109,6 +110,17 @@ fun SettingsScreen(
             onDisconnectSecrets = settings::disconnectSecrets,
             onRefreshSecrets = settings::refreshSecrets,
             onBrowseSecrets = settings::browseSecrets,
+            onEditAcp = settings::editAcp,
+            onCheckAcp = { settings.checkAcp() },
+            onSaveAcp = { settings.saveAcp { id -> show(route.copy(item = id, editing = false)) } },
+            onCheckHarness = { settings.checkHarness(it) },
+            onRemoveHarness = { id -> settings.removeHarness(id) { show(route.copy(item = null, editing = false)) } },
+            onEditLink = settings::editLink,
+            onLink = { settings.link { id -> show(route.copy(item = id, editing = false)) } },
+            onEditShare = settings::editShare,
+            onShareAgents = { settings.share() },
+            onRevokeShare = { settings.revokeShare(it) },
+            onLoadGrants = { settings.loadGrants() },
         ),
         sidebar,
     )
@@ -122,8 +134,10 @@ data class SettingsUi(val state: SettingsState, val agents: List<AgentInfo> = em
     val servers: List<Server> = emptyList(),
     /** Whether the embedded Server is reachable from other Devices; null when it can't be. */
     val sharing: Boolean? = null,
+    /** The selected Server's machine, as labels name it: its name, or "this device" when embedded here. */
+    val serverName: String = "this Server",
 ) {
-    fun available(section: SettingsSection) = capabilities.allows(section)
+    fun available(section: SettingsSection) = capabilities.allows(section) && (section != SettingsSection.Harnesses || state.harnesses.catalog != null)
     val route get() = state.route
     val agent get() = agents.firstOrNull { it.id == route.agentId }
     val config get() = state.config
@@ -184,6 +198,17 @@ class SettingsActions(
     val onRefreshSecrets: () -> Unit = {},
     /** Loads the names under a path: scheme, then vault and item. */
     val onBrowseSecrets: (path: List<String>) -> Unit = {},
+    val onEditAcp: ((AcpForm) -> AcpForm) -> Unit = {},
+    val onCheckAcp: () -> Unit = {},
+    val onSaveAcp: () -> Unit = {},
+    val onCheckHarness: (String) -> Unit = {},
+    val onRemoveHarness: (String) -> Unit = {},
+    val onEditLink: ((LinkForm) -> LinkForm) -> Unit = {},
+    val onLink: () -> Unit = {},
+    val onEditShare: ((ShareForm) -> ShareForm) -> Unit = {},
+    val onShareAgents: () -> Unit = {},
+    val onRevokeShare: (String) -> Unit = {},
+    val onLoadGrants: () -> Unit = {},
 )
 
 /** How a pane moves between levels: [go] opens a route at this screen width, [back] leaves the pane (null when it's beside its list). */
@@ -235,7 +260,7 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
                     Text(agent.name, Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis)
                 }
                 // The open Agent's own sections, nested under it.
-                if (open) SettingsSection.entries.filter { it.agent }.forEach { section ->
+                if (open && !agent.external) SettingsSection.entries.filter { it.agent }.forEach { section ->
                     ListRow(
                         selected = section == selected,
                         onClick = { go(Route.Settings(agent.id, section)) },
@@ -277,6 +302,7 @@ private fun SettingsSection.icon(): ImageVector = when (this) {
     SettingsSection.Tasks -> Lucide.SquareKanban
     SettingsSection.Knowledge -> Lucide.Library
     SettingsSection.Providers -> Lucide.Sparkles
+    SettingsSection.Harnesses -> Lucide.SquareTerminal
     SettingsSection.Hub -> Lucide.Wrench
     SettingsSection.Secrets -> Lucide.KeyRound
     SettingsSection.Search -> Lucide.Search
@@ -289,7 +315,7 @@ private fun SettingsSection.count(ui: SettingsUi): Int? = when (this) {
     SettingsSection.Routines -> ui.state.routines?.count { it.enabled }
     SettingsSection.Skills -> ui.config.skills?.count { it.active }
     SettingsSection.Mcp -> ui.config.mcp?.count { it.active }
-    SettingsSection.Connection, SettingsSection.Providers, SettingsSection.Hub, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications -> null
+    SettingsSection.Connection, SettingsSection.Providers, SettingsSection.Harnesses, SettingsSection.Hub, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications -> null
 }
 
 @Composable
@@ -300,7 +326,7 @@ private fun SectionPane(
 ) {
     val route = ui.route
     if (section == SettingsSection.DeviceTools) return DeviceToolsSettingsPane(Pane(ui, actions, go, rootBack))
-    if (section == SettingsSection.Overview) return AgentContent(ui, { actions.onNavigate(it, true) }, rootBack)
+    if (section == SettingsSection.Overview) return AgentContent(ui, { actions.onNavigate(it, true) }, rootBack, actions.onDeleteAgent)
     if (ui.capabilities != null && !ui.available(section)) return DetailPane(rootBack, section.title) { Text(UNAVAILABLE, color = color(mutedColor)) }
     if (section == SettingsSection.Agent || section == SettingsSection.Workspace || section == SettingsSection.Tools) {
         val pane = Pane(ui, actions, go, rootBack)
@@ -311,6 +337,7 @@ private fun SectionPane(
         return when (section) {
             SettingsSection.Connection -> ConnectionSettingsPane(pane)
             SettingsSection.Providers -> ProvidersSettingsPane(pane)
+            SettingsSection.Harnesses -> HarnessesPane(pane)
             SettingsSection.Hub -> ToolHubPane(pane)
             SettingsSection.Tasks -> TasksSettingsPane(pane)
             SettingsSection.Knowledge -> KnowledgeSettingsPane(pane)
@@ -353,7 +380,7 @@ private fun SettingsSection.noun() = when (this) {
     SettingsSection.Routines -> "a routine"
     SettingsSection.Skills -> "a skill"
     SettingsSection.Mcp -> "an MCP server"
-    SettingsSection.Connection, SettingsSection.Providers, SettingsSection.Hub, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications, SettingsSection.DeviceTools -> "a setting"
+    SettingsSection.Connection, SettingsSection.Providers, SettingsSection.Harnesses, SettingsSection.Hub, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications, SettingsSection.DeviceTools -> "a setting"
 }
 
 /** A section's list: title with an add button, an intro, then its rows or a spinner while [loading]. */

@@ -1,6 +1,7 @@
 package kinuvo.ui.agent
 
 import kinuvo.app.connection.*
+import kinuvo.app.agent.*
 import kinuvo.app.navigation.*
 import kinuvo.ui.session.*
 import kinuvo.ui.routine.*
@@ -38,7 +39,7 @@ import kotlin.time.Clock
 
 /** An Agent's Overview in Settings: its greeting and avatar among cards opening its other sections: Personality and Routines, then what it can use. */
 @Composable
-fun AgentContent(ui: SettingsUi, onOpen: (Route.Settings) -> Unit, onBack: (() -> Unit)? = null) {
+fun AgentContent(ui: SettingsUi, onOpen: (Route.Settings) -> Unit, onBack: (() -> Unit)? = null, onDelete: () -> Unit = {}) {
     val agentId = ui.route.agentId
     val open = { section: SettingsSection -> onOpen(Route.Settings(agentId, section)) }
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
@@ -46,10 +47,18 @@ fun AgentContent(ui: SettingsUi, onOpen: (Route.Settings) -> Unit, onBack: (() -
         Column(Modifier.fillMaxSize()) {
             TitleBarRow(leading = onBack != null, trailing = false) {
                 onBack?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
+                if (ui.agent?.external == true) DeleteButton("external Agent", agentId, onDelete)
             }
-            val personality: @Composable (Modifier) -> Unit = { PersonalityCard(ui, it) { open(SettingsSection.Agent) } }
-            val routines: @Composable (Modifier) -> Unit = { RoutinesCard(ui, it, { open(SettingsSection.Routines) }) { onOpen(Route.Settings(agentId, SettingsSection.Routines, editing = true)) } }
-            val tiles: @Composable (Modifier) -> Unit = { m -> Tiles(ui, wide, m, open) }
+            val external = ui.agent?.external == true
+            val personality: @Composable (Modifier) -> Unit = {
+                if (external) RunsOnCard(ui, it) { onOpen(Route.Settings(agentId, SettingsSection.Harnesses, ui.agent?.connectionId)) }
+                else PersonalityCard(ui, it) { open(SettingsSection.Agent) }
+            }
+            val routines: @Composable (Modifier) -> Unit = {
+                if (external) ManagedCard(ui, it)
+                else RoutinesCard(ui, it, { open(SettingsSection.Routines) }) { onOpen(Route.Settings(agentId, SettingsSection.Routines, editing = true)) }
+            }
+            val tiles: @Composable (Modifier) -> Unit = { m -> if (!external) Tiles(ui, wide, m, open) }
             val greeting = "Hi, I’m ${ui.agent?.name ?: "…"}"
             if (wide) Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp).clip(RoundedCornerShape(28.dp)).background(color(sidebarColor))) {
                 // Between the cards, shrinking and wrapping for long names.
@@ -111,6 +120,32 @@ private fun PersonalityCard(ui: SettingsUi, modifier: Modifier, onClick: () -> U
                 Text("· " + it.removePrefix("- "), fontSize = 13.sp, lineHeight = 18.sp, color = color(mutedColor), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
+    }
+}
+
+/** An external Agent's harness and the machine it runs on, with its readiness; opens the harness in Harnesses. */
+@Composable
+private fun RunsOnCard(ui: SettingsUi, modifier: Modifier, onClick: () -> Unit) {
+    val agent = ui.agent ?: return
+    val connections = ui.state.harnesses.connections
+    val harness = harnessName(agent, connections)
+    Card(Lucide.SquareTerminal, "Runs on", modifier, onClick, enabled = ui.available(SettingsSection.Harnesses)) {
+        Text(runsOn(agent, connections, ui.serverName))
+        ui.config.details?.cwd?.let { Text(it, style = MonoStyle, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+        val r = readiness(agent.readiness.state(), harness, agent.host ?: ui.serverName, agent.name)
+        ReadinessPill(r)
+        r.message?.let { Text(it, fontSize = 13.sp, color = color(mutedColor), maxLines = 3, overflow = TextOverflow.Ellipsis) }
+    }
+}
+
+/** What Kinuvo leaves to an external Agent's harness. */
+@Composable
+private fun ManagedCard(ui: SettingsUi, modifier: Modifier) {
+    val agent = ui.agent ?: return
+    val harness = harnessName(agent, ui.state.harnesses.connections)
+    Card(Lucide.Lock, "Managed by $harness", modifier, {}, enabled = true) {
+        Text("Instructions, Memory, Skills and tools are set in $harness on ${agent.host ?: ui.serverName}.", color = color(mutedColor))
+        Text("$harness decides when to ask before acting. Answer from any Device with access.", fontSize = 13.sp, color = color(mutedColor))
     }
 }
 

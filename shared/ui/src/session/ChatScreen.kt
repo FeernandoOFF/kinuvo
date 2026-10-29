@@ -68,6 +68,7 @@ import com.composeunstyled.theme.Theme
 import com.mohamedrejeb.richeditor.model.rememberRichTextState
 import com.mohamedrejeb.richeditor.model.RichTextState
 import kinuvo.client.ConnectionState
+import kinuvo.protocol.ExecutionPhase
 import kinuvo.protocol.AgentInfo
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.Risk
@@ -141,8 +142,11 @@ fun ChatScreen(
     val drafted by rememberUpdatedState(route)
     DisposableEffect(draft, route.slot) { onDispose { app.saveDraft(drafted, draft.toMarkdown()) } }
     LaunchedEffect(route.agentId, route.sessionId, current.resolving) { session.shown() }
+    val harnesses by org.koin.compose.koinInject<HarnessRepository>().state.collectAsState()
+    val agent = appState.agents.firstOrNull { it.id == route.agentId }
     val state = ChatState(
-        agent = appState.agents.firstOrNull { it.id == route.agentId },
+        agent = agent,
+        harness = agent?.let { harnessName(it, harnesses.connections) },
         sessions = route.agentId?.let { appState.sessions.lists[it] }?.sessions.orEmpty(),
         selected = route.sessionId,
         info = current.info?.takeIf { it.id == route.sessionId },
@@ -166,6 +170,10 @@ fun ChatScreen(
                 ?: current.items.firstNotNullOfOrNull { item -> (item as? ChatItem.User)?.attachments?.firstOrNull { it.id == id } }?.let { AttachmentPreview(it, null) }
         },
         answers = current.answers,
+        prompts = current.prompts,
+        phase = current.phase,
+        resume = agent?.connectionId?.let { id -> harnesses.connections?.firstOrNull { it.config.id == id }?.capabilities?.resume },
+        resuming = current.resuming,
     )
     ChatContent(
         state, connection, appState.usage,
@@ -200,6 +208,10 @@ fun ChatScreen(
             onEndVoice = { voice?.end() },
             onDictate = dictation?.let { it::toggle },
             onDiscardDictation = { dictation?.discard() },
+            onExternal = session::answerExternal,
+            onCheckHarness = { appState.agents.firstOrNull { it.id == route.agentId }?.connectionId?.let(session::checkHarness) },
+            onResume = session::resumeExternal,
+            onCloseSession = session::closeExternal,
         ),
         wide = wide,
         compose = route.compose && route.sessionId == null,
@@ -244,6 +256,13 @@ class ChatActions(
     val onEndVoice: () -> Unit = {},
     val onDictate: (() -> Unit)? = null,
     val onDiscardDictation: () -> Unit = {},
+    /** Answers an external Agent's harness with its own JSON response. */
+    val onExternal: (ExternalPrompt, kotlinx.serialization.json.JsonElement) -> Unit = { _, _ -> },
+    val onCheckHarness: () -> Unit = {},
+    /** Reopens an external Session whose harness process ended. */
+    val onResume: () -> Unit = {},
+    /** Ends an external Session's harness process; its transcript stays. */
+    val onCloseSession: () -> Unit = {},
 )
 
 /** [pairing] is set when the [active] Server can pair other Devices. */
@@ -364,12 +383,13 @@ fun ChatContent(
                         if (!dictation.dictating) dictated = null
                     }
                     val settings: @Composable RowScope.() -> Unit = {
-                        state.defaults?.let { ComposerSettings(state.settings, it, state.models, actions.onConfigure, actions.onAttach, !state.running, actions.onRefreshModels, state.photos, state.files,
+                        state.defaults?.takeIf { !state.external }?.let { ComposerSettings(state.settings, it, state.models, actions.onConfigure, actions.onAttach, !state.running, actions.onRefreshModels, state.photos, state.files,
                             agent = state.agent?.name, onAgentDefaults = actions.onSettings.takeIf { state.agent != null }) }
                     }
                     val attachments: @Composable () -> Unit = { if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         state.attachments.forEach { a -> key(a.id) { AttachmentChip(a.attachment, a.upload.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onRemove = if (state.running) null else ({ actions.onRemoveAttachment(a.id) })) } }
                     } }
+                    if (state.external) ExternalPrompts(state, actions, Modifier.widthIn(max = ContentWidth))
                     AnimatedContent(voice != null, contentAlignment = Alignment.BottomCenter, transitionSpec = {
                         (fadeIn(tween(220, delayMillis = 80)) + slideInVertically(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) { it / 3 } +
                             scaleIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow), initialScale = 0.94f))
@@ -377,13 +397,14 @@ fun ChatContent(
                             .using(SizeTransform(clip = false))
                     }) { inVoice ->
                     if (inVoice) shownVoice?.let { VoiceControls(it, actions.onPauseVoice, actions.onHoldVoice, actions.onSpeaker, actions.onEndVoice, Modifier.widthIn(max = ContentWidth), settings, attachments) }
-                    else Composer(
+                    else Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Composer(
                         running = state.running,
                         onSend = { follow.value = true; actions.onDiscardDictation(); actions.onSend(it) },
                         onStop = actions.onStop,
                         placeholder = "Chat with ${state.agent?.name ?: "Kinuvo"}",
                         hint = state.dictation?.error ?: if (wide && state.items.isEmpty()) "Shift+Enter for new line · Markdown formats as you type" + if (state.skills) " · / for skills" else "" else null,
-                        blocked = state.chatBlocked,
+                        blocked = state.ended?.blocked ?: state.chatBlocked?.let { reason -> if (state.external) "Sending is off until ${state.harness ?: "the harness"} is ready." else reason },
                         modifier = Modifier.widthIn(max = ContentWidth),
                         state = draft,
                         focus = composerFocus,
@@ -399,6 +420,7 @@ fun ChatContent(
                         onDictate = actions.onDictate,
                         dictating = state.dictation?.dictating == true,
                     )
+                    }
                     }
                 }
                 ConnectionSnackbar(connection, Modifier.align(Alignment.BottomCenter).padding(bottom = composerHeight + 12.dp).padding(horizontal = 16.dp))
@@ -470,7 +492,7 @@ private fun PhoneActions(state: ChatState, usage: Usage?, actions: ChatActions) 
     val selected = state.selected?.let { id -> state.sessions.firstOrNull { it.id == id } ?: state.info }
     Bubble {
         if (state.selected != null) BubbleButton(Lucide.SquarePen, "New session", actions.onNew)
-        SessionMenu(selected, actions, extra = { close ->
+        SessionMenu(selected, actions, state, extra = { close ->
             DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
         }) { open -> BubbleButton(Lucide.Ellipsis, "More", open) }
     }
@@ -529,15 +551,17 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
             selected?.let { SessionBadge(it, compact) }
         }
         ChatStatistics(usage, remember(state.items) { state.items.requestMetrics() }, state.selected)
-        if (selected != null) SessionMenu(selected, actions) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
+        if (selected != null) SessionMenu(selected, actions, state) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
     }
 }
 
-/** Favorite and Rename for the open Session, under [trigger]; [extra] items go first. */
+/** Favorite, Rename and, for an external Agent's running Session, Close, under [trigger]; [extra] items go first. */
 @Composable
-private fun SessionMenu(session: SessionInfo?, actions: ChatActions, extra: @Composable DropdownMenuPanelContentScope.(close: () -> Unit) -> Unit = {}, trigger: @Composable (open: () -> Unit) -> Unit) {
+private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatState, extra: @Composable DropdownMenuPanelContentScope.(close: () -> Unit) -> Unit = {}, trigger: @Composable (open: () -> Unit) -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var renaming by remember(session?.id) { mutableStateOf(false) }
+    var closing by remember(session?.id) { mutableStateOf(false) }
+    val closable = session != null && chat.external && chat.ended == null
     DropdownMenu(
         expanded = menu,
         onExpandedChange = { menu = it },
@@ -549,6 +573,7 @@ private fun SessionMenu(session: SessionInfo?, actions: ChatActions, extra: @Com
                         MenuItem(if (session.favorite) Lucide.StarOff else Lucide.Star, if (session.favorite) "Remove from favorites" else "Add to favorites")
                     }
                     DropdownMenuItem(onClick = { menu = false; renaming = true }) { MenuItem(Lucide.Pencil, "Rename") }
+                    if (closable) DropdownMenuItem(onClick = { menu = false; closing = true }) { MenuItem(Lucide.CircleStop, "Close session") }
                 }
             }
         },
@@ -561,6 +586,31 @@ private fun SessionMenu(session: SessionInfo?, actions: ChatActions, extra: @Com
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Input(title, "Chat name", Modifier.focusRequester(focus).onPreviewKeyEvent { e -> (e.type == KeyEventType.KeyDown && e.key == Key.Enter).also { if (it) save() } }, capitalize = true)
             Button(::save, Modifier.fillMaxWidth(), enabled = title.text.toString().trim() != session.title) { Text("Save") }
+        }
+    }
+    if (closable) Popover(closing, { closing = false }, "Close session") { CloseSessionConfirm(chat, { closing = false }) { closing = false; actions.onCloseSession() } }
+}
+
+/** Asks before closing an external Session, saying what stops and what stays. */
+@Composable
+internal fun CloseSessionConfirm(chat: ChatState, onCancel: () -> Unit, onClose: () -> Unit) {
+    val harness = chat.harness ?: "The harness"
+    val host = chat.agent?.host
+    val busy = chat.running || chat.phase == ExecutionPhase.Running || chat.phase == ExecutionPhase.RequiresAction
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(buildString {
+            append(if (busy) "$harness is still working. Closing stops its current turn" else "Closing stops $harness's process for this Session")
+            host?.let { append(" on $it") }
+            append(" and drops any request it's waiting on. The transcript stays here.")
+            append(when (chat.resume) {
+                true -> " You can resume it later."
+                false -> " $harness can't resume Sessions, so this one can't continue after closing."
+                null -> ""
+            })
+        }, fontSize = 14.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
+            Button(onCancel, style = ButtonStyle.Ghost) { Text("Keep open") }
+            Button(onClose, style = ButtonStyle.Ghost, contentColor = color(destructiveColor)) { Text(if (busy) "Stop and close" else "Close session") }
         }
     }
 }

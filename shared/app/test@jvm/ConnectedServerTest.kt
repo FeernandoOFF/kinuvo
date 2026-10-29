@@ -26,6 +26,30 @@ class ConnectedServerTest {
     private val serverJobs = mutableListOf<Job>()
     private val stores = mutableListOf<ViewModelStore>()
     private fun store() = ViewModelStore().also(stores::add)
+    @Test fun mutableTranscriptWindowsPublishAtomicallyAndRetainMessageIds() = withOwner { owner, _, _ ->
+        val script = Script("A")
+        connect(owner, script)
+        owner.sessions.loadSessions("agent").join()
+        owner.sessions.view("agent", "session").join()
+        owner.sessions.state.first { it.sessions["session"]?.loaded == true }
+        val observed = mutableListOf<List<SessionEntry>>()
+        val observer = CoroutineScope(currentCoroutineContext()).launch(start = CoroutineStart.UNDISPATCHED) {
+            owner.sessions.state.collect { state -> observed.add(state.sessions.getValue("session").entries) }
+        }
+        val history = List(2000) { SessionEntry.AssistantMessage("history $it", "m$it") }
+        repeat(20) { token ->
+            val entries = history + SessionEntry.AssistantMessage("token $token", "stream")
+            script.event(Api.Update, SessionUpdate("agent", "session", SessionChange.Window(0, entries, LiveState(running = token < 19))))
+            owner.sessions.state.first { it.sessions["session"]?.entries == entries }
+        }
+        observer.cancelAndJoin()
+        assertTrue(observed.all { it.isNotEmpty() })
+        val final = owner.sessions.state.value.sessions.getValue("session")
+        assertEquals(2001, final.entries.size)
+        assertEquals("stream", (final.entries.last() as SessionEntry.AssistantMessage).messageId)
+        assertFalse(final.live.running)
+        assertTrue(final.loaded)
+    }
     @Test fun selectedAttachmentsRespectLegacyAndExplicitServerSupport() = withOwner { owner, _, _ ->
         val legacy = SessionCapabilities(server = ServerCapabilities("test", setOf(ServerFeature.Attachments)), inputs = mapOf(
             "text" to CapabilityState(), "image" to CapabilityState(), "file" to CapabilityState.unsupported("No native files"),

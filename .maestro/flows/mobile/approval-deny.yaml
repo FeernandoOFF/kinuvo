@@ -41,6 +41,14 @@ properties:
     direction: DOWN
 - tapOn: 'Note for the agent \(optional, sent on Deny\)'
 - inputText: "Do not run this command"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: 50%,35%
+          end: 50%,5%
+      - waitForAnimationToEnd
 - tapOn: "Deny"
 - assertVisible: "Action was denied"
 - assertNotVisible: "Allow once"

@@ -1,0 +1,33 @@
+{
+  "name": "mobile/harnesses",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "execution.catalog"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"connections\":[{\"config\":{\"id\":\"claude\",\"name\":\"Claude Agent\",\"connection\":{\"type\":\"kinuvo.protocol.ExecutionConnection.Acp\",\"command\":[\"claude-agent-acp\"]}},\"readiness\":{\"configured\":true,\"online\":true}}],\"agents\":[]}}"
+        }
+      }
+    }
+  ]
+}

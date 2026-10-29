@@ -35,8 +35,11 @@ properties:
 - tapOn: "Show done"
 - assertVisible: "Hide done"
 - repeat:
-    times: 3
+    while:
+      notVisible: "Completed fixture task"
+    times: 6
     commands:
       - swipe:
-          direction: LEFT
+          start: 60%,60%
+          end: 10%,60%
 - assertVisible: "Completed fixture task"
