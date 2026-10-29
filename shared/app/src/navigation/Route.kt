@@ -77,7 +77,7 @@ enum class SettingsSection(val title: String, val server: Boolean = false) {
     /** The Agent's own page: who it is, opening its other sections. */
     Overview("Overview"),
     /** Name, Identity, Soul and model; also where a new Agent is created. */
-    Agent("Personality"), Workspace("Workspace"), Tools("Tools"), Routines("Routines"), Skills("Skills"), Mcp("MCP servers"), DeviceTools("This Device's tools"),
+    Agent("Personality"), Workspace("Workspace"), Tools("Tools"), Routines("Routines"), Skills("Skills"), Mcp("MCP servers"), DeviceTools("This Device's tools"), LocalVoice("Voice", server = true),
     /** Server-wide, the same whichever Agent is picked. */
     Connection("Servers & devices", server = true), Providers("Model providers", server = true),
     /** The ways this Server runs Agents besides Kinuvo itself: ACP commands and linked Kinuvo Servers. */
@@ -87,7 +87,7 @@ enum class SettingsSection(val title: String, val server: Boolean = false) {
     Search("Web search", server = true), Notifications("Notifications", server = true);
 
     /** One Agent's, opened from its [Overview] rather than listed in Settings. */
-    val agent get() = !server && this != DeviceTools && this != Overview
+    val agent get() = !server && this != DeviceTools && this != LocalVoice && this != Overview
 
     /** Listed under Device or Server; the Agents list opens the [Overview]. */
     val listed get() = !agent && this != Overview

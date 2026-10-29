@@ -181,7 +181,7 @@ jobs:
           cp install.sh install.ps1 dist/
           cd dist && sha256sum * > SHA256SUMS
       - if: ${{ !github.event.repository.private }}
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: dist/*
       - env:

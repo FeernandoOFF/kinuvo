@@ -12,7 +12,7 @@ class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File
         if (file.exists()) kinuvo.protocol.ProtocolJson.decodeFromString(serializer, file.readText()) else default
     private fun <T> save(file: File, serializer: kotlinx.serialization.KSerializer<T>, value: T) =
         kinuvo.harness.core.store.writeAtomically(kotlinx.io.files.Path(file.path), kinuvo.protocol.ProtocolJson.encodeToString(serializer, value), private = file == remoteFile)
-    val runtime = ServerRuntime(harness, auth, name, remoteLinks = kinuvo.harness.server.execution.RemoteLinks(load(remoteFile, kinuvo.harness.server.execution.RemoteSecrets.serializer(), kinuvo.harness.server.execution.RemoteSecrets())) { save(remoteFile, kinuvo.harness.server.execution.RemoteSecrets.serializer(), it) }, security = security, prepareAttachment = ::prepareAttachment,
+    val runtime = ServerRuntime(harness, auth, name, serverVoice = DownloadedVoice(File(harness.files.home.toString())), remoteLinks = kinuvo.harness.server.execution.RemoteLinks(load(remoteFile, kinuvo.harness.server.execution.RemoteSecrets.serializer(), kinuvo.harness.server.execution.RemoteSecrets())) { save(remoteFile, kinuvo.harness.server.execution.RemoteSecrets.serializer(), it) }, security = security, prepareAttachment = ::prepareAttachment,
         executionRegistry = kinuvo.harness.server.execution.ExecutionRegistry(load(executionFile, kinuvo.protocol.ExecutionCatalog.serializer(), kinuvo.protocol.ExecutionCatalog(emptyList(), emptyList()))) { save(executionFile, kinuvo.protocol.ExecutionCatalog.serializer(), it) },
         executionFactory = kinuvo.execution.acp.AcpExecutionFactory(),
         externalSessions = load(sessionsFile, sessionSerializer, emptyList()),

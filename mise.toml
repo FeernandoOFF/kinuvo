@@ -1,6 +1,6 @@
 [tasks.server]
 description = "Run the Server (KINUVO_HOME selects its data)"
-run = "./kotlin run -m cli -- serve --host 127.0.0.1"
+run = '[ "$(uname -s)" != Darwin ] || ./scripts/build-local-voice.sh; ./kotlin run -m cli -- serve --host 127.0.0.1'
 
 [tasks.desktop]
 description = "Run the desktop app (KINUVO_HOME selects its data)"

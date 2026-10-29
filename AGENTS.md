@@ -26,6 +26,8 @@ Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p j
 ## Preferences
 
 - Use the `CONTEXT.md` terms in code and docs.
+- Document current behavior and decisions, with future work clearly identified. Omit POC narratives, abandoned implementations, stash references and development-session history.
+- Use imports instead of fully qualified type names in code, except where names conflict.
 - Keep apps thin: platform code goes in `expect`/`actual` + Koin modules in `shared/ui`. Don't pass platform dependencies through composables.
 - The embedded server is just another `Server`. No special cases in ViewModels; UI labels only.
 - ViewModels expose one state data class with orthogonal fields, using explicit backing fields (`val state: StateFlow<S>` / `field = MutableStateFlow(...)`), not `_state` pairs.

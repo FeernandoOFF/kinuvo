@@ -1,29 +1,23 @@
 package kinuvo.ui
 
 import kinuvo.ui.session.DesktopSpeechEngine
-import java.io.*
+import kinuvo.ui.session.SpeechTransport
+import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import javax.swing.SwingUtilities
 import kotlin.test.*
 
 class DesktopSpeechTest {
-    private class Helper : Process() {
-        val events = PipedOutputStream()
-        private val input = PipedInputStream(events)
-        val commands = ByteArrayOutputStream()
-        private var alive = true
-        override fun getOutputStream(): OutputStream = commands
-        override fun getInputStream(): InputStream = input
-        override fun getErrorStream(): InputStream = ByteArrayInputStream(byteArrayOf())
-        override fun waitFor() = 0
-        override fun exitValue() = if (alive) throw IllegalThreadStateException() else 0
-        override fun isAlive() = alive
-        override fun destroy() { alive = false; events.close() }
+    private class Helper : SpeechTransport {
+        private val events = ConcurrentLinkedQueue<String>()
+        val commands = mutableListOf<String>()
+        @Volatile private var alive = true
+        override fun send(command: String) { commands.add(command) }
+        override fun poll(): String? { check(alive) { "Speech connection closed" }; return events.poll() }
+        override fun close() { alive = false }
         fun emit(kind: String, id: Int, text: String = "") {
-            events.write("""{"event":"$kind","id":$id,"text":"$text"}
-""".toByteArray())
-            events.flush()
+            events.add("""{"event":"$kind","id":$id,"text":"$text"}""")
         }
     }
 
@@ -58,11 +52,11 @@ class DesktopSpeechTest {
             assertEquals("new", transcript)
             assertEquals(1, completions)
             speech.stop()
-            helper.destroy()
+            helper.close()
         }
     }
 
-    @Test fun helperExitReleasesPendingSpeechAndReportsAnErrorOnTheUiThread() {
+    @Test fun transportFailureReleasesPendingSpeechAndReportsAnErrorOnTheUiThread() {
         val helper = Helper()
         val speech = DesktopSpeechEngine { helper }
         val failed = CountDownLatch(1)
@@ -70,16 +64,42 @@ class DesktopSpeechTest {
         SwingUtilities.invokeAndWait {
             speech.listen(true, {}, {}, { assertTrue(SwingUtilities.isEventDispatchThread()); failed.countDown() })
             speech.speak("Hello") { done.countDown() }
-            helper.destroy()
+            helper.close()
         }
         failed.awaitCallback()
         done.awaitCallback()
     }
 
-    @Test fun missingHelperReportsAuthorizationFailure() {
-        val speech = DesktopSpeechEngine { error("Helper missing") }
+    @Test fun synthesisFailureWithoutRecognitionUsesItsOwnCallbackAndIgnoresStaleEvents() {
+        val helper = Helper()
+        val speech = DesktopSpeechEngine { helper }
+        val failed = CountDownLatch(1)
+        var failures = 0
+        var completions = 0
+        SwingUtilities.invokeAndWait {
+            speech.speak("Hello", { fail("Failure must not be reported as completion") }, {
+                assertEquals("Synthesis failed", it)
+                assertTrue(SwingUtilities.isEventDispatchThread())
+                failures++; failed.countDown()
+            })
+        }
+        helper.emit("error", 1, "Synthesis failed")
+        failed.awaitCallback()
+        SwingUtilities.invokeAndWait { speech.speak("Next", { completions++ }, { fail(it) }) }
+        helper.emit("error", 1, "Stale error")
+        helper.emit("done", 1)
+        SwingUtilities.invokeAndWait {
+            speech.stopSpeaking()
+            assertEquals(1, failures)
+            assertEquals(1, completions)
+            speech.stop(); helper.close()
+        }
+    }
+
+    @Test fun missingBridgeReportsAuthorizationFailure() {
+        val speech = DesktopSpeechEngine { error("Bridge missing") }
         var message: String? = null
         SwingUtilities.invokeAndWait { speech.authorize { message = it } }
-        assertEquals("Helper missing", message)
+        assertEquals("Bridge missing", message)
     }
 }
