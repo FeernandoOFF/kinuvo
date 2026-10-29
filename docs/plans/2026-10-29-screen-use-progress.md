@@ -544,3 +544,50 @@ Recorded Screen/Browser terminology and ADR 0017. Migrated the Browser Maestro p
 Continuous native Computer capture remains research only. For unattended Android, accessibility capture refresh remains necessary when local MediaProjection consent is unavailable; do not promise automatic projection grants or unattended restart.
 
 Unresolved questions: none for the current implementation. Native capture scope and performance targets require a later decision.
+
+## Correction follow-up: gesture boundary regression
+
+Resumed against `6a523e3`; the correction implementation was already committed in
+`7dc5b0d`. Added a regression that presses, changes Screen/epoch/control generation
+or interaction mode, then releases. It exposed an epoch-crossing input when the
+image and its pointer handler were removed during decode. LiveCanvas now retains
+the image/input node with a transparent waiting bitmap and validates the current
+Screen/subscription/epoch/generation/interaction binding at gesture start and
+before dispatch. The existing frame-replacement test now checks mapped coordinates
+as well as the original frame identity. All three focused UI tests pass.
+
+The phone/desktop fixture matrix now includes a separate subscribed thumbnail and
+a missing-frame card. It asserts the thumbnail draw callback and verifies desktop
+rail collapse. Inspected with view_image after rendering:
+`shared/ui/build/screens/live-390-overview.png` and
+`shared/ui/build/screens/live-1200-overview.png`; both show real selected/thumbnail
+bitmaps and a placeholder occupying the same thumbnail area. Also inspected the
+held phone canvas before the change. No browser/HTML tools or app launches.
+
+Validation uses `KINUVO_HOME=/private/tmp/kinuvo-ui-correction-followup` and scoped
+`mise run kotlin --` commands, one compiler at a time. The updated mise tasks no
+longer require a temporary override; no configuration or pins were changed. The
+first sandboxed test stopped on compiler telemetry cache access before compilation;
+subsequent runs use elevated cache access. The initial new regression failed on
+the epoch case and passed after the fix. Logs are
+`/private/tmp/ui-correction-followup.log` and
+`/private/tmp/ui-correction-followup-{ui,app,desktop,android,ios}.log`.
+
+Unresolved questions: none. Native Computer streaming remains separate research;
+mobile gestures, IME and navigation remain for manual runtime verification.
+
+Final follow-up results (sequential, prefix `mise run kotlin --`):
+
+| Command | Result |
+| --- | --- |
+| `test -m ui -p jvm --include-classes='*LiveViewScreenTest'` | 3/3 passed |
+| `test -m ui -p jvm` | 92/92 passed |
+| `test -m app -p jvm` | 152/152 passed |
+| `build -m desktop -p jvm` | Build successful |
+| `build -m android -p android` | Build successful |
+| `build -m ios -p iosSimulatorArm64` | Build Succeeded + Build successful |
+
+Backend/protocol source is unchanged in this follow-up; earlier suite results
+above remain the evidence for those modules. Existing deprecation and Swift
+capture warnings remain. No device, installation, service, Tailscale, other-checkout
+operation, push or PR. Research artifacts and unrelated changes remain untouched.

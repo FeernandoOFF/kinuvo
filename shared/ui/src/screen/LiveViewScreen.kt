@@ -156,6 +156,8 @@ internal fun ScreenOverview(state: LiveViewState, actions: LiveActions, modifier
     }
 }
 
+private data class CanvasBinding(val screen: ScreenRef?, val subscription: String?, val epoch: String?, val generation: Long, val interactive: Boolean)
+
 private data class DecodedFrame(val frame: ScreenFrame, val bitmap: ImageBitmap)
 
 @Composable
@@ -173,17 +175,22 @@ internal fun LiveCanvas(frame: ScreenFrame?, interactive: Boolean, input: (Scree
     var pan by remember(frame?.subscription) { mutableStateOf(Offset.Zero) }
     var painted by remember(frame?.subscription) { mutableStateOf<ScreenFrame?>(null) }
     LaunchedEffect(painted) { painted?.let(drawn) }
+    val binding = CanvasBinding(frame?.screen, frame?.subscription, frame?.epoch, generation, interactive)
+    val latestBinding by rememberUpdatedState(binding)
+    val blank = remember { ImageBitmap(1, 1) }
     Box(modifier.clipToBounds(), contentAlignment = Alignment.TopCenter) {
         val shown = gesture ?: decoded
         val latest by rememberUpdatedState(shown)
         if (shown == null) Text("Waiting for a fresh screen…", color = color(mutedColor))
-        else Image(shown.bitmap, "Live screen", Modifier.aspectRatio(shown.bitmap.width.toFloat() / shown.bitmap.height)
+        Image(shown?.bitmap ?: blank, if (shown == null) null else "Live screen", Modifier.aspectRatio(shown?.bitmap?.let { it.width.toFloat() / it.height } ?: 1f)
             .graphicsLayer { scaleX = zoom; scaleY = zoom; translationX = pan.x; translationY = pan.y }
-            .drawWithContent { drawContent(); if (painted != shown.frame) painted = shown.frame }
-            .pointerInput(frame?.screen, frame?.subscription, frame?.epoch, generation, interactive) {
+            .drawWithContent { drawContent(); if (shown != null && painted != shown.frame) painted = shown.frame }
+            .pointerInput(binding) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val shown = latest ?: return@awaitEachGesture
+                    val started = latestBinding
+                    if (shown.frame.screen != started.screen || shown.frame.subscription != started.subscription || shown.frame.epoch != started.epoch) return@awaitEachGesture
                     gesture = shown
                     val bounds = size
                     try {
@@ -199,7 +206,7 @@ internal fun LiveCanvas(frame: ScreenFrame?, interactive: Boolean, input: (Scree
                             last = event.changes.first().position
                             event.changes.forEach { it.consume() }
                         } while (event.changes.any { it.pressed })
-                        if (interactive && !transformed) {
+                        if (started.interactive && started == latestBinding && !transformed) {
                             val x = (last.x / bounds.width * shown.frame.sample.width).roundToInt().coerceIn(0, shown.frame.sample.width - 1)
                             val y = (last.y / bounds.height * shown.frame.sample.height).roundToInt().coerceIn(0, shown.frame.sample.height - 1)
                             val action = if ((last - down.position).getDistance() < 12.dp.toPx()) ScreenAction(ScreenActionKind.Tap, x = x, y = y)
