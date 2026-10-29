@@ -2,7 +2,10 @@ package kinuvo.harness.browser
 
 import com.sun.net.httpserver.HttpServer
 import kinuvo.protocol.*
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.first
 import java.io.File
 import java.net.InetSocketAddress
 import kotlin.test.*
@@ -13,8 +16,69 @@ class BrowserRuntimeTest {
         listOf("file:///etc/passwd", "javascript:alert(1)", "data:text/html,hi", "chrome://settings", "https://user:password@host.test", "https:foo").forEach { assertFalse(BrowserRuntime.allowed(it), it) }
     }
 
+    @Test fun continuousFramesCoexistWithSemanticOperationsAndHeldTabsRestore() = runBlocking {
+        val home = java.nio.file.Files.createTempDirectory("kinuvo-stream-proof-").toFile()
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/") { exchange ->
+            val color = if (exchange.requestURI.path == "/second") "blue" else "red"
+            val html = "<html><body style='background:$color'><button>Semantic button</button></body></html>".toByteArray()
+            exchange.responseHeaders.add("Content-Type", "text/html")
+            exchange.sendResponseHeaders(200, html.size.toLong())
+            exchange.responseBody.use { it.write(html) }
+        }
+        server.start()
+        val owner = BrowserOwner("stream-agent", "session")
+        val url = "http://127.0.0.1:${server.address.port}"
+        var runtime = BrowserRuntime(home)
+        try {
+            val first = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Open, text = url)))
+            val closed = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Open, text = url)))
+            runtime.command(BrowserCommand(owner, BrowserAction.Close, closed.tab.id))
+            val source = runtime.screen(owner, first.tab.id)
+            assertEquals(ScreenDelivery.Continuous, source.capabilities.delivery)
+            val frames = Channel<ScreenSample>(Channel.UNLIMITED)
+            val watching = launch { source.frames().collect { frames.send(it) } }
+            val red = withTimeout(15_000) { frames.receive() }
+            assertEquals(1280, red.width)
+            assertEquals(800, red.height)
+            assertTrue(red.image.length > 1000)
+            assertTrue(assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Capture, first.tab.id))).elements.isNotEmpty())
+            runtime.command(BrowserCommand(owner, BrowserAction.Navigate, first.tab.id, text = "$url/second"))
+            val blue = withTimeout(15_000) {
+                var sample = frames.receive()
+                while (sample.image == red.image) sample = frames.receive()
+                sample
+            }
+            assertNotEquals(red.image, blue.image)
+            assertFailsWith<IllegalArgumentException> {
+                runtime.screen(owner.copy(sessionId = "wrong"), first.tab.id).frames().first()
+            }
+            watching.cancelAndJoin()
+            withTimeout(5000) { while (runtime.liveStreams() != 0) delay(10) }
+            assertEquals(0, runtime.liveStreams())
+            // A fresh CDP session must work after stopping and detaching the previous one.
+            val again = async { withTimeout(15_000) { source.frames().first() } }
+            assertTrue(again.await().image.isNotEmpty())
+            runtime.command(BrowserCommand(owner, BrowserAction.Takeover, first.tab.id, take = true), user = true)
+            runtime.close()
+            runtime = BrowserRuntime(home)
+            val restored = runtime.tabs(owner)
+            assertEquals(listOf(first.tab.id), restored.map { it.id })
+            assertTrue(restored.single().takeover)
+            assertEquals("$url/second", restored.single().url)
+            assertTrue(runtime.tabs(owner.copy(sessionId = "other")).isEmpty())
+            assertFailsWith<IllegalStateException> { runtime.command(BrowserCommand(owner, BrowserAction.Navigate, first.tab.id, text = url)) }
+            runtime.command(BrowserCommand(owner, BrowserAction.Takeover, first.tab.id, take = false), user = true)
+            runtime.command(BrowserCommand(owner, BrowserAction.Close, first.tab.id))
+            runtime.close()
+            runtime = BrowserRuntime(home)
+            assertTrue(runtime.tabs(owner).isEmpty())
+            println("Continuous streaming and held recovery proof: ${home.absolutePath}")
+        } finally { runtime.close(); server.stop(0) }
+    }
+
     @Test fun managedChromiumOwnershipReferencesTakeoverPersistenceAndLifecycle() = runBlocking {
-        val home = File(System.getenv("KINUVO_HOME") ?: System.getProperty("java.io.tmpdir"), "browser-runtime-proof")
+        val home = java.nio.file.Files.createTempDirectory("kinuvo-browser-proof-").toFile()
         val runtime = BrowserRuntime(home)
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->

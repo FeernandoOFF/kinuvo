@@ -4,6 +4,13 @@ import com.microsoft.playwright.*
 import com.microsoft.playwright.options.ScreenshotType
 import com.microsoft.playwright.impl.driver.Driver
 import kinuvo.harness.core.BrowserService
+import kinuvo.harness.core.ScreenSource
+import com.google.gson.JsonObject
+import kotlinx.coroutines.flow.*
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import java.io.File
@@ -21,6 +28,107 @@ class BrowserRuntime(private val home: File) : BrowserService {
     override fun onChange(listener: (BrowserOwner) -> Unit) { changed = listener }
     private var playwright: Playwright? = null
     private var closed = false
+    private val recordsFile = File(home, "tabs.json")
+    @Serializable private data class SavedTab(val id: String, val owner: BrowserOwner, val url: String, val held: Boolean)
+    private val saved = if (recordsFile.isFile) ProtocolJson.decodeFromString<List<SavedTab>>(recordsFile.readText()).toMutableList() else mutableListOf()
+    private val restored = mutableSetOf<BrowserOwner>()
+    private var restoring = false
+    private val restoreErrors = mutableMapOf<BrowserOwner, String>()
+    private val streams = java.util.concurrent.ConcurrentHashMap<String, SharedFlow<ScreenSample>>()
+    private val streamSlots = kotlinx.coroutines.sync.Semaphore(8)
+
+    private fun persist() {
+        if (closed || restoring) return
+        val live = tabs.values.filter { !it.page.isClosed }.map {
+            SavedTab(it.id, it.owner, it.page.url().substringBefore('?').substringBefore('#').takeIf(::allowed) ?: "about:blank", it.takeover)
+        }
+        saved.removeAll { it.owner in restored && it.owner !in restoreErrors }
+        saved.addAll(live.filter { it.owner !in restoreErrors })
+        home.mkdirs()
+        val temporary = File(home, "tabs.json.tmp")
+        temporary.writeText(ProtocolJson.encodeToString(saved))
+        Files.move(temporary.toPath(), recordsFile.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+    }
+
+    private fun restore(owner: BrowserOwner) {
+        restoreErrors[owner]?.let { error(it) }
+        if (!restored.add(owner)) return
+        val records = saved.filter { it.owner == owner }
+        restoring = true
+        try {
+            records.forEach { record ->
+                val tab = register(owner, profile(owner.agentId).newPage(), record.id).apply { takeover = record.held }
+                try { tab.page.navigate(url(record.url)) }
+                catch (e: Exception) { throw IllegalStateException("Browser tab restoration failed for ${record.id}", e) }
+            }
+        } catch (e: Exception) {
+            restoreErrors[owner] = "Browser tab restoration failed; restart to retry: ${e.message}"
+            throw e
+        } finally { restoring = false }
+        persist()
+    }
+
+    private val liveTabs = mutableSetOf<String>()
+    internal suspend fun liveStreams(): Int = withContext(dispatcher) { liveTabs.size }
+
+    override fun screen(owner: BrowserOwner, tabId: String): ScreenSource = object : ScreenSource {
+        override val ref = ScreenRef("browser", tabId, owner)
+        override val capabilities = ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap", "type", "key", "scroll"), navigation = true, tabs = true)
+        override fun frames(): Flow<ScreenSample> = flow {
+            withContext(dispatcher) {
+                check(!closed) { "Browser is closed" }
+                restore(owner)
+                require(tabs[tabId]?.owner == owner) { "No browser tab for this Agent and Session" }
+            }
+            emitAll(streams.computeIfAbsent(tabId) {
+                live(owner, tabId).shareIn(scope, SharingStarted.WhileSubscribed(), replay = 0)
+            })
+        }
+    }
+
+    private fun live(owner: BrowserOwner, tabId: String): Flow<ScreenSample> = channelFlow {
+        check(streamSlots.tryAcquire()) { "Too many live Browser streams" }
+        var session: CDPSession? = null
+        var page: Page? = null
+        val ended = CompletableDeferred<Unit>()
+        val onClose = java.util.function.Consumer<Page> { ended.complete(Unit) }
+        try {
+            withContext(dispatcher) {
+                check(!closed) { "Browser is closed" }
+                val tab = requireNotNull(tabs[tabId]) { "No browser tab" }
+                require(tab.owner == owner) { "This tab belongs to another Agent or Session" }
+                page = tab.page
+                tab.page.onClose(onClose)
+                val cdp = profile(owner.agentId).newCDPSession(tab.page)
+                session = cdp
+                cdp.on("Page.screencastFrame") { event ->
+                    val ack = JsonObject().apply { addProperty("sessionId", event.get("sessionId").asInt) }
+                    // Chromium credit is independent of downstream collection and draw acknowledgement.
+                    cdp.send("Page.screencastFrameAck", ack)
+                    val metadata = event.getAsJsonObject("metadata")
+                    val width = metadata.get("deviceWidth").asInt
+                    val height = metadata.get("deviceHeight").asInt
+                    val geometry = listOf(width, height, metadata.get("pageScaleFactor"), metadata.get("offsetTop"),
+                        metadata.get("scrollOffsetX"), metadata.get("scrollOffsetY")).joinToString(":")
+                    val image = event.get("data").asString
+                    if (image.length <= 4 * 1024 * 1024) trySend(ScreenSample(image, width, height, geometry))
+                }
+                cdp.send("Page.startScreencast", JsonObject().apply {
+                    addProperty("format", "jpeg"); addProperty("quality", 65)
+                })
+                liveTabs.add(tabId)
+            }
+            ended.await()
+        } finally {
+            withContext(NonCancellable + dispatcher) {
+                page?.let { runCatching { it.offClose(onClose) } }
+                session?.let { runCatching { it.send("Page.stopScreencast") }; runCatching { it.detach() } }
+                liveTabs.remove(tabId)
+                streamSlots.release()
+            }
+        }
+    }.buffer(kotlinx.coroutines.channels.Channel.CONFLATED)
+
     private val profiles = mutableMapOf<String, BrowserContext>()
     private val tabs = linkedMapOf<String, Tab>()
     private data class Tab(val id: String, val owner: BrowserOwner, val page: Page, var takeover: Boolean = false,
@@ -31,18 +139,20 @@ class BrowserRuntime(private val home: File) : BrowserService {
         scope.launch {
             while (isActive) {
                 profiles.values.toList().forEach { context -> runCatching { context.pages().firstOrNull()?.waitForTimeout(10.0) } }
-                delay(200)
+                delay(10)
             }
         }
     }
 
     override suspend fun tabs(owner: BrowserOwner): List<BrowserTab> = withContext(dispatcher) {
         check(!closed) { "Browser is closed" }
+        restore(owner)
         tabs.values.toList().filter { it.owner == owner && !it.page.isClosed }.map { info(it, thumbnail = true) }
     }
 
     override suspend fun command(command: BrowserCommand, user: Boolean): BrowserFrame? = withContext(dispatcher) {
         check(!closed) { "Browser is closed" }
+        restore(command.owner)
         val c = command
         if (c.action == BrowserAction.Open) {
             check(tabs.size < 64) { "Close a browser tab before opening another" }
@@ -93,20 +203,21 @@ class BrowserRuntime(private val home: File) : BrowserService {
             throw IllegalStateException("Browser action failed or timed out; outcome may be unknown. Capture and inspect before continuing.")
         }
         capture(tab, semantic = !user)
-    }.also { if (command.action != BrowserAction.Capture) changed(command.owner) }
+    }.also { if (command.action != BrowserAction.Capture) { withContext(dispatcher) { persist() }; changed(command.owner) } }
 
-    private fun register(owner: BrowserOwner, page: Page): Tab {
+    private fun register(owner: BrowserOwner, page: Page, id: String = UUID.randomUUID().toString()): Tab {
         tabs.values.firstOrNull { it.page === page }?.let { return it }
         check(tabs.size < 64) { "Close a browser tab before opening another" }
         page.setDefaultTimeout(10_000.0)
         page.setDefaultNavigationTimeout(30_000.0)
-        val tab = Tab(UUID.randomUUID().toString(), owner, page)
+        val tab = Tab(id, owner, page)
         tabs[tab.id] = tab
         page.onPopup { popup ->
             if (tabs.size >= 64) popup.close()
             else { register(owner, popup).takeover = tab.takeover; changed(owner) }
         }
-        page.onClose { tabs.remove(tab.id); changed(owner) }
+        page.onClose { tabs.remove(tab.id); streams.remove(tab.id); persist(); changed(owner) }
+        page.onFrameNavigated { if (it == page.mainFrame()) persist() }
         page.onDialog { it.dismiss() }
         return tab
     }
@@ -120,6 +231,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
             }
             pw.chromium().launchPersistentContext(directory.toPath(), BrowserType.LaunchPersistentContextOptions()
                 .setHeadless(true).setChromiumSandbox(true).setAcceptDownloads(false).setViewportSize(1280, 800)).also { context ->
+                context.pages().toList().forEach { it.close() }
                 context.route("**/*") { route ->
                     if (route.request().isNavigationRequest && !allowed(route.request().url())) route.abort() else route.resume()
                 }
@@ -146,15 +258,19 @@ class BrowserRuntime(private val home: File) : BrowserService {
         // Invoke the bundled Node installer directly: Java classpaths do not contain nested jars in packaged apps.
         val driver = Driver.ensureDriverInstalled(env, false)
         val marker = File(binaries, ".chromium-installed")
-        if (!marker.isFile) {
-            val log = File(binaries, "install.log")
-            val process = driver.createProcessBuilder().apply {
-                command().addAll(listOf("install", "chromium"))
-                environment().putAll(env)
-            }.redirectErrorStream(true).redirectOutput(log).start()
-            if (!process.waitFor(300, TimeUnit.SECONDS)) { process.destroyForcibly(); error("Chromium download timed out; retry when the Server has internet access") }
-            check(process.exitValue() == 0) { "Managed Chromium installation failed. See ${log.absolutePath}; verify network access and supported OS dependencies." }
-            marker.writeText("1.64.0")
+        synchronized(provisionLock) {
+            java.io.RandomAccessFile(File(binaries, ".install-lock"), "rw").use { file -> file.channel.lock().use {
+                if (!marker.isFile) {
+                    val log = File(binaries, "install.log")
+                    val process = driver.createProcessBuilder().apply {
+                        command().addAll(listOf("install", "chromium"))
+                        environment().putAll(env)
+                    }.redirectErrorStream(true).redirectOutput(log).start()
+                    if (!process.waitFor(300, TimeUnit.SECONDS)) { process.destroyForcibly(); error("Chromium download timed out; retry when the Server has internet access") }
+                    check(process.exitValue() == 0) { "Managed Chromium installation failed. See ${log.absolutePath}; verify network access and supported OS dependencies." }
+                    marker.writeText("1.64.0")
+                }
+            } }
         }
         val pw = Playwright.create(Playwright.CreateOptions().setEnv(env))
         if (!File(pw.chromium().executablePath()).isFile) {
@@ -204,15 +320,18 @@ class BrowserRuntime(private val home: File) : BrowserService {
 
     suspend fun release(agent: String) = withContext(dispatcher) {
         tabs.values.filter { it.owner.agentId == agent }.toList().forEach { tabs.remove(it.id) }
+        saved.removeAll { it.owner.agentId == agent }
         profiles.remove(agent)?.close()
+        persist()
     }
 
     suspend fun close() {
-        withContext(dispatcher) { if (!closed) { closed = true; scope.cancel(); profiles.values.forEach { runCatching { it.close() } }; profiles.clear(); tabs.clear(); playwright?.close(); playwright = null } }
+        withContext(dispatcher) { if (!closed) { persist(); closed = true; scope.cancel(); profiles.values.forEach { runCatching { it.close() } }; profiles.clear(); tabs.clear(); streams.clear(); playwright?.close(); playwright = null } }
         dispatcher.close()
     }
 
     companion object {
+        private val provisionLock = Any()
         fun allowed(value: String): Boolean = runCatching {
             if (value == "about:blank") true else URI(value).let { it.scheme?.lowercase() in setOf("http", "https") && !it.host.isNullOrBlank() && it.userInfo == null }
         }.getOrDefault(false)
