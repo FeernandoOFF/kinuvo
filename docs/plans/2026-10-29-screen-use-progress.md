@@ -1,4 +1,6 @@
-# Screen use implementation: stage 1
+---
+title: "Screen use implementation: stage 1"
+---
 
 Scope: restore and reconcile Browser only. Unified streaming, Screens control and
 UI redesign remain for later stages. User decisions and Approved implementation

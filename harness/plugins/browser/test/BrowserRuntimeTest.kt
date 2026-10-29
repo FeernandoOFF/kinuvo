@@ -96,7 +96,7 @@ class BrowserRuntimeTest {
             val checking = exchange.requestURI.path == "/check"
             val html = if (checking) """<script>document.title = localStorage.getItem('proof') === 'saved' && document.cookie.includes('login=persistent') ? 'Login persisted' : 'Isolated';</script>""".toByteArray() else """<html><head><title>Browser proof</title></head><body>
                 <button onclick="document.title='Clicked';this.textContent='Done'">Submit</button>
-                <input aria-label="Message"><button onclick="setTimeout(() => document.querySelector('input').value = 'changed', 100)">Change value</button><input type="password" aria-label="Password">
+                <input aria-label="Message"><button onclick="setTimeout(() => document.querySelector('input').value = 'changed', 1000)">Change value</button><input type="password" aria-label="Password">
                 <script>document.cookie='login=persistent; max-age=3600';localStorage.setItem('proof','saved');</script>
                 </body></html>""".toByteArray()
             exchange.responseHeaders.add("Content-Type", "text/html")
@@ -130,7 +130,7 @@ class BrowserRuntimeTest {
             val change = frame.elements.first { it.label == "Change value" }
             frame = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Click, tab, frame.revision, change.ref)))
             val message = frame.elements.first { it.label == "Message" }
-            kotlinx.coroutines.delay(250)
+            kotlinx.coroutines.delay(1500)
             assertFailsWith<IllegalArgumentException> {
                 runtime.command(BrowserCommand(owner, BrowserAction.Type, tab, frame.revision, message.ref, "overwrite"))
             }
