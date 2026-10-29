@@ -10,6 +10,7 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class LiveViewModelTest {
+
     private val ref = ScreenRef("computer", "one")
     private class Fake(val ref: ScreenRef) : ScreensRepository {
         override val connected = MutableStateFlow(false)
@@ -47,7 +48,7 @@ class LiveViewModelTest {
         try { runCurrent(); fake.connected.value = true; runCurrent(); block(fake, vm) }
         finally { store.clear(); Dispatchers.resetMain() }
     }
-    @Test fun globalBrowserSelectionAndSessionIsolation() = runTest {
+    @Test fun computersExcludeBrowsersAndSessionsStayIsolated() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val owner = BrowserOwner("agent", "session")
         val other = BrowserOwner("agent", "other")
@@ -60,8 +61,8 @@ class LiveViewModelTest {
         val store = ViewModelStore().also { it.put("global", global); it.put("scoped", scoped) }
         try {
             runCurrent(); fake.connected.value = true; runCurrent()
-            assertEquals(listOf(first, second), global.state.value.screens.map { it.ref })
-            global.select(second); runCurrent(); assertEquals(second, global.state.value.selected)
+            assertEquals(emptyList(), global.state.value.screens.map { it.ref })
+            global.select(second); runCurrent(); assertEquals(null, global.state.value.selected)
             assertEquals(listOf(first), scoped.state.value.screens.map { it.ref })
             scoped.select(second); runCurrent(); assertEquals(first, scoped.state.value.selected)
         } finally { store.clear(); Dispatchers.resetMain() }

@@ -12,6 +12,8 @@ import java.io.File
 import org.jetbrains.skia.EncodedImageFormat
 import kotlin.io.encoding.Base64
 import kotlin.test.*
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.X
 
 class LiveViewScreenTest {
     @Test fun phoneAndDesktopStates() = javax.swing.SwingUtilities.invokeAndWait {
@@ -59,7 +61,7 @@ class LiveViewScreenTest {
                     if (width >= 760) {
                         tabs.config[SemanticsActions.OnClick].action!!.invoke()
                         repeat(5) { scene.render(6_000_000_000L + it * 100_000_000L) }
-                        assertFalse(scene.semanticsOwners.flatMap { nodes(it.rootSemanticsNode) }.any { it.config.getOrNull(SemanticsProperties.Text).orEmpty().any { it.text == "Cedar — Plans" } })
+                        assertEquals(1, scene.semanticsOwners.flatMap { nodes(it.rootSemanticsNode) }.count { "Live screen" in it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() })
                     }
                 }
                 if (mode == "held") {
@@ -70,6 +72,22 @@ class LiveViewScreenTest {
                     File("build/screens/live-$width-keyboard.png").writeBytes(scene.render(4_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
                 }
             }
+        }
+    }
+    @Test fun dockedBrowserBesideChat() = javax.swing.SwingUtilities.invokeAndWait {
+        val owner = BrowserOwner("Fern", "Travel planning")
+        val ref = ScreenRef("browser", "tab", owner)
+        val info = ScreenInfo(ref, "Cedar — Your account", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap"), navigation = true, tabs = true), ScreenStatus.Ready, active = true, currentUrl = "https://cedar.example/account")
+        val state = LiveViewState(screens = listOf(info, info.copy(ref = ref.copy(id = "plans"), title = "Cedar — Plans", active = false)), selected = ref, connected = true, loaded = true, owner = owner)
+        ImageComposeScene(520 * 2, 800 * 2, Density(2f), content = { HarnessTheme(dark = true) {
+            LiveViewContent(state, LiveActions(), null, docked = true, extra = listOf(kinuvo.ui.navigation.PageAction(Lucide.X, "Close Browser", {})))
+        } }).use { scene ->
+            repeat(5) { scene.render(it * 100_000_000L) }
+            val tree = scene.semanticsOwners.flatMap { nodes(it.rootSemanticsNode) }
+            assertTrue(tree.any { "Close Browser" in it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() })
+            assertTrue(tree.any { it.config.getOrNull(SemanticsProperties.Text).orEmpty().any { it.text == "Cedar — Plans" } })
+            assertFalse(tree.any { it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty().any { it.startsWith("Toggle sidebar") } })
+            File("build/screens").apply { mkdirs() }.resolve("live-docked.png").writeBytes(scene.render(1_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
         }
     }
     @Test fun gestureSurvivesFrameReplacementAndKeepsOriginalGeometry() = javax.swing.SwingUtilities.invokeAndWait {
