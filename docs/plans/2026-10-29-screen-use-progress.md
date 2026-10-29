@@ -198,3 +198,128 @@ latency or device behavior is inferred from these results.
 No new product decision is required. Native push-capture support beyond the
 existing RPC, transport scheduling behavior and native mobile runtime behavior
 still require implementation/evidence in subsequent work.
+
+# Stage 2 continuation: active backend Screens integration
+
+Implementation commit: `b2b1005` (local only; no push or PR).
+
+The shared seam is now active in Server RPC dispatch, not only isolated source
+primitives. The next app/UI stage should use `ScreensClient`. Protocol **3** is
+required before advertising `Screens`; old Browser/Computer management mutations
+and `computer.watch` return migration errors instead of bypassing generation,
+Device ownership or displayed-frame checks. Device-side Computer driver RPC is
+unchanged. Existing UI has not been migrated and its old management controls
+therefore need the next stage before they work again.
+
+## Active paths
+
+- Management-only `screens.list/watch/unwatch/ack/control/input/open/command`,
+  typed frame/status/change events, and typed client calls with bounded waits and
+  no mutation retry/replay. Open returns common Screen metadata; commands return
+  no screenshot. User Browser mutations no longer capture screenshots for their
+  responses. Browser owner validation checks actual Agent+Session and enabled
+  tools before source access. Change notifications are management-only.
+- Each authenticated connection owns fresh subscription ids/epochs and its own
+  ScreenViews. Four subscriptions **per authenticated Device across connections**,
+  1 MiB encoded-image budget per frame, one sent and one latest sample per view,
+  four replaceable queued images per connection, and 32-action input batches.
+  Images bypass the durable response/Approval outbox. The writer checks durable
+  responses first and bounds each socket write to 15 seconds; a write already
+  underway cannot be preempted. Unwatch/disconnect dispose subscriptions; revoke
+  runs the same disconnect teardown. Failed/ended streams invalidate input and
+  publish status; failed Browser sources appear failed in that viewer's list.
+- Browser selected/thumbnail subscriptions share one CDP producer per tab.
+  Selected demand uses every source frame; thumbnail-only demand requests reduced
+  quality and every 60th Chromium frame, with at most one delivered thumbnail per
+  second. Lists do not capture thumbnails. This is an adaptive production policy,
+  not evidence of an achieved frame rate. Computer honestly advertises
+  CaptureRefresh, shared per Computer, with a one-second refresh interval.
+- Browser semantic tools and management operations share ScreenGate. Computer
+  Agent execution and management Screen input/control share its Computer gate;
+  local phone overlay observations suspend/clear the local gate. Takeover reserves
+  before drain, stale/queued generations are rejected, and timeout never grants
+  concurrent input. Explicit active-holder steal requires both the current
+  generation and `steal=true`. A disconnected old connection only suspends the
+  generation it actually acquired, so it cannot suspend a newer claim.
+- Browser gates can be looked up without waiting behind synchronous Playwright
+  work once the tab is registered. The actual Browser operations still run on the
+  single confined Playwright dispatcher. Semantic observations bind gate
+  generations; handback requires fresh capture before later mutations. ToolExecutor
+  binds Computer/Browser generation before waiting for Approval and checks it
+  after the answer. The existing general Risk/Trust/Deny policy remains in charge.
+- Browser restore records now include holder Device identity and generation;
+  all saved holds restore suspended until explicit handback/reacquisition. The
+  older Boolean migrates conservatively to suspended recovery. Popup holds also
+  inherit suspended recovery. Closing marks the gate closed and removes records.
+- The shared `request_takeover` tool accepts a Browser tab as well as a Computer.
+  Browser requests publish existing Session questions/Notifications with typed
+  Screen deep-link metadata. Explicit handback, question abandonment and tab close
+  have distinct, conservative results; answering/abandoning the Browser question
+  never silently releases its hold. Computer skipped questions retain control.
+- Session deletion closes owned tabs and tombstones that owner in the running
+  source. Agent Browser disable releases contexts/tabs/records, and authorization
+  prevents stale tools from reopening them. Agent deletion also removes its
+  Browser profile. Restoration errors remain retained and surfaced.
+
+## Verification and limits
+
+All commands used `KINUVO_HOME=/private/tmp/kinuvo-screens-integration`, the temporary
+ignored mise kotlin-task override described above, and `mise run kotlin -- test
+-m <module> -p jvm`, sequentially. No pins, OS HOME changes, installed services,
+Tailscale changes, other checkouts, mobile builds, devices, Mockstro or UI runs.
+Compiler-cache access required filesystem escalation. Temporary test logs are
+`/private/tmp/screens-<module>-final.log`; Chromium tests print their unique proof
+homes. Initial compatibility/legacy-test failures and compilation fixes were
+resolved before final verification; expected failure-path stack traces remain in
+passing Server tests.
+
+Final scoped results (full module suites, no class filters):
+
+| Module | Passed |
+| --- | --- |
+| protocol | 24/24 |
+| core | 205/205 |
+| runtime | 86/86 |
+| browser | 4/4 |
+| jvm | 100/100 |
+| client | 1/1 |
+
+The final Computer capability-only correction excludes Agent-side zoom/verify_state
+from raw source inputs; Agent tools keep those operations. After it, the runtime
+suite passed 86/86 again and `test -m jvm -p jvm
+--include-classes='*ComputersTest'` passed 13/13. The temporary mise override was
+removed after tests.
+
+A self-revoke race surfaced during repeated full Server validation: obsolete queued
+events could close a revoked connection before its terminal response. The writer
+now discards those events while retaining the terminal response, and validation
+waits for that response before teardown. Removing a pending image can leave a
+conflated wake notification; the writer treats that as an empty wake, not EOF.
+Computer capture failures also end that view and invalidate its input binding.
+
+The real paired Server Browser test exercises management versus ordinary denial,
+continuous source-to-RPC frames and draw acknowledgements, ordered input and
+single consumption, stale reconnect identities, ordinary RPC responses while a
+viewer stops acknowledging, persisted authenticated held restart, explicit steal,
+stale-holder rejection, revoke, suspended recovery and tab close. The separate
+real Agent run verifies Browser tool dispatch. Core tests cover drain/queued work,
+partial input/disconnect and pending Approval invalidation; runtime tests flood the
+replaceable lane with 10,000 frames and check shared Device subscription budgets.
+
+Evidence is narrower than exhaustive backend acceptance: the Approval interleaving
+is a ToolExecutor/gate test, not a real Browser pending-Approval Server RPC race.
+There is no saturated-socket multi-viewer throughput/latency measurement, physical
+Computer/phone overlay integration run, or dedicated Server question-to-handback,
+Session-delete/plugin-disable/profile-delete race test. The non-acknowledging
+viewer RPC test uses a local Browser fixture, not a bandwidth benchmark. Adaptive
+thumbnail behavior has source implementation but no measured cadence proof.
+Playwright's one thread can delay Browser operations and event pumping during
+synchronous navigation/capture. Native push capture, app/UI lifecycle and rendering,
+and mobile build/runtime work remain for subsequent stages. Do not interpret these
+backend results as proof of physical-device behavior or smoothness.
+
+## Unresolved questions
+
+No product decisions are pending. Remaining evidence work is the unexercised
+integration races and performance measurements listed above; the next implementation
+stage is shared/app and UI migration followed by scoped mobile builds only.
