@@ -138,6 +138,9 @@ sealed interface SessionChange {
 }
 
 object Api {
+    val BrowserTabs = Method("browser.tabs", BrowserOwner.serializer(), ListSerializer(BrowserTab.serializer()))
+    val BrowserCommand = Method("browser.command", kinuvo.protocol.BrowserCommand.serializer(), BrowserFrame.serializer().nullable)
+    val BrowserChanged = EventType("browser.changed", BrowserOwner.serializer())
     val Capabilities = Method("session.capabilities", CapabilitiesParams.serializer(), SessionCapabilities.serializer())
     val CapabilitiesChanged = EventType("capabilities.changed", Unit.serializer())
     val Models = Method("models.list", ModelsParams.serializer(), ModelsCatalog.serializer())

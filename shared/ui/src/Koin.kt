@@ -43,6 +43,7 @@ private val appModule = module {
     viewModel { (app: AppViewModel) -> HomeViewModel(app.state, get()) }
     viewModel { (route: Route.Knowledge) -> KnowledgeViewModel(get(), route) }
     viewModel { (client: KinuvoClient, route: Route.Artifacts) -> ArtifactsViewModel(client, route, get()) }
+    viewModel { (route: Route.Browser) -> kinuvo.app.browser.BrowserViewModel(route, get()) }
     viewModel { (client: KinuvoClient, route: Route.Computers) -> kinuvo.app.computer.ComputersViewModel(client, route, get()) }
 }
 

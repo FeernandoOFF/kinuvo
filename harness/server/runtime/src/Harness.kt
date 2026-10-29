@@ -82,6 +82,7 @@ open class HarnessRuntime(
     val tasks = dependencies.tasks
     val reflectionProgress = dependencies.reflectionProgress
     private val external = dependencies.plugins
+    val browser get() = external.firstNotNullOfOrNull { it.browser }
     /** Knowledge and Tasks come with any provider for them, so a Server offers them whenever it has one. */
     val features get() = builtInFeatures + external.flatMap { it.features } +
         PROVIDED_FEATURES.filterKeys { dependencies.settings.integrations[it].orEmpty().isNotEmpty() }.values
