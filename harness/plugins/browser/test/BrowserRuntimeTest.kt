@@ -11,6 +11,13 @@ import java.net.InetSocketAddress
 import kotlin.test.*
 
 class BrowserRuntimeTest {
+    private suspend fun control(runtime: BrowserRuntime, owner: BrowserOwner, tab: String, take: Boolean) {
+        val gate = runtime.gate(owner, tab)
+        if (take) gate.acquire("fixture-device", gate.state.value.generation)
+        else gate.release("fixture-device", gate.state.value.generation)
+        runtime.controlChanged(owner, tab)
+    }
+
     @Test fun navigationAllowsPrivateHttpButRejectsFilesAndCustomSchemes() {
         listOf("http://127.0.0.1:8080", "http://192.168.1.1", "https://lab.internal", "about:blank").forEach { assertTrue(BrowserRuntime.allowed(it), it) }
         listOf("file:///etc/passwd", "javascript:alert(1)", "data:text/html,hi", "chrome://settings", "https://user:password@host.test", "https:foo").forEach { assertFalse(BrowserRuntime.allowed(it), it) }
@@ -59,7 +66,7 @@ class BrowserRuntimeTest {
             // A fresh CDP session must work after stopping and detaching the previous one.
             val again = async { withTimeout(15_000) { source.frames().first() } }
             assertTrue(again.await().image.isNotEmpty())
-            runtime.command(BrowserCommand(owner, BrowserAction.Takeover, first.tab.id, take = true), user = true)
+            control(runtime, owner, first.tab.id, true)
             runtime.close()
             runtime = BrowserRuntime(home)
             val restored = runtime.tabs(owner)
@@ -68,7 +75,8 @@ class BrowserRuntimeTest {
             assertEquals("$url/second", restored.single().url)
             assertTrue(runtime.tabs(owner.copy(sessionId = "other")).isEmpty())
             assertFailsWith<IllegalStateException> { runtime.command(BrowserCommand(owner, BrowserAction.Navigate, first.tab.id, text = url)) }
-            runtime.command(BrowserCommand(owner, BrowserAction.Takeover, first.tab.id, take = false), user = true)
+            control(runtime, owner, first.tab.id, false)
+            runtime.command(BrowserCommand(owner, BrowserAction.Capture, first.tab.id))
             runtime.command(BrowserCommand(owner, BrowserAction.Close, first.tab.id))
             runtime.close()
             runtime = BrowserRuntime(home)
@@ -126,10 +134,10 @@ class BrowserRuntimeTest {
             frame = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Capture, tab)))
             val password = frame.elements.first { it.label.startsWith("Password") }
             assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Type, tab, frame.revision, password.ref, "fixture-value")))
-            runtime.command(BrowserCommand(owner, BrowserAction.Takeover, tab, take = true), user = true)
+            control(runtime, owner, tab, true)
             assertFailsWith<IllegalStateException> { runtime.command(BrowserCommand(owner, BrowserAction.Navigate, tab, text = url)) }
-            runtime.command(BrowserCommand(owner, BrowserAction.Type, tab, text = "manual"), user = true)
-            runtime.command(BrowserCommand(owner, BrowserAction.Takeover, tab, take = false), user = true)
+            runtime.gate(owner, tab).input("fixture-device", runtime.gate(owner, tab).state.value.generation) { runtime.userCommand(BrowserCommand(owner, BrowserAction.Type, tab, text = "manual")) }
+            control(runtime, owner, tab, false)
             assertFailsWith<IllegalStateException> { runtime.command(BrowserCommand(owner, BrowserAction.Click, tab, x = 10, y = 10), user = true) }
             // Closing every Device is irrelevant: the runtime still owns and captures the tab.
             assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Capture, tab)))
