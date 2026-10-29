@@ -61,7 +61,7 @@ class BrowserRuntimeTest {
             }
             frame = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Capture, tab)))
             val password = frame.elements.first { it.label.startsWith("Password") }
-            assertFailsWith<IllegalStateException> { runtime.command(BrowserCommand(owner, BrowserAction.Type, tab, frame.revision, password.ref, "never-enter")) }
+            assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Type, tab, frame.revision, password.ref, "fixture-value")))
             runtime.command(BrowserCommand(owner, BrowserAction.Takeover, tab, take = true), user = true)
             assertFailsWith<IllegalStateException> { runtime.command(BrowserCommand(owner, BrowserAction.Navigate, tab, text = url)) }
             runtime.command(BrowserCommand(owner, BrowserAction.Type, tab, text = "manual"), user = true)

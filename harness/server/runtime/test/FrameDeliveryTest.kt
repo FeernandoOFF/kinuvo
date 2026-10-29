@@ -7,6 +7,33 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlin.test.*
 
 class FrameDeliveryTest {
+    @Test fun incompatibleProtocolsAreRejectedBeforeAuthentication() = runBlocking {
+        for (params in listOf("""{"device":"legacy"}""", """{"device":"future","protocolVersion":3}""")) {
+            val requests = Channel<Frame>(Channel.UNLIMITED)
+            val response = CompletableDeferred<Frame.Response>()
+            var authenticated = false
+            val auth = object : PeerRegistry {
+                override fun authenticate(device: String, token: String?, pairingCode: String?): String? { authenticated = true; return null }
+                override fun toolDevices() = emptyList<ToolDevice>()
+                override fun setTools(token: String, tools: Set<DeviceToolKind>) = "device"
+            }
+            val runtime = ServerRuntime(RuntimeFixture().runtime(), auth)
+            val connection = object : FrameConnection {
+                override val incoming = requests.receiveAsFlow()
+                override suspend fun send(frame: Frame) { response.complete(frame as Frame.Response) }
+                override suspend fun close() { requests.close() }
+            }
+            val serving = launch { runtime.serve(connection) }
+            try {
+                requests.send(Frame.Request("connect", Api.Connect.name, ProtocolJson.parseToJsonElement(params)))
+                val rejected = withTimeout(5_000) { response.await() }
+                assertFalse(rejected.ok)
+                assertEquals(ProtocolVersion.Mismatch, rejected.error)
+                assertFalse(authenticated)
+            } finally { serving.cancelAndJoin(); runtime.close() }
+        }
+    }
+
     @Test fun failedWriterClosesConnectionEvenWhenIncomingRemainsOpen() = runBlocking {
         val requests = Channel<Frame>(Channel.UNLIMITED)
         val closed = CompletableDeferred<Unit>()
