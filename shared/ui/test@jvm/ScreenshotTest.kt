@@ -653,7 +653,7 @@ class ScreenshotTest {
             ScreenInfo(ScreenRef("computer", "phone"), "Phone", ScreenCapabilities(ScreenDelivery.CaptureRefresh, setOf("tap")), ScreenStatus.Ready),
             ScreenInfo(ScreenRef("computer", "mac"), "Mac mini", ScreenCapabilities(ScreenDelivery.CaptureRefresh, setOf("tap")), ScreenStatus.Ready),
         ))
-        render("nav-phone-computers", 390, 700) { phone { kinuvo.ui.screen.ScreenOverview(screenList, kinuvo.ui.screen.LiveActions()) } }
+        render("nav-phone-computers", 390, 700) { phone { kinuvo.ui.screen.ComputerList(screenList.copy(loaded = true, connected = true), {}, {}) } }
         render("nav-phone-knowledge-scope", 390, 844) { phone { KnowledgeContent(knowledge.copy(agents = owners, state = knowledge.state.copy(route = Route.Knowledge())), KnowledgeActions()) } }
         render("nav-phone-mcp-preset", 390, 1000) {
             phone { SettingsContent(tools(presetItem(McpCatalog.first { it.id == "notion" })).let { it.copy(state = it.state.copy(route = it.route.copy(editing = true))) }, SettingsActions(onBack = {}), sidebar = false) }

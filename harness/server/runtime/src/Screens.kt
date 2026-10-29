@@ -147,6 +147,12 @@ internal class Screens(
 
     suspend fun command(holder: String, p: ScreenCommand) {
         require(p.screen.source == "browser" && p.action in setOf(ScreenCommandKind.Navigate, ScreenCommandKind.Close))
+        // Closing a tab needs no takeover, unless another Device holds it; the Agent sees it gone on its next step.
+        if (p.action == ScreenCommandKind.Close) {
+            gate(p.screen).state.value.holder?.let { check(it == holder) { "Another Device controls this tab" } }
+            requireNotNull(browser()).userCommand(BrowserCommand(requireNotNull(p.screen.owner), BrowserAction.Close, p.screen.id))
+            return
+        }
         gate(p.screen).input(holder, p.generation) {
             requireNotNull(browser()).userCommand(BrowserCommand(requireNotNull(p.screen.owner), if (p.action == ScreenCommandKind.Navigate) BrowserAction.Navigate else BrowserAction.Close, p.screen.id, text = p.text))
         }

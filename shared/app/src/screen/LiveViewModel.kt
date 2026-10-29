@@ -92,9 +92,14 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
         state.update { it.copy(selected = ref, frame = null, displayed = null, error = null, pending = false) }
         viewModelScope.launch { attempt { lock.withLock { restart() } } }
     }
+    /** Shows [ref] once listed, e.g. when a chat card asks for it while the panel is already open. */
+    fun focus(ref: ScreenRef?, reason: String?) {
+        state.update { it.copy(requestReason = reason) }
+        ref?.let(::select)
+    }
     private suspend fun reconcile() {
         val device = repository.device()
-        val all = repository.list(owner).filter { owner == null || it.ref.owner == null || it.ref.owner == owner }
+        val all = repository.list(owner).filter { it.ref.owner == null || (owner != null && it.ref.owner == owner) }
         state.update { s ->
             val selected = s.selected?.takeIf { ref -> all.any { it.ref == ref } } ?: all.firstOrNull { owner != null && it.ref.owner == owner }?.ref ?: all.firstOrNull()?.ref
             s.copy(screens = all, selected = selected, device = device, loaded = true,
@@ -180,6 +185,10 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
         if (!state.value.interactive) return
         mutate { val s = state.value; repository.command(ScreenCommand(requireNotNull(s.selected), s.control.generation, action, text)) }
     }
+    fun close(ref: ScreenRef) {
+        val screen = state.value.screens.firstOrNull { it.ref == ref }?.takeIf { it.capabilities.tabs } ?: return
+        mutate { repository.command(ScreenCommand(ref, screen.control.generation, ScreenCommandKind.Close, null)) }
+    }
     fun input(frame: ScreenFrame, actions: List<ScreenAction>) {
         val s = state.value
         if (!s.interactive || s.displayed != frame || actions.isEmpty() || actions.size > 32 || actions.any { it.kind.action !in s.screen!!.capabilities.inputs }) return
@@ -225,3 +234,4 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
 }
 
 fun ScreenFrame.ack() = ScreenFrameAck(subscription, epoch, sequence)
+
