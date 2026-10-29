@@ -26,6 +26,22 @@ class ScreenViewTest {
         assertFailsWith<IllegalStateException> { slow.ack(ack(first)) }
     }
 
+    @Test fun disconnectDuringBatchStopsRemainingActions() = runTest {
+        val view = ScreenView(ref, "view", "epoch")
+        val gate = ScreenGate()
+        val held = gate.acquire("device", 0)
+        view.offer(sample("image"))
+        val frame = assertNotNull(view.poll())
+        view.ack(ack(frame))
+        val input = ScreenInput(ack(frame), "geometry", held.generation, 0,
+            List(3) { ComputerAction(ComputerActionKind.Key, key = "enter") })
+        var calls = 0
+        val result = view.input("device", input, gate) { calls++; gate.disconnect("device") }
+        assertEquals(1, calls)
+        assertEquals(1, result.applied)
+        assertTrue(gate.state.value.suspended)
+    }
+
     @Test fun inputBindsHolderFrameGeometryAndConsumesFailedBatch() = runTest {
         val view = ScreenView(ref, "view", "epoch")
         val gate = ScreenGate()
