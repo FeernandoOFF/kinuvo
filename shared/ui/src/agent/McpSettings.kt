@@ -1,5 +1,6 @@
 package kinuvo.ui.agent
 
+import kinuvo.ui.session.HeaderButton
 import kinuvo.app.connection.*
 import kinuvo.app.agent.*
 import kinuvo.ui.board.*
@@ -16,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
-import com.composables.ui.theme.mutedColor
+import com.composables.ui.theme.*
 import kinuvo.protocol.ConfigScope
 import kinuvo.protocol.McpAuthStatus
 import kinuvo.protocol.McpOAuthClient
@@ -35,7 +36,7 @@ internal fun McpList(p: Pane) {
             "its own servers win over shared ones of the same name.",
         "New MCP server", servers == null,
     ) {
-        items(servers.orEmpty(), key = { itemKey(it.scope, it.name) }) { s ->
+        if (!servers.isNullOrEmpty()) RowGroup { servers.forEach { s ->
             ItemRow(itemKey(s.scope, s.name) == p.ui.route.item, Lucide.Plug, s.name, s.target(), { p.go(p.ui.route.copy(item = itemKey(s.scope, s.name), editing = false)) }) {
                 if (s.command != null && !p.ui.capabilities.offers(Integration.Mcp, IntegrationOptions.MCP_STDIO)) Pill("Needs a desktop Server", tone = Tone.Warning)
                 if (s.auth == McpAuthStatus.Required) Pill("Needs sign-in", tone = Tone.Warning)
@@ -43,18 +44,22 @@ internal fun McpList(p: Pane) {
                 if (s.agents?.contains(p.ui.route.agentId) == false) Pill("Off for this agent")
                 if (s.scope != ConfigScope.Agent) Pill(s.scope.label())
             }
-        }
-        if (servers != null && p.ui.capabilities.offers(Integration.Mcp, IntegrationOptions.MCP_HTTP)) {
-            item { SectionLabel("Catalog", Modifier.padding(start = 10.dp, top = 12.dp)) }
-            items(McpCatalog, key = { presetItem(it) }) { preset ->
-                val added = servers.firstOrNull { it.name == preset.id && it.url == preset.url }
-                if (added == null) ItemRow(presetItem(preset) == p.ui.route.item, Lucide.Plus, preset.name, preset.description,
-                    { p.go(p.ui.route.copy(item = presetItem(preset), editing = true)) })
-                else ItemRow(itemKey(added.scope, added.name) == p.ui.route.item, Lucide.Check, preset.name, preset.description,
-                    { p.go(p.ui.route.copy(item = itemKey(added.scope, added.name), editing = false)) }) {
-                    DeleteButton("server", itemKey(added.scope, added.name)) { p.actions.onRemoveMcp(added.scope, added.name) }
-                }
-            }
+        } }
+        if (servers != null) McpCatalogGroup(servers, p)
+    }
+}
+
+/** Popular servers to add in a few taps; added ones open. */
+@Composable
+internal fun McpCatalogGroup(servers: List<McpServerInfo>, p: Pane) {
+    if (!p.ui.capabilities.offers(Integration.Mcp, IntegrationOptions.MCP_HTTP)) return
+    RowGroup("Catalog") {
+        McpCatalog.forEach { preset ->
+            val added = servers.firstOrNull { it.name == preset.id && it.url == preset.url }
+            if (added == null) ItemRow(presetItem(preset) == p.ui.route.item, Lucide.Plus, preset.name, preset.description,
+                { p.go(p.ui.route.copy(item = presetItem(preset), editing = true)) })
+            else ItemRow(itemKey(added.scope, added.name) == p.ui.route.item, Lucide.Check, preset.name, "Added · ${preset.description}",
+                { p.go(p.ui.route.copy(item = itemKey(added.scope, added.name), editing = false)) })
         }
     }
 }
@@ -74,44 +79,45 @@ internal fun McpPane(p: Pane) {
 
 @Composable
 private fun McpDetail(s: McpServerInfo, p: Pane) {
-    val test = p.ui.state.mcpTest
-    DetailPane(p.back, s.name) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            ActionButton(Lucide.PlugZap, "Test", { p.actions.onTestMcp(s.scope, s.name) }, enabled = !p.ui.state.testing)
-            if (s.url != null) {
-                if (s.auth == McpAuthStatus.SignedIn) ActionButton(Lucide.LogOut, "Sign out", { p.actions.onSignOutMcp(s.scope, s.name) })
-                else ActionButton(Lucide.LogIn, "Sign in", { p.actions.onSignInMcp(s.scope, s.name) }, enabled = p.ui.state.signInUrl == null)
-            }
-            ActionButton(Lucide.Pencil, "Edit", { p.go(p.ui.route.copy(editing = true)) })
-            DeleteButton("server", itemKey(s.scope, s.name)) { p.actions.onRemoveMcp(s.scope, s.name) }
-            if (p.ui.state.testing) Spinner()
-        }
+    val agent = p.ui.agent?.name ?: "this agent"
+    DetailPane(p.back, s.name, info = s.target(), trailing = { HeaderButton(Lucide.Pencil, "Edit", { p.go(p.ui.route.copy(editing = true)) }) }) {
         p.ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         p.ui.state.signInUrl?.let { SignInWaiting(it, p) }
-        test?.let { t ->
-            if (t.needsLogin) Pill("Needs sign-in before it can connect", tone = Tone.Warning, icon = Lucide.LogIn)
-            else if (t.error != null) Pill("Couldn't connect: ${t.error}", tone = Tone.Danger, icon = Lucide.CircleX)
-            else DetailGroup("Tools (${t.tools.size})") { Text(t.tools.joinToString(", ").ifEmpty { "None" }) }
+        RowGroup {
+            if (s.scope == ConfigScope.Shared) {
+                val everyAgent = p.ui.agents.map { it.id }
+                GroupRow("Use with $agent", subtitle = "Shared; each Agent can turn it on or off", chevron = false) {
+                    Switch(s.agents?.contains(p.ui.route.agentId) != false, { p.actions.onMcpAccess(s.name, p.ui.route.agentId, it, everyAgent) })
+                }
+            } else GroupRow("Only $agent uses it", subtitle = if (s.active) null else "Overridden", chevron = false)
+            GroupRow("Approvals", value = APPROVAL[s.approval].orEmpty(), chevron = false)
+            ActionRow(if (p.ui.state.testing) "Connecting…" else "Reconnect", Lucide.RefreshCw, { p.actions.onTestMcp(s.scope, s.name) }, enabled = !p.ui.state.testing)
+            if (s.url != null) {
+                if (s.auth == McpAuthStatus.SignedIn) ConfirmRow("Sign out", Lucide.LogOut, "Sign out of ${s.name}?", { p.actions.onSignOutMcp(s.scope, s.name) },
+                    detail = "Its tools stop working until you sign in again.")
+                else ActionRow("Sign in", Lucide.LogIn, { p.actions.onSignInMcp(s.scope, s.name) }, enabled = p.ui.state.signInUrl == null,
+                    subtitle = AUTH.getValue(s.auth))
+            }
         }
+        McpToolRules(s, p)
         DetailGroup("Connection") {
-            DetailRow("Where") { Text((if (s.scope == ConfigScope.Shared) "Shared with every agent" else "This agent") + if (s.active) "" else " · overridden") }
             if (s.command != null) {
                 DetailRow("Command") { Text((listOf(s.command!!) + s.args).joinToString(" "), style = MonoStyle) }
                 s.env.forEach { (k, v) -> DetailRow(k) { Text(v, style = MonoStyle) } }
             } else {
                 DetailRow("URL") { Text(s.url.orEmpty(), style = MonoStyle) }
                 s.headers.forEach { (k, v) -> DetailRow(k) { Text(v, style = MonoStyle) } }
-                DetailRow("Sign-in") { Text(AUTH.getValue(s.auth)) }
                 s.oauth?.let { o ->
                     DetailRow("OAuth client") { Text(o.clientId, style = MonoStyle) }
                     if (o.scopes.isNotEmpty()) DetailRow("Scopes") { Text(o.scopes.joinToString(" "), style = MonoStyle) }
                 }
             }
-        }
-        DetailGroup("Tools") {
-            DetailRow("Offered") { Text(s.includeTools?.joinToString(", ") ?: "All") }
+            s.includeTools?.let { DetailRow("Offered") { Text(it.joinToString(", ")) } }
             if (s.excludeTools.isNotEmpty()) DetailRow("Hidden") { Text(s.excludeTools.joinToString(", ")) }
-            DetailRow("Approvals") { Text(APPROVAL[s.approval].orEmpty()) }
+        }
+        RowGroup {
+            ConfirmRow("Delete server", Lucide.Trash2, "Delete ${s.name}?", { p.actions.onRemoveMcp(s.scope, s.name) }, "Delete",
+                detail = if (s.scope == ConfigScope.Shared) "Every Agent loses its tools." else "$agent loses its tools.")
         }
     }
 }
@@ -176,57 +182,70 @@ private fun McpForm(s: McpServerInfo?, p: Pane, preset: McpPreset? = null) {
             },
         ))
     }
-    DetailPane(p.back, s?.let { "Edit ${it.name}" } ?: preset?.let { "Add ${it.name}" } ?: "New MCP server", error = p.ui.error, trailing = { FormActions(if (s == null) "Add server" else "Save", ready, p.ui.state.saved, onSave = save, onCancel = p.cancel.takeIf { preset == null }) }) {
+    DetailPane(p.back, s?.let { "Edit ${it.name}" } ?: preset?.let { "Add ${it.name}" } ?: "New MCP server", error = p.ui.error, trailing = { FormActions(if (s == null) "Add server" else "Save", ready, p.ui.state.saved, onSave = save, onCancel = p.cancel.takeIf { preset == null }, dirty = preset != null || formChanged(listOf(name.text.toString(), scope, http, command.text.toString(), args.text.toString(), env.text.toString(), url.text.toString(), headers.text.toString(), include.text.toString(), exclude.text.toString(), approval, clientId.text.toString(), clientSecret.text.toString(), scopes.text.toString()), p.ui.state.saved)) }) {
         preset?.let { PresetHelp(it) }
-        if (s == null) {
-            FormField("Name", "Its tools are named <name>__<tool>.") { Input(name, "github") }
-            if (taken) Text("A server named ${name.value()} already exists here; choose another name.", color = color(mutedColor))
-            FormField("For") { Picker(listOf(ConfigScope.Agent, ConfigScope.Shared), scope, { if (it == ConfigScope.Shared) "Agents chosen in Tools & MCP" else "Only this agent" }, { scope = it }) }
+        if (s == null) RowGroup {
+            FieldRow("Name", "Its tools are named <name>__<tool>.") { Input(name, "github") }
+            if (taken) GroupRow("A server named ${name.value()} already exists here", subtitle = "Choose another name.", tint = color(destructiveColor))
+            PickerRow("For", listOf(ConfigScope.Agent, ConfigScope.Shared), scope, { if (it == ConfigScope.Shared) "Shared" else "Only ${p.ui.agent?.name ?: "this agent"}" }, { scope = it }, Lucide.Users)
         }
         // A catalog server only asks for what its sign-in needs.
         val auth = preset?.auth
-        if (preset == null && (stdio || s?.command != null)) FormField("Connect with") { Picker(listOf(false, true), http, { if (it) "HTTP (streamable)" else "A command (stdio)" }, { http = it }) }
-        if (preset == null && !stdio) Text("Local (stdio) servers need a desktop Server; this one connects over HTTP.", color = color(mutedColor))
-        if (http) {
-            if (preset == null) FormField("URL") { Input(url, "https://example.com/mcp") }
-            if (auth == null || auth == McpPresetAuth.Token) FormField("Headers", REFERENCES) {
-                SecretField(p, { headers.insert(it) }) { TextArea(headers, "Authorization=Bearer \${TOKEN}", lines = 2, mono = true, trailing = it) }
+        val connection = preset == null || http && (auth == null || auth == McpPresetAuth.Token)
+        if (connection) RowGroup("Connection") {
+            if (preset == null && (stdio || s?.command != null)) PickerRow("Connect with", listOf(false, true), http, { if (it) "HTTP" else "A command (stdio)" }, { http = it },
+                if (http) Lucide.Globe else Lucide.SquareTerminal)
+            if (preset == null && !stdio) GroupRow("Over HTTP", subtitle = "Local (stdio) servers need a desktop Server.", icon = Lucide.Globe)
+            if (http) {
+                if (preset == null) FieldRow("URL") { Input(url, "https://example.com/mcp") }
+                if (auth == null || auth == McpPresetAuth.Token) FieldRow("Headers", REFERENCES) {
+                    SecretField(p, { headers.insert(it) }) { TextArea(headers, "Authorization=Bearer \${TOKEN}", lines = 2, mono = true, trailing = it) }
+                }
+            } else {
+                FieldRow("Command") { Input(command, "npx") }
+                FieldRow("Arguments", "One per line.") { TextArea(args, "-y\n@modelcontextprotocol/server-filesystem", lines = 3, mono = true) }
+                FieldRow("Environment", REFERENCES) {
+                    SecretField(p, { env.insert(it) }) { TextArea(env, "GITHUB_TOKEN=\${GITHUB_TOKEN}", lines = 2, mono = true, trailing = it) }
+                }
             }
-            if (auth == null || auth == McpPresetAuth.OwnClient) FormField("OAuth client ID", "Only for servers whose sign-in needs a registered app; most register Kinuvo themselves.") {
+        }
+        if (http && (auth == null || auth == McpPresetAuth.OwnClient)) RowGroup("Sign-in") {
+            FieldRow("OAuth client ID", "Only for servers whose sign-in needs a registered app; most register Kinuvo themselves.") {
                 Input(clientId, if (auth == null) "Optional" else "Required")
             }
             if (clientId.value().isNotEmpty()) {
-                FormField("OAuth client secret", REFERENCES) {
+                FieldRow("OAuth client secret", REFERENCES) {
                     SecretField(p, { clientSecret.insert(it) }) { Input(clientSecret, "Optional", secret = true, trailing = it) }
                 }
-                FormField("OAuth scopes", "Space-separated; blank for the server's own.") { Input(scopes, "read write") }
-            }
-        } else {
-            FormField("Command") { Input(command, "npx") }
-            FormField("Arguments", "One per line.") { TextArea(args, "-y\n@modelcontextprotocol/server-filesystem", lines = 3, mono = true) }
-            FormField("Environment", REFERENCES) {
-                SecretField(p, { env.insert(it) }) { TextArea(env, "GITHUB_TOKEN=\${GITHUB_TOKEN}", lines = 2, mono = true, trailing = it) }
+                FieldRow("OAuth scopes", "Space-separated; blank for the server's own.") { Input(scopes, "read write") }
             }
         }
-        FormField("Only these tools", "Comma-separated; blank for all.") { Input(include, "search, read") }
-        FormField("Never these tools", "Comma-separated.") { Input(exclude, "delete") }
-        FormField("Approvals") { Picker(APPROVAL.keys.toList(), approval, { APPROVAL[it].orEmpty() }, { approval = it }) }
+        RowGroup("Tools") {
+            PickerRow("Approvals", APPROVAL.keys.toList(), approval, { APPROVAL[it].orEmpty() }, { approval = it }, Lucide.ShieldCheck)
+            FieldRow("Only these tools", "Comma-separated; blank for all.") { Input(include, "All of them") }
+            FieldRow("Never these tools", "Comma-separated.") { Input(exclude, "None") }
+        }
     }
 }
 
 @Composable
 private fun PresetHelp(preset: McpPreset) {
     val uri = androidx.compose.ui.platform.LocalUriHandler.current
-    Text(when (preset.auth) {
-        McpPresetAuth.OAuth -> "${preset.description} After adding it, sign in with your ${preset.name} account."
-        McpPresetAuth.Token -> "${preset.description} Put your token after \"Bearer\" in Headers, or a \${…} reference to it."
-        McpPresetAuth.OwnClient -> "${preset.description} Create an OAuth client for it (see the setup guide) and enter its ID and secret; the scopes are filled in."
-    }, color = color(mutedColor))
-    preset.help?.let { ActionButton(Lucide.ExternalLink, "Setup guide", { runCatching { uri.openUri(it) } }) }
+    RowGroup {
+        GroupBox {
+            Text(preset.description)
+            Text(when (preset.auth) {
+                McpPresetAuth.OAuth -> "After adding it, sign in with your ${preset.name} account."
+                McpPresetAuth.Token -> "Put your token after \"Bearer\" in Headers, or a \${…} reference to it."
+                McpPresetAuth.OwnClient -> "Create an OAuth client for it (see the setup guide) and enter its ID and secret; the scopes are filled in."
+            }, fontSize = 13.sp, color = color(mutedColor))
+        }
+        preset.help?.let { ActionRow("Setup guide", Lucide.ExternalLink, { runCatching { uri.openUri(it) } }) }
+    }
 }
 
 private val AUTH = mapOf(McpAuthStatus.None to "Not signed in", McpAuthStatus.Required to "Needs sign-in", McpAuthStatus.SignedIn to "Signed in")
 
-private val APPROVAL = mapOf(null to "By each tool's read-only hint", "auto" to "Never ask", "ask" to "Always ask")
+internal val APPROVAL = mapOf(null to "By read-only hint", "auto" to "Never ask", "ask" to "Always ask")
 
-private fun McpServerInfo.target() = command?.let { (listOf(it) + args).joinToString(" ") } ?: url.orEmpty()
+internal fun McpServerInfo.target() = command?.let { (listOf(it) + args).joinToString(" ") } ?: url.orEmpty()

@@ -5,6 +5,10 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.sp
+import com.composables.ui.theme.*
+import kinuvo.ui.connection.TestGroup
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
@@ -30,27 +34,24 @@ private fun ServiceForm(setup: ServiceSetup, p: Pane) {
     val info = if (kind == ServiceKind.Search) "Lets Agents with the Web tools search the web, and read pages as clean text."
         else "Tells your phone when an Agent needs an Approval or an answer, replies, or a Routine has news, while the app isn't open."
     DetailPane(p.back, kind.title(), error = p.ui.error, info = info, trailing = {
-        FormActions("Save", form.editable, p.ui.state.saved, onSave = { p.actions.onSaveService(form.saveParams()) })
+        FormActions("Save", form.editable, p.ui.state.saved, onSave = { p.actions.onSaveService(form.saveParams()) }, dirty = formChanged(form, p.ui.state.saved))
     }) {
-        FormField("Provider") {
-            Picker((listOf<String?>(null) + setup.providers.map { it.id } + listOfNotNull(form.provider)).distinct(), form.provider,
-                { id -> setup.providers.firstOrNull { it.id == id }?.name ?: id ?: "Off" }, { form = form.select(it) })
+        RowGroup {
+            PickerRow("Provider", (listOf<String?>(null) + setup.providers.map { it.id } + listOfNotNull(form.provider)).distinct(), form.provider,
+                { id -> setup.providers.firstOrNull { it.id == id }?.name ?: id ?: "Off" }, { form = form.select(it) },
+                if (kind == ServiceKind.Search) Lucide.Search else Lucide.Bell)
+            if (!form.editable) GroupRow(if (form.definition == null) "This provider is not installed on the Server." else "Update this client to configure this provider.", tint = color(mutedColor))
         }
-        if (!form.editable) Text(if (form.definition == null) "This provider is not installed on the Server." else "Update this client to configure this provider.")
-        else key(form.provider) {
-            form.fields.forEach { field ->
-                key(field.key) { ProviderField(field, form, p, { update -> form = update(form) }) }
+        if (form.editable && form.fields.isNotEmpty()) RowGroup("Settings") {
+            key(form.provider) {
+                form.fields.forEach { field ->
+                    key(field.key) { ProviderField(field, form, p, { update -> form = update(form) }) }
+                }
             }
         }
-        if (form.provider != null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            ActionButton(Lucide.PlugZap, if (kind == ServiceKind.Search) "Test search" else "Send test",
-                { p.actions.onTestService(form.testParams()) }, enabled = form.editable && !p.ui.state.testing)
-            if (p.ui.state.testing) Spinner()
-        }
-        p.ui.state.serviceTest?.let { t ->
-            if (t.error != null) Pill("Didn't work: ${t.error}", tone = Tone.Danger, icon = Lucide.CircleX)
-            else Pill("Works: ${t.summary}", tone = Tone.Success, icon = Lucide.CircleCheck)
-        }
+        if (form.provider != null) TestGroup(if (p.ui.state.testing) "Testing…" else if (kind == ServiceKind.Search) "Test search" else "Send test notification",
+            form.editable && !p.ui.state.testing, { p.actions.onTestService(form.testParams()) },
+            p.ui.state.serviceTest?.let { t -> t.error?.let { "Didn't work: $it" } to "Works: ${t.summary}" })
     }
 }
 
@@ -76,9 +77,11 @@ private fun ProviderField(field: SettingsField, form: ServiceFormState, p: Pane,
             }
         }
     } else null
-    FormField(field.label, field.description) {
-        when {
-            field.sensitive -> SecretField(p, { value -> change { it.change(field.key, value) } }) { trailing ->
+    when {
+        field.type == SettingsFieldType.Boolean -> SwitchRow(field.label, effective == "true", { update(it.toString()) }, subtitle = field.description)
+        field.type == SettingsFieldType.Choice -> PickerRow(field.label, field.choices, effective, { it }, { update(it) }, subtitle = field.description)
+        else -> FieldRow(field.label, field.description) {
+            if (field.sensitive) SecretField(p, { value -> change { it.change(field.key, value) } }) { trailing ->
                 Input(input, if (configured && !removing) "Saved; enter a replacement" else placeholder,
                     secret = !isReference(input.text.toString()), trailing = {
                         Row {
@@ -86,17 +89,12 @@ private fun ProviderField(field: SettingsField, form: ServiceFormState, p: Pane,
                             actions?.invoke()
                         }
                     })
-            }
-            field.type == SettingsFieldType.Boolean -> Checkbox(effective == "true", { update(it.toString()) }) { Text(if (effective == "true") "On" else "Off") }
-            field.type == SettingsFieldType.Choice -> Picker(field.choices, effective, { it }, { update(it) })
-            else -> Input(input, placeholder, trailing = actions)
-        }
-        if (configured) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(if (removing) "Will be removed on save" else "Saved on the Server")
-                HeaderButton(if (removing) Lucide.Undo2 else Lucide.Trash2, if (removing) "Keep saved value" else "Remove saved value", {
-                    change { if (removing) it.keepSecret(field.key) else it.removeSecret(field.key) }
-                })
+            } else Input(input, placeholder, trailing = actions)
+            if (configured) Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(if (removing) Lucide.CircleAlert else Lucide.CircleCheck, Modifier.size(14.dp), tint = color(if (removing) warningColor else successColor))
+                Text(if (removing) "  Removed when you save" else "  Saved on the Server", Modifier.weight(1f), fontSize = 13.sp, color = color(mutedColor))
+                if (removing) Button({ change { it.keepSecret(field.key) } }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Keep") }
+                else Button({ change { it.removeSecret(field.key) } }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(destructiveColor)) { Text("Remove") }
             }
         }
     }

@@ -57,6 +57,7 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSerializable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
@@ -87,7 +88,8 @@ import kinuvo.ui.design.*
 fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, manageActivity: Boolean = true) {
     val appState by app.state.collectAsState()
     if (appState.onboarding) {
-        HarnessTheme { OnboardingScreen(app, koinViewModel<OnboardingViewModel>(key = "onboarding/${app.serverLifetime}")) }
+        // One for the whole first run: connecting a Server mustn't start it over, as one keyed by the Server would.
+        HarnessTheme { OnboardingScreen(app, koinViewModel<OnboardingViewModel>(key = "first-run")) }
         return
     }
     val connection = appState.connection
@@ -96,23 +98,39 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
     }
     val ahead = rememberSerializable(serializer = SnapshotStateListSerializer(Route.serializer())) { mutableStateListOf() }
     val history = remember(backStack, ahead) { History(backStack, ahead) }
-    val back = { if (history.canGoBack) history.back() else if (backStack.lastOrNull().let { it is Route.Settings }) history.reset(app.lastView()) }
+    val homeEdits = remember { SettingsEdits() }
+    val back = { homeEdits.leave { if (history.canGoBack) history.back() else if (backStack.lastOrNull().let { it is Route.Settings }) history.reset(app.lastView()) } }
     val shell = rememberShellChrome()
     BrowserBackHandler()
     val dispatchBack = rememberBackDispatch()
     val shortcutBack = { if (!dispatchBack()) back() }
     val popovers = remember { Popovers() }
     val scope = rememberCoroutineScope()
+    val settingsPages = rememberSerializable(serializer = SnapshotStateListSerializer(Route.Settings.serializer())) { mutableStateListOf<Route.Settings>() }
+    val inspectorEdits = remember { SettingsEdits() }
+    val inspectorPages = rememberSerializable(serializer = SnapshotStateListSerializer(Route.Settings.serializer())) { mutableStateListOf<Route.Settings>() }
+    // Phones show Settings in a sheet; Home's pages, such as Routines, are screens like any other.
+    val openSettings: (Route.Settings, Boolean) -> Unit = { route, push ->
+        homeEdits.leave {
+            if (history.compact && !route.home) settingsPages.navigate(route, push) else history.open(route, push)
+        }
+    }
+
     // The Agent settings beside the screens, apart from the back stack so the Session under it never changes.
     val inspector = if (connection is Connection.Ready) koinViewModel<AgentInspectorViewModel>(key = "inspector/${app.serverLifetime}") else null
     val inspecting = inspector?.state?.collectAsState()?.value
     // What waits while unsaved Agent settings are settled, run once the inspector lets the host leave.
     var pendingLeave by remember { mutableStateOf<(() -> Unit)?>(null) }
-    val guardLeave = { action: () -> Unit -> if (inspector == null || inspector.leave()) action() else pendingLeave = action }
+    val guardLeave = { action: () -> Unit ->
+        val leave = { if (inspector == null || inspector.leave()) action() else pendingLeave = action }
+        if (inspecting?.dirty == true) leave() else inspectorEdits.leave(leave)
+    }
     // Server-wide settings live under any Agent's Settings; open them under the first.
     val serverSettings = { section: SettingsSection ->
-        appState.agents.firstOrNull()?.let { guardLeave { history.open(Route.Settings(it.id, section), push = true) } }
+        appState.agents.firstOrNull()?.let { guardLeave { openSettings(Route.Settings(it.id, section), true) } }
     }
+    LaunchedEffect(inspecting?.agentId) { inspectorPages.clear() }
+    LaunchedEffect(app.serverLifetime) { settingsPages.clear(); inspectorPages.clear() }
     LaunchedEffect(inspecting?.left) {
         if (inspecting?.left == true) {
             pendingLeave?.invoke()
@@ -181,37 +199,41 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             val top = backStack.lastOrNull()
             LaunchedEffect(agent?.id) { if (app.state.value.agentId == null) agent?.id?.let(app::showAgent) }
             val shellState = ShellState(appState.agents, agent, appState.sessions.lists, appState.sessions.finished, top,
-                ServerMenuState(appState.servers, (connection as? Connection.Ready)?.server, appState.pairing, appState.pairingBase, appState.pairingError, (connection as? Connection.Ready)?.client?.lastConnect?.management == true && appState.capabilities.supports(ServerFeature.Pairing)), appState.capabilities, appState.routines,
+                ServerMenuState(appState.servers, (connection as? Connection.Ready)?.server), appState.capabilities, appState.routines,
                 (connection as? Connection.Ready)?.client?.lastConnect?.management != false, appState.home)
-            val inspect = { id: String -> if (inspector == null) history.open(Route.Settings(id), push = true) else { inspector.inspect(id); Unit } }
+            // Home's Routines and Tools open on the shown Agent, or the first that Kinuvo runs itself.
+            val homePage = { section: SettingsSection ->
+                (agent?.takeIf { !it.external } ?: appState.agents.firstOrNull { !it.external })?.let { guardLeave { history.switchTo(Route.Settings(it.id, section)) } }
+            }
+            val inspect = { id: String -> if (inspector == null) openSettings(Route.Settings(id), true) else { inspector.inspect(id); Unit } }
             // Phones slide the screens aside to reveal the shell; anything picked there covers it again.
-            fun cover(action: () -> Unit) = { action(); shell.revealed = false }
+            fun cover(action: () -> Unit) = { homeEdits.leave { action(); shell.revealed = false } }
             val shellActions = ShellActions(
-                onSelectAgent = { id -> app.selectAgent(id, backStack.lastOrNull(), compact, history::open) },
+                onSelectAgent = { id -> homeEdits.leave { app.selectAgent(id, backStack.lastOrNull(), compact, history::switchTo) } },
                 onAddAgent = cover { guardLeave { history.open(Route.NewAgent) } },
                 // Phones switch the column, like picking an Agent; wide layouts open Today beside it.
-                onHome = { app.showHome(); if (!compact) history.open(Route.Home) },
-                onToday = cover { history.open(Route.Home) },
+                onHome = { homeEdits.leave { app.showHome(); if (!compact) history.open(Route.Home) } },
+                onToday = cover { history.switchTo(Route.Home) },
                 onAgentSettings = cover { agent?.let { inspect(it.id) } },
-                onOpenSession = { agentId, id -> cover { history.open(Route.Chat(agentId, id)) }() },
-                onNew = cover { if (top !is Route.Chat || top.sessionId != null || top.agentId != agent?.id) history.open(Route.Chat(agent?.id, compose = true)) },
-                onSelect = { id -> cover { history.open(Route.Chat(agent?.id, id)) }() },
+                onOpenSession = { agentId, id -> cover { history.switchTo(Route.Chat(agentId, id)) }() },
+                onNew = cover { if (top !is Route.Chat || top.sessionId != null || top.agentId != agent?.id) history.switchTo(Route.Chat(agent?.id, compose = true)) },
+                onSelect = { id -> cover { history.switchTo(Route.Chat(agent?.id, id)) }() },
                 onLoadMore = { agent?.id?.let(app::loadMoreSessions) },
-                onSettings = cover { guardLeave { agent?.let { history.open(Route.Settings(it.id), push = true) } } },
-                onBoard = cover { history.open(Route.Board) },
-                onKnowledge = cover { history.open(Route.Knowledge()) },
-                onArtifacts = cover { history.open(Route.Artifacts()) },
-                onComputers = cover { history.open(Route.Computers()) },
+                onSettings = cover { guardLeave { agent?.let { openSettings(Route.Settings(it.id), true) } } },
+                onBoard = cover { history.switchTo(Route.Board) },
+                onKnowledge = cover { history.switchTo(Route.Knowledge()) },
+                onArtifacts = cover { history.switchTo(Route.Artifacts()) },
+                onComputers = cover { history.switchTo(Route.Computers()) },
+                onRoutines = cover { homePage(SettingsSection.Routines) },
+                onTools = cover { homePage(SettingsSection.Hub) },
                 onSelectServer = { server -> cover { guardLeave { app.use(server); history.reset(Route.Chat()) } }() },
                 onAddServer = cover { guardLeave(app::addServer) },
-                onServerSettings = { server -> cover { guardLeave { agent?.let { history.open(Route.Settings(it.id, SettingsSection.Connection, item = server.key), push = true) } } }() },
-                onRefreshPairing = app::refreshPairing,
-                onPairingBase = app::selectPairingBase,
+                onServerSettings = { server -> cover { guardLeave { agent?.let { openSettings(Route.Settings(it.id, SettingsSection.Connection, item = server.key), true) } } }() },
                 onRenameServer = app::rename,
                 onForgetServer = { app.forget(it) },
                 onQuickSend = { agentId, text, open ->
                     val id = app.quickSend(agentId, text)
-                    if (id != null && open) cover { history.open(Route.Chat(agentId, id)) }()
+                    if (id != null && open) cover { history.switchTo(Route.Chat(agentId, id)) }()
                     id != null
                 },
             )
@@ -222,11 +244,11 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 }
             }
             // Settings keeps the rail on wide layouts, its sections taking the column's place; on phones it covers the screen.
-            val withShell = (top !is Route.Settings || !compact) && top != Route.Connect && top != Route.NewAgent && (top as? Route.Artifacts)?.fullScreen != true
+            val withShell = (top !is Route.Settings || !compact || top.home) && top != Route.Connect && top != Route.NewAgent && (top as? Route.Artifacts)?.fullScreen != true
             val inspectorBeside = !compact && inspecting?.open == true
             // Narrow windows fold the column while the inspector is open, keeping the rail and room for the screen.
             val foldColumn = inspectorBeside && maxWidth < 1100.dp
-            val beside = !compact && (shell.open || top is Route.Settings) && withShell
+            val beside = !compact && (shell.open || top is Route.Settings && !top.home) && withShell
             val windowChrome = LocalWindowChrome.current
             val content = @Composable {
                 NavDisplay(
@@ -245,9 +267,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 onOpenSession = { agentId, id -> history.open(Route.Chat(agentId, id)) },
                                 onOpenTask = { history.open(Route.Task(it)) },
                                 onBoard = { history.open(Route.Board) },
-                                onRoutine = { agentId, id -> guardLeave { history.open(Route.Settings(agentId, SettingsSection.Routines, id), push = true) } },
-                                onToggleShell = { if (compact) shell.revealed = true else shell.open = !shell.open },
-                                onBack = back.takeIf { history.canGoBack },
+                                onRoutine = { agentId, id -> guardLeave { openSettings(Route.Settings(agentId, SettingsSection.Routines, id), true) } },
                             ), !compact)
                         }
                         entry<Route.Task> { route ->
@@ -263,9 +283,8 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 initialUrl = appState.pendingPair?.server ?: (connection as? Connection.Unpaired)?.server?.url ?: koinInject<Device>().serverUrl,
                                 pending = appState.pendingPair,
                                 initialName = (connection as? Connection.Unpaired)?.server?.name.orEmpty(),
-                                onRenameServer = app::rename,
-                                onForgetServer = { app.forget(it) },
                                 onCancel = appState.returnTo?.let { { app.cancelAddServer() } },
+                                from = appState.returnTo,
                             )
                         }
                         entry<Route.Chat>(clazzContentKey = { it.slot }, metadata = { route ->
@@ -286,14 +305,14 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     onBack = back.takeIf { backStack.getOrNull(backStack.lastIndex - 1)?.home == true })
                             }
                         }
-                        entry<Route.Settings>(metadata = { SettingsTransitions(compact) }) { route ->
+                        entry<Route.Settings>(metadata = { if (it.home) emptyMap() else SettingsTransitions(compact) }) { route ->
                             val settings = koinViewModel<SettingsViewModel>(key = "settings/${app.serverLifetime}/${route.agentId}") { parametersOf(route) }
-                            SettingsScreen(
-                                app, settings,
-                                onNavigate = history::open,
-                                onBack = back,
-                                onOpenSession = history::open,
-                            )
+                            key(route, homeEdits.revision) {
+                                CompositionLocalProvider(LocalSettingsEdits provides homeEdits) {
+                                    SettingsScreen(app, settings, onNavigate = openSettings, onBack = back,
+                                        onOpenSession = { next -> homeEdits.leave { history.open(next) } })
+                                }
+                            }
                         }
                         entry<Route.NewAgent> {
                             NewAgentScreen(app, koinViewModel<OnboardingViewModel>(key = "onboarding/${app.serverLifetime}"), onClose = back) { id ->
@@ -303,7 +322,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             }
                         }
                         entry<Route.Board> {
-                            BoardScreen(app, koinViewModel<BoardViewModel>(key = "board/${app.serverLifetime}"), onBack = back.takeIf { history.canGoBack }, onOpenSession = history::open,
+                            BoardScreen(app, koinViewModel<BoardViewModel>(key = "board/${app.serverLifetime}"), onOpenSession = history::open,
                                 onSettings = { serverSettings(SettingsSection.Tasks) }, onOpenTask = { history.open(Route.Task(it)) })
                         }
                         entry<Route.Artifacts> { route ->
@@ -325,7 +344,8 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         entry<Route.Computers> { route ->
                             val client = (connection as? Connection.Ready)?.client
                             if (client == null) Loading(connection)
-                            else kinuvo.ui.computer.ComputersScreen(koinViewModel<kinuvo.app.computer.ComputersViewModel>(key = "computers/${app.serverLifetime}") { parametersOf(client, route) }, back.takeIf { history.canGoBack })
+                            else kinuvo.ui.computer.ComputersScreen(koinViewModel<kinuvo.app.computer.ComputersViewModel>(key = "computers/${app.serverLifetime}") { parametersOf(client, route) },
+                                onOpen = { history.open(Route.Computers(it)) }, onBack = back.takeIf { history.canGoBack && route.computer != null })
                         }
                         entry<Route.Knowledge> { route ->
                             val knowledge = koinViewModel<KnowledgeViewModel>(key = "knowledge/${app.serverLifetime}/${route.note}") { parametersOf(route) }
@@ -338,14 +358,35 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             // Moved, not rebuilt, when rotating or resizing across the compact width, so open screens keep running, e.g. voice chat.
             val current by rememberUpdatedState(content)
             val screens = remember { movableContentOf { current() } }
-            val inspectorHost = InspectorHost(appState.agents, appState.capabilities, (appState.connection as? Connection.Ready)?.let(::serverLabel) ?: "this Server") { id, section ->
-                guardLeave { history.open(Route.Settings(id, section), push = true) }
+            val inspectorSavedPages = key(inspecting?.agentId) { rememberSaveableStateHolder() }
+            val inspectorSection: (@Composable () -> Unit)? = inspectorPages.lastOrNull()?.let { route ->
+                @Composable {
+                    inspectorSavedPages.SaveableStateProvider(route.toString()) {
+                        DisposableEffect(route) {
+                            inspectorEdits.onDiscard = { inspectorSavedPages.removeState(route.toString()) }
+                            onDispose { inspectorEdits.onDiscard = {} }
+                        }
+                        val settings = rememberSettingsViewModel(route)
+                        CompositionLocalProvider(LocalSettingsEdits provides inspectorEdits, LocalModalNavigation provides ModalNavigation({ inspectorEdits.leave { inspectorPages.removeLastOrNull() } })) {
+                            SettingsScreen(app, settings,
+                                onNavigate = { r, push -> inspectorEdits.leave { inspectorPages.navigate(r, push) } },
+                                onBack = { inspectorEdits.leave { inspectorPages.removeLastOrNull(); Unit } }, onOpenSession = history::open, sidebar = false)
+                        }
+                    }
+                }
             }
-            CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers) {
+            val inspectorHost = InspectorHost(appState.agents, appState.capabilities,
+                (appState.connection as? Connection.Ready)?.let(::serverLabel) ?: "this Server",
+                onSection = { id, section -> inspectorPages.add(Route.Settings(id, section)) },
+                section = inspectorSection,
+                onSectionBack = if (inspectorPages.isEmpty()) null else ({ inspectorEdits.leave { inspectorPages.removeLastOrNull(); Unit } }),
+                onCloseRequest = { if (inspecting?.dirty == true) inspector?.close() else inspectorEdits.leave { inspector?.close() } })
+            val homeChrome = HomeChrome({ if (compact) shell.revealed = true else shell.open = !shell.open }, !compact)
+            CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers, LocalHomeChrome provides homeChrome) {
                 val blur by animateDpAsState(if (shell.quickChat || popovers.active) 16.dp else 0.dp)
                 val screenInsets = if (top == Route.NewAgent || top == Route.Connect) WindowInsets(0) else WindowInsets.safeDrawing
-                val guardSemantics = if (inspecting?.guard != null) Modifier.clearAndSetSemantics {} else Modifier
-                val sheetSemantics = if (inspecting?.open == true) Modifier.clearAndSetSemantics {} else Modifier
+                val guardSemantics = if (inspecting?.guard != null || inspectorEdits.pending != null || homeEdits.pending != null) Modifier.clearAndSetSemantics {} else Modifier
+                val sheetSemantics = if (inspecting?.open == true || settingsPages.isNotEmpty()) Modifier.clearAndSetSemantics {} else Modifier
                 if (compact) Box(Modifier.fillMaxSize().then(guardSemantics)) {
                     Box(Modifier.blur(blur).then(sheetSemantics)) {
                         Reveal(shell.revealed, { shell.revealed = it }, behind = { Shell(shellState, shellActions, shell, Modifier.fillMaxSize(), fill = true) },
@@ -364,10 +405,14 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         CompositionLocalProvider(LocalWindowChrome provides windowChrome?.let { if (beside) it.trailingOnly else it }) { screens() }
                     }
                     AnimatedVisibility(inspectorBeside, enter = expandHorizontally(expandFrom = Alignment.Start), exit = shrinkHorizontally(shrinkTowards = Alignment.Start)) {
-                        Row { VerticalSeparator(); inspector?.let { AgentInspector(it, inspectorHost, sheet = false, showGuard = false) } }
+                        // Clear of the window's leading edge, so its title bar keeps no room for the window buttons there.
+                        Row { VerticalSeparator(); inspector?.let { CompositionLocalProvider(LocalWindowChrome provides windowChrome?.trailingOnly) { AgentInspector(it, inspectorHost, sheet = false, showGuard = false) } } }
                     }
                 }
+                if (settingsPages.isNotEmpty()) SettingsSheet(app, settingsPages, history::open)
                 inspector?.let { AgentInspectorGuard(it, inspectorHost) }
+                SettingsDiscardDialog(homeEdits)
+                SettingsDiscardDialog(inspectorEdits)
                 popovers.Host()
             }
             appState.notice?.let { notice ->

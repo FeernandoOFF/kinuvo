@@ -17,12 +17,11 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +46,9 @@ class InspectorHost(
     val server: String = "this Server",
     /** Opens one of the Agent's Settings sections, after any unsaved edits are settled. */
     val onSection: (agentId: String, section: SettingsSection) -> Unit = { _, _ -> },
+    val section: (@Composable () -> Unit)? = null,
+    val onSectionBack: (() -> Unit)? = null,
+    val onCloseRequest: (() -> Unit)? = null,
 )
 
 /** Width of the inspector beside the screens on wide layouts. */
@@ -66,7 +68,7 @@ class InspectorActions(
 )
 
 private fun AgentInspectorViewModel.actions(host: InspectorHost) = InspectorActions(
-    onBack = { back() }, onClose = { close() }, onEdit = ::edit, onSave = { save(host.agents) },
+    onBack = { back() }, onClose = { host.onCloseRequest?.invoke() ?: close() }, onEdit = ::edit, onSave = { save(host.agents) },
     onPush = ::push, onLoadModels = { loadModels(it) }, onResolve = { resolve(it, host.agents) }, onCheck = ::check,
 )
 
@@ -81,18 +83,25 @@ fun AgentInspector(vm: AgentInspectorViewModel, host: InspectorHost, sheet: Bool
 fun AgentInspectorContent(state: InspectorState, host: InspectorHost, actions: InspectorActions, sheet: Boolean, modifier: Modifier = Modifier, showGuard: Boolean = true) {
     var shown by remember { mutableStateOf(state) }
     if (state.open) shown = state
+    val savedPages = key(state.agentId) { rememberSaveableStateHolder() }
+    val pageContent: @Composable () -> Unit = {
+        if (host.section != null) host.section.invoke()
+        else savedPages.SaveableStateProvider(shown.page.name) {
+            Column(Modifier.fillMaxSize()) {
+                InspectorHeader(shown, host, actions)
+                Box(Modifier.weight(1f)) { InspectorBody(shown, host, actions) }
+            }
+        }
+    }
     val panelSemantics = if (state.guard != null) Modifier.clearAndSetSemantics {} else Modifier
-    NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = state.open && state.guard == null, onBackCompleted = actions.onBack)
+    NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = state.open && state.guard == null, onBackCompleted = host.onSectionBack ?: actions.onBack)
     if (sheet) BottomSheet(
         state.open, onDismissRequest = actions.onClose,
-        header = { InspectorHeader(shown, host, actions) },
-        footer = { InspectorFooter(shown, host, actions) },
+        header = {},
         modifier = panelSemantics,
-    ) { InspectorBody(shown, host, actions) }
+    ) { pageContent() }
     else if (state.open) Column(modifier.then(panelSemantics).width(InspectorWidth).fillMaxHeight().background(color(sidebarColor)).semantics { paneTitle = "Agent settings" }) {
-        InspectorHeader(shown, host, actions)
-        Box(Modifier.weight(1f)) { InspectorBody(shown, host, actions) }
-        InspectorFooter(shown, host, actions)
+        pageContent()
     }
     if (showGuard) InspectorGuard(state, host, actions)
 }
@@ -107,33 +116,12 @@ fun AgentInspectorGuard(vm: AgentInspectorViewModel, host: InspectorHost) {
 @Composable
 private fun InspectorHeader(state: InspectorState, host: InspectorHost, actions: InspectorActions) {
     val agent = host.agents.firstOrNull { it.id == state.agentId }
-    TitleBarRow(leading = state.pages.isNotEmpty(), trailing = true) {
-        if (state.pages.isNotEmpty()) HeaderButton(Lucide.ArrowLeft, "Back", { actions.onBack() })
-        Column(Modifier.weight(1f).padding(start = 6.dp)) {
-            Text(if (state.pages.isEmpty()) agent?.name ?: "…" else state.page.title(), fontWeight = FontWeight.Bold, singleLine = true, overflow = TextOverflow.Ellipsis)
-            Text(if (state.pages.isEmpty()) "Agent settings · every Session" else "${agent?.name ?: "Agent"} · every Session", fontSize = 12.sp, color = color(mutedColor), singleLine = true)
-        }
-        HeaderButton(Lucide.X, "Close Agent settings", { actions.onClose() })
-    }
-    HorizontalSeparator()
-}
-
-@Composable
-private fun InspectorFooter(state: InspectorState, host: InspectorHost, actions: InspectorActions) {
-    val problems = state.draft?.problems(state.agentId.orEmpty(), host.agents).orEmpty()
-    HorizontalSeparator()
-    Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        val status = when {
-            state.saving -> "Saving…"
-            state.dirty -> "Unsaved: " + state.labels().joinToString()
-            state.saved -> "Saved"
-            else -> "No unsaved changes"
-        }
-        Text(status, Modifier.weight(1f).semantics { liveRegion = LiveRegionMode.Polite }, fontSize = 12.sp, color = color(if (state.dirty) warningColor else mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
-        if (state.dirty) {
-            Button({ actions.onEdit { state.details?.let(AgentDraft::of) ?: it } }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, enabled = !state.saving) { Text("Discard") }
-            Button({ actions.onSave() }, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small, enabled = !state.saving && problems.isEmpty()) { Text("Save") }
-        } else Button({ actions.onClose() }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Close") }
+    SettingsPageHeader(
+        if (state.pages.isEmpty()) agent?.name ?: "…" else state.page.title(),
+        back = actions.onBack.takeIf { state.pages.isNotEmpty() },
+        subtitle = if (state.pages.isEmpty()) "Agent settings · every Session" else "${agent?.name ?: "Agent"} · every Session",
+    ) {
+        if (state.dirty) HeaderButton(Lucide.Check, "Save", actions.onSave, enabled = !state.saving && state.draft?.problems(state.agentId.orEmpty(), host.agents)?.isEmpty() == true)
     }
 }
 
@@ -193,16 +181,13 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
     }
     Group("Rules") {
         NavRow(Lucide.ShieldCheck, "Risk tolerance", "${draft.approvals.replaceFirstChar { it.uppercase() }} · ${APPROVALS[draft.approvals].orEmpty()}") { actions.onPush(InspectorPage.Approvals) }
-        NavRow(Lucide.Wrench, "Tools and Trust rules", null, external = true) { host.onSection(agentId, SettingsSection.Tools) }
     }
     Group("Knows") {
         NavRow(Lucide.NotebookPen, "User Notes", if (details.userNotes.isBlank()) "None yet" else "${details.userNotes.lines().count { it.isNotBlank() }} lines") { actions.onPush(InspectorPage.UserNotes) }
-        if (host.capabilities.allows(SettingsSection.Skills)) NavRow(Lucide.BookOpen, "Skills", null, external = true) { host.onSection(agentId, SettingsSection.Skills) }
+        if (host.capabilities.allows(SettingsSection.Skills)) NavRow(Lucide.BookOpen, "Skills", null) { host.onSection(agentId, SettingsSection.Skills) }
     }
-    Group("Does") {
-        if (host.capabilities.allows(SettingsSection.Routines)) NavRow(Lucide.AlarmClock, "Routines", null, external = true) { host.onSection(agentId, SettingsSection.Routines) }
-        if (host.capabilities.allows(SettingsSection.Workspace)) NavRow(Lucide.FolderOpen, "Workspace", null, external = true) { host.onSection(agentId, SettingsSection.Workspace) }
-        if (host.capabilities.allows(SettingsSection.Mcp)) NavRow(Lucide.Plug, "MCP servers", null, external = true) { host.onSection(agentId, SettingsSection.Mcp) }
+    if (host.capabilities.allows(SettingsSection.Workspace)) Group("Does") {
+        NavRow(Lucide.FolderOpen, "Workspace", null) { host.onSection(agentId, SettingsSection.Workspace) }
     }
     Text("These are ${agent.name}'s defaults for every Session. A Session's own model, reasoning and Risk tolerance are set from its composer.",
         fontSize = 12.sp, color = color(mutedColor))
@@ -224,7 +209,7 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
         problems.filter { it.contains("Name", true) || it.contains("called") }.forEach { Text(it, fontSize = 12.sp, color = color(destructiveColor)) }
     }
     Group("Runs on") {
-        NavRow(if (agent.executionKind == ExecutionKind.Acp) Lucide.SquareTerminal else Lucide.ArrowLeftRight, runsOn(agent, connections, host.server), null, external = true) {
+        NavRow(if (agent.executionKind == ExecutionKind.Acp) Lucide.SquareTerminal else Lucide.ArrowLeftRight, runsOn(agent, connections, host.server), null) {
             host.onSection(agentId, SettingsSection.Harnesses)
         }
         val r = readiness(agent.readiness.state(), harness, machine, agent.name,
@@ -274,22 +259,20 @@ private fun ModelPage(state: InspectorState, draft: AgentDraft, actions: Inspect
 /** Asks what to do with unsaved edits before the inspector closes, switches Agent or the host leaves. */
 @Composable
 fun InspectorGuard(state: InspectorState, host: InspectorHost, actions: InspectorActions) {
-    val agent = host.agents.firstOrNull { it.id == state.agentId }?.name ?: "this Agent"
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = state.guard != null) { actions.onResolve(GuardChoice.Keep) }
     AnimatedVisibility(state.guard != null, enter = fadeIn(), exit = fadeOut()) {
         Box(Modifier.fillMaxSize().background(color(scrimColor)).clickable(remember { MutableInteractionSource() }, indication = null) { actions.onResolve(GuardChoice.Keep) },
             contentAlignment = Alignment.Center) {
             Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp).widthIn(max = 400.dp).clickable(remember { MutableInteractionSource() }, indication = null) {}.semantics { paneTitle = "Unsaved changes" },
                 contentPadding = PaddingValues(18.dp)) {
-                Text("Unsaved changes to $agent", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Discard changes?", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(6.dp))
-                Text("Save ${state.labels().joinToString().lowercase().ifEmpty { "them" }} as $agent's defaults before leaving?", color = color(mutedColor), fontSize = 14.sp)
+                Text("Your changes have not been saved.", color = color(mutedColor), fontSize = 14.sp)
                 state.errors.forEach { Spacer(Modifier.height(8.dp)); ErrorMessage(it) }
                 Spacer(Modifier.height(16.dp))
                 FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button({ actions.onResolve(GuardChoice.Keep) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Keep editing") }
                     Button({ actions.onResolve(GuardChoice.Discard) }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Discard") }
-                    Button({ actions.onResolve(GuardChoice.Save) }, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small, enabled = !state.saving && state.draft?.problems(state.agentId.orEmpty(), host.agents)?.isEmpty() == true) { Text("Save") }
                 }
             }
         }
@@ -323,13 +306,13 @@ private fun Group(title: String, hint: String? = null, content: @Composable Colu
 @Composable
 private fun Label(text: String) = Text(text, Modifier.padding(start = 2.dp, top = 2.dp), fontSize = 12.sp, color = color(mutedColor))
 
-/** A row opening a nested page, or with [external] the Agent's full Settings. */
+/** A row opening a page inside the inspector. */
 @Composable
-private fun NavRow(icon: ImageVector, title: String, value: String?, external: Boolean = false, onClick: () -> Unit) {
+private fun NavRow(icon: ImageVector, title: String, value: String?, onClick: () -> Unit) {
     ListRow(false, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
         Text(title, Modifier.weight(1f), singleLine = true)
-        value?.let { Text(it, Modifier.weight(1f, fill = false), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End) }
-        Icon(if (external) Lucide.ArrowUpRight else Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
+        value?.let { Text(it, Modifier.widthIn(max = 200.dp), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End) }
+        Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
     }
 }
 
@@ -339,14 +322,3 @@ private fun InspectorPage.title() = when (this) {
     InspectorPage.Approvals -> "Risk tolerance"
     InspectorPage.UserNotes -> "User Notes"
 }
-
-/** The names of the fields the draft changes, for the footer and the guard. */
-private fun InspectorState.labels() = changes?.labels() ?: listOfNotNull(
-    "Name".takeIf { registration?.name != details?.info?.name }, "Working folder".takeIf { registration?.cwd != details?.cwd },
-).takeIf { registration != null }.orEmpty()
-
-/** The names of the fields [this] changes, for the footer and the guard. */
-private fun UpdateAgentParams.labels() = listOfNotNull(
-    "Name".takeIf { name != null }, "Personality".takeIf { identity != null }, "Soul".takeIf { soul != null },
-    "Model".takeIf { model != null || provider != null }, "Reasoning".takeIf { reasoning != null }, "Risk tolerance".takeIf { approvals != null },
-)

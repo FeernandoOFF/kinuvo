@@ -12,6 +12,7 @@ struct KinuvoApp: App {
         DeviceReader_iosKt.installDeviceReader(reader: AppleDeviceReader())
         Attachments_iosKt.installAttachmentPicker(picker: AppleAttachmentPicker())
         FolderPicker_iosKt.installFolderAccess(access: AppleFolderAccess())
+        QrScanner_iosKt.installQrScanner(scanner: AppleQrScanner())
         LocalServer_iosKt.installBackgroundRuns(keeper: AppleBackgroundRuns())
         Speech_iosKt.installSpeechEngine(engine: AppleSpeech())
     }

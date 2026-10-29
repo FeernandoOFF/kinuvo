@@ -21,6 +21,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -53,7 +55,8 @@ fun SettingsScreen(
         }
     }
     val route = state.route
-    val show = { r: Route.Settings -> onNavigate(r, false) }
+    val edits = LocalSettingsEdits.current
+    val show = { r: Route.Settings -> edits?.saved(); onNavigate(r, false) }
     SettingsContent(
         SettingsUi(state, appState.agents, now, appState.capabilities, (appState.connection as? Connection.Ready)?.server, appState.pairing, appState.pairingBase, appState.pairingError, appState.devices, (appState.connection as? Connection.Ready)?.client?.lastConnect?.management == true, appState.servers, appState.sharing,
             (appState.connection as? Connection.Ready)?.let { serverLabel(it) } ?: "this Server"),
@@ -218,72 +221,64 @@ internal class Pane(val ui: SettingsUi, val actions: SettingsActions, val go: (R
 }
 
 /**
- * List-detail settings: sections in a sidebar ≥720dp, with the open Agent's own sections under it, and a section's
- * items beside the open item ≥1080dp, replacing each other in place. Narrower, each level is its own screen, pushed
- * onto the back stack. Without the [sidebar], only the route's section shows.
+ * List-detail settings: sections in a sidebar ≥720dp and a section's items beside the open item ≥1080dp, replacing
+ * each other in place. Narrower, each level is its own screen, pushed onto the back stack. Without the [sidebar], only
+ * the route's section shows. Home's sections, e.g. Routines, are pages of their own with an Agent picker.
  */
 @Composable
 fun SettingsContent(ui: SettingsUi, actions: SettingsActions, sidebar: Boolean = true) {
-    BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
-        val wide = sidebar && maxWidth >= 720.dp
-        val split = maxWidth >= 1080.dp
-        // Beside the sections, moving around replaces the screen; narrower, each level is pushed to go back from.
-        val go = { route: Route.Settings -> actions.onNavigate(route, !wide) }
-        val section = ui.route.section ?: SettingsSection.entries.firstOrNull { it.listed && ui.available(it) }?.takeIf { wide }
-        val sections: @Composable () -> Unit = { SettingsSections(ui, section, go, actions.onBack) }
-        val content: @Composable (SettingsSection) -> Unit = { SectionPane(it, ui, split, wide, go, actions) }
-        if (wide) Row(Modifier.fillMaxSize()) {
-            Box(Modifier.width(260.dp).fillMaxHeight().background(color(sidebarColor))) { sections() }
-            VerticalSeparator()
-            Box(Modifier.weight(1f)) { if (section != null) content(section) }
-        } else if (section == null) sections()
-        else content(section)
+    // Only a page of Home with the shell beside it; elsewhere, e.g. during onboarding, it's a Settings page like the rest.
+    val home = ui.route.section?.home == true && LocalHomeChrome.current != null
+    val scope = if (home) AgentScope(ui.agents.filter { !it.external }, ui.route.agentId) { id -> id?.let { actions.onNavigate(Route.Settings(it, ui.route.section), false) } } else null
+    CompositionLocalProvider(LocalAgentScope provides scope) {
+        BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
+            val wide = sidebar && !home && maxWidth >= 720.dp
+            val split = maxWidth >= if (home) 720.dp else 1080.dp
+            // Beside the sections, moving around replaces the screen; narrower, each level is pushed to go back from.
+            val go = { route: Route.Settings -> actions.onNavigate(route, !wide) }
+            val section = ui.route.section ?: SettingsSection.entries.firstOrNull { it.listed && ui.available(it) }?.takeIf { wide }
+            val sections: @Composable () -> Unit = { SettingsSections(ui, section, go, wide) }
+            val content: @Composable (SettingsSection) -> Unit = {
+                SectionPane(it, ui, split, wide, go, actions, actions.onBack.takeIf { !wide && !home && LocalInteractionMode.current == InteractionMode.Touch })
+            }
+            if (wide) Row(Modifier.fillMaxSize()) {
+                // Rounded into the rail like the shell's column it stands in for.
+                Box(Modifier.width(260.dp).fillMaxHeight().clip(RoundedCornerShape(topStart = 16.dp)).background(color(sidebarColor))) { sections() }
+                VerticalSeparator()
+                Box(Modifier.weight(1f)) { if (section != null) content(section) }
+            } else if (section == null) sections()
+            else content(section)
+        }
     }
 }
 
+/** The Agent a Home page such as Routines shows, picked in its header; null in Settings. */
+internal val LocalAgentScope = staticCompositionLocalOf<AgentScope?> { null }
+
 @Composable
-private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Route.Settings) -> Unit, onBack: () -> Unit) {
+private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Route.Settings) -> Unit, wide: Boolean) {
+    // Agents are set up from their own settings, and Routines and Tools from Home.
+    val listed = SettingsSection.entries.filter { it.listed && !it.home }
+    val groups = listOf("Device" to listed.filter { !it.server }, "Server" to listed.filter { it.server })
+    val open = { section: SettingsSection -> go(ui.route.copy(section = section, item = null, editing = false)) }
     Column(Modifier.fillMaxSize()) {
-        TitleBarRow(trailing = false) {
-            HeaderButton(Lucide.ArrowLeft, "Back ${shortcut("[")}", onBack)
-            Text("Settings", Modifier.padding(start = 4.dp), fontWeight = FontWeight.Normal)
-        }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 8.dp, end = 8.dp, bottom = 8.dp)) {
-            if (ui.agents.isNotEmpty()) SectionLabel("Agents")
-            ui.agents.forEach { agent ->
-                val open = ui.route.agentId == agent.id && (selected == SettingsSection.Overview || selected?.agent == true)
-                ListRow(
-                    selected = open && selected == SettingsSection.Overview,
-                    onClick = { go(Route.Settings(agent.id, SettingsSection.Overview)) },
-                    leading = { AgentAvatar(agent, 20.dp) },
-                ) {
-                    Text(agent.name, Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis)
-                }
-                // The open Agent's own sections, nested under it.
-                if (open && !agent.external) SettingsSection.entries.filter { it.agent }.forEach { section ->
-                    ListRow(
-                        selected = section == selected,
-                        onClick = { go(Route.Settings(agent.id, section)) },
-                        modifier = Modifier.padding(start = 20.dp),
-                        enabled = ui.available(section),
-                        leading = { Icon(section.icon(), Modifier.size(16.dp)) },
-                    ) {
+        SettingsPageHeader("Settings")
+        if (wide) Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 8.dp, end = 8.dp, bottom = 8.dp)) {
+            groups.forEachIndexed { i, (title, sections) ->
+                SectionLabel(title, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
+                sections.forEach { section ->
+                    ListRow(selected = section == selected, onClick = { open(section) }, enabled = ui.available(section), leading = { Icon(section.icon(), Modifier.size(16.dp)) }) {
                         Text(section.title, Modifier.weight(1f), singleLine = true)
                         section.count(ui)?.let { Text("$it", fontSize = 12.sp, color = color(mutedColor)) }
                     }
                 }
             }
-            SectionLabel("Device", Modifier.padding(top = if (ui.agents.isNotEmpty()) 12.dp else 0.dp))
-            SettingsSection.entries.filter { it.listed }.forEach { section ->
-                if (section == SettingsSection.entries.first { it.server }) SectionLabel("Server", Modifier.padding(top = 12.dp))
-                ListRow(
-                    selected = section == selected,
-                    onClick = { go(ui.route.copy(section = section, item = null, editing = false)) },
-                    enabled = ui.available(section),
-                    leading = { Icon(section.icon(), Modifier.size(16.dp)) },
-                ) {
-                    Text(section.title, Modifier.weight(1f), singleLine = true)
-                    section.count(ui)?.let { Text("$it", fontSize = 12.sp, color = color(mutedColor)) }
+        } else Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            groups.forEach { (title, sections) ->
+                RowGroup(title) {
+                    sections.forEach { section ->
+                        GroupRow(section.title, { open(section) }, icon = section.icon(), value = section.count(ui)?.toString(), enabled = ui.available(section))
+                    }
                 }
             }
         }
@@ -321,8 +316,8 @@ private fun SettingsSection.count(ui: SettingsUi): Int? = when (this) {
 @Composable
 private fun SectionPane(
     section: SettingsSection, ui: SettingsUi, split: Boolean, wide: Boolean, go: (Route.Settings) -> Unit, actions: SettingsActions,
-    /** Leaves the section's first level: the way out of the screen, or null beside the sections. */
-    rootBack: (() -> Unit)? = actions.onBack.takeIf { !wide },
+    /** Leaves the section's first level: the way out of the sheet, or null beside the sections and on Home's pages. */
+    rootBack: (() -> Unit)?,
 ) {
     val route = ui.route
     if (section == SettingsSection.DeviceTools) return DeviceToolsSettingsPane(Pane(ui, actions, go, rootBack))
@@ -332,13 +327,12 @@ private fun SectionPane(
         val pane = Pane(ui, actions, go, rootBack)
         return if (route.editing && section == SettingsSection.Agent) NewAgentForm(pane) else AgentPane(pane, section)
     }
-    if (section.server) {
+    if (section.server && section != SettingsSection.Hub) {
         val pane = Pane(ui, actions, go, rootBack)
         return when (section) {
             SettingsSection.Connection -> ConnectionSettingsPane(pane)
             SettingsSection.Providers -> ProvidersSettingsPane(pane)
             SettingsSection.Harnesses -> HarnessesPane(pane)
-            SettingsSection.Hub -> ToolHubPane(pane)
             SettingsSection.Tasks -> TasksSettingsPane(pane)
             SettingsSection.Knowledge -> KnowledgeSettingsPane(pane)
             SettingsSection.Search -> ServiceSettingsPane(pane, ServiceKind.Search)
@@ -348,10 +342,11 @@ private fun SectionPane(
     }
     val open = route.item != null || route.editing
     // From a form back to its item, from an item back to the list.
-    val up = if (wide) ({ go(route.copy(item = route.item.takeIf { route.editing }, editing = false)) }) else actions.onBack
+    val up = actions.onBack.takeIf { LocalInteractionMode.current == InteractionMode.Touch }
     val list: @Composable (Pane) -> Unit = { p ->
         when (section) {
             SettingsSection.Routines -> RoutineList(p)
+            SettingsSection.Hub -> ToolList(p)
             SettingsSection.Skills -> SkillList(p)
             else -> McpList(p)
         }
@@ -359,6 +354,7 @@ private fun SectionPane(
     val detail: @Composable (Pane) -> Unit = { p ->
         when (section) {
             SettingsSection.Routines -> RoutinePane(p)
+            SettingsSection.Hub -> ToolPane(p)
             SettingsSection.Skills -> SkillPane(p)
             else -> McpPane(p)
         }
@@ -380,25 +376,21 @@ private fun SettingsSection.noun() = when (this) {
     SettingsSection.Routines -> "a routine"
     SettingsSection.Skills -> "a skill"
     SettingsSection.Mcp -> "an MCP server"
-    SettingsSection.Connection, SettingsSection.Providers, SettingsSection.Harnesses, SettingsSection.Hub, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications, SettingsSection.DeviceTools -> "a setting"
+    SettingsSection.Hub -> "a set of tools"
+    SettingsSection.Connection, SettingsSection.Providers, SettingsSection.Harnesses, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications, SettingsSection.DeviceTools -> "a setting"
 }
 
-/** A section's list: title with an add button, an intro, then its rows or a spinner while [loading]. */
+/** A section's list: title with an add button, an intro, then its [rows], or a spinner while [loading]. */
 @Composable
-internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, loading: Boolean, rows: androidx.compose.foundation.lazy.LazyListScope.() -> Unit) {
+internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, loading: Boolean, rows: @Composable ColumnScope.() -> Unit) {
+    val add = PageAction(Lucide.Plus, addLabel) { p.go(p.ui.route.copy(item = null, editing = true)) }
+    val scope = LocalAgentScope.current
     Column(Modifier.fillMaxSize()) {
-        TitleBarRow(leading = p.back != null) {
-            p.back?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
-            Text(title, Modifier.weight(1f).padding(start = 4.dp), fontWeight = FontWeight.Normal)
-            HeaderButton(Lucide.Plus, addLabel, { p.go(p.ui.route.copy(item = null, editing = true)) })
-        }
-        androidx.compose.foundation.lazy.LazyColumn(
-            Modifier.weight(1f),
-            contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(1.dp),
-        ) {
-            item { Text(intro, Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp), color = color(mutedColor), fontSize = 13.sp) }
-            if (loading) item { Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() } }
+        if (scope != null && p.back == null) PageHeader(p.ui.route.section?.icon() ?: Lucide.Settings, title, scope = scope, actions = listOf(add))
+        else SettingsPageHeader(title, p.back) { HeaderButton(add.icon, add.label, add.onClick) }
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Text(intro, Modifier.padding(horizontal = 6.dp), color = color(mutedColor), fontSize = 13.sp)
+            if (loading) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
             else rows()
         }
     }
@@ -406,15 +398,8 @@ internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, l
 
 /** A list row with a title, a muted [subtitle] and trailing pills. */
 @Composable
-internal fun ItemRow(selected: Boolean, icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, trailing: @Composable RowScope.() -> Unit = {}) {
-    ListRow(selected = selected, onClick = onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
-        }
-        trailing()
-    }
-}
+internal fun ItemRow(selected: Boolean, icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, trailing: @Composable RowScope.() -> Unit = {}) =
+    GroupRow(title, onClick, subtitle, icon, selected = selected, trailing = trailing)
 
 /**
  * A detail or form screen: a title bar with [trailing] controls over a centered, scrolling column, led by any [error].
@@ -423,14 +408,7 @@ internal fun ItemRow(selected: Boolean, icon: ImageVector, title: String, subtit
 @Composable
 internal fun DetailPane(back: (() -> Unit)?, title: String, error: String? = null, info: String? = null, trailing: @Composable RowScope.() -> Unit = {}, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        TitleBarRow(leading = back != null) {
-            back?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
-            Row(Modifier.weight(1f).padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(title, Modifier.weight(1f, fill = false), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
-                info?.let { InfoButton(it) }
-            }
-            trailing()
-        }
+        SettingsPageHeader(title, back, info = info, trailing = trailing)
         Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
             Column(
                 Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
@@ -453,11 +431,17 @@ internal fun DetailGroup(title: String, content: @Composable ColumnScope.() -> U
     }
 }
 
+/** A label beside its value; narrow, above it. */
 @Composable
 internal fun DetailRow(label: String, value: @Composable () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.width(120.dp), color = color(mutedColor), fontSize = 13.sp)
-        Box(Modifier.weight(1f)) { value() }
+    BoxWithConstraints {
+        if (maxWidth < 420.dp) Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (label.isNotEmpty()) Text(label, color = color(mutedColor), fontSize = 13.sp)
+            value()
+        } else Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(label, Modifier.width(120.dp), color = color(mutedColor), fontSize = 13.sp)
+            Box(Modifier.weight(1f)) { value() }
+        }
     }
 }
 
@@ -472,6 +456,48 @@ internal fun FormField(label: String, hint: String? = null, content: @Composable
         content()
     }
 }
+
+/** A labelled control as a row of a [RowGroup]; its [hint] opens from a (?) by the label. */
+@Composable
+internal fun FieldRow(label: String, hint: String? = null, content: @Composable () -> Unit) = GroupBox {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(label, fontSize = 13.sp, color = color(mutedColor))
+        hint?.let { InfoButton(it) }
+    }
+    content()
+}
+
+/** A row of a [RowGroup] showing the picked option, which opens a menu of [options]. */
+@Composable
+internal fun <T> PickerRow(title: String, options: List<T>, current: T, label: (T) -> String, onSelect: (T) -> Unit, icon: ImageVector? = null,
+    subtitle: String? = null, hint: ((T) -> String)? = null) {
+    var open by remember { mutableStateOf(false) }
+    DropdownMenu(
+        expanded = open,
+        onExpandedChange = { open = it },
+        panel = {
+            DropdownMenuPanel {
+                options.forEach { option ->
+                    DropdownMenuItem(onClick = { open = false; onSelect(option) }, trailing = if (option == current) ({ Icon(Lucide.Check, Modifier.size(14.dp)) }) else null) {
+                        Column {
+                            Text(label(option))
+                            hint?.invoke(option)?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+                        }
+                    }
+                }
+            }
+        },
+    ) {
+        GroupRow(title, { open = true }, subtitle, icon, value = label(current), chevron = false) {
+            Icon(Lucide.ChevronsUpDown, Modifier.size(14.dp), tint = color(mutedColor))
+        }
+    }
+}
+
+/** A setting turned on or off as a row of a [RowGroup]. */
+@Composable
+internal fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Unit, subtitle: String? = null, icon: ImageVector? = null, enabled: Boolean = true) =
+    GroupRow(title, subtitle = subtitle, icon = icon, enabled = enabled, chevron = false) { if (enabled) Switch(checked, onChange) }
 
 /** A (?) showing [text] when tapped: over the app on touch screens, by the button otherwise. */
 @Composable
@@ -553,7 +579,12 @@ internal fun FormButtons(saveLabel: String, enabled: Boolean, error: String?, on
 
 /** A form's title-bar actions: "Saved" after a save, Cancel when [onCancel] is set, and the primary button. */
 @Composable
-internal fun FormActions(saveLabel: String, enabled: Boolean, saved: Boolean, onSave: () -> Unit, onCancel: (() -> Unit)? = null) {
+internal fun FormActions(saveLabel: String, enabled: Boolean, saved: Boolean, onSave: () -> Unit, onCancel: (() -> Unit)? = null, dirty: Boolean = enabled) {
+    TrackSettingsEdits(dirty)
+    if (LocalInteractionMode.current == InteractionMode.Touch) {
+        if (dirty) HeaderButton(Lucide.Check, "Save", onSave, enabled = enabled)
+        return
+    }
     Row(Modifier.titleBarControl(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         if (saved) Pill("Saved", tone = Tone.Success, icon = Lucide.CircleCheck)
         onCancel?.let { Button(onClick = it, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Cancel") } }

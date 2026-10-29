@@ -16,6 +16,14 @@ class TransportTest {
     }
 
     @Test
+    fun explicitCleartextAllowsPublicLinksWithoutDisablingAddressValidation() {
+        requireSecureTransport("ws://studio.example.com:8787/ws", allowCleartext = true)
+        listOf("https://studio.example.com", "ws://", "ws://user:password@example.com/ws").forEach {
+            assertFailsWith<IllegalArgumentException> { requireSecureTransport(it, allowCleartext = true) }
+        }
+    }
+
+    @Test
     fun noncanonicalNumericAddressesCannotBypassEncryption() {
         listOf("134744072", "0x08080808", "010.0.0.1", "0177.0.0.1", "8.8.8", "%38%2e%38%2e%38%2e%38", "０x０8080808").forEach {
             assertFalse(privateNetworkHost(it))

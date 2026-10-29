@@ -265,14 +265,10 @@ class ChatActions(
     val onCloseSession: () -> Unit = {},
 )
 
-/** [pairing] is set when the [active] Server can pair other Devices. */
+/** The Servers saved on this Device, for the shell's menu; [active] is the connected one. */
 data class ServerMenuState(
     val servers: List<Server> = emptyList(),
     val active: Server? = null,
-    val pairing: PairingInfo? = null,
-    val pairingBase: String? = null,
-    val pairingError: String? = null,
-    val canPair: Boolean = false,
 )
 
 /**
@@ -550,8 +546,13 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
             )
             selected?.let { SessionBadge(it, compact) }
         }
-        ChatStatistics(usage, remember(state.items) { state.items.requestMetrics() }, state.selected)
-        if (selected != null) SessionMenu(selected, actions, state) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
+        var statistics by remember(state.selected) { mutableStateOf(false) }
+        SessionMenu(selected, actions, state, extra = { close ->
+            DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
+        }) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
+        Popover(statistics, { statistics = false }, "Statistics") {
+            ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth())
+        }
     }
 }
 
