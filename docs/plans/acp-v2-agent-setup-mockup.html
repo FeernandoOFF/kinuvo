@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ACP v2 Agent setup — mockup</title>
+<style>
+  :root{--bg:#FAF9F5;--side:#F3F1EA;--rail:#E3DFD4;--panel:#fff;--subtle:#F0EEE6;--text:#1F1E1B;--muted:#75716A;--border:#E3E0D6;--accent:#C96442;--danger:#C0392B;--warn:#B7791F;--ok:#2F855A;--code:#F3F1EA}
+  *{box-sizing:border-box}
+  body{margin:0;background:#E9E6DD;font:14px/1.4 -apple-system,BlinkMacSystemFont,"Inter",system-ui,sans-serif;color:var(--text);padding:28px}
+  h1{font-size:18px;margin:0 0 4px}
+  .lede{color:var(--muted);margin:0 0 22px;font-size:13px}
+  .board{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:22px;align-items:start}
+  figure{margin:0}
+  figcaption{font-size:12px;color:var(--muted);margin:8px 2px 0}
+  figcaption b{color:var(--text)}
+  .frame{color-scheme:light;color:var(--text);background:var(--bg);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .bar{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border);background:var(--side)}
+  .bar .t{font-weight:700}.bar .s{font-size:12px;color:var(--muted)}
+  .bar .x{margin-left:auto;color:var(--muted)}
+  .body{padding:16px;display:flex;flex-direction:column;gap:14px}
+  .headline{font-size:22px;font-weight:700;line-height:1.2;letter-spacing:-.01em}
+  .group-title{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin:2px 2px 6px}
+  .opt{background:var(--subtle);border-radius:14px;padding:12px 14px;display:flex;gap:12px;align-items:center;border:2px solid transparent}
+  .opt.sel{border-color:var(--accent);background:#fff}
+  .opt.dis{opacity:.5}
+  .opt .ic{width:28px;height:28px;border-radius:8px;background:#fff;display:grid;place-items:center;font-size:14px;flex:none;border:1px solid var(--border)}
+  .opt .main{flex:1;min-width:0}.opt .nm{font-weight:600}.opt .ds{font-size:12.5px;color:var(--muted)}
+  .sub{margin:6px 0 0 40px;display:flex;flex-direction:column;gap:4px}
+  .row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;font-size:13px}
+  .row.pick{background:#fff;border:1px solid var(--border)}
+  .row .grow{flex:1}
+  .pill{font-size:11.5px;padding:2px 8px;border-radius:999px;font-weight:600;white-space:nowrap}
+  .ok{background:#E3F1E8;color:var(--ok)}.warn{background:#F8EEDB;color:var(--warn)}.bad{background:#F7E1DE;color:var(--danger)}.mut{background:var(--subtle);color:var(--muted)}
+  .link{color:var(--accent);font-size:13px}
+  .btn{display:inline-flex;align-items:center;justify-content:center;height:34px;padding:0 14px;border-radius:9px;font-weight:600;font-size:13px;border:1px solid var(--border);background:#fff}
+  .btn.p{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.g{border-color:transparent;background:transparent}
+  .btn.d{border-color:transparent;background:transparent;color:var(--danger)}
+  .btn.wide{width:100%;height:42px;border-radius:12px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin:0 0 4px 2px}
+  .input{background:#fff;border:1px solid var(--border);border-radius:9px;padding:8px 10px;font-size:13.5px}
+  .input.mono{font-family:ui-monospace,Menlo,monospace;font-size:12.5px}
+  .input.err{border-color:var(--danger)}
+  .hint{font-size:12px;color:var(--muted);margin:4px 2px 0}
+  .errt{font-size:12px;color:var(--danger);margin:4px 2px 0}
+  .probe{background:var(--code);border-radius:10px;padding:10px 12px;font-size:12.5px;display:flex;flex-direction:column;gap:4px}
+  .avatar{width:64px;height:64px;border-radius:50%;margin:0 auto;display:grid;place-items:center;font-weight:800;font-size:24px;color:#fff;background:#D08A63;position:relative}
+  .avatar .dot{position:absolute;right:2px;bottom:2px;width:14px;height:14px;border-radius:50%;background:var(--warn);border:2px solid var(--side)}
+  .grp{display:flex;flex-direction:column;gap:6px}
+  .nav{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:9px;background:#fff;border:1px solid var(--border);font-size:13.5px}
+  .nav .v{color:var(--muted);font-size:12.5px}.nav .ch{color:var(--muted)}
+  .status{border-radius:10px;padding:10px 12px;background:#FBF5EA;border:1px solid #EFDDB9;font-size:12.5px;display:flex;flex-direction:column;gap:8px}
+  .muted{color:var(--muted);font-size:12px}
+  .foot{display:flex;align-items:center;gap:8px;padding:12px 14px;border-top:1px solid var(--border);background:var(--side)}
+  .foot .st{flex:1;font-size:12px;color:var(--muted)}
+  .chat{padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-height:230px}
+  .bub{align-self:flex-end;background:var(--subtle);border-radius:14px;padding:8px 12px;max-width:80%}
+  .tool{border:1px solid var(--border);border-radius:12px;background:#fff;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+  .tool code{font-family:ui-monospace,Menlo,monospace;font-size:12px;background:var(--code);padding:6px 8px;border-radius:6px;display:block}
+  .tool .acts{display:flex;gap:6px;flex-wrap:wrap}
+  .banner{margin:0 12px;border-radius:10px;padding:9px 12px;background:#FBF5EA;border:1px solid #EFDDB9;font-size:12.5px;display:flex;gap:10px;align-items:center}
+  .composer{margin:10px 12px 12px;border:1px solid var(--border);border-radius:14px;background:#fff;padding:10px 12px;color:#B5B1A8;display:flex;justify-content:space-between;align-items:center}
+  .chip{font-size:12px;border:1px solid var(--border);border-radius:999px;padding:2px 8px;color:var(--muted);background:#fff}
+  .mini-av{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:11px;font-weight:700;flex:none}
+  input[type=checkbox]{accent-color:var(--accent);width:16px;height:16px;margin:0}
+</style>
+</head>
+<body>
+<h1>ACP v2 — Agent setup &amp; inspection</h1>
+<p class="lede">Selected Server: <b>Mac mini</b> (macOS). Client: the user's phone. Labels always name the machine that runs the Agent.</p>
+
+<div class="board">
+
+<!-- 1. Where does it run -->
+<figure>
+<div class="frame">
+  <div class="bar"><span class="t">New Agent</span><span class="x">✕</span></div>
+  <div class="body">
+    <div class="headline">Where does your new Agent run?</div>
+    <div>
+      <div class="group-title">Kinuvo</div>
+      <div class="opt"><div class="ic">✦</div><div class="main"><div class="nm">Kinuvo on Mac mini</div><div class="ds">Kinuvo's own Agent. You set its Soul, Memory, Skills and tools.</div></div></div>
+    </div>
+    <div>
+      <div class="group-title">ACP agent on Mac mini</div>
+      <div class="opt sel"><div class="ic">›_</div><div class="main"><div class="nm">Claude Code</div><div class="ds">claude-code-acp · used by 1 Agent</div></div><span class="pill ok">Ready</span></div>
+      <div class="sub">
+        <div class="row"><span class="grow">Codex</span><span class="pill warn">Needs sign-in</span></div>
+        <div class="row"><span class="link">+ Add an ACP command…</span></div>
+      </div>
+    </div>
+    <div>
+      <div class="group-title">Agents from another Kinuvo Server</div>
+      <div class="opt"><div class="ic">⇄</div><div class="main"><div class="nm">Studio</div><div class="ds">3 shared Agents</div></div><span class="pill mut">Offline</span></div>
+      <div class="sub"><div class="row"><span class="link">+ Link a Kinuvo Server…</span></div></div>
+    </div>
+    <div class="btn p wide">Continue</div>
+  </div>
+</div>
+<figcaption><b>HarnessStep</b> — new first step of NewAgentScreen. Kinuvo branch continues to today's Identity → Soul.</figcaption>
+</figure>
+
+<!-- 1b. Same step on embedded phone server -->
+<figure>
+<div class="frame">
+  <div class="bar"><span class="t">New Agent</span><span class="x">✕</span></div>
+  <div class="body">
+    <div class="headline">Where does your new Agent run?</div>
+    <div class="opt sel"><div class="ic">✦</div><div class="main"><div class="nm">Kinuvo on this iPhone</div><div class="ds">Kinuvo's own Agent. You set its Soul, Memory, Skills and tools.</div></div></div>
+    <div class="opt dis"><div class="ic">›_</div><div class="main"><div class="nm">ACP agent</div><div class="ds">ACP commands need a computer Server. This iPhone's Server can't run them.</div></div></div>
+    <div class="opt"><div class="ic">⇄</div><div class="main"><div class="nm">Agents from another Kinuvo Server</div><div class="ds">Mac mini · 2 shared Agents</div></div><span class="pill ok">Ready</span></div>
+    <div class="btn p wide">Continue</div>
+  </div>
+</div>
+<figcaption><b>Embedded Server</b> — "this iPhone" only because the Server is Embedded here. ACP disabled with reason.</figcaption>
+</figure>
+
+<!-- 2. ACP command form -->
+<figure>
+<div class="frame">
+  <div class="bar"><span class="t">Add ACP command</span><span class="s">· Harnesses</span><span class="x">✕</span></div>
+  <div class="body">
+    <div class="field"><label>Name</label><div class="input">Codex</div></div>
+    <div class="field"><label>Command</label><div class="input mono">codex-acp</div><div class="hint">Runs on Mac mini. Use an ACP adapter already installed there.</div></div>
+    <div class="field"><label>Arguments</label><div class="input mono" style="color:#B5B1A8">optional</div></div>
+    <div class="field"><label>Environment</label><div class="input mono">OPENAI_API_KEY = ${pass://Personal/OpenAI/key}</div></div>
+    <div class="probe">
+      <div style="display:flex;align-items:center;gap:8px"><b style="flex:1">Codex 0.9.2 · ACP v1</b><span class="pill warn">Needs sign-in</span></div>
+      <div>Codex on Mac mini isn't signed in. Run <span class="input mono" style="padding:1px 5px">codex login</span> there, then check again.</div>
+      <div class="muted">Advertises: Model, Mode</div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end"><span class="btn">Check again</span><span class="btn p">Save</span></div>
+  </div>
+</div>
+<figcaption><b>Settings › Harnesses</b> — Save allowed while sign-in pending; blocked on Not found / Update needed.</figcaption>
+</figure>
+
+<!-- 3. Remote agent pick -->
+<figure>
+<div class="frame">
+  <div class="bar"><span class="t">New Agent</span><span class="x">✕</span></div>
+  <div class="body">
+    <div class="headline">Which of Studio's Agents?</div>
+    <div class="muted" style="margin-top:-6px">Only Agents Studio shares with linked Servers. They run on Studio.</div>
+    <div class="grp">
+      <label class="row pick"><input type="checkbox" checked><span class="mini-av" style="background:#7A8F6A">A</span><span class="grow">Ada</span><span class="pill ok">Ready</span></label>
+      <label class="row pick"><input type="checkbox"><span class="mini-av" style="background:#6A7F9F">R</span><span class="grow">Researcher</span><span class="pill ok">Ready</span></label>
+      <label class="row pick" style="opacity:.6"><input type="checkbox" checked disabled><span class="mini-av" style="background:#9F6A86">M</span><span class="grow">Milo</span><span class="muted">Added</span></label>
+    </div>
+    <div class="hint">"Researcher" exists here; it will be added as "Researcher (Studio)". Rename later.</div>
+    <div class="btn p wide">Add 1 Agent</div>
+  </div>
+</div>
+<figcaption><b>PickStep</b> — explicit selection; nothing added implicitly. No Identity/Soul step.</figcaption>
+</figure>
+
+<!-- 4. Inspector external -->
+<figure>
+<div class="frame">
+  <div class="bar"><div><div class="t">Reviewer</div><div class="s">Agent settings · every Session</div></div><span class="x">✕</span></div>
+  <div class="body">
+    <div class="avatar">R<span class="dot"></span></div>
+    <div class="grp"><div class="group-title">Identity</div>
+      <div class="field"><label>Name</label><div class="input">Reviewer</div></div>
+    </div>
+    <div class="grp"><div class="group-title">Runs on</div>
+      <div class="nav"><span>›_</span><span style="flex:1">Codex on Mac mini</span><span class="ch">↗</span></div>
+      <div class="status">
+        <div style="display:flex;align-items:center;gap:8px"><span class="pill warn">Needs sign-in</span></div>
+        <div>Codex on Mac mini isn't signed in. Run <b>codex login</b> there.</div>
+        <div><span class="btn" style="height:28px">Check again</span></div>
+      </div>
+      <div class="field"><label>Working folder</label><div class="input mono">/Users/fer/dev/kinuvo</div><div class="hint">On Mac mini. Codex reads and edits files here.</div></div>
+    </div>
+    <div class="grp"><div class="group-title">Controls</div>
+      <div class="nav"><span style="flex:1">Model</span><span class="v">gpt-5.5-codex ▾</span></div>
+      <div class="nav"><span style="flex:1">Mode</span><span class="v">Ask before edits ▾</span></div>
+    </div>
+    <div class="grp"><div class="group-title">Approvals</div>
+      <div class="muted">Codex asks before acting; answer from any Device with access.</div>
+    </div>
+    <div class="grp"><div class="group-title">Managed by Codex</div>
+      <div class="muted">Instructions, Memory, Skills and tools are set in Codex on Mac mini.</div>
+    </div>
+  </div>
+  <div class="foot"><span class="st" style="color:var(--warn)">Unsaved: Mode</span><span class="btn g">Discard</span><span class="btn p">Save</span></div>
+</div>
+<figcaption><b>Inspector, ACP Agent</b> — only advertised controls; Soul/Skills/MCP/Routines/Workspace/Trust rows absent. Same dirty guard.</figcaption>
+</figure>
+
+<!-- 5. Session -->
+<figure>
+<div class="frame">
+  <div class="bar"><span class="mini-av" style="background:#D08A63">R</span><div><div class="t">Reviewer</div><div class="s">Codex · Mac mini</div></div></div>
+  <div class="chat">
+    <div class="bub">Review the open PR and fix lint.</div>
+    <div class="tool">
+      <div style="display:flex;gap:8px;align-items:center"><b style="flex:1">Codex wants to run a command</b><span class="muted">waiting</span></div>
+      <code>./kotlin build</code>
+      <div class="acts"><span class="btn p" style="height:30px">Allow once</span><span class="btn" style="height:30px">Always allow here</span><span class="btn d" style="height:30px">Reject</span></div>
+      <div class="muted">Also shown on Fer's MacBook. First answer wins.</div>
+    </div>
+  </div>
+  <div class="composer"><span>Message Reviewer</span><span class="chip">Mode: Ask ▾</span></div>
+</div>
+<figcaption><b>Session, ACP Agent</b> — same ChatScreen. Approval buttons use the harness's option labels; composer shows only advertised controls.</figcaption>
+</figure>
+
+<figure>
+<div class="frame">
+  <div class="bar"><span class="mini-av" style="background:#7A8F6A">A</span><div><div class="t">Ada</div><div class="s">Studio</div></div></div>
+  <div class="chat" style="min-height:120px">
+    <div class="bub">Can you check tomorrow's flights?</div>
+  </div>
+  <div class="banner"><span style="flex:1"><b>Studio is offline.</b> Ada can't reply until it's back.</span><span class="btn" style="height:28px">Check again</span></div>
+  <div class="composer"><span style="color:var(--text)">and book the 9am if it's under €200</span><span class="btn p" style="height:28px;opacity:.4">Send</span></div>
+</div>
+<figcaption><b>Session, remote Agent not Ready</b> — banner reuses readiness copy; Send disabled, typed text kept.</figcaption>
+</figure>
+
+</div>
+</body>
+</html>

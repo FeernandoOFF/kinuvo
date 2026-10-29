@@ -5,6 +5,8 @@ modules:
   - apps/ios
   - apps/web
   - harness/core
+  - harness/execution/acp
+  - harness/execution/api
   - harness/plugins/anytype
   - harness/plugins/cua
   - harness/plugins/exec

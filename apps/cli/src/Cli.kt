@@ -35,7 +35,7 @@ class Kinuvo(
 
     init {
         versionOption(Kinuvo::class.java.getResource("/kinuvo-version")?.readText() ?: "dev")
-        subcommands(commands +listOf(AgentCommands(), RoutineCommands(), SkillCommands(), McpCommands(), KnowledgeCommands(), TaskCommands(), SecretCommands(), NotifyCommand(), PairCommand(), DeviceCommands()))
+        subcommands(commands +listOf(AcpCommand(), AgentCommands(), RoutineCommands(), SkillCommands(), McpCommands(), KnowledgeCommands(), TaskCommands(), SecretCommands(), NotifyCommand(), PairCommand(), DeviceCommands()))
     }
 
     override suspend fun run() {

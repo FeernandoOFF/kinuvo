@@ -1,6 +1,7 @@
 package kinuvo.ui.navigation
 
 import kinuvo.app.connection.*
+import kinuvo.app.agent.external
 import kinuvo.app.session.*
 import kinuvo.app.navigation.*
 import kinuvo.ui.connection.*
@@ -34,6 +35,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.foundation.text.input.TextFieldState
@@ -226,7 +228,12 @@ private fun OwnerRail(state: ShellState, actions: ShellActions, modifier: Modifi
             state.agents.forEachIndexed { i, agent ->
                 val selected = !state.home && !state.settings && agent.id == state.agent?.id
                 RailItem(agent.name, selected, news = state.hasNews(agent.id), onClick = { actions.onSelectAgent(agent.id) }, shortcut = if (i < 9) shortcut("${i + 1}", shift = true) else null) {
-                    AgentAvatar(agent, 40.dp, state = state.avatarState(agent.id))
+                    Box {
+                        AgentAvatar(agent, 40.dp, state = state.avatarState(agent.id))
+                        // An external Agent whose harness can't reply now.
+                        if (agent.external && !agent.readiness.online) Box(Modifier.align(Alignment.BottomEnd).size(12.dp).clip(CircleShape).background(color(railColor)).padding(2.dp)
+                            .clip(CircleShape).background(color(if (agent.readiness.reasonCode in setOf("not_found", "unsupported")) destructiveColor else warningColor)))
+                    }
                 }
             }
             RailItem("New agent", selected = false, news = false, onClick = actions.onAddAgent, enabled = state.agent != null) {

@@ -57,9 +57,20 @@ data class SettingsState(
     val errors: List<String> = emptyList(),
     /** The saved Server open in Connection, by key; null for the connected one. */
     val server: String? = route.item.takeIf { route.section == SettingsSection.Connection },
+    val harnesses: HarnessesState = HarnessesState(),
+    /** The open ACP command form, the form linking another Server, and the one sharing Agents with another Server. */
+    val acp: AcpForm? = null,
+    val link: LinkForm = LinkForm(),
+    val share: ShareForm = ShareForm(),
+    /** The link codes this Server has made, without the codes; null until loaded. */
+    val grants: List<ExposureGrant>? = null,
 ) {
     val routine get() = routines?.firstOrNull { it.id == route.item }
 }
+
+/** The Harnesses section's [Route.Settings.item]s for linking another Server and sharing Agents with one. */
+const val LinkItem = "+link"
+const val ShareItem = "+share"
 
 /** A Skill's or MCP server's [Route.Settings.item]; the same name can be the Agent's and shared. */
 fun itemKey(scope: ConfigScope, name: String) = "${scope.name}/$name"
@@ -107,6 +118,15 @@ class SettingsViewModel(
         // Server-wide settings load once connected, and again after a reconnect if they hadn't loaded.
         if (route.section?.server == true) viewModelScope.launch {
             config.connected.collect { if (it && state.value.tasks == null && state.value.knowledge == null && state.value.secrets == null && state.value.services.isEmpty() && state.value.serverRules == null) reloadServer() }
+        }
+        viewModelScope.launch {
+            config.connection.harnesses.state.collect { h ->
+                state.update { s ->
+                    val opening = s.acp == null && route.editing && route.section == SettingsSection.Harnesses
+                    val existing = h.connections?.firstOrNull { it.config.id == route.item }
+                    s.copy(harnesses = h, acp = if (opening && (route.item == null || existing != null)) existing?.let(AcpForm::of) ?: AcpForm() else s.acp)
+                }
+            }
         }
         val skill = parseItem(route.item).takeIf { route.section == SettingsSection.Skills }
         if (skill != null) viewModelScope.launch {
@@ -158,7 +178,8 @@ class SettingsViewModel(
     fun createAgent(params: CreateAgentParams, onCreated: (String) -> Unit) = attempt { onCreated(config.createAgent(params).id) }
 
     fun deleteAgent(onDeleted: () -> Unit) = attempt {
-        config.deleteAgent(agentId)
+        if (requireNotNull(state.value.config.details) { "Wait for the Agent to load before removing it" }.info.external) config.connection.harnesses.unregister(agentId)
+        else config.deleteAgent(agentId)
         onDeleted()
     }
 
@@ -244,6 +265,7 @@ class SettingsViewModel(
             SettingsSection.Secrets -> loadSecrets()
             SettingsSection.Search -> loadService(ServiceKind.Search)
             SettingsSection.Notifications -> loadService(ServiceKind.Notifications)
+            SettingsSection.Harnesses -> config.connection.harnesses.load()
             SettingsSection.Hub -> attempt {
                 config.agents().forEach { config.load(it.id) }
                 config.serverRules().let { r -> state.update { it.copy(serverRules = r) } }
@@ -290,6 +312,75 @@ class SettingsViewModel(
         } finally {
             if (config.connection.isCurrent()) state.update { it.copy(testing = false) }
         }
+    }
+
+    fun editAcp(change: (AcpForm) -> AcpForm) = state.update { s -> s.copy(acp = s.acp?.let(change), saved = false) }
+
+    /** Checks the ACP command as typed, on the Server's machine. */
+    fun checkAcp() = attempt {
+        val form = state.value.acp ?: return@attempt
+        val connections = state.value.harnesses.connections.orEmpty()
+        editAcp { it.copy(checking = true) }
+        try {
+            val probe = config.connection.harnesses.probe(form.connection(connections))
+            editAcp { it.copy(probe = probe, probed = form.acp, name = it.name.ifBlank { probe.title.orEmpty() }) }
+        } finally {
+            if (config.connection.isCurrent()) editAcp { it.copy(checking = false) }
+        }
+    }
+
+    /** Saves the ACP command, then checks it so every Device sees its readiness. */
+    fun saveAcp(onSaved: (String) -> Unit) = attempt {
+        val form = state.value.acp ?: return@attempt
+        val connection = form.connection(state.value.harnesses.connections.orEmpty())
+        val harnesses = config.connection.harnesses
+        harnesses.save(connection)
+        catching { harnesses.probe(connection) }
+        state.update { it.copy(saved = true, acp = null) }
+        onSaved(connection.id)
+    }
+
+    fun editLink(change: (LinkForm) -> LinkForm) = state.update { it.copy(link = change(it.link)) }
+
+    /** Links the Server in the link form, then opens it to pick its Agents with [onLinked]. */
+    fun link(onLinked: (String) -> Unit) = attempt {
+        val form = state.value.link
+        val connection = form.connection(state.value.harnesses.connections.orEmpty())
+        editLink { it.copy(linking = true) }
+        try {
+            config.connection.harnesses.link(connection, requireNotNull(form.address), form.token.trim())
+            state.update { it.copy(link = LinkForm(), saved = true) }
+            onLinked(connection.id)
+        } finally {
+            if (config.connection.isCurrent()) editLink { it.copy(linking = false) }
+        }
+    }
+
+    fun editShare(change: (ShareForm) -> ShareForm) = state.update { it.copy(share = change(it.share)) }
+
+    /** Makes a link code for the picked Agents; making it again replaces the last one, which stops working. */
+    fun share() = attempt {
+        val form = state.value.share
+        val id = form.id ?: uniqueId(form.name, state.value.grants.orEmpty().map { it.id }, "share")
+        val token = config.connection.harnesses.share(id, form.agents)
+        editShare { it.copy(id = id, token = token) }
+        loadGrants()
+    }
+
+    fun loadGrants() = attempt { config.connection.harnesses.grants().let { g -> state.update { it.copy(grants = g) } } }
+
+    /** Stops the link code [id] working; the Server using it can no longer run those Agents. */
+    fun revokeShare(id: String) = attempt {
+        config.connection.harnesses.revoke(id)
+        state.update { s -> s.copy(share = if (s.share.id == id) ShareForm() else s.share, grants = s.grants?.filterNot { it.id == id }) }
+        loadGrants()
+    }
+
+    fun checkHarness(id: String) = attempt { config.connection.harnesses.check(id) }
+
+    fun removeHarness(id: String, onRemoved: () -> Unit) = attempt {
+        config.connection.harnesses.delete(id)
+        onRemoved()
     }
 
     private fun loadService(kind: ServiceKind) = attempt { config.service(kind).let { s -> state.update { it.copy(services = it.services + (kind to s)) } } }

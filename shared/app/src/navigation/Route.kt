@@ -77,6 +77,8 @@ enum class SettingsSection(val title: String, val server: Boolean = false) {
     Agent("Personality"), Workspace("Workspace"), Tools("Tools"), Routines("Routines"), Skills("Skills"), Mcp("MCP servers"), DeviceTools("This Device's tools"),
     /** Server-wide, the same whichever Agent is picked. */
     Connection("Connection", server = true), Providers("Model providers", server = true),
+    /** The ways this Server runs Agents besides Kinuvo itself: ACP commands and linked Kinuvo Servers. */
+    Harnesses("Harnesses", server = true),
     /** Every Agent's tools and MCP servers, who can use them, and the rules for all Agents. */
     Hub("Tools & MCP", server = true), Tasks("Tasks", server = true), Knowledge("Knowledge", server = true), Secrets("Secrets", server = true),
     Search("Web search", server = true), Notifications("Notifications", server = true);
@@ -101,6 +103,7 @@ enum class SettingsSection(val title: String, val server: Boolean = false) {
     /** What this section sets up, which the Server must offer. */
     val integration get() = when (this) {
         Workspace -> Integration.Exec
+        Harnesses -> Integration.Harness
         Mcp -> Integration.Mcp
         Secrets -> Integration.Secrets
         Knowledge -> Integration.Knowledge

@@ -2,13 +2,23 @@
 
 A self-hosted personal AI assistant: the user talks to one or more named Agents that remember them across conversations.
 
-The harness is the part of Kinuvo that runs Agents (agent loop, tools, exec, MCP); apps are the clients.
+The Server manages Agents and their Sessions; a harness executes an Agent's work. Apps are the clients.
 
 ## Language
 
 **Agent**:
-A named persona the user talks to, with its own identity, soul, memory, skills and model.
+A named participant the user talks to through Sessions. Its harness owns its instructions, Memory, Skills, tools and model configuration.
 _Avoid_: Profile, bot, assistant
+
+**Harness connection**:
+A reusable connection through which a Server runs Agents: Kinuvo's built-in harness, an installed external harness, or another Kinuvo Server.
+_Avoid_: Model provider, exec backend
+
+**External Agent**:
+An Agent registered in Kinuvo whose execution and configuration belong to another harness or Server; its local display identity can differ from its source identity.
+
+**Execution grant**:
+Revocable access for another Server to selected Agents and the Sessions that grant creates. It gives no access to existing conversations or Server management.
 
 **Identity**:
 Who an Agent is: name, personality, avatar.

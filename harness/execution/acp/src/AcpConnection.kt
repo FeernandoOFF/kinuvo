@@ -1,0 +1,89 @@
+@file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
+
+package kinuvo.execution.acp
+
+import com.agentclientprotocol.client.v2.*
+import com.agentclientprotocol.model.Implementation
+import com.agentclientprotocol.model.AuthMethodId
+import com.agentclientprotocol.model.PROTOCOL_VERSION_V2
+import com.agentclientprotocol.model.v2.*
+import com.agentclientprotocol.protocol.Protocol
+import com.agentclientprotocol.transport.StdioTransport
+import kotlinx.coroutines.*
+import kotlinx.io.asSink
+import kotlinx.io.asSource
+import kotlinx.io.buffered
+import kinuvo.protocol.ExecutionConnection
+import java.io.File
+import java.util.concurrent.TimeUnit
+
+/** JVM-only. Inherits the existing installation's environment and accounts; never installs a runtime. */
+class AcpConnection private constructor(
+    private val process: Process,
+    private val protocol: Protocol,
+    val client: Client,
+) {
+    suspend fun login(methodId: String) = client.login(AuthMethodId(methodId))
+
+    suspend fun newSession(cwd: String, operations: ClientSessionOperations): ClientSession =
+        client.newSession(cwd = cwd, operations = operations)
+
+    suspend fun supportsResume() = client.agentInfo.await().capabilities.session != null
+
+    suspend fun resumeSession(id: String, cwd: String, operations: ClientSessionOperations): ClientSession {
+        check(supportsResume()) { "ACP harness did not negotiate Session resume support (capabilities.session)" }
+        return client.resumeSession(com.agentclientprotocol.model.SessionId(id), cwd, replayFrom = ReplayFrom.Start(), operations = operations)
+    }
+
+    suspend fun close() = cleanup(process, protocol)
+
+    companion object {
+        private suspend fun cleanup(process: Process, protocol: Protocol?) = withContext(NonCancellable) {
+            try { withTimeoutOrNull(2_000) { protocol?.close() } }
+            finally {
+                withContext(Dispatchers.IO) {
+                    process.destroy()
+                    if (!process.waitFor(2, TimeUnit.SECONDS)) {
+                        process.destroyForcibly()
+                        process.waitFor(2, TimeUnit.SECONDS)
+                    }
+                }
+            }
+        }
+
+        suspend fun open(
+            scope: CoroutineScope,
+            config: ExecutionConnection.Acp,
+            elicitation: ElicitationHandler,
+            onLost: suspend () -> Unit,
+            cwd: String? = null,
+        ): AcpConnection {
+            require(config.command.isNotEmpty())
+            var process: Process? = null
+            var protocol: Protocol? = null
+            try {
+                // Establish ownership before returning to a cancellable caller context.
+                withContext(NonCancellable + Dispatchers.IO) {
+                    process = ProcessBuilder(config.command).directory(cwd?.let(::File))
+                        .apply { environment().putAll(config.environment) }.redirectError(ProcessBuilder.Redirect.DISCARD).start()
+                }
+                currentCoroutineContext().ensureActive()
+                val owned = requireNotNull(process)
+                val transport = StdioTransport(parentScope = scope, ioDispatcher = Dispatchers.IO, input = owned.inputStream.asSource().buffered(), output = owned.outputStream.asSink().buffered())
+                val activeProtocol = Protocol(scope, transport)
+                protocol = activeProtocol
+                val client = Client(activeProtocol, elicitation)
+                activeProtocol.start()
+                client.initialize(ClientInfo(PROTOCOL_VERSION_V2, Implementation("kinuvo", "0.1")))
+                scope.launch {
+                    withContext(Dispatchers.IO) { owned.waitFor() }
+                    onLost()
+                }
+                return AcpConnection(owned, activeProtocol, client)
+            } catch (e: Throwable) {
+                process?.let { cleanup(it, protocol) }
+                throw e
+            }
+        }
+    }
+}
