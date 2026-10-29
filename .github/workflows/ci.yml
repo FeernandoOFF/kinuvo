@@ -13,32 +13,105 @@ concurrency:
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  test:
+  changes:
     runs-on: ubuntu-24.04
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
     steps:
       - uses: actions/checkout@v5
-      - id: cache
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          if ! git cat-file -e "$BASE^{commit}" 2>/dev/null; then
+            echo 'code=true' >> "$GITHUB_OUTPUT"
+          elif git diff --name-only "$BASE" "$HEAD" | grep -qvE '^(docs/|[^/]+\.md$)'; then
+            echo 'code=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'code=false' >> "$GITHUB_OUTPUT"
+          fi
+
+  tests:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - suite: ui
+            modules: -m ui
+          - suite: server
+            modules: -m jvm -m embedded -m runtime -m browser -m cli
+          - suite: rest
+            modules: --exclude-module ui --exclude-module jvm --exclude-module embedded --exclude-module runtime --exclude-module browser --exclude-module cli
+    env:
+      MODULES: ${{ matrix.modules }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: dependencies
         uses: actions/cache/restore@v4
         with:
           path: |
-            ~/.cache/JetBrains
-            ~/Library/Caches/JetBrains
-            ~/AppData/Local/JetBrains
-          key: kotlin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/module.yaml', 'project.yaml') }}
-          restore-keys: kotlin-${{ runner.os }}-${{ runner.arch }}-
-      # Ubuntu 24.04 restricts unprivileged user namespaces, which Chromium's sandbox needs for the browser tests.
-      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-      - run: ./kotlin test -p jvm
-      - if: always() && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'
+            ~/.cache/JetBrains/Kotlin/cli
+            ~/.cache/JetBrains/Kotlin/.m2.cache
+            ~/.cache/JetBrains/Kotlin/extract.cache/*jdk*
+            ~/.cache/JetBrains/Kotlin/extract.cache/*jbr*
+          key: kotlin-jvm-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.suite }}-${{ hashFiles('kotlin', '**/*.yaml') }}
+          restore-keys: kotlin-jvm-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.suite }}-
+      - id: build
+        uses: actions/cache/restore@v4
+        with:
+          path: build
+          key: build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.suite }}-${{ hashFiles('kotlin', '**/*.yaml') }}-${{ github.sha }}
+          restore-keys: build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.suite }}-${{ hashFiles('kotlin', '**/*.yaml') }}-
+      # Chromium's sandbox needs unprivileged user namespaces on Ubuntu 24.04.
+      - if: matrix.suite == 'server'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - name: Run JVM tests
+        env:
+          RESTORED_BUILD: ${{ steps.build.outputs.cache-matched-key }}
+        run: |
+          if ! ./kotlin test -p jvm $MODULES; then
+            if [ -z "$RESTORED_BUILD" ]; then exit 1; fi
+            echo '::warning::Retrying without cached incremental state'
+            rm -rf build
+            ./kotlin test -p jvm $MODULES
+          fi
+      - if: github.ref == 'refs/heads/main' && steps.dependencies.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
-            ~/.cache/JetBrains
-            ~/Library/Caches/JetBrains
-            ~/AppData/Local/JetBrains
-          key: kotlin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/module.yaml', 'project.yaml') }}
+            ~/.cache/JetBrains/Kotlin/cli
+            ~/.cache/JetBrains/Kotlin/.m2.cache
+            ~/.cache/JetBrains/Kotlin/extract.cache/*jdk*
+            ~/.cache/JetBrains/Kotlin/extract.cache/*jbr*
+          key: ${{ steps.dependencies.outputs.cache-primary-key }}
+      - if: github.ref == 'refs/heads/main' && steps.build.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: build
+          key: ${{ steps.build.outputs.cache-primary-key }}
+
+  test:
+    needs: [changes, tests]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - env:
+          CHANGES: ${{ needs.changes.result }}
+          CODE: ${{ needs.changes.outputs.code }}
+          TESTS: ${{ needs.tests.result }}
+        run: |
+          test "$CHANGES" = success
+          test "$CODE" = false || test "$TESTS" = success
 
   secrets:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -49,6 +122,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   windows-speech:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v5
