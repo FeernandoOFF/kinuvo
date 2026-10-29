@@ -45,6 +45,8 @@ class ScreenView(private val screen: ScreenRef, private val subscription: String
             var applied = 0
             try {
                 input.actions.forEach { action ->
+                    val control = gate.state.value
+                    check(control.holder == holder && control.generation == input.generation && !control.suspended && !control.draining) { "Control changed during input" }
                     val sample = requireNotNull(displayed).sample
                     action.x?.let { require(it in 0 until sample.width) }
                     action.y?.let { require(it in 0 until sample.height) }
