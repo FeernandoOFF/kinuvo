@@ -26,5 +26,6 @@ settings:
 
 test-dependencies:
   - ../../testing
+  - ../../../shared/client
   - $kotlin.test
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0

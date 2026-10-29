@@ -46,15 +46,18 @@ class ServerVoiceTest {
             val code = owner.call(Api.Pairing, PairingParams())
             paired = KinuvoClient("ws://127.0.0.1:$port/ws", "paired", pairingCode = code.code)
             assertTrue(paired.connect().capabilities.voice.transcriber)
-            val clip = paired.call(Api.VoiceSynthesize, VoiceText("synthesis", "Hello world. This is a test of the voice system."))
-            val wav = kotlin.io.encoding.Base64.decode(clip.wav)
+            val clip = paired.call(Api.Synthesize, SynthesizeParams("Hello world. This is a test of the voice system."))
+            val wav = kotlin.io.encoding.Base64.decode(clip.base64)
             assertEquals("RIFF", wav.copyOfRange(0, 4).decodeToString())
             val buffer = java.nio.ByteBuffer.wrap(wav).order(java.nio.ByteOrder.LITTLE_ENDIAN)
             val rate = buffer.getInt(24)
             val samples = (wav.size - 44) / 2
             val pcm = java.nio.ByteBuffer.allocate((samples.toLong() * 16000 / rate * 2).toInt()).order(java.nio.ByteOrder.LITTLE_ENDIAN)
             for (n in 0 until pcm.capacity() / 2) pcm.putShort(buffer.getShort(44 + (n.toLong() * rate / 16000).toInt() * 2))
-            val text = paired.call(Api.VoiceTranscribe, VoiceRecording("recognition", kotlin.io.encoding.Base64.encode(pcm.array())))
+            val recording = java.nio.ByteBuffer.allocate(44 + pcm.capacity()).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+                .put("RIFF".toByteArray()).putInt(36 + pcm.capacity()).put("WAVEfmt ".toByteArray()).putInt(16).putShort(1).putShort(1)
+                .putInt(16000).putInt(32000).putShort(2).putShort(16).put("data".toByteArray()).putInt(pcm.capacity()).put(pcm.array())
+            val text = paired.call(Api.Transcribe, TranscribeParams(kotlin.io.encoding.Base64.encode(recording.array())))
             assertTrue("hello" in text.lowercase() && "world" in text.lowercase(), text)
             owner.call(Api.VoiceRemove, "whisper-tiny")
             assertFalse(paired.call(Api.VoiceSetup, Unit).transcriber)
@@ -85,10 +88,18 @@ class ServerVoiceTest {
             assertFails { ordinary.call(Api.VoiceCancelDownload, Unit) }
             assertFails { ordinary.call(Api.VoiceRemove, "whisper-tiny") }
             assertFails { ordinary.call(Api.VoiceSelect, VoiceSelection(VoiceModelKind.Transcription)) }
-            assertFails { ordinary.call(Api.VoiceTranscribe, VoiceRecording("test", "")) }
-            ordinary.call(Api.VoiceCancel, "test")
+            assertFails { ordinary.call(Api.Transcribe, TranscribeParams("")) }
         } finally { ordinary?.close(); second.close(); owner.close(); server.stop() }
         val restarted = DownloadedVoice(home)
         try { assertEquals("fr", restarted.state().language) } finally { restarted.close(); home.deleteRecursively() }
+    }
+
+    @Test fun downloadedModelsReadWavRecordings() {
+        val pcm = byteArrayOf(1, 2, 3, 4)
+        val wav = java.nio.ByteBuffer.allocate(44 + pcm.size).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            .put("RIFF".toByteArray()).putInt(36 + pcm.size).put("WAVEfmt ".toByteArray()).putInt(16).putShort(1).putShort(1)
+            .putInt(16000).putInt(32000).putShort(2).putShort(16).put("data".toByteArray()).putInt(pcm.size).put(pcm).array()
+        assertContentEquals(pcm, wavPcm16(wav))
+        assertFails { wavPcm16(wav.copyOf().also { it[24] = 0x44 }) }
     }
 }

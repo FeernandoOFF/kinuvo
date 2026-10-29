@@ -1,12 +1,12 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.voice.*
 import kinuvo.protocol.*
 import kinuvo.voice.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.io.File
-import kotlin.io.encoding.Base64
 
 class DownloadedVoice(home: File, private val inference: Inference = Inference(Inference.bundled())) : ServerVoice {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -26,16 +26,20 @@ class DownloadedVoice(home: File, private val inference: Inference = Inference(I
     @Volatile private var downloaded = 0L
     @Volatile private var error: String? = null
     override fun state() = VoiceModelsState(store.models, store.installed(), store.selected(VoiceModelKind.Transcription), store.selected(VoiceModelKind.Synthesis), store.language, downloading, downloaded, error, inference.supported)
-    val providers get() = kinuvo.harness.core.voice.VoiceProviders(
-        transcriber = if (store.selected(VoiceModelKind.Transcription) == null) null else kinuvo.harness.core.voice.Transcriber { audio ->
-            require(audio.format == kinuvo.harness.core.voice.AudioFormat.Pcm16(16000))
-            infer(VoiceModelKind.Transcription, Inference.pcmToFloat(audio.bytes)).decodeToString().also { check(it.length <= 20000) }
+    override val providers get() = VoiceProviders(
+        transcriber = if (store.selected(VoiceModelKind.Transcription) == null) null else Transcriber { audio ->
+            val pcm = when (audio.format) {
+                AudioFormat.Pcm16(16000) -> audio.bytes
+                AudioFormat.Wav -> wavPcm16(audio.bytes)
+                else -> throw IllegalArgumentException("Downloaded models need 16 kHz mono PCM")
+            }
+            infer(VoiceModelKind.Transcription, Inference.pcmToFloat(pcm)).decodeToString().also { check(it.length <= 20000) }
         },
-        synthesizer = if (store.selected(VoiceModelKind.Synthesis) == null) null else kinuvo.harness.core.voice.Synthesizer { text ->
-            kinuvo.harness.core.voice.Audio(infer(VoiceModelKind.Synthesis, text.encodeToByteArray()), kinuvo.harness.core.voice.AudioFormat.Wav)
+        synthesizer = if (store.selected(VoiceModelKind.Synthesis) == null) null else Synthesizer { text ->
+            require(text.isNotBlank() && text.length <= 2000 && text.encodeToByteArray().size <= 8192)
+            Audio(infer(VoiceModelKind.Synthesis, text.encodeToByteArray()), AudioFormat.Wav)
         },
     )
-    override fun setup() = providers.setup
     @OptIn(ExperimentalCoroutinesApi::class)
     @Synchronized override fun download(id: String) {
         check(inference.supported) { "Downloaded models require the packaged macOS Server" }
@@ -68,14 +72,27 @@ class DownloadedVoice(home: File, private val inference: Inference = Inference(I
         try { return inference.run(if (kind == VoiceModelKind.Transcription) "transcribe" else "synthesize", store.directory(model), store.language, model.id.removePrefix("whisper-"), input) }
         finally { store.release(model) }
     }
-    override suspend fun transcribe(recording: VoiceRecording): String {
-        require(recording.pcm.length <= 1_280_000)
-        val audio = kinuvo.harness.core.voice.Audio(Base64.decode(recording.pcm), kinuvo.harness.core.voice.AudioFormat.Pcm16(16000))
-        return requireNotNull(providers.transcriber) { "Server transcription is not configured" }.transcribe(audio)
-    }
-    override suspend fun synthesize(text: VoiceText): VoiceClip {
-        require(text.text.isNotBlank() && text.text.length <= 2000 && text.text.encodeToByteArray().size <= 8192)
-        return VoiceClip(Base64.encode(requireNotNull(providers.synthesizer) { "Server synthesis is not configured" }.synthesize(text.text).bytes))
-    }
     override suspend fun close() { scope.coroutineContext.job.cancelAndJoin() }
+}
+
+/** The 16 kHz mono 16-bit samples of a WAV recording. */
+internal fun wavPcm16(wav: ByteArray): ByteArray {
+    val bytes = java.nio.ByteBuffer.wrap(wav).order(java.nio.ByteOrder.LITTLE_ENDIAN)
+    require(wav.size >= 12 && String(wav, 0, 4) == "RIFF" && String(wav, 8, 4) == "WAVE") { "Invalid WAV recording" }
+    var at = 12
+    var format = false
+    while (at + 8 <= wav.size) {
+        val id = String(wav, at, 4)
+        val size = bytes.getInt(at + 4)
+        require(size >= 0 && at + 8 + size <= wav.size || id == "data") { "Invalid WAV recording" }
+        if (id == "fmt ") {
+            format = bytes.getShort(at + 8).toInt() == 1 && bytes.getShort(at + 10).toInt() == 1 &&
+                bytes.getInt(at + 12) == 16000 && bytes.getShort(at + 22).toInt() == 16
+        } else if (id == "data") {
+            require(format) { "Downloaded models need 16 kHz mono 16-bit WAV" }
+            return wav.copyOfRange(at + 8, minOf(wav.size, at + 8 + size))
+        }
+        at += 8 + size + (size and 1)
+    }
+    throw IllegalArgumentException("Invalid WAV recording")
 }

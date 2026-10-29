@@ -1,56 +1,47 @@
 ---
-title: "Voice providers: a Device pipeline, a Server pipeline, or speech to speech"
-description: "Kinuvo voice providers: a Device pipeline, a Server pipeline, or speech to speech."
+title: "Voice providers: Device and Server speech pipelines"
+description: "Independent speech providers with Device defaults and Server-owned endpoints and keys."
 ---
 
-Original decision (superseded by the Server model implementation below): the Device's recognizer turns speech into a message (`voice = true`), the Agent replies as usual, and the Device's voice reads the reply aloud. A proof of concept (git stash `voice: server STT/processing/TTS + OpenAI realtime POC`) added two more modes; it was rolled back unreleased, keeping the seam to bring them back:
+Voice chat turns speech into a user message (`voice = true`), runs the Session's Agent and reads the reply aloud. Transcription and synthesis use the Device by default. Either part can instead run through an OpenAI-compatible provider on the Server, independently of the Agent's model provider.
 
-- **Server**: `VoiceProviders` (`harness/core/src/voice/`) holds the parts it provides. The default holds none.
-- **Protocol**: `ServerCapabilities.voice` is a `VoiceSetup` saying which parts exist; older Servers mean all-Device.
-- **Device**: `Transcriber` and `Synthesizer` (`shared/app/src/session/Voice.kt`). `SpeechEngine` is the Device's own pair (`AppleSpeech` on iOS) and the default for every part. `SpeechVoiceChat` runs over any pair and dictation over any `Transcriber`; `VoiceChat` is the seam for speech to speech.
+## Decision
 
-1. **Device pipeline** (shipped): recognition and speech on the Device. Needs no Server support.
-2. **Server pipeline**: any of `Transcriber` (audio → text), `TranscriptProcessor` (text → corrected text) and `Synthesizer` (text → audio) run on the Server; missing parts stay on the Device. The Agent and its model are unchanged.
-3. **Speech to speech**: `SpeechToSpeech` holds one live audio conversation. The voice model talks; anything needing tools, Memory or reasoning goes through `askAgent`, which runs the Session's Agent with its normal tools and Approvals.
+Audio never passes through `Model.stream`: Agents stay text, and voice providers are separate from model providers. The Server owns endpoints and keys in the `voice` section of `config.yaml`. Optional API keys support environment and Secret references. Configuration is read at Server startup; restart to apply changes.
 
-Audio never passes through `Model.stream`: Agents stay text, and voice providers are separate from model providers. The Server owns endpoints and keys (the `voice` section of `config.yaml`, `${…}` Secret references) and tells Devices only which parts exist. Settings are read when voice chat starts. A provider failure ends voice chat with an error rather than silently falling back.
+- **Server**: `VoiceProviders` (`harness/core/src/voice/`) holds the configured parts. Missing parts stay on the Device.
+- **Protocol**: `ServerCapabilities.voice` advertises a `VoiceSetup`, without endpoints or keys. Older Servers default to Device speech. Paired Devices use the authenticated `voice.transcribe` and `voice.synthesize` RPCs.
+- **Device**: `ServerSpeechEngine` (`shared/app/src/session/`) selects each advertised part when Voice chat starts and owns requests through `ConnectedServer`. `VoiceAudio` supplies WAV recording and playback on iOS, macOS and Windows. Dictation continues to use the Device recognizer.
 
-## What the POC taught
+A provider failure ends Voice chat with an error rather than silently falling back. Device synthesis reports errors independently of recognition, including when Server transcription supplies the input. Stopping a chat or switching Servers discards late callbacks. Cancelling a voice RPC sends `voice.cancel` with its request ID; the Server cancels that connection's matching provider request and releases its slot before handling the next request. Cancellation is accepted even when the connection's request quota is full. Audio stays in memory; only text enters Session history.
 
-**Provider APIs.** OpenAI-compatible endpoints cover most of the pipeline, local ones included (MLX Audio on a Mac served Whisper and Kokoro): multipart `/v1/audio/transcriptions`, `/v1/chat/completions` for processing, `/v1/audio/speech` returning WAV. One adapter per protocol, not per vendor. Allow HTTPS, or HTTP/WS on loopback only; refuse credentials in URLs. Bound every size: 2 MB recordings, 20,000-character transcripts, 2,000 characters per synthesis, 8 MB WAV, 128 KB JSON responses. First model loads can exceed request timeouts; warm them up.
+## Provider protocol
 
-**Server pipeline turn-taking.** Without echo cancellation the microphone must close while a reply plays, so interruption means Pause. Device recording ends after ~1.3 s of quiet following speech, or 30 s; ten seconds of silence restarts without a provider request. Speak replies sentence by sentence (chunks up to 240 characters), synthesizing one chunk ahead while the current one plays, keeping order.
+Use one adapter per protocol, not per vendor. The OpenAI-compatible adapter sends multipart WAV recordings to `/audio/transcriptions` and JSON synthesis requests to `/audio/speech`, relative to the configured base URL. Transcription returns a JSON string field `text`; synthesis returns WAV audio.
 
-**Speech to speech.** OpenAI Realtime over WebSocket; PCM16 mono at 24 kHz in 200 ms chunks, played as it arrives.
-- *Phantom turns* were the main problem. Disable the provider's automatic replies (`create_response: false`) and decide on the Server: zero frames below about −45 dBFS, require 120 ms of audible input in the turn and a transcript with letters or digits, else delete the item. Use near-field noise reduction, a 0.75 VAD threshold and 900 ms of ending silence. The instructions must say that silence, noise and echoes are not turns.
-- *Interruption*: the Device reports how much of each reply it has played (`Played`, `Interrupt`). The provider item is truncated there, so the model knows what was heard. Transcripts can't be aligned to audio exactly, so an interrupted reply is saved with a marker.
-- *Agent handoff*: one `ask_agent` tool, one task at a time. Wait for the user's transcript before running it. Pause or interruption cancels it, and the model is told completion is unconfirmed. The run records no user message of its own, since the spoken transcript already did. The model is told never to claim success before `ask_agent` confirms.
-- *Context*: Agent instructions, personal context and the last ~40 messages, redacted, as of connection time. Each handoff loads current context.
+Endpoints use HTTPS, or HTTP on loopback only, without credentials, query parameters or fragments in URLs. Redirects are not followed. Bound every request and response: 2 MiB recordings, 20,000 transcript characters, 2,000 characters per synthesis request, 8 MiB WAV responses and 128 KiB transcription JSON. Requests time out after two minutes.
 
-**Session history.** The Session stays the record: the user's transcript is saved once, and a reply is saved when fully played or flushed when cut short. Only a Session entry shows the user's turn; keeping it in the live draft too showed it twice. While voice chat owns a Session, typed sends to it are refused. One Device connection owns a voice chat, which ends when that connection drops.
+## Turn-taking
 
-**Devices.** `VoiceChat` and `VoiceChatState` covered all three modes unchanged; choose the implementation from what the Server offers when voice chat starts. `SpeechEngine` grew a flag per mode (`recordsAudio`, `playsAudio`, `streamsAudio`). Split it instead into a microphone (recognize, record a turn, or stream PCM) and a speaker (speak text, play a clip, or play a stream and report its position). Platform callbacks outlive chats, and the Server can change mid-chat, so every callback is checked against the chat's generation. iOS echo cancellation (voice-chat audio session with voice processing) makes talking over replies work; the simulator has none.
+When either Server provider is selected, listening pauses while the Agent thinks and replies play, so speaker output does not become another user turn. Pause cuts speech short; resume starts listening again.
 
-## Bringing it back
+Recording ends after about 1.3 seconds of quiet following speech, or after 30 seconds total. Hold to talk includes pauses until release, subject to the same duration cap. Ten seconds without speech restarts listening without a provider request. The duration cap bounds memory and upload latency for buffered recordings; it is an application choice rather than a provider requirement. At 16 kHz mono PCM16, 30 seconds contains 960,000 audio bytes, below the 2 MiB upload limit.
 
-Configuration chooses a provider per part (`transcription`, `processing`, `synthesis`, or `realtime`, each with `type`, `url`, `model`, `apiKey` and options such as `voice`), built into `VoiceProviders` when voice chat starts. Implement the Server parts, then give the Device a client for each: a `Transcriber` that records a turn and calls `voice.prepare`, a `Synthesizer` that calls `voice.synthesize` and plays the clip, and a `VoiceChat` over a voice stream (`voice.start`, `voice.command`, the `voice.event` event) for speech to speech. `VoiceViewModel` picks them from `VoiceSetup` when voice chat starts.
+Replies are synthesized and played in order, in chunks of up to 240 characters. Endpoints and API keys remain on the Server. The transcription provider receives recorded speech; the synthesis provider receives the text being read aloud. Provider retention policies apply.
 
-Accepted cost: a third-party provider receives the audio, Agent instructions and recent conversation. Speech-to-speech protocols differ per vendor (OpenAI Realtime, Gemini Live, local models), so each needs its own `SpeechToSpeech` adapter. They differ in sample rates (each adapter declares its own, and the Device converts), in who detects turns and interruptions, and in whether a reply can be truncated where it was cut off. The voice model and the Agent can phrase the same answer differently.
+## Server voice providers (implemented)
 
+A Server can run transcription and synthesis instead of the Device, independently of the Agent's model provider.
+Two sources fill each part: a downloaded model selected in **Settings → Server → Voice** (management-authenticated
+`voice.*` methods manage verified Tiny/Base Whisper and Supertonic weights, run by a packaged inference worker on
+macOS), or an OpenAI-compatible provider in `config.yaml`. A selected downloaded model takes precedence. Paired
+Devices call `voice.setup`, send WAV to `voice.transcribe` and receive WAV from `voice.synthesize`; cancelling the
+call cancels Server inference. Execution links are excluded, and no endpoints, keys or paths reach Devices.
 
-## Server-owned downloadable models (implemented)
+Server selections are read when Dictation or Voice chat starts. Missing Server parts use Device system speech;
+configured failures surface as errors. Audio is transient; Agents remain text. Voice chat remains half duplex.
+See [Voice](../guides/voice.md), [Server voice models](../device-local-voice.md) and
+[Server configuration](../reference/config.md#voice).
+## Extension points
 
-Model storage, downloads, language and independent transcription/synthesis
-selections now belong to the Server. Management-authenticated `voice.*` methods
-manage verified Tiny/Base Whisper and Supertonic weights. Ordinary paired
-Devices can query `voice.setup`, send bounded PCM16 to `voice.transcribe`, request
-WAV from `voice.synthesize`, and cancel their own inference. Execution links are
-excluded. No provider credentials or filesystem paths are sent to Devices.
-
-The UI-free JVM `harness/voice` module hosts a packaged C inference worker on
-macOS. Desktop and iOS capture/play audio on the Device. Server selections are
-read when Dictation or Voice chat starts, with generation guards across Server
-switches. Missing Server parts use Device system speech; configured failures
-surface as errors. Audio is transient; Agents remain text. Voice chat remains
-half duplex. External speech services, transcript processing and speech to speech
-remain future work. See [Server voice models](../device-local-voice.md).
+`TranscriptProcessor` provides a seam for transcript clean-up before a message is sent. `SpeechToSpeech` and `VoiceChat` provide seams for a live audio conversation whose Agent work goes through `askAgent`, with the Session's tools and Approvals. These parts are not currently configurable providers.
