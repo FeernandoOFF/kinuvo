@@ -112,14 +112,15 @@ internal class Screens(
         val ref = watch.ref
         return watch.view.input(holder, p.input, gate(ref)) { action ->
             require(action.kind.action in source(ref).capabilities.inputs) { "Unsupported Screen input" }
-            require(action.element == null) { "Screen input uses displayed coordinates" }
-            if (ref.source == "computer") computers.input(ref.id, action)
+
+            if (ref.source == "computer") computers.input(ref.id, ComputerAction(ComputerActionKind.entries.single { it.action == action.kind.action },
+                x = action.x, y = action.y, toX = action.toX, toY = action.toY, text = action.text, key = action.key, direction = action.direction))
             else {
                 val kind = when (action.kind) {
-                    ComputerActionKind.Tap -> BrowserAction.Click
-                    ComputerActionKind.Type -> BrowserAction.Type
-                    ComputerActionKind.Key -> BrowserAction.Key
-                    ComputerActionKind.Scroll -> BrowserAction.Scroll
+                    ScreenActionKind.Tap -> BrowserAction.Click
+                    ScreenActionKind.Type -> BrowserAction.Type
+                    ScreenActionKind.Key -> BrowserAction.Key
+                    ScreenActionKind.Scroll -> BrowserAction.Scroll
                     else -> error("Unsupported Browser input")
                 }
                 requireNotNull(browser()).userCommand(BrowserCommand(requireNotNull(ref.owner), kind, ref.id,
@@ -145,9 +146,9 @@ internal class Screens(
     }
 
     suspend fun command(holder: String, p: ScreenCommand) {
-        require(p.screen.source == "browser" && p.action in setOf(BrowserAction.Navigate, BrowserAction.Close))
+        require(p.screen.source == "browser" && p.action in setOf(ScreenCommandKind.Navigate, ScreenCommandKind.Close))
         gate(p.screen).input(holder, p.generation) {
-            requireNotNull(browser()).userCommand(BrowserCommand(requireNotNull(p.screen.owner), p.action, p.screen.id, text = p.text))
+            requireNotNull(browser()).userCommand(BrowserCommand(requireNotNull(p.screen.owner), if (p.action == ScreenCommandKind.Navigate) BrowserAction.Navigate else BrowserAction.Close, p.screen.id, text = p.text))
         }
         Unit
     }

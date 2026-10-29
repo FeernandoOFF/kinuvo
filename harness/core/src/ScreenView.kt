@@ -35,7 +35,7 @@ class ScreenView(private val screen: ScreenRef, private val subscription: String
     suspend fun close() = lock.withLock { closed = true; pending = null; sent = null; displayed = null }
 
     suspend fun input(holder: String, input: ScreenInput, gate: ScreenGate,
-        apply: suspend (ComputerAction) -> Unit): ScreenInputResult = gate.input(holder, input.generation) {
+        apply: suspend (ScreenAction) -> Unit): ScreenInputResult = gate.input(holder, input.generation) {
         lock.withLock {
             check(!closed && matches(input.frame, displayed) && input.geometry == displayed?.sample?.geometry) { "Display a current frame before input" }
             // New geometry invalidates input even when a newer image has not reached the client yet.
