@@ -4,10 +4,12 @@ modules:
   - apps/desktop
   - apps/ios
   - apps/web
+  - harness/voice
   - harness/core
   - harness/execution/acp
   - harness/execution/api
   - harness/plugins/anytype
+  - harness/plugins/browser
   - harness/plugins/cua
   - harness/plugins/exec
   - harness/plugins/executor

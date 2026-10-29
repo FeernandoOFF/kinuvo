@@ -27,6 +27,7 @@ fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (Ha
 /** What a JVM host (desktop, the `kinuvo` command) runs with. */
 fun jvmPlugins(files: AgentFiles, secrets: Secrets, providers: List<HarnessPlugin> = jvmProviders(files, secrets), installed: (HarnessPlugin) -> Unit = {}): List<HarnessPlugin> =
     providers.onEach(installed) + listOf(
+        { kinuvo.harness.browser.BrowserPlugin(java.io.File(files.home.toString(), "browser")) },
         { ExecPlugin(files, secrets) }, { McpPlugin(files, secrets) }, { RemindersPlugin() },
         { AnytypePlugin(files, secrets) }, { FirecrawlPlugin() }, { NtfyPlugin() }, { ExecutorPlugin() },
     ).map { it().also(installed) }

@@ -138,6 +138,19 @@ sealed interface SessionChange {
 }
 
 object Api {
+    val VoiceModels = Method("voice.models", Unit.serializer(), VoiceModelsState.serializer())
+    val VoiceDownload = Method("voice.download", String.serializer(), Unit.serializer())
+    val VoiceCancelDownload = Method("voice.cancelDownload", Unit.serializer(), Unit.serializer())
+    val VoiceRemove = Method("voice.remove", String.serializer(), Unit.serializer())
+    val VoiceSelect = Method("voice.select", VoiceSelection.serializer(), Unit.serializer())
+    val VoiceLanguage = Method("voice.language", String.serializer(), Unit.serializer())
+    val VoiceSetup = Method("voice.setup", Unit.serializer(), kinuvo.protocol.VoiceSetup.serializer())
+    val VoiceTranscribe = Method("voice.transcribe", VoiceRecording.serializer(), String.serializer())
+    val VoiceSynthesize = Method("voice.synthesize", VoiceText.serializer(), VoiceClip.serializer())
+    val VoiceCancel = Method("voice.cancel", String.serializer(), Unit.serializer())
+    val BrowserTabs = Method("browser.tabs", BrowserOwner.serializer(), ListSerializer(BrowserTab.serializer()))
+    val BrowserCommand = Method("browser.command", kinuvo.protocol.BrowserCommand.serializer(), BrowserFrame.serializer().nullable)
+    val BrowserChanged = EventType("browser.changed", BrowserOwner.serializer())
     val Capabilities = Method("session.capabilities", CapabilitiesParams.serializer(), SessionCapabilities.serializer())
     val CapabilitiesChanged = EventType("capabilities.changed", Unit.serializer())
     val Models = Method("models.list", ModelsParams.serializer(), ModelsCatalog.serializer())

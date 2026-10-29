@@ -13,3 +13,34 @@ data class VoiceSetup(
     val synthesizer: Boolean = false,
     val speechToSpeech: Boolean = false,
 )
+
+@kotlinx.serialization.Serializable
+enum class VoiceModelKind { Transcription, Synthesis }
+
+@kotlinx.serialization.Serializable
+data class VoiceModelFile(val name: String, val url: String, val bytes: Long, val sha256: String)
+@kotlinx.serialization.Serializable
+data class VoiceModel(
+    val id: String,
+    val title: String,
+    val kind: VoiceModelKind,
+    val license: String,
+    val source: String,
+    val languages: String,
+    val files: List<VoiceModelFile>,
+    val archiveRoot: String? = null,
+) {
+    val bytes get() = files.sumOf { it.bytes }
+}
+
+
+@Serializable
+data class VoiceModelsState(val models: List<VoiceModel> = emptyList(), val installed: Set<String> = emptySet(), val transcription: String? = null, val synthesis: String? = null, val language: String = "en", val downloading: String? = null, val downloaded: Long = 0, val error: String? = null, val supported: Boolean = false)
+@Serializable
+data class VoiceSelection(val kind: VoiceModelKind, val id: String? = null)
+@Serializable
+data class VoiceRecording(val id: String, val pcm: String)
+@Serializable
+data class VoiceText(val id: String, val text: String)
+@Serializable
+data class VoiceClip(val wav: String)

@@ -1,0 +1,10 @@
+product: jvm/lib
+dependencies:
+  - ../../shared/protocol
+  - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0
+settings:
+  kotlin:
+    serialization: json
+
+test-dependencies:
+  - $kotlin.test

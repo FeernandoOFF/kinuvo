@@ -7,10 +7,24 @@ import KotlinModules
  * Voice chat on-device. SpeechAnalyzer listens and AVSpeechSynthesizer speaks, both through one AVAudioEngine with
  * voice processing, so the microphone hears the user but not the reply (echo cancellation). Runs on the main thread.
  */
-final class AppleSpeech: NSObject, SpeechEngine {
-    var halfDuplex: Bool { false }
-    private let engine = AVAudioEngine()
-    private let player = AVAudioPlayerNode()
+final class AppleSpeech: NSObject, SpeechEngine, VoiceAudio {
+    var audioSupported: Bool { true }
+    private let serverAudio = AppleServerAudio()
+    var halfDuplex: Bool { true }
+    func authorizeAudio(completion: @escaping (String?) -> Void) { serverAudio.authorize(completion) }
+    func record(untilPause: Bool, onAudio: @escaping (KotlinByteArray) -> Void, onError: @escaping (String) -> Void) {
+        releaseDeviceAudio()
+        serverAudio.record(untilPause, onAudio, onError)
+    }
+    func finishRecording() { serverAudio.finish() }
+    func stopRecording() { serverAudio.stop() }
+    func play(wav: KotlinByteArray, onDone: @escaping () -> Void, onError: @escaping (String) -> Void) {
+        releaseDeviceAudio()
+        serverAudio.play(wav, onDone, onError)
+    }
+    func stopPlayback() { serverAudio.stopPlayback() }
+    private var engine = AVAudioEngine()
+    private var player = AVAudioPlayerNode()
     private let synthesizer = AVSpeechSynthesizer()
     private let playback = AVAudioFormat(standardFormatWithSampleRate: 22050, channels: 1)!
     /** Converts and schedules speech off the main thread, which a streaming reply keeps busy: late buffers crackle. */
@@ -18,6 +32,7 @@ final class AppleSpeech: NSObject, SpeechEngine {
     /** Only touched on [audio]. */
     private var converter: AVAudioConverter?
     private var configured = false
+    private var configurationObserver: NSObjectProtocol?
     /** Between start and stop, so audio changes after voice chat ends don't turn the microphone back on. */
     private var active = false
     private let lock = NSLock()
@@ -83,8 +98,18 @@ final class AppleSpeech: NSObject, SpeechEngine {
 
     func listen(untilPause: Bool, onPartial: @escaping (String) -> Void, onFinal: @escaping (String) -> Void, onError: @escaping (String) -> Void) {
         stopListening()
+        let request = UUID()
+        listening = request
+        serverAudio.release {
+            guard self.listening == request else { return }
+            self.listenOnDevice(untilPause: untilPause, onPartial: onPartial, onFinal: onFinal, onError: onError)
+        }
+    }
+
+    private func listenOnDevice(untilPause: Bool, onPartial: @escaping (String) -> Void, onFinal: @escaping (String) -> Void, onError: @escaping (String) -> Void) {
         do { try start() } catch {
             log.error("Couldn't start audio to listen: \(error.localizedDescription)")
+            listening = nil
             onError(error.localizedDescription)
             return
         }
@@ -126,7 +151,24 @@ final class AppleSpeech: NSObject, SpeechEngine {
         }
     }
 
+    func finish(text: String, onFinal: @escaping (String) -> Void, onError: @escaping (String) -> Void) {
+        stop()
+        onFinal(text)
+    }
+
+    func speak(text: String, onDone: @escaping () -> Void, onError: @escaping (String) -> Void) {
+        speak(text: text, onDone: onDone)
+    }
+
     func speak(text: String, onDone: @escaping () -> Void) {
+        let request = lock.withLock { generation }
+        serverAudio.release {
+            guard self.lock.withLock({ self.generation == request }) else { return }
+            self.speakOnDevice(text: text, onDone: onDone)
+        }
+    }
+
+    private func speakOnDevice(text: String, onDone: @escaping () -> Void) {
         do { try start() } catch {
             log.error("Couldn't start audio to speak: \(error.localizedDescription)")
             onDone()
@@ -228,6 +270,18 @@ final class AppleSpeech: NSObject, SpeechEngine {
         }
     }
 
+    private func releaseDeviceAudio() {
+        guard configured else { return }
+        stop()
+        // Release the voice-processing I/O unit before Server audio opens the microphone.
+        if let configurationObserver { NotificationCenter.default.removeObserver(configurationObserver) }
+        configurationObserver = nil
+        engine = AVAudioEngine()
+        player = AVAudioPlayerNode()
+        configured = false
+        lock.withLock { inputConverter = nil }
+    }
+
     private func start() throws {
         // Setting the category again drops the speaker override, and the route change restarts the engine on the main thread.
         if active && engine.isRunning { return }
@@ -242,8 +296,8 @@ final class AppleSpeech: NSObject, SpeechEngine {
             engine.connect(player, to: engine.mainMixerNode, format: playback)
             installTap()
             // Route and session changes stop the engine; it's started again for what's still to say.
-            NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
-                guard let self, self.active, !self.engine.isRunning else { return }
+            configurationObserver = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] notification in
+                guard let self, let changed = notification.object as? AVAudioEngine, changed === self.engine, self.active, !self.engine.isRunning else { return }
                 self.log.notice("Audio configuration changed; restarting the engine")
                 // The microphone's format may have changed with the route.
                 self.engine.inputNode.removeTap(onBus: 0)
@@ -337,5 +391,262 @@ private struct Transcription {
             }
         }
         return nil
+    }
+}
+
+
+enum ServerAudioPCM {
+    static func valid(_ format: AVAudioFormat) -> Bool {
+        format.sampleRate.isFinite && format.sampleRate > 0 && format.channelCount > 0
+    }
+
+    static func samples(_ buffer: AVAudioPCMBuffer) -> (pcm: [Int16], power: Float)? {
+        guard buffer.format.commonFormat == .pcmFormatFloat32, buffer.format.channelCount == 1,
+              !buffer.format.isInterleaved, let data = buffer.floatChannelData?[0] else { return nil }
+        var pcm = [Int16]()
+        pcm.reserveCapacity(Int(buffer.frameLength))
+        var power: Float = 0
+        for index in 0..<Int(buffer.frameLength) {
+            let value = data[index].isFinite ? max(-1, min(1, data[index])) : 0
+            pcm.append(Int16(value * 32767))
+            power += value * value
+        }
+        return (pcm, power / Float(max(1, buffer.frameLength)))
+    }
+}
+
+private final class AppleServerAudio: NSObject, AVAudioPlayerDelegate {
+    private let queue = DispatchQueue(label: "dev.kinuvo.server.audio", qos: .userInitiated)
+    private var recordingID = UUID()
+    private var playbackID = UUID()
+    private var recordingTimer: DispatchWorkItem?
+    private var playbackTimer: DispatchWorkItem?
+    private var recordingError: ((String) -> Void)?
+    private var finishingRecording = false
+
+    func record(_ untilPause: Bool, _ completion: @escaping (KotlinByteArray) -> Void, _ error: @escaping (String) -> Void) {
+        stop()
+        let id = recordingID
+        recordingError = error
+        func failed(_ message: String) {
+            DispatchQueue.main.async {
+                guard self.recordingID == id else { return }
+                self.stop()
+                error(message)
+            }
+        }
+        let startup = DispatchWorkItem { failed("The microphone did not start. Check the audio route and try again.") }
+        recordingTimer = startup
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: startup)
+        queue.async {
+            self.recordOnQueue(untilPause, { bytes in
+                DispatchQueue.main.async {
+                    guard self.recordingID == id else { return }
+                    self.stop()
+                    completion(bytes)
+                }
+            }, failed)
+            DispatchQueue.main.async {
+                guard self.recordingID == id, !self.finishingRecording else { return }
+                self.recordingTimer?.cancel()
+                let deadline = DispatchWorkItem { failed("Microphone recording timed out. Try again.") }
+                self.recordingTimer = deadline
+                DispatchQueue.main.asyncAfter(deadline: .now() + 32, execute: deadline)
+            }
+        }
+    }
+    func finish() {
+        finishingRecording = true
+        let id = recordingID
+        let error = recordingError
+        recordingTimer?.cancel()
+        let timer = DispatchWorkItem {
+            guard self.recordingID == id, let error else { return }
+            self.stop()
+            error("Finishing microphone recording timed out. Try again.")
+        }
+        recordingTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: timer)
+        queue.async { self.finishOnQueue() }
+    }
+    func stop() {
+        recordingID = UUID()
+        finishingRecording = false
+        recordingTimer?.cancel(); recordingTimer = nil; recordingError = nil
+        queue.async { self.stopOnQueue() }
+    }
+    func release(_ completion: (() -> Void)? = nil) {
+        stop(); stopPlayback()
+        if let completion { queue.async { DispatchQueue.main.async(execute: completion) } }
+    }
+    func play(_ wav: KotlinByteArray, _ completion: @escaping () -> Void, _ error: @escaping (String) -> Void) {
+        stopPlayback()
+        let id = playbackID
+        func finish(_ message: String?) {
+            DispatchQueue.main.async {
+                guard self.playbackID == id else { return }
+                self.stopPlayback()
+                if let message { error(message) } else { completion() }
+            }
+        }
+        let startup = DispatchWorkItem { finish("Voice playback did not start. Try again.") }
+        playbackTimer = startup
+        DispatchQueue.main.asyncAfter(deadline: .now() + 8, execute: startup)
+        queue.async {
+            self.playOnQueue(wav, { finish(nil) }, { finish($0) })
+            let duration = self.player?.duration ?? 0
+            DispatchQueue.main.async {
+                guard self.playbackID == id else { return }
+                self.playbackTimer?.cancel()
+                let deadline = DispatchWorkItem { finish("Voice playback timed out. Try again.") }
+                self.playbackTimer = deadline
+                DispatchQueue.main.asyncAfter(deadline: .now() + min(305, duration + 5), execute: deadline)
+            }
+        }
+    }
+    func stopPlayback() {
+        playbackID = UUID()
+        playbackTimer?.cancel(); playbackTimer = nil
+        queue.async { self.stopPlaybackOnQueue() }
+    }
+    private var engine: AVAudioEngine?
+    private var player: AVAudioPlayer?
+    private var samples = [Int16]()
+    private var captured: ((KotlinByteArray) -> Void)?
+    private var failure: ((String) -> Void)?
+    private var playbackFailure: ((String) -> Void)?
+    private var done: (() -> Void)?
+    private var token = UUID()
+    private var tapped = false
+    private var deadline: DispatchWorkItem?
+    private var observers = [NSObjectProtocol]()
+    private var audible = 0
+    private var quiet = 0
+    func authorize(_ completion: @escaping (String?) -> Void) {
+        AVAudioApplication.requestRecordPermission { granted in
+            DispatchQueue.main.async { completion(granted ? nil : "Allow microphone access in Settings") }
+        }
+    }
+    private func session() throws {
+        let session = AVAudioSession.sharedInstance()
+        try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetoothHFP])
+        try session.setActive(true)
+    }
+    func recordOnQueue(_ untilPause: Bool, _ completion: @escaping (KotlinByteArray) -> Void, _ error: @escaping (String) -> Void) {
+        stopOnQueue()
+        captured = completion; failure = error; audible = 0; quiet = 0
+        let epoch = token
+        do {
+            guard AVAudioApplication.shared.recordPermission == .granted else {
+                throw Failure("Allow microphone access for Kinuvo in Settings")
+            }
+            try session()
+            let engine = AVAudioEngine()
+            self.engine = engine
+            let node = engine.inputNode
+            let source = node.outputFormat(forBus: 0)
+            guard ServerAudioPCM.valid(node.inputFormat(forBus: 0)), ServerAudioPCM.valid(source), let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false), let converter = AVAudioConverter(from: source, to: target) else { throw Failure("The microphone has no usable audio format. Check the audio route and try again.") }
+            let fail: (String) -> Void = { [weak self] message in
+                self?.queue.async {
+                    guard let self, self.token == epoch else { return }
+                    self.failRecording(message)
+                }
+            }
+            // Let the input retain its negotiated format instead of setting a hardware format on the tap.
+            node.installTap(onBus: 0, bufferSize: 2048, format: nil) { buffer, _ in
+                guard buffer.format == source else { fail("The microphone audio format changed. Try recording again."); return }
+                guard buffer.frameLength > 0 else { return }
+                guard let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: AVAudioFrameCount(Double(buffer.frameLength) * 16000 / source.sampleRate) + 32) else { fail("Couldn't allocate microphone audio buffer"); return }
+                var supplied = false
+                var conversionError: NSError?
+                let status = converter.convert(to: output, error: &conversionError) { _, status in
+                    if supplied { status.pointee = .noDataNow; return nil }
+                    supplied = true; status.pointee = .haveData; return buffer
+                }
+                guard status != .error, conversionError == nil, let result = ServerAudioPCM.samples(output) else {
+                    fail(conversionError?.localizedDescription ?? "Couldn't convert microphone audio")
+                    return
+                }
+                let (pcm, power) = result
+                self.queue.async {
+                    guard self.token == epoch else { return }
+                    self.samples.append(contentsOf: pcm.prefix(max(0, 480000 - self.samples.count)))
+                    if power > 0.000064 { self.audible += pcm.count; self.quiet = 0 } else { self.quiet += pcm.count }
+                    if self.samples.count >= 480000 || (untilPause && self.audible >= 2400 && self.quiet >= 20800) || (self.audible == 0 && self.samples.count >= 160000) { self.finishOnQueue() }
+                }
+            }
+            tapped = true; engine.prepare(); try engine.start()
+            let center = NotificationCenter.default
+            observers = [
+                center.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: .main) { [weak self] _ in
+                    self?.queue.async {
+                        guard let self, self.token == epoch, self.engine?.isRunning == false else { return }
+                        self.failRecording("The microphone audio route changed. Try recording again.")
+                    }
+                },
+                center.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] _ in
+                    self?.queue.async {
+                        guard let self, self.token == epoch else { return }
+                        self.failRecording("Microphone recording was interrupted. Try again.")
+                    }
+                },
+                center.addObserver(forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main) { [weak self] _ in
+                    self?.queue.async {
+                        guard let self, self.token == epoch else { return }
+                        self.failRecording("Audio services restarted. Try recording again.")
+                    }
+                }
+            ]
+            let timer = DispatchWorkItem { if self.token == epoch { self.finishOnQueue() } }
+            deadline = timer; queue.asyncAfter(deadline: .now() + 30, execute: timer)
+        } catch let reason { stopOnQueue(); error((reason as? Failure)?.message ?? reason.localizedDescription) }
+    }
+    func finishOnQueue() {
+        guard let completion = captured else { return }
+        guard !samples.isEmpty else { failRecording("No microphone audio arrived. Check the audio route and try again."); return }
+        let values = audible >= 2400 ? samples : []
+        let data = values.withUnsafeBytes { Data($0) }
+        let bytes = AudioBytes.shared.fromData(data: data)
+        stopOnQueue(); completion(bytes)
+    }
+    private func failRecording(_ message: String) {
+        let error = failure
+        stopOnQueue()
+        error?(message)
+    }
+    func stopOnQueue() {
+        observers.forEach { NotificationCenter.default.removeObserver($0) }; observers.removeAll()
+        token = UUID(); deadline?.cancel(); deadline = nil
+        engine?.stop()
+        if tapped { engine?.inputNode.removeTap(onBus: 0); tapped = false }
+        // Drop the stopped I/O graph before the caller deactivates the session or starts another recording.
+        engine = nil
+        samples.removeAll(); captured = nil; failure = nil
+    }
+    func playOnQueue(_ wav: KotlinByteArray, _ completion: @escaping () -> Void, _ error: @escaping (String) -> Void) {
+        stopPlaybackOnQueue()
+        guard wav.size <= 8388608 else { error("Audio clip too large"); return }
+        let data = AudioBytes.shared.toData(bytes: wav)
+        do {
+            try session(); player = try AVAudioPlayer(data: data); player?.delegate = self; done = completion; playbackFailure = error
+            guard player?.play() == true else { throw NSError(domain: "Voice", code: 2) }
+        } catch let reason { stopPlaybackOnQueue(); error(reason.localizedDescription) }
+    }
+    func stopPlaybackOnQueue() { player?.stop(); player = nil; done = nil; playbackFailure = nil }
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        queue.async {
+            guard self.player === player else { return }
+            let completion = self.done, error = self.playbackFailure
+            self.stopPlaybackOnQueue()
+            if flag { completion?() } else { error?("Voice playback failed") }
+        }
+    }
+    func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
+        queue.async {
+            guard self.player === player else { return }
+            let failure = self.playbackFailure
+            self.stopPlaybackOnQueue()
+            failure?(error?.localizedDescription ?? "Voice playback failed")
+        }
     }
 }
