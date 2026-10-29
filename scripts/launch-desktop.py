@@ -9,7 +9,7 @@ import uuid
 
 bundle = Path(sys.argv[1]).resolve()
 executable = bundle / 'Contents/MacOS/Kinuvo'
-token = '--kinuvo-launch-id=' + uuid.uuid4().hex
+launch_id = '--kinuvo-launch-id=' + uuid.uuid4().hex
 home = Path(os.environ['KINUVO_HOME'])
 interrupted = None
 
@@ -28,9 +28,9 @@ launcher = subprocess.Popen([
     '--env', 'KINUVO_EMBEDDED_PORT=' + os.environ['KINUVO_EMBEDDED_PORT'],
     '--stdout', str(home / 'logs/desktop-output.log'),
     '--stderr', str(home / 'logs/desktop-error.log'),
-    str(bundle), '--args', *sys.argv[2:], token,
+    str(bundle), '--args', *sys.argv[2:], launch_id,
 ], start_new_session=True)
-pattern = '^' + re.escape(str(executable)).replace(r'\-', '-') + ' .*' + token
+pattern = '^' + re.escape(str(executable)).replace(r'\-', '-') + ' .*' + launch_id
 sent = False
 while launcher.poll() is None:
     if interrupted is not None and not sent:
