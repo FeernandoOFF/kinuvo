@@ -6,6 +6,7 @@ import com.charleskorn.kaml.Yaml
 import com.charleskorn.kaml.YamlConfiguration
 import kinuvo.harness.core.knowledge.KnowledgeConfig
 import kinuvo.harness.core.tasks.TasksConfig
+import kinuvo.harness.core.voice.VoiceConfig
 import kinuvo.protocol.ServiceKind
 import kinuvo.protocol.ServiceSettings
 import kinuvo.protocol.TrustRules
@@ -23,6 +24,7 @@ data class ServerConfig(
     val notifications: ServiceSettings = ServiceSettings(),
     val rules: TrustRules = TrustRules(),
     val providers: Map<String, ModelProviderConfig> = emptyMap(),
+    val voice: VoiceConfig = VoiceConfig(),
 ) {
     fun service(kind: ServiceKind) = if (kind == ServiceKind.Search) search else notifications
     fun service(kind: ServiceKind, settings: ServiceSettings) = if (kind == ServiceKind.Search) copy(search = settings) else copy(notifications = settings)

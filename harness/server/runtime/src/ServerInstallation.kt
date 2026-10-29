@@ -15,10 +15,14 @@ import kinuvo.harness.core.tasks.Tasks
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.WebFetchTool
 import kinuvo.harness.core.tools.WebSearch
+import kinuvo.harness.core.voice.OpenAICompatibleVoice
+import kinuvo.harness.core.voice.VoiceProviders
 import kinuvo.protocol.*
+import kotlin.time.Clock
+import kotlin.uuid.Uuid
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -28,8 +32,6 @@ import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
-import kotlin.time.Clock
-import kotlin.uuid.Uuid
 
 interface ReflectionProgress {
     fun get(): Map<String, Int>
@@ -85,6 +87,7 @@ class RuntimeDependencies(
     val modelCatalog: suspend (Boolean) -> ModelsCatalog,
     val webFetch: (WebSearch?) -> Tool,
     val tracing: AgentTracing? = null,
+    val voice: VoiceProviders = VoiceProviders(),
 ) {
     val plugins get() = resources.plugins
     val mcp = plugins.firstNotNullOfOrNull { it.mcp } ?: McpManagement.Unavailable
@@ -106,7 +109,8 @@ object ServerInstallation {
         var http: HttpClient? = null
         var hosts: PluginHosts? = null
         var tracing: AgentTracing? = null
-        val resources = ServerResources(plugins) { try { tracing?.close() } finally { hosts?.close(); http?.close() } }
+        var voice: OpenAICompatibleVoice? = null
+        val resources = ServerResources(plugins) { try { tracing?.close() } finally { voice?.close(); hosts?.close(); http?.close() } }
         try {
             plugins.checkPluginInstances()
             tracing = if (files.config().tracing) localTracing(files) else null
@@ -120,6 +124,9 @@ object ServerInstallation {
             val pluginHosts = PluginHosts(client) { instance, value ->
                 secrets.expand(value, files.loadEnv(), "Kinuvo: plugin ${instance.pluginId}/${instance.instanceId}")
             }.also { hosts = it }
+            val voiceProviders = OpenAICompatibleVoice(client) { value ->
+                secrets.expand(value, files.loadEnv(), "Kinuvo: voice provider")
+            }.also { voice = it }.providers(files.config().voice)
             val settings = FileServerSettings(files, userHome, installedStore, plugins, secrets, pluginHosts, clock)
             val catalog = ModelCatalog(Path(files.home, "cache", "models.json"), providers, {
                 val response = client.get("https://models.dev/api.json")
@@ -145,7 +152,7 @@ object ServerInstallation {
                     override fun get(id: String) = attachmentFiles.get(id)
                     override fun download(id: String) = attachmentFiles.download(id)
                     override fun bytes(attachment: Attachment) = attachmentFiles.bytes(attachment)
-                }, settings, secrets, progress, serverId, resources, providers, { catalog.list(it) }, { WebFetchTool(client, reader = it) }, tracing)
+                }, settings, secrets, progress, serverId, resources, providers, { catalog.list(it) }, { WebFetchTool(client, reader = it) }, tracing, voiceProviders)
         } catch (e: Throwable) {
             try { resources.close() } catch (cleanup: Throwable) { e.addSuppressed(cleanup) }
             throw e

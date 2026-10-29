@@ -2,16 +2,9 @@ import AppKit
 import AVFoundation
 import Speech
 
-let outputLock = NSLock()
-
-func emit(_ event: String, _ id: Int = 0, _ text: String = "") {
-    outputLock.lock()
-    defer { outputLock.unlock() }
-    let data = try! JSONSerialization.data(withJSONObject: ["event": event, "id": id, "text": text], options: [.sortedKeys])
-    FileHandle.standardOutput.write(data + Data([10]))
-}
-
 final class Speech: NSObject, AVSpeechSynthesizerDelegate {
+    let output: (String, Int, String) -> Void
+    lazy var local = LocalSpeech(emit: output)
     let audio = AVAudioEngine()
     let synth = AVSpeechSynthesizer()
     var request: SFSpeechAudioBufferRecognitionRequest?
@@ -22,7 +15,9 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
     var timer: DispatchWorkItem?
     var utterances: [ObjectIdentifier: Int] = [:]
 
-    override init() { super.init(); synth.delegate = self }
+    init(emit: @escaping (String, Int, String) -> Void) { self.output = emit; super.init(); synth.delegate = self }
+
+    func emit(_ event: String, _ id: Int, _ text: String = "") { output(event, id, text) }
 
     func stopListening() {
         listening = 0
@@ -36,13 +31,13 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
     func finish(_ id: Int, _ text: String) {
         guard listening == id else { return }
         stopListening()
-        emit("final", id, text)
+        self.emit("final", id, text)
     }
 
     func listen(_ id: Int, _ untilPause: Bool) {
         stopListening()
         guard let recognizer = SFSpeechRecognizer(locale: Locale.current), recognizer.isAvailable else {
-            emit("error", id, "Apple speech recognition is unavailable for \(Locale.current.identifier). Check your language and network.")
+            self.emit("error", id, "Apple speech recognition is unavailable for \(Locale.current.identifier). Check your language and network.")
             return
         }
         self.recognizer = recognizer
@@ -54,7 +49,7 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         let input = audio.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
-            stopListening(); emit("error", id, "No microphone input. Choose a microphone in System Settings → Sound."); return
+            stopListening(); self.emit("error", id, "No microphone input. Choose a microphone in System Settings → Sound."); return
         }
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in request.append(buffer) }
         tapped = true
@@ -63,7 +58,7 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
                 guard self.listening == id else { return }
                 if let result = result {
                     let text = result.bestTranscription.formattedString
-                    emit("partial", id, text)
+                    self.emit("partial", id, text)
                     self.timer?.cancel()
                     if result.isFinal { self.finish(id, text); return }
                     if untilPause && !text.isEmpty {
@@ -74,37 +69,63 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
                 }
                 if let error = error {
                     self.stopListening()
-                    emit("error", id, error.localizedDescription)
+                    self.emit("error", id, error.localizedDescription)
                 }
             }
         }
         do { audio.prepare(); try audio.start() }
-        catch { stopListening(); emit("error", id, error.localizedDescription) }
+        catch { stopListening(); self.emit("error", id, error.localizedDescription) }
+    }
+
+    func authorizeMicrophone(_ id: Int) {
+        switch AVCaptureDevice.authorizationStatus(for: .audio) {
+        case .authorized: self.emit("authorized", id)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .audio) { _ in
+                DispatchQueue.main.async { self.authorizeMicrophone(id) }
+            }
+        case .restricted: self.emit("authorized", id, "Microphone access is restricted by system policy.")
+        default: self.emit("authorized", id, "Allow microphone access for Kinuvo in System Settings → Privacy & Security.")
+        }
+    }
+
+    func authorizedSpeech(_ status: SFSpeechRecognizerAuthorizationStatus, _ id: Int) {
+        switch status {
+        case .authorized: authorizeMicrophone(id)
+        case .restricted: self.emit("authorized", id, "Speech Recognition is restricted by system policy.")
+        default: self.emit("authorized", id, "Allow Speech Recognition for Kinuvo in System Settings → Privacy & Security.")
+        }
     }
 
     func handle(_ command: [String: Any]) {
         let id = command["id"] as? Int ?? 0
         switch command["op"] as? String {
+        case "localAuthorize": authorizeMicrophone(id)
+        case "record":
+            stopListening(); var capture = command; capture["rawAudio"] = true; local.listen(id, capture)
+        case "playClip": local.playClip(id, command["text"] as? String ?? "")
+        case "localListen": stopListening(); local.listen(id, command)
+        case "localFinish": local.finish()
+        case "localSpeak": local.speak(id, command["text"] as? String ?? "", command)
         case "authorize":
-            SFSpeechRecognizer.requestAuthorization { status in
-                guard status == .authorized else {
-                    emit("authorized", id, "Allow Speech Recognition for Kinuvo Voice in System Settings → Privacy & Security."); return
+            let status = SFSpeechRecognizer.authorizationStatus()
+            if status == .notDetermined {
+                SFSpeechRecognizer.requestAuthorization { status in
+                    DispatchQueue.main.async { self.authorizedSpeech(status, id) }
                 }
-                AVCaptureDevice.requestAccess(for: .audio) { granted in
-                    emit("authorized", id, granted ? "" : "Allow microphone access for Kinuvo Voice in System Settings → Privacy & Security.")
-                }
-            }
-        case "listen": listen(id, command["untilPause"] as? Bool ?? true)
-        case "stop": stopListening()
+            } else { authorizedSpeech(status, id) }
+        case "listen": local.stopListening(); listen(id, command["untilPause"] as? Bool ?? true)
+        case "stop": stopListening(); local.stopListening()
         case "speak":
             let utterance = AVSpeechUtterance(string: command["text"] as? String ?? "")
             utterance.voice = AVSpeechSynthesisVoice(language: Locale.current.identifier.replacingOccurrences(of: "_", with: "-"))
             utterances[ObjectIdentifier(utterance)] = id
             synth.speak(utterance)
         case "stopSpeaking":
+            local.stopSpeaking()
             synth.stopSpeaking(at: .immediate)
             let pending = utterances.values; utterances.removeAll()
-            pending.forEach { emit("done", $0) }
+            pending.forEach { self.emit("done", $0) }
         default: break
         }
     }
@@ -112,18 +133,7 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) { done(utterance) }
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) { done(utterance) }
     func done(_ utterance: AVSpeechUtterance) {
-        if let id = utterances.removeValue(forKey: ObjectIdentifier(utterance)) { emit("done", id) }
+        if let id = utterances.removeValue(forKey: ObjectIdentifier(utterance)) { self.emit("done", id) }
     }
 }
 
-let app = NSApplication.shared
-app.setActivationPolicy(.accessory)
-let speech = Speech()
-DispatchQueue.global().async {
-    while let line = readLine() {
-        guard let data = line.data(using: .utf8), let command = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
-        DispatchQueue.main.async { speech.handle(command) }
-    }
-    DispatchQueue.main.async { speech.stopListening(); NSApp.terminate(nil) }
-}
-app.run()

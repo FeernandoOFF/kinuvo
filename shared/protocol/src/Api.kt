@@ -8,7 +8,6 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -138,6 +137,16 @@ sealed interface SessionChange {
 }
 
 object Api {
+    val VoiceModels = Method("voice.models", Unit.serializer(), VoiceModelsState.serializer())
+    val VoiceDownload = Method("voice.download", String.serializer(), Unit.serializer())
+    val VoiceCancelDownload = Method("voice.cancelDownload", Unit.serializer(), Unit.serializer())
+    val VoiceRemove = Method("voice.remove", String.serializer(), Unit.serializer())
+    val VoiceSelect = Method("voice.select", VoiceSelection.serializer(), Unit.serializer())
+    val VoiceLanguage = Method("voice.language", String.serializer(), Unit.serializer())
+    val VoiceSetup = Method("voice.setup", Unit.serializer(), kinuvo.protocol.VoiceSetup.serializer())
+    val Transcribe = Method("voice.transcribe", TranscribeParams.serializer(), String.serializer())
+    val Synthesize = Method("voice.synthesize", SynthesizeParams.serializer(), SpeechAudio.serializer())
+    val CancelVoice = Method("voice.cancel", CancelVoiceParams.serializer(), Unit.serializer())
     val Capabilities = Method("session.capabilities", CapabilitiesParams.serializer(), SessionCapabilities.serializer())
     val CapabilitiesChanged = EventType("capabilities.changed", Unit.serializer())
     val Models = Method("models.list", ModelsParams.serializer(), ModelsCatalog.serializer())

@@ -4,6 +4,7 @@ modules:
   - apps/desktop
   - apps/ios
   - apps/web
+  - harness/voice
   - harness/core
   - harness/execution/acp
   - harness/execution/api

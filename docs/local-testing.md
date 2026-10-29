@@ -40,6 +40,17 @@ mise run kotlin -- test -m app -p jvm
 mise run exec -- <command> <args>
 ```
 
+For desktop runs with another home, use `mise run desktop:test` for the stable
+`~/.kinuvo-test` home on port 8791, or `mise run desktop:personal` for
+`~/.kinuvo` on port 8787. Both use the same packaged macOS launcher and leave the
+checkout pins unchanged. Both homes retain settings and downloaded models between runs. Neither task
+launches if another Server already owns its home; neither stops an installed
+service. Arguments after `--` are forwarded to the desktop app. On macOS, Ctrl+C sends termination
+to the app instance started by that launcher. Cmd+Q closes the app and returns the terminal.
+These profiles use explicit `KINUVO_RUN_HOME` and `KINUVO_RUN_PORT` overrides
+throughout the build/launch process; ordinary conflicting environment variables
+remain rejected.
+
 `mise tasks` lists the actions defined in `mise.toml`. Tasks run from their checkout
 root, including when invoked from a subdirectory. They export
 `KINUVO_HOME` and `KINUVO_EMBEDDED_PORT` from the pins, rejecting conflicting inherited
