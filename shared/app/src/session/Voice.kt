@@ -176,7 +176,8 @@ class SpeechVoiceChat(
         val epoch = ++listenGeneration
         state.update { it.copy(holding = false, phase = VoicePhase.Thinking) }
         transcriber.finish(text, { result ->
-            if (listenGeneration == epoch && state.value.phase != VoicePhase.Off && !state.value.paused) {
+            // Holding talks through a pause, so the turn is sent even while paused.
+            if (listenGeneration == epoch && state.value.phase != VoicePhase.Off) {
                 state.update { it.copy(phase = VoicePhase.Listening) }
                 if (result.isBlank()) hear() else send(result)
             }
