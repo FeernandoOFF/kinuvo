@@ -534,3 +534,13 @@ research; existing accessibility refresh fallback is unchanged. Landscape Browse
 frames on phones retain substantial letterboxing while the canvas owns the available
 height. Detailed Agent step events are not fabricated. Close is offered for the
 selected controllable tab; other tabs require selecting and taking control first.
+
+## Final review fixes
+
+Validated Screen draw acknowledgements use a separate 15,000/minute allowance; invalid acknowledgements also consume the ordinary request allowance. The authenticated receive-loop regression passes with the runtime suite (87/87), proving valid frames survive the ordinary limit and the separate acknowledgement cap disconnects excess traffic.
+
+Recorded Screen/Browser terminology and ADR 0017. Migrated the Browser Maestro profile to screens.list/watch/frame/ack/unwatch, protocol 3 and management access, and updated the canvas assertion. Fixture JSON and embedded response/event JSON were parsed and checked locally. These fixture edits have not been run on a device; mobile runtime verification remains manual under the user's build-only scope.
+
+Continuous native Computer capture remains research only. For unattended Android, accessibility capture refresh remains necessary when local MediaProjection consent is unavailable; do not promise automatic projection grants or unattended restart.
+
+Unresolved questions: none for the current implementation. Native capture scope and performance targets require a later decision.
