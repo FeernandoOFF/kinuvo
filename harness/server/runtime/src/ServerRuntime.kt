@@ -298,7 +298,9 @@ class ServerRuntime(
             connection.send(frame)
             client.delivered(frame)
             if (frame is Frame.Response && frame.id == client.closeAfterResponse) client.disconnect()
-        } } finally { client.disconnect() } }
+        } } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { log.debug(e) { "Closing a connection: write failed" } }
+        finally { client.disconnect() } }
         var authed = false
         try {
             connection.incoming.collect { decoded ->
