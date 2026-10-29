@@ -39,6 +39,33 @@ class ApprovalsTest {
         override suspend fun execute(args: JsonObject): String { calls++; return "ran" }
     }
 
+    @Test fun takeoverDuringPendingApprovalRequiresFreshObservation() = runTest {
+        val gate = ScreenGate()
+        var ran = false
+        val tool = object : Tool {
+            override val identity = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), "screen")
+            override val descriptor = ToolDescriptor("screen", "screen action")
+            override val risk = Risk.High
+            override suspend fun bind(args: JsonObject): suspend () -> Unit {
+                val generation = gate.state.value.generation
+                return { check(gate.state.value.generation == generation) { "capture again" } }
+            }
+            override suspend fun execute(args: JsonObject): String { ran = true; return "ran" }
+        }
+        val broker = Broker<ApprovalDecision>()
+        val executor = kinuvo.harness.core.tools.ToolExecutor(listOf(tool), approvals = Approvals(policy(agent()), broker), emit = { event ->
+            if (event is AgentEvent.ApprovalRequested) {
+                val held = gate.acquire("device", 0)
+                gate.release("device", held.generation)
+                broker.respond(event.approvalId, ApprovalDecision.AllowOnce)
+            }
+        })
+        val result = executor.call(SessionEntry.ToolCall("call", "screen", "{}"))
+        assertTrue(result.isError)
+        assertTrue(result.output.contains("capture again"))
+        assertFalse(ran)
+    }
+
     @Test
     fun mandatoryApprovalsIgnoreFullToleranceAndTrustRules() = runTest {
         val tool = object : Tool {

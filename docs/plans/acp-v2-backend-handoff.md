@@ -1,4 +1,6 @@
-# ACP v2 Server handoff
+---
+title: "ACP v2 Server handoff"
+---
 
 ## Shipping path
 

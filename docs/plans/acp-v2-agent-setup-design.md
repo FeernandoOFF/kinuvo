@@ -1,4 +1,6 @@
-# ACP v2: Agent setup and inspection (design handoff)
+---
+title: "ACP v2: Agent setup and inspection (design handoff)"
+---
 
 Status: implemented in shared/app + shared/ui against the backend contract in [acp-v2-backend-handoff.md](acp-v2-backend-handoff.md); see Implementation below. Field names in later sections are the original proposals; the shipped contract is the handoff's. Mockup: [acp-v2-agent-setup-mockup.html](acp-v2-agent-setup-mockup.html).
 

@@ -1,67 +1,59 @@
 ---
-title: "Isolated local testing"
-description: "Kinuvo isolated local testing."
+title: "Local testing"
+description: "Choose personal or test data when launching Kinuvo."
 ---
 
-Use separate Git worktrees and data homes when testing incompatible versions.
-Each checkout keeps its own ignored pins; switching to a bugfix branch inside that
-checkout keeps the same data assignment. Choose a unique port for each Server,
-including embedded desktop Servers, even if their bind addresses differ.
+## Desktop homes
 
-## Configure a checkout
-
-Install mise and Python 3. From the checkout root:
+No checkout initialization is required. Choose the desktop home when launching:
 
 ```sh
-mise trust
-mise run init -- "$HOME/.kinuvo-experiment" 8790
-mise run home
+mise run desktop:personal
+mise run desktop:test
+mise run desktop:test -- --compose-hot-reload
 ```
 
-Initialization writes `.kinuvo-home` and `.kinuvo-port`; it does not create, copy,
-or migrate application data, and refuses to overwrite existing pins. Back up an
-existing home while its Server is stopped before testing a version that might
-change its stored data. Never open experiment-modified data with an older version.
+`desktop:personal` uses `~/.kinuvo` on port 8787. `desktop:test` uses
+`~/.kinuvo-test` on port 8791. Both forward arguments to the same desktop launcher,
+including the packaged macOS app needed for Voice chat permissions.
 
-Keep machine-specific worktree paths, device assignments, backup locations and
-operating notes in ignored `docs/local-testing.local.md`. Device assignments used
-by Mockstro belong in ignored `.maestro/mockstro.local.yaml`.
-
-## Run and manage
+Override each target independently in your shell or ignored `mise.local.toml`:
 
 ```sh
-mise run desktop -- --compose-hot-reload
-mise run server
-mise run cli -- pair --manage
+KINUVO_PERSONAL_HOME=/absolute/personal-data KINUVO_PERSONAL_PORT=8790 mise run desktop:personal
+KINUVO_TEST_HOME=/absolute/test-data KINUVO_TEST_PORT=8791 mise run desktop:test
+```
+
+These tasks explicitly select their target even if `KINUVO_HOME` is inherited.
+They do not copy or delete data. Homes isolate data and preferences, but not
+external services, files, shared credentials, or OS capture/speech permissions.
+Stop any Server using the selected home before launching another. Back up data
+before opening it with an incompatible version. Separate ports allow the two
+homes to run concurrently; never run multiple Servers against one home.
+
+## Other tasks
+
+Other tasks inherit the environment normally. `desktop` defaults to `~/.kinuvo`
+and port 8787; `server` uses its normal CLI defaults and accepts `--port`.
+
+```sh
+KINUVO_HOME=/absolute/test-data mise run server -- --port 8791
+KINUVO_HOME=/absolute/test-data mise run cli -- pair --manage
 mise run android -- --device-id <android-serial>
 mise run ios -- -p iosSimulatorArm64 --device-id <simulator-udid>
-mise run ios -- -p iosArm64 --device-id <iphone-id>
 mise run kotlin -- test -m app -p jvm
 mise run exec -- <command> <args>
+mise run test:tasks
 ```
 
-`mise tasks` lists the actions defined in `mise.toml`. Tasks run from their checkout
-root, including when invoked from a subdirectory. They export
-`KINUVO_HOME` and `KINUVO_EMBEDDED_PORT` from the pins, rejecting conflicting inherited
-values. The standalone Server uses the pinned port as well. Run only one Server
-per home: the `server` and `desktop` tasks check the advertised PID, but that check is not an
-exclusive lock and cannot prevent simultaneous launches or PID reuse.
-
-The mise tasks replace the former `./dev` launcher. Existing pins keep working;
-run `mise trust` once in each existing checkout, without rerunning `init`.
-Custom tasks that need the pinned environment can use `scripts/project-run.sh`.
-Keep personal task overrides in ignored `mise.local.toml`.
-
-Repository Mockstro and packaging entry points load the same pins when present.
-The vendor-managed `./kotlin` wrapper is unchanged, so fresh-clone builds and CI
-need no local configuration. In a pinned checkout, agents and project actions must
-use `mise run kotlin -- ...` rather than invoking that wrapper directly. Directly launched
-installed apps, jars and arbitrary scripts can bypass these guards. These rules
-are launch conventions, not filesystem access controls.
-
-Pins isolate Kinuvo's data and preferences, not external services, files or shared
-Keychain/Codex credentials. Finish interactive device control before starting
-Mockstro; see [.maestro/README.md](../.maestro/README.md) for the device workflow.
+Tasks run from the checkout root and forward arguments without requiring home or
+port files. The vendor-managed `./kotlin` wrapper is unchanged. Packaging and
+Mockstro inherit the caller's environment. Historical `.kinuvo-home` and
+`.kinuvo-port` files are no longer read; existing data directories are untouched.
+Keep machine-specific operating notes in ignored `docs/local-testing.local.md`
+and device assignments in ignored `.maestro/mockstro.local.yaml`. Use only devices
+designated for this checkout and finish interactive device control before Mockstro;
+see [.maestro/README.md](../.maestro/README.md).
 
 ## Standalone services and mobile apps
 
