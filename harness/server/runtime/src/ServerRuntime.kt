@@ -144,7 +144,6 @@ class ServerRuntime(
             harness.knowledge.onChange { broadcast(Api.KnowledgeChanged, it) }
             harness.tasks.onChange { broadcast(Api.TaskChanged, it) }
             harness.artifacts.onChange { broadcast(Api.ArtifactChanged, it) }
-            harness.browser?.onChange { broadcast(Api.BrowserChanged, it) }
             harness.computers.onChange = { broadcast(Api.ComputersChanged, it) }
             if (schedule) { scheduler.start(); dispatcher.start() }
             scheduling = schedule
@@ -553,14 +552,6 @@ class ServerRuntime(
             if (client.deviceId == p.id) client.closeAfterResponse = r.id
             broadcast(Api.DevicesChanged, Unit)
         }
-        Api.BrowserTabs.name -> respond(r, Api.BrowserTabs) { p ->
-            browserOwner(p)
-            requireNotNull(harness.browser) { "Browser is unavailable on this Server" }.tabs(p)
-        }
-        Api.BrowserCommand.name -> respond(r, Api.BrowserCommand) { p ->
-            browserOwner(p.owner)
-            requireNotNull(harness.browser) { "Browser is unavailable on this Server" }.command(p, user = true)
-        }
         Api.Computers.name -> respond(r, Api.Computers) { harness.computers.list() }
         Api.WatchComputer.name -> respond(r, Api.WatchComputer) { if (it.watch) harness.computers.watch(it.computerId, client.watcher) else harness.computers.unwatch(it.computerId, client.watcher) }
         Api.ComputerInput.name -> respond(r, Api.ComputerInput) { harness.computers.input(it.computerId, it.action) }
@@ -606,11 +597,6 @@ class ServerRuntime(
             ExecutionRequestKind.Question -> harness.questions.respond(answer.requestId, ProtocolJson.decodeFromJsonElement(QuestionsParams.serializer(), answer.answer).also { require(it.questionsId == answer.requestId) }.answers)
             null -> false
         }
-    }
-
-    private suspend fun browserOwner(owner: BrowserOwner) {
-        val a = agent(owner.agentId)
-        check(harness.store.entries(a, owner.sessionId).isNotEmpty()) { "No Session '${owner.sessionId}'" }
     }
 
     private suspend fun send(p: SendParams): SendResult {

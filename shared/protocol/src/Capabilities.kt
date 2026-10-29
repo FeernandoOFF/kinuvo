@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
 @Serializable enum class ExecutionLocation { ServerHost, Device, External }
 @Serializable enum class ExecutionLifetime { Foreground, BackgroundBudget, Continuous }
 @Serializable enum class WakeSupport { None, BestEffort, Scheduled }
-@Serializable enum class ServerFeature { Attachments, Skills, Mcp, Knowledge, Tasks, Artifacts, Routines, DeviceTools, Shell, Pairing, Computer, Browser }
+@Serializable enum class ServerFeature { Attachments, Skills, Mcp, Knowledge, Tasks, Artifacts, Routines, DeviceTools, Shell, Pairing, Computer }
 
 @Serializable
 data class CapabilityState(

@@ -8,7 +8,6 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
-import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -145,9 +144,6 @@ object Api {
     val VoiceSelect = Method("voice.select", VoiceSelection.serializer(), Unit.serializer())
     val VoiceLanguage = Method("voice.language", String.serializer(), Unit.serializer())
     val VoiceSetup = Method("voice.setup", Unit.serializer(), kinuvo.protocol.VoiceSetup.serializer())
-    val BrowserTabs = Method("browser.tabs", BrowserOwner.serializer(), ListSerializer(BrowserTab.serializer()))
-    val BrowserCommand = Method("browser.command", kinuvo.protocol.BrowserCommand.serializer(), BrowserFrame.serializer().nullable)
-    val BrowserChanged = EventType("browser.changed", BrowserOwner.serializer())
     val Transcribe = Method("voice.transcribe", TranscribeParams.serializer(), String.serializer())
     val Synthesize = Method("voice.synthesize", SynthesizeParams.serializer(), SpeechAudio.serializer())
     val CancelVoice = Method("voice.cancel", CancelVoiceParams.serializer(), Unit.serializer())
