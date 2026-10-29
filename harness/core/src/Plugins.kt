@@ -78,7 +78,6 @@ interface HarnessPlugin {
     val notifications: List<NotificationProvider> get() = emptyList()
     val mcp: McpManagement? get() = null
     val execCheck: ExecCheck? get() = null
-    val browser: BrowserService? get() = null
     /** Whether its tools go to the tool catalog once an Agent has too many to send each to the model, e.g. MCP servers'. */
     val catalogued: Boolean get() = false
     /** Options it adds to integrations its typed providers don't describe, e.g. the exec backends it can run. */

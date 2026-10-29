@@ -341,9 +341,6 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 ))
                             }
                         }
-                        entry<Route.Browser> { route ->
-                            kinuvo.ui.browser.BrowserScreen(koinViewModel<kinuvo.app.browser.BrowserViewModel>(key = "browser/${app.serverLifetime}/${route.agentId}/${route.sessionId}") { parametersOf(route) }, back.takeIf { history.canGoBack })
-                        }
                         entry<Route.Computers> { route ->
                             val client = (connection as? Connection.Ready)?.client
                             if (client == null) Loading(connection)

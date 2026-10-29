@@ -56,10 +56,10 @@ object ToolNames {
     const val CALL_TOOL = "call_tool"
 
     /** The built-in tools an Agent's `tools:` can turn on. */
-    val OPTIONAL = listOf(MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, RUN_CODE, COMPUTER, "browser")
+    val OPTIONAL = listOf(MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, RUN_CODE, COMPUTER)
     val DEFAULT = OPTIONAL
     /** Groups a plugin provides, offered only where one is installed. */
-    val FROM_PLUGINS = setOf(RUN_CODE, "browser")
+    val FROM_PLUGINS = setOf(RUN_CODE)
 }
 
 enum class ToolKind { Standard, Shell, ComputerAction, AskUser }

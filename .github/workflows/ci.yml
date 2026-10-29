@@ -26,8 +26,6 @@ jobs:
             ~/AppData/Local/JetBrains
           key: kotlin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/module.yaml', 'project.yaml') }}
           restore-keys: kotlin-${{ runner.os }}-${{ runner.arch }}-
-      # Ubuntu 24.04 restricts unprivileged user namespaces, which Chromium's sandbox needs for the browser tests.
-      - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: ./kotlin test -p jvm
       - if: always() && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
