@@ -13,7 +13,7 @@ data class LiveViewState(
     val screens: List<ScreenInfo> = emptyList(), val selected: ScreenRef? = null,
     val connected: Boolean = false, val loaded: Boolean = false, val device: String? = null,
     val subscription: ScreenSubscription? = null, val frame: ScreenFrame? = null,
-    val displayed: ScreenFrame? = null, val pending: Boolean = false, val error: String? = null,
+    val frameReceivedAt: String? = null, val displayed: ScreenFrame? = null, val pending: Boolean = false, val error: String? = null,
     val thumbnails: Map<ScreenRef, ScreenFrame> = emptyMap(),
     val requestReason: String? = null, val owner: BrowserOwner? = null,
 ) {
@@ -49,7 +49,7 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
 
     init {
         viewModelScope.launch { repository.frames.collect { frame ->
-            if (state.value.accepts(frame)) state.update { it.copy(frame = frame) }
+            if (state.value.accepts(frame)) state.update { it.copy(frame = frame, frameReceivedAt = kotlin.time.Clock.System.now().toString()) }
             else if (previews[frame.screen]?.let { it.id == frame.subscription && it.epoch == frame.epoch } == true)
                 state.update { it.copy(thumbnails = it.thumbnails + (frame.screen to frame)) }
             else if (frame.screen == awaitingPreview) earlyPreview = frame
@@ -86,14 +86,15 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
     }
     fun retry() { viewModelScope.launch { attempt { lock.withLock { reconcile(); restart() } } } }
     fun select(ref: ScreenRef) {
-        if (ref.owner != null && ref.owner != owner) return
+        if (state.value.screens.none { it.ref == ref }) return
+        if (owner != null && ref.owner != null && ref.owner != owner) return
         revision++
         state.update { it.copy(selected = ref, frame = null, displayed = null, error = null, pending = false) }
         viewModelScope.launch { attempt { lock.withLock { restart() } } }
     }
     private suspend fun reconcile() {
         val device = repository.device()
-        val all = repository.list(owner).filter { it.ref.owner == null || it.ref.owner == owner }
+        val all = repository.list(owner).filter { owner == null || it.ref.owner == null || it.ref.owner == owner }
         state.update { s ->
             val selected = s.selected?.takeIf { ref -> all.any { it.ref == ref } } ?: all.firstOrNull { owner != null && it.ref.owner == owner }?.ref ?: all.firstOrNull()?.ref
             s.copy(screens = all, selected = selected, device = device, loaded = true,
@@ -123,7 +124,7 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
             sequence = 0
             state.update { it.copy(subscription = sub) }
             earlyStatus?.takeIf { it.subscription == sub.id }?.let(::streamStatus)
-            early?.takeIf { state.value.accepts(it) }?.let { frame -> state.update { it.copy(frame = frame) } }
+            early?.takeIf { state.value.accepts(it) }?.let { frame -> state.update { it.copy(frame = frame, frameReceivedAt = kotlin.time.Clock.System.now().toString()) } }
         } finally { starting = false; early = null }
         preview()
     }

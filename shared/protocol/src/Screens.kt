@@ -10,7 +10,7 @@ enum class ScreenDelivery { Continuous, CaptureRefresh }
 
 @Serializable
 data class ScreenCapabilities(val delivery: ScreenDelivery, val inputs: Set<String>, val navigation: Boolean = false,
-    val tabs: Boolean = false, val windows: Boolean = false)
+    val tabs: Boolean = false, val windows: Boolean = false, val keys: List<String> = emptyList(), val modifiers: List<String> = emptyList())
 
 @Serializable
 enum class ScreenStatus { Provisioning, Ready, Unavailable, Failed }
@@ -21,7 +21,7 @@ data class ScreenControl(val generation: Long = 0, val holder: String? = null, v
 
 @Serializable
 data class ScreenInfo(val ref: ScreenRef, val title: String, val capabilities: ScreenCapabilities,
-    val status: ScreenStatus, val control: ScreenControl = ScreenControl(), val active: Boolean = false)
+    val status: ScreenStatus, val control: ScreenControl = ScreenControl(), val active: Boolean = false, val currentUrl: String? = null)
 
 /** Pixels and coordinate metadata are one indivisible source sample. Scroll deltas use CSS/display pixels. */
 @Serializable

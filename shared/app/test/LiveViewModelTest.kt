@@ -23,7 +23,8 @@ class LiveViewModelTest {
         var partial = false
         var emitWhileStarting = false
         override suspend fun device() = "device"
-        override suspend fun list(owner: BrowserOwner?) = listOf(ScreenInfo(ref, "Phone", ScreenCapabilities(ScreenDelivery.CaptureRefresh, setOf("tap")), ScreenStatus.Ready, control))
+        var screens: List<ScreenInfo>? = null
+        override suspend fun list(owner: BrowserOwner?) = screens ?: listOf(ScreenInfo(ref, "Phone", ScreenCapabilities(ScreenDelivery.CaptureRefresh, setOf("tap")), ScreenStatus.Ready, control))
         override suspend fun watch(ref: ScreenRef, thumbnail: Boolean): ScreenSubscription {
             val sub = ScreenSubscription("s${++epoch}", "e$epoch")
             watches.add(sub.id)
@@ -45,6 +46,25 @@ class LiveViewModelTest {
         val store = ViewModelStore().also { it.put("live", vm) }
         try { runCurrent(); fake.connected.value = true; runCurrent(); block(fake, vm) }
         finally { store.clear(); Dispatchers.resetMain() }
+    }
+    @Test fun globalBrowserSelectionAndSessionIsolation() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val owner = BrowserOwner("agent", "session")
+        val other = BrowserOwner("agent", "other")
+        val first = ScreenRef("browser", "first", owner)
+        val second = ScreenRef("browser", "second", other)
+        val fake = Fake(first)
+        fake.screens = listOf(first, second).map { ScreenInfo(it, it.id, ScreenCapabilities(ScreenDelivery.Continuous, emptySet()), ScreenStatus.Ready) }
+        val global = LiveViewModel(fake)
+        val scoped = LiveViewModel(fake, owner)
+        val store = ViewModelStore().also { it.put("global", global); it.put("scoped", scoped) }
+        try {
+            runCurrent(); fake.connected.value = true; runCurrent()
+            assertEquals(listOf(first, second), global.state.value.screens.map { it.ref })
+            global.select(second); runCurrent(); assertEquals(second, global.state.value.selected)
+            assertEquals(listOf(first), scoped.state.value.screens.map { it.ref })
+            scoped.select(second); runCurrent(); assertEquals(first, scoped.state.value.selected)
+        } finally { store.clear(); Dispatchers.resetMain() }
     }
     @Test fun onlyDrawnEpochCanSendAndDisconnectInvalidatesImmediately() = run { fake, vm ->
         val frame = fake.frame()
@@ -125,8 +145,11 @@ class LiveViewModelTest {
         val original = vm.state.value.selected
         vm.select(ScreenRef("browser", "foreign", BrowserOwner("a", "s")))
         assertEquals(original, vm.state.value.selected)
+        val second = ScreenRef("computer", "two")
+        fake.screens = vm.state.value.screens + vm.state.value.screens.first().copy(ref = second)
+        vm.retry(); runCurrent()
         val old = fake.frame()
-        vm.select(ScreenRef("computer", "two")); runCurrent()
+        vm.select(second); runCurrent()
         fake.frames.emit(old); runCurrent()
         assertNull(vm.state.value.frame)
     }

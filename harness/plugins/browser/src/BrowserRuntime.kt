@@ -81,7 +81,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
 
     override fun screen(owner: BrowserOwner, tabId: String): ScreenSource = object : ScreenSource {
         override val ref = ScreenRef("browser", tabId, owner)
-        override val capabilities = ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap", "type", "key", "scroll"), navigation = true, tabs = true)
+        override val capabilities = ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap", "type", "key", "scroll"), navigation = true, tabs = true, keys = listOf("Tab", "Escape", "Backspace", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Enter"), modifiers = listOf("Control", "Meta", "Alt", "Shift"))
         override fun frames(thumbnail: Boolean): Flow<ScreenSample> = flow {
             withContext(dispatcher) {
                 check(!closed) { "Browser is closed" }
@@ -282,7 +282,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
             }
         }
         page.onClose { gates.remove(ScreenRef("browser", tab.id, owner)); tab.gate.close(); tabs.remove(tab.id); streams.remove(tab.id); persist(); changed(owner) }
-        page.onFrameNavigated { if (it == page.mainFrame()) persist() }
+        page.onFrameNavigated { if (it == page.mainFrame()) { persist(); changed(owner) } }
         page.onDialog { it.dismiss() }
         return tab
     }
