@@ -2,8 +2,8 @@ package kinuvo.app.connection
 
 import kinuvo.protocol.*
 
-/** `host[:port]` or a full URL → `ws://host:port/ws`. */
-fun normalizeUrl(input: String): String {
+/** `host[:port]` or a full URL → `ws://host:port/ws`; plain http to a public host only with [allowCleartext]. */
+fun normalizeUrl(input: String, allowCleartext: Boolean = false): String {
     val text = input.trim().removeSuffix("/")
     val bare = "://" !in text
     val bareHost = if (text.startsWith('[')) text.substringBefore(']') + "]" else text.substringBefore(':').substringBefore('/')
@@ -25,5 +25,5 @@ fun normalizeUrl(input: String): String {
     require(number != null && number in 1..65535) { "Invalid server port" }
     val path = rest.substringAfter('/', "").let { if (it.isEmpty()) "ws" else it }
     require('?' !in path && '#' !in path) { "Paste a pairing link or a server URL" }
-    return "${if (secure) "wss" else "ws"}://$host:$number/$path".also(::requireSecureTransport)
+    return "${if (secure) "wss" else "ws"}://$host:$number/$path".also { requireSecureTransport(it, allowCleartext) }
 }

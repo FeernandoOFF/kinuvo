@@ -1,5 +1,6 @@
 package kinuvo.ui.knowledge
 
+import androidx.compose.foundation.lazy.itemsIndexed
 import kinuvo.app.connection.*
 import kinuvo.app.knowledge.*
 import kinuvo.app.navigation.*
@@ -42,7 +43,7 @@ fun KnowledgeScreen(app: AppViewModel, knowledge: KnowledgeViewModel, onOpen: (R
     }
     KnowledgeContent(
         KnowledgeUi(state, appState.agents, now),
-        KnowledgeActions(onBack = onBack, onSearch = knowledge::search, onOpen = { onOpen(Route.Knowledge(it)) }, onUndo = knowledge::undo, onSettings = onSettings),
+        KnowledgeActions(onBack = onBack, onSearch = knowledge::search, onFilter = knowledge::filter, onOpen = { onOpen(Route.Knowledge(it)) }, onUndo = knowledge::undo, onSettings = onSettings),
     )
 }
 
@@ -57,6 +58,8 @@ class KnowledgeActions(
     /** Opens a note by ref. */
     val onOpen: (String) -> Unit = {},
     val onUndo: (String) -> Unit = {},
+    /** Shows one Agent's changes, or every Agent's for null. */
+    val onFilter: (String?) -> Unit = {},
     val onSettings: () -> Unit = {},
 )
 
@@ -67,7 +70,7 @@ fun KnowledgeContent(ui: KnowledgeUi, actions: KnowledgeActions) {
         val wide = maxWidth >= 900.dp
         val open = ui.state.route.note
         if (wide) Row(Modifier.fillMaxSize()) {
-            Box(Modifier.width(380.dp).fillMaxHeight().background(color(sidebarColor))) { Overview(ui, actions, back = actions.onBack) }
+            Box(Modifier.width(380.dp).fillMaxHeight().background(color(sidebarColor))) { Overview(ui, actions) }
             VerticalSeparator()
             Box(Modifier.weight(1f)) {
                 if (open != null) NotePane(ui, actions, back = null)
@@ -76,40 +79,36 @@ fun KnowledgeContent(ui: KnowledgeUi, actions: KnowledgeActions) {
                 }
             }
         } else if (open != null) NotePane(ui, actions, back = actions.onBack)
-        else Overview(ui, actions, back = actions.onBack)
+        else Overview(ui, actions)
     }
 }
 
 @Composable
-private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Unit)?) {
+private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions) {
     val query = rememberTextFieldState(ui.state.query)
     LaunchedEffect(query) { snapshotFlow { query.text.toString() }.collect { if (it != ui.state.query) actions.onSearch(it) } }
     Column(Modifier.fillMaxSize()) {
-        TitleBarRow(trailing = false) {
-            back?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
-            Text("Knowledge", Modifier.padding(start = 4.dp).weight(1f), fontWeight = FontWeight.Normal)
-            HeaderButton(Lucide.Settings, "Knowledge settings", actions.onSettings)
-        }
-        Column(Modifier.padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        PageHeader(Lucide.BookOpen, "Knowledge", scope = AgentScope(ui.agents, ui.state.agent, "All agents", actions.onFilter).takeIf { ui.agents.size > 1 },
+            actions = listOf(PageAction(Lucide.Settings, "Knowledge settings", actions.onSettings)))
+        Column(Modifier.padding(horizontal = 12.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Input(query, "Search people, projects, places…", capitalize = true)
             ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         }
-        LazyColumn(Modifier.weight(1f).padding(horizontal = 8.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        LazyColumn(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             if (ui.state.query.isNotBlank()) {
                 item { SectionLabel("Results") }
-                items(ui.state.results, key = { "r/${it.ref}" }) { n ->
-                    ListRow(selected = n.ref == ui.state.route.note, onClick = { actions.onOpen(n.ref) }, leading = { Icon(n.type.icon(), Modifier.size(16.dp)) }) {
-                        Text(n.title, Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis)
-                        Text(n.type, color = color(mutedColor), fontSize = 12.sp)
+                itemsIndexed(ui.state.results, key = { _, n -> "r/${n.ref}" }) { i, n ->
+                    Box(Modifier.groupItem(i, ui.state.results.size)) {
+                        GroupRow(n.title, { actions.onOpen(n.ref) }, n.type, n.type.icon(), selected = n.ref == ui.state.route.note)
                     }
                 }
                 if (ui.state.results.isEmpty()) item { Muted("No matches.") }
             }
             item { SectionLabel("Recent changes") }
-            val changes = ui.state.changes
+            val changes = ui.state.shownChanges
             if (changes == null) item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Spinner() } }
-            else if (changes.isEmpty()) item { Muted("Agents haven't changed anything yet. They save what they learn as you talk.") }
-            else items(changes, key = { "c/${it.id}" }) { ChangeRow(it, ui, actions) }
+            else if (changes.isEmpty()) item { Muted(if (ui.state.agent != null) "This Agent hasn't changed anything yet." else "Agents haven't changed anything yet. They save what they learn as you talk.") }
+            else itemsIndexed(changes, key = { _, c -> "c/${c.id}" }) { i, c -> Box(Modifier.groupItem(i, changes.size)) { ChangeRow(c, ui, actions) } }
         }
     }
 }
@@ -117,11 +116,8 @@ private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
 @Composable
 private fun ChangeRow(change: KnowledgeChange, ui: KnowledgeUi, actions: KnowledgeActions) {
     val agent = ui.agents.firstOrNull { it.id == change.agentId }?.name ?: change.agentId
-    ListRow(selected = change.ref == ui.state.route.note, onClick = { actions.onOpen(change.ref) }) {
-        Column(Modifier.weight(1f)) {
-            Text(change.summary, maxLines = 2, overflow = TextOverflow.Ellipsis, color = if (change.undone) color(mutedColor) else color(onBackgroundColor))
-            Text(listOfNotNull(agent, relative(change.at, ui.now)).joinToString(" · "), color = color(mutedColor), fontSize = 12.sp)
-        }
+    GroupRow(change.summary, { actions.onOpen(change.ref) }, listOfNotNull(agent, relative(change.at, ui.now)).joinToString(" · "),
+        selected = change.ref == ui.state.route.note, chevron = false, titleLines = 2, tint = if (change.undone) color(mutedColor) else androidx.compose.ui.graphics.Color.Unspecified) {
         if (change.undone) Pill("Undone")
         else Button(onClick = { actions.onUndo(change.id) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Undo") }
     }

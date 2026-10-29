@@ -1,5 +1,6 @@
 package kinuvo.ui
 
+import kinuvo.ui.navigation.*
 import com.composables.ui.theme.LocalInteractionMode
 import com.composables.ui.theme.InteractionMode
 import kinuvo.protocol.AgentInfo
@@ -50,28 +51,21 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatChromeTest {
-    @Test fun phoneTodayOffersBackAndKeepsTheHomePillOpeningTheDrawer() = javax.swing.SwingUtilities.invokeAndWait {
-        val returnPath = mutableStateOf(true)
+    @Test fun phoneTodayNeverOffersBackAndItsMenuAndPillOpenTheDrawer() = javax.swing.SwingUtilities.invokeAndWait {
         var drawerOpened = false
         ImageComposeScene(390, 844, Density(1f), content = {
             HarnessTheme(dark = true) {
-                CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) {
-                    HomeContent(HomeUi(Today(kotlinx.datetime.LocalDate(2026, 10, 27))),
-                        HomeActions(onToggleShell = { drawerOpened = true }, onBack = { returnPath.value = false }.takeIf { returnPath.value }), wide = false)
+                CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch, LocalHomeChrome provides HomeChrome({ drawerOpened = true }, wide = false)) {
+                    HomeContent(HomeUi(Today(kotlinx.datetime.LocalDate(2026, 10, 27))), HomeActions(), wide = false)
                 }
             }
         }).use { scene ->
             var time = 0L
             fun frame() { repeat(5) { scene.render(time.also { time += 200_000_000 }) } }
             frame()
-            assertNotNull(scene.node("Back"))
-            assertNull(scene.node("Home and agents"))
+            assertNull(scene.node("Back"))
             scene.click("Home, Today")
             assertTrue(drawerOpened)
-            scene.click("Back"); frame()
-            assertFalse(returnPath.value)
-            assertNull(scene.node("Back"))
-            assertNotNull(scene.node("Home and agents"))
             drawerOpened = false
             scene.click("Home and agents")
             assertTrue(drawerOpened)
@@ -221,7 +215,7 @@ class ChatChromeTest {
             assertTrue(scene.node("Evening journal")!!.boundsInRoot.width >= 80f)
             assertNotNull(scene.node("Echo's settings"))
             assertNotNull(scene.node("Routine run"))
-            assertNotNull(scene.node("Statistics"))
+            assertNull(scene.node("Statistics"), "Statistics live in the More menu")
             assertNotNull(scene.node("More"))
         }
     }

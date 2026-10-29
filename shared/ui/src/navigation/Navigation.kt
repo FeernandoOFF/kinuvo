@@ -87,6 +87,15 @@ class History(val backStack: SnapshotStateList<Route>, private val ahead: Snapsh
         while (backStack.size > MAX_STACK) backStack.removeAt(0)
     }
 
+    /**
+     * Goes to a place picked in the shell, e.g. a Session or Home's Board. On [compact] layouts it becomes the only screen,
+     * as the shell is where the others are, so the edge swipe reveals the shell instead of going back.
+     */
+    fun switchTo(route: Route) {
+        if (route is Route.Chat) open(route) else open(route)
+        if (compact) while (backStack.size > 1) backStack.removeAt(0)
+    }
+
     fun reset(route: Route) {
         ahead.clear()
         backStack.reset(route)

@@ -91,7 +91,7 @@ data class ShellState(
     private val unattached get() = attached.mapNotNull { it.sessionId }.toSet().let { ids -> sessions.filter { it.id !in ids } }
     val favorites get() = unattached.filter { it.favorite }
     val chats get() = unattached.filter { !it.favorite }
-    val settings get() = view is Route.Settings
+    val settings get() = view is Route.Settings && !view.home
     private val everySession get() = lists.values.flatMap { it.sessions }.distinctBy { it.id }
     /** Sessions across Agents waiting on an Approval or an answer, and those running, for Home's column. */
     val waiting get() = everySession.filter { it.status == SessionStatus.Waiting }
@@ -119,14 +119,14 @@ class ShellActions(
     val onKnowledge: () -> Unit = {},
     val onArtifacts: () -> Unit = {},
     val onComputers: () -> Unit = {},
+    val onRoutines: () -> Unit = {},
+    val onTools: () -> Unit = {},
     /** Opens one Agent's Session from Home's column. */
     val onOpenSession: (agentId: String, sessionId: String) -> Unit = { _, _ -> },
     val onSelectServer: (Server) -> Unit = {},
     val onAddServer: () -> Unit = {},
     /** Opens a saved Server's settings. */
     val onServerSettings: (Server.Remote) -> Unit = {},
-    val onRefreshPairing: (Boolean) -> Unit = {},
-    val onPairingBase: (String) -> Unit = {},
     val onRenameServer: (Server.Remote, String) -> Unit = { _, _ -> },
     val onForgetServer: (Server.Remote) -> Unit = {},
     /** Starts a Session with the shown Agent by sending the text, opening it when asked; false when it couldn't. */
@@ -304,6 +304,8 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     if (state.management && state.capabilities?.features?.contains(ServerFeature.Computer) == true)
                         Pinned(Lucide.MonitorSmartphone, "Computers", view is Route.Computers, true, actions.onComputers)
+                    Pinned(Lucide.AlarmClock, "Routines", (view as? Route.Settings)?.section == SettingsSection.Routines, state.capabilities.supports(ServerFeature.Routines), actions.onRoutines)
+                    Pinned(Lucide.Wrench, "Tools & MCP", (view as? Route.Settings)?.section == SettingsSection.Hub, true, actions.onTools)
                     Pinned(Lucide.BookOpen, "Knowledge", view is Route.Knowledge, state.capabilities.supports(ServerFeature.Knowledge), actions.onKnowledge)
                     Pinned(Lucide.Shapes, "Artifacts", view is Route.Artifacts, state.capabilities.supports(ServerFeature.Artifacts), actions.onArtifacts)
                 }
@@ -510,10 +512,9 @@ private fun ServerPicker(
     actions: ShellActions,
 ) {
     var open by remember { mutableStateOf(false) }
-    var showPairing by remember { mutableStateOf(false) }
     DropdownMenu(
         expanded = open,
-        onExpandedChange = { open = it; if (!it) showPairing = false },
+        onExpandedChange = { open = it },
         panel = {
             DropdownMenuPanel {
                 Column(Modifier.widthIn(min = 260.dp, max = 340.dp).heightIn(max = 680.dp).verticalScroll(rememberScrollState())) {
@@ -539,28 +540,11 @@ private fun ServerPicker(
                         }
                     }
                     DropdownMenuItem(onClick = { open = false; actions.onAddServer() }) { MenuLabel(Lucide.Plus, "Connect to another server") }
-                    if (menu.canPair || menu.pairing != null) {
-                        HorizontalSeparator(Modifier.padding(vertical = 8.dp))
-                        Button(
-                            onClick = { showPairing = !showPairing; if (showPairing) actions.onRefreshPairing(false) },
-                            style = ButtonStyle.Ghost,
-                            modifier = Modifier.fillMaxWidth().semantics { stateDescription = if (showPairing) "Expanded" else "Collapsed" },
-                        ) {
-                            Text("Pair a device", fontWeight = FontWeight.Normal, fontSize = 13.sp)
-                            Spacer(Modifier.width(8.dp))
-                            Icon(if (showPairing) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp))
-                        }
-                        if (showPairing) menu.pairing?.let { info ->
-                            Column(Modifier.padding(12.dp)) {
-                                PairingPanel(info, menu.pairingBase, actions.onPairingBase, { actions.onRefreshPairing(true) }, menu.pairingError)
-                            }
-                        }
-                    }
                 }
             }
         },
     ) {
-        RailItem("Server: ${menu.active?.label ?: "none"}", selected = false, news = false, onClick = { showPairing = false; open = true }) {
+        RailItem("Server: ${menu.active?.label ?: "none"}", selected = false, news = false, onClick = { open = true }) {
             Icon(Lucide.Server, Modifier.size(20.dp), tint = color(mutedColor))
         }
     }

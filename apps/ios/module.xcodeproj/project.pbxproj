@@ -13,6 +13,7 @@
 		A8E591E0DDAD4A838B177003 /* ../../shared/ui/src@ios/AppleAttachmentPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177004 /* ../../shared/ui/src@ios/AppleAttachmentPicker.swift */; };
 		A8E591E0DDAD4A838B177105 /* ../../shared/ui/src@ios/AppleBackgroundRuns.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177106 /* ../../shared/ui/src@ios/AppleBackgroundRuns.swift */; };
 		A8E591E0DDAD4A838B177103 /* ../../shared/ui/src@ios/AppleFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177104 /* ../../shared/ui/src@ios/AppleFolderAccess.swift */; };
+		B7C0DE51A9F04E2E9A3C2201 /* ../../shared/ui/src@ios/AppleQrScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C0DE51A9F04E2E9A3C2202 /* ../../shared/ui/src@ios/AppleQrScanner.swift */; };
 		A8E591E0DDAD4A838B177009 /* AppleSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B17700A /* AppleSpeech.swift */; };
 /* End PBXBuildFile section */
 
@@ -25,6 +26,7 @@
 		A8E591E0DDAD4A838B177004 /* ../../shared/ui/src@ios/AppleAttachmentPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/AppleAttachmentPicker.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B177106 /* ../../shared/ui/src@ios/AppleBackgroundRuns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/AppleBackgroundRuns.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B177104 /* ../../shared/ui/src@ios/AppleFolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/AppleFolderAccess.swift"; sourceTree = SOURCE_ROOT; };
+		B7C0DE51A9F04E2E9A3C2202 /* ../../shared/ui/src@ios/AppleQrScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/AppleQrScanner.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B17700A /* AppleSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/AppleSpeech.swift"; sourceTree = SOURCE_ROOT; };
 /* End PBXFileReference section */
 
@@ -63,6 +65,7 @@
 				A8E591E0DDAD4A838B177004 /* ../../shared/ui/src@ios/AppleAttachmentPicker.swift */,
 				A8E591E0DDAD4A838B177106 /* ../../shared/ui/src@ios/AppleBackgroundRuns.swift */,
 				A8E591E0DDAD4A838B177104 /* ../../shared/ui/src@ios/AppleFolderAccess.swift */,
+				B7C0DE51A9F04E2E9A3C2202 /* ../../shared/ui/src@ios/AppleQrScanner.swift */,
 				A8E591E0DDAD4A838B177008 /* AppleKeychain.swift */,
 				A8E591E0DDAD4A838B177006 /* AppleLanguageModel.swift */,
 				A8E591E0DDAD4A838B17700A /* AppleSpeech.swift */,
@@ -163,6 +166,7 @@
 				A8E591E0DDAD4A838B177003 /* ../../shared/ui/src@ios/AppleAttachmentPicker.swift in Sources */,
 				A8E591E0DDAD4A838B177105 /* ../../shared/ui/src@ios/AppleBackgroundRuns.swift in Sources */,
 				A8E591E0DDAD4A838B177103 /* ../../shared/ui/src@ios/AppleFolderAccess.swift in Sources */,
+				B7C0DE51A9F04E2E9A3C2201 /* ../../shared/ui/src@ios/AppleQrScanner.swift in Sources */,
 				A8E591E0DDAD4A838B177007 /* AppleKeychain.swift in Sources */,
 				A8E591E0DDAD4A838B177005 /* AppleLanguageModel.swift in Sources */,
 				A8E591E0DDAD4A838B177009 /* AppleSpeech.swift in Sources */,

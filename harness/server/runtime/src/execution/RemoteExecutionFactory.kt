@@ -11,7 +11,7 @@ import kotlinx.serialization.json.JsonElement
 class RemoteExecutionFactory(private val links: RemoteLinks, private val serverId: String, private val readiness: suspend (String, Boolean, String) -> Unit = { _, _, _ -> }) : ExecutionFactory {
     private suspend fun connect(id: String): KinuvoClient {
         val link = links.link(id)
-        val client = KinuvoClient(link.url, "Kinuvo Server link", token = link.token)
+        val client = KinuvoClient(link.url, "Kinuvo Server link", token = link.token, allowCleartext = true)
         try {
             val result = withTimeout(15_000) { client.connect() }
             require(result.capabilities.serverId != serverId) { "A Server cannot link to itself" }

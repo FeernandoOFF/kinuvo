@@ -40,8 +40,8 @@ fun personalityPrompt(choices: List<Int>): String = choices.mapIndexed { index, 
     - When unsure, say so. Agree because it's right, not because the user said it.
 """.trimIndent()
 
-/** First-run steps: welcome, Server, model, user, Identity, Soul, then [ConnectStep]. */
-val OnboardingSteps = (0..6).toList()
+/** First-run steps: welcome, which also connects a Server, then model, user, Identity, Soul and [ConnectStep]. */
+val OnboardingSteps = listOf(0, 2, 3, 4, 5, 6)
 /** A new Agent skips the Server, model and user steps: its Identity and Soul. */
 val AgentSteps = listOf(4, 5)
 const val ConnectStep = 6
@@ -139,7 +139,8 @@ class OnboardingViewModel(private val config: ConfigRepository) : ViewModel() {
     /** Leads a new Agent with where it runs once the Server turns out to offer harnesses, unless the user moved on. */
     fun offerHarnesses() = edit { if (it.steps == AgentSteps && it.step == AgentSteps.first()) it.copy(steps = agentSteps(it.harness), step = HarnessStep) else it }
 
-    fun load(agent: AgentInfo?, identity: Boolean = true) {
+    /** Loads [agent]'s settings; with [identity], its name and, unless [keepLook] keeps the one picked on the welcome, its look. */
+    fun load(agent: AgentInfo?, identity: Boolean = true, keepLook: Boolean = false) {
         loading?.cancel()
         edit { it.copy(details = null, catalog = ModelsCatalog(), providers = emptyList(), deviceCode = null) }
         if (agent == null) return
@@ -149,7 +150,7 @@ class OnboardingViewModel(private val config: ConfigRepository) : ViewModel() {
             val providers = config.providerAccounts()
             edit { it.copy(details = details, catalog = catalog, providers = providers, provider = details.settings.provider,
                 model = details.settings.model, agentName = if (identity) details.info.name else it.agentName,
-                avatar = if (identity) AvatarArtboards.indexOf(details.info.avatarArtboard).coerceAtLeast(0) else it.avatar) }
+                avatar = if (identity && !keepLook) AvatarArtboards.indexOf(details.info.avatarArtboard).coerceAtLeast(0) else it.avatar) }
         }
     }
 

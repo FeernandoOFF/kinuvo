@@ -7,6 +7,16 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class RemoteGatewayTest {
+    @Test fun cleartextRemoteLinksPersistAndStillValidateAddresses() {
+        var stored = RemoteSecrets()
+        val links = RemoteLinks(persist = { stored = it })
+        val link = SaveRemoteLink("studio", "ws://studio.example.com:8787/ws", "code")
+        links.save(link)
+        assertEquals(link, RemoteLinks(stored).link("studio"))
+        assertFailsWith<IllegalArgumentException> { links.save(link.copy(url = "ws://user:password@example.com/ws")) }
+        assertEquals(link, links.link("studio"))
+    }
+
     @Test fun revokeDuringCreateDisposesUnclaimedExecution() = runTest {
         val links = RemoteLinks()
         val token = links.grant(ExposureGrant("friend", setOf("agent")))

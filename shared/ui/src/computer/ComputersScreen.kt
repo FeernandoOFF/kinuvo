@@ -1,5 +1,6 @@
 package kinuvo.ui.computer
 
+import kinuvo.ui.navigation.*
 import kinuvo.app.computer.*
 import kinuvo.ui.agent.*
 import kinuvo.ui.session.*
@@ -42,6 +43,7 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
 import kinuvo.protocol.ComputerControl
+import kinuvo.protocol.ComputerInfo
 import kinuvo.protocol.ComputerFrame
 import kinuvo.protocol.Platform
 import kinuvo.ui.design.*
@@ -50,53 +52,83 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** Live view: what the selected Computer shows, who controls it, and while the user does, their taps, swipes, keys and typing. */
+/** The Computers Agents can control; one opens to its Live view, beside the list on wide screens. */
 @Composable
-fun ComputersScreen(computers: ComputersViewModel, onBack: (() -> Unit)?) {
+fun ComputersScreen(computers: ComputersViewModel, onOpen: (String) -> Unit, onBack: (() -> Unit)?) {
     val state by computers.state.collectAsState()
-    Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
-        TitleBarRow(trailing = false) {
-            onBack?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
-            Text("Computers", Modifier.padding(start = 4.dp).weight(1f), fontWeight = FontWeight.Normal)
-        }
-        val all = state.computers
-        val computer = state.computer
-        when {
-            all == null && state.error != null -> Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ErrorMessage(state.error!!)
-                Button(onClick = computers::retry, style = ButtonStyle.Outlined) { Text("Retry") }
+    BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
+        val open = state.computer
+        if (maxWidth >= 900.dp) Row(Modifier.fillMaxSize()) {
+            Box(Modifier.width(380.dp).fillMaxHeight().background(color(sidebarColor))) { ComputerList(state, computers::retry, onOpen) }
+            VerticalSeparator()
+            Box(Modifier.weight(1f)) {
+                if (open != null) LiveView(state, open, computers, back = null)
+                else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Pick a Computer to watch it.", color = color(mutedColor)) }
             }
-            all == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner() }
-            all.isEmpty() || computer == null -> Text(
-                "No Computers yet. Allow computer use on a phone or computer under Settings → This Device's tools, and turn on computer use in an Agent's tools.",
-                Modifier.padding(16.dp), color = color(mutedColor),
-            )
-            else -> Column(Modifier.fillMaxSize().padding(horizontal = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                if (all.size > 1) Picker(all.map { it.id }, computer.id, { id -> all.first { it.id == id }.let { "${it.name} (${it.platform})" } }, computers::select)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    when {
-                        !computer.available -> Pill("Offline", icon = Lucide.WifiOff)
-                        state.control == ComputerControl.User -> Pill("You're in control", tone = Tone.Warning, icon = Lucide.Hand)
-                        state.control == ComputerControl.Agent -> Pill("Agent is working", tone = Tone.Accent, loading = true)
-                        else -> Pill("Idle", icon = Lucide.MonitorSmartphone)
-                    }
-                    Spacer(Modifier.weight(1f))
-                    if (state.control == ComputerControl.User) Button(onClick = computers::handBack, enabled = !state.busy, style = ButtonStyle.Primary) { Text("Hand back") }
-                    else Button(onClick = computers::takeOver, enabled = !state.busy && computer.available, style = ButtonStyle.Outlined) { Text("Take over") }
+        } else if (open != null) LiveView(state, open, computers, onBack)
+        else ComputerList(state, computers::retry, onOpen)
+    }
+}
+
+@Composable
+internal fun ComputerList(state: ComputersState, onRetry: () -> Unit, onOpen: (String) -> Unit) {
+    Column(Modifier.fillMaxSize()) {
+        PageHeader(Lucide.MonitorSmartphone, "Computers")
+        val all = state.computers
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            when {
+                all == null && state.error != null -> {
+                    ErrorMessage(state.error!!)
+                    RowGroup { ActionRow("Retry", Lucide.RefreshCw, onRetry) }
                 }
-                computer.takeoverRequest?.let { reason ->
-                    Panel(Modifier.fillMaxWidth(), color = color(panelColor), borderColor = Tone.Warning.color().copy(alpha = 0.5f), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(12.dp)) {
-                        Text("The Agent asks you to take over: $reason", fontSize = 14.sp)
+                all == null -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
+                all.isEmpty() -> Text("No Computers yet. Allow computer use on a phone or computer under Settings → This Device's tools, and turn on computer use in an Agent's tools.",
+                    Modifier.padding(horizontal = 6.dp), color = color(mutedColor))
+                else -> RowGroup {
+                    all.forEach { c ->
+                        GroupRow(c.name, { onOpen(c.id) }, "${c.platform} · ${c.status()}", c.icon(), selected = c.id == state.selected) {
+                            when {
+                                c.takeoverRequest != null -> Pill("Needs you", tone = Tone.Warning)
+                                c.control == ComputerControl.Agent -> Pill("Working", tone = Tone.Accent, loading = true)
+                                c.control == ComputerControl.User -> Pill("You", tone = Tone.Warning)
+                            }
+                        }
                     }
                 }
-                state.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
-                ComputerDisplay(state.frame, state.control == ComputerControl.User, computers::tap, computers::swipe, Modifier.weight(1f).fillMaxWidth())
-                if (state.control == ComputerControl.User) ComputerControls(Platform.fromName(computer.platform), computers::key, computers::type)
-                Spacer(Modifier.height(8.dp))
             }
         }
     }
 }
+
+/** What [computer] shows, who controls it, and while the user does, their taps, swipes, keys and typing. */
+@Composable
+private fun LiveView(state: ComputersState, computer: ComputerInfo, computers: ComputersViewModel, back: (() -> Unit)?) {
+    Column(Modifier.fillMaxSize()) {
+        SettingsPageHeader(computer.name, back, subtitle = computer.platform)
+        Column(Modifier.weight(1f).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            RowGroup {
+                GroupRow(computer.status(), icon = if (state.control == ComputerControl.User) Lucide.Hand else computer.icon(), chevron = false,
+                    subtitle = if (state.control == ComputerControl.User) "Tap, swipe and type on the screen below" else null) {
+                    if (state.control == ComputerControl.User) Button(onClick = computers::handBack, enabled = !state.busy, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text("Hand back") }
+                    else Button(onClick = computers::takeOver, enabled = !state.busy && computer.available, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Take over") }
+                }
+                computer.takeoverRequest?.let { reason -> GroupRow("The Agent asks you to take over", subtitle = reason, icon = Lucide.CircleAlert, tint = Tone.Warning.color(), chevron = false) }
+            }
+            state.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
+            ComputerDisplay(state.frame, state.control == ComputerControl.User, computers::tap, computers::swipe, Modifier.weight(1f).fillMaxWidth())
+            if (state.control == ComputerControl.User) ComputerControls(Platform.fromName(computer.platform), computers::key, computers::type)
+        }
+    }
+}
+
+private fun ComputerInfo.status() = when {
+    !available -> "Offline"
+    control == ComputerControl.User -> "You're in control"
+    control == ComputerControl.Agent -> "Agent is working"
+    else -> "Idle"
+}
+
+private fun ComputerInfo.icon() = if (platform.lowercase() in setOf("android", "ios", "ipados")) Lucide.Smartphone else Lucide.Monitor
 
 /**
  * The latest frame, scaled to fit; two fingers zoom and pan it. While [interactive], taps and drags on it go to the

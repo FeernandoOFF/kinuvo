@@ -24,7 +24,7 @@ data class ComputersState(
     val control get() = computer?.control ?: ComputerControl.Idle
 }
 
-/** Live view of one Computer at a time: frames while the screen is open, and the user's Takeover and input. */
+/** The Computers, and Live view of the one [Route.Computers.computer] opens: frames while its screen is open, and the user's Takeover and input. */
 class ComputersViewModel(private val client: KinuvoClient, route: Route.Computers, private val owner: ConnectedServer) : ViewModel() {
     val state: StateFlow<ComputersState>
         field = MutableStateFlow(ComputersState(selected = route.computer))
@@ -93,7 +93,8 @@ class ComputersViewModel(private val client: KinuvoClient, route: Route.Computer
     }
 
     private fun update(all: List<ComputerInfo>) = state.update { s ->
-        val selected = s.selected?.takeIf { id -> all.any { it.id == id } } ?: all.firstOrNull { it.available }?.id ?: all.firstOrNull()?.id
+        // Only the Computer the route opened is watched; without one the list shows.
+        val selected = s.selected?.takeIf { id -> all.any { it.id == id } }
         if (selected == s.selected) s.copy(computers = all) else s.copy(computers = all, selected = selected, frame = null, error = null)
     }
 

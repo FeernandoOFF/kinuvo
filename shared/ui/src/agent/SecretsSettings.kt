@@ -19,7 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
-import com.composables.ui.theme.mutedColor
+import com.composables.ui.theme.*
 import kinuvo.protocol.SecretProviderStatus
 import kinuvo.protocol.secretReference
 import kinuvo.ui.design.*
@@ -50,28 +50,27 @@ internal fun SecretsSettingsPane(p: Pane) {
 @Composable
 private fun ProviderGroup(s: SecretProviderStatus, p: Pane) {
     val token = rememberTextFieldState()
-    DetailGroup(s.name) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            when {
-                !s.installed -> Pill("Not installed", tone = Tone.Warning, icon = Lucide.CircleAlert)
-                s.connected -> Pill("Connected", tone = Tone.Success, icon = Lucide.CircleCheck)
-                else -> Pill("Not connected", icon = Lucide.KeyRound)
-            }
-            Text("\${${s.scheme}://…}", style = MonoStyle, color = color(mutedColor), fontSize = 12.sp)
+    RowGroup(s.name) {
+        when {
+            !s.installed -> GroupRow("Not installed", subtitle = s.detail, icon = Lucide.CircleAlert) { Pill("Missing", tone = Tone.Warning) }
+            s.connected -> GroupRow("Connected", subtitle = s.detail, icon = Lucide.Vault) { Icon(Lucide.CircleCheck, Modifier.size(18.dp), tint = color(successColor)) }
+            else -> GroupRow("Not connected", subtitle = s.detail, icon = Lucide.Vault)
         }
-        if (s.detail.isNotEmpty()) Text(s.detail, color = color(mutedColor), fontSize = 12.sp)
-        if (s.tokenStorage.isNotEmpty()) DetailRow("Token kept in") { Text(s.tokenStorage, fontSize = 13.sp) }
-    }
-    if (!s.installed) return
-    FormField(
-        if (s.connected) "Replace access token" else "Access token",
-        if (s.scheme == "pass") "In Proton Pass → Settings → Access tokens, create a token for an AI agent with only the vaults Kinuvo may read, " +
-            "then paste the instructions it shows (or just the token in them). It's read-only, and Proton Pass logs every read with what it was for." else null,
-    ) { Input(token, "Paste the token or instructions", secret = true) }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        ActionButton(Lucide.Plug, "Connect", { p.actions.onConnectSecrets(s.scheme, token.value()) }, enabled = token.value().isNotEmpty() && !p.ui.state.testing)
-        if (s.connected) ActionButton(Lucide.Unplug, "Disconnect", { p.actions.onDisconnectSecrets(s.scheme) }, destructive = true)
-        if (p.ui.state.testing) Spinner()
+        GroupRow("References", value = "\${${s.scheme}://…}", chevron = false)
+        if (s.tokenStorage.isNotEmpty()) GroupRow("Token kept in", value = s.tokenStorage, chevron = false)
+        if (s.installed) FieldRow(
+            if (s.connected) "Replace access token" else "Access token",
+            if (s.scheme == "pass") "In Proton Pass → Settings → Access tokens, create a token for an AI agent with only the vaults Kinuvo may read, " +
+                "then paste the instructions it shows (or just the token in them). It's read-only, and Proton Pass logs every read with what it was for." else null,
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Box(Modifier.weight(1f)) { Input(token, "Paste the token or instructions", secret = true) }
+                Button({ p.actions.onConnectSecrets(s.scheme, token.value()) }, enabled = token.value().isNotEmpty() && !p.ui.state.testing,
+                    style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text(if (p.ui.state.testing) "Connecting…" else "Connect") }
+            }
+        }
+        if (s.connected) ConfirmRow("Disconnect", Lucide.Unplug, "Disconnect ${s.name}?", { p.actions.onDisconnectSecrets(s.scheme) },
+            detail = "Settings that refer to its secrets stop working until you connect again.")
     }
 }
 

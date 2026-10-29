@@ -19,6 +19,7 @@ import kinuvo.ui.navigation.*
 import kinuvo.app.home.*
 import kinuvo.ui.home.*
 import kinuvo.ui.design.Reveal
+import kinuvo.ui.design.BottomSheet
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -131,10 +132,10 @@ class ScreenshotTest {
         ),
     )
     private val usage = Usage("codex", listOf(Usage.Window("primary", 42.0, 300), Usage.Window("secondary", 91.0, 10080)))
+    private val pairing = PairingInfo("123456", kotlin.time.Clock.System.now() + kotlin.time.Duration.parse("10m"), listOf("http://192.168.1.12:8787", "http://100.82.82.99:8787"))
     private val servers = ServerMenuState(
         servers = listOf(Server.Embedded, Server.Remote("ws://home:8787/ws", "token")),
         active = Server.Embedded,
-        pairing = PairingInfo("123456", kotlin.time.Clock.System.now() + kotlin.time.Duration.parse("10m"), listOf("http://192.168.1.12:8787", "http://100.82.82.99:8787")),
     )
 
     private val now = 1_790_000_000_000L
@@ -193,13 +194,16 @@ class ScreenshotTest {
             render("connect-servers-$suffix", 390, 1100) {
                 HarnessTheme(dark = dark) { ConnectScreen("Couldn't reach 192.168.1.40:8787", { _, _, _ -> }, saved, {}, initialUrl = "192.168.1.40:8787", onCancel = {}) }
             }
+            render("connect-from-this-device-$suffix", 390, 844) {
+                HarnessTheme(dark = dark) { ConnectScreen(null, { _, _, _ -> }, saved, {}, onCancel = {}, from = Server.Embedded) }
+            }
             render("connect-connecting-$suffix", 1100, 900) {
                 HarnessTheme(dark = dark) { ConnectScreen(null, { _, _, _ -> }, saved, {}, pending = PairLink("http://192.168.1.12:8787", "123456"), connecting = saved[0]) }
             }
             render("pairing-qr-$suffix", 340, 650) {
                 HarnessTheme(dark = dark) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
-                        PairingPanel(servers.pairing!!, "http://192.168.1.12:8787", {}, {})
+                        PairingPanel(pairing, "http://192.168.1.12:8787", {}, {})
                     }
                 }
             }
@@ -217,7 +221,7 @@ class ScreenshotTest {
                     SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Connection)).copy(
                         capabilities = ServerCapabilities("home", setOf(ServerFeature.Pairing)),
                         server = Server.Remote("ws://192.168.1.12:8787/ws", "token", "Home", "home"),
-                        pairing = servers.pairing, devices = DevicesState(paired), servers = saved,
+                        pairing = pairing, devices = DevicesState(paired), servers = saved,
                     ), SettingsActions())
                 }
             }
@@ -374,6 +378,11 @@ class ScreenshotTest {
         val team = listOf(agent, AgentInfo("research", "Researcher", "container"))
         render("artifacts-wide", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(artifacts, team, 1_790_000_600_000L, ArtifactsActions()) } }
         render("artifacts-full-screen", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(artifacts.copy(route = Route.Artifacts("plan-1", fullScreen = true)), team, 1_790_000_600_000L, ArtifactsActions()) } }
+        render("nav-phone-artifacts", 390, 844) {
+            HarnessTheme(dark = true) { CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch, LocalHomeChrome provides HomeChrome({}, wide = false)) {
+                ArtifactsContent(artifacts.copy(route = Route.Artifacts()), team, 1_790_000_600_000L, ArtifactsActions())
+            } }
+        }
         render("artifacts-narrow-list", 420, 860) { HarnessTheme(dark = true) { ArtifactsContent(artifacts.copy(route = Route.Artifacts()), team, 1_790_000_600_000L, ArtifactsActions(onBack = {})) } }
         startKinuvo(module { single<Preferences> { object : Preferences {
             private val values = mutableMapOf<String, String>()
@@ -537,7 +546,7 @@ class ScreenshotTest {
             theme { Row(Modifier.fillMaxSize()) {
                 Shell(shell.copy(home = true, view = Route.Home), ShellActions(), remember { ShellChrome(mutableStateOf(true)) })
                 VerticalSeparator()
-                Box(Modifier.weight(1f)) { HomeContent(home, HomeActions(onToggleShell = {}), wide = true) }
+                Box(Modifier.weight(1f)) { HomeContent(home, HomeActions(), wide = true) }
             } }
         }
         val settingsRoute = Route.Settings("echo", SettingsSection.Overview)
@@ -548,8 +557,7 @@ class ScreenshotTest {
                 Box(Modifier.weight(1f)) { SettingsContent(settingsUi, SettingsActions()) }
             } }
         }
-        render("owner-rail-home-phone", 390, 844) { theme(true) { HomeContent(home, HomeActions(onToggleShell = {}), wide = false) } }
-        render("owner-rail-home-back-phone", 390, 844) { theme(true) { HomeContent(home, HomeActions(onToggleShell = {}, onBack = {}), wide = false) } }
+        render("owner-rail-home-phone", 390, 844) { theme(true) { HomeContent(home, HomeActions(), wide = false) } }
         render("owner-rail-chat-phone", 390, 844) { theme(true) { transcript() } }
         render("owner-rail-task-chat-back-phone", 390, 844) { theme(true) {
             ChatContent(chat.copy(selected = runs[6].id, items = listOf(
@@ -560,7 +568,7 @@ class ScreenshotTest {
         for (isHome in listOf(false, true)) render("owner-rail-drawer-${if (isHome) "home" else "agent"}-phone", 390, 844) {
             theme(true) { Reveal(true, {}, behind = {
                 Shell(shell.copy(home = isHome, view = if (isHome) Route.Home else shell.view), ShellActions(), remember { ShellChrome(mutableStateOf(true)) }, fill = true)
-            }) { if (isHome) HomeContent(home, HomeActions(onToggleShell = {}), wide = false) else transcript() } }
+            }) { if (isHome) HomeContent(home, HomeActions(), wide = false) else transcript() } }
         }
         for (risk in listOf(false, true)) render("owner-rail-inspector-${if (risk) "risk" else "medium"}-phone", 390, 844) {
             theme(true) { Box(Modifier.fillMaxSize()) {
@@ -587,6 +595,79 @@ class ScreenshotTest {
         render("owner-rail-task-runs", 900, 700) {
             theme { TaskContent(TaskUi(tasks[0], true, owners, runs.associateBy { it.id }), {}, { _, _ -> }) }
         }
+
+        // Home's pages share one header, with no Back; Routines and Tools pick their Agent in it. Settings is a sheet on phones.
+        @Composable fun phone(content: @Composable () -> Unit) = theme(true) {
+            CompositionLocalProvider(LocalHomeChrome provides HomeChrome({}, wide = false)) { Box(Modifier.fillMaxSize().background(color(backgroundColor))) { content() } }
+        }
+        @Composable fun desktop(view: Route, content: @Composable () -> Unit) = theme {
+            CompositionLocalProvider(LocalHomeChrome provides HomeChrome({}, wide = true)) {
+                Row(Modifier.fillMaxSize()) {
+                    Shell(shell.copy(home = true, view = view), ShellActions(), remember { ShellChrome(mutableStateOf(true)) })
+                    VerticalSeparator()
+                    Box(Modifier.weight(1f)) { content() }
+                }
+            }
+        }
+        val github = McpServerInfo("github", url = "https://api.githubcopilot.com/mcp/", auth = McpAuthStatus.SignedIn)
+        val toolsConfig = AgentConfig(
+            details.copy(settings = details.settings.copy(tools = listOf("memory", "web_fetch", "skills", "schedule", "tasks")),
+                rules = TrustRules(trusted = listOf(github.toolKey("echo", "search_issues")), shell = listOf("git status"), deny = DenyRules(tools = listOf(github.toolKey("echo", "create_issue"))))),
+            mcp = listOf(github, McpServerInfo("linear", url = "https://mcp.linear.app/mcp", auth = McpAuthStatus.Required),
+                McpServerInfo("fs", ConfigScope.Shared, command = "npx", args = listOf("-y", "@modelcontextprotocol/server-filesystem", "~/notes"))),
+        )
+        val sharedRules = TrustRules(deny = DenyRules(tools = listOf("skill_manage", "delete_repository"), shell = listOf("rm -rf*")))
+        fun tools(item: String?) = SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Hub, item), toolsConfig,
+            mcpTest = McpTestResult(listOf("search_issues", "create_issue", "get_pull_request", "list_commits", "delete_repository")), serverRules = sharedRules), owners, at, capabilities = capabilities)
+        val echoRoutines = planned.filter { it.agentId == "echo" } + Routine("standup", "echo", "Weekday standup", "Summarize yesterday's Sessions.", Trigger.Cron("30 8 * * MON-FRI"), "Europe/Dublin", nextRunAt = at + 14 * 3_600_000)
+        fun routines(item: String?) = SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Routines, item), AgentConfig(details), routines = echoRoutines), owners, at, capabilities = capabilities)
+        render("nav-phone-today", 390, 844) { phone { HomeContent(home, HomeActions(), wide = false) } }
+        render("nav-phone-routines", 390, 844) { phone { SettingsContent(routines(null), SettingsActions(), sidebar = false) } }
+        render("nav-phone-routine-detail", 390, 844) { phone { SettingsContent(routines("journal"), SettingsActions(onBack = {}), sidebar = false) } }
+        render("nav-phone-tools", 390, 1000) { phone { SettingsContent(tools(null), SettingsActions(), sidebar = false) } }
+        render("nav-phone-tools-mcp", 390, 1100) { phone { SettingsContent(tools(itemKey(ConfigScope.Agent, "github")), SettingsActions(onBack = {}), sidebar = false) } }
+        render("nav-phone-tools-builtin", 390, 900) { phone { SettingsContent(tools(BuiltInItem), SettingsActions(onBack = {}), sidebar = false) } }
+        render("nav-phone-board", 390, 844) { phone { BoardContent(board, BoardActions()) } }
+        render("nav-phone-knowledge", 390, 844) { phone { KnowledgeContent(knowledge.copy(state = knowledge.state.copy(route = Route.Knowledge())), KnowledgeActions()) } }
+        render("nav-phone-settings-sheet", 390, 844) {
+            phone { transcript(); BottomSheet(true, {}, header = {}) { SettingsContent(SettingsUi(SettingsState(Route.Settings("echo")), owners, at, capabilities = capabilities), SettingsActions(), sidebar = false) } }
+        }
+        @Composable fun sheet(ui: SettingsUi) = phone { transcript(); BottomSheet(true, {}, header = {}) { SettingsContent(ui, SettingsActions(onBack = {}), sidebar = false) } }
+        val providers = listOf(ProviderInfo("codex", "ChatGPT / Codex", ProviderAccount(true, "me@feernandooff.com")),
+            ProviderInfo("openai", "OpenAI API", apiKey = ProviderApiKeyStatus(false, "Not set")), ProviderInfo("local", "Local models"))
+        render("nav-phone-settings-sheet-nested", 390, 900) { sheet(SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Providers), providers = providers), owners, at, capabilities = capabilities)) }
+        val devices = DevicesState(listOf(
+            PairedDeviceInfo("s", "samsung SM-F936B", "2026-10-16T09:00", "2026-10-16T10:08", tools = setOf(DeviceToolKind.Contacts)),
+            PairedDeviceInfo("w", "Web browser", "2026-10-16T10:50", "2026-10-16T10:56"),
+            PairedDeviceInfo("i", "iPhone", "2026-10-20T08:00", connected = true, current = true, management = true, tools = setOf(DeviceToolKind.Contacts, DeviceToolKind.Sleep)),
+        ))
+        render("nav-phone-settings-connection", 390, 1300) {
+            sheet(SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Connection)), owners, at, capabilities = capabilities, server = remote, servers = listOf(remote),
+                devices = devices, management = true))
+        }
+        val skill = SkillDetails(SkillInfo("evening-journal", "Run the evening journal check-in and save the reflection to Knowledge."), "---\nname: evening-journal\n---\n\nAsk one question at a time.\n")
+        render("nav-phone-skill", 390, 844) {
+            sheet(SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Skills, itemKey(ConfigScope.Agent, "evening-journal")), AgentConfig(details, skills = listOf(skill.info)), skill = skill), owners, at, capabilities = capabilities))
+        }
+        val computerList = kinuvo.app.computer.ComputersState(listOf(
+            ComputerInfo("phone", "samsung SM-F936B", "Android", true),
+            ComputerInfo("mac", "Mac mini", "macOS", true, ComputerControl.Agent),
+            ComputerInfo("ipad", "iPad", "iOS", false),
+        ))
+        render("nav-phone-computers", 390, 700) { phone { kinuvo.ui.computer.ComputerList(computerList, {}, {}) } }
+        render("nav-phone-knowledge-scope", 390, 844) { phone { KnowledgeContent(knowledge.copy(agents = owners, state = knowledge.state.copy(route = Route.Knowledge())), KnowledgeActions()) } }
+        render("nav-phone-mcp-preset", 390, 1000) {
+            phone { SettingsContent(tools(presetItem(McpCatalog.first { it.id == "notion" })).let { it.copy(state = it.state.copy(route = it.route.copy(editing = true))) }, SettingsActions(onBack = {}), sidebar = false) }
+        }
+        render("nav-phone-mcp-new", 390, 1300) { phone { SettingsContent(tools(null).let { it.copy(state = it.state.copy(route = it.route.copy(editing = true))) }, SettingsActions(onBack = {}), sidebar = false) } }
+        render("nav-phone-inspector-sheet", 390, 844) { phone { transcript(); AgentInspectorContent(inspected, host, InspectorActions(), sheet = true) } }
+        render("nav-desktop-tools-mcp", 1440, 1000) { desktop(Route.Settings("echo", SettingsSection.Hub)) { SettingsContent(tools(itemKey(ConfigScope.Agent, "github")), SettingsActions()) } }
+        render("nav-desktop-tools-builtin", 1440, 900) { desktop(Route.Settings("echo", SettingsSection.Hub)) { SettingsContent(tools(BuiltInItem), SettingsActions()) } }
+        render("nav-desktop-tools-rules", 1440, 900) { desktop(Route.Settings("echo", SettingsSection.Hub)) { SettingsContent(tools(RulesItem), SettingsActions()) } }
+        render("nav-desktop-routines", 1440, 900) { desktop(Route.Settings("echo", SettingsSection.Routines)) { SettingsContent(routines("journal"), SettingsActions()) } }
+        render("nav-desktop-today", 1440, 900) { desktop(Route.Home) { HomeContent(home, HomeActions(), wide = true) } }
+        render("nav-desktop-board", 1440, 900) { desktop(Route.Board) { BoardContent(board, BoardActions()) } }
+        render("nav-desktop-settings", 1440, 900) { desktop(Route.Settings("echo", SettingsSection.Providers)) { SettingsContent(SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Providers), providers = listOf(ProviderInfo("codex", "ChatGPT / Codex"), ProviderInfo("openai", "OpenAI API"))), owners, at, capabilities = capabilities), SettingsActions()) } }
     }
 
     /** Tool calls and reasoning grouped into compact rows, at iPhone width. */
@@ -838,13 +919,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         render("statistics-empty", 390, 400) {
             HarnessTheme(dark = false) { ChatStatisticsContent(null, emptyList()) }
         }
-        render("statistics-menu", 420, 640) {
-            HarnessTheme(dark = false) {
-                androidx.compose.foundation.layout.Box(Modifier.fillMaxSize().background(color(backgroundColor)), contentAlignment = androidx.compose.ui.Alignment.TopEnd) {
-                    ChatStatistics(usage, listOf(metrics), "session", initiallyExpanded = true)
-                }
-            }
-        }
+        render("statistics-menu", 420, 640) { HarnessTheme(dark = false) { ChatStatisticsContent(usage, listOf(metrics)) } }
     }
 
     @Test
@@ -865,7 +940,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
     fun renderBoardAndKnowledge() {
         render("board-wide", 1280, 800) { HarnessTheme(dark = false) { BoardContent(board, BoardActions()) } }
         render("board-adding-dark", 1280, 800) { HarnessTheme(dark = true) { BoardContent(board.copy(state = board.state.copy(adding = true, showDone = false)), BoardActions()) } }
-        render("board-narrow", 420, 860) { HarnessTheme(dark = false) { BoardContent(board, BoardActions(onBack = {})) } }
+        render("board-narrow", 420, 860) { HarnessTheme(dark = false) { BoardContent(board, BoardActions()) } }
         render("knowledge-wide", 1280, 800) { HarnessTheme(dark = false) { KnowledgeContent(knowledge, KnowledgeActions()) } }
         render("knowledge-narrow-list", 420, 860) {
             HarnessTheme(dark = true) { KnowledgeContent(knowledge.copy(state = knowledge.state.copy(route = Route.Knowledge(), query = "ana", results = listOf(NoteSummary(ana.ref, ana.type, ana.title)))), KnowledgeActions(onBack = {})) }
@@ -877,6 +952,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
             providerLists = mapOf("reminders" to listOf(TaskListInfo("a", "Errands"), TaskListInfo("b", "Travel"), TaskListInfo("c", "Groceries"))),
         ))
         render("settings-tasks", 1280, 860) { HarnessTheme(dark = false) { SettingsContent(tasksSettings, SettingsActions()) } }
+        render("settings-tasks-narrow", 390, 1000) { HarnessTheme(dark = true) { SettingsContent(tasksSettings, SettingsActions(onBack = {})) } }
         val deniedTasks = tasksSettings.copy(state = tasksSettings.state.copy(
             providerLists = emptyMap(),
             errors = listOf("Reminders access is denied for T3 Code (Nightly). Authorizing remindctl in another terminal does not grant this Server access. Enable T3 Code (Nightly) in System Settings → Privacy & Security → Reminders, then click Request access / Retry. If the app isn’t listed, launch the Server from the terminal where remindctl is already authorized."),
@@ -914,6 +990,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
                 listOf(firecrawl), setOf("apiKey"))),
         ))
         render("settings-search", 900, 760) { HarnessTheme(dark = true) { SettingsContent(searchSettings, SettingsActions()) } }
+        render("settings-search-narrow", 390, 760) { HarnessTheme(dark = true) { SettingsContent(searchSettings, SettingsActions(onBack = {})) } }
         val custom = SettingsProvider("custom", "Custom search", SettingsSchema(listOf(
             SettingsField("endpoint", "Endpoint", SettingsFieldType.Url, defaultValue = "https://search.example.org"),
             SettingsField("enabled", "Include summaries", SettingsFieldType.Boolean, defaultValue = "true"),
@@ -928,6 +1005,13 @@ I checked your knowledge base just now and didn't find a profile note for you.
                 listOf(SettingsField("timeout", "Timeout", SettingsFieldType("Duration"))), version = 2)))))))
         render("settings-provider-update-required", 390, 700) { HarnessTheme(dark = true) { SettingsContent(unsupported, SettingsActions(onBack = {})) } }
         render("settings-reflection-prompt", 900, 1200) { HarnessTheme(dark = false) { SettingsContent(knowledgeSettings, SettingsActions()) } }
+        val builtIn = knowledgeSettings.copy(state = knowledgeSettings.state.copy(knowledge = KnowledgeSetup(KnowledgeSettings(), "/Users/me/.kinuvo/knowledge")))
+        render("settings-knowledge-built-in-narrow", 390, 900) { HarnessTheme(dark = true) { SettingsContent(builtIn, SettingsActions(onBack = {})) } }
+        render("settings-mcp-onboarding-narrow", 390, 900) {
+            HarnessTheme(dark = true) { CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) {
+                SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Mcp)), SettingsActions(onBack = {}), sidebar = false)
+            } }
+        }
         render("settings-reflection-prompt-narrow", 420, 1400) { HarnessTheme(dark = true) { SettingsContent(knowledgeSettings, SettingsActions(onBack = {})) } }
         render("settings-knowledge", 900, 760) { HarnessTheme(dark = true) { SettingsContent(knowledgeSettings, SettingsActions()) } }
         val anytypeSettings = knowledgeSettings.copy(state = knowledgeSettings.state.copy(

@@ -43,6 +43,6 @@ class OnboardingTest {
         assertEquals(5, state.moved(1).step)
         assertEquals(5, state.moved(1).moved(1).step)
         assertEquals(4, state.moved(-1).step)
-        assertEquals(1, OnboardingState().moved(1).step)
+        assertEquals(2, OnboardingState().moved(1).step)
     }
 }
