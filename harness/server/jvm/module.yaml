@@ -5,6 +5,7 @@ dependencies:
   - ../../core: exported
   - ../runtime: exported
   - ../../execution/acp
+  - ../../plugins/browser
   - ../../plugins/anytype
   - ../../plugins/exec
   - ../../plugins/executor

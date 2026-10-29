@@ -61,6 +61,9 @@ sealed interface Route {
     @Serializable
     data class Computers(val computer: String? = null) : Route
 
+    @Serializable
+    data class Browser(val agentId: String, val sessionId: String) : Route
+
     companion object {
         fun chat(view: LastView?) = Chat(view?.agentId, view?.sessionId)
     }
