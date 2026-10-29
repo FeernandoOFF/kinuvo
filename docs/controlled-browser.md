@@ -1,4 +1,6 @@
-# Server-owned Browser
+---
+title: "Server-owned Browser"
+---
 
 The JVM Server (desktop and CLI) offers a controlled Chromium browser, separate
 from paired Computers. Enable **Browser** in an Agent's tools. In a Session,

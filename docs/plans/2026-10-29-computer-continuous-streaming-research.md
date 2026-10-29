@@ -1,4 +1,6 @@
-# Computer continuous capture: research addendum
+---
+title: "Computer continuous capture: research addendum"
+---
 
 Date: 2026-10-29. Research only; discussion before implementation. This adds to the **Approved implementation direction** in `2026-10-29-screen-use-design.md` and the backend handoff in `2026-10-29-screen-use-progress.md`. It does not change the ongoing app/UI work or its PR scope.
 
