@@ -1,0 +1,15 @@
+appId: ${APP_ID}
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible:
+          text: "Back"
+          childOf:
+            id: "android:id/content"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - assertVisible: "Back"

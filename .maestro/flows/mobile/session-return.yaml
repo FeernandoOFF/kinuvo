@@ -33,7 +33,8 @@ properties:
     env:
       WS_PATH: /ws
       WS_MESSAGE: '{"type":"event","event":"session.update","payload":{"agentId":"e2e","sessionId":"e2e-session","change":{"type":"entry","seq":2,"entry":{"type":"assistant","text":"Reply received while on Board","messageId":"away-reply"}}},"seq":10}'
-- tapOn: "Back"
+- runFlow: ../../shared/assert-no-back.yaml
+- runFlow: ../../shared/return-to-chat.yaml
 - assertVisible: "Hello from Maestro"
 - assertVisible: "Hello from WireMock"
 - assertVisible: "Reply received while on Board"
