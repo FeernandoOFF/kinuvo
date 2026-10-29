@@ -6,6 +6,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class VoiceTest {
+    @Test fun speechChunksKeepWordsAndSurrogatePairsTogether() {
+        val text = "hello ".repeat(60).trim()
+        val chunks = speechChunks(text)
+        assertEquals(text, chunks.joinToString(" "))
+        assertEquals(true, chunks.all { it.length <= 240 && it.endsWith("hello") })
+        val emoji = "a".repeat(239) + "😀 tail"
+        assertEquals(emoji, speechChunks(emoji).joinToString(""))
+    }
     @Test
     fun speaksOnlyFinishedSentences() {
         val text = "Sure. It's 3.5 km away! Want the"
@@ -33,7 +41,7 @@ class VoiceTest {
     fun splitsWords() = assertEquals(listOf("hello", "whos", "there"), words("Hello, who's there?"))
 }
 
-private class FakeSpeech : Transcriber {
+private open class FakeSpeech : Transcriber {
     var onPartial: (String) -> Unit = {}
     var onFinal: (String) -> Unit = {}
     var onError: (String) -> Unit = {}
@@ -46,6 +54,27 @@ private class FakeSpeech : Transcriber {
 }
 
 class DictationTest {
+    @Test fun offlineDictationFinalizesOnToggleAndDropsCallbacksAfterDisposal() {
+        var complete: (String) -> Unit = {}
+        val speech = object : FakeSpeech() {
+            override fun finish(text: String, onFinal: (String) -> Unit, onError: (String) -> Unit) { complete = onFinal }
+        }
+        val dictation = DictationViewModel(speech)
+        dictation.toggle()
+        dictation.toggle()
+        assertEquals(true, dictation.state.value.finishing)
+        complete("Offline words")
+        assertEquals(DictationState(text = "Offline words"), dictation.state.value)
+        dictation.toggle()
+        dictation.toggle()
+        val old = complete
+        dictation.stop()
+        dictation.toggle()
+        old("Stale words")
+        assertEquals(DictationState(dictating = true), dictation.state.value)
+        dictation.stop()
+    }
+
     @Test
     fun keepsTheFinalWordsAfterStopping() {
         val speech = FakeSpeech()

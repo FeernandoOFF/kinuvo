@@ -44,9 +44,10 @@ class KinuvoClient(
     private val connection: (suspend () -> FrameConnection)? = null,
     /** Lets a public Server be reached over plain ws://, e.g. a linked Server without TLS. */
     private val allowCleartext: Boolean = false,
+    dispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     private val http by lazy { httpClient { install(WebSockets) { maxFrameSize = MAX_FRAME_SIZE } } }
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val scope = CoroutineScope(SupervisorJob() + dispatcher)
     private val pending = mutableMapOf<String, CompletableDeferred<Frame.Response>>()
     private val ids = AtomicLong(0)
     private val _events = MutableSharedFlow<Frame.Event>(extraBufferCapacity = 1024)
@@ -157,8 +158,18 @@ class KinuvoClient(
         val response = try {
             ws.send(frame)
             deferred.await()
+        } catch (e: CancellationException) {
+            if (method == Api.Transcribe || method == Api.Synthesize) withContext(NonCancellable) {
+                withTimeoutOrNull(5_000) {
+                    if (session === ws) runCatching {
+                        ws.send(Frame.Request("$id:cancel", Api.CancelVoice.name,
+                            ProtocolJson.encodeToJsonElement(Api.CancelVoice.params, CancelVoiceParams(id))))
+                    }
+                }
+            }
+            throw e
         } finally {
-            synchronizedPending { pending.remove(id) }
+            withContext(NonCancellable) { synchronizedPending { pending.remove(id) } }
         }
         if (!response.ok) {
             val message = response.error ?: "Request failed"

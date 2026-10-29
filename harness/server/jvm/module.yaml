@@ -2,6 +2,7 @@
 product: jvm/lib
 
 dependencies:
+  - ../../voice
   - ../../core: exported
   - ../runtime: exported
   - ../../execution/acp
