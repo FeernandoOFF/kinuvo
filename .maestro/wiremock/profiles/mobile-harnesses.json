@@ -1,0 +1,23 @@
+{
+  "mappings": [
+    "ws/agent",
+    "ws/agents",
+    "ws/capabilities",
+    "ws/catch-up",
+    "ws/chat-send",
+    "ws/create-session",
+    "ws/device-tools",
+    "mobile/provider-models",
+    "ws/presence",
+    "ws/routines",
+    "ws/session",
+    "ws/sessions",
+    "ws/skills",
+    "ws/unsubscribe",
+    "ws/upgrade",
+    "mobile/providers",
+    "mobile/connect-harnesses",
+    "mobile/harnesses",
+    "mobile/execution-grants"
+  ]
+}

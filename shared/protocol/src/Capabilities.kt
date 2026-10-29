@@ -48,7 +48,7 @@ data class ServerCapabilities(
  * Something Settings sets up, offered as options the Server can run: exec backends (host, container, ssh), MCP
  * transports (stdio, http), password manager schemes, provider IDs and built-in tool groups. A Server without an option can't set it up.
  */
-@Serializable enum class Integration { Exec, Mcp, Secrets, Knowledge, Tasks, Search, Notifications, Tools }
+@Serializable enum class Integration { Harness, Exec, Mcp, Secrets, Knowledge, Tasks, Search, Notifications, Tools }
 
 object IntegrationOptions {
     const val EXEC_HOST = "host"

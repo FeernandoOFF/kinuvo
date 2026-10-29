@@ -80,9 +80,10 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.sin
 
-private val Phases = listOf(Lucide.House, Lucide.Brain, Lucide.User, Lucide.Smile, Lucide.Sparkles, Lucide.Plug)
-private val PhaseNames = listOf("Home", "Model", "You", "Identity", "Soul", "Connect")
-private val Headlines = listOf("Where should I live?", "Which mind should I use?", "What should I call you?", "", "How should I show up?", "What can I work with?")
+private val Phases = listOf(Lucide.House, Lucide.Brain, Lucide.User, Lucide.Smile, Lucide.Sparkles, Lucide.Plug, Lucide.Server, Lucide.Users)
+private val PhaseNames = listOf("Home", "Model", "You", "Identity", "Soul", "Connect", "Runs on", "Agents")
+private val Headlines = listOf("Where should I live?", "Which mind should I use?", "What should I call you?", "", "How should I show up?", "What can I work with?",
+    "Where does your new Agent run?", "Which Agents?")
 private val Subtitles = listOf(
     "Pick where your Server runs. You can add more Servers later.",
     "Your model powers every conversation. Each provider decides where your messages are processed.",
@@ -90,6 +91,8 @@ private val Subtitles = listOf(
     "Swipe or tap to change how I look, then give me a name.",
     "Five choices shape my Soul. You can change it anytime in Settings.",
     "Optional. Each one lets me do more for you; all of them are in Settings later.",
+    "Kinuvo's own Agent, or an agent you already use, started by this Server.",
+    "Only Agents the other Server shares with linked Servers.",
 )
 private val Pitches = listOf("Remembers what matters to you.", "Checks in while you sleep.", "Researches the web for you.", "Lives on your own Server.")
 private val TraitIcons = listOf(Lucide.Heart to Lucide.Briefcase, Lucide.Smartphone to Lucide.Newspaper, Lucide.Rocket to Lucide.Users, Lucide.Laugh to Lucide.Glasses, Lucide.Flower to Lucide.Flame)
@@ -201,8 +204,8 @@ internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel
 
 /** The Settings section for [section] over the onboarding, without the other sections. */
 @Composable
-private fun ConnectSetup(app: AppViewModel, agentId: String, section: kinuvo.app.navigation.SettingsSection, onDone: () -> Unit) {
-    var route by remember(section) { mutableStateOf(kinuvo.app.navigation.Route.Settings(agentId, section)) }
+private fun ConnectSetup(app: AppViewModel, agentId: String, section: kinuvo.app.navigation.SettingsSection, editing: Boolean = false, item: String? = null, onDone: () -> Unit) {
+    var route by remember(section) { mutableStateOf(kinuvo.app.navigation.Route.Settings(agentId, section, item, editing = editing)) }
     // The overlay owns its ViewModels: each route's is cleared when the route changes or the overlay closes.
     val owner = remember(route) { object : androidx.lifecycle.ViewModelStoreOwner { override val viewModelStore = androidx.lifecycle.ViewModelStore() } }
     DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
@@ -210,7 +213,7 @@ private fun ConnectSetup(app: AppViewModel, agentId: String, section: kinuvo.app
     val back = { if (route.item != null || route.editing) route = route.copy(item = null, editing = false) else onDone() }
     androidx.navigationevent.compose.NavigationBackHandler(androidx.navigationevent.compose.rememberNavigationEventState(androidx.navigationevent.NavigationEventInfo.None)) { back() }
     Box(Modifier.fillMaxSize().background(color(backgroundColor)).windowInsetsPadding(WindowInsets.safeDrawing)) {
-        SettingsScreen(app, settings, onNavigate = { r, _ -> if (r.section == section) route = r else onDone() },
+        SettingsScreen(app, settings, onNavigate = { r, _ -> if (r.section != section || editing && r.item != null && !r.editing) onDone() else route = r },
             onBack = back, onOpenSession = {}, sidebar = false)
     }
 }
@@ -250,17 +253,111 @@ internal fun ConnectList(s: OnboardingState, available: (kinuvo.app.navigation.S
     }
 }
 
-/** The onboarding's Identity and Soul steps, creating a new Agent with the shown Agent's model. */
+/** A new Agent: where it runs, then the onboarding's Identity and Soul steps for Kinuvo's own, or a working folder for an ACP agent. */
 @Composable
 internal fun NewAgentScreen(app: AppViewModel, onboarding: OnboardingViewModel, onClose: () -> Unit, onCreated: (String) -> Unit) {
     val a by app.state.collectAsState()
     val s by onboarding.state.collectAsState()
     val from = a.agents.firstOrNull { it.id == a.agentId } ?: a.agents.firstOrNull()
-    LaunchedEffect(from?.id) { if (from != null && s.details == null) onboarding.newAgent(from, a.agents) }
-    val action = if (s.step == SoulStep) OnboardingAction("Meet ${s.agentName.ifBlank { "your Agent" }}", s.details != null) {
-        onboarding.create(a.agents.map { it.id }, onCreated)
-    } else OnboardingAction("Continue", s.agentName.isNotBlank()) { onboarding.edit { it.moved(1) } }
-    OnboardingContent(s, onEdit = onboarding::edit, onChoice = onboarding::choose, action = action, onClose = onClose)
+    val server = (a.connection as? Connection.Ready)?.let(::serverLabel) ?: "this Server"
+    val harnessed = a.capabilities.runsHarnesses
+    LaunchedEffect(from?.id) { if (from != null && s.details == null) onboarding.newAgent(from, a.agents, harnessed) }
+    LaunchedEffect(harnessed) { if (harnessed) onboarding.offerHarnesses() }
+    LaunchedEffect(server, s.steps) { if (s.server != server) onboarding.edit { it.copy(server = server) } }
+    /** The Harnesses form open over the flow: a new ACP command (null) or linking a Server. */
+    var adding by remember { mutableStateOf<String?>(null) }
+    var open by remember { mutableStateOf(false) }
+    val meet = "Meet ${s.agentName.ifBlank { "your Agent" }}"
+    val create = { onboarding.create(a.agents.map { it.id }, onCreated, a.agents); Unit }
+    val action = when {
+        s.step == HarnessStep -> OnboardingAction("Continue", s.harness == HarnessChoice.Kinuvo || s.connection?.let(::selectable) == true) {
+            onboarding.edit { it.moved(1) }
+            if (s.harness is HarnessChoice.Remote) onboarding.discover()
+        }
+        s.step == PickStep -> s.picked.size.let { n -> OnboardingAction(if (n == 1) "Add 1 Agent" else "Add $n Agents", n > 0, create) }
+        s.step == 4 && s.harness is HarnessChoice.Acp -> OnboardingAction(meet, s.agentName.isNotBlank() && cwdProblem(s.cwd) == null, create)
+        s.step == SoulStep -> OnboardingAction(meet, s.details != null, create)
+        else -> OnboardingAction("Continue", s.agentName.isNotBlank()) { onboarding.edit { it.moved(1) } }
+    }
+    Box(Modifier.fillMaxSize()) {
+        OnboardingContent(s, onEdit = onboarding::edit, onChoice = onboarding::choose, action = action, onClose = onClose,
+            harness = { HarnessChoices(s, a.capabilities.offers(Integration.Harness, "acp"), a.capabilities.offers(Integration.Harness, "remote"), a.agents, onboarding::edit) { link -> adding = link; open = true } },
+            pick = { PickAgents(s, onboarding::edit) })
+        val agentId = s.details?.info?.id
+        if (open && agentId != null) ConnectSetup(app, agentId, kinuvo.app.navigation.SettingsSection.Harnesses, editing = true, item = adding) { open = false }
+    }
+}
+
+/** Where a new Agent runs, each harness named with the machine it runs on and its readiness. */
+@Composable
+internal fun HarnessChoices(s: OnboardingState, acp: Boolean, remote: Boolean, agents: List<AgentInfo>, onEdit: ((OnboardingState) -> OnboardingState) -> Unit,
+    /** Opens the Harnesses form: a new ACP command (null), or [LinkItem]. */
+    onAdd: (String?) -> Unit) {
+    val pick = { choice: HarnessChoice -> onEdit { it.choose(choice) } }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        ChoiceRow(Lucide.Sparkles, "Kinuvo on ${s.server}", "Kinuvo's own Agent. You set its Soul, Memory, Skills and tools.", s.harness == HarnessChoice.Kinuvo) { pick(HarnessChoice.Kinuvo) }
+        if (s.connections == null) return@Column Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
+        SectionLabel("ACP agent on ${s.server}", Modifier.padding(top = 8.dp))
+        val commands = s.connections.orEmpty().filter { it.kind == ExecutionKind.Acp }
+        if (!acp) ChoiceRow(Lucide.SquareTerminal, "ACP agent", "ACP commands need a computer Server. ${s.server.replaceFirstChar { it.uppercase() }} can't run them.", false, enabled = false) {}
+        else {
+            commands.forEach { c ->
+                val used = agents.count { it.connectionId == c.config.id }
+                val subtitle = listOfNotNull((c.config.connection as? ExecutionConnection.Acp)?.command?.firstOrNull(), "used by $used Agent${if (used == 1) "" else "s"}".takeIf { used > 0 }).joinToString(" · ")
+                ChoiceRow(Lucide.SquareTerminal, c.config.name, subtitle, s.harness == HarnessChoice.Acp(c.config.id), enabled = selectable(c),
+                    trailing = { ReadinessPill(readiness(c, s.server)) }) { pick(HarnessChoice.Acp(c.config.id)) }
+            }
+            ChoiceRow(Lucide.Plus, "Add an ACP command…", "Claude Code, Codex, Gemini CLI or another ACP agent already installed on ${s.server}.", false) { onAdd(null) }
+        }
+        SectionLabel("Agents from another Kinuvo Server", Modifier.padding(top = 8.dp))
+        if (!remote) ChoiceRow(Lucide.ArrowLeftRight, "Another Kinuvo Server", "Linking Kinuvo Servers isn't available on ${s.server}.", false, enabled = false) {}
+        else {
+            s.connections.orEmpty().filter { it.kind == ExecutionKind.Remote }.forEach { c ->
+                val used = agents.count { it.connectionId == c.config.id }
+                ChoiceRow(Lucide.ArrowLeftRight, c.config.name, if (used > 0) "$used Agent${if (used == 1) "" else "s"} added" else "Runs Agents it shares with ${s.server}",
+                    s.harness == HarnessChoice.Remote(c.config.id), enabled = selectable(c), trailing = { ReadinessPill(readiness(c, s.server)) }) { pick(HarnessChoice.Remote(c.config.id)) }
+            }
+            ChoiceRow(Lucide.Link, "Link a Kinuvo Server…", "With a link code from the other Server's Settings › Harnesses › Share Agents.", false) { onAdd(LinkItem) }
+        }
+    }
+}
+
+/** A linked Server's shared Agents to add, each picked explicitly; ones already added stay checked. */
+@Composable
+internal fun PickAgents(s: OnboardingState, onEdit: ((OnboardingState) -> OnboardingState) -> Unit) {
+    val shared = s.shared ?: return Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
+    val host = s.connection?.config?.host ?: s.connection?.config?.name ?: "The other Server"
+    val registrations = s.registrations
+    if (shared.isEmpty()) return Text("$host doesn't share any Agents with ${s.server} yet. Pick some in its Settings › Harnesses › Share Agents.", color = color(mutedColor))
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        shared.forEach { agent ->
+            val added = s.added(agent.id, registrations) != null
+            val on = added || agent.id in s.picked
+            ChoiceRow(Lucide.Bot, agent.name, if (added) "Added" else "Runs on $host", on, enabled = !added,
+                trailing = { if (!added && !agent.readiness.online) ReadinessPill(readiness(agent.readiness.state(), agent.name, host, agent.name)) }) {
+                onEdit { it.copy(picked = if (agent.id in it.picked) it.picked - agent.id else it.picked + agent.id) }
+            }
+        }
+        Text("They run on $host, with its settings. Names already used here get \"($host)\" added; rename them later.", color = color(mutedColor), fontSize = 13.sp)
+    }
+}
+
+@Composable
+private fun ChoiceRow(icon: ImageVector, title: String, description: String, selected: Boolean, enabled: Boolean = true, trailing: @Composable () -> Unit = {}, onClick: () -> Unit) {
+    val tint = LocalTint.current
+    val shape = RoundedCornerShape(18.dp)
+    val border by animateColorAsState(if (selected) tint else color(borderColor))
+    Row(Modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.5f).clip(shape).background(color(panelColor)).border(if (selected) 2.dp else 1.dp, border, shape)
+        .clickable(enabled, role = Role.RadioButton, onClick = onClick).padding(14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.size(36.dp).clip(CircleShape).background(if (selected) tint.copy(alpha = 0.35f) else color(subtleColor)), contentAlignment = Alignment.Center) {
+            Icon(if (selected) Lucide.Check else icon, Modifier.size(17.dp))
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Bold)
+            if (description.isNotBlank()) Text(description, color = color(mutedColor), fontSize = 13.sp)
+        }
+        trailing()
+    }
 }
 
 @Composable
@@ -276,6 +373,8 @@ internal fun OnboardingContent(
     home: @Composable () -> Unit = {},
     model: @Composable () -> Unit = {},
     connect: @Composable () -> Unit = {},
+    harness: @Composable () -> Unit = {},
+    pick: @Composable () -> Unit = {},
     insets: WindowInsets = WindowInsets.safeDrawing,
 ) {
     val back = when {
@@ -320,7 +419,7 @@ internal fun OnboardingContent(
                         }
                     } else {
                         val form: @Composable ColumnScope.() -> Unit = {
-                            StepForm(s, onEdit, onChoice, wide, home, model, connect, Modifier.weight(1f).fillMaxWidth())
+                            StepForm(s, onEdit, onChoice, wide, home, model, connect, harness, pick, Modifier.weight(1f).fillMaxWidth())
                             (s.error ?: connectionError)?.let { Text(it, color = color(destructiveColor), modifier = Modifier.padding(bottom = 10.dp)) }
                             Cta(action, s.busy || working, if (wide) Modifier.widthIn(min = 260.dp) else Modifier.fillMaxWidth())
                         }
@@ -365,9 +464,9 @@ private fun PhaseTrack(phases: List<Int>, step: Int, onJump: (Int) -> Unit) {
             phases.forEachIndexed { index, phase ->
                 val icon = Phases[phase - 1]
                 val current = phase == step
-                val done = phase < step
+                val done = index < phases.indexOf(step)
                 if (index > 0) {
-                    val line by animateColorAsState(if (phase <= step) tint else color(borderColor))
+                    val line by animateColorAsState(if (index <= phases.indexOf(step)) tint else color(borderColor))
                     Box(Modifier.width(12.dp).height(2.dp).background(line))
                 }
                 val background by animateColorAsState(when { current -> ink; done -> tint.copy(alpha = 0.35f); else -> Color.Transparent })
@@ -488,10 +587,10 @@ private fun SpeechBubble(text: String, modifier: Modifier, shape: RoundedCornerS
 @Composable
 private fun StepForm(
     s: OnboardingState, onEdit: ((OnboardingState) -> OnboardingState) -> Unit, onChoice: (Int, Int) -> Unit, wide: Boolean,
-    home: @Composable () -> Unit, model: @Composable () -> Unit, connect: @Composable () -> Unit, modifier: Modifier,
+    home: @Composable () -> Unit, model: @Composable () -> Unit, connect: @Composable () -> Unit, harness: @Composable () -> Unit, pick: @Composable () -> Unit, modifier: Modifier,
 ) {
     AnimatedContent(s.step, transitionSpec = {
-        val forward = targetState > initialState
+        val forward = s.steps.indexOf(targetState) > s.steps.indexOf(initialState)
         (fadeIn() + slideInHorizontally { if (forward) it / 6 else -it / 6 }) togetherWith (fadeOut() + slideOutHorizontally { if (forward) -it / 6 else it / 6 })
     }, modifier = modifier) { step ->
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -507,6 +606,9 @@ private fun StepForm(
                     DraftField("What you do", s.occupation, "Product designer, student, retired…") { value -> onEdit { it.copy(occupation = value) } }
                 }
                 ConnectStep -> connect()
+                HarnessStep -> harness()
+                PickStep -> pick()
+                4 -> (s.harness as? HarnessChoice.Acp)?.let { AcpIdentity(s, onEdit) }
                 SoulStep -> {
                     PersonalityChoices.indices.forEach { index -> TraitSwitch(index, s.choices[index]) { onChoice(index, it) } }
                     PromptEditor(s, onEdit)
@@ -514,6 +616,17 @@ private fun StepForm(
             }
         }
     }
+}
+
+/** An ACP Agent's working folder, and what its harness owns instead of a Soul. */
+@Composable
+private fun AcpIdentity(s: OnboardingState, onEdit: ((OnboardingState) -> OnboardingState) -> Unit) {
+    val harness = s.connection?.config?.name ?: "The harness"
+    val host = s.connection?.config?.host ?: s.server
+    DraftField("Working folder", s.cwd, "/Users/you/project") { value -> onEdit { it.copy(cwd = value) } }
+    Text((if (s.cwd.isBlank()) null else cwdProblem(s.cwd)) ?: "On $host. $harness reads and edits files here.",
+        color = color(if (s.cwd.isNotBlank() && cwdProblem(s.cwd) != null) destructiveColor else mutedColor), fontSize = 13.sp)
+    Text("Instructions, Memory, Skills and tools come from $harness.", color = color(mutedColor), fontSize = 13.sp)
 }
 
 @Composable

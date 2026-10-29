@@ -128,7 +128,19 @@ data class ChatState(
     val preview: AttachmentPreview? = null,
     /** Half-filled `ask_user` forms, as in [SessionState.answers]. */
     val answers: Map<String, Map<String, List<String>>> = emptyMap(),
+    /** What an external Agent's harness waits on: its permission requests and forms; [harness] names it. */
+    val prompts: List<ExternalPrompt> = emptyList(),
+    val harness: String? = null,
+    /** The external Session's phase as its harness reports it; null when this Device can't see it. */
+    val phase: ExecutionPhase? = null,
+    /** Whether the harness can resume saved Sessions; null when this Device can't tell. */
+    val resume: Boolean? = null,
+    val resuming: Boolean = false,
 ) {
+    /** An external Agent's harness and readiness, which replace Kinuvo's model and Risk tolerance settings. */
+    val external get() = agent?.external == true
+    /** Why the open external Session can't continue as is; null while it can. */
+    val ended get() = if (external && selected != null) SessionEnd.of(phase, capabilities?.chat, resume) else null
     val skills get() = capabilities?.server.supports(ServerFeature.Skills)
     /** Why nothing can be sent, or null when chat works. */
     val chatBlocked get() = capabilities?.chat?.takeUnless { it.actionable }?.let { it.reason ?: "Chat is unavailable" }
@@ -169,7 +181,12 @@ data class SessionState(
     val answers: Map<String, Map<String, List<String>>> = emptyMap(),
     /** A shortcut asked for voice chat in this new Session, until it starts. */
     val voiceRequested: Boolean = false,
+    /** An external Agent's Session as its harness runs it, with what it waits on. */
+    val external: ExecutionSnapshot? = null,
+    val resuming: Boolean = false,
 ) {
+    val prompts get() = external?.takeIf { it.sessionId == route.sessionId }?.pending.orEmpty().map { it.prompt() }
+    val phase get() = external?.takeIf { it.sessionId == route.sessionId }?.phase
     val loaded get() = !resolving && (route.sessionId == null || data?.loaded == true)
     val running get() = sending || data?.live?.running == true
     internal val echoed get() = outgoing == null || data?.items?.lastOrNull { it is ChatItem.User }?.id != outgoingAfter
@@ -185,6 +202,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     private val route get() = state.value.route
     /** Settings changes and sends go one at a time, so a message runs with the settings picked before it. */
     private val ordered = Mutex()
+    private var executionRevision = 0L
     private val loadingAttachments = mutableSetOf<String>()
 
     init {
@@ -216,6 +234,16 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         viewModelScope.launch {
             state.map { it.route to (it.settings to it.defaults) }.distinctUntilChanged()
                 .collect { (route, settings) -> route.agentId?.let { loadCapabilities(it, route.sessionId, settings.first) } }
+        }
+        viewModelScope.launch { client.events(Api.ExecutionChanged).collect { snap -> if (snap.sessionId == route.sessionId) { executionRevision++; setExternal(snap) } } }
+        viewModelScope.launch {
+            val known = state.map { it.route.agentId }.distinctUntilChanged().flatMapLatest { agent ->
+                combine(repo.connection.config.state.map { it[agent]?.details?.info?.executionKind }, repo.connection.harnesses.state.map { h -> h.catalog?.agents?.any { it.id == agent } }) { kind, listed ->
+                    kind?.let { it != ExecutionKind.Native } ?: listed
+                }
+            }.distinctUntilChanged()
+            combine(state.map { it.route.agentId to it.route.sessionId }.distinctUntilChanged(), client.state, known) { r, c, external -> r.takeIf { c is ConnectionState.Connected && external == true } }
+                .collect { r -> r?.let { (agent, session) -> loadExternal(agent, session) } }
         }
         viewModelScope.launch {
             client.events(Api.CapabilitiesChanged).collect { route.agentId?.let { loadCapabilities(it, route.sessionId, state.value.settings) } }
@@ -428,6 +456,67 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
             repo.answer(questions.questionsId, answers)
             state.update { it.copy(answers = it.answers - questions.questionsId) }
         } }
+    }
+
+    /**
+     * The external Session's snapshot, with its pending requests. A Device the Server won't show it to keeps none, and
+     * falls back to the Session's capabilities.
+     */
+    private suspend fun loadExternal(agentId: String?, sessionId: String?) {
+        if (sessionId == null || agentId != route.agentId) return
+        val version = executionRevision
+        catching { client.call(Api.ExecutionSnapshot, ExecutionRef(sessionId)) }.onSuccess { snap -> if (snap.sessionId == route.sessionId && version == executionRevision) setExternal(snap) }
+    }
+
+    /** Whether chat works changes as the Session ends or resumes, so the capabilities follow the phase. */
+    private fun setExternal(snap: ExecutionSnapshot) {
+        val before = state.value.phase
+        state.update { it.copy(external = snap) }
+        if ((before == ExecutionPhase.Lost) != (snap.phase == ExecutionPhase.Lost)) route.agentId?.let { agent ->
+            viewModelScope.launch { loadCapabilities(agent, snap.sessionId, state.value.settings) }
+        }
+    }
+
+    /** Asks the harness to reopen the open external Session after its process ended; the Server says why when it can't. */
+    fun resumeExternal() {
+        val sessionId = route.sessionId ?: return
+        if (state.value.resuming) return
+        state.update { it.copy(resuming = true) }
+        viewModelScope.launch {
+            try {
+                attempt {
+                    val version = executionRevision
+                    val snap = client.call(Api.ResumeExecution, ExecutionRef(sessionId))
+                    if (snap.sessionId == route.sessionId && version == executionRevision) setExternal(snap)
+                    route.agentId?.let { loadCapabilities(it, sessionId, state.value.settings) }
+                }
+            } finally { state.update { it.copy(resuming = false) } }
+        }
+    }
+
+    /** Ends the open external Session's harness process, stopping any turn; its transcript stays. */
+    fun closeExternal() {
+        val sessionId = route.sessionId ?: return
+        viewModelScope.launch { attempt {
+            client.call(Api.CloseExecution, ExecutionRef(sessionId))
+            loadExternal(route.agentId, sessionId)
+            route.agentId?.let { loadCapabilities(it, sessionId, state.value.settings) }
+        } }
+    }
+
+    /** Answers the harness's request [prompt]: [answer] is its own JSON response. The first Device to answer wins. */
+    fun answerExternal(prompt: ExternalPrompt, answer: kotlinx.serialization.json.JsonElement) {
+        val sessionId = route.sessionId ?: return
+        viewModelScope.launch { attempt {
+            if (!client.call(Api.ExecutionAnswer, ExecutionAnswer(sessionId, prompt.id, answer))) state.update { it.copy(errors = it.errors + "Already answered, or the harness stopped waiting.") }
+            state.update { it.copy(answers = it.answers - prompt.id) }
+            loadExternal(route.agentId, sessionId)
+        } }
+    }
+
+    /** Checks the external Agent's harness again, e.g. after signing in to it. */
+    fun checkHarness(connectionId: String) {
+        viewModelScope.launch { attempt { repo.connection.harnesses.check(connectionId) } }
     }
 
     fun stop() {

@@ -28,6 +28,7 @@ private val appModule = module {
     single { get<ConnectedServer>().sessions }
     single { get<ConnectedServer>().routines }
     single { get<ConnectedServer>().config }
+    single { get<ConnectedServer>().harnesses }
     single { get<ConnectedServer>().board }
     single { get<ConnectedServer>().knowledge }
     single { get<ConnectedServer>().devices }

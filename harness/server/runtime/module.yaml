@@ -6,6 +6,8 @@ aliases:
   - jvmAndAndroid: [jvm, android]
 
 dependencies:
+  - ../../execution/api: exported
+  - ../../../shared/client
   - ../../core: exported
   - co.touchlab:stately-concurrent-collections:2.1.0
 

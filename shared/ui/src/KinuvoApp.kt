@@ -338,7 +338,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             // Moved, not rebuilt, when rotating or resizing across the compact width, so open screens keep running, e.g. voice chat.
             val current by rememberUpdatedState(content)
             val screens = remember { movableContentOf { current() } }
-            val inspectorHost = InspectorHost(appState.agents, appState.capabilities) { id, section ->
+            val inspectorHost = InspectorHost(appState.agents, appState.capabilities, (appState.connection as? Connection.Ready)?.let(::serverLabel) ?: "this Server") { id, section ->
                 guardLeave { history.open(Route.Settings(id, section), push = true) }
             }
             CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers) {

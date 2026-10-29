@@ -43,6 +43,8 @@ import kinuvo.ui.design.*
 class InspectorHost(
     val agents: List<AgentInfo>,
     val capabilities: ServerCapabilities?,
+    /** The selected Server's machine, as labels name it. */
+    val server: String = "this Server",
     /** Opens one of the Agent's Settings sections, after any unsaved edits are settled. */
     val onSection: (agentId: String, section: SettingsSection) -> Unit = { _, _ -> },
 )
@@ -59,11 +61,13 @@ class InspectorActions(
     val onPush: (InspectorPage) -> Unit = {},
     val onLoadModels: (Boolean) -> Unit = {},
     val onResolve: (GuardChoice) -> Unit = {},
+    /** Checks an external Agent's harness again. */
+    val onCheck: () -> Unit = {},
 )
 
 private fun AgentInspectorViewModel.actions(host: InspectorHost) = InspectorActions(
     onBack = { back() }, onClose = { close() }, onEdit = ::edit, onSave = { save(host.agents) },
-    onPush = ::push, onLoadModels = { loadModels(it) }, onResolve = { resolve(it, host.agents) },
+    onPush = ::push, onLoadModels = { loadModels(it) }, onResolve = { resolve(it, host.agents) }, onCheck = ::check,
 )
 
 @Composable
@@ -121,7 +125,7 @@ private fun InspectorFooter(state: InspectorState, host: InspectorHost, actions:
     Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         val status = when {
             state.saving -> "Saving…"
-            state.dirty -> "Unsaved: " + state.changes!!.labels().joinToString()
+            state.dirty -> "Unsaved: " + state.labels().joinToString()
             state.saved -> "Saved"
             else -> "No unsaved changes"
         }
@@ -141,7 +145,7 @@ private fun InspectorBody(state: InspectorState, host: InspectorHost, actions: I
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         state.errors.forEach { ErrorMessage(it) }
         when (state.page) {
-            InspectorPage.Agent -> AgentPage(state, draft, details, host, actions)
+            InspectorPage.Agent -> if (details.info.external) ExternalAgentPage(state, draft, details, host, actions) else AgentPage(state, draft, details, host, actions)
             InspectorPage.Model -> ModelPage(state, draft, actions)
             InspectorPage.Approvals -> APPROVALS.forEach { (key, hint) ->
                 ListRow(draft.approvals == key, { actions.onEdit { it.copy(approvals = key) }; actions.onBack() }) {
@@ -204,6 +208,48 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
         fontSize = 12.sp, color = color(mutedColor))
 }
 
+/** An external Agent: its name and where it runs; its harness owns everything else, so Kinuvo's own settings are absent. */
+@Composable
+private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details: AgentDetails, host: InspectorHost, actions: InspectorActions) {
+    val agent = host.agents.firstOrNull { it.id == details.info.id } ?: details.info
+    val agentId = details.info.id
+    val connections = state.connection?.let(::listOf)
+    val harness = harnessName(agent, connections)
+    val machine = agent.host ?: host.server
+    val problems = draft.problems(agentId, host.agents)
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { AgentAvatar(agent, 64.dp) }
+    Group("Identity") {
+        Label("Name")
+        Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
+        problems.filter { it.contains("Name", true) || it.contains("called") }.forEach { Text(it, fontSize = 12.sp, color = color(destructiveColor)) }
+    }
+    Group("Runs on") {
+        NavRow(if (agent.executionKind == ExecutionKind.Acp) Lucide.SquareTerminal else Lucide.ArrowLeftRight, runsOn(agent, connections, host.server), null, external = true) {
+            host.onSection(agentId, SettingsSection.Harnesses)
+        }
+        val r = readiness(agent.readiness.state(), harness, machine, agent.name,
+            (state.connection?.config?.connection as? ExecutionConnection.Acp)?.command?.firstOrNull())
+        Box(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
+            ReadinessNote(r, state.checking, { a -> if (a == ReadinessAction.CheckAgain) actions.onCheck() else host.onSection(agentId, SettingsSection.Harnesses) })
+        }
+        if (agent.executionKind == ExecutionKind.Acp) {
+            Label("Working folder")
+            Input(draftField(agentId, "cwd", draft.cwd) { v -> actions.onEdit { it.copy(cwd = v) } }, "/Users/you/project")
+            cwdProblem(draft.cwd)?.let { Text(it, fontSize = 12.sp, color = color(destructiveColor)) }
+            Text("On $machine. $harness reads and edits files here.", fontSize = 12.sp, color = color(mutedColor))
+        }
+        details.remoteAgentId?.let { Text("Remote Agent: $it", Modifier.padding(horizontal = 10.dp), fontSize = 13.sp) }
+    }
+    Group("Approvals") {
+        Text("Kinuvo's Risk tolerance and Trust rules don't apply. $harness decides when to ask before acting; answer from any Device with access.",
+            Modifier.padding(4.dp), fontSize = 13.sp)
+    }
+    Group("Managed by $harness") {
+        Text("Instructions, Memory, Skills and tools are set in $harness on $machine.", Modifier.padding(4.dp), fontSize = 13.sp, color = color(mutedColor))
+    }
+    Text("Changes apply to ${agent.name}'s new Sessions.", fontSize = 12.sp, color = color(mutedColor))
+}
+
 @Composable
 private fun ModelPage(state: InspectorState, draft: AgentDraft, actions: InspectorActions) {
     if (state.models.providers.isEmpty()) Text("Loading models…", color = color(mutedColor))
@@ -237,7 +283,7 @@ fun InspectorGuard(state: InspectorState, host: InspectorHost, actions: Inspecto
                 contentPadding = PaddingValues(18.dp)) {
                 Text("Unsaved changes to $agent", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(6.dp))
-                Text("Save ${state.changes?.labels()?.joinToString()?.lowercase() ?: "them"} as $agent's defaults before leaving?", color = color(mutedColor), fontSize = 14.sp)
+                Text("Save ${state.labels().joinToString().lowercase().ifEmpty { "them" }} as $agent's defaults before leaving?", color = color(mutedColor), fontSize = 14.sp)
                 state.errors.forEach { Spacer(Modifier.height(8.dp)); ErrorMessage(it) }
                 Spacer(Modifier.height(16.dp))
                 FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -252,7 +298,7 @@ fun InspectorGuard(state: InspectorState, host: InspectorHost, actions: Inspecto
 
 /** A text field following the draft: edits go to [onChange], and a reset draft (discarded or saved) replaces its text. */
 @Composable
-private fun draftField(agentId: String, name: String, value: String, onChange: (String) -> Unit): TextFieldState {
+internal fun draftField(agentId: String, name: String, value: String, onChange: (String) -> Unit): TextFieldState {
     val field = key(agentId, name) { rememberTextFieldState(value) }
     val latest by rememberUpdatedState(value)
     val change by rememberUpdatedState(onChange)
@@ -293,6 +339,11 @@ private fun InspectorPage.title() = when (this) {
     InspectorPage.Approvals -> "Risk tolerance"
     InspectorPage.UserNotes -> "User Notes"
 }
+
+/** The names of the fields the draft changes, for the footer and the guard. */
+private fun InspectorState.labels() = changes?.labels() ?: listOfNotNull(
+    "Name".takeIf { registration?.name != details?.info?.name }, "Working folder".takeIf { registration?.cwd != details?.cwd },
+).takeIf { registration != null }.orEmpty()
 
 /** The names of the fields [this] changes, for the footer and the guard. */
 private fun UpdateAgentParams.labels() = listOfNotNull(
