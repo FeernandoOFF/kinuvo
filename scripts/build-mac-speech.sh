@@ -1,13 +1,9 @@
 #!/bin/sh
 set -eu
 kinuvo_project_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-. "$kinuvo_project_root/scripts/project-env.sh"
 bundle="$kinuvo_project_root/build/KinuvoSpeech.app"
 source="$kinuvo_project_root/apps/desktop/speech/main.swift"
 identity=dev.kinuvo.speech
-if [ -f "$kinuvo_project_root/.kinuvo-home" ]; then
-    identity="$identity.local$(printf %s "$kinuvo_project_root" | shasum | cut -c1-10)"
-fi
 mkdir -p "$bundle/Contents/MacOS"
 if [ ! -x "$bundle/Contents/MacOS/KinuvoSpeech" ] || [ "$source" -nt "$bundle/Contents/MacOS/KinuvoSpeech" ] || [ "$0" -nt "$bundle/Contents/MacOS/KinuvoSpeech" ]; then
     cat > "$bundle/Contents/Info.plist" <<PLIST
