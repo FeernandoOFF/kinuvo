@@ -47,8 +47,7 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
         if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
         self.request = request
         let input = audio.inputNode
-        let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0, format.channelCount > 0 else {
+        guard let format = input.microphoneFormat else {
             stopListening(); self.emit("error", id, "No microphone input. Choose a microphone in System Settings → Sound."); return
         }
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { buffer, _ in request.append(buffer) }
@@ -137,3 +136,10 @@ final class Speech: NSObject, AVSpeechSynthesizerDelegate {
     }
 }
 
+extension AVAudioInputNode {
+    /// The format to tap, or nil when tapping would throw: without a microphone, or after the device changed under the engine.
+    var microphoneFormat: AVAudioFormat? {
+        let hardware = inputFormat(forBus: 0), format = outputFormat(forBus: 0)
+        return hardware.channelCount > 0 && format.channelCount > 0 && hardware.sampleRate > 0 && format.sampleRate == hardware.sampleRate ? format : nil
+    }
+}

@@ -40,11 +40,10 @@ final class LocalSpeech: NSObject, AVAudioPlayerDelegate {
         listening = id; audible = 0; quiet = 0
         recognition = command; untilPause = command["untilPause"] as? Bool ?? true
         let input = audio.inputNode
-        let source = input.outputFormat(forBus: 0)
-        guard source.sampleRate > 0, source.channelCount > 0,
+        guard let source = input.microphoneFormat,
               let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16000, channels: 1, interleaved: false),
               let converter = AVAudioConverter(from: source, to: target) else {
-            stopListening(); self.emit("error", id, "No supported microphone input"); return
+            stopListening(); self.emit("error", id, "No microphone input. Choose a microphone in System Settings → Sound."); return
         }
         input.installTap(onBus: 0, bufferSize: 2048, format: source) { buffer, _ in
             let capacity = AVAudioFrameCount(Double(buffer.frameLength) * 16000 / source.sampleRate) + 32
