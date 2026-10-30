@@ -86,12 +86,12 @@ class ReflectorTest {
         val saved = harness.saveKnowledgeSettings(kinuvo.protocol.KnowledgeSettings(conventions = mapOf("markdown" to conventions, "anytype" to "Humans are profile.")))
         assertEquals(conventions, saved.settings.conventions["markdown"])
         assertEquals(conventions + "\n", File(home, "conventions/markdown.md").readText())
-        assertTrue(conventions !in harness.store.entries(agent, harness.newSession(agent).id).filterIsInstance<SessionEntry.Started>().single().instructions)
+        assertTrue(conventions !in harness.store.entries(agent.id, harness.newSession(agent).id).filterIsInstance<SessionEntry.Started>().single().instructions)
         harness.reflect(agent, "s1", listOf(SessionEntry.UserMessage("My sister Ana is visiting")))
         assertTrue(instructionsSeen.any { it.startsWith(kinuvo.protocol.DEFAULT_REFLECTION_PROMPT) && conventions in it && "Humans are profile." !in it })
         harness.runner(agent, session.id).run(session.id, "Hello").collect {}
         assertTrue(conventions !in toolDescriptions.last())
-        assertTrue(harness.store.entries(agent, session.id).filterIsInstance<SessionEntry.Context>().any { conventions in it.content })
+        assertTrue(harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Context>().any { conventions in it.content })
     }
 
     @Test
@@ -131,11 +131,11 @@ class ReflectorTest {
         assertEquals(0, reflector.reflect(agent, session.id))
         assertEquals(0, reflector.reflect(agent, session.id))
         assertEquals(1, reflections)
-        val proposal = harness.store.entries(agent, session.id).filterIsInstance<SessionEntry.Reflection>().single().result.proposals.single()
+        val proposal = harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Reflection>().single().result.proposals.single()
         assertEquals(null, harness.knowledge.find("Ana"))
         ReflectionReview(harness).respond(agent, session.id, proposal.id, true)
         assertEquals("sister", harness.knowledge.find("Ana")!!.properties["relationship"])
-        assertTrue(harness.store.entries(agent, session.id).filterIsInstance<SessionEntry.Context>().any { "## Knowledge" in it.content })
+        assertTrue(harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Context>().any { "## Knowledge" in it.content })
     }
 
     @Test
@@ -144,7 +144,7 @@ class ReflectorTest {
         val session = harness.newSession(agent)
         harness.runner(agent, session.id).run(session.id, "My sister Ana is visiting").collect {}
         var delivered = false
-        harness.log.subscribe(agent, session.id, null, 100, SessionLog.Subscriber { update ->
+        harness.log.subscribe(agent.id, session.id, null, 100, SessionLog.Subscriber { update ->
             val change = update.change as? kinuvo.protocol.SessionChange.Entry
             if (change?.entry is SessionEntry.Reflection) {
                 assertTrue(!File(home, "reflections.json").exists())
@@ -156,7 +156,7 @@ class ReflectorTest {
         reflector.reflect(agent, session.id)
         assertTrue(delivered)
         assertTrue(File(home, "reflections.json").exists())
-        assertEquals(1, harness.store.entries(agent, session.id).filterIsInstance<SessionEntry.Reflection>().single().result.proposals.size)
+        assertEquals(1, harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Reflection>().single().result.proposals.size)
     }
 
     @Test

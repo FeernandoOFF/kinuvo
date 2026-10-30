@@ -1,0 +1,33 @@
+{
+  "name": "mobile/external-session",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "session.get"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"id\":\"e2e-session\",\"agentId\":\"e2e\",\"title\":\"External regression\",\"status\":\"Idle\",\"createdAt\":1793318400000}}"
+        }
+      }
+    }
+  ]
+}

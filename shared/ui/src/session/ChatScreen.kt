@@ -1,5 +1,6 @@
 package kinuvo.ui.session
 
+import kinuvo.protocol.Attachment
 import kinuvo.protocol.ScreenRef
 
 import kinuvo.app.connection.*
@@ -70,6 +71,7 @@ import com.composeunstyled.theme.Theme
 import com.mohamedrejeb.richeditor.model.rememberRichTextState
 import com.mohamedrejeb.richeditor.model.RichTextState
 import kinuvo.client.ConnectionState
+import kinuvo.protocol.ExecutionPrompt
 import kinuvo.protocol.ExecutionPhase
 import kinuvo.protocol.AgentInfo
 import kinuvo.protocol.ApprovalDecision
@@ -157,7 +159,7 @@ fun ChatScreen(
         loaded = current.loaded,
         hasOlder = current.data?.hasOlder == true,
         running = current.running,
-        completions = if (current.capabilities?.server.supports(ServerFeature.Skills)) listOf(CompletionSource('/', current.skills.filter { it.active && it.userInvocable }.map { Completion(it.name, it.description) }, startOnly = true)) else emptyList(),
+        completions = if (agent?.external != true && current.capabilities?.server.supports(ServerFeature.Skills)) listOf(CompletionSource('/', current.skills.filter { it.active && it.userInvocable }.map { Completion(it.name, it.description) }, startOnly = true)) else emptyList(),
         settings = current.settings,
         defaults = current.defaults,
         models = current.models,
@@ -170,12 +172,12 @@ fun ChatScreen(
         preview = current.preview?.let { id ->
             current.attachments.firstOrNull { it.id == id }?.let { AttachmentPreview(it.attachment, it.upload.base64) }
                 ?: current.downloads[id]?.let { AttachmentPreview(it.attachment.copy(id = id), it.base64) }
-                ?: current.items.firstNotNullOfOrNull { item -> (item as? ChatItem.User)?.attachments?.firstOrNull { it.id == id } }?.let { AttachmentPreview(it, null) }
+                ?: current.items.attachment(id)?.let { AttachmentPreview(it, null) }
         },
         answers = current.answers,
         prompts = current.prompts,
         phase = current.phase,
-        resume = agent?.connectionId?.let { id -> harnesses.connections?.firstOrNull { it.config.id == id }?.capabilities?.resume },
+        resume = current.capabilities?.execution?.resume,
         resuming = current.resuming,
     )
     ChatContent(
@@ -205,7 +207,7 @@ fun ChatScreen(
                 if (owner != null && dock != null) dock.show(screen, reason)
                 else onNavigate(if (owner == null) Route.Computers(screen.id, reason) else Route.Browser(owner.agentId, owner.sessionId, screen, reason))
             },
-            onBrowser = if (current.capabilities?.server.supports(ServerFeature.Browser) && route.agentId != null && route.sessionId != null)
+            onBrowser = if (sessionBrowserAvailable(agent, current.capabilities?.server) && route.agentId != null && route.sessionId != null)
                 ({ dock?.toggle?.invoke() ?: onNavigate(Route.Browser(requireNotNull(route.agentId), requireNotNull(route.sessionId))) }) else null,
             browserOpen = dock?.open == true,
             onLoadOlder = session::loadOlder,
@@ -221,7 +223,6 @@ fun ChatScreen(
             onDiscardDictation = { dictation?.discard() },
             onExternal = session::answerExternal,
             onCheckHarness = { appState.agents.firstOrNull { it.id == route.agentId }?.connectionId?.let(session::checkHarness) },
-            onResume = session::resumeExternal,
             onCloseSession = session::closeExternal,
         ),
         wide = wide,
@@ -271,10 +272,9 @@ class ChatActions(
     val onDictate: (() -> Unit)? = null,
     val onDiscardDictation: () -> Unit = {},
     /** Answers an external Agent's harness with its own JSON response. */
-    val onExternal: (ExternalPrompt, kotlinx.serialization.json.JsonElement) -> Unit = { _, _ -> },
+    val onExternal: (ExecutionPrompt, kotlinx.serialization.json.JsonElement) -> Unit = { _, _ -> },
     val onCheckHarness: () -> Unit = {},
     /** Reopens an external Session whose harness process ended. */
-    val onResume: () -> Unit = {},
     /** Ends an external Session's harness process; its transcript stays. */
     val onCloseSession: () -> Unit = {},
 )
@@ -314,6 +314,7 @@ fun ChatContent(
     val composerFocus = remember { FocusRequester() }
     var completing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val connectionNotice = connectionNotice(connection)
     LaunchedEffect(Unit) { if (compose) composerFocus.requestFocus() }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
@@ -336,7 +337,7 @@ fun ChatContent(
                 e.isShortcutPressed && e.key == Key.Backslash && toggle != null -> toggle()
                 e.isShortcutPressed && e.key == Key.L -> composerFocus.requestFocus()
                 e.isShortcutPressed && e.key == Key.Comma && state.agent != null -> actions.onSettings()
-                e.isShortcutPressed && e.isShiftPressed && e.key == Key.Period && state.running -> actions.onStop()
+                e.isShortcutPressed && e.isShiftPressed && e.key == Key.Period && state.running && state.canStop -> actions.onStop()
                 e.isAltPressed && e.key == Key.DirectionUp -> step(-1)
                 e.isAltPressed && e.key == Key.DirectionDown -> step(1)
                 e.key == Key.PageUp || e.key == Key.PageDown -> scope.launch {
@@ -396,13 +397,14 @@ fun ChatContent(
                         if (!dictation.dictating) dictated = null
                     }
                     val settings: @Composable RowScope.() -> Unit = {
+                        if (state.external) ComposerSettings(state.settings, AgentSettings("", "", "", ""), state.models, {}, actions.onAttach,
+                            !state.running && state.chatBlocked == null, photos = state.photos, files = state.files, nativeSettings = false)
                         state.defaults?.takeIf { !state.external }?.let { ComposerSettings(state.settings, it, state.models, actions.onConfigure, actions.onAttach, !state.running, actions.onRefreshModels, state.photos, state.files,
                             agent = state.agent?.name, onAgentDefaults = actions.onSettings.takeIf { state.agent != null }) }
                     }
                     val attachments: @Composable () -> Unit = { if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         state.attachments.forEach { a -> key(a.id) { AttachmentChip(a.attachment, a.upload.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onRemove = if (state.running) null else ({ actions.onRemoveAttachment(a.id) })) } }
                     } }
-                    if (state.external) ExternalPrompts(state, actions, Modifier.widthIn(max = ContentWidth))
                     AnimatedContent(voice != null, contentAlignment = Alignment.BottomCenter, transitionSpec = {
                         (fadeIn(tween(220, delayMillis = 80)) + slideInVertically(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) { it / 3 } +
                             scaleIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow), initialScale = 0.94f))
@@ -415,9 +417,11 @@ fun ChatContent(
                         running = state.running,
                         onSend = { follow.value = true; actions.onDiscardDictation(); actions.onSend(it) },
                         onStop = actions.onStop,
+                        canStop = state.canStop,
+                        stopWhileSending = state.external && state.canStop,
                         placeholder = "Chat with ${state.agent?.name ?: "Kinuvo"}",
-                        hint = state.dictation?.error ?: if (wide && state.items.isEmpty()) "Shift+Enter for new line · Markdown formats as you type" + if (state.skills) " · / for skills" else "" else null,
-                        blocked = state.ended?.blocked ?: state.chatBlocked?.let { reason -> if (state.external) "Sending is off until ${state.harness ?: "the harness"} is ready." else reason },
+                        hint = if (wide && state.items.isEmpty()) "Shift+Enter for new line · Markdown formats as you type" + if (state.skills) " · / for skills" else "" else null,
+                        blocked = if (state.resumeOnSend) null else state.ended?.blocked ?: state.chatBlocked,
                         modifier = Modifier.widthIn(max = ContentWidth),
                         state = draft,
                         focus = composerFocus,
@@ -430,13 +434,17 @@ fun ChatContent(
                         containerColor = color(fieldColor).copy(alpha = 0.7f),
                         backdrop = Modifier.hazeBlur(HazeInput.Sources(haze), blur),
                         onVoice = actions.onVoice?.let { start -> { follow.value = true; start() } },
+                        notice = if ((state.external && (state.prompts.isNotEmpty() || (state.chatBlocked != null && state.ended == null))) || connectionNotice != null || state.dictation?.error != null) ({
+                            state.dictation?.error?.let { Text(it, fontSize = 13.sp, color = color(destructiveColor)) }
+                            connectionNotice?.let { (tone, text) -> Text(text, fontSize = 13.sp, color = tone.color()) }
+                            if (state.external) ExternalPrompts(state, actions)
+                        }) else null,
                         onDictate = actions.onDictate,
                         dictating = state.dictation?.dictating == true,
                     )
                     }
                     }
                 }
-                ConnectionSnackbar(connection, Modifier.align(Alignment.BottomCenter).padding(bottom = composerHeight + 12.dp).padding(horizontal = 16.dp))
             }
         }
         // Keeps the last preview while it fades away.
@@ -581,7 +589,7 @@ private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatS
     var menu by remember { mutableStateOf(false) }
     var renaming by remember(session?.id) { mutableStateOf(false) }
     var closing by remember(session?.id) { mutableStateOf(false) }
-    val closable = session != null && chat.external && chat.ended == null
+    val closable = session != null && chat.external && chat.ended == null && chat.capabilities?.chat?.reasonCode != "archived"
     DropdownMenu(
         expanded = menu,
         onExpandedChange = { menu = it },
@@ -636,12 +644,12 @@ internal fun CloseSessionConfirm(chat: ChatState, onCancel: () -> Unit, onClose:
 }
 
 /**
- * A floating snackbar: nothing while connected or briefly down, e.g. back from the background, and a brief "Connected" after a
+ * A composer notice: nothing while connected or briefly down, e.g. back from the background, and a brief "Connected" after a
  * reconnect it showed. While the client retries: "Reconnecting" after [ReconnectingAfter], then
  * "Offline" with the reason once it's been down for [OfflineAfter].
  */
 @Composable
-private fun ConnectionSnackbar(connection: ConnectionState, modifier: Modifier = Modifier) {
+private fun connectionNotice(connection: ConnectionState): Pair<Tone, String>? {
     val connected = connection is ConnectionState.Connected
     var down by remember { mutableStateOf(false) }
     var long by remember { mutableStateOf(false) }
@@ -666,23 +674,7 @@ private fun ConnectionSnackbar(connection: ConnectionState, modifier: Modifier =
         long -> Tone.Danger to (reason?.let { "Offline · $it. Retrying…" } ?: "Offline · Retrying…")
         else -> Tone.Warning to "Reconnecting…"
     }
-    AnimatedVisibility(down, modifier, enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
-        val (tone, text) = shown
-        val shape = RoundedCornerShape(12.dp)
-        Row(
-            Modifier.widthIn(max = 560.dp).shadow(8.dp, shape).background(color(panelColor), shape).border(1.dp, color(borderColor), shape)
-                .semantics { liveRegion = LiveRegionMode.Polite }.padding(horizontal = 16.dp, vertical = 12.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            when (tone) {
-                Tone.Warning -> Spinner(size = 11.dp, tint = tone.color())
-                Tone.Danger -> Icon(Lucide.WifiOff, Modifier.size(12.dp), tint = tone.color())
-                else -> Icon(Lucide.Wifi, Modifier.size(12.dp), tint = tone.color())
-            }
-            Text(text, Modifier.weight(1f, fill = false), fontSize = 13.sp, lineHeight = 18.sp, color = tone.color())
-        }
-    }
+    return shown.takeIf { down }
 }
 
 private const val ReconnectingAfter = 3_000L
@@ -777,7 +769,7 @@ private fun Messages(
                         when (row) {
                             is ChatRow.Single -> if (row.key == "outgoing") Entering { ChatItemView(row.item, actions) }
                                 else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id), state.answers)
-                            is ChatRow.Steps -> StepsView(row, active = state.running && row === rows.last())
+                            is ChatRow.Steps -> StepsView(row, active = state.running && row === rows.last(), actions = actions)
                         }
                     }
                 }
@@ -874,12 +866,12 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
             }
             item.questions != null -> QuestionsCard(requireNotNull(item.questions), answers, actions)
             (item.identity?.instance?.pluginId == "kinuvo.computer" && item.identity?.localId in setOf("computer_capture", "computer_act")) && item.result == null -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                ToolCallView(item)
+                ToolCallView(item, actions = actions)
                 Button(onClick = actions.onWatch, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Watch live", fontSize = 12.sp) }
             }
-            item.name == "ask_user" && item.result != null && !item.isError -> AnsweredQuestions(item)
-            item.name == "artifact" && item.result != null && !item.isError -> ArtifactCard(item, actions.onOpenArtifact)
-            else -> ToolCallView(item)
+            item.name == "ask_user" && item.result != null && !item.isError -> Column { AnsweredQuestions(item); ToolAttachments(item.attachments, actions) }
+            item.name == "artifact" && item.result != null && !item.isError -> Column { ArtifactCard(item, actions.onOpenArtifact); ToolAttachments(item.attachments, actions) }
+            else -> ToolCallView(item, actions = actions)
         }
         is ChatItem.Error -> Panel(
             Modifier.fillMaxWidth(),
@@ -890,6 +882,9 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
                 Icon(Lucide.CircleX, Modifier.size(16.dp).padding(top = 2.dp), tint = color(destructiveColor))
                 Text(item.message, color = color(destructiveColor), fontSize = 13.sp)
             }
+        }
+        is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message, subtitle = item.code) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { item.draft.forEach { ChatItemView(it, actions) } }
         }
         is ChatItem.Measurement -> Unit
         is ChatItem.Reflection -> ReflectionView(item, onReview = actions.onReviewReflection)
@@ -958,9 +953,9 @@ private fun ChatItem.ToolCall.label(): ToolLabel {
 }
 
 @Composable
-private fun StepView(item: ChatItem, border: Boolean = true) {
+private fun StepView(item: ChatItem, border: Boolean = true, actions: ChatActions = ChatActions()) {
     when (item) {
-        is ChatItem.ToolCall -> ToolCallView(item, border)
+        is ChatItem.ToolCall -> ToolCallView(item, border, actions)
         is ChatItem.Reasoning -> Expandable(Lucide.Brain, "Thinking", border = border) {
             Text(item.text, style = LocalTextStyle.current.copy(fontStyle = FontStyle.Italic), color = color(mutedColor), fontSize = 13.sp)
         }
@@ -973,8 +968,8 @@ private fun StepView(item: ChatItem, border: Boolean = true) {
  * the steps, each expanding to its arguments and output. A single finished step shows as itself.
  */
 @Composable
-internal fun StepsView(row: ChatRow.Steps, active: Boolean, initiallyExpanded: Boolean = false) {
-    row.steps.singleOrNull()?.takeIf { !active }?.let { return StepView(it) }
+internal fun StepsView(row: ChatRow.Steps, active: Boolean, initiallyExpanded: Boolean = false, actions: ChatActions = ChatActions()) {
+    row.steps.singleOrNull()?.takeIf { !active }?.let { return StepView(it, actions = actions) }
     var expanded by rememberSaveable { mutableStateOf(initiallyExpanded) }
     val failed = row.failed
     val shape = Theme[shapes][mediumShape]
@@ -1013,7 +1008,7 @@ internal fun StepsView(row: ChatRow.Steps, active: Boolean, initiallyExpanded: B
             DisclosurePanel(contentPadding = PaddingValues(start = 6.dp, end = 6.dp, bottom = 6.dp)) {
                 Column {
                     HorizontalSeparator(Modifier.padding(bottom = 4.dp))
-                    row.steps.forEach { key(it.id) { StepView(it, border = false) } }
+                    row.steps.forEach { key(it.id) { StepView(it, border = false, actions = actions) } }
                 }
             }
         }
@@ -1034,7 +1029,15 @@ private fun ChatRow.Steps.summary(): String {
 }
 
 @Composable
-private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true) {
+private fun ToolAttachments(attachments: List<Attachment>, actions: ChatActions) {
+    attachments.forEach { a ->
+        LaunchedEffect(a.id) { if (a.mimeType.startsWith("image/")) actions.onLoadAttachment(a.id) }
+        AttachmentChip(a, actions.downloads[a.id]?.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onOpen = { actions.onSaveAttachment(a.id) })
+    }
+}
+
+@Composable
+private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, actions: ChatActions = ChatActions()) {
     val label = item.label()
     Expandable(label.icon, label.title, label.subtitle, border = border, status = {
         when {
@@ -1046,6 +1049,7 @@ private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!label.skill && item.args.isNotBlank()) CodeBlock(prettyJson(item.args), language = "arguments")
             item.result?.let { CodeBlock(it, language = if (item.isError) "error" else "result", previewChars = 4000) }
+            ToolAttachments(item.attachments, actions)
         }
     }
 }
@@ -1132,7 +1136,7 @@ private fun ApprovalCard(item: ChatItem.ToolCall, onDecision: (String, ApprovalD
 }
 
 @Composable
-internal fun RequestMetricsView(metrics: kinuvo.protocol.RequestMetrics, initiallyExpanded: Boolean = false) {
+internal fun RequestMetricsView(metrics: kinuvo.protocol.RequestMetrics, initiallyExpanded: Boolean = false, actions: ChatActions = ChatActions()) {
     val cached = metrics.cachedTokens?.let { "$it cached" } ?: "cache not reported"
     Expandable(Lucide.Gauge, "${metrics.kind} request", "$cached · ${metrics.latencyMs} ms", initiallyExpanded = initiallyExpanded) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1324,3 +1328,12 @@ private val PrettyJson = Json { prettyPrint = true }
 
 private fun prettyJson(args: String): String =
     runCatching { PrettyJson.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), Json.parseToJsonElement(args)) }.getOrDefault(args)
+
+private fun List<ChatItem>.attachment(id: String): Attachment? = firstNotNullOfOrNull { item ->
+    when (item) {
+        is ChatItem.User -> item.attachments.firstOrNull { it.id == id }
+        is ChatItem.ToolCall -> item.attachments.firstOrNull { it.id == id }
+        is ChatItem.Notice -> item.draft.attachment(id)
+        else -> null
+    }
+}

@@ -1,9 +1,10 @@
 package kinuvo.harness.server
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kinuvo.harness.core.Agent
+import co.touchlab.stately.collections.ConcurrentMutableSet
 import kinuvo.harness.core.Notification
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.ExecutionPrompt
 import kinuvo.protocol.RoutineRan
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.RunStatus
@@ -18,21 +19,39 @@ private val log = KotlinLogging.logger("kinuvo.notifications")
  * Notifies the user about Sessions no client in the foreground is watching: an Approval or `ask_user` form waiting, a
  * reply or error, and a Routine's report or failure (a quiet run sends nothing).
  */
-class Notifications(private val harness: HarnessRuntime, private val scope: CoroutineScope, private val routineOf: (sessionId: String) -> RoutineRef?) {
-    fun on(agent: Agent, sessionId: String, event: AgentEvent) {
-        if (event !is AgentEvent.ApprovalRequested && event !is AgentEvent.QuestionsAsked && event !is AgentEvent.RunFinished && event !is AgentEvent.RunError) return
+class Notifications(private val harness: HarnessRuntime, private val scope: CoroutineScope, private val routineOf: (sessionId: String) -> RoutineRef?, private val externalName: suspend (String) -> String? = { null }) {
+    private val attempted = ConcurrentMutableSet<String>()
+    fun on(agentId: String, sessionId: String, event: AgentEvent) {
+        if (event !is AgentEvent.ApprovalRequested && event !is AgentEvent.QuestionsAsked && event !is AgentEvent.RunFinished && event !is AgentEvent.RunError && event !is AgentEvent.ExecutionRequested && event !is AgentEvent.ExecutionResolved) return
+        val semantic = when (event) {
+            is AgentEvent.ExecutionRequested -> "request:${event.request.id}"
+            is AgentEvent.RunFinished -> "finished:${event.runId}"
+            is AgentEvent.RunError -> "error:${event.runId}"
+            is AgentEvent.ExecutionResolved -> return
+            else -> null
+        }
+        if (semantic != null && !attempted.add("$sessionId:$semantic")) return
         // Read now, while the run is still active.
         val routine = routineOf(sessionId)
         scope.launch {
+            val agent = harness.store.agents().firstOrNull { it.id == agentId }
+            val name = agent?.name ?: externalName(agentId) ?: return@launch
             if (harness.log.watched(sessionId)) return@launch
             val notification = when (event) {
                 is AgentEvent.ApprovalRequested ->
-                    Notification("${agent.name} needs an Approval", "${event.toolCallName}: ${event.reason ?: event.args}".clip(), agent.id, sessionId, urgent = true)
+                    Notification("${name} needs an Approval", "${event.toolCallName}: ${event.reason ?: event.args}".clip(), agentId, sessionId, urgent = true)
                 is AgentEvent.QuestionsAsked ->
-                    Notification("${agent.name} has questions", (event.title ?: event.questions.joinToString(" · ") { it.label }).clip(), agent.id, sessionId, urgent = true)
+                    Notification("${name} has questions", (event.title ?: event.questions.joinToString(" · ") { it.label }).clip(), agentId, sessionId, urgent = true)
                 // Routine runs are told by [routineRan], when they have something to report.
-                is AgentEvent.RunFinished -> if (routine != null) null else Notification(agent.name, lastReply(agent, sessionId).orEmpty().clip(), agent.id, sessionId)
-                is AgentEvent.RunError -> if (routine != null) null else Notification("${agent.name} hit an error", event.message.clip(), agent.id, sessionId)
+                is AgentEvent.RunFinished -> if (routine != null) null else Notification(name, lastReply(agentId, sessionId).orEmpty().clip(), agentId, sessionId)
+                is AgentEvent.RunError -> if (routine != null) null else Notification("${name} hit an error", event.message.clip(), agentId, sessionId)
+                is AgentEvent.ExecutionRequested -> Notification("$name needs a response", when(val prompt = event.request.prompt) {
+                    is ExecutionPrompt.Approval -> prompt.title
+                    is ExecutionPrompt.Questions -> prompt.asked.title ?: "Questions"
+                    is ExecutionPrompt.OpenLink -> prompt.message
+                    else -> "Execution is waiting"
+                }.clip(), agentId, sessionId, urgent = true)
+                else -> null
             }
             notification?.let { quietly(it) }
         }
@@ -65,7 +84,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         }
     }
 
-    private suspend fun lastReply(agent: Agent, sessionId: String) =
+    private suspend fun lastReply(agent: String, sessionId: String) =
         harness.store.entries(agent, sessionId).lastOrNull { it is SessionEntry.AssistantMessage }?.let { (it as SessionEntry.AssistantMessage).text }
 
     private fun String.clip() = trim().let { if (it.length > MAX) it.take(MAX - 1) + "…" else it }

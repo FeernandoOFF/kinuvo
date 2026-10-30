@@ -36,7 +36,7 @@ class ReflectionModelTest {
         val harness = fixture.runtime()
         try {
             val agent = fixture.agent.copy(config = fixture.agent.config.copy(tools = listOf(ToolNames.MEMORY)))
-            val session = harness.store.createSession(agent, "parent-only")
+            val session = harness.store.createSession(agent.id, "parent-only")
             val entries = listOf(SessionEntry.UserMessage("My preference"), SessionEntry.AssistantMessage("Use examples"), SessionEntry.UserMessage("Yes"))
             for ((setting, expected) in listOf(
                 ReflectionConfig() to "tools",

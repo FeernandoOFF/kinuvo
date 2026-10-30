@@ -1,0 +1,21 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-external-lost
+  apiVerifications:
+    - stub: mobile/external-lost-catch-up
+      atLeast: 1
+    - stub: mobile/external-lost-capabilities
+      atLeast: 1
+---
+- runFlow: ../../shared/open-external-session.yaml
+- assertNotVisible: "Session ended"
+- assertVisible: "Start a new Session to keep chatting."
+- assertNotVisible: "Resume session"
+- assertVisible: "External transcript retained"
+- assertVisible: "External response interrupted"
+- tapOn: "External response interrupted"
+- assertVisible: "Unfinished external draft"

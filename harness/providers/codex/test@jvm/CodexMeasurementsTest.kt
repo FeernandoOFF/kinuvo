@@ -143,8 +143,8 @@ class CodexMeasurementsTest {
     private suspend fun AgentModel.measure(): Pair<List<AgentEvent>, RequestMetrics> {
         val store = InMemoryStore()
         val agent = Agent("test", "Test", AgentConfig())
-        val session = store.createSession(agent, "Help the user")
+        val session = store.createSession(agent.id, "Help the user")
         val events = AgentRun(agent, store, this, emptyList()).run(session.id, "Hi").toList()
-        return events to store.entries(agent, session.id).filterIsInstance<SessionEntry.Measurement>().single().metrics
+        return events to store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Measurement>().single().metrics
     }
 }

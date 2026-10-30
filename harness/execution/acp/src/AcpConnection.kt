@@ -3,6 +3,10 @@
 package kinuvo.execution.acp
 
 import com.agentclientprotocol.client.v2.*
+import com.agentclientprotocol.model.AcpMethod
+import com.agentclientprotocol.model.SessionId
+import kotlinx.serialization.json.JsonElement
+import kinuvo.protocol.ProtocolJson
 import com.agentclientprotocol.model.Implementation
 import com.agentclientprotocol.model.AuthMethodId
 import com.agentclientprotocol.model.PROTOCOL_VERSION_V2
@@ -25,15 +29,35 @@ class AcpConnection private constructor(
 ) {
     suspend fun login(methodId: String) = client.login(AuthMethodId(methodId))
 
-    suspend fun newSession(cwd: String, operations: ClientSessionOperations): ClientSession =
-        client.newSession(cwd = cwd, operations = operations)
+    suspend fun newSession(cwd: String, operations: ClientSessionOperations): ClientSession {
+        permissionHandler(operations)
+        return client.newSession(cwd = cwd, operations = operations)
+    }
+
+    // SDK permission routing requires an already-created ClientSession, unlike its update inbox.
+    private fun permissionHandler(operations: ClientSessionOperations, sessionId: String? = null) {
+        protocol.setRequestHandlerRaw(AcpMethod.ClientMethods.V2.SessionRequestPermission) { request ->
+            val permission = ProtocolJson.decodeFromJsonElement(RequestPermissionRequest.serializer(), requireNotNull(request.params))
+            require(sessionId == null || permission.sessionId.toString() == sessionId) { "Unexpected permission Session" }
+            ProtocolJson.encodeToJsonElement(RequestPermissionResponse.serializer(), operations.requestPermission(permission))
+        }
+    }
 
     suspend fun supportsResume() = client.agentInfo.await().capabilities.session != null
 
     suspend fun resumeSession(id: String, cwd: String, operations: ClientSessionOperations): ClientSession {
         check(supportsResume()) { "ACP harness did not negotiate Session resume support (capabilities.session)" }
-        return client.resumeSession(com.agentclientprotocol.model.SessionId(id), cwd, replayFrom = ReplayFrom.Start(), operations = operations)
+        permissionHandler(operations, id)
+        return client.resumeSession(SessionId(id), cwd, replayFrom = null, operations = operations)
     }
+
+    // SDK 0.33 drops PromptResponse and its unknown messageId field. Keep the raw acknowledgement.
+    suspend fun prompt(session: ClientSession, content: List<ContentBlock>): JsonElement =
+        protocol.sendRequestRaw(AcpMethod.AgentMethods.V2.SessionPrompt.methodName,
+            ProtocolJson.encodeToJsonElement(PromptRequest.serializer(), PromptRequest(session.sessionId, content)), session.sessionId)
+
+    fun cancel(session: ClientSession) = protocol.sendNotificationRaw(AcpMethod.AgentMethods.V2.SessionCancel,
+        ProtocolJson.encodeToJsonElement(CancelSessionNotification.serializer(), CancelSessionNotification(session.sessionId)))
 
     suspend fun close() = cleanup(process, protocol)
 

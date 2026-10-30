@@ -4,6 +4,8 @@ import kinuvo.app.connection.*
 import kinuvo.app.routine.*
 import kinuvo.app.navigation.*
 
+import kinuvo.client.DisconnectedException
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kinuvo.protocol.*
@@ -137,7 +139,7 @@ class SettingsViewModel(
         }
     }
 
-    fun loadModels(refresh: Boolean = false) = attempt {
+    fun loadModels(refresh: Boolean = false) = attempt(clearErrors = false) {
         val models = config.models(refresh)
         state.update { it.copy(models = models) }
     }
@@ -444,13 +446,14 @@ class SettingsViewModel(
     private fun secretStatus(status: SecretProviderStatus) =
         state.update { s -> s.copy(secrets = s.secrets.orEmpty().filter { it.scheme != status.scheme } + status) }
 
-    private fun attempt(block: suspend () -> Unit): Job {
-        state.update { it.copy(errors = emptyList(), saved = false) }
+    private fun attempt(clearErrors: Boolean = true, block: suspend () -> Unit): Job {
+        state.update { it.copy(errors = if (clearErrors) emptyList() else it.errors, saved = false) }
         return viewModelScope.launch {
             try {
                 config.connection.run { block() }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
+            } catch (_: DisconnectedException) {
             } catch (e: Exception) {
                 state.update { it.copy(errors = it.errors + (e.message ?: e.toString())) }
             }

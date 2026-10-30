@@ -33,7 +33,7 @@ class BrowserServerTest {
             val agent = harness.store.agents().first()
             val session = harness.newSession(agent)
             harness.runner(agent, session.id).run(session.id, "Open a browser").toList()
-            val entries = harness.store.entries(agent, session.id)
+            val entries = harness.store.entries(agent.id, session.id)
             val result = entries.filterIsInstance<SessionEntry.ToolResult>().single()
             assertFalse(result.isError, result.toString())
             assertEquals(1, harness.browser!!.tabs(BrowserOwner(agent.id, session.id)).size)

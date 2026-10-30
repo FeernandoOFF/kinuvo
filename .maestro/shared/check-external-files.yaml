@@ -1,0 +1,18 @@
+appId: ${APP_ID}
+---
+- assertVisible:
+    text: "Files"
+    enabled: true
+- tapOn: "Files"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - assertVisible: "Cancel"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible: "Recent"
+      - back
+      - assertVisible: "Message"

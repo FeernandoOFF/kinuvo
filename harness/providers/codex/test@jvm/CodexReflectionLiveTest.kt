@@ -37,8 +37,8 @@ class CodexReflectionLiveTest {
             val chatModel = model(agent)
             val chat = fixture(Path(root, "chat"), agent)
             val store = FileStore(chat.files)
-            val session = store.createSession(agent, "You are a concise personal Agent. Help with projects and follow background Reflection instructions when asked.")
-            history.forEach { store.append(agent, session.id, it) }
+            val session = store.createSession(agent.id, "You are a concise personal Agent. Help with projects and follow background Reflection instructions when asked.")
+            history.forEach { store.append(agent.id, session.id, it) }
             val tools = PluginTools(listOf(MemoryTool(agent, chat.docs), ActivateSkillTool(agent, chat.skills),
                 ReadSkillFileTool(agent, chat.skills), SkillManageTool(agent, chat.skills)))
                 .ownedBy(PluginInstanceId("kinuvo.core")).tools +
@@ -48,7 +48,7 @@ class CodexReflectionLiveTest {
             val events = AgentRun(agent, store, chatModel, tools).run(session.id, "Those release checks worked. Use that procedure for future releases. " +
                 "Please recap Harbour's owner and deadline and my communication preference in two sentences, without calling tools.").toList()
             val chatMs = started.elapsedNow().inWholeMilliseconds
-            val entries = store.entries(agent, session.id)
+            val entries = store.entries(agent.id, session.id)
             val rows = mutableListOf(Row("chat", chatId, entries.filterIsInstance<SessionEntry.Measurement>().map { it.metrics }, chatMs))
             assertIs<AgentEvent.RunFinished>(events.last(), "Chat failed: $events")
             val variants = listOf("cold big" to agent, "small (opt-in)" to agent.copy(config = config.copy(model = smallId)))

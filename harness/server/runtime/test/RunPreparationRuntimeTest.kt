@@ -100,7 +100,7 @@ class RunPreparationRuntimeTest {
             val session = harness.newSession(agent)
             harness.runner(agent, session.id).run(session.id, "ping").toList()
             assertEquals(listOf("second"), executed)
-            val results = harness.store.entries(agent, session.id).filterIsInstance<SessionEntry.ToolResult>()
+            val results = harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>()
             assertEquals(setOf(first, second), results.map { it.identity }.toSet())
             assertTrue(results.single { it.identity == first }.isError)
             val limited = agent.copy(config = agent.config.copy(model = "limited"))
@@ -116,7 +116,7 @@ class RunPreparationRuntimeTest {
             val deniedSession = harness.newSession(agent)
             harness.runner(agent, deniedSession.id).run(deniedSession.id, "ping").toList()
             assertEquals(listOf("second", "second"), executed)
-            assertTrue(harness.store.entries(agent, deniedSession.id).filterIsInstance<SessionEntry.ToolResult>().all { it.isError })
+            assertTrue(harness.store.entries(agent.id, deniedSession.id).filterIsInstance<SessionEntry.ToolResult>().all { it.isError })
         } finally { harness.close() }
     }
 

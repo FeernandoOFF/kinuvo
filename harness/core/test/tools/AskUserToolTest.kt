@@ -70,13 +70,13 @@ class AskUserToolTest {
         val agent = home.agent.copy(config = home.agent.config.copy(approvals = "strict"))
         val questions = Broker<Map<String, List<String>>?>()
         val runner = AgentRun(agent, home.store, model, listOf(tool), approvals = Approvals(ApprovalPolicy(agent, home.trustRules), ApprovalBroker()), questions = questions)
-        val session = home.store.createSession(agent, "").id
+        val session = home.store.createSession(agent.id, "").id
         val asked = Channel<AgentEvent>(Channel.UNLIMITED)
         val job = launch { runner.run(session, "plan a trip").collect { if (it is AgentEvent.QuestionsAsked || it is AgentEvent.ApprovalRequested) asked.send(it) } }
         val event = asked.receive() as AgentEvent.QuestionsAsked
         assertEquals("Trip", event.title)
         assertTrue(questions.respond(event.questionsId, mapOf("city" to listOf("Rome"))))
         job.join()
-        assertEquals("""{"city":"Rome"}""", home.store.entries(agent, session).filterIsInstance<SessionEntry.ToolResult>().single().output)
+        assertEquals("""{"city":"Rome"}""", home.store.entries(agent.id, session).filterIsInstance<SessionEntry.ToolResult>().single().output)
     }
 }

@@ -46,7 +46,7 @@ class RuntimeDependenciesTest {
             assertEquals("- Injected memory", fixture.documents[AgentDoc.Memory]?.trim())
             assertTrue(fetched)
             assertTrue(fixture.catalogReads > 0)
-            assertEquals("Done", fixture.transcripts.entries(agent, session.id).filterIsInstance<SessionEntry.AssistantMessage>().single().text)
+            assertEquals("Done", fixture.transcripts.entries(agent.id, session.id).filterIsInstance<SessionEntry.AssistantMessage>().single().text)
         } finally { runtime.close() }
     }
 
@@ -57,7 +57,7 @@ class RuntimeDependenciesTest {
         val runtime = fixture.runtime(scriptedModel { _, _ -> requests++; flowOf(StreamFrame.End()) })
         val agent = fixture.agent.copy(config = fixture.agent.config.copy(tools = listOf("memory")))
         val session = runtime.newSession(agent)
-        runtime.store.append(agent, session.id, SessionEntry.UserMessage("Remember"))
+        runtime.store.append(agent.id, session.id, SessionEntry.UserMessage("Remember"))
         val reflector = Reflector(runtime, backgroundScope, { false })
         try {
             reflector.reflect(agent, session.id)

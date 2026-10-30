@@ -3,6 +3,7 @@ package kinuvo.ui
 import kinuvo.ui.navigation.*
 import com.composables.ui.theme.LocalInteractionMode
 import com.composables.ui.theme.InteractionMode
+import kinuvo.protocol.*
 import kinuvo.protocol.AgentInfo
 import kinuvo.protocol.AgentSettings
 import kinuvo.app.session.SessionList
@@ -34,6 +35,8 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
+import kinuvo.app.session.ChatRow
+import kinuvo.ui.session.StepsView
 import kinuvo.app.session.ChatItem
 import kinuvo.client.ConnectionState
 import kinuvo.protocol.SessionInfo
@@ -51,6 +54,29 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatChromeTest {
+    @Test fun outputToolAttachmentsOfferPreviewAndDownload() = javax.swing.SwingUtilities.invokeAndWait {
+        val attachment = Attachment("file", "output.png", "image/png", 8)
+        var loaded: String? = null
+        var previewed: String? = null
+        var downloaded: String? = null
+        ImageComposeScene(600, 600, Density(1f), content = {
+            HarnessTheme(dark = true) {
+                StepsView(ChatRow.Steps(listOf(ChatItem.ToolCall("tool", "t", "Image output", "", result = "", attachments = listOf(attachment)))),
+                    active = false, actions = ChatActions(onLoadAttachment = { loaded = it }, onPreviewAttachment = { previewed = it }, onSaveAttachment = { downloaded = it }))
+            }
+        }).use { scene ->
+            var time = 0L
+            fun frame() { repeat(5) { scene.render(time.also { time += 200_000_000 }) } }
+            frame(); scene.click("Image output"); frame()
+            assertEquals("file", loaded)
+            assertNotNull(scene.node("output.png"))
+            scene.click("output.png"); frame()
+            assertEquals("file", previewed)
+            scene.click("Save output.png"); frame()
+            assertEquals("file", downloaded)
+        }
+    }
+
     @Test fun phoneTodayNeverOffersBackAndItsMenuAndPillOpenTheDrawer() = javax.swing.SwingUtilities.invokeAndWait {
         var drawerOpened = false
         ImageComposeScene(390, 844, Density(1f), content = {
@@ -217,6 +243,84 @@ class ChatChromeTest {
             assertNotNull(scene.node("Routine run"))
             assertNull(scene.node("Statistics"), "Statistics live in the More menu")
             assertNotNull(scene.node("More"))
+        }
+    }
+
+    @Test fun externalRequestsAndNoticesRenderWithoutNativeSettings() = javax.swing.SwingUtilities.invokeAndWait {
+        val agent = AgentInfo("a", "External", "external", executionKind = ExecutionKind.Acp)
+        val prompt = ExecutionPrompt.Questions("q", AgentEvent.QuestionsAsked("q", "t", "Travel details", listOf(Question("seat", "Seat", QuestionKind.Text))))
+        val caps = SessionCapabilities(server = ServerCapabilities("s"), execution = ExecutionCapabilities())
+        ImageComposeScene(1000, 1400, Density(1f), content = {
+            HarnessTheme(dark = true) {
+                ChatContent(ChatState(agent = agent, selected = "s", loaded = true, capabilities = caps,
+                    defaults = AgentSettings("model", "medium", "default", "provider"),
+                    items = listOf(ChatItem.Notice("n", "history_gap", "Earlier history is unavailable")),
+                    prompts = listOf(prompt, ExecutionPrompt.Unsupported("other", "Another request"))),
+                    ConnectionState.Connected("Test"), null, ChatActions(), wide = true)
+            }
+        }).use { scene ->
+            repeat(5) { scene.render(it * 200_000_000L) }
+            assertNotNull(scene.node("Travel details"))
+            assertNotNull(scene.node("Another request"))
+            assertNotNull(scene.node("Earlier history is unavailable"))
+            assertNull(scene.node("Ask before acting in this Session: default"))
+            assertNull(scene.node("Waiting"))
+            assertTrue(scene.node("Travel details")!!.boundsInRoot.bottom < scene.node("Message")!!.boundsInRoot.top)
+            File("build/screens").mkdirs()
+            File("build/screens/composer-connected-notices.png").writeBytes(scene.render().encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        }
+    }
+
+    @Test fun recoverableSessionHasNoResumeCardAndKeepsComposerAvailable() = javax.swing.SwingUtilities.invokeAndWait {
+        val caps = SessionCapabilities(server = ServerCapabilities("s"), chat = CapabilityState.unavailable("Connection ended", "session_lost"), execution = ExecutionCapabilities(resume = true))
+        ImageComposeScene(900, 650, Density(1f), content = {
+            HarnessTheme(dark = true) {
+                ChatContent(ChatState(agent = AgentInfo("a", "Wren", "external", executionKind = ExecutionKind.Acp), selected = "s", loaded = true,
+                    capabilities = caps, phase = ExecutionPhase.Lost, resume = true, items = listOf(ChatItem.Assistant("m", "Saved reply"))),
+                    ConnectionState.Connected("Test"), null, ChatActions(), wide = true)
+            }
+        }).use { scene ->
+            repeat(5) { scene.render(it * 200_000_000L) }
+            assertNotNull(scene.node("Message"))
+            assertNull(scene.node("Resume session"))
+            assertNull(scene.node("Session ended"))
+            assertNull(scene.node("Resume this Session to keep chatting."))
+            assertNull(scene.node("Also shown on your other Devices with access. The first answer wins."))
+            File("build/screens").mkdirs()
+            File("build/screens/session-implicit-resume.png").writeBytes(scene.render().encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        }
+    }
+
+    @Test fun phoneChatInformationIsAttachedToComposer() = javax.swing.SwingUtilities.invokeAndWait {
+        val caps = SessionCapabilities(server = ServerCapabilities("s"), chat = CapabilityState.unavailable("Codex Work is offline", "host_offline"))
+        ImageComposeScene(390, 760, Density(1f), content = {
+            HarnessTheme(dark = true) {
+                ChatContent(ChatState(agent = AgentInfo("a", "Wren", "external", executionKind = ExecutionKind.Acp), selected = "s", loaded = true,
+                    capabilities = caps), ConnectionState.Connected("Test"), null, ChatActions(), wide = false)
+            }
+        }).use { scene ->
+            repeat(5) { scene.render(it * 200_000_000L) }
+            val explanation = assertNotNull(scene.node("Codex Work is offline"))
+            val action = assertNotNull(scene.node("Check again"))
+            assertTrue(explanation.boundsInRoot.bottom <= action.boundsInRoot.top)
+            assertTrue(action.boundsInRoot.bottom < scene.node("Message")!!.boundsInRoot.top)
+            File("build/screens").mkdirs()
+            File("build/screens/composer-connected-phone.png").writeBytes(scene.render().encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        }
+    }
+
+    @Test fun archivedSessionShowsHistoryWithoutResume() = javax.swing.SwingUtilities.invokeAndWait {
+        val caps = SessionCapabilities(server = ServerCapabilities("s"), chat = CapabilityState.unavailable("Saved history only", "archived"), execution = ExecutionCapabilities(resume = true))
+        ImageComposeScene(1000, 1000, Density(1f), content = {
+            HarnessTheme(dark = true) {
+                ChatContent(ChatState(agent = AgentInfo("a", "Archived", "external", executionKind = ExecutionKind.Acp), selected = "s", loaded = true,
+                    capabilities = caps, phase = ExecutionPhase.Lost, resume = true, items = listOf(ChatItem.Assistant("m", "Saved reply"))),
+                    ConnectionState.Connected("Test"), null, ChatActions(), wide = true)
+            }
+        }).use { scene ->
+            repeat(5) { scene.render(it * 200_000_000L) }
+            assertNotNull(scene.node("Saved reply"))
+            assertNull(scene.node("Resume session"))
         }
     }
 

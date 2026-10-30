@@ -1,0 +1,44 @@
+{
+  "name": "mobile/external-catch-up",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "session.catchUp"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{}}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"window\",\"firstSeq\":0,\"entries\":[{\"type\":\"assistant\",\"text\":\"External transcript retained\",\"messageId\":\"external-gen-1/history\"}],\"state\":{\"running\":true,\"executionPhase\":\"RequiresAction\",\"pending\":[{\"id\":\"public-number-request\",\"kind\":\"Question\",\"payload\":{},\"prompt\":{\"type\":\"questions\",\"id\":\"public-number-request\",\"asked\":{\"type\":\"QUESTIONS_ASKED\",\"questionsId\":\"public-number-request\",\"toolCallId\":\"external-question\",\"title\":\"Choose a retry limit\",\"questions\":[{\"id\":\"attempts\",\"label\":\"Retry limit\",\"kind\":\"number\",\"required\":true,\"default\":[\"3\"]}]},\"types\":{\"attempts\":\"number\"}}}]}}},\"seq\":1}"
+        }
+      }
+    }
+  ]
+}

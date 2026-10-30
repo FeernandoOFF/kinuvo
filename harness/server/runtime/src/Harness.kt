@@ -106,7 +106,7 @@ open class HarnessRuntime(
 
     /** Saves what's worth keeping from [entries] of a Session. */
     suspend fun reflect(agent: Agent, sessionId: String, entries: List<SessionEntry>, review: ReflectionRevision? = null): kinuvo.protocol.ReflectionResult {
-        val resolved = try { agent.with(store.session(agent, sessionId).settings) }
+        val resolved = try { agent.with(store.session(agent.id, sessionId).settings) }
         catch (e: kotlinx.coroutines.CancellationException) { throw e } catch (_: Exception) { agent }
         val chat = effective(resolved, null)
         val chosen = try {
@@ -125,7 +125,7 @@ open class HarnessRuntime(
     }
 
     suspend fun newSession(agent: Agent, routine: RoutineRef? = null): SessionInfo {
-        return store.createSession(agent, instructionsFor(agent, docs), routine)
+        return store.createSession(agent.id, instructionsFor(agent, docs), routine)
     }
 
     /** Replaces [sessionId]'s own settings; its next run uses them. */
@@ -134,19 +134,19 @@ open class HarnessRuntime(
             approvals = settings.approvals?.trim()?.ifEmpty { null }, provider = settings.provider?.trim()?.ifEmpty { null })
         s.provider?.let { requireModelProvider(it); require(s.model != null) { "Choose a model with its provider" } }
         require(s.approvals == null || s.approvals in Tolerance.ids) { "approvals must be one of ${Tolerance.ids.joinToString()}" }
-        if (s != store.session(agent, sessionId).settings) store.append(agent, sessionId, SessionEntry.Settings(s))
-        return store.session(agent, sessionId)
+        if (s != store.session(agent.id, sessionId).settings) store.append(agent.id, sessionId, SessionEntry.Settings(s))
+        return store.session(agent.id, sessionId)
     }
 
     /** Renames [sessionId] (blank: back to its first message) or marks it a favorite. */
     suspend fun update(agent: Agent, sessionId: String, title: String?, favorite: Boolean?): SessionInfo {
-        val before = store.entries(agent, sessionId).filterIsInstance<SessionEntry.Details>().lastOrNull() ?: SessionEntry.Details()
+        val before = store.entries(agent.id, sessionId).filterIsInstance<SessionEntry.Details>().lastOrNull() ?: SessionEntry.Details()
         val details = SessionEntry.Details(
-            title = if (title == null) before.title else title.trim().take(MAX_TITLE).ifEmpty { null },
+            title = if (title == null) before.title else title.trim().take(MAX_SESSION_TITLE).ifEmpty { null },
             favorite = favorite ?: before.favorite,
         )
-        if (details != before) store.append(agent, sessionId, details)
-        return store.session(agent, sessionId)
+        if (details != before) store.append(agent.id, sessionId, details)
+        return store.session(agent.id, sessionId)
     }
 
     /** `/name rest` activates a user-invocable Skill; returns null when [text] isn't a Skill command. */
@@ -163,7 +163,7 @@ open class HarnessRuntime(
     private class Effective(val agent: Agent, val info: ModelInfo?, val provider: ModelProvider?, val memoryCap: Int, val userCap: Int)
 
     private suspend fun effective(agent: Agent, sessionId: String?, settings: SessionSettings? = null): Effective {
-        val configured = supported(agent.with(settings ?: sessionId?.let { store.session(agent, it).settings } ?: SessionSettings()))
+        val configured = supported(agent.with(settings ?: sessionId?.let { store.session(agent.id, it).settings } ?: SessionSettings()))
         val info = modelCatalog().providers.firstOrNull { it.id == configured.config.provider }?.models?.firstOrNull { it.id == configured.config.model }
         val context = info?.context
         val fitted = if (context == null) configured else configured.copy(config = configured.config.copy(compactAtTokens = minOf(configured.config.compactAtTokens, context * 55 / 100)))
@@ -322,7 +322,6 @@ open class HarnessRuntime(
         val TOOL_FEATURES = mapOf(ToolNames.SKILLS to ServerFeature.Skills, ToolNames.SCHEDULE to ServerFeature.Routines, ToolNames.ARTIFACT to ServerFeature.Artifacts,
             ToolNames.KNOWLEDGE to ServerFeature.Knowledge, ToolNames.TASKS to ServerFeature.Tasks, ToolNames.DEVICE_TOOLS to ServerFeature.DeviceTools,
             ToolNames.COMPUTER to ServerFeature.Computer)
-        const val MAX_TITLE = 100
         const val UNATTENDED_DENIAL = "This is an unattended Routine run, so tool calls that need an Approval are denied."
     }
 }

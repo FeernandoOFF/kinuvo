@@ -129,7 +129,7 @@ class DeviceTools(
             }
             val pending = questions().register()
             try {
-                log.publish(run.agent, run.sessionId!!, AgentEvent.QuestionsAsked(pending.id, callId, "Open Kinuvo on ${device.name} to read ${request.kind.name.lowercase()}. This continues automatically; Skip to continue without this data.", emptyList()))
+                log.publish(run.agent.id, run.sessionId!!, AgentEvent.QuestionsAsked(pending.id, callId, "Open Kinuvo on ${device.name} to read ${request.kind.name.lowercase()}. This continues automatically; Skip to continue without this data.", emptyList()))
                 val skipped = coroutineScope {
                     val answer = async { pending.await() }
                     val ready = async { connections.first { map ->
@@ -148,7 +148,7 @@ class DeviceTools(
                 if (skipped) return DeviceToolResult(DeviceToolStatus.Skipped, message = "The user skipped this Device read. Data is unavailable; do not treat it as zero or invent it.")
             } finally {
                 pending.close()
-                withContext(NonCancellable) { log.publish(run.agent, run.sessionId!!, AgentEvent.QuestionsAnswered(callId)) }
+                withContext(NonCancellable) { log.publish(run.agent.id, run.sessionId!!, AgentEvent.QuestionsAnswered(callId)) }
             }
         }
     }

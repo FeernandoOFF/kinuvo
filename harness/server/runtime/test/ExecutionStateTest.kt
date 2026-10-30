@@ -50,9 +50,10 @@ class ExecutionStateTest {
         val broker = ExecutionBroker(state)
         val waiting = async { broker.ask(ExecutionRequest("a", ExecutionRequestKind.Approval, JsonNull)) }
         testScheduler.runCurrent()
-        assertEquals("a", state.snapshot().pending.single().id)
-        assertTrue(broker.answer("a", JsonNull))
-        assertFalse(broker.answer("a", JsonNull))
+        val token = state.snapshot().pending.single().id
+        assertNotEquals("a", token)
+        assertTrue(broker.answer(token, JsonNull))
+        assertFalse(broker.answer(token, JsonNull))
         assertEquals(JsonNull, waiting.await())
         broker.lost()
         assertFailsWith<IllegalStateException> { broker.ask(ExecutionRequest("b", ExecutionRequestKind.Question, JsonNull)) }

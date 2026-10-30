@@ -49,11 +49,11 @@ class ReflectionReviewTest {
         val session = harness.newSession(agent).id
         val proposal = ReflectionProposal("dated", "knowledge", Json.parseToJsonElement("""{"action":"create","type":"project","title":"Release","append":"Thursday"}""").jsonObject,
             "Schedule", "User: release date", scope = harness.knowledge.scope())
-        harness.log.append(agent, session, SessionEntry.Reflection("dated", 0, ReflectionResult(proposals = listOf(proposal))))
+        harness.log.append(agent.id, session, SessionEntry.Reflection("dated", 0, ReflectionResult(proposals = listOf(proposal))))
         val review = ReflectionReview(harness)
         review.respond(agent, session, proposal.id, true, "  wrong date  ")
         assertEquals(null, harness.knowledge.find("Release"))
-        val saved = harness.store.entries(agent, session).filterIsInstance<SessionEntry.ReflectionReview>().single()
+        val saved = harness.store.entries(agent.id, session).filterIsInstance<SessionEntry.ReflectionReview>().single()
         assertEquals("wrong date", saved.note)
         val revised = saved.result!!.proposals.single()
         assertEquals("Friday", revised.args["append"]!!.toString().trim('"'))
@@ -81,9 +81,9 @@ class ReflectionReviewTest {
         val session = harness.newSession(agent).id
         val proposal = ReflectionProposal("city", "knowledge", Json.parseToJsonElement("""{"action":"create","type":"place","title":"Dublin"}""").jsonObject,
             "A place", "User: Dublin", scope = harness.knowledge.scope())
-        harness.log.append(agent, session, SessionEntry.Reflection("city", 0, ReflectionResult(proposals = listOf(proposal))))
+        harness.log.append(agent.id, session, SessionEntry.Reflection("city", 0, ReflectionResult(proposals = listOf(proposal))))
         ReflectionReview(harness).respond(agent, session, "city", false, "Don't make Notes for cities")
-        val pending = harness.store.entries(agent, session).filterIsInstance<SessionEntry.ReflectionReview>().single().result!!.proposals.single()
+        val pending = harness.store.entries(agent.id, session).filterIsInstance<SessionEntry.ReflectionReview>().single().result!!.proposals.single()
         assertEquals("conventions", pending.tool)
         assertEquals("", harness.knowledge.conventions())
         assertEquals(null, harness.knowledge.find("Dublin"))
@@ -101,7 +101,7 @@ class ReflectionReviewTest {
         val note = original.knowledge.create("project", "Kinuvo", body = "Original")
         val proposal = ReflectionProposal("p1", "knowledge", Json.parseToJsonElement("""{"action":"update","ref":"${note.ref}","append":"Accepted decision"}""").jsonObject,
             "Project decision", "user-0", note = note, scope = original.knowledge.scope())
-        original.log.append(agent, session, SessionEntry.Reflection("r1", 0, ReflectionResult(proposals = listOf(proposal))))
+        original.log.append(agent.id, session, SessionEntry.Reflection("r1", 0, ReflectionResult(proposals = listOf(proposal))))
         val restarted = harness()
         val review = ReflectionReview(restarted)
         restarted.knowledge.update(note.ref, body = listOf(kinuvo.harness.core.knowledge.BodyEdit.Append("Concurrent edit")))
@@ -110,10 +110,10 @@ class ReflectionReviewTest {
         review.respond(agent, session, proposal.id, false)
         review.respond(agent, session, proposal.id, false)
         assertFailsWith<IllegalStateException> { review.respond(agent, session, proposal.id, true) }
-        assertEquals(listOf(SessionEntry.ReflectionReview("p1", false)), FileStore(restarted.files).entries(agent, session).filterIsInstance<SessionEntry.ReflectionReview>())
+        assertEquals(listOf(SessionEntry.ReflectionReview("p1", false)), FileStore(restarted.files).entries(agent.id, session).filterIsInstance<SessionEntry.ReflectionReview>())
 
         val create = proposal.copy(id = "p2", note = null, args = Json.parseToJsonElement("""{"action":"create","type":"person","title":"Ana"}""").jsonObject)
-        restarted.log.append(agent, session, SessionEntry.Reflection("r2", 0, ReflectionResult(proposals = listOf(create))))
+        restarted.log.append(agent.id, session, SessionEntry.Reflection("r2", 0, ReflectionResult(proposals = listOf(create))))
         KnowledgeTool(restarted.knowledge, ChangeSource(agent.id, session, create.id)).executeReviewed(create.args, null, create.scope!!)
         // A restart between applying the change and persisting its decision must not apply it twice.
         val afterApply = harness()
@@ -134,7 +134,7 @@ class ReflectionReviewTest {
             put("content", kotlinx.serialization.json.JsonPrimitive(content))
         }
         val proposal = ReflectionProposal("skill-1", "skill_manage", args, "Verified release workflow", "tool-1")
-        harness.log.append(agent, session, SessionEntry.Reflection("r1", 0, ReflectionResult(proposals = listOf(proposal))))
+        harness.log.append(agent.id, session, SessionEntry.Reflection("r1", 0, ReflectionResult(proposals = listOf(proposal))))
         assertTrue(harness.skills.load(agent).none { it.name == "release-check" })
         val server = HarnessServer(harness)
         val port = server.start("127.0.0.1", 0)
@@ -148,7 +148,7 @@ class ReflectionReviewTest {
             val edit = proposal.copy(id = "skill-2", skillBefore = content,
                 args = kotlinx.serialization.json.JsonObject(args + ("content" to kotlinx.serialization.json.JsonPrimitive(content + "New lesson\n")) +
                     ("action" to kotlinx.serialization.json.JsonPrimitive("edit"))))
-            harness.log.append(agent, session, SessionEntry.Reflection("r2", 0, ReflectionResult(proposals = listOf(edit))))
+            harness.log.append(agent.id, session, SessionEntry.Reflection("r2", 0, ReflectionResult(proposals = listOf(edit))))
             harness.skills.save(agent, ConfigScope.Agent, "release-check", content + "User edit\n")
             assertFailsWith<IllegalStateException> { client.call(Api.ReviewReflection, params.copy(proposalId = edit.id)) }
             assertEquals(content + "User edit\n", harness.skills.content(harness.skills.load(agent).single { it.name == "release-check" }))

@@ -24,9 +24,9 @@ import kotlin.test.assertFailsWith
 
 class ToolRunTest {
     @Test fun duplicateNamesCannotReplaceAnotherTool() = runTest {
-        val session = home.store.createSession(home.agent, "")
+        val session = home.store.createSession(home.agent.id, "")
         assertFailsWith<IllegalArgumentException> { AgentRun(home.agent, home.store, model, listOf(target, target)).run(session.id, "go").collect {} }
-        assertEquals(1, home.store.entries(home.agent, session.id).size)
+        assertEquals(1, home.store.entries(home.agent.id, session.id).size)
     }
 
     private val home = TestHome()
@@ -64,7 +64,7 @@ class ToolRunTest {
             approvals = Approvals(ApprovalPolicy(agent, home.trustRules), broker))
         val requests = mutableListOf<AgentEvent.ApprovalRequested>()
         repeat(2) {
-            val session = home.store.createSession(agent, "")
+            val session = home.store.createSession(agent.id, "")
             runner.run(session.id, "go").collect { event ->
                 if (event is AgentEvent.ApprovalRequested) {
                     requests += event
@@ -78,19 +78,19 @@ class ToolRunTest {
         assertEquals(2, calls)
 
         home.trustRules.update(agent.id) { it.copy(deny = DenyRules(tools = listOf(target.identity.key))) }
-        val session = home.store.createSession(agent, "")
+        val session = home.store.createSession(agent.id, "")
         runner.run(session.id, "go").collect { assertFalse(it is AgentEvent.ApprovalRequested) }
         assertEquals(2, calls)
-        assertTrue(home.store.entries(agent, session.id).filterIsInstance<SessionEntry.ToolResult>().single().output.contains("Deny rule"))
+        assertTrue(home.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>().single().output.contains("Deny rule"))
     }
 
     @Test fun stoppingNestedApprovalRecordsDenial() = runTest {
         val agent = home.agent
-        val session = home.store.createSession(agent, "")
+        val session = home.store.createSession(agent.id, "")
         AgentRun(agent, home.store, model, listOf(bridge, target),
             approvals = Approvals(ApprovalPolicy(agent, home.trustRules), ApprovalBroker()))
             .run(session.id, "go").first { it is AgentEvent.ApprovalRequested }
         assertEquals(0, calls)
-        assertEquals("Denied (stopped)", home.store.entries(agent, session.id).filterIsInstance<SessionEntry.ToolResult>().single().output)
+        assertEquals("Denied (stopped)", home.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>().single().output)
     }
 }

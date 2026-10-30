@@ -37,7 +37,7 @@ class ReflectionActivityTest {
             val agent = harness.store.agents().single()
             val caught = mutableListOf<SessionUpdate>()
             val subscriber = SessionLog.Subscriber { caught += it; true }
-            harness.log.subscribe(agent, sessionId, null, 100, subscriber)
+            harness.log.subscribe(agent.id, sessionId, null, 100, subscriber)
             assertNotNull(caught.map { it.change }.filterIsInstance<SessionChange.Live>().single().state.reflectionId)
             assertEquals(SessionStatus.Idle, harness.log.status(sessionId))
             harness.log.unsubscribeAll(subscriber)
@@ -66,11 +66,11 @@ class ReflectionActivityTest {
         val reflector = Reflector(harness, CoroutineScope(Dispatchers.Default), busy = { false })
         val updates = mutableListOf<SessionUpdate>()
         val subscriber = SessionLog.Subscriber { updates += it; true }
-        harness.log.subscribe(agent, sessionId, null, 100, subscriber)
-        harness.store.append(agent, sessionId, SessionEntry.UserMessage("My sister Ana lives in Dublin. Examples help."))
+        harness.log.subscribe(agent.id, sessionId, null, 100, subscriber)
+        harness.store.append(agent.id, sessionId, SessionEntry.UserMessage("My sister Ana lives in Dublin. Examples help."))
         assertEquals(2, reflector.reflect(agent, sessionId))
         assertEquals(0, reflector.reflect(agent, sessionId))
-        val saved = harness.store.entries(agent, sessionId).filterIsInstance<SessionEntry.Reflection>().single()
+        val saved = harness.store.entries(agent.id, sessionId).filterIsInstance<SessionEntry.Reflection>().single()
         assertEquals(ReflectionResult(memory = 1, userNotes = 1, proposals = saved.result.proposals, measurements = saved.result.measurements,
             memoryChanges = listOf(ReflectionMemoryChange("memory", "", "- Use examples\n"), ReflectionMemoryChange("user", "", "- Lives in Dublin\n"))), saved.result)
         val proposal = saved.result.proposals.single()
@@ -80,23 +80,23 @@ class ReflectionActivityTest {
         review.respond(agent, sessionId, proposal.id, true)
         assertEquals("Ana", harness.knowledge.find("Ana")?.title)
         assertEquals(1, harness.knowledge.changes().size)
-        assertEquals(1, FileStore(harness.files).entries(agent, sessionId).filterIsInstance<SessionEntry.ReflectionReview>().size)
+        assertEquals(1, FileStore(harness.files).entries(agent.id, sessionId).filterIsInstance<SessionEntry.ReflectionReview>().size)
         assertTrue(updates.any { (it.change as? SessionChange.Event)?.event == AgentEvent.ReflectionStarted(saved.id) })
         assertTrue(updates.any { (it.change as? SessionChange.Entry)?.entry == saved })
-        assertEquals(saved, FileStore(harness.files).entries(agent, sessionId).filterIsInstance<SessionEntry.Reflection>().single())
+        assertEquals(saved, FileStore(harness.files).entries(agent.id, sessionId).filterIsInstance<SessionEntry.Reflection>().single())
 
         outcome = "empty"
-        harness.store.append(agent, sessionId, SessionEntry.UserMessage("Thanks"))
+        harness.store.append(agent.id, sessionId, SessionEntry.UserMessage("Thanks"))
         assertEquals(0, reflector.reflect(agent, sessionId))
         outcome = "failed"
-        harness.store.append(agent, sessionId, SessionEntry.UserMessage("Something else"))
+        harness.store.append(agent.id, sessionId, SessionEntry.UserMessage("Something else"))
         assertEquals(0, reflector.reflect(agent, sessionId))
-        val results = harness.store.entries(agent, sessionId).filterIsInstance<SessionEntry.Reflection>()
+        val results = harness.store.entries(agent.id, sessionId).filterIsInstance<SessionEntry.Reflection>()
         assertEquals(3, results.size)
         assertEquals(ReflectionResult(), results[1].result.copy(measurements = emptyList()))
         assertEquals(List(3) { "Provider unavailable" }, results[2].result.error?.lines())
         val caught = mutableListOf<SessionUpdate>()
-        harness.log.subscribe(agent, sessionId, null, 100, SessionLog.Subscriber { caught += it; true })
+        harness.log.subscribe(agent.id, sessionId, null, 100, SessionLog.Subscriber { caught += it; true })
         assertEquals(null, caught.map { it.change }.filterIsInstance<SessionChange.Live>().single().state.reflectionId)
         assertEquals(SessionStatus.Idle, harness.log.status(sessionId))
     }

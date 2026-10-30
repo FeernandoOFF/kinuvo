@@ -1,0 +1,22 @@
+{
+  "mappings": [
+    "mobile/external-agent",
+    "mobile/external-agents",
+    "mobile/external-capabilities",
+    "mobile/external-catch-up",
+    "ws/connect",
+    "ws/create-session",
+    "ws/device-tools",
+    "ws/models",
+    "ws/presence",
+    "ws/routines",
+    "mobile/external-session",
+    "mobile/external-sessions",
+    "ws/skills",
+    "ws/unsubscribe",
+    "ws/upgrade",
+    "ws/providers",
+    "mobile/external-answer",
+    "mobile/external-send"
+  ]
+}

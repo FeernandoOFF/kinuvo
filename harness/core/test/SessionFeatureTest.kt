@@ -18,7 +18,7 @@ class SessionFeatureTest {
     @Test
     fun llmCallsAndEachResultAreDurableBeforeTheNextToolStarts() = runTest {
         val home = TestHome()
-        val session = home.store.createSession(home.agent, "")
+        val session = home.store.createSession(home.agent.id, "")
         var requests = 0
         val model = scriptedModel { _, _ ->
             if (requests++ == 0) flowOf(StreamFrame.ToolCallComplete("first", "read", "{}"),
@@ -31,7 +31,7 @@ class SessionFeatureTest {
         }
         AgentRun(home.agent, home.store, model, listOf(tool)).run(session.id, "go").collect { event ->
             if (event is AgentEvent.ToolCallStart) {
-                val all = home.store.entries(home.agent, session.id)
+                val all = home.store.entries(home.agent.id, session.id)
                 assertEquals(listOf("first", "second"), all.filterIsInstance<SessionEntry.ToolCall>().map { it.id })
                 if (event.toolCallId == "second") assertEquals("first", all.filterIsInstance<SessionEntry.ToolResult>().single().id)
             }
@@ -41,11 +41,11 @@ class SessionFeatureTest {
     @Test
     fun cancellationAnswersEveryPersistedCallIncludingCallsNotStarted() = runTest {
         val home = TestHome()
-        val session = home.store.createSession(home.agent, "")
+        val session = home.store.createSession(home.agent.id, "")
         val model = scriptedModel { _, _ -> flowOf(StreamFrame.ToolCallComplete("first", "read", "{}"),
             StreamFrame.ToolCallComplete("second", "read", "{}"), StreamFrame.End()) }
         AgentRun(home.agent, home.store, model, emptyList()).run(session.id, "go").first { it is AgentEvent.ToolCallStart }
-        val results = home.store.entries(home.agent, session.id).filterIsInstance<SessionEntry.ToolResult>()
+        val results = home.store.entries(home.agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>()
         assertEquals(listOf("first", "second"), results.map { it.id })
         assertTrue(results.all { it.isError })
         assertEquals(listOf("Cancelled by user", "Not run: the turn was cancelled"), results.map { it.output })
@@ -54,7 +54,7 @@ class SessionFeatureTest {
     @Test
     fun cancellingAnApprovalDoesNotDenyTheRestOfTheBatch() = runTest {
         val home = TestHome()
-        val session = home.store.createSession(home.agent, "")
+        val session = home.store.createSession(home.agent.id, "")
         var executed = 0
         val tool = object : Tool {
             override val descriptor = ToolDescriptor("read", "Read")
@@ -67,7 +67,7 @@ class SessionFeatureTest {
         AgentRun(home.agent, home.store, model, listOf(tool),
             approvals = Approvals(ApprovalPolicy(home.agent, home.trustRules, Tolerance.Strict), ApprovalBroker()))
             .run(session.id, "go").first { seen += it; it is AgentEvent.ApprovalRequested }
-        val results = home.store.entries(home.agent, session.id).filterIsInstance<SessionEntry.ToolResult>()
+        val results = home.store.entries(home.agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>()
         assertEquals(0, executed)
         assertEquals(listOf("Denied (stopped)", "Not run: the turn was cancelled"), results.map { it.output })
         assertEquals(listOf("first"), seen.filterIsInstance<AgentEvent.ToolCallStart>().map { it.toolCallId })
@@ -76,7 +76,7 @@ class SessionFeatureTest {
     @Test
     fun toolCallsWithoutIdsReceiveStableGeneratedIds() = runTest {
         val home = TestHome()
-        val session = home.store.createSession(home.agent, "")
+        val session = home.store.createSession(home.agent.id, "")
         var requests = 0
         val model = scriptedModel { _, _ ->
             if (requests++ == 0) flowOf(StreamFrame.ToolCallComplete(null, "read", "{}"), StreamFrame.End())
@@ -84,7 +84,7 @@ class SessionFeatureTest {
         }
         val events = AgentRun(home.agent, home.store, model, emptyList()).run(session.id, "go").toList()
         assertIs<AgentEvent.RunFinished>(events.last())
-        val entries = home.store.entries(home.agent, session.id)
+        val entries = home.store.entries(home.agent.id, session.id)
         val call = entries.filterIsInstance<SessionEntry.ToolCall>().single()
         assertTrue(call.id.isNotBlank())
         assertEquals(call.id, entries.filterIsInstance<SessionEntry.ToolResult>().single().id)
@@ -93,7 +93,7 @@ class SessionFeatureTest {
     @Test
     fun unfinishedCallsAreSavedBeforeTheTerminalErrorReachesClients() = runTest {
         val home = TestHome()
-        val session = home.store.createSession(home.agent, "")
+        val session = home.store.createSession(home.agent.id, "")
         val model = scriptedModel { _, _ -> flow {
             emit(StreamFrame.ToolCallComplete("first", "read", "{}"))
             emit(StreamFrame.ToolCallComplete("second", "read", "{}"))
@@ -105,7 +105,7 @@ class SessionFeatureTest {
             seen += event
             if (event is AgentEvent.RunError) {
                 failed = true
-                val results = home.store.entries(home.agent, session.id).filterIsInstance<SessionEntry.ToolResult>()
+                val results = home.store.entries(home.agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>()
                 assertEquals(listOf("first", "second"), results.map { it.id })
                 assertTrue(results.all { it.isError })
             }
@@ -118,11 +118,11 @@ class SessionFeatureTest {
     @Test
     fun silentlyDroppedStreamsSavePartialTextAndReportFailure() = runTest {
         val home = TestHome()
-        val session = home.store.createSession(home.agent, "")
+        val session = home.store.createSession(home.agent.id, "")
         val model = scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("partial")) }
         val events = AgentRun(home.agent, home.store, model, emptyList()).run(session.id, "go").toList()
         assertIs<AgentEvent.RunError>(events.last())
-        val all = home.store.entries(home.agent, session.id)
+        val all = home.store.entries(home.agent.id, session.id)
         assertEquals("partial\n\n[interrupted]", all.filterIsInstance<SessionEntry.AssistantMessage>().single().text)
         assertFalse(all.filterIsInstance<SessionEntry.Measurement>().single().metrics.success)
     }
