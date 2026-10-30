@@ -63,13 +63,13 @@ class RoutineRunTest {
     }
 
     private suspend fun execute(run: RoutineRun, model: kinuvo.harness.core.AgentModel, tools: List<Tool> = emptyList(), approvals: Approvals = Approvals.none()): List<AgentEvent> {
-        val session = store.createSession(agent, "", run.ref)
+        val session = store.createSession(agent.id, "", run.ref)
         return AgentRun(agent, store, model, tools + RoutineReportTool(run).bound(), approvals = approvals, routine = run).run(session.id, run.routine.prompt).toList()
             .also { sessionId = session.id }
     }
 
     private var sessionId = ""
-    private suspend fun entries() = store.entries(agent, sessionId)
+    private suspend fun entries() = store.entries(agent.id, sessionId)
 
     @Test
     fun aReportIsSavedWithTheSessionAndNotified() = runTest {
@@ -84,7 +84,7 @@ class RoutineRunTest {
         val sent = entries.filterIsInstance<SessionEntry.UserMessage>().single()
         assertEquals(run.ref, sent.routine)
         assertTrue("Check my bills" in sent.text && "(UTC), every 30m" in sent.text)
-        assertTrue(store.session(agent, sessionId).inChats)
+        assertTrue(store.session(agent.id, sessionId).inChats)
     }
 
     @Test
@@ -97,7 +97,7 @@ class RoutineRunTest {
         val entries = entries()
         assertEquals(SessionEntry.Outcome(false), entries.last())
         assertEquals("Nothing changed.", entries.filterIsInstance<SessionEntry.AssistantMessage>().last().text)
-        assertEquals(false, store.session(agent, sessionId).inChats)
+        assertEquals(false, store.session(agent.id, sessionId).inChats)
     }
 
     @Test
@@ -151,7 +151,7 @@ class RoutineRunTest {
         val deploy = Deploy()
         val broker = ApprovalBroker()
         val approvals = Approvals(ApprovalPolicy(agent, home.trustRules, Tolerance.Relaxed), broker, wait = 30.minutes, skipped = { run.skipped += it })
-        val session = store.createSession(agent, "", run.ref)
+        val session = store.createSession(agent.id, "", run.ref)
         val model = model("deploy" to "{}", "routine_report" to """{"outcome":"nothing_new"}""")
         AgentRun(agent, store, model, listOf(deploy, RoutineReportTool(run).bound()), approvals = approvals, routine = run).run(session.id, "go").collect {
             if (it is AgentEvent.ApprovalRequested) assertTrue(broker.respond(it.approvalId, ApprovalDecision.AllowOnce))
@@ -160,13 +160,13 @@ class RoutineRunTest {
         assertEquals(1, deploy.calls)
         assertTrue(run.skipped.isEmpty())
         assertTrue(notified.isEmpty())
-        assertEquals(listOf("deployed", "Recorded."), store.entries(agent, session.id).filterIsInstance<SessionEntry.ToolResult>().map { it.output })
+        assertEquals(listOf("deployed", "Recorded."), store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>().map { it.output })
     }
 
     @Test
     fun stoppingARunRecordsNoOutcomeAndClosesItsCalls() = runTest {
         val run = run()
-        val session = store.createSession(agent, "", run.ref)
+        val session = store.createSession(agent.id, "", run.ref)
         val slow = object : Tool {
             override val descriptor = ToolDescriptor("slow", "never finishes")
             override suspend fun execute(args: JsonObject): String = kotlinx.coroutines.awaitCancellation()
@@ -174,8 +174,8 @@ class RoutineRunTest {
         val stuck = scriptedModel { _, _ -> flowOf(StreamFrame.ToolCallComplete("c1", "slow", "{}"), StreamFrame.End()) }
         AgentRun(agent, store, stuck, listOf(slow, RoutineReportTool(run)), routine = run).run(session.id, "go").first { it is AgentEvent.ToolCallStart }
 
-        assertEquals(SessionEntry.ToolResult("c1", "slow", "Cancelled by user", isError = true), store.entries(agent, session.id).last())
-        assertTrue(store.entries(agent, session.id).none { it is SessionEntry.Outcome })
+        assertEquals(SessionEntry.ToolResult("c1", "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last())
+        assertTrue(store.entries(agent.id, session.id).none { it is SessionEntry.Outcome })
         assertTrue(notified.isEmpty())
         assertNull(run.outcome)
     }

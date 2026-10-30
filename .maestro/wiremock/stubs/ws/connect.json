@@ -25,7 +25,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"token\":\"e2e-token\",\"serverName\":\"E2E Server\",\"management\":false,\"capabilities\":{\"serverId\":\"e2e-server\",\"features\":[]}}}"
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"token\":\"e2e-token\",\"serverName\":\"E2E Server\",\"management\":false,\"capabilities\":{\"serverId\":\"e2e-server\",\"features\":[]},\"protocolVersion\":4}}"
         }
       }
     }

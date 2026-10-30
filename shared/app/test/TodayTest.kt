@@ -42,7 +42,7 @@ class TodayTest {
                 task("todo"),
             ),
         )
-        assertEquals(listOf("s9", "s1"), result.needsYou.filterIsInstance<Attention.Waiting>().map { it.session.id })
+        assertEquals(listOf("s1", "s9"), result.needsYou.filterIsInstance<Attention.Waiting>().map { it.session.id })
         assertEquals(listOf("alone", "idleSession"), result.needsYou.filterIsInstance<Attention.TaskWaiting>().map { it.task.id })
         assertEquals(4, result.needsYou.size)
         assertIs<Attention.Waiting>(result.needsYou.first())

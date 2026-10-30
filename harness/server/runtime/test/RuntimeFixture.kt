@@ -21,7 +21,7 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
     val transcripts = InMemoryStore()
     val store = object : Store by transcripts {
         override suspend fun agents() = listOf(agent)
-        override suspend fun session(agent: Agent, sessionId: String) = transcripts.session(agent, sessionId).copy(settings = transcripts.entries(agent, sessionId).filterIsInstance<SessionEntry.Settings>().lastOrNull()?.settings ?: SessionSettings())
+        override suspend fun session(agentId: String, sessionId: String) = transcripts.session(agentId, sessionId).copy(settings = transcripts.entries(agentId, sessionId).filterIsInstance<SessionEntry.Settings>().lastOrNull()?.settings ?: SessionSettings())
     }
     val documents = mutableMapOf<AgentDoc, String>()
     val docs = object : AgentDocs {

@@ -1,0 +1,33 @@
+{
+  "name": "mobile/external-agent",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "agent.get"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"info\":{\"id\":\"e2e\",\"name\":\"E2E Agent\",\"exec\":\"local\",\"executionKind\":\"Acp\",\"connectionId\":\"e2e-acp\",\"host\":\"E2E host\",\"readiness\":{\"configured\":true,\"online\":true}},\"settings\":{\"model\":\"e2e-model\",\"reasoning\":\"medium\",\"approvals\":\"default\",\"exec\":\"local\",\"provider\":\"codex\"},\"identity\":\"E2E Agent\",\"soul\":\"Test Agent\"}}"
+        }
+      }
+    }
+  ]
+}

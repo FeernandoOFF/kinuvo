@@ -10,14 +10,10 @@
     },
     "message": {
       "body": {
-        "and": [
-          {
-            "matchesJsonPath": {
-              "expression": "$.method",
-              "equalTo": "session.capabilities"
-            }
-          }
-        ]
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "session.capabilities"
+        }
       }
     }
   },

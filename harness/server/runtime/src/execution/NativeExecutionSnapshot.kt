@@ -5,7 +5,9 @@ import kinuvo.harness.server.SessionLog
 import kinuvo.protocol.*
 
 /** Uses the native log's atomic catch-up so persisted and live text retain their IDs. */
-suspend fun SessionLog.executionSnapshot(agent: Agent, id: String): ExecutionSnapshot {
+suspend fun SessionLog.executionSnapshot(agent: Agent, id: String) = executionSnapshot(agent.id, id)
+
+suspend fun SessionLog.executionSnapshot(agent: String, id: String): ExecutionSnapshot {
     require(sessions(agent).any { it.id == id }) { "Session does not belong to source Agent" }
     session(agent, id)
     val messages = mutableListOf<ExecutionMessage>()
@@ -15,11 +17,12 @@ suspend fun SessionLog.executionSnapshot(agent: Agent, id: String): ExecutionSna
         if (captured) return@Subscriber true
         when (val change = update.change) {
             is SessionChange.Entry -> when (val entry = change.entry) {
-                is SessionEntry.UserMessage -> messages.add(ExecutionMessage("entry:${change.seq}", "user", entry.text))
-                is SessionEntry.AssistantMessage -> messages.add(ExecutionMessage(entry.messageId ?: "entry:${change.seq}", "assistant", entry.text))
+                is SessionEntry.UserMessage -> messages.add(ExecutionMessage(entry.submissionId?.let { "user:$it" } ?: "user:entry:${change.seq}", "user", entry.text, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
+                is SessionEntry.AssistantMessage -> messages.add(ExecutionMessage(entry.messageId?.let { "assistant:$it" } ?: "assistant:entry:${change.seq}", "assistant", entry.text, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
                 is SessionEntry.Reasoning -> messages.add(ExecutionMessage(entry.messageId?.let { "reasoning:$it" } ?: "entry:${change.seq}", "reasoning", entry.text))
-                is SessionEntry.ToolCall -> messages.add(ExecutionMessage(entry.id, "tool", entry.name, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
-                is SessionEntry.ToolResult -> messages.add(ExecutionMessage("result:${change.seq}", "tool", entry.output, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
+                is SessionEntry.Notice -> messages.add(ExecutionMessage("notice:${entry.id}", "notice", entry.message, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
+                is SessionEntry.ToolCall -> messages.add(ExecutionMessage("tool_call:${entry.id}", "tool", entry.name, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
+                is SessionEntry.ToolResult -> messages.add(ExecutionMessage("tool_result:${entry.id}", "tool", entry.output, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
                 else -> Unit
             }
             is SessionChange.Live -> { live = change.state; captured = true }
@@ -29,15 +32,39 @@ suspend fun SessionLog.executionSnapshot(agent: Agent, id: String): ExecutionSna
     }
     try { subscribe(agent, id, null, Int.MAX_VALUE, subscriber) }
     finally { unsubscribe(id, subscriber) }
-    if (live.text.isNotEmpty()) messages.add(ExecutionMessage(live.messageId ?: "live", "assistant", live.text))
-    if (live.reasoning.isNotEmpty()) messages.add(ExecutionMessage("reasoning:${live.messageId ?: "live"}", "reasoning", live.reasoning))
+    if (live.executionPhase != null) {
+        live.entries.forEach { entry ->
+            messages.add(ExecutionMessage(entry.identity()?.let { "${it.type}:${it.id}" } ?: "live", when(entry) {
+                is SessionEntry.UserMessage -> "user"
+                is SessionEntry.Reasoning -> "reasoning"
+                is SessionEntry.ToolCall, is SessionEntry.ToolResult -> "tool"
+                else -> "assistant"
+            }, when(entry) {
+                is SessionEntry.AssistantMessage -> entry.text
+                is SessionEntry.Reasoning -> entry.text
+                else -> ""
+            }, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
+        }
+    } else {
+        if (live.text.isNotEmpty()) messages.add(ExecutionMessage("assistant:${live.messageId ?: "live"}", "assistant", live.text))
+        if (live.reasoning.isNotEmpty()) messages.add(ExecutionMessage("reasoning:${live.messageId ?: "live"}", "reasoning", live.reasoning))
+    }
     val requests = buildList {
+        addAll(live.pending)
         live.approval?.let { add(ExecutionRequest(it.approvalId, ExecutionRequestKind.Approval, ProtocolJson.encodeToJsonElement(AgentEvent.ApprovalRequested.serializer(), it), buildList {
             add(ExternalApprovalOption("allow_once", "Allow once", "allow_once"))
             if (it.trustable) add(ExternalApprovalOption("always_allow", "Always allow", "allow_always"))
             add(ExternalApprovalOption("deny", "Deny", "reject_once"))
-        })) }
-        live.questions?.let { add(ExecutionRequest(it.questionsId, ExecutionRequestKind.Question, ProtocolJson.encodeToJsonElement(AgentEvent.QuestionsAsked.serializer(), it))) }
+        }, ExecutionPrompt.Approval(it.approvalId, it.toolCallName, it.reason, buildList {
+            add(ExternalApprovalOption("allow_once", "Allow once", "allow_once"))
+            if (it.trustable) add(ExternalApprovalOption("always_allow", "Always allow", "allow_always"))
+            add(ExternalApprovalOption("deny", "Deny", "reject_once"))
+        }))) }
+        live.questions?.let { add(ExecutionRequest(it.questionsId, ExecutionRequestKind.Question, ProtocolJson.encodeToJsonElement(AgentEvent.QuestionsAsked.serializer(), it), prompt = ExecutionPrompt.Questions(it.questionsId, it, native = true))) }
     }
-    return ExecutionSnapshot(id, if (requests.isNotEmpty()) ExecutionPhase.RequiresAction else if (live.running) ExecutionPhase.Running else ExecutionPhase.Idle, messages, requests)
+    return ExecutionSnapshot(id, live.executionPhase ?: if (requests.isNotEmpty()) ExecutionPhase.RequiresAction else if (live.running) ExecutionPhase.Running else ExecutionPhase.Idle, messages, requests, stopReason = when(val terminal = completion(id)) {
+        is AgentEvent.RunError -> "error:${terminal.message}"
+        is AgentEvent.RunFinished -> "completed"
+        else -> null
+    })
 }

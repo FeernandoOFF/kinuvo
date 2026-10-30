@@ -46,8 +46,8 @@ class AttachmentsTest {
             server.stop()
             val restored = Harness(Path(home.path))
             val agent = restored.store.agents().first { it.id == "default" }
-            assertEquals("note.md", restored.store.sessions(agent).first { it.id == sent.sessionId }.title)
-            assertEquals(listOf(a), restored.store.entries(agent, sent.sessionId).filterIsInstance<SessionEntry.UserMessage>().single().attachments)
+            assertEquals("note.md", restored.store.sessions(agent.id).first { it.id == sent.sessionId }.title)
+            assertEquals(listOf(a), restored.store.entries(agent.id, sent.sessionId).filterIsInstance<SessionEntry.UserMessage>().single().attachments)
             assertEquals("read me", restored.attachments.bytes(a).decodeToString())
         } } finally { client.close(); server.stop(); home.deleteRecursively() }
     }

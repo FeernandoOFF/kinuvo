@@ -22,15 +22,15 @@ class CodexCompactionLiveTest {
         val base = store.agents().single()
         val agent = base.copy(config = base.config.copy(reasoning = "low", compactAtTokens = 500))
         val runner = AgentRun(agent, store, CodexProvider().model(agent.config), emptyList())
-        val session = store.createSession(agent, "You are terse.")
+        val session = store.createSession(agent.id, "You are terse.")
         runBlocking {
             runner.run(session.id, "My project codename is BLUEFIN. Just say ok.").toList()
-            store.append(agent, session.id, SessionEntry.AssistantMessage("The project is BLUEFIN. ".repeat(150)))
+            store.append(agent.id, session.id, SessionEntry.AssistantMessage("The project is BLUEFIN. ".repeat(150)))
             val events = runner.run(session.id, "What is my project codename? One word.").toList()
             val answer = events.filterIsInstance<AgentEvent.TextMessageEnd>().joinToString { it.text }
             assertTrue(events.any { it is AgentEvent.Compacted }, "expected compaction, got $events")
             assertTrue("BLUEFIN" in answer.uppercase(), "got: $answer")
-            assertTrue(store.entries(agent, session.id).any { it is SessionEntry.Compaction })
+            assertTrue(store.entries(agent.id, session.id).any { it is SessionEntry.Compaction })
         }
     }
 }

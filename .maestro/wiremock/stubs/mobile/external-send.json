@@ -1,0 +1,110 @@
+{
+  "name": "mobile/external-send",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "chat.send"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.text",
+              "equalTo": "Continue external Session"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.sessionId",
+              "equalTo": "e2e-session"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.submissionId",
+              "matches": ".+"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"sessionId\":\"e2e-session\",\"runId\":\"external-gen-1/turn-2\",\"message\":\"Continue external Session\"}}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"entry\",\"seq\":2,\"entry\":{\"type\":\"user\",\"text\":\"Continue external Session\",\"submissionId\":\"{{jsonPath message.body '$.params.submissionId'}}\"}}},\"seq\":8}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"event\",\"event\":{\"type\":\"EXECUTION_PHASE_CHANGED\",\"phase\":\"Running\"}}},\"seq\":9}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"entry\",\"seq\":3,\"entry\":{\"type\":\"assistant\",\"text\":\"External follow-up completed\",\"messageId\":\"external-gen-1/follow-up\"}}},\"seq\":10}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"event\",\"event\":{\"type\":\"RUN_FINISHED\",\"runId\":\"external-gen-1/turn-2\"}}},\"seq\":11}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"event\",\"event\":{\"type\":\"EXECUTION_PHASE_CHANGED\",\"phase\":\"Idle\"}}},\"seq\":12}"
+        }
+      }
+    }
+  ]
+}

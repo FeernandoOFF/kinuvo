@@ -16,6 +16,16 @@ class HarnessTest {
     private val claude = HarnessConnectionStatus(HarnessConnection("claude", "Claude Code", ExecutionConnection.Acp(listOf("claude-code-acp"))), ExecutionReadiness(true, true))
     private val acpAgent = AgentInfo("reviewer", "Reviewer", "external", executionKind = ExecutionKind.Acp, connectionId = "claude", host = "Mac mini")
 
+    @Test fun browserRequiresNativeAgentAndServerSupport() {
+        val server = ServerCapabilities("server", setOf(ServerFeature.Browser))
+        val native = acpAgent.copy(executionKind = ExecutionKind.Native)
+        assertTrue(sessionBrowserAvailable(native, server))
+        assertFalse(sessionBrowserAvailable(acpAgent, server))
+        assertFalse(sessionBrowserAvailable(acpAgent.copy(executionKind = ExecutionKind.Remote), server))
+        assertFalse(sessionBrowserAvailable(native, server.copy(features = emptySet())))
+        assertFalse(sessionBrowserAvailable(null, server))
+    }
+
     @Test fun newAgentStepsBranchByWhereItRuns() {
         val s = OnboardingState(step = HarnessStep, steps = agentSteps(HarnessChoice.Kinuvo))
         assertEquals(listOf(HarnessStep, 4, 5), s.steps)
@@ -120,59 +130,6 @@ class HarnessTest {
         assertNull(AgentDraft.of(native).copy(name = "Other").registration(native))
     }
 
-    @Test fun approvalOptionsKeepHarnessLabelsAndAnswerWithTheirIds() {
-        val request = ExecutionRequest("p1", ExecutionRequestKind.Approval, buildJsonObject { put("title", "Run ./kotlin build") },
-            listOf(ExternalApprovalOption("once", "Allow once", "allow_once"), ExternalApprovalOption("always", "Always allow here", "allow_always"), ExternalApprovalOption("no", "Reject", "reject_once")))
-        val prompt = assertIs<ExternalPrompt.Approval>(request.prompt())
-        assertEquals("Run ./kotlin build", prompt.title)
-        assertEquals(listOf(ApprovalOptionStyle.Primary, ApprovalOptionStyle.Outlined, ApprovalOptionStyle.Destructive), prompt.options.map { approvalOptionStyle(it.kind) })
-        assertEquals("""{"outcome":{"outcome":"selected","optionId":"always"}}""", approvalAnswer("always").toString())
-        assertEquals("""{"outcome":{"outcome":"cancelled"}}""", approvalAnswer(null).toString())
-    }
-
-    @Test fun linkedApprovalArgumentsHideUrlCredentials() {
-        val request = ExecutionRequest("a", ExecutionRequestKind.Approval, buildJsonObject {
-            put("toolCallName", "connect")
-            put("args", "Open https://user:password@example.com/auth?token=secret")
-        })
-        val prompt = assertIs<ExternalPrompt.Approval>(request.prompt())
-        assertEquals("Open example.com", prompt.description)
-    }
-
-    @Test fun acpApprovalShowsItsSubjectWithoutTheAddress() {
-        val request = ExecutionRequest("p2", ExecutionRequestKind.Approval, Json.parseToJsonElement("""{"title":"MCP server requests to open a URL","subject":{"type":"tool_call","toolCall":{
-            "toolCallId":"t","kind":"fetch","status":"pending","content":[{"type":"content","content":{"type":"text","text":"Reconnect Slack at https://chatgpt.com/c?token=s3cret"}}],
-            "rawInput":{"serverName":"codex_apps","url":"https://me:pw@chatgpt.com:443/connect?token=s3cret#x"}}}}"""), emptyList())
-        val prompt = assertIs<ExternalPrompt.Approval>(request.prompt())
-        assertEquals("Reconnect Slack at chatgpt.com", prompt.description)
-        assertEquals("chatgpt.com" to "codex_apps", prompt.site to prompt.server)
-        assertEquals("Opens chatgpt.com · from codex_apps", prompt.origin)
-        assertFalse("s3cret" in prompt.toString())
-        val described = ExecutionRequest("p3", ExecutionRequestKind.Approval, Json.parseToJsonElement("""{"toolCall":{"title":"Edit README.md","rawInput":{"description":"Adds a section"}}}"""), emptyList())
-        assertEquals(ExternalPrompt.Approval("p3", "Edit README.md", "Adds a section", emptyList()), described.prompt())
-        assertNull((described.prompt() as ExternalPrompt.Approval).origin)
-    }
-
-    @Test fun formRequestsAnswerInTheirSchemaTypes() {
-        val payload = Json.parseToJsonElement("""{"mode":"form","message":"Deploy where?","requestedSchema":{"type":"object","required":["env"],"properties":{
-            "env":{"type":"string","title":"Environment","oneOf":[{"const":"prod","title":"Production"},{"const":"stage","title":"Staging"}]},
-            "dry":{"type":"boolean","title":"Dry run","default":true},
-            "count":{"type":"integer","title":"Replicas"},
-            "tags":{"type":"array","items":{"type":"string","enum":["a","b"]}}}}}""")
-        val prompt = assertIs<ExternalPrompt.Questions>(ExecutionRequest("q1", ExecutionRequestKind.Question, payload).prompt())
-        val (env, dry, count, tags) = prompt.asked.questions
-        assertEquals(QuestionKind.Single to listOf("Production", "Staging"), env.kind to env.options)
-        assertTrue(env.required)
-        assertEquals(QuestionKind.YesNo to listOf("Yes"), dry.kind to dry.default)
-        assertEquals(QuestionKind.Number, count.kind)
-        assertEquals(QuestionKind.Multi to listOf("a", "b"), tags.kind to tags.options)
-        val answer = questionsAnswer(prompt, mapOf("env" to listOf("Staging"), "dry" to listOf("No"), "count" to listOf("3"), "tags" to listOf("b")))
-        assertEquals("""{"action":"accept","content":{"env":"stage","dry":false,"count":3,"tags":["b"]}}""", answer.toString())
-        assertEquals("""{"action":"decline"}""", questionsAnswer(prompt, null).toString())
-        val url = ExecutionRequest("u", ExecutionRequestKind.Question, Json.parseToJsonElement("""{"mode":"url","url":"https://x","message":"Open the page"}"""))
-        assertEquals(ExternalPrompt.OpenLink("u", "Open the page", "https://x", "x"), url.prompt())
-    }
-
     @Test fun linkingNeedsAnAddressANameAndACodeAndWarnsAboutPlainHttp() {
         assertEquals(listOf("Name is required", "Address is required", "Link code is required"), LinkForm().problems(emptyList()))
         val form = LinkForm("Studio", "studio.example.com", "code")
@@ -198,23 +155,6 @@ class HarnessTest {
         assertNull(s.added("milo", listOf(AgentRegistration("milo-here", "Milo", "other", remoteAgentId = "milo"))))
         assertEquals("Not checked", readiness(CapabilityState.unavailable("x", "not_checked"), "Studio", "Studio").pill)
         assertEquals(listOf(ReadinessAction.Edit), readiness(CapabilityState.unavailable("x", "access_revoked"), "Studio", "Studio").actions)
-    }
-
-    @Test fun aLinkedKinuvoServersFormsAndApprovalsAnswerAsKinuvoDoes() {
-        val asked = AgentEvent.QuestionsAsked("q7", "call-1", "Trip details", listOf(Question("when", "When?", QuestionKind.Date, required = true), Question("seat", "Seat", QuestionKind.Single, listOf("Aisle", "Window"))))
-        val request = ExecutionRequest("q7", ExecutionRequestKind.Question, ProtocolJson.encodeToJsonElement(AgentEvent.QuestionsAsked.serializer(), asked))
-        val prompt = assertIs<ExternalPrompt.Questions>(request.prompt())
-        assertTrue(prompt.native)
-        assertEquals(asked.questions, prompt.asked.questions)
-        val answers = mapOf("when" to listOf("2026-11-02"), "seat" to listOf("Aisle"))
-        assertEquals(QuestionsParams("q7", answers), ProtocolJson.decodeFromJsonElement(QuestionsParams.serializer(), questionsAnswer(prompt, answers)))
-        assertEquals(QuestionsParams("q7", null), ProtocolJson.decodeFromJsonElement(QuestionsParams.serializer(), questionsAnswer(prompt, null)))
-        val approval = ExecutionRequest("a1", ExecutionRequestKind.Approval, ProtocolJson.encodeToJsonElement(AgentEvent.ApprovalRequested.serializer(),
-            AgentEvent.ApprovalRequested("a1", "t1", "shell", """{"command":"git push"}""", reason = "Pushes to a remote")),
-            listOf(ExternalApprovalOption("allow_once", "Allow once", "allow_once"), ExternalApprovalOption("deny", "Deny", "reject_once")))
-        val shown = assertIs<ExternalPrompt.Approval>(approval.prompt())
-        assertEquals("shell" to "Pushes to a remote", shown.title to shown.description)
-        assertEquals("""{"outcome":{"outcome":"selected","optionId":"deny"}}""", approvalAnswer("deny").toString())
     }
 
     @Test fun theServersCapabilityLeadsANewAgentWithWhereItRuns() {

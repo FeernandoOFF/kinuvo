@@ -86,14 +86,14 @@ class RunCodeTest {
             else flowOf(StreamFrame.TextDelta("Saved what mattered."), StreamFrame.End())
         }
         val broker = ApprovalBroker()
-        val session = store.createSession(agent, "")
+        val session = store.createSession(agent.id, "")
         val events = mutableListOf<AgentEvent>()
         AgentRun(agent, store, model, tools, approvals = Approvals(ApprovalPolicy(agent, FileTrustRules(files)), broker))
             .run(session.id, "Search kotlin and remember the good hits").collect {
                 events += it
                 if (it is AgentEvent.ApprovalRequested) broker.respond(it.approvalId, if ("GraalJS" in it.args) ApprovalDecision.Deny("not that one") else ApprovalDecision.AllowOnce)
             }
-        val entries = store.entries(agent, session.id)
+        val entries = store.entries(agent.id, session.id)
         println(transcript(events, entries))
 
         assertEquals(1, search.calls.size)
@@ -123,14 +123,14 @@ class RunCodeTest {
             else { replied = result.output; flowOf(StreamFrame.TextDelta("Saved 2."), StreamFrame.End()) }
         }
         val broker = ApprovalBroker()
-        val session = store.createSession(agent, "")
+        val session = store.createSession(agent.id, "")
         val events = mutableListOf<AgentEvent>()
         AgentRun(agent, store, model, tools, approvals = Approvals(ApprovalPolicy(agent, FileTrustRules(files)), broker))
             .run(session.id, "Search kotlin and remember the good hits").collect {
                 events += it
                 if (it is AgentEvent.ApprovalRequested) broker.respond(it.approvalId, ApprovalDecision.AllowOnce)
             }
-        println(transcript(events, store.entries(agent, session.id)))
+        println(transcript(events, store.entries(agent.id, session.id)))
         assertEquals(2, save.calls.size)
         assertTrue(replied.startsWith("[\n  \"Saved: Kotlin 3\",\n  \"Saved: GraalJS\"\n]"), replied)
         assertContains(replied, "Console:\nkept 2 of 3")

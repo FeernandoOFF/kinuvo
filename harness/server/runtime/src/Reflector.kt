@@ -49,11 +49,11 @@ class Reflector(
         // A turn in progress is reflected on after it ends.
         if (busy(sessionId) || !harness.reflects(agent)) return 0
         val done = progress()
-        val entries = harness.store.entries(agent, sessionId)
+        val entries = harness.store.entries(agent.id, sessionId)
         val new = entries.drop(done[sessionId] ?: 0)
         if (new.none { it is SessionEntry.UserMessage }) return 0
         val id = Uuid.random().toString()
-        harness.log.publish(agent, sessionId, AgentEvent.ReflectionStarted(id))
+        harness.log.publish(agent.id, sessionId, AgentEvent.ReflectionStarted(id))
         var result = ReflectionResult()
         try {
             result = harness.reflect(agent, sessionId, new)
@@ -65,7 +65,7 @@ class Reflector(
         } finally {
             withContext(NonCancellable) {
                 val safe = result.copy(error = result.error?.let { harness.secrets.redact(it) })
-                harness.log.append(agent, sessionId, SessionEntry.Reflection(id, Clock.System.now().toEpochMilliseconds(), safe))
+                harness.log.append(agent.id, sessionId, SessionEntry.Reflection(id, Clock.System.now().toEpochMilliseconds(), safe))
                 if (result.error == null || result.total > 0 || result.proposals.isNotEmpty()) {
                     harness.reflectionProgress.save(done + (sessionId to entries.size))
                 }

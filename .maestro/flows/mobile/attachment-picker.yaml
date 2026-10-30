@@ -22,14 +22,11 @@ properties:
     when:
       platform: iOS
     commands:
-      - assertVisible: "Browse"
-      - tapOn:
-          text: "Cancel"
-          index: 1
+      - assertVisible: "Cancel"
 - runFlow:
     when:
       platform: Android
     commands:
       - assertVisible: "Recent"
       - back
-- assertVisible: "Message"
+      - assertVisible: "Message"
