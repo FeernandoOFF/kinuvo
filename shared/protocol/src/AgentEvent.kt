@@ -6,6 +6,19 @@ import kotlinx.serialization.Serializable
 /** Events emitted during a run, named after AG-UI event types. */
 @Serializable
 sealed interface AgentEvent {
+    @Serializable @SerialName("EXECUTION_REQUESTED")
+    data class ExecutionRequested(val request: ExecutionRequest) : AgentEvent
+
+    @Serializable @SerialName("EXECUTION_RESOLVED")
+    data class ExecutionResolved(val requestId: String) : AgentEvent
+
+    @Serializable @SerialName("EXECUTION_PHASE_CHANGED")
+    data class ExecutionPhaseChanged(val phase: ExecutionPhase) : AgentEvent
+
+    /** Replace one mutable external item by typed stable identity, retaining its first-seen position. */
+    @Serializable @SerialName("EXECUTION_ENTRY_CHANGED")
+    data class ExecutionEntryChanged(val entry: SessionEntry) : AgentEvent
+
     @Serializable @SerialName("RUN_STARTED")
     data class RunStarted(val runId: String) : AgentEvent
 

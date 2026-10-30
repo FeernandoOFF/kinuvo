@@ -58,10 +58,10 @@ data class Today(
         ): Today {
             val date = Instant.fromEpochMilliseconds(now).toLocalDateTime(zone).date
             val all = sessions.values.flatten().distinctBy { it.id }
-            val waiting = all.filter { it.status == SessionStatus.Waiting }.sortedByDescending { it.id }
+            val waiting = all.filter { it.status == SessionStatus.Waiting }.sortedWith(SessionOrder)
             val waitingIds = waiting.map { it.id }.toSet()
             val waitingTasks = tasks.orEmpty().filter { it.status == TaskStatus.Waiting && it.sessionIds.none(waitingIds::contains) }
-            val running = all.filter { it.status == SessionStatus.Running }.sortedByDescending { it.id }
+            val running = all.filter { it.status == SessionStatus.Running }.sortedWith(SessionOrder)
                 .map { Running(it.agentId, it.id, it.title, session = it) }
             val routineRuns = routines.values.flatten()
                 .filter { it.lastStatus == RunStatus.Running && it.lastSessionId != null && running.none { r -> r.sessionId == it.lastSessionId } }

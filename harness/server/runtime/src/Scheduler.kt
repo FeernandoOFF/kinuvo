@@ -112,7 +112,7 @@ class Scheduler(
         val ref = RoutineRef(routine.id, routine.name)
         val prompt = if (routine.heartbeat) heartbeatPrompt(routine.prompt)
             ?: return record(agent, routine, RunStatus.Skipped, "HEARTBEAT.md is empty") else routine.prompt
-        val attached = routine.sessionId?.takeIf { harness.store.entries(agent, it).isNotEmpty() }
+        val attached = routine.sessionId?.takeIf { harness.store.entries(agent.id, it).isNotEmpty() }
         if (routine.sessionId != null && attached == null) {
             log.warn { "Routine ${routine.id}: Session ${routine.sessionId} is gone; starting new Sessions instead" }
             harness.routines.update(agent, routine.id) { it.copy(sessionId = null) }
@@ -124,7 +124,7 @@ class Scheduler(
         }
         val startedAt = clock()
         val sessionId = attached ?: harness.newSession(agent, ref).id
-        val before = harness.store.entries(agent, sessionId).size
+        val before = harness.store.entries(agent.id, sessionId).size
         record(agent, routine, RunStatus.Running, null, startedAt, sessionId)
         var error: String? = null
         var kept: String? = sessionId
@@ -133,7 +133,7 @@ class Scheduler(
         val routineRun = RoutineRun(routine, clock) { onRan(RoutineRan(agent.id, ref, RunStatus.Ok, sessionId, summary = it.summary)) }
         // Cleans up while the Session is still reserved, so truncating can't take a turn that starts right after.
         val run = try { runs.start(agent, sessionId, prompt, routine = ref, onEvent = { if (it is AgentEvent.RunError) error = it.message }, onDone = { stopped ->
-            val added = harness.store.entries(agent, sessionId).drop(before)
+            val added = harness.store.entries(agent.id, sessionId).drop(before)
             val outcome = added.filterIsInstance<SessionEntry.Outcome>().lastOrNull()
             report = outcome?.summary?.takeIf { outcome.report }
             status = when {
@@ -144,10 +144,10 @@ class Scheduler(
             }
             // A silent run's own Session stays in the Routine's history, except the Heartbeat's; one in an attached chat is removed from it.
             if (status == RunStatus.Silent && attached != null) {
-                harness.log.discardSilentRun(agent, sessionId, before)
+                harness.log.discardSilentRun(agent.id, sessionId, before)
             } else if (status == RunStatus.Silent && routine.heartbeat) {
                 kept = null
-                harness.store.deleteSession(agent, sessionId)
+                harness.store.deleteSession(agent.id, sessionId)
             }
         }) {
             harness.runner(agent, sessionId, routineRun)

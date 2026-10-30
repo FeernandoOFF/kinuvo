@@ -68,7 +68,7 @@ import kotlin.math.sin
 internal fun RowScope.ComposerSettings(
     settings: SessionSettings, defaults: AgentSettings, models: ModelsCatalog, onChange: (SessionSettings) -> Unit, onAttach: (AttachmentSource) -> Unit = {},
     canAttach: Boolean = true, onRefreshModels: () -> Unit = {}, photos: CapabilityState? = null, files: CapabilityState? = null,
-    agent: String? = null, onAgentDefaults: (() -> Unit)? = null,
+    agent: String? = null, onAgentDefaults: (() -> Unit)? = null, nativeSettings: Boolean = true,
 ) {
     var attachOpen by remember { mutableStateOf(false) }
     var approvalsOpen by remember { mutableStateOf(false) }
@@ -122,6 +122,7 @@ internal fun RowScope.ComposerSettings(
             }
             Text(ATTACHMENT_LIMITS, Modifier.fillMaxWidth().padding(top = 12.dp), fontSize = 12.sp, color = color(mutedColor), textAlign = TextAlign.Center)
         }
+        if (!nativeSettings) return
         approvalsButton()
         Popover(approvalsOpen, { approvalsOpen = false }, "Ask before acting") {
             scope { approvalsOpen = false }
@@ -146,6 +147,7 @@ internal fun RowScope.ComposerSettings(
                 }
             },
         ) { attachButton() }
+        if (!nativeSettings) return
 
         DropdownMenu(
             expanded = approvalsOpen,

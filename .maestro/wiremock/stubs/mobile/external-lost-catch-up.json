@@ -1,0 +1,44 @@
+{
+  "name": "mobile/external-lost-catch-up",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "session.catchUp"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{}}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"window\",\"firstSeq\":0,\"entries\":[{\"type\":\"assistant\",\"text\":\"External transcript retained\",\"messageId\":\"external-gen-1/history\"},{\"type\":\"notice\",\"id\":\"external-gen-1/interruption\",\"code\":\"interrupted\",\"message\":\"External response interrupted\",\"draft\":[{\"type\":\"assistant\",\"messageId\":\"external-gen-1/draft\",\"text\":\"Unfinished external draft\"}]}],\"state\":{\"executionPhase\":\"Lost\"}}},\"seq\":1}"
+        }
+      }
+    }
+  ]
+}

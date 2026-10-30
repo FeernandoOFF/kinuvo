@@ -42,10 +42,13 @@ class EventType<T>(val name: String, val payload: KSerializer<T>)
 data class AgentInfo(val id: String, val name: String, val exec: String, val avatar: String? = null, val executionKind: ExecutionKind = ExecutionKind.Native, val connectionId: String? = null, val host: String? = null, val readiness: ExecutionReadiness = ExecutionReadiness(true, true))
 
 object ProtocolVersion {
-    const val Current = 3
+    const val Current = 4
     const val Mismatch = "protocol_mismatch: Update the Server and Device to matching versions"
     fun requireCompatible(version: Int) { require(version == Current) { Mismatch } }
 }
+
+/** Requests a Device may have unanswered on one connection; the Server drops a connection that sends more. */
+const val MAX_CONCURRENT_REQUESTS = 8
 
 /** Exactly one of [token] (a paired device) or [pairingCode] (first connection) is set. [timeZone] is the Device's IANA zone. */
 @Serializable
@@ -70,7 +73,7 @@ data class SkillInfo(
 
 /** [voice] marks [text] as transcribed from voice chat. */
 @Serializable
-data class SendParams(val agentId: String, val sessionId: String? = null, val text: String, val attachments: List<String> = emptyList(), val voice: Boolean = false)
+data class SendParams(val agentId: String, val sessionId: String? = null, val text: String, val attachments: List<String> = emptyList(), val voice: Boolean = false, val submissionId: String? = null)
 
 /** [activation] is set when the text was a `/skill` command; [message] is what was sent to the model. */
 @Serializable

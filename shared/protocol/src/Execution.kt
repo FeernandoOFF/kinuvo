@@ -19,13 +19,13 @@ sealed interface ExecutionConnection {
 data class HarnessConnection(val id: String, val name: String, val connection: ExecutionConnection, val host: String? = null)
 
 @Serializable
-data class AgentRegistration(val id: String, val name: String, val connectionId: String, val avatar: String? = null, val cwd: String? = null, val remoteAgentId: String? = null)
+data class AgentRegistration(val id: String, val name: String, val connectionId: String, val avatar: String? = null, val cwd: String? = null, val remoteAgentId: String? = null, val archived: Boolean = false)
 
 @Serializable
 data class ExecutionReadiness(val configured: Boolean, val online: Boolean, val reason: String? = null, val reasonCode: String? = null)
 
 @Serializable
-data class ExecutionCapabilities(val resume: Boolean = false, val cancel: Boolean = false, val questions: Boolean = false, val approvals: Boolean = false)
+data class ExecutionCapabilities(val resume: Boolean = false, val cancel: Boolean = false, val questions: Boolean = false, val approvals: Boolean = false, val supportedMimeTypes: Set<String> = emptySet())
 
 @Serializable
 data class HarnessConnectionStatus(val config: HarnessConnection, val readiness: ExecutionReadiness, val capabilities: ExecutionCapabilities = ExecutionCapabilities())
@@ -43,7 +43,7 @@ enum class ExecutionPhase { Idle, Running, RequiresAction, Lost }
 enum class ExecutionRequestKind { Approval, Question }
 
 @Serializable
-data class ExecutionRequest(val id: String, val kind: ExecutionRequestKind, val payload: JsonElement, val options: List<ExternalApprovalOption> = emptyList())
+data class ExecutionRequest(val id: String, val kind: ExecutionRequestKind, val payload: JsonElement, val options: List<ExternalApprovalOption> = emptyList(), val prompt: ExecutionPrompt? = null)
 
 @Serializable
 data class ExecutionAnswer(val sessionId: String, val requestId: String, val answer: JsonElement)

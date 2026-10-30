@@ -10,6 +10,7 @@ class ProtocolMismatchTest {
     @Test fun incompatibleRepliesDoNotDecodeFeaturesOrRejectSavedCredentials() = runBlocking {
         for (reply in listOf(
             Frame.Response("", false, error = ProtocolVersion.Mismatch),
+            Frame.Response("", true, ProtocolJson.parseToJsonElement("""{"protocolVersion":3}""")),
             Frame.Response("", true, ProtocolJson.parseToJsonElement("""{"capabilities":{"features":["FutureFeature"]}}""")),
         )) {
             val responses = Channel<Frame>(Channel.UNLIMITED)

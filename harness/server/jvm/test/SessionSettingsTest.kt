@@ -87,7 +87,7 @@ class SessionSettingsTest {
         harness.configure(agent, session, SessionSettings())
         harness.runner(agent, session)
         assertEquals("${agent.config.model}/medium/default", used.last())
-        assertEquals(2, harness.store.entries(agent, session).count { it is SessionEntry.Settings })
+        assertEquals(2, harness.store.entries(agent.id, session).count { it is SessionEntry.Settings })
         assertFailsWith<IllegalArgumentException> { harness.configure(agent, session, SessionSettings(approvals = "yolo")) }
     }
 }

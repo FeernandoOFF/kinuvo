@@ -138,7 +138,7 @@ class ToolIdentityTest {
             val history = prompt.messages
              if (history.toolResults.isEmpty())
             flowOf(StreamFrame.ToolCallComplete("call", scopedBridge.descriptor.name, "{}"), StreamFrame.End()) else flowOf(StreamFrame.End()) }
-        val session = home.store.createSession(home.agent, "")
+        val session = home.store.createSession(home.agent.id, "")
         val broker = ApprovalBroker()
         val events = mutableListOf<AgentEvent>()
         AgentRun(home.agent, home.store, model, listOf(scopedBridge, target),
@@ -148,7 +148,7 @@ class ToolIdentityTest {
         }
         assertEquals(listOf(scopedBridge.identity, target.identity), events.filterIsInstance<AgentEvent.ToolCallStart>().map { it.identity })
         assertEquals(target.identity, events.filterIsInstance<AgentEvent.ApprovalRequested>().single().identity)
-        val entries = home.store.entries(home.agent, session.id)
+        val entries = home.store.entries(home.agent.id, session.id)
         assertEquals(scopedBridge.identity, entries.filterIsInstance<SessionEntry.ToolCall>().single().identity)
         assertEquals(scopedBridge.identity, entries.filterIsInstance<SessionEntry.ToolResult>().single().identity)
         assertEquals(listOf(target.policyKey), home.trustRules.get(home.agent.id).trusted)

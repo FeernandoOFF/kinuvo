@@ -2,6 +2,7 @@ package kinuvo.ui.session
 
 import kinuvo.app.agent.*
 import kinuvo.app.session.*
+import kinuvo.protocol.ExecutionPrompt
 import kinuvo.ui.agent.*
 
 import androidx.compose.foundation.layout.*
@@ -16,7 +17,6 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import com.composeunstyled.theme.Theme
 import kinuvo.ui.design.*
 
 /**
@@ -30,32 +30,20 @@ internal fun ExternalPrompts(state: ChatState, actions: ChatActions, modifier: M
     val host = agent.host ?: "its Server"
     val uri = LocalUriHandler.current
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        state.ended?.let { ended ->
-            RequestCard(Lucide.CircleStop, ended.pill, ended.message(harness, host)) {
-                if (ended.resume != false) Button(actions.onResume, enabled = !state.resuming) { Text(if (state.resuming) "Resuming…" else "Resume session") }
-            }
-        }
         state.capabilities?.chat?.takeIf { state.ended == null }?.takeUnless { it.actionable }?.let { chat ->
             val r = readiness(chat, harness, host, agent.name)
-            Panel(Modifier.fillMaxWidth(), color = color(panelColor), borderColor = color(if (r.tone == ReadinessTone.Danger) destructiveColor else warningColor).copy(alpha = 0.5f),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Icon(Lucide.TriangleAlert, Modifier.size(16.dp), tint = color(warningColor))
-                    Text(r.message ?: chat.reason ?: "$harness isn't ready.", Modifier.weight(1f), fontSize = 13.sp)
-                    if (ReadinessAction.CheckAgain in r.actions) Button(onClick = actions.onCheckHarness, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Check again") }
-                }
-            }
+            if (ReadinessAction.CheckAgain in r.actions) Button(onClick = actions.onCheckHarness, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Check again") }
         }
         state.prompts.forEach { prompt ->
             key(prompt.id) {
                 when (prompt) {
-                    is ExternalPrompt.Approval -> ExternalApprovalCard(prompt, harness, actions)
-                    is ExternalPrompt.Questions -> QuestionsCard(prompt.asked, state.answers, actions.onEditAnswer, { actions.onExternal(prompt, questionsAnswer(prompt, it)) }, skip = if (prompt.native) "Skip" else "Decline")
-                    is ExternalPrompt.OpenLink -> RequestCard(Lucide.ExternalLink, "Open ${prompt.site}", prompt.message) {
+                    is ExecutionPrompt.Approval -> ExternalApprovalCard(prompt, harness, actions)
+                    is ExecutionPrompt.Questions -> QuestionsCard(prompt.asked, state.answers, actions.onEditAnswer, { actions.onExternal(prompt, questionsAnswer(prompt, it)) }, skip = if (prompt.native) "Skip" else "Decline", attached = true)
+                    is ExecutionPrompt.OpenLink -> RequestCard(Lucide.ExternalLink, "Open ${prompt.site}", prompt.message) {
                         Button({ uri.openUri(prompt.url); actions.onExternal(prompt, openLinkAnswer(true)) }) { Text("Open page") }
                         Button({ actions.onExternal(prompt, openLinkAnswer(false)) }, style = ButtonStyle.Ghost) { Text("Decline") }
                     }
-                    is ExternalPrompt.Unsupported -> RequestCard(Lucide.MessageCircleQuestionMark, prompt.message, "Kinuvo can't show this request. Answer it in $harness on $host, or decline it.") {
+                    is ExecutionPrompt.Unsupported -> RequestCard(Lucide.MessageCircleQuestionMark, prompt.message, "Kinuvo can't show this request. Answer it in $harness on $host, or decline it.") {
                         Button(onClick = { actions.onExternal(prompt, questionsAnswer(prompt, null)) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Decline") }
                     }
                 }
@@ -66,7 +54,7 @@ internal fun ExternalPrompts(state: ChatState, actions: ChatActions, modifier: M
 
 /** A harness's permission request: what it's about, then one button per option it offered, with its own labels. */
 @Composable
-private fun ExternalApprovalCard(prompt: ExternalPrompt.Approval, harness: String, actions: ChatActions) {
+private fun ExternalApprovalCard(prompt: ExecutionPrompt.Approval, harness: String, actions: ChatActions) {
     RequestCard(Lucide.ShieldAlert, "$harness wants to: ${prompt.title}", prompt.description, prompt.origin, if (prompt.site != null) Lucide.ExternalLink else Lucide.Plug) {
         prompt.options.forEach { option ->
             val answer = { actions.onExternal(prompt, approvalAnswer(option.id)) }
@@ -81,12 +69,11 @@ private fun ExternalApprovalCard(prompt: ExternalPrompt.Approval, harness: Strin
 
 @Composable
 private fun RequestCard(icon: ImageVector, title: String, detail: String?, origin: String? = null, originIcon: ImageVector = Lucide.Plug, buttons: @Composable () -> Unit) {
-    Panel(Modifier.fillMaxWidth(), color = color(panelColor), borderColor = color(accentColor).copy(alpha = 0.5f), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(14.dp)) {
+    Column(Modifier.fillMaxWidth()) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(icon, Modifier.size(18.dp), tint = color(accentColor))
                 Text(title, Modifier.weight(1f), fontWeight = FontWeight.Normal)
-                Pill("Waiting", tone = Tone.Warning)
             }
             detail?.let { Text(it, fontSize = 13.sp, color = color(mutedColor)) }
             origin?.let {
@@ -96,7 +83,6 @@ private fun RequestCard(icon: ImageVector, title: String, detail: String?, origi
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { buttons() }
-            Text("Also shown on your other Devices with access. The first answer wins.", fontSize = 12.sp, color = color(mutedColor))
         }
     }
 }

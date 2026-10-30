@@ -16,7 +16,7 @@ fun List<SessionEntry>.activeHistory(): List<SessionEntry> {
     val activations = history.filterIsInstance<SessionEntry.Activation>().associateBy { it.name }
     return history.filterIndexed { index, entry -> (entry !is SessionEntry.Context || index == contextAt) &&
         (entry !is SessionEntry.Activation || activations[entry.name] === entry)
-    }.filterNot { it is SessionEntry.Compaction || it is SessionEntry.Started || it is SessionEntry.Settings || it is SessionEntry.Details || it is SessionEntry.Reflection || it is SessionEntry.ReflectionReview || it is SessionEntry.Measurement || it is SessionEntry.Outcome }
+    }.filterNot { it is SessionEntry.Compaction || it is SessionEntry.Started || it is SessionEntry.Settings || it is SessionEntry.Details || it is SessionEntry.Reflection || it is SessionEntry.ReflectionReview || it is SessionEntry.Measurement || it is SessionEntry.Outcome || it is SessionEntry.Notice }
 }
 
 /** Screenshots a Computer tool shows the model are named so, and only the latest few are sent again. */
@@ -55,7 +55,7 @@ fun List<SessionEntry>.estimatedTokens(instructions: String, tools: List<ToolDes
             is SessionEntry.ToolResult -> it.output.length + it.attachments.estimatedChars()
             is SessionEntry.Compaction -> it.history.estimatedTokens("") * 4
             is SessionEntry.Activation -> it.content.length
-            is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Reflection, is SessionEntry.ReflectionReview, is SessionEntry.Measurement, is SessionEntry.Outcome -> 0
+            is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Reflection, is SessionEntry.ReflectionReview, is SessionEntry.Measurement, is SessionEntry.Outcome, is SessionEntry.Notice -> 0
         }
     }) / 4
 

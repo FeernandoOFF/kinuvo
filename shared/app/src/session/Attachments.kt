@@ -11,3 +11,11 @@ data class AttachmentPreview(val attachment: Attachment, val base64: String?)
 
 
 enum class AttachmentSource { Camera, Photos, Files }
+
+fun SessionCapabilities.attachmentInput(mimeType: String): CapabilityState {
+    val execution = execution
+    return when {
+        execution != null && mimeType !in execution.supportedMimeTypes -> CapabilityState.unsupported("This harness does not accept this file type")
+        else -> attachment(mimeType)
+    }
+}

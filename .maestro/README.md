@@ -147,3 +147,32 @@ designated device itself, without promising a sidebar view.
 Regular user-requested device interaction does not require running the full suite.
 Maestro MCP is an optional aid for explicitly requested Maestro investigation or
 flow authoring; execute repository E2E flows through Mockstro.
+
+## External Session regressions
+
+The `external-session.yaml` smoke/regression flow uses `mobile-external`: an ACP
+Agent's existing Session catches up through a `window` containing a normalized
+numeric question in `LiveState.pending`. Submitting the displayed default verifies
+`execution.answer` uses `{"answers":{"attempts":["3"]}}`. Resolution, streaming,
+committed entries and completion arrive through ordinary `session.update` events.
+A follow-up message verifies `chat.send` carries a nonempty `submissionId`.
+There is no `execution.changed` or snapshot fixture.
+
+Additional regression flows use separate profiles:
+
+- `external-attachments.yaml` / `mobile-external-attachments`: negotiated image and
+  text MIME types enable Photos and Files; Files opens the native picker.
+- `external-text-attachments.yaml` / `mobile-external-text`: only text documents are
+  negotiated; Photos is disabled and Files opens the native picker.
+- `external-session-lost.yaml` / `mobile-external-lost`: retained history, a read-only
+  lost Session without Resume support, and an expandable interruption Notice with
+  nested unfinished output.
+
+The main external flow also checks Attach is disabled when the Session negotiates
+no MIME types, even though the mocked Server advertises attachment support. These
+fixtures exercise client behavior, not an installed ACP harness or actual file
+upload/conversion. They do not cover archive migration or resumable Sessions.
+Use the usual explicit platform, designated `--device`, and `--tags smoke,regression`
+commands above. Each flow selects its profile with `apiProfile`; no wrapper changes
+or real Server are needed. Both Devices and mocked connect responses use Kinuvo
+protocol version 4; ACP remains version 2.

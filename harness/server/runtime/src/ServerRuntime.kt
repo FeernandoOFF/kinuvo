@@ -6,7 +6,12 @@ import co.touchlab.stately.concurrency.Lock
 import co.touchlab.stately.concurrency.withLock
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.harness.core.Agent
-import kinuvo.harness.server.execution.executionSnapshot
+import kinuvo.harness.server.execution.*
+import kinuvo.execution.api.*
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.serializer
+import kotlinx.serialization.json.JsonObject
 import kinuvo.harness.core.routines.NEW_SESSIONS
 import kinuvo.harness.core.routines.with
 import kinuvo.harness.core.voice.Audio
@@ -42,17 +47,16 @@ class ServerRuntime(
     private val name: String = "kinuvo",
     private val foregroundOnly: Boolean = false,
     private val security: ConnectionSecurity = ConnectionSecurity(),
-    executionRegistry: kinuvo.harness.server.execution.ExecutionRegistry = kinuvo.harness.server.execution.ExecutionRegistry(),
-    private val executionFactory: kinuvo.execution.api.ExecutionFactory? = null,
-    externalSessions: List<kinuvo.harness.server.execution.ExternalSession> = emptyList(),
-    persistExternal: (List<kinuvo.harness.server.execution.ExternalSession>) -> Unit = {},
-    val remoteLinks: kinuvo.harness.server.execution.RemoteLinks = kinuvo.harness.server.execution.RemoteLinks(),
+    executionRegistry: ExecutionRegistry = ExecutionRegistry(),
+    private val executionFactory: ExecutionFactory? = null,
+    private val executionStorage: ExecutionRecoveryStore = MemoryExecutionRecovery(),
+    val remoteLinks: RemoteLinks = RemoteLinks(),
     private val serverVoice: ServerVoice? = null,
     private val prepareAttachment: (UploadAttachmentParams) -> UploadAttachmentParams = { it },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val executions = executionRegistry
-    private val remoteFactory = kinuvo.harness.server.execution.RemoteExecutionFactory(remoteLinks, harness.serverId) { id, online, code ->
+    private val remoteFactory = RemoteExecutionFactory(remoteLinks, harness.serverId) { id, online, code ->
         val before = executions.catalog().connections.firstOrNull { it.config.id == id }
         if (before != null) {
             if (online) executions.negotiated(id, ExecutionCapabilities(cancel = true, questions = true, approvals = true))
@@ -60,32 +64,32 @@ class ServerRuntime(
             if (before != executions.catalog().connections.firstOrNull { it.config.id == id }) catalogChanged()
         }
     }
-    private val installedFactory = object : kinuvo.execution.api.ExecutionFactory {
+    private val installedFactory = object : ExecutionFactory {
         override suspend fun probe(config: HarnessConnection) = if (config.connection is ExecutionConnection.Remote) remoteFactory.probe(config) else executionFactory?.probe(config) ?: ExecutionProbe(ExecutionReadiness(true, false, "ACP unavailable", "unsupported"))
-        override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: kinuvo.execution.api.ExecutionState, broker: kinuvo.execution.api.ExecutionBroker, scope: CoroutineScope) =
+        override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
             if (config.connection is ExecutionConnection.Remote) remoteFactory.open(config, registration, state, broker, scope) else requireNotNull(executionFactory).open(config, registration, state, broker, scope)
     }
-    private val remoteGateway = kinuvo.harness.server.execution.RemoteGateway(remoteLinks,
-        { admin.agents() + executions.catalog().agents.map { externalInfo(it) } },
+    private val remoteGateway = RemoteGateway(remoteLinks,
+        { admin.agents() + externalAgents() },
         { id -> createSession(id).let { sourceSnapshot(id, it.id) } },
         { agent, id -> sourceSnapshot(agent, id) },
         { agent, id, text -> send(SendParams(agent, id, text)); Unit },
         { _, id -> stop(id) },
         { agent, answer -> execution(agent).answer(answer) },
         { _, id -> if (external.owns(id)) external.discard(id) else stop(id) })
-    private val externalChanges = kinuvo.harness.server.execution.LatestNotifications<String, ExecutionSnapshot>(scope) { id, snapshot ->
-        clients.block { it.toList() }.forEach { it.externalChanges.offer(id, snapshot) }
-    }
-    private val external: kinuvo.harness.server.execution.ExecutionCoordinator = kinuvo.harness.server.execution.ExecutionCoordinator(executions, installedFactory, scope, externalSessions, persistExternal, readinessChanged = { catalogChanged() }) {
-        externalChanges.offer(it.sessionId, it)
-    }
-    private suspend fun sendExternal(client: Client, agentId: String, id: String) {
-        client.externalChanges.offer(id, external.snapshot(id))
+    private val external = ExecutionCoordinator(executions, installedFactory, scope, harness.log, executionStorage,
+        resolve = { harness.attachments.download(it) }, readinessChanged = { catalogChanged() })
+    suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData): Attachment {
+        external.currentStateOwner(state)
+        require(attachmentMimeType(data.attachment.name) == data.attachment.mimeType) { "Output filename and MIME differ" }
+        return harness.attachments.upload(UploadAttachmentParams(data.attachment.name, data.base64)).also {
+            require(it.mimeType == data.attachment.mimeType) { "Stored output MIME differs" }
+        }
     }
     private val screenBudget = ScreenBudget()
     private val clients = ConcurrentMutableSet<Client>()
     private val runs = Runs(harness.log, scope)
-    private val nativeExecution = kinuvo.execution.api.NativeExecutionDispatch(
+    private val nativeExecution = NativeExecutionDispatch(
         { harness.newSession(agent(it)) },
         { agentId, id ->
             val snapshot = harness.log.executionSnapshot(agent(agentId), id)
@@ -94,7 +98,7 @@ class ServerRuntime(
         { answer -> answerNative(answer) },
         ::sendNative, runs::stop,
     )
-    private val notifications = Notifications(harness, scope, runs::routine)
+    private val notifications = Notifications(harness, scope, runs::routine) { executions.registration(it)?.name ?: external.archives().firstOrNull { a -> a.id == it }?.name }
     private val scheduler = Scheduler(harness, runs, scope, onRan = { broadcast(Api.RoutineRan, it); notifications.routineRan(it) })
     private val admin = Admin(harness, runs) { broadcast(Api.AgentsChanged, it) }
     private val reflectionReview = ReflectionReview(harness)
@@ -122,17 +126,19 @@ class ServerRuntime(
     private suspend fun stopWaiting() {
         val waiting = runs.sessions().filter { harness.log.status(it) == SessionStatus.Waiting }
         waiting.forEach(runs::stop)
+        executions.catalog().agents.flatMap { harness.store.sessions(it.id) }.filter { harness.log.status(it.id) == SessionStatus.Waiting }.forEach { external.stop(it.id) }
         waiting.forEach { runs.join(it) }
     }
 
     private fun changedCapabilities() = broadcast(Api.CapabilitiesChanged, Unit)
     init {
+        harness.log.executionMetadata = { info -> if (external.owns(info.id)) info.copy(legacyOrder = external.record(info.id).legacyOrder) else info }
         harness.browser?.authorize { owner ->
             browserOwner(owner)
             check("browser" in agent(owner.agentId).config.tools) { "Browser is disabled for this Agent" }
         }
-        harness.log.onDelete = { a, id -> harness.browser?.deleteSession(BrowserOwner(a.id, id)) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
-        if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) runs.stop(it.id) }
+        harness.log.onDelete = { a, id -> external.delete(a, id); harness.browser?.deleteSession(BrowserOwner(a, id)) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
+        if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) scope.launch { stop(it.id) } }
     }
 
     private fun unwatched() = clients.block { it.none { c -> c.watching } }
@@ -142,6 +148,9 @@ class ServerRuntime(
         check(!started) { "Server already started" }
         started = true
         try {
+            (executionStorage as? ExecutionStorage)?.migrate(harness.log)?.forEach { log.error { it } }
+            external.reload()
+            external.recover()
             scope.launch { harness.usage.filterNotNull().collect { broadcast(Api.Usage, it) } }
             harness.log.onChange { broadcast(Api.SessionChanged, it) }
             harness.log.onEvent(notifications::on)
@@ -154,6 +163,14 @@ class ServerRuntime(
             harness.computers.onChange = { broadcast(Api.ComputersChanged, it); broadcast(Api.ScreensChanged, null) }
             if (schedule) { scheduler.start(); dispatcher.start() }
             scheduling = schedule
+            for (connection in executions.catalog().connections) {
+                executions.offline(connection.config.id, "Checking harness", "checking")
+                scope.launch {
+                    try { checkHarness(connection.config) }
+                    catch (e: CancellationException) { throw e }
+                    catch (e: Exception) { log.warn(e) { "Harness check failed: ${connection.config.name}" } }
+                }
+            }
         } catch (e: Throwable) {
             try { shutdown() } catch (cleanup: Throwable) { e.addSuppressed(cleanup) }
             throw e
@@ -176,40 +193,6 @@ class ServerRuntime(
     }
 
     private inner class Client(private val connection: FrameConnection) : SessionLog.Subscriber {
-        private val externalInfo = mutableMapOf<String, SessionInfo>()
-        val externalChanges = kinuvo.harness.server.execution.LatestNotifications<String, ExecutionSnapshot>(scope) { id, _ ->
-            val snapshot = external.snapshot(id)
-            val agentId = external.sessionAgent(id)
-            val info = external.session(agentId, id)
-            if (externalInfo[id] != info) {
-                sendExternalFrame(frame(Api.SessionChanged, info))
-                externalInfo[id] = info
-            }
-            sendExternalFrame(frame(Api.ExecutionChanged, snapshot))
-            externalSubscriptions[id]?.let { generation ->
-                val entries = kinuvo.harness.server.execution.transcript(snapshot)
-                sendExternalFrame(frame(Api.Update, SessionUpdate(agentId, id, SessionChange.Window(0, entries,
-                    LiveState(running = snapshot.phase in setOf(ExecutionPhase.Running, ExecutionPhase.RequiresAction))))), id to generation)
-            }
-        }
-        private val externalDelivery = ConcurrentMutableMap<Long, CompletableDeferred<Unit>>()
-        fun delivered(value: Frame) { if (value is Frame.Event) externalDelivery[value.seq]?.complete(Unit) }
-        private val externalWindows = ConcurrentMutableMap<Long, Pair<String, Long>>()
-        fun subscribed(value: Frame): Boolean {
-            val window = (value as? Frame.Event)?.let { externalWindows[it.seq] } ?: return true
-            return externalSubscriptions[window.first] == window.second
-        }
-        private suspend fun sendExternalFrame(value: Frame.Event, window: Pair<String, Long>? = null) {
-            if (linked || !valid()) return
-            val delivered = CompletableDeferred<Unit>()
-            externalDelivery[value.seq] = delivered
-            window?.let { externalWindows[value.seq] = it }
-            try {
-                outbox.send(value)
-                delivered.await()
-            } finally { externalDelivery.remove(value.seq); externalWindows.remove(value.seq) }
-        }
-        val externalSubscriptions = ConcurrentMutableMap<String, Long>()
         val browser = connection.credential != null
         val outbox = Channel<Frame>(OUTBOX_SIZE)
         val screenFrames = ScreenFrameLane()
@@ -281,7 +264,6 @@ class ServerRuntime(
         fun disconnect() {
             screenFrames.close()
             deviceId?.let { id -> scope.launch { screens.close(id) } }
-            externalChanges.close()
             clients.remove(this)
             detachTools()
             outbox.close()
@@ -324,13 +306,11 @@ class ServerRuntime(
                 }
             }
             val frame = next.second ?: if (next.first) break else continue
-            if (!client.subscribed(frame)) { client.delivered(frame); continue }
             if (!client.valid() && (frame !is Frame.Response || frame.id != client.closeAfterResponse)) {
-                if (client.closeAfterResponse != null) { client.delivered(frame); continue }
+                if (client.closeAfterResponse != null) { continue }
                 client.disconnect(); break
             }
             withTimeout(15_000) { connection.send(frame) }
-            client.delivered(frame)
             if (frame is Frame.Response && frame.id == client.closeAfterResponse) client.disconnect()
         } } catch (e: CancellationException) { throw e }
         catch (e: Exception) { log.debug(e) { "Closing a connection: write failed" } }
@@ -400,7 +380,6 @@ class ServerRuntime(
             }
         } finally {
             clients.remove(client)
-            client.externalChanges.close()
             client.detachTools()
             if (authed) broadcast(Api.DevicesChanged, Unit)
             client.outbox.close()
@@ -434,23 +413,32 @@ class ServerRuntime(
             val provider = checkNotNull(voice.synthesizer) { "Server synthesis is not configured" }
             SpeechAudio(Base64.encode(provider.synthesize(p.text).bytes))
         }
-        Api.Capabilities.name -> respond(r, Api.Capabilities) { executions.registration(it.agentId)?.let { a ->
-            val info = externalInfo(a)
-            val lost = it.sessionId?.let { id -> external.snapshot(id).phase == ExecutionPhase.Lost } == true
-            SessionCapabilities(seq.load(), capabilities, if (lost) CapabilityState.unavailable("This Session's harness connection ended. Its transcript is saved. Resume it if the harness supports restoring this Session, or start a new Session.", "session_lost") else if (info.readiness.online) CapabilityState() else CapabilityState.unavailable(info.readiness.reason ?: "Check the harness connection", info.readiness.reasonCode ?: "checking"), attachments = emptyMap())
-        } ?: harness.capabilities(agent(it.agentId), it.sessionId, it.settings, capabilities, seq.load()) }
-        Api.Models.name -> respond(r, Api.Models) { harness.modelCatalog(it.refresh) }
-        Api.ProbeHarnessConnection.name -> respond(r, Api.ProbeHarnessConnection) { installedFactory.probe(it).also { probe ->
-            if (executions.catalog().connections.any { c -> c.config == it }) {
-                if (probe.readiness.online) executions.negotiated(it.id, ExecutionCapabilities()) else executions.offline(it.id, probe.readiness.reason ?: "Unavailable", probe.readiness.reasonCode ?: "unavailable")
-                broadcast(Api.ExecutionCatalogChanged, executions.catalog()); broadcast(Api.AgentsChanged, admin.agents() + executions.catalog().agents.map { a -> externalInfo(a) }); changedCapabilities()
+        Api.Capabilities.name -> respond(r, Api.Capabilities) { p ->
+            val registration = executions.registration(p.agentId) ?: executions.catalog().agents.firstOrNull { it.id == p.agentId && it.archived } ?: external.archives().firstOrNull { it.id == p.agentId }
+            if (registration == null) harness.capabilities(agent(p.agentId), p.sessionId, p.settings, capabilities, seq.load())
+            else {
+                val info = externalInfo(registration)
+                val saved = p.sessionId?.let { external.session(p.agentId, it); external.record(it) }
+                val support = saved?.support
+                val availability = when {
+                    saved?.archived == true || info.readiness.reasonCode == "archived" -> CapabilityState.unavailable("Agent registration archived", "archived")
+                    saved?.failure != null -> CapabilityState.unavailable(saved.failure, "recovery_failed")
+                    saved?.closed == true -> CapabilityState.unavailable("Execution closed", "session_closed")
+                    saved?.lost == true -> CapabilityState.unavailable("Execution connection ended; saved history remains available", "session_lost")
+                    !info.readiness.online -> CapabilityState.unavailable(info.readiness.reason ?: "Check connection", info.readiness.reasonCode ?: "checking")
+                    else -> CapabilityState()
+                }
+                SessionCapabilities(seq.load(), capabilities, availability,
+                    attachments = support?.supportedMimeTypes.orEmpty().associateWith { availability }, execution = support)
             }
-        } }
+        }
+        Api.Models.name -> respond(r, Api.Models) { harness.modelCatalog(it.refresh) }
+        Api.ProbeHarnessConnection.name -> respond(r, Api.ProbeHarnessConnection) { checkHarness(it) }
         Api.ResumeExecution.name -> respond(r, Api.ResumeExecution) { executionManagement.withLock { external.resume(it.id) } }
         Api.CloseExecution.name -> respond(r, Api.CloseExecution) { executionManagement.withLock { external.closeExecution(it.id) } }
         Api.ExecutionSnapshot.name -> respond(r, Api.ExecutionSnapshot) {
             if (external.owns(it.id)) external.snapshot(it.id) else {
-                val owner = harness.store.agents().firstOrNull { a -> harness.store.sessions(a).any { s -> s.id == it.id } } ?: error("Unknown Session")
+                val owner = harness.store.agents().firstOrNull { a -> harness.store.sessions(a.id).any { s -> s.id == it.id } } ?: error("Unknown Session")
                 nativeExecution.snapshot(owner.id, it.id)
             }
         }
@@ -470,23 +458,18 @@ class ServerRuntime(
         Api.ExecutionCatalog.name -> respond(r, Api.ExecutionCatalog) { executions.catalog() }
         Api.SaveHarnessConnection.name -> respond(r, Api.SaveHarnessConnection) { executionManagement.withLock { check(!external.inUse(it.id)) { "Connection has live Sessions" }; executions.save(it).also { catalogChanged() } } }
         Api.DeleteHarnessConnection.name -> respond(r, Api.DeleteHarnessConnection) { executionManagement.withLock { check(!external.inUse(it.id)) { "Connection has live Sessions" }; executions.removeConnection(it.id).also { catalogChanged() } } }
-        Api.RegisterExternalAgent.name -> respond(r, Api.RegisterExternalAgent) { executionManagement.withLock { val existing = executions.registration(it.id); check(existing == null || !external.agentInUse(existing.id)) { "Agent has live Sessions" }; require(harness.store.agents().none { a -> a.id == it.id }) { "Agent ID belongs to a native Agent" }; executions.register(it).also { catalogChanged() } } }
-        Api.UnregisterExternalAgent.name -> respond(r, Api.UnregisterExternalAgent) { executionManagement.withLock { val a = executions.registration(it.id); check(a == null || !external.agentInUse(a.id)) { "Agent has live Sessions" }; executions.removeAgent(it.id).also { catalogChanged() } } }
-        Api.Agents.name -> respond(r, Api.Agents) { admin.agents() + executions.catalog().agents.map { externalInfo(it) } }
-        Api.Agent.name -> respond(r, Api.Agent) { executions.registration(it.agentId)?.let { a -> AgentDetails(externalInfo(a), AgentSettings("", "", "", "external"), "", "", managed = true, cwd = a.cwd, remoteAgentId = a.remoteAgentId) } ?: admin.details(agent(it.agentId)) }
-        Api.CreateAgent.name -> respond(r, Api.CreateAgent) { admin.create(it) }
+        Api.RegisterExternalAgent.name -> respond(r, Api.RegisterExternalAgent) { executionManagement.withLock { val existing = executions.registration(it.id); check(existing == null || !external.agentInUse(existing.id)) { "Agent has live Sessions" }; require(harness.store.agents().none { a -> a.id == it.id }) { "Agent ID belongs to a native Agent" }; executions.register(it).also { a -> external.restore(a.id); catalogChanged() } } }
+        Api.UnregisterExternalAgent.name -> respond(r, Api.UnregisterExternalAgent) { executionManagement.withLock { val a = executions.registration(it.id); check(a == null || !external.agentInUse(a.id)) { "Agent has live Sessions" }; external.archive(it.id); executions.removeAgent(it.id).also { catalogChanged() } } }
+        Api.Agents.name -> respond(r, Api.Agents) { admin.agents() + externalAgents() }
+        Api.Agent.name -> respond(r, Api.Agent) { (executions.registration(it.agentId) ?: executions.catalog().agents.firstOrNull { a -> a.id == it.agentId && a.archived } ?: external.archives().firstOrNull { a -> a.id == it.agentId })?.let { a -> AgentDetails(externalInfo(a), AgentSettings("", "", "", "external"), "", "", managed = true, cwd = a.cwd, remoteAgentId = a.remoteAgentId) } ?: admin.details(agent(it.agentId)) }
+        Api.CreateAgent.name -> respond(r, Api.CreateAgent) { p -> require(executions.catalog().agents.none { it.id == p.agentId }) { "Agent ID is reserved by an external registration" }; admin.create(p) }
         Api.UpdateAgent.name -> respond(r, Api.UpdateAgent) { admin.update(it).also { changedCapabilities() } }
         Api.TestExec.name -> respond(r, Api.TestExec) { admin.testExec(it) }
         Api.ServerRules.name -> respond(r, Api.ServerRules) { admin.serverRules() }
         Api.SaveServerRules.name -> respond(r, Api.SaveServerRules) { admin.saveServerRules(it).also { changedCapabilities() } }
         Api.DeleteAgent.name -> respond(r, Api.DeleteAgent) { admin.delete(it.agentId) }
-        Api.Sessions.name -> respond(r, Api.Sessions) { if (executions.registration(it.agentId) != null) { val all = external.sessions(it.agentId); val page = all.drop(it.before?.let { id -> all.indexOfFirst { it.id == id } + 1 } ?: 0); SessionPage(page.take(it.limit.coerceIn(1, MAX_PAGE)), page.size > it.limit) } else harness.log.page(agent(it.agentId), it.before, it.limit.coerceIn(1, MAX_PAGE), it.routineId) }
-        Api.Session.name -> respond(r, Api.Session) {
-            if (executions.registration(it.agentId) != null) return@respond external.session(it.agentId, it.sessionId)
-            val agent = agent(it.agentId)
-            check(harness.store.entries(agent, it.sessionId).isNotEmpty()) { "No session '${it.sessionId}'" }
-            harness.log.session(agent, it.sessionId)
-        }
+        Api.Sessions.name -> respond(r, Api.Sessions) { harness.log.page(it.agentId, it.before, it.limit.coerceIn(1, MAX_PAGE), it.routineId) }
+        Api.Session.name -> respond(r, Api.Session) { harness.log.session(it.agentId, it.sessionId) }
         Api.Skills.name -> respond(r, Api.Skills) { admin.skills(agent(it.agentId)) }
         Api.Skill.name -> respond(r, Api.Skill) { admin.skill(agent(it.agentId), it.name, it.scope) }
         Api.SaveSkill.name -> respond(r, Api.SaveSkill) { admin.saveSkill(it) }
@@ -498,19 +481,18 @@ class ServerRuntime(
         Api.LoginMcp.name -> respond(r, Api.LoginMcp) { harness.mcp.loginMcp(it) }
         Api.CompleteMcpLogin.name -> respond(r, Api.CompleteMcpLogin) { harness.mcp.completeMcpLogin(it) }
         Api.LogoutMcp.name -> respond(r, Api.LogoutMcp) { harness.mcp.logoutMcp(it) }
-        Api.CatchUp.name -> respond(r, Api.CatchUp) { if (executions.registration(it.agentId) != null) { external.session(it.agentId, it.sessionId); client.externalSubscriptions[it.sessionId] = seq.incrementAndFetch(); sendExternal(client, it.agentId, it.sessionId) } else harness.log.subscribe(agent(it.agentId), it.sessionId, it.after, it.limit.coerceIn(1, MAX_PAGE), client) }
-        Api.Unsubscribe.name -> respond(r, Api.Unsubscribe) { client.externalSubscriptions.remove(it.sessionId); harness.log.unsubscribe(it.sessionId, client) }
-        Api.History.name -> respond(r, Api.History) { if (executions.registration(it.agentId) != null) external.history(it.agentId, it.sessionId).filter { e -> e.seq < it.before }.takeLast(it.limit.coerceIn(1, MAX_PAGE)) else harness.log.history(agent(it.agentId), it.sessionId, it.before, it.limit.coerceIn(1, MAX_PAGE)) }
+        Api.CatchUp.name -> respond(r, Api.CatchUp) { harness.log.subscribe(it.agentId, it.sessionId, it.after, it.limit.coerceIn(1, MAX_PAGE), client) }
+        Api.Unsubscribe.name -> respond(r, Api.Unsubscribe) { harness.log.unsubscribe(it.sessionId, client) }
+        Api.History.name -> respond(r, Api.History) { harness.log.history(it.agentId, it.sessionId, it.before, it.limit.coerceIn(1, MAX_PAGE)) }
         Api.CreateSession.name -> respond(r, Api.CreateSession) { createSession(it.agentId) }
         Api.ConfigureSession.name -> respond(r, Api.ConfigureSession) { p ->
             val agent = agent(p.agentId)
-            check(harness.store.entries(agent, p.sessionId).isNotEmpty()) { "No session '${p.sessionId}'" }
+            check(harness.store.entries(agent.id, p.sessionId).isNotEmpty()) { "No session '${p.sessionId}'" }
             harness.configure(agent, p.sessionId, p.settings).also { changedCapabilities() }
         }
         Api.UpdateSession.name -> respond(r, Api.UpdateSession) { p ->
-            val agent = agent(p.agentId)
-            check(harness.store.entries(agent, p.sessionId).isNotEmpty()) { "No session '${p.sessionId}'" }
-            harness.update(agent, p.sessionId, p.title, p.favorite)
+            check(harness.store.entries(p.agentId, p.sessionId).isNotEmpty())
+            harness.log.updateDetails(p.agentId, p.sessionId, p.title, p.favorite)
         }
         Api.UploadAttachment.name -> respond(r, Api.UploadAttachment) { withContext(Dispatchers.Default) { harness.attachments.upload(prepareAttachment(it)) } }
         Api.Attachment.name -> respond(r, Api.Attachment) { withContext(Dispatchers.Default) { harness.attachments.download(it.id) } }
@@ -615,7 +597,7 @@ class ServerRuntime(
         }
     }
 
-    private suspend fun execution(agentId: String): kinuvo.execution.api.ExecutionDispatch =
+    private suspend fun execution(agentId: String): ExecutionDispatch =
         if (executions.registration(agentId) != null) external else nativeExecution
 
     private suspend fun createSession(agentId: String): SessionInfo =
@@ -625,31 +607,35 @@ class ServerRuntime(
     private suspend fun sourceSnapshot(agentId: String, sessionId: String) = execution(agentId).snapshot(agentId, sessionId)
 
     private suspend fun answerNative(answer: ExecutionAnswer): Boolean {
-        val agentId = harness.store.agents().firstOrNull { a -> harness.store.sessions(a).any { it.id == answer.sessionId } }?.id ?: return false
+        val agentId = harness.store.agents().firstOrNull { a -> harness.store.sessions(a.id).any { it.id == answer.sessionId } }?.id ?: return false
 
         val pending = nativeExecution.snapshot(agentId, answer.sessionId).pending.firstOrNull { it.id == answer.requestId }
         return when (pending?.kind) {
             ExecutionRequestKind.Approval -> {
-                val outcome = answer.answer.jsonObject.getValue("outcome").jsonObject
-                val decision = when (outcome.getValue("outcome").jsonPrimitive.content) {
-                    "cancelled" -> ApprovalDecision.Deny()
-                    "selected" -> {
-                        val option = outcome.getValue("optionId").jsonPrimitive.content
-                        require(pending.options.any { it.id == option }) { "Approval option is not offered" }
-                        when (option) { "allow_once" -> ApprovalDecision.AllowOnce; "always_allow" -> ApprovalDecision.AlwaysAllow; else -> ApprovalDecision.Deny() }
-                    }
-                    else -> error("Invalid Approval outcome")
-                }
-                harness.approvals.respond(answer.requestId, decision)
+                val option = (answer.answer as? JsonObject)?.get("optionId")?.jsonPrimitive?.content
+                require(option == null || pending.options.any { it.id == option })
+                harness.approvals.respond(answer.requestId, when (option) {
+                    "allow_once" -> ApprovalDecision.AllowOnce
+                    "always_allow" -> ApprovalDecision.AlwaysAllow
+                    else -> ApprovalDecision.Deny()
+                })
             }
-            ExecutionRequestKind.Question -> harness.questions.respond(answer.requestId, ProtocolJson.decodeFromJsonElement(QuestionsParams.serializer(), answer.answer).also { require(it.questionsId == answer.requestId) }.answers)
+            ExecutionRequestKind.Question -> {
+                val answers = (answer.answer as? JsonObject)?.get("answers")?.let {
+                    ProtocolJson.decodeFromJsonElement(MapSerializer(serializer<String>(), ListSerializer(serializer<String>())), it)
+                }.orEmpty()
+                harness.questions.respond(answer.requestId, answers)
+            }
             null -> false
         }
     }
 
     private suspend fun browserOwner(owner: BrowserOwner) {
+        check(executions.registration(owner.agentId) == null && !external.owns(owner.sessionId)) {
+            "Browser is managed by this Agent's harness and isn't available in Kinuvo"
+        }
         val a = agent(owner.agentId)
-        check(harness.store.entries(a, owner.sessionId).isNotEmpty()) { "No Session '${owner.sessionId}'" }
+        check(harness.store.entries(a.id, owner.sessionId).isNotEmpty()) { "No Session '${owner.sessionId}'" }
     }
 
     private suspend fun send(p: SendParams): SendResult {
@@ -666,7 +652,7 @@ class ServerRuntime(
         val attachments = withContext(Dispatchers.Default) { p.attachments.map(harness.attachments::get) }
         require(attachments.sumOf { it.size } <= MAX_ATTACHMENT_TOTAL_BYTES) { "Attachments must total 20 MB or less" }
         val sessionId = p.sessionId?.also { id ->
-            check(harness.store.sessions(agent).any { it.id == id }) { "No session '$id' for agent '${agent.id}'" }
+            check(harness.store.sessions(agent.id).any { it.id == id }) { "No session '$id' for agent '${agent.id}'" }
         } ?: harness.newSession(agent).id
         val effective = harness.capabilities(agent, sessionId, null, capabilities)
         effective.chat.requireReady()
@@ -677,18 +663,44 @@ class ServerRuntime(
     }
 
     private suspend fun stop(sessionId: String) {
-        val execution: kinuvo.execution.api.ExecutionDispatch = if (external.owns(sessionId)) external else nativeExecution
+        val execution: ExecutionDispatch = if (external.owns(sessionId)) external else nativeExecution
         execution.stop(sessionId)
+    }
+
+    private suspend fun checkHarness(config: HarnessConnection): ExecutionProbe {
+        val probe = try {
+            withTimeoutOrNull(30_000) { installedFactory.probe(config) }
+                ?: ExecutionProbe(ExecutionReadiness(true, false, "Harness check timed out", "unavailable"))
+        } catch (e: TimeoutCancellationException) {
+            currentCoroutineContext().ensureActive()
+            ExecutionProbe(ExecutionReadiness(true, false, "Harness check timed out", "unavailable"))
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) {
+            ExecutionProbe(ExecutionReadiness(true, false, e.message ?: "Harness check failed", "unavailable"))
+        }
+        executionManagement.withLock {
+            if (executions.catalog().connections.any { it.config == config }) {
+                if (probe.readiness.online) executions.online(config.id)
+                else executions.offline(config.id, probe.readiness.reason ?: "Unavailable", probe.readiness.reasonCode ?: "unavailable")
+                catalogChanged()
+            }
+        }
+        return probe
     }
 
     private suspend fun catalogChanged() {
         broadcast(Api.ExecutionCatalogChanged, executions.catalog())
-        broadcast(Api.AgentsChanged, admin.agents() + executions.catalog().agents.map { externalInfo(it) })
+        broadcast(Api.AgentsChanged, admin.agents() + externalAgents())
         changedCapabilities()
     }
 
+    private suspend fun externalAgents(): List<AgentInfo> =
+        (executions.catalog().agents + external.archives()).distinctBy { it.id }.map { externalInfo(it) }
+
     private suspend fun externalInfo(a: AgentRegistration): AgentInfo {
-        val c = executions.catalog().connections.first { it.config.id == a.connectionId }
+        val c = executions.catalog().connections.firstOrNull { it.config.id == a.connectionId }
+        if (executions.registration(a.id) == null) return AgentInfo(a.id, a.name, "external", a.avatar, ExecutionKind.Acp, a.connectionId, readiness = ExecutionReadiness(true, false, "Agent registration archived", "archived"))
+        requireNotNull(c)
         return AgentInfo(a.id, a.name, "external", a.avatar, if (c.config.connection is ExecutionConnection.Acp) ExecutionKind.Acp else ExecutionKind.Remote, a.connectionId, c.config.host ?: name, c.readiness)
     }
 
@@ -696,7 +708,7 @@ class ServerRuntime(
 
     private suspend fun checkSession(agent: Agent, spec: RoutineSpec) = spec.also {
         val id = it.session?.takeIf { s -> s != NEW_SESSIONS } ?: return@also
-        check(harness.store.entries(agent, id).isNotEmpty()) { "No session '$id'" }
+        check(harness.store.entries(agent.id, id).isNotEmpty()) { "No session '$id'" }
     }
 
     private fun <T> broadcast(type: EventType<T>, payload: T) {

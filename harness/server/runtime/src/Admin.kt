@@ -128,7 +128,7 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
         "This Server can't run a shell on '$mode'"
     }
 
-    private suspend fun sessionIds(agent: Agent) = store.sessions(agent).map { it.id }
+    private suspend fun sessionIds(agent: Agent) = store.sessions(agent.id).map { it.id }
 
     private fun Agent.info() = AgentInfo(id, name, config.exec, config.avatar)
 

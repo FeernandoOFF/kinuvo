@@ -78,7 +78,7 @@ internal class RunSession(
     val compressionStrategy get() = HistoryCompression { (budget ?: 24_576) - instructions.length / 4 }
 
     suspend fun load(): Prompt {
-        val entries = store.entries(agent, sessionId)
+        val entries = store.entries(agent.id, sessionId)
         instructions = entries.filterIsInstance<SessionEntry.Started>().firstOrNull()?.instructions.orEmpty()
         return messages.prompt(instructions, entries.activeHistory().recentScreens())
     }
@@ -103,12 +103,12 @@ internal class RunSession(
 
     fun text() = response.text.toString()
 
-    suspend fun append(entry: SessionEntry) = withContext(NonCancellable) { store.append(agent, sessionId, entry) }
+    suspend fun append(entry: SessionEntry) = withContext(NonCancellable) { store.append(agent.id, sessionId, entry) }
 
     fun toolStarted(id: String) { startedCalls += id }
 
     suspend fun closePending(reason: String, unstarted: String, notify: suspend (AgentEvent) -> Unit) = withContext(NonCancellable) {
-        val all = store.entries(agent, sessionId)
+        val all = store.entries(agent.id, sessionId)
         val answered = all.filterIsInstance<SessionEntry.ToolResult>().map { it.id }.toSet()
         val pending = all.filterIsInstance<SessionEntry.ToolCall>().filter { it.id !in answered }
         val results = pending.map {
@@ -129,7 +129,7 @@ internal class RunSession(
     }
 
     suspend fun beforeCompression(current: Prompt): Prompt {
-        val active = store.entries(agent, sessionId).activeHistory().activations()
+        val active = store.entries(agent.id, sessionId).activeHistory().activations()
         val existing = messages.entries(current.messages).filterIsInstance<SessionEntry.Activation>().map { it.name }.toSet()
         val prompt = current.withMessages { it + messages.messages(active.filterNot { it.name in existing }) }
         before = current
