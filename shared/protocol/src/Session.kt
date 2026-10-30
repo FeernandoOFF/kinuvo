@@ -18,6 +18,10 @@ data class SessionInfo(
     val task: String? = null,
     /** Listed under Favorites in the sidebar. */
     val favorite: Boolean = false,
+    /** Epoch milliseconds, absent for legacy Sessions with no known creation time. */
+    val createdAt: Long? = null,
+    /** Frozen migration ordinal, in the original newest-first order. */
+    val legacyOrder: Long? = null,
 ) {
     /** The user's own Sessions, and a Routine's once it has something for the user or waits on them. */
     val inChats: Boolean get() = routine == null || answered || status == SessionStatus.Waiting
@@ -47,6 +51,9 @@ data class SessionPage(val sessions: List<SessionInfo>, val hasMore: Boolean, va
 /** One line of a Session transcript. */
 @Serializable
 sealed interface SessionEntry {
+    @Serializable @SerialName("notice")
+    data class Notice(val id: String, val code: String, val message: String, val draft: List<SessionEntry> = emptyList()) : SessionEntry
+
     /** Instructions frozen at Session start (Identity, Soul, Memory, User Notes). */
     @Serializable @SerialName("started")
     data class Started(val instructions: String, val routine: RoutineRef? = null) : SessionEntry
@@ -59,7 +66,7 @@ sealed interface SessionEntry {
 
     /** [routine] is set when a Routine sent [text] on its schedule; [voice] when [text] was transcribed from voice chat. */
     @Serializable @SerialName("user")
-    data class UserMessage(val text: String, val routine: RoutineRef? = null, val attachments: List<Attachment> = emptyList(), val voice: Boolean = false) : SessionEntry
+    data class UserMessage(val text: String, val routine: RoutineRef? = null, val attachments: List<Attachment> = emptyList(), val voice: Boolean = false, val submissionId: String? = null) : SessionEntry
 
     /** [messageId] matches the run's streamed events, so clients keep one item from live text to saved message. */
     @Serializable @SerialName("assistant")
@@ -102,4 +109,24 @@ sealed interface SessionEntry {
     /** [attachments] are files the tool shows the model, e.g. an image from a note. */
     @Serializable @SerialName("tool_result")
     data class ToolResult(val id: String, val name: String, val output: String, val isError: Boolean = false, val attachments: List<Attachment> = emptyList(), val identity: ToolIdentity? = null) : SessionEntry
+}
+
+/** Shared by persisted listings and clients; legacy UUIDs carry no creation time. */
+val SessionOrder: Comparator<SessionInfo> = compareByDescending<SessionInfo> { it.createdAt != null }
+    .thenByDescending { it.createdAt }
+    .thenBy { it.legacyOrder ?: Long.MAX_VALUE }
+    .thenBy { it.id }
+
+/** Type is part of identity: a tool call and its result deliberately share a tool ID. */
+@Serializable
+data class SessionEntryIdentity(val type: String, val id: String)
+
+fun SessionEntry.identity(): SessionEntryIdentity? = when (this) {
+    is SessionEntry.UserMessage -> submissionId?.let { SessionEntryIdentity("user", it) }
+    is SessionEntry.AssistantMessage -> messageId?.let { SessionEntryIdentity("assistant", it) }
+    is SessionEntry.Reasoning -> (messageId ?: id)?.let { SessionEntryIdentity("reasoning", it) }
+    is SessionEntry.ToolCall -> SessionEntryIdentity("tool_call", id)
+    is SessionEntry.ToolResult -> SessionEntryIdentity("tool_result", id)
+    is SessionEntry.Notice -> SessionEntryIdentity("notice", id)
+    else -> null
 }

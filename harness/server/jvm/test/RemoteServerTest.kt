@@ -82,17 +82,20 @@ class RemoteServerTest {
             assertFails { scoped.call(Api.RemoteExecution, RemoteExecutionCall("exposed", otherSession, "snapshot")) }
             assertFails { scoped.call(Api.RemoteExecution, RemoteExecutionCall("exposed", otherSession, "cancel")) }
             assertEquals("Allow", approval.options.single().label)
-            val answer = ExecutionAnswer(id, approval.id, kotlinx.serialization.json.Json.parseToJsonElement("""{"outcome":{"outcome":"selected","optionId":"yes"}}"""))
-            assertFails { destination.call(Api.ExecutionAnswer, answer.copy(answer = kotlinx.serialization.json.Json.parseToJsonElement("""{"outcome":{"outcome":"selected","optionId":"not-offered"}}"""))) }
+            val answer = ExecutionAnswer(id, approval.id, kotlinx.serialization.json.Json.parseToJsonElement("""{"optionId":"yes"}"""))
+            assertFails { destination.call(Api.ExecutionAnswer, answer.copy(answer = kotlinx.serialization.json.Json.parseToJsonElement("""{"optionId":"not-offered"}"""))) }
             assertTrue(destination.call(Api.ExecutionAnswer, answer))
             assertFalse(destination.call(Api.ExecutionAnswer, answer))
             waitFor { it.phase == ExecutionPhase.Idle }
             destination.call(Api.Send, SendParams("alias", id, "question"))
             waitFor { it.pending.isNotEmpty() }
             val question = snapshot().pending.single()
-            assertTrue(destination.call(Api.ExecutionAnswer, ExecutionAnswer(id, question.id, kotlinx.serialization.json.Json.parseToJsonElement("""{"action":"decline"}"""))))
+            assertTrue(destination.call(Api.ExecutionAnswer, ExecutionAnswer(id, question.id, kotlinx.serialization.json.JsonNull)))
             waitFor { it.phase == ExecutionPhase.Idle }
             assertTrue(destination.call(Api.History, HistoryParams("alias", id, 100)).isNotEmpty())
+            val nativeHistory = destination.call(Api.History, HistoryParams("native-alias", nativeId, 100)).map { it.entry }
+            assertEquals(listOf("remote native reply"), nativeHistory.filterIsInstance<SessionEntry.AssistantMessage>().map { it.text })
+            assertEquals(listOf("hello native"), nativeHistory.filterIsInstance<SessionEntry.UserMessage>().map { it.text })
             origin.call(Api.RevokeExecution, ExecutionRef("link"))
             waitFor { it.phase == ExecutionPhase.Lost }
         } finally { clients.forEach { it.close() }; local.stop(); source.stop(); dir.deleteRecursively() }

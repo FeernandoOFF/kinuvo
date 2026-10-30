@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kotlin.test.assertNotNull
+
 import kinuvo.harness.testing.*
 
 import kinuvo.harness.core.modelAlias
@@ -80,7 +82,7 @@ class ServerClientTest {
         val files = FileStore(AgentFiles(Path(home.path)))
         val store = object : Store by files {}
         val session = Harness(Path(home.path), store).newSession(store.agents().single())
-        assertEquals(session.id, store.sessions(store.agents().single()).single().id)
+        assertEquals(session.id, store.sessions(store.agents().single().id).single().id)
     }
 
     @Test
@@ -340,7 +342,8 @@ class ServerClientTest {
                 assertEquals(live, caught.entries.takeLast(live.size))
                 assertEquals(LiveState(), caught.live)
                 val page = client.call(Api.Sessions, SessionsParams("default"))
-                assertEquals(SessionInfo(sessionId, "default", "make a skill", answered = true), page.sessions.single())
+                assertNotNull(page.sessions.single().createdAt)
+                assertEquals(SessionInfo(sessionId, "default", "make a skill", answered = true, createdAt = page.sessions.single().createdAt), page.sessions.single())
                 client.close()
 
                 // A paired device reconnects with its token, no code needed
@@ -469,7 +472,7 @@ class ServerClientTest {
             withTimeout(30_000) {
                 val client = KinuvoClient("ws://127.0.0.1:$port/ws", "phone", token = server.auth.sessionToken()).also { it.connect() }
                 val agent = harness.store.agents().single()
-                val ids = List(3) { harness.store.createSession(agent, "i").id.also { Thread.sleep(1_100) } }
+                val ids = List(3) { harness.store.createSession(agent.id, "i").id.also { Thread.sleep(1_100) } }
                 val firstPage = client.call(Api.Sessions, SessionsParams("default", limit = 2))
                 assertEquals(ids.reversed().take(2) to true, firstPage.sessions.map { it.id } to firstPage.hasMore)
                 val secondPage = client.call(Api.Sessions, SessionsParams("default", before = firstPage.sessions.last().id, limit = 2))
@@ -480,7 +483,7 @@ class ServerClientTest {
                 }
 
                 val sessionId = ids.last()
-                repeat(5) { harness.store.append(agent, sessionId, SessionEntry.UserMessage("m$it")) }
+                repeat(5) { harness.store.append(agent.id, sessionId, SessionEntry.UserMessage("m$it")) }
                 val window = client.catchUp(sessionId, after = null, limit = 2)
                 assertEquals(4, window.reset)
                 assertEquals(listOf("m3", "m4"), window.entries.map { (it as SessionEntry.UserMessage).text })

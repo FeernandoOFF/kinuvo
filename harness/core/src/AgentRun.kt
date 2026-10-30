@@ -63,7 +63,7 @@ class AgentRun(
             if (event !is AgentEvent.ToolCallResult || session.calls.none { it.id == event.toolCallId }) send(event)
         })
         val result: AgentEvent = try {
-            if (context.isNotBlank() && store.entries(agent, sessionId).activeHistory().filterIsInstance<SessionEntry.Context>().lastOrNull()?.content != context)
+            if (context.isNotBlank() && store.entries(agent.id, sessionId).activeHistory().filterIsInstance<SessionEntry.Context>().lastOrNull()?.content != context)
                 session.append(SessionEntry.Context(context))
             activation?.let { session.append(it) }
             if (routine == null) session.append(SessionEntry.UserMessage(userText, null, attachments, voice))

@@ -5,6 +5,7 @@ import kinuvo.app.connection.*
 import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kotlinx.serialization.json.JsonElement
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Job
@@ -64,6 +65,8 @@ class SessionRepository(private val notifications: Notifications, internal val c
     private val catchingUp = mutableSetOf<String>()
     private val loadingLists = mutableSetOf<String>()
     private val listChanges = mutableMapOf<String, MutableMap<String, SessionInfo>>()
+    private val replies = mutableSetOf<String>()
+    private val completions = mutableSetOf<String>()
     private var viewing: String? = null
 
     internal fun attach(client: KinuvoClient) {
@@ -103,7 +106,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
             val changes = listChanges.remove(agentId).orEmpty()
             page.sessions.filterNot { it.id in changes }.forEach { statuses[it.id] = it.status }
             val loaded = if (more) state.value.lists[agentId]?.sessions.orEmpty() + page.sessions else page.favorites + page.sessions
-            val sessions = (loaded.filterNot { it.id in changes } + changes.values.filter { it.inChats }).distinctBy { it.id }.sortedByDescending { it.id }
+            val sessions = (loaded.filterNot { it.id in changes } + changes.values.filter { it.inChats }).distinctBy { it.id }.sortedWith(SessionOrder)
             val nextBefore = page.sessions.lastOrNull()?.id.takeIf { page.hasMore }
             state.update { it.copy(lists = it.lists + (agentId to SessionList(sessions, page.hasMore, nextBefore))) }
         } catch (e: Exception) {
@@ -134,11 +137,18 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     suspend fun createSession(agentId: String): SessionInfo = call { it.call(Api.CreateSession, AgentRef(agentId)) }
 
-    suspend fun send(agentId: String, sessionId: String, text: String, attachments: List<String> = emptyList(), voice: Boolean = false) =
-        call { it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice)) }
+    suspend fun send(agentId: String, sessionId: String, text: String, attachments: List<String> = emptyList(), voice: Boolean = false, submissionId: String? = null) =
+        call { it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice, submissionId)) }
 
     suspend fun update(agentId: String, sessionId: String, title: String? = null, favorite: Boolean? = null) =
         call { it.call(Api.UpdateSession, UpdateSessionParams(agentId, sessionId, title, favorite)) }.also(::onChanged)
+
+    suspend fun resume(sessionId: String) = call { it.call(Api.ResumeExecution, ExecutionRef(sessionId)) }
+
+    suspend fun close(sessionId: String) = call { it.call(Api.CloseExecution, ExecutionRef(sessionId)) }
+
+    suspend fun answer(sessionId: String, requestId: String, answer: JsonElement): Boolean =
+        call { it.call(Api.ExecutionAnswer, ExecutionAnswer(sessionId, requestId, answer)) }
 
     suspend fun stop(sessionId: String) = call { it.call(Api.Stop, StopParams(sessionId)) }
 
@@ -152,7 +162,21 @@ class SessionRepository(private val notifications: Notifications, internal val c
     private fun onUpdate(update: SessionUpdate) {
         val id = update.sessionId
         val data = state.value.sessions[id] ?: return
-        when (val change = update.change) {
+        val change = update.change
+        val event = (change as? SessionChange.Event)?.event
+        if (data.live.executionPhase != null) {
+            when {
+                event is AgentEvent.RunStarted -> replies -= id
+                change is SessionChange.Entry && change.entry is SessionEntry.AssistantMessage -> replies += id
+                change is SessionChange.Entry && change.entry is SessionEntry.Notice -> replies -= id
+                event is AgentEvent.RunError || event is AgentEvent.ExecutionPhaseChanged && event.phase == ExecutionPhase.Lost -> replies -= id
+                event is AgentEvent.RunFinished && replies.remove(id) && data.live.executionPhase != ExecutionPhase.Lost && completions.add("$id:${event.runId}") -> {
+                    notifications.post(Notice.RunFinished(update.agentId, id))
+                    if (id != viewing) state.update { it.copy(finished = it.finished + id) }
+                }
+            }
+        }
+        when (change) {
             is SessionChange.Window -> put(id, data.copy(firstSeq = change.firstSeq, entries = change.entries, live = change.state, loaded = true))
             is SessionChange.Reset -> put(id, data.copy(firstSeq = change.firstSeq, entries = emptyList()))
             is SessionChange.Entry -> when {
@@ -173,7 +197,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
             val others = list.sessions.filter { it.id != info.id }
             val sessions = if (!info.inChats) others
                 else if (others.size < list.sessions.size) list.sessions.map { if (it.id == info.id) info else it }
-                else (others + info).sortedByDescending { it.id }
+                else (others + info).sortedWith(SessionOrder)
             s.copy(lists = s.lists + (info.agentId to list.copy(sessions = sessions)))
         }
         if (info.routine != null) {
@@ -189,6 +213,10 @@ class SessionRepository(private val notifications: Notifications, internal val c
         when (info.status) {
             SessionStatus.Waiting -> notifications.post(Notice.ApprovalNeeded(info.agentId, info.id))
             SessionStatus.Idle -> {
+                val external = state.value.sessions[info.id]?.live?.executionPhase != null ||
+                    connection.config.state.value[info.agentId]?.details?.info?.executionKind?.let { it != ExecutionKind.Native } == true ||
+                    connection.harnesses.state.value.catalog?.agents?.any { it.id == info.agentId } == true
+                if (external) return
                 notifications.post(Notice.RunFinished(info.agentId, info.id))
                 if (info.id != viewing) state.update { it.copy(finished = it.finished + info.id) }
                 // A run may have created or edited Skills.
@@ -230,6 +258,8 @@ class SessionRepository(private val notifications: Notifications, internal val c
         attached?.cancel()
         viewing = null
         statuses.clear()
+        replies.clear()
+        completions.clear()
         recent.clear()
         catchingUp.clear()
         loadingLists.clear()
@@ -257,17 +287,20 @@ private fun SessionData.chatItems(): List<ChatItem> {
     fun key(preferred: String?, seq: Int) = preferred?.takeIf { keys.add(it) } ?: "entry-$seq".also { keys += it }
     val reviews = entries.filterIsInstance<SessionEntry.ReflectionReview>().associate { it.proposalId to it.approved }
     val revised = entries.filterIsInstance<SessionEntry.ReflectionReview>().filter { it.approved && it.note != null }.map { it.proposalId }.toSet()
-    entries.forEachIndexed { i, entry ->
+    val saved = entries.mapNotNull { it.identity() }.toSet()
+    val drafts = entries.filterIsInstance<SessionEntry.Notice>().flatMap { it.draft }.mapNotNull { it.identity() }.toSet()
+    val projected = entries + live.entries.filter { it.identity() !in saved && it.identity() !in drafts }
+    projected.forEachIndexed { i, entry ->
         val seq = firstSeq + i
         when (entry) {
-            is SessionEntry.UserMessage -> items += ChatItem.User(key(null, seq), entry.text, entry.routine?.name, entry.attachments, parseTaskPrompt(entry.text)?.second)
+            is SessionEntry.UserMessage -> items += ChatItem.User(key(entry.submissionId?.let { "user-$it" }, seq), entry.text, entry.routine?.name, entry.attachments, parseTaskPrompt(entry.text)?.second)
             is SessionEntry.AssistantMessage -> items += ChatItem.Assistant(key(entry.messageId?.let { "text-$it" }, seq), entry.text)
-            is SessionEntry.Reasoning -> items += ChatItem.Reasoning(key(entry.messageId?.let { "reasoning-$it" }, seq), entry.text)
+            is SessionEntry.Reasoning -> items += ChatItem.Reasoning(key((entry.messageId ?: entry.id)?.let { "reasoning-$it" }, seq), entry.text)
             is SessionEntry.ToolCall -> items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id, entry.name, entry.args, identity = entry.identity)
             is SessionEntry.ToolResult -> {
                 val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == entry.id && it.result == null }
-                if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(result = entry.output, isError = entry.isError)
-                else items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id, entry.name, "", entry.output, entry.isError, identity = entry.identity)
+                if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(result = entry.output, isError = entry.isError, attachments = entry.attachments)
+                else items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id, entry.name, "", entry.output, entry.isError, identity = entry.identity, attachments = entry.attachments)
             }
             is SessionEntry.Measurement -> items += ChatItem.Measurement(key("metrics-${entry.metrics.id}", seq), entry.metrics)
             is SessionEntry.Reflection -> items += ChatItem.Reflection(key("reflection-${entry.id}", seq), entry.result, reviews, revised)
@@ -276,6 +309,7 @@ private fun SessionData.chatItems(): List<ChatItem> {
             is SessionEntry.ReflectionReview -> entry.result?.takeIf { it.proposals.isNotEmpty() }?.let {
                 items += ChatItem.Reflection(key("reflection-review-${entry.proposalId}", seq), it, reviews, revised)
             }
+            is SessionEntry.Notice -> items += ChatItem.Notice(key("notice-${entry.id}", seq), entry.code, entry.message, SessionData(agentId, entries = entry.draft).items)
             is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Context, is SessionEntry.Outcome -> Unit
         }
     }
@@ -287,8 +321,8 @@ private fun SessionData.chatItems(): List<ChatItem> {
         val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == questions.toolCallId && it.result == null }
         if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(questions = questions)
     }
-    if (live.reasoning.isNotEmpty()) items += ChatItem.Reasoning(key("reasoning-${live.messageId}", -1), live.reasoning)
-    if (live.text.isNotEmpty()) items += ChatItem.Assistant(key("text-${live.messageId}", -2), live.text)
+    if (live.reasoning.isNotEmpty() && "reasoning-${live.messageId}" !in keys) items += ChatItem.Reasoning(key("reasoning-${live.messageId}", -1), live.reasoning)
+    if (live.text.isNotEmpty() && "text-${live.messageId}" !in keys) items += ChatItem.Assistant(key("text-${live.messageId}", -2), live.text)
     live.reflectionId?.takeIf { "reflection-$it" !in keys }?.let { items += ChatItem.Reflection(key("reflection-$it", -3)) }
     notes.forEachIndexed { i, note -> items += ChatItem.Error("note-$i", note) }
     return items

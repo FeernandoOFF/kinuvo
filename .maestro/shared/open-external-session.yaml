@@ -1,0 +1,11 @@
+appId: ${APP_ID}
+---
+- runFlow:
+    file: open-pairing.yaml
+    env:
+      PAIRING_CODE: "123456"
+- extendedWaitUntil:
+    visible: "Agents and sessions"
+    timeout: 20000
+- tapOn: "Agents and sessions"
+- tapOn: "External regression"

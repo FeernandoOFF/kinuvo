@@ -18,7 +18,7 @@ class ReflectionReview(private val harness: HarnessRuntime) {
     private val lock = Mutex()
 
     suspend fun respond(agent: Agent, sessionId: String, proposalId: String, approve: Boolean, note: String? = null) = lock.withLock {
-        val entries = harness.store.entries(agent, sessionId)
+        val entries = harness.store.entries(agent.id, sessionId)
         val reviewed = entries.filterIsInstance<SessionEntry.ReflectionReview>().firstOrNull { it.proposalId == proposalId }
         if (reviewed != null) {
             check(reviewed.approved == approve && reviewed.note == note?.trim()?.takeIf { it.isNotEmpty() }) { "This proposal was already reviewed" }
@@ -55,7 +55,7 @@ class ReflectionReview(private val harness: HarnessRuntime) {
                 else -> error("Unsupported Reflection destination")
             }
             if (!approve || revision?.lasting == false) harness.docs.rememberReflectionReview(agent.id, proposal, cleanNote.takeIf { revision?.lasting != true }, !approve)
-            harness.log.append(agent, sessionId, SessionEntry.ReflectionReview(proposalId, approve, cleanNote, result))
+            harness.log.append(agent.id, sessionId, SessionEntry.ReflectionReview(proposalId, approve, cleanNote, result))
         }
     }
 }

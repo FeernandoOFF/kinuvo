@@ -21,7 +21,7 @@ class DeviceToolsTest {
         val agent = harness.store.agents().single()
         val session = harness.newSession(agent)
         harness.log.onEvent { _, _, event -> events.trySend(event) }
-        harness.log.publish(agent, session.id, AgentEvent.RunStarted("run"))
+        harness.log.publish(agent.id, session.id, AgentEvent.RunStarted("run"))
         harness.devices.paired = { listOf(device) }
         return harness.devices.prepare(RunContext(agent, session.id), activate = true).tools.single { it.descriptor.name == "contacts_lookup" }
     }

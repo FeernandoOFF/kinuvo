@@ -87,11 +87,11 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
                 var stopped = false
                 try {
                     r.run(sessionId, message, activation, runId, attachments, voice).collect {
-                        onEvent(it); log.publish(agent, sessionId, it); activity.update { a -> a.copy(steps = a.steps + 1) }
+                        onEvent(it); log.publish(agent.id, sessionId, it); activity.update { a -> a.copy(steps = a.steps + 1) }
                     }
                 } catch (e: CancellationException) {
                     stopped = true
-                    withContext(NonCancellable) { log.publish(agent, sessionId, AgentEvent.RunFinished(runId)) }
+                    withContext(NonCancellable) { log.publish(agent.id, sessionId, AgentEvent.RunFinished(runId)) }
                     throw e
                 } finally {
                     withContext(NonCancellable) { onDone(stopped) }

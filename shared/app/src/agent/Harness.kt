@@ -6,6 +6,9 @@ import kinuvo.protocol.*
 /** An external Agent's instructions, Memory, Skills and tools belong to its harness, not Kinuvo. */
 val AgentInfo.external get() = executionKind != ExecutionKind.Native
 
+fun sessionBrowserAvailable(agent: AgentInfo?, server: ServerCapabilities?) =
+    agent?.executionKind == ExecutionKind.Native && server.supports(ServerFeature.Browser)
+
 val HarnessConnectionStatus.kind get() = when (config.connection) {
     is ExecutionConnection.Acp -> ExecutionKind.Acp
     is ExecutionConnection.Remote -> ExecutionKind.Remote
@@ -62,6 +65,7 @@ fun readiness(state: CapabilityState, harness: String, host: String, agent: Stri
     if (state.actionable) return Readiness("Ready", ReadinessTone.Ready)
     val check = listOf(ReadinessAction.CheckAgain)
     return when (state.reasonCode) {
+        "archived" -> Readiness("Archived", ReadinessTone.Neutral, state.reason ?: "This Agent is archived. Saved Sessions are read-only.")
         "checking" -> Readiness("Checking…", ReadinessTone.Neutral)
         NotChecked -> Readiness("Not checked", ReadinessTone.Neutral, state.reason, check)
         "not_found" -> Readiness("Not found", ReadinessTone.Danger,

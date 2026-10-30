@@ -17,6 +17,9 @@ import kinuvo.ui.knowledge.*
 import kinuvo.ui.artifacts.*
 import kinuvo.ui.navigation.*
 
+import com.composables.icons.lucide.Globe
+import com.composables.icons.lucide.ArrowLeft
+
 import kinuvo.protocol.ServerFeature
 import kinuvo.protocol.supports
 import kinuvo.protocol.privateNetworkHost
@@ -303,7 +306,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     update?.let(backStack::update)
                                 }
                                 val browser = route.agentId?.let { agent -> route.sessionId?.let { Route.Browser(agent, it) } }
-                                kinuvo.ui.screen.BrowserDockHost(browser.takeIf { !compact }, "dock/${app.serverLifetime}", onExpand = history::open) { dock ->
+                                kinuvo.ui.screen.BrowserDockHost(browser.takeIf { !compact && sessionBrowserAvailable(appState.agents.firstOrNull { it.id == route.agentId }, resolved.capabilities?.server) }, "dock/${app.serverLifetime}", onExpand = history::open) { dock ->
                                     ChatScreen(app, session, !compact, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
                                         onBack = back.takeIf { backStack.getOrNull(backStack.lastIndex - 1)?.home == true }, dock = dock)
                                 }
@@ -347,7 +350,15 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         }
                         entry<Route.Browser> { route ->
                             val client = (connection as? Connection.Ready)?.client
-                            if (client == null) Loading(connection) else {
+                            if (client == null) Loading(connection)
+                            else if (appState.agents.firstOrNull { it.id == route.agentId }?.external == true) {
+                                Column(Modifier.fillMaxSize()) {
+                                    PageHeader(Lucide.Globe, "Browser", actions = listOf(PageAction(Lucide.ArrowLeft, "Back") { back() }))
+                                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                        Text("Browser is managed by this Agent's harness and isn't available in Kinuvo.")
+                                    }
+                                }
+                            } else {
                                 val live = koinViewModel<kinuvo.app.screen.LiveViewModel>(key = "live/${app.serverLifetime}/$route") { parametersOf(route) }
                                 val showChat = !compact && maxWidth >= 1200.dp
                                 val chat = Route.Chat(route.agentId, route.sessionId)

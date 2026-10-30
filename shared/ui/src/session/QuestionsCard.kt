@@ -36,15 +36,15 @@ internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String,
 /** [skip] names the button that answers null. */
 @Composable
 internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String, Map<String, List<String>>>,
-    onEdit: (questionsId: String, questionId: String, value: List<String>) -> Unit, onAnswer: (Map<String, List<String>>?) -> Unit, skip: String = "Skip") {
+    onEdit: (questionsId: String, questionId: String, value: List<String>) -> Unit, onAnswer: (Map<String, List<String>>?) -> Unit, skip: String = "Skip", attached: Boolean = false) {
     val answers = asked.questions.associate { it.id to it.default } + drafts[asked.questionsId].orEmpty()
     val ready = asked.questions.none { it.required && answers[it.id].orEmpty().none(String::isNotBlank) }
     Panel(
         Modifier.fillMaxWidth(),
         color = color(panelColor),
-        borderColor = color(accentColor).copy(alpha = 0.5f),
+        borderColor = color(accentColor).copy(alpha = if (attached) 0f else 0.5f),
         shape = Theme[shapes][largeShape],
-        contentPadding = PaddingValues(14.dp),
+        contentPadding = PaddingValues(if (attached) 0.dp else 14.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

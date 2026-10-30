@@ -6,6 +6,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -66,6 +68,8 @@ fun Composer(
     controls: @Composable RowScope.() -> Unit = {},
     hasAttachments: Boolean = false,
     sending: Boolean = false,
+    canStop: Boolean = true,
+    stopWhileSending: Boolean = false,
     attachments: @Composable () -> Unit = {},
     onDictate: (() -> Unit)? = null,
     dictating: Boolean = false,
@@ -74,6 +78,7 @@ fun Composer(
     containerColor: androidx.compose.ui.graphics.Color = color(fieldColor),
     /** Drawn under [containerColor], e.g. a blur of what scrolls behind. */
     backdrop: Modifier = Modifier,
+    notice: (@Composable () -> Unit)? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
     val empty by remember(state) { derivedStateOf { state.annotatedString.text.isBlank() } }
@@ -130,63 +135,75 @@ fun Composer(
 
     val shape = RoundedCornerShape(28.dp)
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(Modifier.fillMaxWidth()) {
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(shape)
-                    .then(backdrop)
-                    .background(containerColor, shape)
-                    .border(1.dp, if (focused) color(accentColor).copy(alpha = 0.55f) else color(borderColor), shape)
-                    .padding(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                attachments()
-                Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
-                    val style = inputTextStyle()
-                    if (empty) Text(placeholder, color = color(mutedColor), style = style)
-                    BasicRichTextEditor(
-                        state = state,
-                        textStyle = style.copy(color = color(onFieldColor)),
-                        keyboardOptions = inputKeyboard(capitalize = true),
-                        cursorBrush = SolidColor(color(accentColor)),
-                        maxLines = 12,
-                        modifier = Modifier.semantics { contentDescription = "Message" }
-                            .fillMaxWidth()
-                            .heightIn(min = 36.dp)
-                            .focusRequester(focus)
-                            .onFocusChanged { focused = it.isFocused }
-                            .onPreviewKeyEvent { it.type == KeyEventType.KeyDown && (onCompletionKey(it) || onKey(it, state, ::submit)) },
-                    )
+        Column(Modifier.fillMaxWidth()) {
+            if (notice != null || blocked != null) {
+                val noticeShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(noticeShape)
+                    .background(color(panelColor)).border(1.dp, color(borderColor), noticeShape)
+                    .heightIn(max = 320.dp).verticalScroll(rememberScrollState())
+                    .padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    blocked?.let { Text(it, fontSize = 13.sp, color = color(mutedColor)) }
+                    notice?.invoke()
                 }
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = controls)
-                    VoiceButton(Lucide.Mic, if (dictating) "Stop dictating" else "Dictate", onDictate, dictating)
-                    val accent = Modifier.size(40.dp).background(color(accentColor), CircleShape)
-                    if (sending) {
-                        Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { Spinner(size = 18.dp) }
-                    } else if (running) {
-                        IconButton(onClick = onStop, modifier = Modifier.size(40.dp), style = ButtonStyle.Secondary, shape = CircleShape) {
-                            Icon(Lucide.Square, Modifier.size(18.dp), contentDescription = "Stop")
-                        }
-                    } else if (empty && !hasAttachments) {
-                        IconButton(onClick = { onVoice?.invoke() }, enabled = onVoice != null, modifier = accent, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(onAccentColor)) {
-                            VoiceBars(Modifier.semantics { contentDescription = if (onVoice != null) "Voice chat" else "Voice chat (coming soon)" })
-                        }
-                    } else {
-                        IconButton(onClick = ::submit, enabled = blocked == null, modifier = accent, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(onAccentColor)) {
-                            Icon(Lucide.ArrowUp, Modifier.size(22.dp), contentDescription = "Send")
+            }
+            Box(Modifier.fillMaxWidth()) {
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(shape)
+                        .then(backdrop)
+                        .background(containerColor, shape)
+                        .border(1.dp, if (focused) color(accentColor).copy(alpha = 0.55f) else color(borderColor), shape)
+                        .padding(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    attachments()
+                    Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
+                        val style = inputTextStyle()
+                        if (empty) Text(placeholder, color = color(mutedColor), style = style)
+                        BasicRichTextEditor(
+                            state = state,
+                            textStyle = style.copy(color = color(onFieldColor)),
+                            keyboardOptions = inputKeyboard(capitalize = true),
+                            cursorBrush = SolidColor(color(accentColor)),
+                            maxLines = 12,
+                            modifier = Modifier.semantics { contentDescription = "Message" }
+                                .fillMaxWidth()
+                                .heightIn(min = 36.dp)
+                                .focusRequester(focus)
+                                .onFocusChanged { focused = it.isFocused }
+                                .onPreviewKeyEvent { it.type == KeyEventType.KeyDown && (onCompletionKey(it) || onKey(it, state, ::submit)) },
+                        )
+                    }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = controls)
+                        VoiceButton(Lucide.Mic, if (dictating) "Stop dictating" else "Dictate", onDictate, dictating)
+                        val accent = Modifier.size(40.dp).background(color(accentColor), CircleShape)
+                        if (sending && !stopWhileSending) {
+                            Box(Modifier.size(40.dp), contentAlignment = Alignment.Center) { Spinner(size = 18.dp) }
+                        } else if (running) {
+                            IconButton(onClick = onStop, enabled = canStop, modifier = Modifier.size(40.dp), style = ButtonStyle.Secondary, shape = CircleShape) {
+                                Icon(Lucide.Square, Modifier.size(18.dp), contentDescription = "Stop")
+                            }
+                        } else if (empty && !hasAttachments) {
+                            IconButton(onClick = { onVoice?.invoke() }, enabled = onVoice != null, modifier = accent, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(onAccentColor)) {
+                                VoiceBars(Modifier.semantics { contentDescription = if (onVoice != null) "Voice chat" else "Voice chat (coming soon)" })
+                            }
+                        } else {
+                            IconButton(onClick = ::submit, enabled = blocked == null, modifier = accent, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(onAccentColor)) {
+                                Icon(Lucide.ArrowUp, Modifier.size(22.dp), contentDescription = "Send")
+                            }
                         }
                     }
                 }
+                // Floats above the input so showing it doesn't move the text being selected.
+                open?.let { q ->
+                    CompletionList(q, highlighted, onPick = { accept(q, it) }, Modifier.align(Alignment.TopStart).above(6.dp))
+                }
+                FormatBar(state, focused && !state.selection.collapsed, Modifier.align(Alignment.TopStart).offset(x = 8.dp, y = (-44).dp))
             }
-            // Floats above the input so showing it doesn't move the text being selected.
-            open?.let { q ->
-                CompletionList(q, highlighted, onPick = { accept(q, it) }, Modifier.align(Alignment.TopStart).above(6.dp))
-            }
-            FormatBar(state, focused && !state.selection.collapsed, Modifier.align(Alignment.TopStart).offset(x = 8.dp, y = (-44).dp))
         }
-        (blocked ?: hint)?.let { Text(it, Modifier.fillMaxWidth(), fontSize = 11.sp, color = color(mutedColor), textAlign = TextAlign.Center) }
+        hint?.takeIf { blocked == null }?.let { Text(it, Modifier.fillMaxWidth(), fontSize = 11.sp, color = color(mutedColor), textAlign = TextAlign.Center) }
     }
 }
 

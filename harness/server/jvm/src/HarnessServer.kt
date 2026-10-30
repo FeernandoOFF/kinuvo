@@ -1,22 +1,19 @@
 package kinuvo.harness.server
 
 import kotlinx.coroutines.*
+import kinuvo.harness.server.execution.ExecutionStorage
+import kinuvo.harness.server.execution.remoteLinks
 import java.io.File
+import kinuvo.execution.acp.AcpExecutionFactory
+import kinuvo.execution.api.ExecutionState
+import kinuvo.protocol.AttachmentData
 
 class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File(harness.files.home.toString(), "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity()) {
-    private val executionFile = File(harness.files.home.toString(), "execution-catalog.json")
-    private val remoteFile = File(harness.files.home.toString(), "execution-links-private.json")
-    private val sessionsFile = File(harness.files.home.toString(), "execution-sessions.json")
-    private val sessionSerializer = kotlinx.serialization.builtins.ListSerializer(kinuvo.harness.server.execution.ExternalSession.serializer())
-    private fun <T> load(file: File, serializer: kotlinx.serialization.KSerializer<T>, default: T): T =
-        if (file.exists()) kinuvo.protocol.ProtocolJson.decodeFromString(serializer, file.readText()) else default
-    private fun <T> save(file: File, serializer: kotlinx.serialization.KSerializer<T>, value: T) =
-        kinuvo.harness.core.store.writeAtomically(kotlinx.io.files.Path(file.path), kinuvo.protocol.ProtocolJson.encodeToString(serializer, value), private = file == remoteFile)
-    val runtime = ServerRuntime(harness, auth, name, serverVoice = DownloadedVoice(File(harness.files.home.toString())), remoteLinks = kinuvo.harness.server.execution.RemoteLinks(load(remoteFile, kinuvo.harness.server.execution.RemoteSecrets.serializer(), kinuvo.harness.server.execution.RemoteSecrets())) { save(remoteFile, kinuvo.harness.server.execution.RemoteSecrets.serializer(), it) }, security = security, prepareAttachment = ::prepareAttachment,
-        executionRegistry = kinuvo.harness.server.execution.ExecutionRegistry(load(executionFile, kinuvo.protocol.ExecutionCatalog.serializer(), kinuvo.protocol.ExecutionCatalog(emptyList(), emptyList()))) { save(executionFile, kinuvo.protocol.ExecutionCatalog.serializer(), it) },
-        executionFactory = kinuvo.execution.acp.AcpExecutionFactory(),
-        externalSessions = load(sessionsFile, sessionSerializer, emptyList()),
-        persistExternal = { save(sessionsFile, sessionSerializer, it) })
+    private val executionStorage = ExecutionStorage(harness.files.home)
+    val runtime: ServerRuntime = ServerRuntime(harness, auth, name, serverVoice = DownloadedVoice(File(harness.files.home.toString())),
+        remoteLinks = remoteLinks(harness.files.home), security = security, prepareAttachment = ::prepareAttachment,
+        executionRegistry = executionStorage.registry, executionFactory = AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment), executionStorage = executionStorage)
+    private suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData) = runtime.persistExecutionAttachment(state, data)
     private val listener = NetworkListener(runtime, auth, network)
     private var started = false
     private var advertised: LocalServer? = null

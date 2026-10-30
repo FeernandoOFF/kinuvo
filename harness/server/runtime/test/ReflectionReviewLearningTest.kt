@@ -35,10 +35,10 @@ class ReflectionReviewLearningTest {
         val proposals = (0..20).map { ReflectionProposal("p$it", "skill_manage", buildJsonObject {
             put("action", "create"); put("name", "release-$it"); put("content", "Unapplied")
         }, "Release", "user-0") }
-        harness.log.append(agent, session, SessionEntry.Reflection("r", 0, ReflectionResult(proposals = proposals)))
+        harness.log.append(agent.id, session, SessionEntry.Reflection("r", 0, ReflectionResult(proposals = proposals)))
         val review = ReflectionReview(harness)
         for (proposal in proposals) review.respond(agent, session, proposal.id, false, "wrong date ${proposal.id}")
-        val decisions = harness.store.entries(agent, session).filterIsInstance<SessionEntry.ReflectionReview>()
+        val decisions = harness.store.entries(agent.id, session).filterIsInstance<SessionEntry.ReflectionReview>()
         assertEquals(21, decisions.size)
         assertEquals("wrong date p20", decisions.last().note)
         assertTrue(decisions.all { it.result!!.proposals.isEmpty() })

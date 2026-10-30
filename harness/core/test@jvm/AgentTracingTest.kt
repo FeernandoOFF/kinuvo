@@ -32,7 +32,7 @@ class AgentTracingTest {
 
     @Test
     fun streamedTurnExportsRelatedAgentLlmAndToolSpansWithoutPayloads() = runBlocking {
-        val session = home.store.createSession(home.agent, "private-system-secret")
+        val session = home.store.createSession(home.agent.id, "private-system-secret")
         val tool = object : Tool {
             override val descriptor = ToolDescriptor("read", "private-description-secret")
             override suspend fun execute(args: JsonObject) = "private-tool-result-secret"
@@ -72,7 +72,7 @@ class AgentTracingTest {
     @Test
     fun failuresAndCancellationKeepStatusWithoutExceptionText() = runBlocking {
         localTracing(home.files).use { tracing ->
-            val session = home.store.createSession(home.agent, "")
+            val session = home.store.createSession(home.agent.id, "")
             val model = scriptedModel { _, _ -> flow { emit(StreamFrame.TextDelta("private-partial-secret")); error("private-exception-secret") } }
             val events = AgentRun(home.agent, home.store, model, emptyList(), tracing = tracing).run(session.id, "private-message-secret").toList()
             assertIs<AgentEvent.RunError>(events.last())
@@ -91,7 +91,7 @@ class AgentTracingTest {
     fun failedAndCancelledToolsKeepErrorStatusWithoutPayloads() = runBlocking {
         localTracing(home.files).use { tracing ->
             for (cancel in listOf(false, true)) {
-                val session = home.store.createSession(home.agent, "")
+                val session = home.store.createSession(home.agent.id, "")
                 val tool = object : Tool {
                     override val descriptor = ToolDescriptor("read", "Read")
                     override suspend fun execute(args: JsonObject): String =
@@ -133,7 +133,7 @@ class AgentTracingTest {
                 val model = scriptedModel { _, _ -> flowOf(StreamFrame.End()) }
                 coroutineScope {
                     (1..8).map { async {
-                        val session = home.store.createSession(home.agent, "")
+                        val session = home.store.createSession(home.agent.id, "")
                         AgentRun(home.agent, home.store, model, emptyList(), tracing = tracing).run(session.id, "go").toList()
                     } }.awaitAll()
                 }

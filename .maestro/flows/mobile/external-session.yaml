@@ -1,0 +1,53 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - smoke
+  - regression
+properties:
+  apiProfile: mobile-external
+  apiVerifications:
+    - stub: mobile/external-catch-up
+      atLeast: 1
+    - stub: mobile/external-capabilities
+      atLeast: 1
+    - stub: mobile/external-answer
+      exactly: 1
+    - stub: mobile/external-send
+      exactly: 1
+---
+- runFlow: ../../shared/open-external-session.yaml
+- assertVisible: "Choose a retry limit"
+- assertVisible: "3"
+- assertVisible:
+    text: "Submit"
+    enabled: true
+# The adapter's numeric field is returned as displayed strings in normalized answers.
+- tapOn: "Submit"
+- extendedWaitUntil:
+    visible: "Retry limit accepted"
+    timeout: 20000
+- assertNotVisible: "Choose a retry limit"
+- assertVisible: "External transcript retained"
+# Server attachment readiness alone must not enable an unsupported external input.
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - assertVisible:
+          enabled: false
+          containsChild:
+            text: "Attach: This harness does not accept this file type"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - assertVisible:
+          text: "Attach: This harness does not accept this file type"
+          enabled: false
+- tapOn: "Message"
+- inputText: "Continue external Session"
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: "External follow-up completed"
+    timeout: 20000

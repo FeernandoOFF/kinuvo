@@ -269,6 +269,39 @@ class ConnectedServerTest {
         owner.sessions.state.first { it.lists["agent"]?.sessions?.single()?.title == "A" }
     }
 
+    @Test fun settingsReconnectDoesNotRetainDisconnectErrorsOrClearValidationErrors() = withOwner { owner, _, _ ->
+        val first = Script("A")
+        val second = Script("A")
+        val third = Script("A")
+        val sockets = Channel<Script>(Channel.UNLIMITED)
+        sockets.send(first); sockets.send(second); sockets.send(third)
+        val client = KinuvoClient("local:test", "test", connection = { sockets.receive() })
+        owner.open(client, "local:test")
+        serverJobs += owner.scope.coroutineContext.job
+        client.connect()
+        owner.activate()
+        val vm = SettingsViewModel(owner.routines, owner.config, AppSchemeBrowser {}, Route.Settings("agent"))
+        store().put("settings", vm)
+        vm.loadModels().join()
+        first.ignore(Api.SaveServerRules.name)
+        val saving = vm.saveServerRules(TrustRules())
+        first.blocked.receive()
+        first.disconnect()
+        saving.join()
+        assertTrue(vm.state.value.errors.isEmpty())
+        second.modelsLoaded.receive()
+        vm.loadModels().join()
+        assertTrue(vm.state.value.errors.isEmpty())
+
+        vm.saveServerRules(TrustRules()).join()
+        val errors = vm.state.value.errors
+        assertEquals(listOf("Unsupported in test: ${Api.SaveServerRules.name}"), errors)
+        second.disconnect()
+        third.modelsLoaded.receive()
+        vm.loadModels().join()
+        assertEquals(errors, vm.state.value.errors)
+    }
+
     @Test fun closeCancelsPendingWorkCollectorsAndNotificationsAndClearsCaches() = withOwner { owner, notices, _ ->
         val a = Script("A")
         connect(owner, a)
@@ -311,10 +344,26 @@ class ConnectedServerTest {
         script.event(Api.TaskChanged, TaskInfo("task", "list", "List", "changed", status = TaskStatus.Waiting))
         owner.board.state.first { it.tasks?.firstOrNull { task -> task.id == "task" }?.status == TaskStatus.Waiting }
         assertEquals(count, states.size)
+        val cached = owner.board.state.value
+        script.hold(Api.Tasks.name)
         val recreated = BoardDestination(owner.board)
-        recreated.viewModel.state.first { it.board.tasks != null }
+        script.blocked.receive()
+        recreated.viewModel.state.first { it.board == cached }
         assertFalse(recreated.state.showDone)
         assertEquals(owner.board.state.value, recreated.state.board)
+        script.release.complete(Unit)
+        script.finished.await()
+        val refreshed = BoardData(listOf(TaskListInfo("list", "List")), listOf(TaskInfo("task", "list", "List", "native")))
+        owner.board.state.first { it == refreshed }
+        recreated.viewModel.state.first { it.board == refreshed }
+        assertEquals(owner.board.state.value, recreated.state.board)
+        val task = TaskInfo("task", "list", "List", "after refresh", status = TaskStatus.Waiting)
+        val updated = refreshed.copy(tasks = listOf(task))
+        script.event(Api.TaskChanged, task)
+        owner.board.state.first { it == updated }
+        recreated.viewModel.state.first { it.board == updated }
+        assertEquals(owner.board.state.value, recreated.state.board)
+        assertEquals(count, states.size)
         val recreatedJob = recreated.viewModel.viewModelScope.coroutineContext.job
         recreated.close()
         recreatedJob.join()
@@ -415,6 +464,8 @@ class ConnectedServerTest {
         private val frames = Channel<Frame>(Channel.UNLIMITED)
         override val incoming = frames.receiveAsFlow()
         private val held = ConcurrentHashMap<String, Boolean>()
+        private val ignored = ConcurrentHashMap.newKeySet<String>()
+        val modelsLoaded = Channel<Unit>(Channel.UNLIMITED)
         val calls = java.util.concurrent.CopyOnWriteArrayList<String>()
         val requests = java.util.concurrent.CopyOnWriteArrayList<Frame.Request>()
         val blocked = Channel<Frame.Request>(Channel.UNLIMITED)
@@ -424,12 +475,14 @@ class ConnectedServerTest {
         val caughtUp = CompletableDeferred<Unit>()
         var after: Int? = null
         fun hold(method: String, error: Boolean = false) { held[method] = error }
+        fun ignore(method: String) { ignored += method }
         fun disconnect() { frames.close() }
 
         override suspend fun send(frame: Frame) {
             val request = frame as Frame.Request
             calls += request.method
             requests += request
+            if (request.method in ignored) { blocked.send(request); return }
             held[request.method]?.let { error ->
                 blocked.send(request)
                 try {
@@ -449,7 +502,7 @@ class ConnectedServerTest {
                 Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", name, capabilities = ServerCapabilities("test"), management = true))
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
                 Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo("agent", name, "none")))
-                Api.Models.name -> reply(request, Api.Models, ModelsCatalog())
+                Api.Models.name -> { reply(request, Api.Models, ModelsCatalog()); modelsLoaded.send(Unit) }
                 Api.Capabilities.name -> if (capabilities != null) reply(request, Api.Capabilities, capabilities)
                     else frames.send(Frame.Response(request.id, false, error = "Unsupported in test: ${request.method}"))
                 Api.Providers.name -> reply(request, Api.Providers, emptyList())

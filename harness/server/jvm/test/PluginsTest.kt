@@ -64,13 +64,13 @@ class PluginsTest {
         val harness = Harness(home = Path(Files.createTempDirectory("harness-plugins").toString()), plugins = listOf(plugin))
         val agent = harness.store.agents().single().let { it.copy(config = it.config.copy(provider = "fake", tools = emptyList())) }
         val session = harness.newSession(agent)
-        val started = harness.store.entries(agent, session.id).filterIsInstance<SessionEntry.Started>().single()
+        val started = harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Started>().single()
         assertTrue("Plugin section" !in started.instructions)
 
         val events = harness.runner(agent, session.id).run(session.id, "hi").toList()
-        assertTrue(harness.store.entries(agent, session.id).filterIsInstance<SessionEntry.Context>().any { "## Fake\n\nPlugin section" in it.content })
+        assertTrue(harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Context>().any { "## Fake\n\nPlugin section" in it.content })
         assertTrue(events.any { it is kinuvo.protocol.AgentEvent.Warning && it.message == "half up" })
-        assertEquals(kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId(plugin.definition.id), "ping").modelAlias(), harness.store.entries(agent, session.id).filterIsInstance<SessionEntry.AssistantMessage>().single().text)
+        assertEquals(kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId(plugin.definition.id), "ping").modelAlias(), harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.AssistantMessage>().single().text)
 
         harness.release(agent)
         assertEquals(listOf(agent.id), released)

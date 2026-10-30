@@ -40,7 +40,7 @@ class CompactionTest {
     fun theSoftThresholdAllowsAFreshRequestThatFitsTheModel() = runTest {
         val home = TestHome()
         val agent = home.agent.copy(config = home.agent.config.copy(compactAtTokens = 1))
-        val session = home.store.createSession(agent, "")
+        val session = home.store.createSession(agent.id, "")
         var requests = 0
         val model = scriptedModel { _, _ -> requests++; flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) }
         val events = AgentRun(agent, home.store, model, emptyList(), contextTokens = 1024).run(session.id, "hello").toList()
@@ -51,7 +51,7 @@ class CompactionTest {
     @Test
     fun oversizedFreshRequestIsRejectedBeforeCallingTheModel() = runTest {
         val home = TestHome()
-        val session = home.store.createSession(home.agent, "")
+        val session = home.store.createSession(home.agent.id, "")
         var calls = 0
         val model = scriptedModel { _, _ -> calls++; flowOf(StreamFrame.End()) }
         val events = AgentRun(home.agent, home.store, model, emptyList(), contextTokens = 1024).run(session.id, "x".repeat(5000)).toList()
@@ -63,24 +63,24 @@ class CompactionTest {
     fun nonReducingSummaryDoesNotReplaceTheActiveHistory() = runTest {
         val home = TestHome()
         val agent = home.agent.copy(config = home.agent.config.copy(compactAtTokens = 50))
-        val session = home.store.createSession(agent, "")
-        home.store.append(agent, session.id, UserMessage("x".repeat(400)))
+        val session = home.store.createSession(agent.id, "")
+        home.store.append(agent.id, session.id, UserMessage("x".repeat(400)))
         val model = scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("y".repeat(1000)), StreamFrame.End()) }
         val events = AgentRun(agent, home.store, model, emptyList()).run(session.id, "next").toList()
         assertTrue(events.last() is AgentEvent.RunError)
-        assertTrue(home.store.entries(agent, session.id).none { it is Compaction })
+        assertTrue(home.store.entries(agent.id, session.id).none { it is Compaction })
     }
 
     @Test
     fun builtinCompressionPersistsAndReloadsTheExactHistory() = runTest {
         val home = TestHome()
         val agent = home.agent.copy(config = home.agent.config.copy(compactAtTokens = 400))
-        val session = home.store.createSession(agent, "stable")
-        home.store.append(agent, session.id, UserMessage("Earlier question"))
-        home.store.append(agent, session.id, AssistantMessage("x".repeat(8000)))
-        home.store.append(agent, session.id, ToolCall("activate", "activate_skill", """{"name":"loaded"}""",
+        val session = home.store.createSession(agent.id, "stable")
+        home.store.append(agent.id, session.id, UserMessage("Earlier question"))
+        home.store.append(agent.id, session.id, AssistantMessage("x".repeat(8000)))
+        home.store.append(agent.id, session.id, ToolCall("activate", "activate_skill", """{"name":"loaded"}""",
             kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "activate_skill")))
-        home.store.append(agent, session.id, ToolResult("activate", "activate_skill", "Loaded Skill instructions"))
+        home.store.append(agent.id, session.id, ToolResult("activate", "activate_skill", "Loaded Skill instructions"))
         val seen = mutableListOf<List<Message>>()
         val model = scriptedModel { prompt, _ ->
             val summarizing = prompt.messages.last().textContent().contains("Create a comprehensive summary")
@@ -91,7 +91,7 @@ class CompactionTest {
             .run(session.id, "next", Activation("skill", "Skill instructions")).toList()
         assertIs<AgentEvent.RunFinished>(events.last())
         assertEquals(1, events.filterIsInstance<AgentEvent.Compacted>().size)
-        val all = home.store.entries(agent, session.id)
+        val all = home.store.entries(agent.id, session.id)
         assertEquals(setOf("skill", "loaded"), all.filterIsInstance<Compaction>().single().history.filterIsInstance<Activation>().map { it.name }.toSet())
         assertTrue(all.any { it is AssistantMessage && it.text.length == 8000 })
         assertEquals(listOf(RequestKind.Compaction, RequestKind.Chat), all.filterIsInstance<Measurement>().map { it.metrics.kind })
@@ -103,10 +103,10 @@ class CompactionTest {
     fun dailyContextsDoNotAccumulateAcrossCompactions() = runTest {
         val home = TestHome()
         val agent = home.agent.copy(config = home.agent.config.copy(compactAtTokens = 400))
-        val session = home.store.createSession(agent, "stable")
-        repeat(20) { home.store.append(agent, session.id, Context("Day $it: " + "x".repeat(1000))) }
-        home.store.append(agent, session.id, UserMessage("earlier"))
-        home.store.append(agent, session.id, AssistantMessage("y".repeat(8000)))
+        val session = home.store.createSession(agent.id, "stable")
+        repeat(20) { home.store.append(agent.id, session.id, Context("Day $it: " + "x".repeat(1000))) }
+        home.store.append(agent.id, session.id, UserMessage("earlier"))
+        home.store.append(agent.id, session.id, AssistantMessage("y".repeat(8000)))
         val model = scriptedModel { prompt, _ ->
             if (prompt.messages.last().textContent().contains("Create a comprehensive summary"))
                 flowOf(StreamFrame.TextDelta("Earlier work."), StreamFrame.End())
@@ -117,16 +117,16 @@ class CompactionTest {
         }
         val events = AgentRun(agent, home.store, model, emptyList(), context = "Today", contextTokens = 4096).run(session.id, "next").toList()
         assertIs<AgentEvent.RunFinished>(events.last())
-        assertEquals(listOf(Context("Today")), home.store.entries(agent, session.id).filterIsInstance<Compaction>().single().history.filterIsInstance<Context>())
+        assertEquals(listOf(Context("Today")), home.store.entries(agent.id, session.id).filterIsInstance<Compaction>().single().history.filterIsInstance<Context>())
     }
 
     @Test
     fun aSingleOversizedEarlierToolResultIsSummarizedInBoundedRequests() = runTest {
         val home = TestHome()
-        val session = home.store.createSession(home.agent, "stable")
-        home.store.append(home.agent, session.id, UserMessage("read"))
-        home.store.append(home.agent, session.id, ToolCall("old", "read", "{}"))
-        home.store.append(home.agent, session.id, ToolResult("old", "read", "x".repeat(40000) + "TAIL"))
+        val session = home.store.createSession(home.agent.id, "stable")
+        home.store.append(home.agent.id, session.id, UserMessage("read"))
+        home.store.append(home.agent.id, session.id, ToolCall("old", "read", "{}"))
+        home.store.append(home.agent.id, session.id, ToolResult("old", "read", "x".repeat(40000) + "TAIL"))
         var summaries = 0
         var tail = false
         val model = scriptedModel { prompt, _ ->
@@ -147,7 +147,7 @@ class CompactionTest {
     fun compressesToolExchangesAndPreservesFilesAndTheCurrentRequest() = runTest {
         val home = TestHome()
         val agent = home.agent.copy(config = home.agent.config.copy(compactAtTokens = 2000))
-        val session = home.store.createSession(agent, "")
+        val session = home.store.createSession(agent.id, "")
         val photo = Attachment("photo", "photo.png", "image/png", 1)
         val tool = object : Tool {
             override val descriptor = ToolDescriptor("read", "Read")
@@ -175,7 +175,7 @@ class CompactionTest {
         val events = AgentRun(agent, home.store, model, listOf(tool), attach = { _, _ -> photo }).run(session.id, "Original request").toList()
         assertIs<AgentEvent.RunFinished>(events.last())
         assertEquals(1, events.filterIsInstance<AgentEvent.Compacted>().size)
-        val snapshot = home.store.entries(agent, session.id).filterIsInstance<Compaction>().single().history
+        val snapshot = home.store.entries(agent.id, session.id).filterIsInstance<Compaction>().single().history
         assertEquals(listOf("call-2"), snapshot.filterIsInstance<ToolCall>().map { it.id })
         assertEquals("x".repeat(20000), snapshot.filterIsInstance<ToolResult>().single().output)
     }

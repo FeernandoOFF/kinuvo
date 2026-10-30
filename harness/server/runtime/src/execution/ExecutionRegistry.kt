@@ -15,7 +15,7 @@ class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList()
         initial.agents.forEach { agents[it.id] = it }
     }
     private fun save() = persist(ExecutionCatalog(connections.values.toList(), agents.values.toList()))
-    suspend fun registration(id: String) = lock.withLock { agents[id] }
+    suspend fun registration(id: String) = lock.withLock { agents[id]?.takeUnless { it.archived } }
     suspend fun configured(agentId: String) = lock.withLock { connections.getValue(agents.getValue(agentId).connectionId).config }
 
     suspend fun catalog() = lock.withLock { ExecutionCatalog(connections.values.toList(), agents.values.toList()) }
@@ -30,7 +30,7 @@ class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList()
     }
 
     suspend fun register(agent: AgentRegistration): AgentRegistration = lock.withLock {
-        require(agent.id.isNotBlank() && agent.name.isNotBlank())
+        require(Regex("[a-z0-9][a-z0-9-]{0,31}").matches(agent.id) && agent.name.isNotBlank())
         require(agent.connectionId in connections) { "Unknown execution connection" }
         when (connections.getValue(agent.connectionId).config.connection) {
             is ExecutionConnection.Acp -> require(agent.cwd?.let { absoluteExecutionPath(it) } == true) { "Working folder must be absolute" }
@@ -39,10 +39,10 @@ class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList()
         agent.also { agents[it.id] = it; save() }
     }
 
-    suspend fun removeAgent(id: String) = lock.withLock { agents.remove(id); save(); Unit }
+    suspend fun removeAgent(id: String) = lock.withLock { agents[id]?.let { agents[id] = it.copy(archived = true) }; save(); Unit }
 
     suspend fun removeConnection(id: String) = lock.withLock {
-        require(agents.values.none { it.connectionId == id }) { "Connection is used by an Agent" }
+        require(agents.values.none { it.connectionId == id && !it.archived }) { "Connection is used by an Agent" }
         connections.remove(id)
         save()
         Unit
@@ -53,6 +53,11 @@ class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList()
         connections[id] = status.copy(readiness = ExecutionReadiness(true, true), capabilities = capabilities)
     }
 
+    suspend fun online(id: String) = lock.withLock {
+        val status = connections.getValue(id)
+        connections[id] = status.copy(readiness = ExecutionReadiness(true, true))
+    }
+
     suspend fun offline(id: String, reason: String, reasonCode: String = "host_offline") = lock.withLock {
         val status = requireNotNull(connections[id])
         connections[id] = status.copy(readiness = ExecutionReadiness(true, false, reason, reasonCode))
@@ -61,6 +66,7 @@ class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList()
     /** Lookup never falls back to another Server or Agent. */
     suspend fun route(agentId: String): HarnessConnection = lock.withLock {
         val agent = requireNotNull(agents[agentId]) { "Unknown external Agent" }
+        check(!agent.archived) { "Agent registration archived" }
         val status = requireNotNull(connections[agent.connectionId])
         check(status.readiness.online) { status.readiness.reason ?: "Execution is offline" }
         status.config

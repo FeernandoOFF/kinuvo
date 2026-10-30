@@ -75,16 +75,16 @@ class SchedulerTest {
         val done = routine(r.id)
         assertEquals(RunStatus.Ok, done.lastStatus)
         assertEquals(now + 60 * 60_000, done.nextRunAt)
-        val session = harness.log.session(agent, done.lastSessionId!!)
+        val session = harness.log.session(agent.id, done.lastSessionId!!)
         assertEquals("Brief", session.title)
         assertEquals(r.id, session.routine?.id)
-        val sent = harness.store.entries(agent, session.id).filterIsInstance<SessionEntry.UserMessage>().single()
+        val sent = harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.UserMessage>().single()
         assertTrue("Summarize the news" in sent.text && "every 60m" in sent.text, sent.text)
         assertEquals(r.id, sent.routine?.id)
         assertEquals(listOf(RunStatus.Ok), ran.map { it.status })
         assertEquals("Here's your brief", ran.single().summary, "Without a report, the reply is what the user hears")
-        assertEquals(listOf(session.id), harness.log.page(agent, null, 10).sessions.map { it.id }, "A run with a reply joins the chats")
-        assertEquals(1, harness.log.page(agent, null, 10, r.id).sessions.size)
+        assertEquals(listOf(session.id), harness.log.page(agent.id, null, 10).sessions.map { it.id }, "A run with a reply joins the chats")
+        assertEquals(1, harness.log.page(agent.id, null, 10, r.id).sessions.size)
     }
 
     @Test
@@ -95,11 +95,11 @@ class SchedulerTest {
         tickAndWait()
 
         assertEquals(RunStatus.Silent, routine(r.id).lastStatus)
-        assertEquals(listOf(routine(r.id).lastSessionId), harness.log.page(agent, null, 10, r.id).sessions.map { it.id })
-        assertTrue(harness.log.page(agent, null, 10).sessions.isEmpty())
+        assertEquals(listOf(routine(r.id).lastSessionId), harness.log.page(agent.id, null, 10, r.id).sessions.map { it.id })
+        assertTrue(harness.log.page(agent.id, null, 10).sessions.isEmpty())
         assertTrue(ran.isEmpty())
         assertNull(routine(r.id).lastReport)
-        assertEquals(SessionEntry.Outcome(false), harness.store.entries(agent, routine(r.id).lastSessionId!!).last())
+        assertEquals(SessionEntry.Outcome(false), harness.store.entries(agent.id, routine(r.id).lastSessionId!!).last())
     }
 
     @Test
@@ -114,7 +114,7 @@ class SchedulerTest {
         toolCall = null
         now += 60 * 60_000
         tickAndWait()
-        val second = harness.store.entries(agent, routine(r.id).lastSessionId!!).filterIsInstance<SessionEntry.UserMessage>().single().text
+        val second = harness.store.entries(agent.id, routine(r.id).lastSessionId!!).filterIsInstance<SessionEntry.UserMessage>().single().text
         assertTrue("told the user: Rent is due tomorrow." in second && "Check my bills" in second, second)
     }
 
@@ -127,7 +127,7 @@ class SchedulerTest {
 
         val beat = routine("heartbeat")
         assertEquals(RunStatus.Ok, beat.lastStatus)
-        val entries = harness.store.entries(agent, beat.lastSessionId!!)
+        val entries = harness.store.entries(agent.id, beat.lastSessionId!!)
         val sent = entries.filterIsInstance<SessionEntry.UserMessage>().single().text
         assertTrue("## HEARTBEAT.md" in sent && "- anything overdue?" in sent && "routine_report" in sent, sent)
         assertEquals(SessionEntry.Outcome(true, "The invoice is overdue"), entries.last())
@@ -142,7 +142,7 @@ class SchedulerTest {
         tickAndWait()
 
         assertEquals(RunStatus.Ok, routine(r.id).lastStatus)
-        val result = harness.store.entries(agent, routine(r.id).lastSessionId!!).filterIsInstance<SessionEntry.ToolResult>().single()
+        val result = harness.store.entries(agent.id, routine(r.id).lastSessionId!!).filterIsInstance<SessionEntry.ToolResult>().single()
         assertTrue(result.isError && result.output.endsWith("; skipped"), result.output)
         assertEquals("Here's your brief\nSkipped, no Approval: skill_manage", ran.single().summary)
     }
@@ -155,7 +155,7 @@ class SchedulerTest {
         now += 60 * 60_000
         tickAndWait()
 
-        val result = harness.store.entries(agent, routine(r.id).lastSessionId!!).filterIsInstance<SessionEntry.ToolResult>().single()
+        val result = harness.store.entries(agent.id, routine(r.id).lastSessionId!!).filterIsInstance<SessionEntry.ToolResult>().single()
         assertTrue(!result.isError, result.output)
         assertEquals("Here's your brief", ran.single().summary)
     }
@@ -171,7 +171,7 @@ class SchedulerTest {
         }
         val session = routine(r.id).lastSessionId!!
         assertEquals(now, routine(r.id).lastRunAt)
-        assertEquals(session, harness.log.page(agent, null, 10, r.id).sessions.single().id)
+        assertEquals(session, harness.log.page(agent.id, null, 10, r.id).sessions.single().id)
         withTimeout(10_000) { runs.stop(session); scheduler.idle() }
     }
 
@@ -179,30 +179,30 @@ class SchedulerTest {
     fun settingsPickedDuringASilentRunAreKept() = runBlocking {
         nothingNew()
         val session = harness.newSession(agent).id
-        harness.store.append(agent, session, SessionEntry.UserMessage("hi"))
-        val before = harness.store.entries(agent, session)
+        harness.store.append(agent.id, session, SessionEntry.UserMessage("hi"))
+        val before = harness.store.entries(agent.id, session)
         val picked = SessionSettings(model = "gpt-test")
         during = { harness.configure(agent, session, picked) }
         harness.routines.create(agent, "Watch", "Check", Trigger.Every(5)) { it.copy(sessionId = session) }
         now += 5 * 60_000
         tickAndWait()
 
-        assertEquals(before + SessionEntry.Settings(picked), harness.store.entries(agent, session))
-        assertEquals(picked, harness.store.session(agent, session).settings)
+        assertEquals(before + SessionEntry.Settings(picked), harness.store.entries(agent.id, session))
+        assertEquals(picked, harness.store.session(agent.id, session).settings)
     }
 
     @Test
     fun silentRunInAnAttachedSessionIsRemovedFromIt() = runBlocking {
         nothingNew()
         val session = harness.newSession(agent).id
-        harness.store.append(agent, session, SessionEntry.UserMessage("hi"))
-        val before = harness.store.entries(agent, session)
+        harness.store.append(agent.id, session, SessionEntry.UserMessage("hi"))
+        val before = harness.store.entries(agent.id, session)
         val r = harness.routines.create(agent, "Watch", "Check", Trigger.Every(5)) { it.copy(sessionId = session) }
         now += 5 * 60_000
         tickAndWait()
 
         assertEquals(RunStatus.Silent, routine(r.id).lastStatus)
-        assertEquals(before, harness.store.entries(agent, session))
+        assertEquals(before, harness.store.entries(agent.id, session))
     }
 
     @Test
@@ -211,7 +211,7 @@ class SchedulerTest {
         now += 60 * 60_000
         tickAndWait()
         val session = routine(first.id).lastSessionId!!
-        val before = harness.store.entries(agent, session)
+        val before = harness.store.entries(agent.id, session)
         val changes = mutableListOf<kinuvo.protocol.SessionInfo>()
         harness.log.onChange { if (it.id == session) changes += it }
         nothingNew()
@@ -219,11 +219,11 @@ class SchedulerTest {
         now += 5 * 60_000
         tickAndWait()
 
-        assertEquals(before, harness.store.entries(agent, session))
+        assertEquals(before, harness.store.entries(agent.id, session))
         assertTrue(changes.isNotEmpty() && changes.all { it.inChats })
         assertEquals(kinuvo.protocol.SessionStatus.Idle, changes.last().status)
-        assertEquals(listOf(session), harness.log.page(agent, null, 10).sessions.map { it.id })
-        harness.log.truncate(agent, session, 1)
+        assertEquals(listOf(session), harness.log.page(agent.id, null, 10).sessions.map { it.id })
+        harness.log.truncate(agent.id, session, 1)
         assertEquals(false, changes.last().inChats)
     }
 
@@ -233,12 +233,12 @@ class SchedulerTest {
         now += 3 * 60 * 60_000 + 10 * 60_000 // three slots missed, the last one 10 minutes ago
         tickAndWait()
         assertEquals(RunStatus.Ok, routine(r.id).lastStatus)
-        assertEquals(1, harness.store.sessions(agent).size)
+        assertEquals(1, harness.store.sessions(agent.id).size)
 
         now += 60 * 60_000 + 40 * 60_000 // past the next slot's 30-minute grace
         tickAndWait()
         assertEquals(RunStatus.Skipped, routine(r.id).lastStatus)
-        assertEquals(1, harness.store.sessions(agent).size)
+        assertEquals(1, harness.store.sessions(agent.id).size)
         assertTrue(routine(r.id).nextRunAt!! > now)
     }
 
@@ -251,7 +251,7 @@ class SchedulerTest {
 
         assertEquals(RunStatus.Ok, routine(r.id).lastStatus)
         assertEquals(false, routine(r.id).enabled)
-        assertEquals(1, harness.store.sessions(agent).size)
+        assertEquals(1, harness.store.sessions(agent.id).size)
     }
 
     @Test
@@ -262,7 +262,7 @@ class SchedulerTest {
         tickAndWait()
 
         assertEquals(RunStatus.Ok, routine(r.id).lastStatus)
-        val result = harness.store.entries(agent, routine(r.id).lastSessionId!!).filterIsInstance<SessionEntry.ToolResult>().single()
+        val result = harness.store.entries(agent.id, routine(r.id).lastSessionId!!).filterIsInstance<SessionEntry.ToolResult>().single()
         assertTrue(result.isError && "denied" in result.output)
     }
 
@@ -290,6 +290,6 @@ class SchedulerTest {
         tickAndWait()
         assertEquals(RunStatus.Silent, routine("heartbeat").lastStatus)
         assertNull(routine("heartbeat").lastSessionId)
-        assertTrue(harness.store.sessions(agent).isEmpty(), "A silent Heartbeat leaves no Session")
+        assertTrue(harness.store.sessions(agent.id).isEmpty(), "A silent Heartbeat leaves no Session")
     }
 }

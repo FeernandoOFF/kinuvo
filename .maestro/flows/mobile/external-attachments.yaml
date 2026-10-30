@@ -1,0 +1,17 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - regression
+properties:
+  apiProfile: mobile-external-attachments
+  apiVerifications:
+    - stub: mobile/external-attachment-capabilities
+      atLeast: 1
+---
+- runFlow: ../../shared/pair-mobile.yaml
+- tapOn: "Attach"
+- assertVisible:
+    text: "Photos"
+    enabled: true
+- runFlow: ../../shared/check-external-files.yaml

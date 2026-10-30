@@ -130,22 +130,22 @@ class ApprovalsTest {
         val a = agent()
         val broker = ApprovalBroker()
         val runner = AgentRun(a, store, model, listOf(tool), approvals = Approvals(policy(a), broker))
-        val sessions = List(2) { store.createSession(a, "").id }
+        val sessions = List(2) { store.createSession(a.id, "").id }
         val requests = Channel<Pair<String, AgentEvent.ApprovalRequested>>(Channel.UNLIMITED)
         val jobs = sessions.map { id -> launch {
             runner.run(id, "go").collect { if (it is AgentEvent.ApprovalRequested) requests.send(id to it) }
         } }
         val (firstSession, first) = requests.receive()
         val (secondSession, second) = requests.receive()
-        assertEquals("same", store.entries(a, firstSession).filterIsInstance<SessionEntry.ToolCall>().single().id)
-        assertEquals("same", store.entries(a, secondSession).filterIsInstance<SessionEntry.ToolCall>().single().id)
+        assertEquals("same", store.entries(a.id, firstSession).filterIsInstance<SessionEntry.ToolCall>().single().id)
+        assertEquals("same", store.entries(a.id, secondSession).filterIsInstance<SessionEntry.ToolCall>().single().id)
         assertTrue(first.approvalId != second.approvalId)
         assertFalse(broker.respond("same", ApprovalDecision.AllowOnce))
         assertTrue(broker.respond(first.approvalId, ApprovalDecision.Deny()))
         assertTrue(broker.respond(second.approvalId, ApprovalDecision.AllowOnce))
         jobs.forEach { it.join() }
-        assertTrue(store.entries(a, firstSession).filterIsInstance<SessionEntry.ToolResult>().single().isError)
-        assertFalse(store.entries(a, secondSession).filterIsInstance<SessionEntry.ToolResult>().single().isError)
+        assertTrue(store.entries(a.id, firstSession).filterIsInstance<SessionEntry.ToolResult>().single().isError)
+        assertFalse(store.entries(a.id, secondSession).filterIsInstance<SessionEntry.ToolResult>().single().isError)
         assertEquals(1, tool.calls)
     }
 
@@ -220,7 +220,7 @@ class ApprovalsTest {
         }
         val broker = ApprovalBroker()
         val a = agent()
-        val session = store.createSession(a, "")
+        val session = store.createSession(a.id, "")
         val events = Channel<AgentEvent>(Channel.UNLIMITED)
         val job = launch { AgentRun(a, store, model, listOf(tool), approvals = Approvals(policy(a), broker)).run(session.id, "go").collect { events.send(it) } }
         val seen = mutableListOf<AgentEvent>()
@@ -234,7 +234,7 @@ class ApprovalsTest {
             if (e is AgentEvent.RunFinished || e is AgentEvent.RunError) break
         }
         job.join()
-        lastEntries = store.entries(a, session.id)
+        lastEntries = store.entries(a.id, session.id)
         return seen
     }
 

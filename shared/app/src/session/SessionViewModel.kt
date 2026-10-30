@@ -42,12 +42,14 @@ sealed interface ChatItem {
         val approval: AgentEvent.ApprovalRequested? = null,
         val questions: AgentEvent.QuestionsAsked? = null,
         val identity: ToolIdentity? = null,
+        val attachments: List<Attachment> = emptyList(),
     ) : ChatItem {
         val awaitingApproval get() = approval != null
         val waiting get() = approval != null || questions != null
         val trustHint get() = approval?.trustHint
     }
     data class Measurement(override val id: String, val metrics: RequestMetrics) : ChatItem
+    data class Notice(override val id: String, val code: String, val message: String, val draft: List<ChatItem> = emptyList()) : ChatItem
     data class Error(override val id: String, val message: String) : ChatItem
     data class Reflection(override val id: String, val result: ReflectionResult? = null, val reviews: Map<String, Boolean> = emptyMap(), val revised: Set<String> = emptySet()) : ChatItem
     data class Compaction(override val id: String, val summary: String) : ChatItem
@@ -129,7 +131,7 @@ data class ChatState(
     /** Half-filled `ask_user` forms, as in [SessionState.answers]. */
     val answers: Map<String, Map<String, List<String>>> = emptyMap(),
     /** What an external Agent's harness waits on: its permission requests and forms; [harness] names it. */
-    val prompts: List<ExternalPrompt> = emptyList(),
+    val prompts: List<ExecutionPrompt> = emptyList(),
     val harness: String? = null,
     /** The external Session's phase as its harness reports it; null when this Device can't see it. */
     val phase: ExecutionPhase? = null,
@@ -140,13 +142,17 @@ data class ChatState(
     /** An external Agent's harness and readiness, which replace Kinuvo's model and Risk tolerance settings. */
     val external get() = agent?.external == true
     /** Why the open external Session can't continue as is; null while it can. */
-    val ended get() = if (external && selected != null) SessionEnd.of(phase, capabilities?.chat, resume) else null
+    val ended get() = if (external && selected != null && capabilities?.chat?.reasonCode != "archived") SessionEnd.of(phase, capabilities?.chat, resume) else null
+    val resumeOnSend get() = external && resumeOnSend(phase, capabilities)
+    val canStop get() = !external || capabilities?.execution?.cancel == true
     val skills get() = capabilities?.server.supports(ServerFeature.Skills)
     /** Why nothing can be sent, or null when chat works. */
-    val chatBlocked get() = capabilities?.chat?.takeUnless { it.actionable }?.let { it.reason ?: "Chat is unavailable" }
-    val photos get() = capabilities?.attachment("image/jpeg")
+    val chatBlocked get() = capabilities?.chat?.takeUnless { it.actionable || resumeOnSend }?.let { it.reason ?: "Chat is unavailable" }
+    val photos get() = capabilities?.let { caps ->
+        ATTACHMENT_MIME_TYPES.filter { it.startsWith("image/") }.map(caps::attachmentInput).let { types -> types.firstOrNull { it.actionable } ?: types.first() }
+    }
     val files get() = capabilities?.let { caps ->
-        ATTACHMENT_MIME_TYPES.map(caps::attachment).let { types -> types.firstOrNull { it.actionable } ?: types.first() }
+        ATTACHMENT_MIME_TYPES.map(caps::attachmentInput).let { types -> types.firstOrNull { it.actionable } ?: types.first() }
     }
 }
 
@@ -182,13 +188,13 @@ data class SessionState(
     /** A shortcut asked for voice chat in this new Session, until it starts. */
     val voiceRequested: Boolean = false,
     /** An external Agent's Session as its harness runs it, with what it waits on. */
-    val external: ExecutionSnapshot? = null,
     val resuming: Boolean = false,
 ) {
-    val prompts get() = external?.takeIf { it.sessionId == route.sessionId }?.pending.orEmpty().map { it.prompt() }
-    val phase get() = external?.takeIf { it.sessionId == route.sessionId }?.phase
+    val prompts get() = data?.live?.pending.orEmpty().map { it.displayPrompt() }
+    val phase get() = data?.live?.executionPhase
     val loaded get() = !resolving && (route.sessionId == null || data?.loaded == true)
-    val running get() = sending || data?.live?.running == true
+    val resumeOnSend get() = resumeOnSend(phase, capabilities)
+    val running get() = sending || resuming || data?.live?.running == true
     internal val echoed get() = outgoing == null || data?.items?.lastOrNull { it is ChatItem.User }?.id != outgoingAfter
     val items: List<ChatItem> get() = data?.items.orEmpty() + listOfNotNull(outgoing.takeUnless { echoed }) + errors.mapIndexed { i, e -> ChatItem.Error("error-$i", e) }
 }
@@ -202,7 +208,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     private val route get() = state.value.route
     /** Settings changes and sends go one at a time, so a message runs with the settings picked before it. */
     private val ordered = Mutex()
-    private var executionRevision = 0L
+    private var pendingSubmission: PendingSubmission? = null
     private val loadingAttachments = mutableSetOf<String>()
 
     init {
@@ -235,15 +241,9 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
             state.map { it.route to (it.settings to it.defaults) }.distinctUntilChanged()
                 .collect { (route, settings) -> route.agentId?.let { loadCapabilities(it, route.sessionId, settings.first) } }
         }
-        viewModelScope.launch { client.events(Api.ExecutionChanged).collect { snap -> if (snap.sessionId == route.sessionId) { executionRevision++; setExternal(snap) } } }
         viewModelScope.launch {
-            val known = state.map { it.route.agentId }.distinctUntilChanged().flatMapLatest { agent ->
-                combine(repo.connection.config.state.map { it[agent]?.details?.info?.executionKind }, repo.connection.harnesses.state.map { h -> h.catalog?.agents?.any { it.id == agent } }) { kind, listed ->
-                    kind?.let { it != ExecutionKind.Native } ?: listed
-                }
-            }.distinctUntilChanged()
-            combine(state.map { it.route.agentId to it.route.sessionId }.distinctUntilChanged(), client.state, known) { r, c, external -> r.takeIf { c is ConnectionState.Connected && external == true } }
-                .collect { r -> r?.let { (agent, session) -> loadExternal(agent, session) } }
+            state.map { Triple(it.route.agentId, it.route.sessionId, it.phase) }.distinctUntilChanged()
+                .collect { (agent, session, _) -> agent?.let { loadCapabilities(it, session, state.value.settings) } }
         }
         viewModelScope.launch {
             client.events(Api.CapabilitiesChanged).collect { route.agentId?.let { loadCapabilities(it, route.sessionId, state.value.settings) } }
@@ -343,18 +343,21 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     fun send(text: String, voice: Boolean = false) {
         val agent = route.agentId ?: return
         val pending = state.value.attachments
-        if ((text.isBlank() && pending.isEmpty()) || state.value.running) return
+        if ((text.isBlank() && pending.isEmpty()) || state.value.running || (state.value.capabilities?.chat?.actionable == false && !state.value.resumeOnSend)) return
+        val submission = pendingSubmission?.takeIf { it.text == text && it.attachments == pending.map { a -> a.id } && it.voice == voice }
+            ?: PendingSubmission(kotlin.uuid.Uuid.random().toString(), text, pending.map { it.id }, voice)
+        pendingSubmission = submission
         state.update { s ->
             s.copy(
                 sending = true, attachments = emptyList(), unsent = null,
-                outgoing = ChatItem.User("outgoing", text, attachments = pending.map { it.attachment.copy(id = it.id) }),
+                outgoing = ChatItem.User("user-${submission.id}", text, attachments = pending.map { it.attachment.copy(id = it.id) }),
                 outgoingAfter = s.data?.items?.lastOrNull { it is ChatItem.User }?.id,
                 downloads = s.downloads + pending.associate { it.id to AttachmentData(it.attachment, it.upload.base64) },
             )
         }
         val uploads = mutableMapOf<String, Attachment>()
         viewModelScope.launch {
-            try { repo.connection.run { ordered.withLock { sendNow(agent, text, pending, uploads, voice) } } }
+            try { repo.connection.run { ordered.withLock { sendNow(agent, text, pending, uploads, voice, submission.id) } } }
             catch (e: kotlinx.coroutines.CancellationException) { throw e }
             catch (e: Exception) {
                 state.update { it.copy(errors = it.errors + listOfNotNull(e.report()), outgoing = null, unsent = text, attachments = pending.map { p -> p.copy(uploaded = uploads[p.id] ?: p.uploaded) } + it.attachments) }
@@ -363,7 +366,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         }
     }
 
-    private suspend fun sendNow(agent: String, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean) {
+    private suspend fun sendNow(agent: String, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean, submissionId: String) {
         val sessionId = route.sessionId ?: repo.createSession(agent).let { info ->
             val id = info.id
             // Set first, so a pick made while these settings save queues up behind this send instead of being dropped.
@@ -372,13 +375,21 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
             repo.view(agent, id)
             id
         }
+        if (state.value.resumeOnSend) {
+            state.update { it.copy(resuming = true) }
+            try {
+                repo.resume(sessionId)
+                loadCapabilities(agent, sessionId, state.value.settings)
+            } finally { state.update { it.copy(resuming = false) } }
+        }
         val uploaded = pending.map { draft ->
             (draft.uploaded ?: client.call(Api.UploadAttachment, draft.upload).also { a ->
                 uploads[draft.id] = a
                 state.update { it.copy(downloads = it.downloads + (a.id to AttachmentData(a, draft.upload.base64))) }
             })
         }
-        repo.send(agent, sessionId, text, uploaded.map { it.id }, voice)
+        repo.send(agent, sessionId, text, uploaded.map { it.id }, voice, submissionId)
+        pendingSubmission = null
     }
 
     fun addAttachments(files: List<UploadAttachmentParams>, error: String? = null) {
@@ -390,7 +401,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
             all.size > MAX_ATTACHMENTS -> "Attach up to 4 files"
             pending.any { attachmentMimeType(it.upload.name) == null } -> "This file type isn't supported"
             else -> pending.firstNotNullOfOrNull { p ->
-                state.value.capabilities?.attachment(p.attachment.mimeType)?.takeUnless { it.actionable }?.let { it.reason ?: "This attachment is unavailable" }
+                state.value.capabilities?.attachmentInput(p.attachment.mimeType)?.takeUnless { it.actionable }?.let { it.reason ?: "This attachment is unavailable" }
             }
         } ?: when {
             pending.any { it.attachment.size == 0 } -> "Empty files cannot be attached"
@@ -458,36 +469,15 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         } }
     }
 
-    /**
-     * The external Session's snapshot, with its pending requests. A Device the Server won't show it to keeps none, and
-     * falls back to the Session's capabilities.
-     */
-    private suspend fun loadExternal(agentId: String?, sessionId: String?) {
-        if (sessionId == null || agentId != route.agentId) return
-        val version = executionRevision
-        catching { client.call(Api.ExecutionSnapshot, ExecutionRef(sessionId)) }.onSuccess { snap -> if (snap.sessionId == route.sessionId && version == executionRevision) setExternal(snap) }
-    }
-
-    /** Whether chat works changes as the Session ends or resumes, so the capabilities follow the phase. */
-    private fun setExternal(snap: ExecutionSnapshot) {
-        val before = state.value.phase
-        state.update { it.copy(external = snap) }
-        if ((before == ExecutionPhase.Lost) != (snap.phase == ExecutionPhase.Lost)) route.agentId?.let { agent ->
-            viewModelScope.launch { loadCapabilities(agent, snap.sessionId, state.value.settings) }
-        }
-    }
-
     /** Asks the harness to reopen the open external Session after its process ended; the Server says why when it can't. */
     fun resumeExternal() {
         val sessionId = route.sessionId ?: return
-        if (state.value.resuming) return
+        if (state.value.resuming || state.value.capabilities?.execution?.resume != true || state.value.capabilities?.chat?.reasonCode == "archived") return
         state.update { it.copy(resuming = true) }
         viewModelScope.launch {
             try {
                 attempt {
-                    val version = executionRevision
-                    val snap = client.call(Api.ResumeExecution, ExecutionRef(sessionId))
-                    if (snap.sessionId == route.sessionId && version == executionRevision) setExternal(snap)
+                    repo.resume(sessionId)
                     route.agentId?.let { loadCapabilities(it, sessionId, state.value.settings) }
                 }
             } finally { state.update { it.copy(resuming = false) } }
@@ -496,21 +486,20 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
 
     /** Ends the open external Session's harness process, stopping any turn; its transcript stays. */
     fun closeExternal() {
+        if (state.value.capabilities?.chat?.reasonCode == "archived") return
         val sessionId = route.sessionId ?: return
         viewModelScope.launch { attempt {
-            client.call(Api.CloseExecution, ExecutionRef(sessionId))
-            loadExternal(route.agentId, sessionId)
+            repo.close(sessionId)
             route.agentId?.let { loadCapabilities(it, sessionId, state.value.settings) }
         } }
     }
 
     /** Answers the harness's request [prompt]: [answer] is its own JSON response. The first Device to answer wins. */
-    fun answerExternal(prompt: ExternalPrompt, answer: kotlinx.serialization.json.JsonElement) {
+    fun answerExternal(prompt: ExecutionPrompt, answer: kotlinx.serialization.json.JsonElement) {
         val sessionId = route.sessionId ?: return
         viewModelScope.launch { attempt {
-            if (!client.call(Api.ExecutionAnswer, ExecutionAnswer(sessionId, prompt.id, answer))) state.update { it.copy(errors = it.errors + "Already answered, or the harness stopped waiting.") }
-            state.update { it.copy(answers = it.answers - prompt.id) }
-            loadExternal(route.agentId, sessionId)
+            if (!repo.answer(sessionId, prompt.id, answer)) state.update { it.copy(errors = it.errors + "Already answered, or the harness stopped waiting.") }
+            else state.update { it.copy(answers = it.answers - prompt.id) }
         } }
     }
 
@@ -520,6 +509,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     }
 
     fun stop() {
+        if (state.value.capabilities?.execution?.cancel == false) return
         val sessionId = route.sessionId ?: return
         viewModelScope.launch { attempt { repo.stop(sessionId) } }
     }
@@ -537,3 +527,5 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     /** What to show for a failed request; none when the connection dropped, which the connection banner shows. */
     private fun Exception.report() = takeUnless { it is DisconnectedException }?.let { message ?: toString() }
 }
+
+private data class PendingSubmission(val id: String, val text: String, val attachments: List<String>, val voice: Boolean)

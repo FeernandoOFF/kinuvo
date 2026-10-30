@@ -1,6 +1,7 @@
 package kinuvo.harness.server.execution
 
 import kinuvo.protocol.*
+import kotlinx.serialization.json.JsonNull
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
@@ -38,7 +39,7 @@ class RemoteGateway(
             "snapshot" -> RemoteExecutionResult(snapshot = current)
             "send" -> { send(agentId, sessionId, requireNotNull(p.text)); RemoteExecutionResult() }
             "cancel" -> { cancel(agentId, sessionId); RemoteExecutionResult() }
-            "answer" -> RemoteExecutionResult(accepted = answer(agentId, ExecutionAnswer(sessionId, requireNotNull(p.requestId), requireNotNull(p.answer))))
+            "answer" -> RemoteExecutionResult(accepted = answer(agentId, ExecutionAnswer(sessionId, requireNotNull(p.requestId), p.answer ?: JsonNull)))
             else -> error("Unsupported remote operation")
         }
     }

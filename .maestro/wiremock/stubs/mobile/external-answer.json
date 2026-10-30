@@ -1,0 +1,121 @@
+{
+  "name": "mobile/external-answer",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "execution.answer"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.sessionId",
+              "equalTo": "e2e-session"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.requestId",
+              "equalTo": "public-number-request"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.answer",
+              "equalToJson": "{\"answers\":{\"attempts\":[\"3\"]}}"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":true}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"event\",\"event\":{\"type\":\"EXECUTION_RESOLVED\",\"requestId\":\"public-number-request\"}}},\"seq\":2}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"event\",\"event\":{\"type\":\"EXECUTION_PHASE_CHANGED\",\"phase\":\"Running\"}}},\"seq\":3}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"event\",\"event\":{\"type\":\"TEXT_MESSAGE_CONTENT\",\"messageId\":\"external-gen-1/reply\",\"delta\":\"Retry limit accepted\"}}},\"seq\":4}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"entry\",\"seq\":1,\"entry\":{\"type\":\"assistant\",\"text\":\"Retry limit accepted\",\"messageId\":\"external-gen-1/reply\"}}},\"seq\":5}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"event\",\"event\":{\"type\":\"RUN_FINISHED\",\"runId\":\"external-gen-1/turn-1\"}}},\"seq\":6}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"event\",\"event\":{\"type\":\"EXECUTION_PHASE_CHANGED\",\"phase\":\"Idle\"}}},\"seq\":7}"
+        }
+      }
+    }
+  ]
+}

@@ -14,12 +14,14 @@ interface Store {
     /** Deletes the Agent with all its data. */
     suspend fun deleteAgent(agent: Agent)
     suspend fun saveConfig(agent: Agent, config: AgentConfig): Agent
-    suspend fun sessions(agent: Agent): List<SessionInfo>
-    suspend fun session(agent: Agent, sessionId: String): SessionInfo
-    suspend fun createSession(agent: Agent, instructions: String, routine: RoutineRef? = null): SessionInfo
-    suspend fun append(agent: Agent, sessionId: String, entry: SessionEntry)
-    suspend fun entries(agent: Agent, sessionId: String): List<SessionEntry>
-    suspend fun deleteSession(agent: Agent, sessionId: String)
+    suspend fun sessions(agentId: String): List<SessionInfo>
+    suspend fun session(agentId: String, sessionId: String): SessionInfo
+    suspend fun createSession(agentId: String, instructions: String, routine: RoutineRef? = null): SessionInfo
+    suspend fun append(agentId: String, sessionId: String, entry: SessionEntry)
+    /** Atomically appends missing stable identities; conflicts throw SessionCommitConflict. Returns newly saved entries. */
+    suspend fun appendAll(agentId: String, sessionId: String, entries: List<SessionEntry>): List<SessionEntry>
+    suspend fun entries(agentId: String, sessionId: String): List<SessionEntry>
+    suspend fun deleteSession(agentId: String, sessionId: String)
     /** Drops every entry from position [size] on. */
-    suspend fun truncate(agent: Agent, sessionId: String, size: Int)
+    suspend fun truncate(agentId: String, sessionId: String, size: Int)
 }

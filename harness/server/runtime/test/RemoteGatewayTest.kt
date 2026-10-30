@@ -4,6 +4,7 @@ import kinuvo.execution.api.*
 import kinuvo.harness.server.execution.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.test.runTest
+import kotlinx.serialization.json.JsonNull
 import kotlin.test.*
 
 class RemoteGatewayTest {
@@ -56,6 +57,20 @@ class RemoteGatewayTest {
         }
         links.revoke("friend")
         assertFailsWith<IllegalArgumentException> { gateway.call(token, RemoteExecutionCall("allowed", "source-session", "snapshot")) }
+    }
+
+    @Test fun normalizedNullAnswerSurvivesRemoteWireDecoding() = runTest {
+        val links = RemoteLinks()
+        val token = links.grant(ExposureGrant("friend", setOf("agent")))
+        links.claim(token, "agent", "session")
+        var received: ExecutionAnswer? = null
+        val gateway = RemoteGateway(links, { listOf(AgentInfo("agent", "Agent", "")) },
+            { error("No create") }, { _, id -> ExecutionSnapshot(id) }, { _, _, _ -> }, { _, _ -> },
+            { _, answer -> received = answer; true })
+        val original = RemoteExecutionCall("agent", "session", "answer", requestId = "request", answer = JsonNull)
+        val decoded = ProtocolJson.decodeFromString(RemoteExecutionCall.serializer(), ProtocolJson.encodeToString(RemoteExecutionCall.serializer(), original))
+        assertTrue(gateway.call(token, decoded).accepted)
+        assertEquals(ExecutionAnswer("session", "request", JsonNull), received)
     }
 
     @Test fun secretsNeverEnterCatalog() {

@@ -1,0 +1,33 @@
+{
+  "name": "mobile/external-attachment-capabilities",
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "session.capabilities"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"server\":{\"serverId\":\"e2e-server\",\"features\":[\"Attachments\"]},\"chat\":{},\"inputs\":{\"text\":{},\"image\":{},\"file\":{}},\"attachments\":{\"text/plain\":{},\"image/png\":{},\"image/jpeg\":{}},\"execution\":{\"resume\":false,\"cancel\":true,\"questions\":true,\"supportedMimeTypes\":[\"text/plain\",\"image/png\",\"image/jpeg\"]}}}"
+        }
+      }
+    }
+  ]
+}
