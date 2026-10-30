@@ -7,6 +7,8 @@ import io.ktor.client.plugins.websocket.WebSockets
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
@@ -59,6 +61,8 @@ class KinuvoClient(
     private var loop: Job? = null
     @Volatile private var active = true
     private val presence = Mutex()
+    /** Keeps within the Server's limit, leaving one for a voice cancel sent while its request is still open. */
+    private val slots = Semaphore(MAX_CONCURRENT_REQUESTS - 1)
 
     val state: StateFlow<ConnectionState> = _state
     val events: SharedFlow<Frame.Event> = _events
@@ -155,7 +159,10 @@ class KinuvoClient(
         scope.launch { runCatching { session?.close() } }.invokeOnCompletion { scope.cancel(); if (connection == null) http.close() }
     }
 
-    private suspend fun <P, R> request(method: Method<P, R>, params: P): R {
+    private suspend fun <P, R> request(method: Method<P, R>, params: P): R =
+        if (method == Api.Connect) exchange(method, params) else slots.withPermit { exchange(method, params) }
+
+    private suspend fun <P, R> exchange(method: Method<P, R>, params: P): R {
         val ws = session ?: throw DisconnectedException("Not connected")
         val id = ids.incrementAndFetch().toString()
         val deferred = CompletableDeferred<Frame.Response>()

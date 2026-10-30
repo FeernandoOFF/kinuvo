@@ -1,11 +1,12 @@
 package kinuvo.harness.server
 
 import kinuvo.protocol.Api
+import kinuvo.protocol.MAX_CONCURRENT_REQUESTS
 
 data class ConnectionSecurity(
     val authenticationTimeoutMillis: Long = 10_000,
     val validationIntervalMillis: Long = 30_000,
-    val concurrentRequests: Int = 8,
+    val concurrentRequests: Int = MAX_CONCURRENT_REQUESTS,
     val messagesPerMinute: Int = 600,
     val screenAcksPerMinute: Int = 15_000,
 )
