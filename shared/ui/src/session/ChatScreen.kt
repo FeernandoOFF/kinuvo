@@ -205,7 +205,7 @@ fun ChatScreen(
             onScreen = { screen, reason ->
                 val owner = screen.owner
                 if (owner != null && dock != null) dock.show(screen, reason)
-                else onNavigate(if (owner == null) Route.Computers(screen.id, reason) else Route.Browser(owner.agentId, owner.sessionId, screen, reason))
+                else onNavigate(if (owner == null) Route.Computers(screen.id, reason) else Route.Browser(owner.agentId, requireNotNull(route.sessionId), screen, reason))
             },
             onBrowser = if (sessionBrowserAvailable(agent, current.capabilities?.server) && route.agentId != null && route.sessionId != null)
                 ({ dock?.toggle?.invoke() ?: onNavigate(Route.Browser(requireNotNull(route.agentId), requireNotNull(route.sessionId))) }) else null,

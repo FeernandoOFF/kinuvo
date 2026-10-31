@@ -518,13 +518,14 @@ class Computers(
     }
 
     private suspend fun browserTakeover(context: RunContext, tab: String, reason: String, callId: String): String {
-        val owner = BrowserOwner(context.agent.id, requireNotNull(context.sessionId))
+        val sessionId = requireNotNull(context.sessionId)
+        val owner = BrowserOwner(context.agent.id)
         val browser = requireNotNull(browserService())
         val gate = browser.gate(owner, tab)
         val before = gate.state.value.generation
         val pending = questions().register()
         try {
-            log.publish(context.agent.id, owner.sessionId, AgentEvent.QuestionsAsked(pending.id, callId,
+            log.publish(context.agent.id, sessionId, AgentEvent.QuestionsAsked(pending.id, callId,
                 "Take over Browser: ${reason.take(300)}", listOf(Question("note", "Note for the Agent (optional)")), ScreenRef("browser", tab, owner)))
             return coroutineScope {
                 val answer = async { pending.await() }
@@ -541,7 +542,7 @@ class Computers(
             }
         } finally {
             pending.close()
-            withContext(NonCancellable) { log.publish(context.agent.id, owner.sessionId, AgentEvent.QuestionsAnswered(callId)) }
+            withContext(NonCancellable) { log.publish(context.agent.id, sessionId, AgentEvent.QuestionsAnswered(callId)) }
         }
     }
 
