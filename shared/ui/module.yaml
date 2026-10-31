@@ -47,6 +47,8 @@ dependencies@jvm:
   - ca.weblite:webview:1.0.10
 
 dependencies@android:
+  - ../../harness/plugins/browser
+  - androidx.webkit:webkit:1.15.0
   - ../../harness/server/embedded
   - ../../harness/providers/codex
   - ../../harness/providers/koog

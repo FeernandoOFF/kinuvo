@@ -2,6 +2,8 @@ package kinuvo.ui
 
 import kinuvo.app.connection.*
 
+import kinuvo.ui.screen.AndroidBrowserRuntime
+import kinuvo.harness.browser.BrowserPlugin
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -39,7 +41,7 @@ import kotlinx.io.files.Path
  * A Server in the app's process; [ServerService] keeps it running, with its Routines, while the app is in the background.
  * When shared, it also listens on the network, so Devices on the same Wi-Fi or Tailscale network can pair with it.
  */
-internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedServer {
+internal class AndroidEmbeddedServer(private val context: Context, private val browserRuntime: AndroidBrowserRuntime) : EmbeddedServer {
     private val lock = Mutex()
     private var server: EmbeddedServerHost? = null
     private var listener: NetworkListener? = null
@@ -65,10 +67,11 @@ internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedSer
         server ?: run {
             val files = AgentFiles(home)
             val attachments = FileAttachments(Path(home, "attachments"))::bytes
+            val browser = withContext(Dispatchers.Main.immediate) { if (browserRuntime.available) listOf(BrowserPlugin(browserRuntime)) else emptyList() }
             EmbeddedServerHost.create(home, plugins = listOf(
                 CodexProvider(CodexAuth(PrivateFile(Path(home, "codex-auth.json"))), attachments),
                 OpenAIProvider(files, attachments = attachments), McpPlugin(files), FirecrawlPlugin(), NtfyPlugin(), ExecutorPlugin(), AnytypePlugin(files),
-            ) + compatibleProviders(files, attachments = attachments), continuous = true, features = BUILT_IN_FEATURES, peers = { SharedPeers(it, auth) })
+            ) + browser + compatibleProviders(files, attachments = attachments), continuous = true, features = BUILT_IN_FEATURES, peers = { SharedPeers(it, auth) })
                 .also { server = it; listenLocked(it) }
         }
     }

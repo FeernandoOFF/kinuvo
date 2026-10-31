@@ -17,10 +17,12 @@ class RemoteServerTest {
     @Test fun scopedRemoteExecution() = runBlocking {
         val dir = Files.createTempDirectory("kinuvo-remote-test").toFile()
         val script = dir.resolve("agent.py")
+        val requests = dir.resolve("requests.jsonl")
         script.writeText("""
             import sys,json
             def emit(v): print(json.dumps(v),flush=True)
             for line in sys.stdin:
+                with open(sys.argv[1], 'a') as trace: trace.write(line)
                 r=json.loads(line); m=r.get('method')
                 if m=='initialize': emit({'jsonrpc':'2.0','id':r['id'],'result':{'protocolVersion':r['params']['protocolVersion'],'info':{'name':'mock','version':'1'},'capabilities':{}}})
                 elif m=='session/new': emit({'jsonrpc':'2.0','id':r['id'],'result':{'sessionId':'external'}})
@@ -41,7 +43,7 @@ class RemoteServerTest {
             val localPort = local.start("127.0.0.1", 0, schedule = false)
             val origin = manager(source, sourcePort)
             var destination = manager(local, localPort)
-            origin.call(Api.SaveHarnessConnection, HarnessConnection("acp", "ACP", ExecutionConnection.Acp(listOf("/usr/bin/env", "python3", script.path))))
+            origin.call(Api.SaveHarnessConnection, HarnessConnection("acp", "ACP", ExecutionConnection.Acp(listOf("/usr/bin/env", "python3", script.path, requests.path))))
             for (id in listOf("exposed", "private")) origin.call(Api.RegisterExternalAgent, AgentRegistration(id, id, "acp", cwd = dir.path))
             val nativeToken = origin.call(Api.GrantExecution, ExposureGrant("native", setOf("default")))
             destination.call(Api.SaveRemoteLink, SaveRemoteLink("native-source", "ws://127.0.0.1:$sourcePort/ws", nativeToken))
@@ -62,7 +64,14 @@ class RemoteServerTest {
             val initial = destination.call(Api.ExecutionSnapshot, ExecutionRef(id))
             assertNotEquals(id, initial.externalSessionId)
             suspend fun snapshot() = destination.call(Api.ExecutionSnapshot, ExecutionRef(id))
-            suspend fun waitFor(predicate: (ExecutionSnapshot) -> Boolean) { withTimeout(10000) { while (!predicate(snapshot())) delay(25) } }
+            suspend fun waitFor(predicate: (ExecutionSnapshot) -> Boolean) {
+                val completed = withTimeoutOrNull(10000) { while (!predicate(snapshot())) delay(25); true } == true
+                if (!completed) {
+                    val receiving = snapshot()
+                    val sourceSnapshot = receiving.externalSessionId?.let { origin.call(Api.ExecutionSnapshot, ExecutionRef(it)) }
+                    fail("Remote execution did not reach the expected state. Receiving: $receiving; source: $sourceSnapshot; requests: ${requests.takeIf { it.exists() }?.readText()}")
+                }
+            }
             destination.call(Api.Send, SendParams("alias", id, "wait"))
             waitFor { it.phase == ExecutionPhase.Running && it.messages.any { m -> m.text == "wait" } }
             destination.call(Api.Stop, StopParams(id))
