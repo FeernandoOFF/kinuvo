@@ -1,4 +1,6 @@
-# Android Browser
+---
+title: "Android Browser"
+---
 
 The Android Server offers Browser when the installed WebView supports AndroidX
 `MULTI_PROFILE`. Unsupported engines do not advertise Browser or silently fall
