@@ -48,6 +48,7 @@ class RemoteExecutionFactory(private val links: RemoteLinks, private val serverI
             state.reference(sessionId)
             val sink = state.boundSink()
             val queue = Mutex()
+            val commands = Mutex()
             val committed = mutableMapOf<String, ExecutionMessage>()
             var pending = emptyList<ExecutionRequest>()
             var activeTurn = false
@@ -130,12 +131,12 @@ class RemoteExecutionFactory(private val links: RemoteLinks, private val serverI
             }
             return object : ExecutionSession {
                 override val capabilities = ExecutionCapabilities(cancel = true, questions = true, approvals = true)
-                override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
+                override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance = commands.withLock {
                     require(input.attachments.isEmpty()) { "Remote attachments are unsupported" }
                     client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "send", input.text))
-                    return ExecutionAcceptance()
+                    ExecutionAcceptance()
                 }
-                override suspend fun cancel() { client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "cancel")) }
+                override suspend fun cancel() { commands.withLock { client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "cancel")) } }
                 override suspend fun respond(requestId: String, answer: JsonElement): Boolean {
                     val accepted = client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "answer", requestId = requestId, answer = answer)).accepted
                     if (accepted) state.resolve(requestId)

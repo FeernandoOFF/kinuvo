@@ -9,6 +9,9 @@ import java.nio.ByteBuffer
 import kinuvo.execution.api.*
 import kinuvo.protocol.*
 import kotlinx.serialization.json.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.util.Base64
 
 class AcpSession internal constructor(
@@ -20,15 +23,19 @@ class AcpSession internal constructor(
     private val cancelRequests: suspend () -> Unit,
     override val capabilities: ExecutionCapabilities,
 ) : ExecutionSession {
-    override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
+    private val commands = Mutex()
+
+    override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance = coroutineScope {
         val content = input.content(capabilities)
-        reducer.submitted()
-        val response = connection.prompt(session, content)
+        val response = commands.withLock {
+            reducer.submitted()
+            async(start = CoroutineStart.UNDISPATCHED) { connection.prompt(session, content) }
+        }.await()
         state.accepted()
-        return ExecutionAcceptance((response as? JsonObject)?.string("messageId"))
+        ExecutionAcceptance((response as? JsonObject)?.string("messageId"))
     }
 
-    override suspend fun cancel() { connection.cancel(session); cancelRequests() }
+    override suspend fun cancel() = commands.withLock { connection.cancel(session); cancelRequests() }
 
     override suspend fun answer(requestId: String, answer: JsonElement) {
         check(broker.answer(requestId, answer)) { "Request is no longer pending" }
