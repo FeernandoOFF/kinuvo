@@ -202,7 +202,7 @@ class ExecutionCoordinator(
         mutate(id) { current -> current.copy(submissions = current.submissions + (submission to null), inputCheckpoint = input) }
         log.appendAll(p.agentId, id, listOf(input))
         mutate(id) { it.copy(inputCheckpoint = null) }
-        val job = scope.launch(start = CoroutineStart.LAZY) {
+        val job = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
                 val accepted = session.prompt(ExecutionInput(p.text, attachments))
                 if (lock.withLock { states[id] === state }) mutate(id) { current -> current.copy(submissions = current.submissions + (submission to accepted.messageId), acceptedSubmissions = current.acceptedSubmissions + submission) }
@@ -210,7 +210,7 @@ class ExecutionCoordinator(
                 withContext(NonCancellable) { if (lock.withLock { states[id] === state }) lock.withLock { brokers[id] }?.lost() }
             }
         }
-        lock.withLock { dispatch[id] = job }; job.start()
+        lock.withLock { dispatch[id] = job }
         return SendResult(id, submission, p.text)
     }
     override suspend fun stop(id: String) { lock.withLock { live[id] }?.cancel() }
