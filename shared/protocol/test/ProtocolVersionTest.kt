@@ -6,7 +6,7 @@ import kotlin.test.*
 class ProtocolVersionTest {
     @Test fun browserRequiresExplicitMatchingProtocol() {
         ProtocolVersion.requireCompatible(ProtocolVersion.Current)
-        listOf(1, 2, 3, 5).forEach { version ->
+        ((0 until ProtocolVersion.Current) + (ProtocolVersion.Current + 1)).forEach { version ->
             assertEquals(ProtocolVersion.Mismatch, assertFailsWith<IllegalArgumentException> {
                 ProtocolVersion.requireCompatible(version)
             }.message)
