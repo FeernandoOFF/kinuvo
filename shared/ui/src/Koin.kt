@@ -46,7 +46,7 @@ private val appModule = module {
     viewModel { (client: KinuvoClient, route: Route.Artifacts) -> ArtifactsViewModel(client, route, get()) }
     viewModel { (route: Route) ->
         val browser = route as? Route.Browser
-        kinuvo.app.screen.LiveViewModel(get<ConnectedServer>(), browser?.let { kinuvo.protocol.BrowserOwner(it.agentId, it.sessionId) },
+        kinuvo.app.screen.LiveViewModel(get<ConnectedServer>(), browser?.let { kinuvo.protocol.BrowserOwner(it.agentId) },
             browser?.screen ?: (route as? Route.Computers)?.computer?.let { kinuvo.protocol.ScreenRef("computer", it) }, browser?.reason ?: (route as? Route.Computers)?.reason)
     }
 

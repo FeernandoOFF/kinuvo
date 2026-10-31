@@ -28,7 +28,7 @@ class LiveViewScreenTest {
         g.color = java.awt.Color(14,77,74); g.fillRoundRect(430,440,420,60,8,8)
         g.color = java.awt.Color.WHITE; g.drawString("Continue", 560,480); g.dispose()
         val bytes = java.io.ByteArrayOutputStream().also { javax.imageio.ImageIO.write(image,"png",it) }.toByteArray()
-        val owner = BrowserOwner("Fern", "Travel planning")
+        val owner = BrowserOwner("Fern")
         val ref = ScreenRef("browser", "tab", owner)
         val previewRef = ref.copy(id = "preview")
         val missingRef = ref.copy(id = "missing")
@@ -75,7 +75,7 @@ class LiveViewScreenTest {
         }
     }
     @Test fun dockedBrowserBesideChat() = javax.swing.SwingUtilities.invokeAndWait {
-        val owner = BrowserOwner("Fern", "Travel planning")
+        val owner = BrowserOwner("Fern")
         val ref = ScreenRef("browser", "tab", owner)
         val info = ScreenInfo(ref, "Cedar — Your account", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap"), navigation = true, tabs = true), ScreenStatus.Ready, active = true, currentUrl = "https://cedar.example/account")
         val state = LiveViewState(screens = listOf(info, info.copy(ref = ref.copy(id = "plans"), title = "Cedar — Plans", active = false)), selected = ref, connected = true, loaded = true, owner = owner)

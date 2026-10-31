@@ -15,7 +15,6 @@ import java.nio.file.StandardCopyOption
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import java.io.File
-import java.net.URI
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -57,7 +56,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
     }
 
     private fun restore(owner: BrowserOwner) {
-        check(owner !in deleted) { "Session was deleted" }
+        check(owner !in deleted) { "Agent was deleted" }
         restoreErrors[owner]?.let { error(it) }
         if (!restored.add(owner)) return
         val records = saved.filter { it.owner == owner }
@@ -87,7 +86,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
                 check(!closed) { "Browser is closed" }
                 authorizeOwner(owner)
                 restore(owner)
-                require(tabs[tabId]?.owner == owner) { "No browser tab for this Agent and Session" }
+                require(tabs[tabId]?.owner == owner) { "No browser tab for this Agent" }
             }
             if (!thumbnail) demand.update { it + (tabId to ((it[tabId] ?: 0) + 1)) }
             try { emitAll(streams.computeIfAbsent(tabId) {
@@ -108,7 +107,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
             withContext(dispatcher) {
                 check(!closed) { "Browser is closed" }
                 val tab = requireNotNull(tabs[tabId]) { "No browser tab" }
-                require(tab.owner == owner) { "This tab belongs to another Agent or Session" }
+                require(tab.owner == owner) { "This tab belongs to another Agent" }
                 page = tab.page
                 tab.page.onClose(onClose)
                 val cdp = profile(owner.agentId).newCDPSession(tab.page)
@@ -183,7 +182,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
         gates[ref]?.let { return it }
         return withContext(dispatcher) {
             restore(owner)
-            requireNotNull(tabs[tabId]?.takeIf { it.owner == owner }) { "No browser tab for this Agent and Session" }.gate
+            requireNotNull(tabs[tabId]?.takeIf { it.owner == owner }) { "No browser tab for this Agent" }.gate
         }
     }
 
@@ -218,7 +217,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
             catch (e: Exception) { tabs.remove(tab.id); page.close(); throw IllegalStateException("Browser navigation failed; capture before retrying") }
         }
         val tab = requireNotNull(tabs[c.tabId]) { "No browser tab" }
-        require(tab.owner == c.owner) { "This tab belongs to another Agent or Session" }
+        require(tab.owner == c.owner) { "This tab belongs to another Agent" }
         check(!tab.page.isClosed) { "This browser tab is closed" }
         if (c.action == BrowserAction.Takeover) {
             check(user) { "Only the user can hand browser control back" }
@@ -350,7 +349,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
             tab.thumbnail = shot(tab.page, 25)
             tab.thumbnailAt = System.currentTimeMillis()
         }
-        return BrowserTab(tab.id, tab.owner.agentId, tab.owner.sessionId, tab.page.title().take(200), tab.page.url().substringBefore('?').substringBefore('#'), tab.takeover, tab.thumbnail)
+        return BrowserTab(tab.id, tab.owner.agentId, tab.page.title().take(200), tab.page.url().substringBefore('?').substringBefore('#'), tab.takeover, tab.thumbnail)
     }
 
     private fun capture(tab: Tab, semantic: Boolean): BrowserFrame {
@@ -384,15 +383,6 @@ class BrowserRuntime(private val home: File) : BrowserService {
         })])""").toString()
     private fun invalidate(tab: Tab) { tab.revision = "" }
 
-    override suspend fun deleteSession(owner: BrowserOwner) = withContext(dispatcher) {
-        deleted.add(owner)
-        tabs.values.filter { it.owner == owner }.toList().forEach { tab -> tab.page.close(); tabs.remove(tab.id); streams.remove(tab.id) }
-        saved.removeAll { it.owner == owner }
-        restored.remove(owner)
-        restoreErrors.remove(owner)
-        persist()
-    }
-
     override suspend fun release(agentId: String) = withContext(dispatcher) {
         tabs.values.filter { it.owner.agentId == agentId }.toList().forEach { tabs.remove(it.id) }
         saved.removeAll { it.owner.agentId == agentId }
@@ -401,6 +391,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
     }
 
     override suspend fun deleteAgent(agentId: String) {
+        deleted.add(BrowserOwner(agentId))
         release(agentId)
         withContext(dispatcher) {
             val profile = File(home, "profiles/$agentId")
@@ -408,17 +399,15 @@ class BrowserRuntime(private val home: File) : BrowserService {
         }
     }
 
-    suspend fun close() {
+    override suspend fun close() {
         withContext(dispatcher) { if (!closed) { persist(); closed = true; scope.cancel(); profiles.values.forEach { runCatching { it.close() } }; profiles.clear(); tabs.clear(); streams.clear(); playwright?.close(); playwright = null } }
         dispatcher.close()
     }
 
     companion object {
         private val provisionLock = Any()
-        fun allowed(value: String): Boolean = runCatching {
-            if (value == "about:blank") true else URI(value).let { it.scheme?.lowercase() in setOf("http", "https") && !it.host.isNullOrBlank() && it.userInfo == null }
-        }.getOrDefault(false)
-        private fun url(value: String): String = browserAddress(value).also { require(allowed(it)) { "Browser navigation requires http(s) or about:blank, without embedded credentials" } }
+        fun allowed(value: String) = browserNavigationAllowed(value)
+        private fun url(value: String) = browserDestination(value)
         private fun coordinate(value: Int?, limit: Int): Double { require(value != null && value in 0 until limit) { "Input is outside the browser viewport" }; return value.toDouble() }
         private fun key(value: String): String = value.split('+').joinToString("+") {
             when (it.lowercase()) { "enter", "return" -> "Enter"; "escape" -> "Escape"; "delete" -> "Backspace"; "tab" -> "Tab"; "space" -> "Space"; "up" -> "ArrowUp"; "down" -> "ArrowDown"; "left" -> "ArrowLeft"; "right" -> "ArrowRight"; "ctrl" -> "Control"; "cmd" -> "Meta"; "alt", "option" -> "Alt"; "shift" -> "Shift"; else -> it.take(20) }

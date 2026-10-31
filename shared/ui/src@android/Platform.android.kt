@@ -3,6 +3,7 @@ package kinuvo.ui
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 
+import kinuvo.ui.screen.AndroidBrowserRuntime
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -41,7 +42,8 @@ private class HapticNotifier(context: Context) : Notifier {
 internal actual val platformModule = module {
     System.setProperty("kotlin-logging-to-android-native", "true")
     System.setProperty("kotlin-logging.logStartupMessage", "false")
-    single<EmbeddedServer> { AndroidEmbeddedServer(androidContext()) }
+    single { AndroidBrowserRuntime(androidContext()) }
+    single<EmbeddedServer> { AndroidEmbeddedServer(androidContext(), get()) }
     single<DeviceReader> { AndroidContactsReader(androidContext()) }
     single<kinuvo.app.computer.ComputerDriver> { AndroidComputer(androidContext()) }
     single { HapticNotifier(androidContext()) } bind Notifier::class

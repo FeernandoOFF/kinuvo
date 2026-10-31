@@ -86,9 +86,9 @@ class ExternalServerTest {
             assertEquals(ExecutionKind.Acp, first.call(Api.Agents, Unit).first { it.id == "external" }.executionKind)
             assertTrue(first.call(Api.ProbeHarnessConnection, connection).readiness.online)
             val id = first.call(Api.CreateSession, AgentRef("external")).id
-            val browserError = assertFails { first.call(Api.BrowserTabs, BrowserOwner("external", id)) }
+            val browserError = assertFails { first.call(Api.BrowserTabs, BrowserOwner("external")) }
             assertTrue(browserError.message.orEmpty().contains("managed by this Agent's harness"))
-            val screensError = assertFails { first.call(Api.Screens, BrowserOwner("external", id)) }
+            val screensError = assertFails { first.call(Api.Screens, BrowserOwner("external")) }
             assertTrue(screensError.message.orEmpty().contains("managed by this Agent's harness"))
             first.call(Api.Send, SendParams("external", id, "wait"))
             first.close()

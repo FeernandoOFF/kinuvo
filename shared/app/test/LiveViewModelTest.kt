@@ -48,10 +48,10 @@ class LiveViewModelTest {
         try { runCurrent(); fake.connected.value = true; runCurrent(); block(fake, vm) }
         finally { store.clear(); Dispatchers.resetMain() }
     }
-    @Test fun computersExcludeBrowsersAndSessionsStayIsolated() = runTest {
+    @Test fun computersExcludeBrowsersAndAgentsStayIsolated() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        val owner = BrowserOwner("agent", "session")
-        val other = BrowserOwner("agent", "other")
+        val owner = BrowserOwner("agent")
+        val other = BrowserOwner("other-agent")
         val first = ScreenRef("browser", "first", owner)
         val second = ScreenRef("browser", "second", other)
         val fake = Fake(first)
@@ -144,7 +144,7 @@ class LiveViewModelTest {
     }
     @Test fun selectionRejectsForeignOwnerAndOldWatchFrame() = run { fake, vm ->
         val original = vm.state.value.selected
-        vm.select(ScreenRef("browser", "foreign", BrowserOwner("a", "s")))
+        vm.select(ScreenRef("browser", "foreign", BrowserOwner("a")))
         assertEquals(original, vm.state.value.selected)
         val second = ScreenRef("computer", "two")
         fake.screens = vm.state.value.screens + vm.state.value.screens.first().copy(ref = second)

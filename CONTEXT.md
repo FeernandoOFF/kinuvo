@@ -111,7 +111,7 @@ _Avoid_: Attachment, canvas
 A surface an Agent can see and control, such as a Computer display or a Browser tab.
 
 **Browser**:
-A Server-owned browser whose tabs belong to an Agent and Session. Each tab is a Screen with its own Takeover.
+A Server-owned browser with a unique profile and shared tabs for each Agent, accessible across its Sessions. Each tab is a Screen with its own Takeover.
 
 **Computer**:
 A screen an Agent can see and control with computer use: a paired phone or computer that allowed it under This Device's tools. Its numbered elements and screenshot come from the platform's accessibility interface.
