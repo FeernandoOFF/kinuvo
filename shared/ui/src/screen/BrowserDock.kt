@@ -23,7 +23,7 @@ import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
 /**
- * Lays [chat] beside its Session's Browser on wide windows: toggled from the chat's header, resized by dragging its
+ * Lays [chat] beside its Agent's Browser on wide windows: toggled from the chat's header, resized by dragging its
  * edge, and expanded to the full Browser page by [onExpand]. Narrow, [chat] gets no dock and opens the page instead.
  */
 @Composable

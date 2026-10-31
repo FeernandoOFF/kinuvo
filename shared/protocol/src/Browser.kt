@@ -3,10 +3,10 @@ package kinuvo.protocol
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class BrowserOwner(val agentId: String, val sessionId: String)
+data class BrowserOwner(val agentId: String)
 
 @Serializable
-data class BrowserTab(val id: String, val agentId: String, val sessionId: String, val title: String, val url: String,
+data class BrowserTab(val id: String, val agentId: String, val title: String, val url: String,
     val takeover: Boolean = false, val thumbnail: String? = null)
 
 @Serializable

@@ -36,7 +36,13 @@ class BrowserServerTest {
             val entries = harness.store.entries(agent.id, session.id)
             val result = entries.filterIsInstance<SessionEntry.ToolResult>().single()
             assertFalse(result.isError, result.toString())
-            assertEquals(1, harness.browser!!.tabs(BrowserOwner(agent.id, session.id)).size)
+            val tabs = harness.browser!!.tabs(BrowserOwner(agent.id))
+            val secondSession = harness.newSession(agent)
+            harness.runner(agent, secondSession.id).run(secondSession.id, "Open another browser tab").toList()
+            assertEquals(2, harness.browser!!.tabs(BrowserOwner(agent.id)).size)
+            harness.log.deleteSession(agent.id, session.id)
+            assertEquals(2, harness.browser!!.tabs(BrowserOwner(agent.id)).size)
+            assertEquals(tabs.single().id, harness.browser!!.tabs(BrowserOwner(agent.id)).first().id)
         } finally { harness.close() }
     }
 
@@ -78,12 +84,14 @@ class BrowserServerTest {
             assertTrue(ServerFeature.Browser in client.lastConnect!!.capabilities.features)
             val agent = client.call(Api.Agents, Unit).first()
             val session = client.call(Api.CreateSession, AgentRef(agent.id))
-            val owner = BrowserOwner(agent.id, session.id)
+            val owner = BrowserOwner(agent.id)
             val opened = client.call(Api.ScreenOpen, ScreenOpen(owner))
             val ref = opened.ref
+            client.call(Api.CreateSession, AgentRef(agent.id))
+            assertEquals(listOf(ref.id), client.call(Api.BrowserTabs, BrowserOwner(agent.id)).map { it.id })
             val initial = client.call(Api.Screens, owner).single { it.ref == ref }
             assertNotNull(initial.control.holder)
-            assertFailsWith<IllegalStateException> { client.call(Api.Screens, owner.copy(sessionId = "missing")) }
+            assertFailsWith<IllegalStateException> { client.call(Api.Screens, owner.copy(agentId = "missing")) }
             assertFailsWith<IllegalStateException> { client.call(Api.BrowserCommand, BrowserCommand(owner, BrowserAction.Takeover, ref.id, take = false)) }
             val pairing = client.call(Api.Pairing, PairingParams(refresh = true, management = false))
             ordinary = KinuvoClient(address, "Ordinary", pairingCode = pairing.code)

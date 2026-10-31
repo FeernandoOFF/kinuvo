@@ -1,7 +1,14 @@
-product: jvm/lib
+product:
+  type: kmp/lib
+  platforms: [jvm, android]
+
+aliases:
+  - jvmAndAndroid: [jvm, android]
 
 dependencies:
   - ../../core: exported
+
+dependencies@jvm:
   - com.microsoft.playwright:playwright:1.64.0
 
 test-dependencies:

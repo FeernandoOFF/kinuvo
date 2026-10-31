@@ -42,7 +42,7 @@ class EventType<T>(val name: String, val payload: KSerializer<T>)
 data class AgentInfo(val id: String, val name: String, val exec: String, val avatar: String? = null, val executionKind: ExecutionKind = ExecutionKind.Native, val connectionId: String? = null, val host: String? = null, val readiness: ExecutionReadiness = ExecutionReadiness(true, true))
 
 object ProtocolVersion {
-    const val Current = 4
+    const val Current = 5
     const val Mismatch = "protocol_mismatch: Update the Server and Device to matching versions"
     fun requireCompatible(version: Int) { require(version == Current) { Mismatch } }
 }

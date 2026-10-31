@@ -137,7 +137,7 @@ class ServerRuntime(
             browserOwner(owner)
             check("browser" in agent(owner.agentId).config.tools) { "Browser is disabled for this Agent" }
         }
-        harness.log.onDelete = { a, id -> external.delete(a, id); harness.browser?.deleteSession(BrowserOwner(a, id)) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
+        harness.log.onDelete = { a, id -> external.delete(a, id) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
         if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) scope.launch { stop(it.id) } }
     }
 
@@ -631,11 +631,10 @@ class ServerRuntime(
     }
 
     private suspend fun browserOwner(owner: BrowserOwner) {
-        check(executions.registration(owner.agentId) == null && !external.owns(owner.sessionId)) {
+        check(executions.registration(owner.agentId) == null) {
             "Browser is managed by this Agent's harness and isn't available in Kinuvo"
         }
-        val a = agent(owner.agentId)
-        check(harness.store.entries(a.id, owner.sessionId).isNotEmpty()) { "No Session '${owner.sessionId}'" }
+        agent(owner.agentId)
     }
 
     private suspend fun send(p: SendParams): SendResult {

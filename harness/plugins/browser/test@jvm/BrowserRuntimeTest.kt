@@ -34,7 +34,7 @@ class BrowserRuntimeTest {
             exchange.responseBody.use { it.write(html) }
         }
         server.start()
-        val owner = BrowserOwner("stream-agent", "session")
+        val owner = BrowserOwner("stream-agent")
         val url = "http://127.0.0.1:${server.address.port}"
         var runtime = BrowserRuntime(home)
         try {
@@ -61,7 +61,7 @@ class BrowserRuntimeTest {
             }
             assertNotEquals(red.image, blue.image)
             assertFailsWith<IllegalArgumentException> {
-                runtime.screen(owner.copy(sessionId = "wrong"), first.tab.id).frames().first()
+                runtime.screen(owner.copy(agentId = "wrong"), first.tab.id).frames().first()
             }
             watching.cancelAndJoin()
             withTimeout(5000) { while (runtime.liveStreams() != 0) delay(10) }
@@ -71,12 +71,14 @@ class BrowserRuntimeTest {
             assertTrue(again.await().image.isNotEmpty())
             control(runtime, owner, first.tab.id, true)
             runtime.close()
+            val records = File(home, "tabs.json")
+            records.writeText(records.readText().replace("\"agentId\":\"stream-agent\"", "\"agentId\":\"stream-agent\",\"sessionId\":\"legacy-session\""))
             runtime = BrowserRuntime(home)
             val restored = runtime.tabs(owner)
             assertEquals(listOf(first.tab.id), restored.map { it.id })
             assertTrue(restored.single().takeover)
             assertEquals("$url/second", restored.single().url)
-            assertTrue(runtime.tabs(owner.copy(sessionId = "other")).isEmpty())
+            assertTrue(runtime.tabs(owner.copy(agentId = "other")).isEmpty())
             assertFailsWith<IllegalStateException> { runtime.command(BrowserCommand(owner, BrowserAction.Navigate, first.tab.id, text = url)) }
             control(runtime, owner, first.tab.id, false)
             runtime.command(BrowserCommand(owner, BrowserAction.Capture, first.tab.id))
@@ -103,8 +105,8 @@ class BrowserRuntimeTest {
             exchange.sendResponseHeaders(200, html.size.toLong()); exchange.responseBody.use { it.write(html) }
         }
         server.start()
-        val owner = BrowserOwner("browser-proof", "session-one")
-        val other = BrowserOwner("another-agent", "session-one")
+        val owner = BrowserOwner("browser-proof")
+        val other = BrowserOwner("another-agent")
         val url = "http://127.0.0.1:${server.address.port}/"
         try {
             val blank = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Open, text = "about:blank")))
@@ -121,7 +123,7 @@ class BrowserRuntimeTest {
             assertTrue(launches.none { "--no-sandbox" in it }, "Chromium sandbox must stay enabled")
             assertTrue(runtime.tabs(other).isEmpty())
             assertFailsWith<IllegalArgumentException> { runtime.command(BrowserCommand(other, BrowserAction.Capture, tab)) }
-            assertFailsWith<IllegalArgumentException> { runtime.command(BrowserCommand(owner.copy(sessionId = "other"), BrowserAction.Capture, tab)) }
+            assertFailsWith<IllegalArgumentException> { runtime.command(BrowserCommand(owner.copy(agentId = "other"), BrowserAction.Capture, tab)) }
             val button = frame.elements.first { it.label == "Submit" }
             val oldRevision = frame.revision
             frame = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Click, tab, frame.revision, button.ref)))
