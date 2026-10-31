@@ -72,6 +72,7 @@ class ExecutionCoordinatorTest {
         val states = mutableListOf<ExecutionState>()
         val oldFailure = CompletableDeferred<Unit>()
         var cancellations = 0
+        var promptStarted = false
         val factory = object : ExecutionFactory {
             override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
                 states += state
@@ -79,9 +80,10 @@ class ExecutionCoordinatorTest {
                 return object : ExecutionSession {
                     override val capabilities = ExecutionCapabilities(resume = true, cancel = true)
                     override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance = withContext(NonCancellable) {
+                        promptStarted = true
                         oldFailure.await(); error("Late old prompt failure")
                     }
-                    override suspend fun cancel() { cancellations++ }
+                    override suspend fun cancel() { assertTrue(promptStarted); cancellations++ }
                     override suspend fun answer(requestId: String, answer: JsonElement) {}
                 }
             }
@@ -89,7 +91,6 @@ class ExecutionCoordinatorTest {
         val coordinator = ExecutionCoordinator(registry, factory, backgroundScope, SessionLog(InMemoryStore()))
         val id = coordinator.create("a").id
         coordinator.send(SendParams("a", id, "hello", submissionId = "one"))
-        runCurrent()
         coordinator.stop(id)
         assertEquals(1, cancellations)
         assertFalse(oldFailure.isCompleted)
