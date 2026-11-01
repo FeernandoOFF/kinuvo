@@ -19,7 +19,7 @@ private val log = KotlinLogging.logger("kinuvo.notifications")
  * Notifies the user about Sessions no client in the foreground is watching: an Approval or `ask_user` form waiting, a
  * reply or error, and a Routine's report or failure (a quiet run sends nothing).
  */
-class Notifications(private val harness: HarnessRuntime, private val scope: CoroutineScope, private val routineOf: (sessionId: String) -> RoutineRef?, private val externalName: suspend (String) -> String? = { null }) {
+class Notifications(private val harness: HarnessRuntime, private val scope: CoroutineScope, private val routineOf: (sessionId: String) -> RoutineRef?, private val externalName: suspend (String) -> String? = { null }, private val devices: DevicePush? = null) {
     private val attempted = ConcurrentMutableSet<String>()
     fun on(agentId: String, sessionId: String, event: AgentEvent) {
         if (event !is AgentEvent.ApprovalRequested && event !is AgentEvent.QuestionsAsked && event !is AgentEvent.RunFinished && event !is AgentEvent.RunError && event !is AgentEvent.ExecutionRequested && event !is AgentEvent.ExecutionResolved) return
@@ -71,11 +71,15 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         quietly(Notification("MCP server '$server' needs sign-in", "Sign in from Settings → MCP servers or run `kinuvo mcp login $server`.", agentId))
     }
 
-    /** Sends through the saved notifier, if any; failures are only logged, since a run doesn't care. */
+    /** Sends through the saved notifier, if any, and to subscribed Devices; failures are only logged, since a run doesn't care. */
     private suspend fun quietly(notification: Notification) {
-        val notifier = harness.notifier() ?: return
+        harness.notifier()?.let { notifier -> attempt { notifier.send(notification) } }
+        devices?.let { attempt { it.send(notification) } }
+    }
+
+    private suspend fun attempt(send: suspend () -> Unit) {
         try {
-            notifier.send(notification)
+            send()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

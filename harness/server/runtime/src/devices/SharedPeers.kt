@@ -1,6 +1,7 @@
 package kinuvo.harness.server.devices
 
 import kinuvo.protocol.DeviceToolKind
+import kinuvo.protocol.PushSubscription
 
 /** An embedded Server's own client ([local]) plus the Devices that paired with it over the network ([network]). */
 class SharedPeers(private val local: PeerRegistry, private val network: PeerRegistry) : PeerRegistry {
@@ -16,4 +17,8 @@ class SharedPeers(private val local: PeerRegistry, private val network: PeerRegi
     override fun pairing(refresh: Boolean, management: Boolean) = network.pairing(refresh, management)
     override fun paired(token: String) = network.paired(token)
     override fun revoke(id: String) = network.revoke(id)
+    override val pushable get() = network.pushable
+    override fun setPush(token: String, subscription: PushSubscription?) = owner(token).setPush(token, subscription)
+    override fun pushSubscriptions() = network.pushSubscriptions()
+    override fun dropPush(endpoint: String) = network.dropPush(endpoint)
 }

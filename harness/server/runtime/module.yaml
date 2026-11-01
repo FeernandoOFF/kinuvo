@@ -24,6 +24,9 @@ settings:
     compileIncrementally: true
     serialization: json
 
+test-dependencies@jvm:
+  - io.ktor:ktor-client-mock:3.6.0
+
 test-dependencies:
   - ../../testing
   - ../../../shared/client

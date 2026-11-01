@@ -22,7 +22,7 @@ val appModule = module {
     single { getOrNull<MobileTestMode>()?.servers ?: Servers(get(), getOrNull(), get()) }
     single { Notifications(getAll()) }
     single { DeviceAccess(get(), get(), getOrNull()) }
-    single { ConnectedServer(get(), get()) }
+    single { ConnectedServer(get(), get(), getOrNull()) }
     single { get<ConnectedServer>().sessions }
     single { get<ConnectedServer>().routines }
     single { get<ConnectedServer>().config }

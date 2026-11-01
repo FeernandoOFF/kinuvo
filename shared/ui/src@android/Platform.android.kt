@@ -56,6 +56,7 @@ internal actual val platformModule = module {
     single<DeviceCredentials> { get<MobileTestMode>().takeIf { it.override != null }?.credentials ?: AndroidCredentials(androidContext()) }
     single<Preferences> { get<MobileTestMode>().takeIf { it.override != null }?.preferences ?: SharedPreferencesStore(androidContext()) }
     single<ClientCache> { if (get<MobileTestMode>().override != null) ClientCache.None else deviceCache(File(androidContext().cacheDir, "client-cache").path) }
+    single { FcmPushChannel(androidContext(), get(), enabled = get<MobileTestMode>().override == null) } bind PushChannel::class
     single<OAuthBrowser> {
         val context = androidContext()
         AppSchemeBrowser { url ->
