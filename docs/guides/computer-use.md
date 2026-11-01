@@ -87,6 +87,9 @@ list its Computers. The CLI registers **Server desktop** as a local Device; capt
 use the same protocol as the desktop app. Keep an accessible desktop session running under the same user, with
 cua-driver installed and its OS permissions granted. This shares an existing desktop; it doesn't create a virtual display.
 
+On Android, Computer captures and actions wake the display and keep it awake for 30 seconds after the last request.
+Live view and Takeover wake renewals extend that lease. Waking the display doesn't unlock the phone.
+
 On macOS, starting Takeover wakes the display and keeps the display and Computer awake while Live view or the user's
 input continues. Hand back releases the wake assertion immediately; if the client disconnects, it expires within
 15 seconds. Waking the display doesn't unlock the session.
