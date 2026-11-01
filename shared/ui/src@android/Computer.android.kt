@@ -13,6 +13,7 @@ import android.graphics.Path
 import android.graphics.Rect
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -36,6 +37,22 @@ class ComputerService : AccessibilityService() {
     private val main = android.os.Handler(android.os.Looper.getMainLooper())
     private var overlay: android.widget.LinearLayout? = null
     private val hide = Runnable { if (!userControl) removeOverlay() }
+    private var wakeLock: PowerManager.WakeLock? = null
+
+    @Suppress("DEPRECATION")
+    internal suspend fun wakeScreen(): Boolean = withContext(Dispatchers.Main.immediate) {
+        val power = getSystemService(PowerManager::class.java)
+        val wasAsleep = !power.isInteractive
+        val lease = wakeLock ?: power.newWakeLock(
+            PowerManager.SCREEN_DIM_WAKE_LOCK or PowerManager.ACQUIRE_CAUSES_WAKEUP,
+            "$packageName:computer",
+        ).apply { setReferenceCounted(false) }.also { wakeLock = it }
+        try { lease.acquire(30_000) } catch (_: SecurityException) { return@withContext false }
+        val until = System.currentTimeMillis() + 2_000
+        while (!power.isInteractive && System.currentTimeMillis() < until) delay(100)
+        if (wasAsleep && power.isInteractive) delay(300)
+        power.isInteractive
+    }
 
     /** Shows that an Agent is acting, with Take over; it hides a few seconds after the Agent's last action. */
     internal fun showAgent() = main.post {
@@ -84,7 +101,12 @@ class ComputerService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) { lastEvent = System.currentTimeMillis() }
     override fun onInterrupt() {}
     override fun onUnbind(intent: Intent?): Boolean { if (instance === this) instance = null; return super.onUnbind(intent) }
-    override fun onDestroy() { removeOverlay(); if (instance === this) instance = null; super.onDestroy() }
+    override fun onDestroy() {
+        wakeLock?.let { if (it.isHeld) it.release() }
+        removeOverlay()
+        if (instance === this) instance = null
+        super.onDestroy()
+    }
 
     internal companion object {
         @Volatile var instance: ComputerService? = null
@@ -110,6 +132,8 @@ internal class AndroidComputer(private val context: Context) : ComputerDriver {
         if (request.release) service.handBack()
         val agent = !request.user && (request.action != null || request.elements)
         if (agent && service.userControl) return ComputerResult(DeviceToolStatus.Unavailable, "The user took over this phone", userControl = true)
+        if ((request.action != null || request.elements || request.screenshot || request.keepAwake) && !service.wakeScreen())
+            return ComputerResult(DeviceToolStatus.Unavailable, "The phone's screen could not be woken. Wake it manually and try again.")
         if (agent) service.showAgent()
         withContext(Dispatchers.Default) {
             if (request.action?.kind == ComputerActionKind.ListApps) {
