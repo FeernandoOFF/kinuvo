@@ -62,22 +62,7 @@ class RemoteExecutionFactory(private val links: RemoteLinks, private val serverI
                 if (snapshot.phase == ExecutionPhase.Lost) { broker.lost(); return@withLock }
                 if (fresh.isNotEmpty() || snapshot.phase != ExecutionPhase.Idle) {
                     if (!activeTurn) { sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running)); activeTurn = true }
-                    val entries = fresh.flatMap { m ->
-                        if (m.role == "user") emptyList() else {
-                            val native = m.payload?.let { runCatching { ProtocolJson.decodeFromJsonElement(SessionEntry.serializer(), it) }.getOrNull() }
-                            val entries = if (native != null) listOf(native) else transcript(ExecutionSnapshot(sessionId, messages = listOf(m)))
-                            entries.flatMap { entry -> if (entry is SessionEntry.ToolResult && entry.attachments.isNotEmpty()) listOf(
-                                entry.copy(attachments = emptyList()),
-                                SessionEntry.Notice("remote-media:${state.generation}:${entry.id}", "unsupported_content", "Attachments on the source Server cannot be transferred through this connection."),
-                            ) else listOf(entry) }.map { entry -> when (entry) {
-                                is SessionEntry.AssistantMessage -> entry.copy(messageId = "remote:${state.generation}:${entry.messageId ?: m.id}")
-                                is SessionEntry.Reasoning -> entry.copy(messageId = "remote:${state.generation}:${entry.messageId ?: m.id}")
-                                is SessionEntry.ToolCall -> entry.copy(id = "remote:${state.generation}:${entry.id}")
-                                is SessionEntry.ToolResult -> entry.copy(id = "remote:${state.generation}:${entry.id}")
-                                else -> entry
-                            } }
-                        }
-                    }
+                    val entries = remoteEntries(fresh, state.generation)
                     if (snapshot.phase == ExecutionPhase.Idle) {
                         val runId = "remote:${state.generation}:${Uuid.random()}"
                         val stopReason = snapshot.stopReason
@@ -148,3 +133,21 @@ class RemoteExecutionFactory(private val links: RemoteLinks, private val serverI
         } catch (e: Throwable) { client.close(); throw e }
     }
 }
+
+internal fun remoteEntries(messages: List<ExecutionMessage>, generation: String): List<SessionEntry> =
+    messages.flatMap { m ->
+        if (m.role == "user") emptyList() else {
+            val native = m.payload?.let { runCatching { ProtocolJson.decodeFromJsonElement(SessionEntry.serializer(), it) }.getOrNull() }
+            val entries = if (native != null) listOf(native) else transcript(ExecutionSnapshot("", messages = listOf(m)))
+            entries.flatMap { entry -> if (entry is SessionEntry.ToolResult && entry.attachments.isNotEmpty()) listOf(
+                entry.copy(attachments = emptyList()),
+                SessionEntry.Notice("remote-media:$generation:${entry.id}", "unsupported_content", "Attachments on the source Server cannot be transferred through this connection."),
+            ) else listOf(entry) }.map { entry -> when (entry) {
+                is SessionEntry.AssistantMessage -> entry.copy(messageId = "remote:$generation:${m.id}")
+                is SessionEntry.Reasoning -> entry.copy(messageId = "remote:$generation:${m.id}")
+                is SessionEntry.ToolCall -> entry.copy(id = "remote:$generation:${entry.id}")
+                is SessionEntry.ToolResult -> entry.copy(id = "remote:$generation:${entry.id}")
+                else -> entry
+            } }
+        }
+    }
