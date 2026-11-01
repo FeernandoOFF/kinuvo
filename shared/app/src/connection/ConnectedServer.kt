@@ -15,7 +15,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 
 /** Owns one Server's work and caches. Transport reconnects keep this lifetime; switching ends it. */
-class ConnectedServer(notifications: Notifications, private val deviceAccess: DeviceAccess) {
+class ConnectedServer(notifications: Notifications, private val deviceAccess: DeviceAccess, push: PushChannel? = null) {
     private class Lifetime(val client: KinuvoClient) : AbstractCoroutineContextElement(Key) {
         companion object Key : CoroutineContext.Key<Lifetime>
         val job = SupervisorJob()
@@ -34,6 +34,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
     val board = BoardRepository(notifications, this)
     val knowledge = KnowledgeRepository(this)
     val devices = DevicesRepository(this)
+    private val push = PushRegistration(this, push)
 
     fun open(client: KinuvoClient, address: String) {
         close()
@@ -51,6 +52,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
         board.attach(client)
         knowledge.attach(client)
         devices.attach(client)
+        push.attach(client)
     }
 
     /** Fills the Repositories from [snapshot] after [open], before the Server is reached. */
@@ -74,6 +76,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
         board.detach()
         knowledge.detach()
         devices.detach()
+        push.detach()
         deviceAccess.detach()
     }
 

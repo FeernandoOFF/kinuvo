@@ -20,5 +20,5 @@ internal val DEVICE_METHODS = setOf(
     Api.UploadAttachment.name, Api.Attachment.name, Api.Send.name, Api.Stop.name, Api.Answer.name,
     Api.Artifacts.name, Api.Artifact.name, Api.KnowledgeSearch.name, Api.KnowledgeNote.name,
     Api.KnowledgeChanges.name, Api.TaskLists.name, Api.Tasks.name, Api.CreateTask.name, Api.UpdateTask.name,
-    Api.Presence.name, Api.DeviceTools.name, Api.PairedDevices.name, Api.RevokeDevice.name, Api.RotateToken.name,
+    Api.Presence.name, Api.DeviceTools.name, Api.SubscribePush.name, Api.PairedDevices.name, Api.RevokeDevice.name, Api.RotateToken.name,
 )

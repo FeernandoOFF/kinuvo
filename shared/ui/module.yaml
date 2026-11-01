@@ -45,6 +45,7 @@ dependencies@android:
   - androidx.activity:activity-compose:1.13.0
   - androidx.browser:browser:1.9.0
   - com.google.android.gms:play-services-code-scanner:16.1.0
+  - com.google.firebase:firebase-messaging:26.0.1
 
 test-dependencies:
   - $kotlin.test

@@ -57,6 +57,13 @@
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                       android:value="Self-hosted assistant Server that runs the user's Agents and scheduled Routines" />
         </service>
+        <!-- Pushed Notifications from the Push relay (Push.android.kt). -->
+        <service android:name="kinuvo.ui.KinuvoMessagingService"
+                 android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
         <!-- Computer use: Agents see the screen and act on it (Computer.android.kt). -->
         <service android:name="kinuvo.ui.ComputerService"
                  android:label="@string/computer_use_label"

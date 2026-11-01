@@ -167,8 +167,12 @@ A Session's own model, reasoning effort and Risk tolerance, chosen by the user f
 _Avoid_: Per-chat config, overrides
 
 **Notification**:
-What the Server sends to the user's phone through a Notifier (ntfy now) when no client in the foreground watches the Session: an Approval or form waiting, a reply, an error, a Routine's result.
+What the Server sends to the user's phone, through a Notifier such as ntfy or as a push to paired Devices, when no client in the foreground watches the Session: an Approval or form waiting, a reply, an error, a Routine's result.
 _Avoid_: Push, alert
+
+**Push relay**:
+The hosted service that forwards encrypted Notifications from any Server to Apple and Google push services; it can't read them.
+_Avoid_: Push server, proxy
 
 **Routine**:
 A prompt an Agent runs on its own on a schedule (once, every so often, or a cron expression), each run in a new Session or continuing one Session. Each run starts from the last run's outcome, ends with the Agent reporting something new (a Notification) or nothing new (nothing is sent), and skips any tool call whose Approval goes unanswered for 30 minutes.

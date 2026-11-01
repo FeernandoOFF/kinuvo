@@ -53,5 +53,6 @@ internal actual val platformModule = module {
         else deviceCache(NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true).first() as String + "/client-cache")
     }
     single<OAuthBrowser> { WebAuthBrowser() }
+    single { ApnsPushChannel(enabled = get<MobileTestMode>().override == null) } bind PushChannel::class
     single { Device(UIDevice.currentDevice.name, NSTimeZone.localTimeZone.name, get<MobileTestMode>().override?.websocketUrl.orEmpty()) }
 }
