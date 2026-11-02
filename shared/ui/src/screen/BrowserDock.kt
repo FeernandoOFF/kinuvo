@@ -28,8 +28,8 @@ import org.koin.core.parameter.parametersOf
  */
 @Composable
 fun BrowserDockHost(browser: Route.Browser?, key: String, onExpand: (Route.Browser) -> Unit, chat: @Composable (BrowserDock?) -> Unit) {
-    var open by rememberSaveable(browser) { mutableStateOf(false) }
-    var focus by remember(browser) { mutableStateOf<Pair<ScreenRef, String?>?>(null) }
+    var open by rememberSaveable(browser?.agentId) { mutableStateOf(false) }
+    var focus by remember(browser?.agentId) { mutableStateOf<Pair<ScreenRef, String?>?>(null) }
     var width by rememberSaveable { mutableStateOf(520f) }
     val density = LocalDensity.current
     BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -38,7 +38,7 @@ fun BrowserDockHost(browser: Route.Browser?, key: String, onExpand: (Route.Brows
         Row(Modifier.fillMaxSize()) {
             Box(Modifier.weight(1f)) { chat(dock) }
             if (dock != null && open) {
-                val live = koinViewModel<LiveViewModel>(key = "$key/$browser") { parametersOf(browser!!.copy(screen = focus?.first, reason = focus?.second)) }
+                val live = koinViewModel<LiveViewModel>(key = "$key/${browser!!.agentId}") { parametersOf(browser!!.copy(screen = focus?.first, reason = focus?.second)) }
                 LaunchedEffect(live, focus) { focus?.let { live.focus(it.first, it.second) } }
                 Box(Modifier.width(7.dp).fillMaxHeight().pointerHoverIcon(PointerIcon.Hand)
                     .draggable(rememberDraggableState { delta -> width = (width - with(density) { delta.toDp().value }).coerceIn(360f, max) }, Orientation.Horizontal),
