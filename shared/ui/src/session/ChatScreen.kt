@@ -205,10 +205,10 @@ fun ChatScreen(
             onScreen = { screen, reason ->
                 val owner = screen.owner
                 if (owner != null && dock != null) dock.show(screen, reason)
-                else onNavigate(if (owner == null) Route.Computers(screen.id, reason) else Route.Browser(owner.agentId, requireNotNull(route.sessionId), screen, reason))
+                else onNavigate(if (owner == null) Route.Computers(screen.id, reason) else Route.Browser(owner.agentId, route.sessionId, screen, reason))
             },
-            onBrowser = if (sessionBrowserAvailable(agent, current.capabilities?.server) && route.agentId != null && route.sessionId != null)
-                ({ dock?.toggle?.invoke() ?: onNavigate(Route.Browser(requireNotNull(route.agentId), requireNotNull(route.sessionId))) }) else null,
+            onBrowser = if (sessionBrowserAvailable(agent, current.capabilities?.server) && route.agentId != null)
+                ({ dock?.toggle?.invoke() ?: onNavigate(Route.Browser(requireNotNull(route.agentId), route.sessionId)) }) else null,
             browserOpen = dock?.open == true,
             onLoadOlder = session::loadOlder,
             onSettings = { route.agentId?.let(onSettings) },
@@ -514,7 +514,7 @@ private fun PhoneActions(state: ChatState, usage: Usage?, actions: ChatActions) 
     Bubble {
         if (state.selected != null) BubbleButton(Lucide.SquarePen, "New session", actions.onNew)
         actions.onBrowser?.let { BubbleButton(Lucide.Globe, "Browser", it) }
-        SessionMenu(selected, actions, state, extra = { close ->
+        if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, extra = { close ->
             DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
         }) { open -> BubbleButton(Lucide.Ellipsis, "More", open) }
     }
@@ -573,7 +573,7 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
             selected?.let { SessionBadge(it, compact) }
         }
         var statistics by remember(state.selected) { mutableStateOf(false) }
-        SessionMenu(selected, actions, state, extra = { close ->
+        if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, extra = { close ->
             DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
         }) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
         Popover(statistics, { statistics = false }, "Statistics") {

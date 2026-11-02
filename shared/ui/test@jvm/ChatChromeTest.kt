@@ -129,7 +129,7 @@ class ChatChromeTest {
                 val popovers = remember { Popovers() }
                 CompositionLocalProvider(LocalPopovers provides popovers) {
                     Box(Modifier.fillMaxSize()) {
-                        ChatContent(ChatState(selected = info.id, sessions = listOf(info), loaded = true),
+                        ChatContent(ChatState(selected = info.id, sessions = listOf(info), loaded = true, items = listOf(ChatItem.User("u", "Hello"))),
                             ConnectionState.Connected("Test"), null, ChatActions(onRename = { renamed = it }))
                         popovers.Host()
                     }
@@ -205,6 +205,25 @@ class ChatChromeTest {
         }
     }
 
+    @Test fun emptyChatShowsBrowserWithoutSessionMenu() = javax.swing.SwingUtilities.invokeAndWait {
+        val agent = AgentInfo("echo", "Echo", "host")
+        for (touch in listOf(true, false)) {
+            ImageComposeScene(390, 844, Density(1f), content = {
+                HarnessTheme(dark = true) {
+                    CompositionLocalProvider(LocalInteractionMode provides if (touch) InteractionMode.Touch else InteractionMode.Pointer) {
+                        ChatContent(ChatState(agent = agent, loaded = true), ConnectionState.Connected("Test"), null,
+                            ChatActions(onBrowser = {}), wide = !touch)
+                    }
+                }
+            }).use { scene ->
+                repeat(5) { scene.render(it * 200_000_000L) }
+                assertNotNull(scene.node("Browser"))
+                assertNull(scene.node("More"))
+                assertNull(scene.node("Statistics"))
+            }
+        }
+    }
+
     @Test fun phoneRailKeepsServerImmediatelyAboveSettingsAtTheFoot() = javax.swing.SwingUtilities.invokeAndWait {
         val agent = AgentInfo("echo", "Echo", "host")
         val server = Server.Remote("ws://home/ws", "test", "Home Server", "home")
@@ -232,7 +251,7 @@ class ChatChromeTest {
         ImageComposeScene(286, 900, Density(1f), content = {
             HarnessTheme(dark = true) {
                 CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Pointer) {
-                    ChatContent(ChatState(agent = agent, selected = session.id, sessions = listOf(session), loaded = true),
+                    ChatContent(ChatState(agent = agent, selected = session.id, sessions = listOf(session), loaded = true, items = listOf(ChatItem.User("u", "Hello"))),
                         ConnectionState.Connected("Test"), null, ChatActions(), wide = true, onToggleShell = {})
                 }
             }

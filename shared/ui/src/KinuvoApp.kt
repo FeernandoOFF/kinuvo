@@ -305,7 +305,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     val update = if (active?.slot != route.slot) resolved.route else app.resolveView(route, resolved.route)
                                     update?.let(backStack::update)
                                 }
-                                val browser = route.agentId?.let { agent -> route.sessionId?.let { Route.Browser(agent, it) } }
+                                val browser = route.agentId?.let { agent -> Route.Browser(agent, route.sessionId) }
                                 kinuvo.ui.screen.BrowserDockHost(browser.takeIf { !compact && sessionBrowserAvailable(appState.agents.firstOrNull { it.id == route.agentId }, resolved.capabilities?.server) }, "dock/${app.serverLifetime}", onExpand = history::open) { dock ->
                                     ChatScreen(app, session, !compact, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
                                         onBack = back.takeIf { backStack.getOrNull(backStack.lastIndex - 1)?.home == true }, dock = dock)
@@ -363,7 +363,8 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 val showChat = !compact && maxWidth >= 1200.dp
                                 val chat = Route.Chat(route.agentId, route.sessionId)
                                 val dock = PageAction(Lucide.Minimize2, "Dock beside chat") {
-                                    if ((backStack.getOrNull(backStack.lastIndex - 1) as? Route.Chat)?.sessionId == route.sessionId) back() else history.open(chat)
+                                    val previous = backStack.getOrNull(backStack.lastIndex - 1) as? Route.Chat
+                                    if (previous?.agentId == route.agentId && previous.sessionId == route.sessionId) back() else history.open(chat)
                                 }
                                 Row(Modifier.fillMaxSize()) {
                                     if (showChat) {
