@@ -24,6 +24,7 @@ class ServerVoiceViewModel(private val server: ConnectedServer) : ViewModel() {
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { actionError = e.message ?: "Voice action failed"; state.update { it.copy(error = actionError) } }
     } }
+    fun retry() = action {}
     fun download(id: String) = action { server.call { it.call(Api.VoiceDownload, id) } }
     fun cancel() = action { server.call { it.call(Api.VoiceCancelDownload, Unit) } }
     fun remove(id: String) = action { server.call { it.call(Api.VoiceRemove, id) } }

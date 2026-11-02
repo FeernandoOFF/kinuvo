@@ -25,6 +25,7 @@ data class SettingsState(
     val route: Route.Settings,
     val config: AgentConfig = AgentConfig(),
     val routines: List<Routine>? = null,
+    val routinesError: String? = null,
     val runs: List<SessionInfo> = emptyList(),
     val skill: SkillDetails? = null,
     val mcpTest: McpTestResult? = null,
@@ -101,6 +102,7 @@ class SettingsViewModel(
         config.connection.bind(viewModelScope)
         routinesRepo.load(agentId)
         config.load(agentId)
+        viewModelScope.launch { routinesRepo.errors.collect { errors -> state.update { it.copy(routinesError = errors[agentId]) } } }
         viewModelScope.launch { config.connected.collect { if (it) loadModels() } }
         viewModelScope.launch {
             config.providers.collect { p ->
@@ -184,6 +186,8 @@ class SettingsViewModel(
         else config.deleteAgent(agentId)
         onDeleted()
     }
+
+    fun reloadRoutines() = routinesRepo.load(agentId)
 
     fun setEnabled(routineId: String, enabled: Boolean) = attempt { routinesRepo.update(agentId, routineId, RoutineSpec(enabled = enabled)) }
 

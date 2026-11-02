@@ -286,6 +286,23 @@ class ScreenshotTest {
         render("agent-phone", 390, 1300) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings("main")), {}, onBack = {}) } }
         render("settings-overview", 1600, 900) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Overview)), SettingsActions()) } }
         render("settings-wide", 1280, 860) { HarnessTheme(dark = false) { SettingsContent(settings, SettingsActions()) } }
+        for ((name, restricted, error) in listOf(
+            Triple("restricted", true, null),
+            Triple("error", false, "The Server took too long to respond. Try again."),
+            Triple("empty", false, null),
+        )) render("routines-$name", 420, 760) {
+            val ui = settingsAt(Route.Settings("main", SettingsSection.Routines))
+            HarnessTheme(dark = true) {
+                SettingsContent(ui.copy(management = !restricted, state = ui.state.copy(routines = if (name == "empty") emptyList() else null, routinesError = error)), SettingsActions(), sidebar = false)
+            }
+        }
+        render("settings-tasks-management", 420, 760) {
+            val ui = settingsAt(Route.Settings("main", SettingsSection.Tasks))
+            HarnessTheme(dark = true) { SettingsContent(ui.copy(management = false, state = ui.state.copy(tasks = null, errors = listOf("This action requires management access"))), SettingsActions(), sidebar = false) }
+        }
+        render("settings-voice-management", 420, 760) {
+            HarnessTheme(dark = true) { kinuvo.ui.agent.DetailPane(null, "Voice") { kinuvo.ui.design.LoadFailure("This action requires management access") {} } }
+        }
         render("settings-medium-dark", 900, 760) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Routines)), SettingsActions()) } }
         render("settings-narrow-detail", 420, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Routines, "heartbeat")), SettingsActions()) } }
         render("settings-narrow-sections", 420, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main")), SettingsActions()) } }
