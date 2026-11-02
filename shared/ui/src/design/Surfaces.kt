@@ -105,6 +105,10 @@ fun Badge(text: String, icon: ImageVector? = null, modifier: Modifier = Modifier
 /** An error message that remains readable at phone widths. */
 @Composable
 fun ErrorMessage(text: String, modifier: Modifier = Modifier) {
+    if (text == "This action requires management access") {
+        ManagementAccessRequired()
+        return
+    }
     val c = Tone.Danger.color()
     Row(
         modifier.fillMaxWidth().clip(Theme[shapes][mediumShape]).background(c.copy(alpha = 0.12f)).padding(12.dp),

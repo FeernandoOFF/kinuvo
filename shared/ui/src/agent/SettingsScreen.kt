@@ -81,6 +81,7 @@ fun SettingsScreen(
             onEnabled = settings::setEnabled,
             onApprovals = settings::setApprovals,
             onSaveRoutine = { id, spec -> settings.saveRoutine(id, spec) { saved -> show(route.copy(item = saved, editing = false)) } },
+            onReloadRoutines = settings::reloadRoutines,
             onRunNow = settings::runNow,
             onRemove = { id -> settings.remove(id) { show(route.copy(item = null)) } },
             onOpenSession = { id -> onOpenSession(Route.Chat(route.agentId, id)) },
@@ -167,6 +168,7 @@ class SettingsActions(
     val onApprovals: (String, RoutineApprovals) -> Unit = { _, _ -> },
     /** Creates a Routine when the ID is null. */
     val onSaveRoutine: (String?, RoutineSpec) -> Unit = { _, _ -> },
+    val onReloadRoutines: () -> Unit = {},
     val onRunNow: (String) -> Unit = {},
     val onRemove: (String) -> Unit = {},
     val onOpenSession: (String) -> Unit = {},
@@ -384,12 +386,12 @@ private fun SettingsSection.noun() = when (this) {
 
 /** A section's list: title with an add button, an intro, then its [rows], or a spinner while [loading]. */
 @Composable
-internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, loading: Boolean, rows: @Composable ColumnScope.() -> Unit) {
+internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, loading: Boolean, canAdd: Boolean = true, rows: @Composable ColumnScope.() -> Unit) {
     val add = PageAction(Lucide.Plus, addLabel) { p.go(p.ui.route.copy(item = null, editing = true)) }
     val scope = LocalAgentScope.current
     Column(Modifier.fillMaxSize()) {
-        if (scope != null && p.back == null) PageHeader(p.ui.route.section?.icon() ?: Lucide.Settings, title, scope = scope, actions = listOf(add))
-        else SettingsPageHeader(title, p.back) { HeaderButton(add.icon, add.label, add.onClick) }
+        if (scope != null && p.back == null) PageHeader(p.ui.route.section?.icon() ?: Lucide.Settings, title, scope = scope, actions = if (canAdd) listOf(add) else emptyList())
+        else SettingsPageHeader(title, p.back) { if (canAdd) HeaderButton(add.icon, add.label, add.onClick) }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(intro, Modifier.padding(horizontal = 6.dp), color = color(mutedColor), fontSize = 13.sp)
             if (loading) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
