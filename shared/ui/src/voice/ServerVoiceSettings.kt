@@ -6,7 +6,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.unit.dp
 import kinuvo.ui.design.Spinner
 import kinuvo.app.voice.ServerVoiceViewModel
-import kinuvo.ui.design.ErrorMessage
+import kinuvo.ui.design.LoadFailure
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -14,7 +14,7 @@ internal fun ServerVoiceSettings() {
     val model = koinViewModel<ServerVoiceViewModel>()
     val state by model.state.collectAsState()
     if (state.models.isEmpty()) {
-        state.error?.let { ErrorMessage(it) } ?: Spinner()
+        state.error?.let { LoadFailure(it, onAction = model::retry) } ?: Spinner()
         return
     }
     Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {

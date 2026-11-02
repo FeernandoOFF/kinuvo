@@ -62,7 +62,7 @@ sealed interface Route {
     data class Computers(val computer: String? = null, val reason: String? = null) : Route
 
     @Serializable
-    data class Browser(val agentId: String, val sessionId: String, val screen: kinuvo.protocol.ScreenRef? = null, val reason: String? = null) : Route
+    data class Browser(val agentId: String, val sessionId: String? = null, val screen: kinuvo.protocol.ScreenRef? = null, val reason: String? = null) : Route
 
     companion object {
         fun chat(view: LastView?) = Chat(view?.agentId, view?.sessionId)

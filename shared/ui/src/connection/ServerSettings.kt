@@ -227,7 +227,6 @@ internal fun TestGroup(label: String, enabled: Boolean, onTest: () -> Unit, resu
 internal fun ServerLoading(p: Pane, title: String) {
     val error = p.ui.error ?: return PaneLoading()
     DetailPane(p.back, title) {
-        Pill(error, tone = Tone.Danger, icon = Lucide.CircleX)
-        Button(onClick = p.actions.onReloadServer, style = ButtonStyle.Outlined) { Text("Retry") }
+        LoadFailure(error, onAction = p.actions.onReloadServer)
     }
 }

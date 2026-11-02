@@ -29,13 +29,23 @@ import kotlin.time.Instant
 internal fun RoutineList(p: Pane) {
     val ui = p.ui
     val routines = ui.state.routines
+    val error = ui.state.routinesError
+    val restricted = !ui.management
     ItemList(
         p, "Routines",
         "Prompts ${ui.agent?.name ?: "the agent"} runs on a schedule, each in its own session. Add one here or ask in chat, " +
             "e.g. “every weekday at 9, summarize my inbox”.",
-        "New routine", routines == null,
+        "New routine", routines == null && error == null && !restricted, canAdd = !restricted,
     ) {
-        if (!routines.isNullOrEmpty()) RowGroup { routines.forEach { r ->
+        when {
+            restricted -> ManagementAccessRequired()
+            error != null -> LoadFailure(error, onAction = p.actions.onReloadRoutines)
+            routines?.isEmpty() == true -> {
+                Text("No routines yet.", color = color(mutedColor), fontSize = 13.sp)
+                Button(onClick = { p.go(ui.route.copy(item = null, editing = true)) }, style = ButtonStyle.Outlined) { Text("Create routine") }
+            }
+        }
+        if (!restricted && !routines.isNullOrEmpty()) RowGroup { routines.forEach { r ->
             ItemRow(r.id == ui.route.item, r.icon(), r.name, r.summary(ui.now), { p.go(ui.route.copy(item = r.id, editing = false)) }) { r.statusPill() }
         } }
     }
@@ -47,6 +57,8 @@ internal fun RoutinePane(p: Pane) {
     val route = p.ui.route
     val routine = p.ui.state.routine
     when {
+        !p.ui.management -> DetailPane(p.back, "Routines") { ManagementAccessRequired() }
+        p.ui.state.routines == null && p.ui.state.routinesError != null -> DetailPane(p.back, "Routines") { LoadFailure(p.ui.state.routinesError.orEmpty(), onAction = p.actions.onReloadRoutines) }
         route.editing && route.item == null -> RoutineForm(null, p)
         routine == null -> if (p.ui.state.routines == null) PaneLoading() else DetailPane(p.back, "Not found") {}
         route.editing -> RoutineForm(routine, p)
