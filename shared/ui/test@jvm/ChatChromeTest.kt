@@ -26,6 +26,20 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import kinuvo.app.screen.LiveViewModel
+import kinuvo.app.screen.ScreensRepository
+import kinuvo.ui.screen.BrowserDockHost
+import kinuvo.ui.screen.BrowserDocks
+import kinuvo.ui.session.BrowserDock
+import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
+import org.koin.compose.KoinIsolatedContext
+import org.koin.core.module.dsl.viewModel
+import org.koin.dsl.koinApplication
+import org.koin.dsl.module
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
@@ -222,6 +236,43 @@ class ChatChromeTest {
                 assertNull(scene.node("Statistics"))
             }
         }
+    }
+
+    @Test fun dockedBrowserStaysOpenAcrossSessionsOfItsAgent() = javax.swing.SwingUtilities.invokeAndWait {
+        val screens = object : ScreensRepository {
+            override val connected = flowOf(false)
+            override val frames = emptyFlow<ScreenFrame>()
+            override val status = emptyFlow<ScreenStreamStatus>()
+            override val changes = emptyFlow<BrowserOwner?>()
+            override suspend fun device() = "device"
+            override suspend fun list(owner: BrowserOwner?) = emptyList<ScreenInfo>()
+            override suspend fun watch(ref: ScreenRef, thumbnail: Boolean) = error("unused")
+            override suspend fun unwatch(id: String) {}
+            override suspend fun ack(frame: ScreenFrameAck) {}
+            override suspend fun control(request: ScreenControlRequest) = error("unused")
+            override suspend fun input(request: ScreenInputRequest) = error("unused")
+            override suspend fun open(request: ScreenOpen) = error("unused")
+            override suspend fun command(request: ScreenCommand) {}
+        }
+        val koin = koinApplication { modules(module { viewModel { (_: Route) -> LiveViewModel(screens) } }) }
+        val docks = BrowserDocks()
+        var session by mutableStateOf("first")
+        var dock: BrowserDock? = null
+        ImageComposeScene(1200, 800, Density(1f), content = {
+            KoinIsolatedContext(koin) { HarnessTheme(dark = true) {
+                key(session) { BrowserDockHost(Route.Browser("echo", session), docks, {}) { dock = it } }
+            } }
+        }).use { scene ->
+            scene.render(0)
+            dock!!.toggle()
+            repeat(3) { scene.render((it + 1) * 100_000_000L) }
+            assertNotNull(scene.node("Close Browser"))
+            session = "second"
+            repeat(3) { scene.render((it + 4) * 100_000_000L) }
+            assertTrue(dock!!.open)
+            assertNotNull(scene.node("Close Browser"))
+        }
+        docks.viewModelStore.clear()
     }
 
     @Test fun phoneRailKeepsServerImmediatelyAboveSettingsAtTheFoot() = javax.swing.SwingUtilities.invokeAndWait {
