@@ -103,6 +103,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
     val ahead = rememberSerializable(serializer = SnapshotStateListSerializer(Route.serializer())) { mutableStateListOf() }
     val history = remember(backStack, ahead) { History(backStack, ahead) }
     val homeEdits = remember { SettingsEdits() }
+    val browserDocks = kinuvo.ui.screen.rememberBrowserDocks(app.serverLifetime)
     val back = { homeEdits.leave { if (history.canGoBack) history.back() else if (backStack.lastOrNull().let { it is Route.Settings }) history.reset(app.lastView()) } }
     val shell = rememberShellChrome()
     BrowserBackHandler()
@@ -306,7 +307,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     update?.let(backStack::update)
                                 }
                                 val browser = route.agentId?.let { agent -> Route.Browser(agent, route.sessionId) }
-                                kinuvo.ui.screen.BrowserDockHost(browser.takeIf { !compact && sessionBrowserAvailable(appState.agents.firstOrNull { it.id == route.agentId }, resolved.capabilities?.server) }, "dock/${app.serverLifetime}", onExpand = history::open) { dock ->
+                                kinuvo.ui.screen.BrowserDockHost(browser.takeIf { !compact && sessionBrowserAvailable(appState.agents.firstOrNull { it.id == route.agentId }, resolved.capabilities?.server) }, browserDocks, onExpand = history::open) { dock ->
                                     ChatScreen(app, session, !compact, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
                                         onBack = back.takeIf { backStack.getOrNull(backStack.lastIndex - 1)?.home == true }, dock = dock)
                                 }
