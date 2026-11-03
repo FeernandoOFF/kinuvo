@@ -16,10 +16,11 @@
     "ws/providers",
     "mobile/connect-computer",
     "mobile/computers",
-    "mobile/computer-host",
     "mobile/computer-watch",
     "mobile/computer-take",
     "mobile/computer-hand-back",
-    "mobile/computer-home"
+    "mobile/computer-home",
+    "mobile/browser-ack",
+    "mobile/browser-unwatch"
   ]
 }
