@@ -159,7 +159,6 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
     BottomSheet(controls, { controls = false }, header = {
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text(if (state.owner != null) "Browser" else "Computers", Modifier.weight(1f))
-            if (state.owner != null) Button(onClick = { actions.open("about:blank") }, enabled = state.connected && !state.pending, style = ButtonStyle.Ghost) { Text("New tab") }
             RoundButton(Lucide.X, "Close screen controls", { controls = false })
         }
     }) {
@@ -220,14 +219,14 @@ private fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, e
 }
 
 @Composable
-private fun DockButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true, selected: Boolean = false) {
+private fun DockButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true, selected: Boolean? = null) {
     val shape = RoundedCornerShape(14.dp)
     IconButton(onClick = onClick, enabled = enabled, style = ButtonStyle.Ghost, shape = shape,
-        modifier = Modifier.size(46.dp).background(if (selected) color(accentColor).copy(alpha = 0.16f) else Color.Transparent, shape)
-            .semantics { stateDescription = if (selected) "On" else "Off" }) {
+        modifier = Modifier.size(46.dp).background(if (selected == true) color(accentColor).copy(alpha = 0.16f) else Color.Transparent, shape)
+            .semantics { if (selected != null) stateDescription = if (selected) "On" else "Off" }) {
         Icon(icon, Modifier.size(22.dp), contentDescription = label, tint = when {
             !enabled -> color(mutedColor).copy(alpha = 0.5f)
-            selected -> color(accentColor)
+            selected == true -> color(accentColor)
             else -> color(onPanelColor)
         })
     }
