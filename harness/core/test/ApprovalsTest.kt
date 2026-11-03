@@ -205,6 +205,18 @@ class ApprovalsTest {
     }
 
     @Test
+    fun sessionTrustStaysInItsSession() = runTest {
+        val risky = FakeTool("cua__click", Risk.Medium)
+        val trust = SessionTrust()
+        val policy = ApprovalPolicy(agent(), home.trustRules, session = trust.scope("s1"))
+        assertTrue(policy.trustForSession(risky, listOf("cua__click")))
+        assertFalse(policy.asks(risky))
+        assertTrue(ApprovalPolicy(agent(), home.trustRules, session = trust.scope("s2")).asks(risky))
+        assertEquals(TrustRules(), policy.rules())
+        assertFalse(policy(agent()).trustForSession(risky, listOf("cua__click")))
+    }
+
+    @Test
     fun denyRulesWinOverEverything() = runTest {
         home.trustRules.update(base.id) { it.copy(trusted = listOf("cua__click"), deny = DenyRules(tools = listOf(FakeTool("cua__click", Risk.Low).identity.key))) }
         assertIs<Verdict.Block>(policy(agent("full")).decide(FakeTool("cua__click", Risk.Low)))

@@ -3,7 +3,7 @@ title: "Approvals and Risk"
 description: "How Risk tolerance, Trust rules and Deny rules control tool calls."
 ---
 
-An Approval is your decision on one tool call or Reflection proposal. For a tool call, you can allow it once, save an **always allow** Trust rule where offered, or deny it.
+An Approval is your decision on one tool call or Reflection proposal. For a tool call, you can allow it once, allow it **for this Session**, save an **always allow** Trust rule where offered, or deny it. Allowing for this Session trusts the same calls as always allow would, but only in that Session and until the Server restarts; nothing is saved.
 
 The harness classifies tool calls with code rather than asking the model:
 

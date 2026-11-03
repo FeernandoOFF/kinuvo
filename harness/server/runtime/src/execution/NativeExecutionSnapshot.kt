@@ -53,10 +53,12 @@ suspend fun SessionLog.executionSnapshot(agent: String, id: String): ExecutionSn
         addAll(live.pending)
         live.approval?.let { add(ExecutionRequest(it.approvalId, ExecutionRequestKind.Approval, ProtocolJson.encodeToJsonElement(AgentEvent.ApprovalRequested.serializer(), it), buildList {
             add(ExternalApprovalOption("allow_once", "Allow once", "allow_once"))
+            if (it.trustable) add(ExternalApprovalOption("allow_session", "Allow for this Session", "allow_always"))
             if (it.trustable) add(ExternalApprovalOption("always_allow", "Always allow", "allow_always"))
             add(ExternalApprovalOption("deny", "Deny", "reject_once"))
         }, ExecutionPrompt.Approval(it.approvalId, it.toolCallName, it.reason, buildList {
             add(ExternalApprovalOption("allow_once", "Allow once", "allow_once"))
+            if (it.trustable) add(ExternalApprovalOption("allow_session", "Allow for this Session", "allow_always"))
             if (it.trustable) add(ExternalApprovalOption("always_allow", "Always allow", "allow_always"))
             add(ExternalApprovalOption("deny", "Deny", "reject_once"))
         }))) }

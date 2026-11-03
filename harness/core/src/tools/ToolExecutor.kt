@@ -84,7 +84,11 @@ class ToolExecutor(
                 try { binding?.invoke() }
                 catch (e: CancellationException) { throw e }
                 catch (e: Exception) { return SessionEntry.ToolResult(call.id, call.name, e.message ?: "Screen changed; observe again", isError = true) }
-                if (decision == ApprovalDecision.AlwaysAllow && verdict is Verdict.Ask && tool != null) approvals.policy?.trust(tool, verdict.trustKeys)
+                if (verdict is Verdict.Ask && tool != null) when (decision) {
+                    ApprovalDecision.AlwaysAllow -> approvals.policy?.trust(tool, verdict.trustKeys)
+                    ApprovalDecision.AllowForSession -> approvals.policy?.trustForSession(tool, verdict.trustKeys)
+                    else -> {}
+                }
                 if (tool?.kind == ToolKind.AskUser) ask(call, approvalId) else execute(call, approvalId, stopped)
             }
         }.copy(identity = tool?.identity)
