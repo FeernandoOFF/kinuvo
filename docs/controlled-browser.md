@@ -81,12 +81,15 @@ use the screenshot and user Takeover for those controls.
 
 ## Mobile controls
 
-Browser and Computer Live view share a compact mobile layout: a full-screen canvas,
-a keyboard button and an options menu. Screen taps and drags never open the mobile
-keyboard automatically; use the keyboard button. Selecting a tab thumbnail selects
-that tab and dismisses the picker. Browser tabs and the address bar are in
-**Tabs & address**; **Computers** opens the Computer picker. Takeover and handback
-remain explicit actions. The mobile Browser starts with a desktop viewport;
+Browser and Computer Live view share a compact mobile layout: a themed stage
+outlined by control state, a header with **Hand back** and **Screen options**, and a
+bottom dock. While watching, the dock offers the Screen picker and **Take over**.
+During Takeover it holds **Keyboard**, **Keys**, **Trackpad mode**, **Clipboard**,
+**Switch apps** (Computers only) and the Screen picker. Screen taps and drags never
+open the mobile keyboard automatically; use the keyboard button. Selecting a tab
+thumbnail selects that tab and dismisses the picker. Browser tabs and the address
+bar are in **Tabs & address**; **Computers** opens the Computer picker. Takeover
+and handback remain explicit actions. The mobile Browser starts with a desktop viewport;
 **Fit to phone** adapts its viewport to the available panel. Computer screens
 always preserve their source aspect ratio.
 
@@ -98,15 +101,18 @@ remote input and does not trigger hover or drag remote objects. Switch back to
 touch mode for direct tapping. Cursor state is local to the selected Screen and
 control generation; displayed-frame checks still govern every remote action.
 
-**Paste** reads the Device clipboard only when explicitly selected. It sends text
-to the focused remote field while the same Screen, subscription and Takeover are
-still active. It does not synchronize clipboards automatically.
+**Clipboard → Paste** reads the Device clipboard only when explicitly selected. It
+sends text to the focused remote field while the same Screen, subscription and
+Takeover are still active. It does not synchronize clipboards automatically. Desktop
+Computers also offer **Copy on screen** and **Paste on screen**, which send the
+Computer's own copy and paste shortcuts. **Switch apps** sends Recents on Android,
+Command+Tab on macOS and Alt+Tab on Windows and Linux.
 
 On desktop, Browser options are in the toolbar’s three-dot menu. On mobile,
 **Show browser window** is part of **Screen options**. The globe button in chat
 toggles the Browser sidebar; the expanded Browser has no separate sidebar button.
 
-The mobile **Controls** button opens a key tray independently of the text keyboard.
+The mobile **Keys** button opens a key tray above the dock independently of the text keyboard.
 Android exposes Back, Home, Recents and system controls. Desktop screens expose
 Escape, Tab, arrows and editing keys. Select modifiers and then a tray key to send
 a shortcut; modifiers clear after sending or losing control. Only keys advertised
