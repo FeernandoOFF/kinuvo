@@ -269,7 +269,7 @@ private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, 
             Text("Question ${step + 1} of ${asked.questions.size}", fontSize = 12.sp, color = color(mutedColor))
         }
         Column(Modifier.heightIn(max = BodyMaxHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            shown.forEach { q -> key(q.id) { QuestionField(q, answers[q.id].orEmpty()) { actions.onEditAnswer(asked.questionsId, q.id, it) } } }
+            shown.forEach { q -> key(asked.questionsId, q.id) { QuestionField(q, answers[q.id].orEmpty()) { actions.onEditAnswer(asked.questionsId, q.id, it) } } }
         }
         Actions(wide,
             primary = {
