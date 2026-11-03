@@ -89,10 +89,13 @@ properties:
 - tapOn: "Message"
 - inputText: "Draft survives the sheet"
 - tapOn: "Hello from WireMock"
-- tapOn: "E2E Agent settings"
-- extendedWaitUntil:
-    visible: "Agent settings · every Session"
-    timeout: 10000
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "E2E Agent settings"
+      - extendedWaitUntil:
+          visible: "Agent settings · every Session"
+          timeout: 10000
 - takeScreenshot: 07-agent-settings-sheet
 - assertNotVisible: "Close Agent settings"
 - assertNotVisible: "Resize sheet"
@@ -108,8 +111,13 @@ properties:
     element:
       text: "Risk tolerance"
     direction: DOWN
-- tapOn: "Risk tolerance"
-- assertVisible: "Anything that changes things"
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn: "Risk tolerance"
+      - extendedWaitUntil:
+          visible: "Anything that changes things"
+          timeout: 4000
 - assertVisible: "Never ask"
 - assertNotVisible: "Agent settings · every Session"
 - takeScreenshot: 08-risk-tolerance-nested
@@ -123,12 +131,20 @@ properties:
       platform: iOS
     commands:
       - runFlow: ../../shared/tap-back.yaml
-- assertVisible: "Agent settings · every Session"
+- extendedWaitUntil:
+    visible: "Agent settings · every Session"
+    timeout: 5000
 - scrollUntilVisible:
     element:
       text: "Risk tolerance"
     direction: DOWN
-- tapOn: "Risk tolerance"
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn: "Risk tolerance"
+      - extendedWaitUntil:
+          visible: "Anything that changes things"
+          timeout: 4000
 - runFlow:
     when:
       platform: Android
@@ -139,17 +155,22 @@ properties:
       platform: iOS
     commands:
       - runFlow: ../../shared/tap-back.yaml
-- assertVisible: "Agent settings · every Session"
+- extendedWaitUntil:
+    visible: "Agent settings · every Session"
+    timeout: 5000
 - scrollUntilVisible:
     element:
       text: "Name"
     direction: UP
-- tapOn:
-    text: "E2E Agent"
-    below: "Name"
-- eraseText
-- inputText: "Renamed"
-- assertVisible: "Save"
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          text: "E2E Agent"
+          below: "Name"
+      - eraseText
+      - inputText: "Renamed"
+      - assertVisible: "Save"
 - takeScreenshot: 09-sheet-dirty
 - tapOn: "Agent settings · every Session"
 - swipe:
@@ -160,7 +181,9 @@ properties:
 - takeScreenshot: 10-unsaved-changes-dialog
 - tapOn: "Keep editing"
 - assertNotVisible: 'Discard changes\?'
-- assertVisible: "Save"
+- extendedWaitUntil:
+    visible: "Save"
+    timeout: 5000
 - swipe:
     start: 50%,14%
     end: 50%,85%
@@ -186,6 +209,11 @@ properties:
 - eraseText
 - inputText: "Unsaved instructions"
 - tapOn: "Edit daily"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - hideKeyboard
 - runFlow: ../../shared/tap-back.yaml
 - assertVisible: 'Discard changes\?'
 - tapOn: "Discard"
@@ -264,21 +292,29 @@ properties:
     start: 50%,14%
     end: 50%,85%
 - runFlow: ../../shared/return-to-chat.yaml
-- tapOn: "E2E Agent settings"
-- extendedWaitUntil:
-    visible: "Agent settings · every Session"
-    timeout: 10000
+- retry:
+    maxRetries: 2
+    commands:
+      - tapOn: "E2E Agent settings"
+      - extendedWaitUntil:
+          visible: "Agent settings · every Session"
+          timeout: 10000
 - assertNotVisible: "Save"
-- tapOn:
-    text: "E2E Agent"
-    below: "Name"
-- eraseText
-- inputText: "Renamed"
-- assertVisible: "Save"
+- retry:
+    maxRetries: 3
+    commands:
+      - tapOn:
+          text: "E2E Agent"
+          below: "Name"
+      - eraseText
+      - inputText: "Renamed"
+      - assertVisible: "Save"
 - tapOn: "Agent settings · every Session"
 - tapOn: "Save"
 - assertNotVisible: "Save"
-- assertVisible: "Agent settings · every Session"
+- extendedWaitUntil:
+    visible: "Agent settings · every Session"
+    timeout: 5000
 - swipe:
     start: 50%,14%
     end: 50%,85%

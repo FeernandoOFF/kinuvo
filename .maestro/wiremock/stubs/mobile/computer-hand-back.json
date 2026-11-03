@@ -14,7 +14,7 @@
           {
             "matchesJsonPath": {
               "expression": "$.method",
-              "equalTo": "computer.takeover"
+              "equalTo": "screens.control"
             }
           },
           {
@@ -35,7 +35,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"computer\":{\"id\":\"phone\",\"name\":\"Pixel\",\"platform\":\"Android\",\"available\":true,\"control\":\"Idle\"}}}"
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"generation\":2}}"
         }
       }
     }
