@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.compose.ripple.rememberRippleIndication
 import com.composables.interactioncapabilities.currentInteractionCapabilities
+import kinuvo.protocol.Platform
+import kinuvo.protocol.currentPlatform
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
 import com.composeunstyled.theme.ThemeToken
@@ -74,7 +76,7 @@ private val HarnessThemeComposable = buildTheme {
     val dark = LocalColorScheme.current == ColorScheme.Dark
     val base = if (dark) Dark else Light
     val p = LocalAccent.current?.let { base.withAccent(it) } ?: base
-    val touch = !currentInteractionCapabilities().hasPointer
+    val touch = interactionMode(currentPlatform, currentInteractionCapabilities().hasPointer) == InteractionMode.Touch
 
     properties[colors] = mapOf(
         backgroundColor to p.background,
@@ -150,6 +152,12 @@ private val HarnessThemeComposable = buildTheme {
             content()
         }
     }
+}
+
+internal fun interactionMode(platform: Platform, hasPointer: Boolean): InteractionMode = when (platform) {
+    Platform.Android, Platform.IOS -> InteractionMode.Touch
+    Platform.Web -> if (hasPointer) InteractionMode.Pointer else InteractionMode.Touch
+    else -> InteractionMode.Pointer
 }
 
 /** Kinuvo design system root: Composables UI tokens with the Kinuvo palette, following the system dark mode. [accent] overrides the palette's. */
