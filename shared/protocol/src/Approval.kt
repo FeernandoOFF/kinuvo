@@ -8,6 +8,10 @@ sealed interface ApprovalDecision {
     @Serializable @SerialName("allow_once")
     data object AllowOnce : ApprovalDecision
 
+    /** Trusts the same calls until the Session ends or the Server restarts, without saving a Trust rule. */
+    @Serializable @SerialName("allow_session")
+    data object AllowForSession : ApprovalDecision
+
     @Serializable @SerialName("always_allow")
     data object AlwaysAllow : ApprovalDecision
 
