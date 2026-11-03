@@ -175,4 +175,4 @@ upload/conversion. They do not cover archive migration or resumable Sessions.
 Use the usual explicit platform, designated `--device`, and `--tags smoke,regression`
 commands above. Each flow selects its profile with `apiProfile`; no wrapper changes
 or real Server are needed. Both Devices and mocked connect responses use Kinuvo
-protocol version 4; ACP remains version 2.
+protocol version 5; ACP remains version 2.
