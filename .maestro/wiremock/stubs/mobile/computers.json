@@ -12,7 +12,7 @@
       "body": {
         "matchesJsonPath": {
           "expression": "$.method",
-          "equalTo": "computers.list"
+          "equalTo": "screens.list"
         }
       }
     }
@@ -25,7 +25,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":[{\"id\":\"phone\",\"name\":\"Pixel\",\"platform\":\"Android\",\"available\":true,\"control\":\"Idle\"}]}"
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":[{\"ref\":{\"source\":\"computer\",\"id\":\"phone\"},\"title\":\"Pixel\",\"status\":\"Ready\",\"active\":false,\"capabilities\":{\"delivery\":\"Continuous\",\"inputs\":[\"tap\",\"type\",\"key\",\"scroll\"],\"keys\":[\"Back\",\"Home\",\"Recents\"]},\"control\":{\"generation\":0}}]}"
         }
       }
     }

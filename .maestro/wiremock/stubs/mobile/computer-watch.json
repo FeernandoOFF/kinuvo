@@ -10,20 +10,10 @@
     },
     "message": {
       "body": {
-        "and": [
-          {
-            "matchesJsonPath": {
-              "expression": "$.method",
-              "equalTo": "computer.watch"
-            }
-          },
-          {
-            "matchesJsonPath": {
-              "expression": "$.params.computerId",
-              "equalTo": "phone"
-            }
-          }
-        ]
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "screens.watch"
+        }
       }
     }
   },
@@ -35,7 +25,18 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":null}"
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"id\":\"computer-sub\",\"epoch\":\"computer-epoch\"}}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"screens.frame\",\"seq\":1,\"payload\":{\"screen\":{\"source\":\"computer\",\"id\":\"phone\"},\"subscription\":\"computer-sub\",\"epoch\":\"computer-epoch\",\"sequence\":1,\"sample\":{\"image\":\"iVBORw0KGgoAAAANSUhEUgAAAIAAAABQCAIAAABeYuqzAAAAqElEQVR4nO3RsQkAMAzAsPz/bIdC556RwQIfYNCc+7TYrB/EAwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2H2laxqC4EjqVAAAAAElFTkSuQmCC\",\"width\":128,\"height\":80,\"geometry\":\"fixture\"}}}"
         }
       }
     }
