@@ -147,11 +147,10 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
                 DetailGroup("Approvals") {
                     DetailRow("Ask before") { Picker(APPROVALS.keys.toList(), approvals, { APPROVALS[it] ?: it }, { approvals = it }) }
                     Text("The rules for every Agent in Tools & MCP apply too; their blocks win over these.", color = color(mutedColor))
-                    FormField("Always allowed tools", "Full tool keys, one per line; use Always allow on an Approval to save the correct key and scope.") { TextArea(trusted, "tool:kinuvo.core/default/memory", lines = 2, capitalize = false) }
+                    ToolRuleGroups(trusted, denyTools, d.rules)
                     FormField("Always allowed commands", "Commands that run with any further arguments, one per line. High-risk ones must match exactly.") {
                         TextArea(shell, "git push\n./kotlin test", lines = 3, capitalize = false)
                     }
-                    FormField("Blocked tools", "Never run: tool names (all instances) or full tool keys, one per line.") { TextArea(denyTools, "skill_manage", lines = 2, capitalize = false) }
                     FormField("Blocked commands", "Patterns with * and ?, matched against each command and the whole line.") {
                         TextArea(denyShell, "git push --force*", lines = 3, capitalize = false)
                     }
