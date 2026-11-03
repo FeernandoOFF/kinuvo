@@ -23,7 +23,13 @@ object BrowserDom {
             el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}));
             }
         """.trimIndent()
-        return """(() => {
+        return operation(revision, ref, operation)
+    }
+
+    fun point(revision: String, ref: String): String = operation(revision, ref,
+        "el.scrollIntoView({block:'center',inline:'center'});const box=el.getBoundingClientRect();return JSON.stringify({x:box.x+box.width/2,y:box.y+box.height/2});")
+
+    private fun operation(revision: String, ref: String, operation: String): String = """(() => {
             const snapshot=window.__kinuvoBrowser;
             if(!snapshot||snapshot.revision!==${quote(revision)}||snapshot.version!==snapshot.observed||snapshot.url!==location.href)throw Error('Stale ref; capture again');
             if(snapshot.properties!==($properties)())throw Error('Form state changed; capture again');
@@ -35,7 +41,6 @@ object BrowserDom {
             $operation
             return 'done';
         })()"""
-    }
 
     fun capture(revision: String): String = """(() => {
             let s=window.__kinuvoBrowser;

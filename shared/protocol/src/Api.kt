@@ -159,6 +159,8 @@ object Api {
     val ScreenFrame = EventType("screens.frame", kinuvo.protocol.ScreenFrame.serializer())
     val ScreenStatus = EventType("screens.status", ScreenStreamStatus.serializer())
 
+    val BrowserPresentation = Method("browser.presentation", BrowserOwner.serializer(), kinuvo.protocol.BrowserPresentation.serializer())
+    val SaveBrowserPresentation = Method("browser.savePresentation", BrowserPresentationRequest.serializer(), kinuvo.protocol.BrowserPresentation.serializer())
     val BrowserTabs = Method("browser.tabs", BrowserOwner.serializer(), ListSerializer(BrowserTab.serializer()))
     val BrowserCommand = Method("browser.command", kinuvo.protocol.BrowserCommand.serializer(), BrowserFrame.serializer().nullable)
     val BrowserChanged = EventType("browser.changed", BrowserOwner.serializer())

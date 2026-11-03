@@ -574,6 +574,14 @@ class ServerRuntime(
         Api.ScreenControl.name -> respond(r, Api.ScreenControl) { client.screens.control(requireNotNull(client.deviceId), it) }
         Api.ScreenInput.name -> respond(r, Api.ScreenInput) { client.screens.input(requireNotNull(client.deviceId), it) }
         Api.ScreenCommand.name -> respond(r, Api.ScreenCommand) { client.screens.command(requireNotNull(client.deviceId), it) }
+        Api.BrowserPresentation.name -> respond(r, Api.BrowserPresentation) { p ->
+            browserOwner(p)
+            requireNotNull(harness.browser).presentation(p)
+        }
+        Api.SaveBrowserPresentation.name -> respond(r, Api.SaveBrowserPresentation) { p ->
+            browserOwner(p.owner)
+            requireNotNull(harness.browser).presentation(p)
+        }
         Api.BrowserTabs.name -> respond(r, Api.BrowserTabs) { p ->
             browserOwner(p)
             requireNotNull(harness.browser) { "Browser is unavailable on this Server" }.tabs(p)

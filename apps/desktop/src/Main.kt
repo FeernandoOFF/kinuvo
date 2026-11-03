@@ -14,6 +14,8 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import kinuvo.harness.server.Harness
 import kinuvo.harness.server.HarnessServer
+import kinuvo.harness.server.LocalServer
+import kinuvo.harness.server.kinuvoHome
 import kinuvo.app.computer.ComputerDriver
 import kinuvo.app.connection.EmbeddedServer
 import kinuvo.harness.cua.DesktopComputer
@@ -48,7 +50,12 @@ private object HarnessEmbeddedServer : EmbeddedServer {
     }
 
     override suspend fun endpoint(): Endpoint {
-        val server = started()
+        LocalServer.read(kinuvoHome())?.takeIf { it.alive && it.pid != ProcessHandle.current().pid() }?.let {
+            return Endpoint("ws://127.0.0.1:${it.port}/ws", it.token)
+        }
+        val server = try { started() } catch (e: LinkageError) {
+            throw IllegalStateException("The local Server could not start because the app runtime is incomplete: ${e.message}. Reinstall or rebuild Kinuvo.", e)
+        }
         val token = mutex.withLock { token ?: server.auth.sessionToken().also { token = it } }
         return Endpoint("ws://127.0.0.1:$port/ws", token)
     }

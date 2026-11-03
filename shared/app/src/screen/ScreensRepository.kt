@@ -10,6 +10,8 @@ interface ScreensRepository {
     val frames: Flow<ScreenFrame>
     val status: Flow<ScreenStreamStatus>
     val changes: Flow<BrowserOwner?>
+    suspend fun presentation(owner: BrowserOwner): BrowserPresentation = error("Browser window settings unavailable")
+    suspend fun presentation(request: BrowserPresentationRequest): BrowserPresentation = error("Browser window settings unavailable")
     suspend fun device(): String
     suspend fun list(owner: BrowserOwner?): List<ScreenInfo>
     suspend fun watch(ref: ScreenRef, thumbnail: Boolean = false): ScreenSubscription
@@ -28,6 +30,8 @@ internal class ConnectedScreens(private val connection: ConnectedServer) : Scree
     override val frames = screens.frames
     override val status = screens.status
     override val changes = screens.changes
+    override suspend fun presentation(owner: BrowserOwner) = connection.call { it.call(Api.BrowserPresentation, owner) }
+    override suspend fun presentation(request: BrowserPresentationRequest) = connection.call { it.call(Api.SaveBrowserPresentation, request) }
     override suspend fun device() = connection.call { requireNotNull(it.lastConnect?.deviceId) { "Reconnect to identify this Device" } }
     override suspend fun list(owner: BrowserOwner?) = connection.run { screens.list(owner) }
     override suspend fun watch(ref: ScreenRef, thumbnail: Boolean) = connection.run { screens.watch(ref, thumbnail) }
