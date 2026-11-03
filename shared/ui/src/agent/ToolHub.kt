@@ -5,7 +5,9 @@ import kinuvo.app.navigation.*
 import kinuvo.ui.connection.ServerLoading
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -35,6 +37,12 @@ internal fun ToolList(p: Pane) {
             GroupRow("Built-in tools", { open(BuiltInItem) }, icon = Lucide.Wrench, selected = ui.route.item == BuiltInItem,
                 subtitle = details?.settings?.tools?.let { on -> "${offered.count { it.first in on }} of ${offered.size} on" })
         }
+        RowGroup("Permissions") {
+            GroupRow("Risk tolerance and rules", { open(RulesItem) }, icon = Lucide.ShieldCheck, selected = ui.route.item == RulesItem,
+                subtitle = details?.let { "Ask before: ${APPROVALS[it.settings.approvals]?.lowercase() ?: it.settings.approvals}" + it.rules.counts() })
+            GroupRow("Rules for every Agent", { open(SharedRulesItem) }, icon = Lucide.Users, selected = ui.route.item == SharedRulesItem,
+                subtitle = ui.state.serverRules?.let { "Their blocks win over any Agent's" + it.counts() })
+        }
         if (ui.available(SettingsSection.Mcp)) {
             RowGroup("MCP servers") {
                 servers.orEmpty().filter { it.active }.forEach { s ->
@@ -46,12 +54,6 @@ internal fun ToolList(p: Pane) {
                 GroupRow("Add MCP server", { p.go(ui.route.copy(item = null, editing = true)) }, icon = Lucide.Plus, selected = ui.route.editing && ui.route.item == null)
             }
             servers?.let { McpCatalogGroup(it, p) }
-        }
-        RowGroup("Permissions") {
-            GroupRow("Risk tolerance and rules", { open(RulesItem) }, icon = Lucide.ShieldCheck, selected = ui.route.item == RulesItem,
-                subtitle = details?.let { "Ask before: ${APPROVALS[it.settings.approvals]?.lowercase() ?: it.settings.approvals}" + it.rules.counts() })
-            GroupRow("Rules for every Agent", { open(SharedRulesItem) }, icon = Lucide.Users, selected = ui.route.item == SharedRulesItem,
-                subtitle = ui.state.serverRules?.let { "Their blocks win over any Agent's" + it.counts() })
         }
     }
 }
@@ -173,11 +175,10 @@ private fun AgentRules(p: Pane) {
             DetailGroup("Risk tolerance") {
                 DetailRow("Ask before") { Picker(APPROVALS.keys.toList(), approvals, { APPROVALS[it] ?: it }, { approvals = it }) }
             }
-            DetailGroup("${d.info.name}'s rules") {
+            ToolRuleGroups(trusted, denyTools, d.rules)
+            DetailGroup("Commands") {
                 Text("The rules for every Agent apply too; their blocks win over these.", color = color(mutedColor), fontSize = 13.sp)
-                FormField("Always allowed tools", "Full tool keys, one per line; use Always allow on an Approval to save the correct key and scope.") { TextArea(trusted, "tool:kinuvo.core/default/memory", lines = 2, capitalize = false) }
                 FormField("Always allowed commands", "Commands that run with any further arguments, one per line. High-risk ones must match exactly.") { TextArea(shell, "git push\n./kotlin test", lines = 3, capitalize = false) }
-                FormField("Blocked tools", "Never run: tool names (all instances) or full tool keys, one per line.") { TextArea(denyTools, "skill_manage", lines = 2, capitalize = false) }
                 FormField("Blocked commands", "Patterns with * and ?, matched against each command and the whole line.") { TextArea(denyShell, "git push --force*", lines = 3, capitalize = false) }
             }
         }
@@ -196,14 +197,78 @@ private fun SharedRules(p: Pane) {
         val edited = TrustRules(trusted.lines(), shell.lines(), DenyRules(denyTools.lines(), denyShell.lines()))
         DetailPane(p.back, "Rules for every Agent", error = p.ui.error, info = "Each Agent adds its own on top. A block here wins over any Agent's Always allow.",
             trailing = { FormActions("Save", edited != rules, p.ui.state.saved && edited == rules, onSave = { p.actions.onSaveServerRules(edited) }) }) {
-            DetailGroup("Blocked") {
-                FormField("Tools", "Tool names (all instances) or full tool keys, one per line.") { TextArea(denyTools, "skill_manage", lines = 2, capitalize = false) }
-                FormField("Commands", "Patterns with * and ?, matched against each command and the whole line.") { TextArea(denyShell, "git push --force*", lines = 2, capitalize = false) }
+            ToolRuleGroups(trusted, denyTools, rules)
+            DetailGroup("Commands") {
+                FormField("Blocked", "Patterns with * and ?, matched against each command and the whole line.") { TextArea(denyShell, "git push --force*", lines = 2, capitalize = false) }
+                FormField("Always allowed", "Commands that run with any further arguments. High-risk ones must match exactly.") { TextArea(shell, "git status", lines = 2, capitalize = false) }
             }
-            DetailGroup("Always allowed") {
-                FormField("Tools", "Full tool keys, one per line.") { TextArea(trusted, "tool:kinuvo.core/default/memory", lines = 2, capitalize = false) }
-                FormField("Commands", "Commands that run with any further arguments. High-risk ones must match exactly.") { TextArea(shell, "git status", lines = 2, capitalize = false) }
+        }
+    }
+}
+
+/** A tool rule line split for display: [source] it comes from, the [tool] and an optional [scope] such as an app. */
+internal data class ToolRuleLabel(val source: String, val tool: String, val scope: String?, val full: Boolean)
+
+internal fun toolRuleLabel(rule: String): ToolRuleLabel {
+    val key = rule.substringBefore(' ')
+    val scope = rule.substringAfter(' ', "").trim().ifEmpty { null }
+    val parts = key.removePrefix("tool:").split('/').map(::decodeIdentityPart)
+    if (!key.startsWith("tool:") || parts.size != 3) return ToolRuleLabel("Any source", rule, null, false)
+    val (plugin, instance, tool) = parts
+    val source = if (plugin == "kinuvo.mcp") when {
+        instance.startsWith("shared/") -> "${instance.removePrefix("shared/")} (MCP, every Agent)"
+        else -> "${instance.substringAfterLast('/')} (MCP)"
+    } else plugin.removePrefix("kinuvo.").replaceFirstChar { it.uppercase() } + (if (instance == "default") "" else " ($instance)")
+    return ToolRuleLabel(source, tool, scope, true)
+}
+
+private fun decodeIdentityPart(value: String): String {
+    val bytes = ArrayList<Byte>()
+    var i = 0
+    while (i < value.length) {
+        val hex = value.takeIf { it[i] == '%' && i + 3 <= it.length }?.substring(i + 1, i + 3)?.toIntOrNull(16)
+        if (hex != null) { bytes += hex.toByte(); i += 3 } else { bytes += value[i].toString().encodeToByteArray().asList(); i++ }
+    }
+    return bytes.toByteArray().decodeToString()
+}
+
+/**
+ * The tools in [trusted] and [blocked], grouped by where they come from, each with Allow, Ask or Block like an MCP server's tools.
+ * Rules in [saved] stay listed after switching to Ask until saved; the raw lines are one tap away for adding keys by hand.
+ */
+@Composable
+internal fun ToolRuleGroups(trusted: TextFieldState, blocked: TextFieldState, saved: TrustRules) {
+    var raw by remember { mutableStateOf(false) }
+    val allowed = trusted.lines()
+    val denied = blocked.lines()
+    val rules = (saved.trusted + saved.deny.tools + allowed + denied).distinct()
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        if (rules.isEmpty()) Text("No tools are always allowed or blocked yet. Use Always allow on an Approval, or Allow and Block on an MCP server's tools.",
+            color = color(mutedColor), fontSize = 13.sp)
+        rules.groupBy { toolRuleLabel(it).source }.forEach { (source, lines) ->
+            RowGroup(source) {
+                lines.forEach { line ->
+                    val label = toolRuleLabel(line)
+                    val options = buildList {
+                        if (label.full) add(ToolRule.Allow)
+                        add(ToolRule.Ask)
+                        if (label.scope == null) add(ToolRule.Block)
+                    }
+                    val rule = when (line) { in denied -> ToolRule.Block; in allowed -> ToolRule.Allow; else -> ToolRule.Ask }
+                    GroupRow(label.tool, chevron = false, subtitle = label.scope?.let { "Only $it" } ?: "All instances".takeIf { !label.full }) {
+                        Segmented(options.map { it.name }, options.indexOf(rule), Modifier, small = true) { i ->
+                            val next = options[i]
+                            trusted.setTextAndPlaceCursorAtEnd((allowed - line + listOfNotNull(line.takeIf { next == ToolRule.Allow })).joinToString("\n"))
+                            blocked.setTextAndPlaceCursorAtEnd((denied - line + listOfNotNull(line.takeIf { next == ToolRule.Block })).joinToString("\n"))
+                        }
+                    }
+                }
             }
+        }
+        ActionButton(if (raw) Lucide.ChevronUp else Lucide.Pencil, if (raw) "Hide tool keys" else "Edit tool keys", { raw = !raw })
+        if (raw) {
+            FormField("Always allowed tools", "Full tool keys, one per line; use Always allow on an Approval to save the correct key and scope.") { TextArea(trusted, "tool:kinuvo.core/default/memory", lines = 2, capitalize = false) }
+            FormField("Blocked tools", "Never run: tool names (all instances) or full tool keys, one per line.") { TextArea(blocked, "skill_manage", lines = 2, capitalize = false) }
         }
     }
 }
