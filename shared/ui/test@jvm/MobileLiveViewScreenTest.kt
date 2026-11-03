@@ -79,14 +79,19 @@ class MobileLiveViewScreenTest {
                 click(scene, "Screen options")
                 assertTrue(tree(scene).any { it.config.getOrNull(SemanticsProperties.Text).orEmpty().any { t -> t.text == "Recenter pointer" } })
                 File("build/screens").apply { mkdirs() }.resolve("mobile-${if (browser) "browser" else "computer"}-menu.png").writeBytes(scene.render(System.nanoTime()).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+                click(scene, "Recenter pointer")
+                click(scene, "Clipboard")
+                assertEquals(!browser, tree(scene).any { it.config.getOrNull(SemanticsProperties.Text).orEmpty().any { t -> t.text == "Copy on screen" } })
                 click(scene, "Paste")
                 assertEquals(1, reads)
                 assertEquals(listOf(ScreenAction(ScreenActionKind.Type, text = "Pasted text")), inputs)
                 click(scene, "Keyboard")
                 val proxy = tree(scene).first { it.config.getOrNull(SemanticsActions.SetText) != null }
                 assertTrue(proxy.boundsInRoot.height <= 1f, "Mobile text entry must stay hidden")
+                click(scene, "Keys")
+                File("build/screens/mobile-${if (browser) "browser" else "computer"}-keys.png").writeBytes(scene.render(System.nanoTime()).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+                click(scene, "Hide keys")
                 File("build/screens/mobile-${if (browser) "browser" else "computer"}.png").writeBytes(scene.render(System.nanoTime()).encodeToData(EncodedImageFormat.PNG)!!.bytes)
-                click(scene, "Screen options")
                 click(scene, if (browser) "Tabs & address" else "Computers")
                 if (browser) assertTrue(tree(scene).any { "Address" in it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() })
                 click(scene, "Close screen controls")
@@ -143,7 +148,6 @@ class MobileLiveViewScreenTest {
             LiveViewContent(state, LiveActions(select = { state = state.copy(selected = it) }), {})
         } }).use { scene ->
             awaitFrame(scene)
-            click(scene, "Screen options")
             click(scene, "Tabs & address")
             repeat(30) { androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications(); scene.render(System.nanoTime()); Thread.sleep(10) }
             val tile = tree(scene).first { it.config.getOrNull(SemanticsActions.OnClick)?.label == "Select Second" }
