@@ -371,7 +371,12 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     if (showChat) {
                                         val session = koinViewModel<SessionViewModel>(key = "live-chat/${app.serverLifetime}/${route.agentId}/${route.sessionId}") { parametersOf(client, chat) }
                                         Box(Modifier.width(360.dp).fillMaxHeight()) {
-                                            ChatScreen(app, session, false, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open)
+                                            ChatScreen(app, session, false, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
+                                                dock = BrowserDock(true, {
+                                                    browserDocks.open[route.agentId] = false
+                                                    val previous = backStack.getOrNull(backStack.lastIndex - 1) as? Route.Chat
+                                                    if (previous?.agentId == route.agentId && previous.sessionId == route.sessionId) back() else history.open(chat)
+                                                }, live::focus))
                                         }
                                         VerticalSeparator()
                                     }

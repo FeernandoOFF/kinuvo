@@ -22,6 +22,19 @@ class BrowserPolicyTest {
             assertTrue(plugin.prepare(RunContext(agent, null), false).tools.isEmpty())
             assertTrue(plugin.prepare(RunContext(agent.copy(config = agent.config.copy(tools = emptyList())), "s"), false).tools.isEmpty())
             val tools = plugin.prepare(RunContext(agent, "s"), false).ownedBy(plugin.instance).tools
+            val readNames = setOf("browser_tabs", "browser_open", "browser_capture", "browser_navigate", "browser_scroll", "browser_wait", "browser_back", "browser_forward")
+            val reads = tools.filter { it.identity?.localId in readNames }
+            assertEquals(readNames, reads.map { it.identity!!.localId }.toSet())
+            val defaultPolicy = ApprovalPolicy(agent, rules)
+            reads.forEach {
+                assertEquals(Risk.Low, it.risk, it.descriptor.name)
+                assertEquals(Verdict.Run, defaultPolicy.decide(it), it.descriptor.name)
+                assertIs<Verdict.Ask>(ApprovalPolicy(agent, rules, Tolerance.Strict).decide(it))
+                global = TrustRules(deny = DenyRules(tools = listOf(it.policyKey)))
+                assertIs<Verdict.Block>(defaultPolicy.decide(it))
+                global = TrustRules()
+            }
+            assertEquals(Risk.Medium, tools.single { it.identity?.localId == "browser_close" }.risk)
             val read = tools.first { it.identity?.localId == "browser_capture" }
             val write = tools.first { it.identity?.localId == "browser_click" }
             val policy = ApprovalPolicy(agent, rules)

@@ -4,6 +4,8 @@ import kinuvo.protocol.*
 
 /** Server-owned browsing, separate from paired Computers. Implementations never expose a debugging endpoint. */
 interface BrowserService {
+    suspend fun presentation(owner: BrowserOwner): BrowserPresentation = error("Browser window settings unavailable")
+    suspend fun presentation(request: BrowserPresentationRequest): BrowserPresentation = error("Browser window settings unavailable")
     suspend fun close() {}
     fun openingGate(owner: BrowserOwner): ScreenGate = error("Screen opening unavailable")
     suspend fun gate(owner: BrowserOwner, tabId: String): ScreenGate = error("Screen control unavailable")

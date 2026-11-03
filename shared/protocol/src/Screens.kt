@@ -10,7 +10,7 @@ enum class ScreenDelivery { Continuous, CaptureRefresh }
 
 @Serializable
 data class ScreenCapabilities(val delivery: ScreenDelivery, val inputs: Set<String>, val navigation: Boolean = false,
-    val tabs: Boolean = false, val windows: Boolean = false, val keys: List<String> = emptyList(), val modifiers: List<String> = emptyList())
+    val tabs: Boolean = false, val windows: Boolean = false, val keys: List<String> = emptyList(), val modifiers: List<String> = emptyList(), val resize: Boolean = false, val browserWindow: Boolean = false)
 
 @Serializable
 enum class ScreenStatus { Provisioning, Ready, Unavailable, Failed }
@@ -55,7 +55,7 @@ data class ScreenControlRequest(val screen: ScreenRef, val generation: Long, val
 data class ScreenInputRequest(val subscription: String, val input: ScreenInput)
 
 @Serializable
-data class ScreenCommand(val screen: ScreenRef, val generation: Long, val action: ScreenCommandKind, val text: String? = null)
+data class ScreenCommand(val screen: ScreenRef, val generation: Long, val action: ScreenCommandKind, val text: String? = null, val width: Int? = null, val height: Int? = null)
 
 @Serializable
 data class ScreenStreamStatus(val subscription: String, val status: ScreenStatus, val message: String? = null)
@@ -64,7 +64,7 @@ data class ScreenStreamStatus(val subscription: String, val status: ScreenStatus
 data class ScreenOpen(val owner: BrowserOwner, val url: String = "about:blank")
 
 @Serializable
-enum class ScreenCommandKind { Navigate, Close }
+enum class ScreenCommandKind { Navigate, Back, Forward, Resize, Close }
 
 @Serializable
 enum class ScreenActionKind(val action: String) {
