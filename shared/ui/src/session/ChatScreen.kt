@@ -1124,6 +1124,9 @@ private fun ApprovalCard(item: ChatItem.ToolCall, onDecision: (String, ApprovalD
             Input(note, "Note for the agent (optional, sent on Deny)", capitalize = true)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onDecision(item.id, ApprovalDecision.AllowOnce) }, style = ButtonStyle.Primary) { Text("Allow once") }
+                if (item.approval?.trustable != false) Button(onClick = { onDecision(item.id, ApprovalDecision.AllowForSession) }, style = ButtonStyle.Outlined) {
+                    Text("Allow for this Session", singleLine = true)
+                }
                 if (item.approval?.trustable != false) Button(onClick = { onDecision(item.id, ApprovalDecision.AlwaysAllow) }, style = ButtonStyle.Outlined) {
                     Text(item.trustHint?.let { if (identity?.instance?.pluginId == "kinuvo.computer" && identity.localId == "computer_act") "Always allow in $it" else "Always allow `$it …`" } ?: "Always allow", singleLine = true)
                 }
