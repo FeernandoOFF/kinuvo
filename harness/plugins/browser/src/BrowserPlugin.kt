@@ -23,7 +23,7 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
         if ("browser" !in run.agent.config.tools || run.sessionId == null) return PluginTools()
         val owner = BrowserOwner(run.agent.id)
         return PluginTools(listOf(ListTabs(owner)) + listOf(BrowserAction.Open, BrowserAction.Capture, BrowserAction.Navigate,
-            BrowserAction.Click, BrowserAction.Type, BrowserAction.Scroll, BrowserAction.Wait, BrowserAction.Close).map { BrowserTool(owner, it) })
+            BrowserAction.Back, BrowserAction.Forward, BrowserAction.Click, BrowserAction.Type, BrowserAction.Scroll, BrowserAction.Wait, BrowserAction.Close).map { BrowserTool(owner, it) })
     }
 
     private inner class ListTabs(val owner: BrowserOwner) : Tool {
@@ -34,7 +34,7 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
 
     private inner class BrowserTool(val owner: BrowserOwner, val action: BrowserAction) : Tool {
         override val risk = when (action) {
-            BrowserAction.Capture, BrowserAction.Wait -> Risk.Low
+            BrowserAction.Open, BrowserAction.Capture, BrowserAction.Navigate, BrowserAction.Back, BrowserAction.Forward, BrowserAction.Scroll, BrowserAction.Wait -> Risk.Low
             BrowserAction.Click, BrowserAction.Type -> Risk.High
             else -> Risk.Medium
         }
@@ -42,6 +42,8 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
             BrowserAction.Open -> "Open a tab shared by this Agent's Sessions. text is an HTTP(S) URL, a bare host or a Google search; private hosts are allowed."
             BrowserAction.Capture -> "Capture the tab's visible semantic elements, revision and screenshot."
             BrowserAction.Navigate -> "Navigate tab to text: an HTTP(S) URL, a bare host or a Google search."
+            BrowserAction.Back -> "Go back one entry in the tab history, then capture. Does nothing at the beginning of history."
+            BrowserAction.Forward -> "Go forward one entry in the tab history, then capture. Does nothing at the end of history."
             BrowserAction.Click -> "Click ref from the most recent capture with its revision. May submit or change data."
             BrowserAction.Type -> "Fill ref with text using its capture revision."
             BrowserAction.Scroll -> "Scroll vertically by pixels (positive down)."

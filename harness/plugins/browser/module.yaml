@@ -9,7 +9,7 @@ dependencies:
   - ../../core: exported
 
 dependencies@jvm:
-  - com.microsoft.playwright:playwright:1.64.0
+  - dev.kdriver:core:0.6.1
 
 test-dependencies:
   - $kotlin.test

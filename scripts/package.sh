@@ -23,7 +23,7 @@ esac
 
 java_home=${JAVA_HOME:?Set JAVA_HOME to a JetBrains Runtime 25 SDK}
 # From jdeps --print-module-deps, plus service-loaded jdk.zipfs and jdk.charsets.
-modules=java.base,java.desktop,java.instrument,java.logging,java.management,java.net.http,jdk.httpserver,jdk.unsupported,jdk.zipfs,jdk.charsets,jdk.localedata
+modules=java.base,java.desktop,java.instrument,java.logging,java.management,java.naming,java.net.http,jdk.httpserver,jdk.unsupported,jdk.zipfs,jdk.charsets,jdk.localedata
 dist=$PWD/dist
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT

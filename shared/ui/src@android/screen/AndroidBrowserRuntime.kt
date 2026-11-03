@@ -110,6 +110,13 @@ internal class AndroidBrowserRuntime(private val context: Context) : BrowserServ
             try {
                 when (command.action) {
                     BrowserAction.Navigate -> navigate(tab, destination(requireNotNull(command.text)))
+                    BrowserAction.Back, BrowserAction.Forward -> {
+                        val view = tab.surface.view
+                        val back = command.action == BrowserAction.Back
+                        if (if (back) view.canGoBack() else view.canGoForward()) {
+                            navigation(tab) { if (back) view.goBack() else view.goForward() }
+                        }
+                    }
                     BrowserAction.Click -> if (user) {
                         val x = requireNotNull(command.x).also { require(it in 0 until AndroidBrowserSurface.WIDTH) }
                         val y = requireNotNull(command.y).also { require(it in 0 until AndroidBrowserSurface.HEIGHT) }
@@ -128,15 +135,25 @@ internal class AndroidBrowserRuntime(private val context: Context) : BrowserServ
                     }
                     BrowserAction.Key -> {
                         check(user) { "Agent input uses semantic references" }
-                        val key = when (command.text) {
+                        val parts = requireNotNull(command.text).split('+')
+                        val modifiers = parts.dropLast(1).fold(0) { value, modifier -> value or when (modifier) {
+                            "Control" -> KeyEvent.META_CTRL_ON; "Meta" -> KeyEvent.META_META_ON
+                            "Alt" -> KeyEvent.META_ALT_ON; "Shift" -> KeyEvent.META_SHIFT_ON
+                            else -> error("Unsupported Browser modifier")
+                        } }
+                        val key = when (parts.last()) {
                             "Enter" -> KeyEvent.KEYCODE_ENTER; "Backspace" -> KeyEvent.KEYCODE_DEL
                             "Tab" -> KeyEvent.KEYCODE_TAB; "Escape" -> KeyEvent.KEYCODE_ESCAPE
                             "ArrowUp" -> KeyEvent.KEYCODE_DPAD_UP; "ArrowDown" -> KeyEvent.KEYCODE_DPAD_DOWN
                             "ArrowLeft" -> KeyEvent.KEYCODE_DPAD_LEFT; "ArrowRight" -> KeyEvent.KEYCODE_DPAD_RIGHT
+                            "Delete" -> KeyEvent.KEYCODE_FORWARD_DEL; "Home" -> KeyEvent.KEYCODE_MOVE_HOME; "End" -> KeyEvent.KEYCODE_MOVE_END
+                            "PageUp" -> KeyEvent.KEYCODE_PAGE_UP; "PageDown" -> KeyEvent.KEYCODE_PAGE_DOWN
+                            "A" -> KeyEvent.KEYCODE_A; "C" -> KeyEvent.KEYCODE_C; "X" -> KeyEvent.KEYCODE_X; "Y" -> KeyEvent.KEYCODE_Y; "Z" -> KeyEvent.KEYCODE_Z
                             else -> error("Unsupported Browser key")
                         }
-                        tab.surface.view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, key))
-                        tab.surface.view.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, key))
+                        val now = SystemClock.uptimeMillis()
+                        tab.surface.view.dispatchKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, key, 0, modifiers))
+                        tab.surface.view.dispatchKeyEvent(KeyEvent(now, SystemClock.uptimeMillis(), KeyEvent.ACTION_UP, key, 0, modifiers))
                     }
                     BrowserAction.Scroll -> tab.surface.view.scrollBy(0, (command.y ?: 500).coerceIn(-2000, 2000))
                     BrowserAction.Wait -> delay((command.y ?: 500).coerceIn(0, 5000).toLong())
@@ -199,10 +216,11 @@ internal class AndroidBrowserRuntime(private val context: Context) : BrowserServ
         changed(owner)
         return tab
     }
-    private suspend fun navigate(tab: Tab, url: String) {
+    private suspend fun navigate(tab: Tab, url: String) = navigation(tab) { tab.surface.view.loadUrl(url) }
+    private suspend fun navigation(tab: Tab, action: () -> Unit) {
         tab.surface.checkReady()
         tab.navigation = CompletableDeferred()
-        try { tab.surface.view.loadUrl(url); browserDeadline(30_000) { tab.navigation!!.await() } }
+        try { action(); browserDeadline(30_000) { tab.navigation!!.await() } }
         finally { tab.navigation = null }
     }
     private fun info(tab: Tab) = BrowserTab(tab.id, tab.owner.agentId,
@@ -213,7 +231,7 @@ internal class AndroidBrowserRuntime(private val context: Context) : BrowserServ
     override fun screen(owner: BrowserOwner, tabId: String): ScreenSource = object : ScreenSource {
         override val ref = ScreenRef("browser", tabId, owner)
         override val capabilities = ScreenCapabilities(ScreenDelivery.CaptureRefresh, setOf("tap", "type", "key", "scroll"), navigation = true, tabs = true,
-            keys = listOf("Enter", "Backspace", "Tab", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"))
+            keys = BrowserKeys, modifiers = BrowserModifiers)
         override fun frames(thumbnail: Boolean): Flow<ScreenSample> = flow {
             val current = withContext(Dispatchers.Main.immediate) {
                 tab(owner, tabId).also { tab ->

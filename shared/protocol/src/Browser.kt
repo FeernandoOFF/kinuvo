@@ -17,13 +17,13 @@ data class BrowserFrame(val tab: BrowserTab, val revision: String, val elements:
     val screenshot: String? = null, val width: Int = 1280, val height: Int = 800, val text: String = "")
 
 @Serializable
-enum class BrowserAction { Open, Capture, Navigate, Click, Type, Key, Scroll, Wait, Close, Takeover }
+enum class BrowserAction { Open, Capture, Navigate, Back, Forward, Resize, Click, Type, Key, Scroll, Wait, Close, Takeover }
 
 /** Refs are valid only with the revision returned by Capture. User input requires Takeover. */
 @Serializable
 data class BrowserCommand(val owner: BrowserOwner, val action: BrowserAction, val tabId: String? = null,
     val revision: String? = null, val ref: String? = null, val text: String? = null, val x: Int? = null, val y: Int? = null,
-    val take: Boolean? = null)
+    val take: Boolean? = null, val width: Int? = null, val height: Int? = null)
 
 /** What an address bar entry means: a URL as is, a bare host over HTTPS, anything else a Google search. */
 fun browserAddress(typed: String): String {
@@ -39,3 +39,13 @@ fun browserAddress(typed: String): String {
         }
     }
 }
+
+val BrowserKeys = listOf("Tab", "Escape", "Backspace", "Delete", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+    "Enter", "Home", "End", "PageUp", "PageDown", "A", "C", "X", "Y", "Z")
+val BrowserModifiers = listOf("Control", "Meta", "Alt", "Shift")
+
+@Serializable
+data class BrowserPresentation(val headless: Boolean = true, val hidden: Boolean = false, val runningHeadless: Boolean? = null)
+
+@Serializable
+data class BrowserPresentationRequest(val owner: BrowserOwner, val headless: Boolean, val hidden: Boolean)

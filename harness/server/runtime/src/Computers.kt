@@ -183,9 +183,13 @@ class Computers(
             override val capabilities = ScreenCapabilities(ScreenDelivery.CaptureRefresh, computer.actions.map { it.action }.intersect(ScreenActionKind.entries.map { it.action }.toSet()),
                 windows = false, keys = if (ComputerActionKind.Key !in computer.actions) emptyList() else when (computer.platform.lowercase()) {
                     "android" -> listOf("Back", "Home", "Recents", "Notifications", "Quick_settings")
-                    "macos", "windows", "linux" -> listOf("Tab", "Escape", "Backspace", "Up", "Down", "Left", "Right", "Enter")
+                    "macos", "windows", "linux" -> listOf("Tab", "Escape", "Backspace", "Up", "Down", "Left", "Right", "Enter", "A", "C", "V", "X", "Z", "Y")
                     else -> emptyList()
-                })
+                }, modifiers = if (ComputerActionKind.Key in computer.actions) when (computer.platform.lowercase()) {
+                    "macos" -> listOf("Command", "Control", "Alt", "Shift")
+                    "windows", "linux" -> listOf("Control", "Alt", "Shift")
+                    else -> emptyList()
+                } else emptyList())
             override fun frames(thumbnail: Boolean): Flow<ScreenSample> = callbackFlow {
                 val watcher: (ComputerFrame) -> Unit = { frame ->
                     if (!frame.computer.available || frame.screen == null && frame.message != null) close(IllegalStateException(frame.message ?: "Computer is offline"))

@@ -21,6 +21,7 @@ class LiveViewModelTest {
         var epoch = 0
         var watches = mutableListOf<String>()
         var inputs = mutableListOf<ScreenInputRequest>()
+        var inputBlock: CompletableDeferred<Unit>? = null
         var partial = false
         var emitWhileStarting = false
         override suspend fun device() = "device"
@@ -35,15 +36,16 @@ class LiveViewModelTest {
         override suspend fun unwatch(id: String) { watches.remove(id) }
         override suspend fun ack(frame: ScreenFrameAck) {}
         override suspend fun control(request: ScreenControlRequest) = control
-        override suspend fun input(request: ScreenInputRequest): ScreenInputResult { inputs.add(request); return ScreenInputResult(if (partial) 0 else request.input.actions.size, if (partial) "Unknown outcome" else null) }
+        override suspend fun input(request: ScreenInputRequest): ScreenInputResult { inputs.add(request); inputBlock?.await(); return ScreenInputResult(if (partial) 0 else request.input.actions.size, if (partial) "Unknown outcome" else null) }
         override suspend fun open(request: ScreenOpen): ScreenInfo = error("unused")
-        override suspend fun command(request: ScreenCommand) {}
+        val commands = mutableListOf<ScreenCommand>()
+        override suspend fun command(request: ScreenCommand) { commands.add(request) }
         fun frame() = ScreenFrame(ref, "s$epoch", "e$epoch", 1, ScreenSample("image", 100, 100, "geometry"))
     }
-    private fun run(block: suspend TestScope.(Fake, LiveViewModel) -> Unit) = runTest {
+    private fun run(target: ScreenRef = ref, block: suspend TestScope.(Fake, LiveViewModel) -> Unit) = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        val fake = Fake(ref)
-        val vm = LiveViewModel(fake)
+        val fake = Fake(target)
+        val vm = LiveViewModel(fake, target.owner)
         val store = ViewModelStore().also { it.put("live", vm) }
         try { runCurrent(); fake.connected.value = true; runCurrent(); block(fake, vm) }
         finally { store.clear(); Dispatchers.resetMain() }
@@ -82,6 +84,85 @@ class LiveViewModelTest {
         val next = fake.frame(); fake.frames.emit(next); runCurrent(); vm.drawn(next); runCurrent()
         assertTrue(vm.state.value.interactive)
     }
+    @Test fun historyCommandsRequireTakeoverAndAFreshDrawAndAreSentOnce() = run(ScreenRef("browser", "one", BrowserOwner("agent"))) { fake, vm ->
+        vm.command(ScreenCommandKind.Back); runCurrent()
+        assertTrue(fake.commands.isEmpty())
+        for (action in listOf(ScreenCommandKind.Back, ScreenCommandKind.Forward)) {
+            val frame = fake.frame(); fake.frames.emit(frame); runCurrent(); vm.drawn(frame); runCurrent()
+            vm.command(action); vm.command(action); runCurrent()
+            assertEquals(action, fake.commands.last().action)
+            assertEquals(ScreenCommand(fake.ref, fake.control.generation, action), fake.commands.last())
+            assertNull(vm.state.value.displayed)
+        }
+        assertEquals(2, fake.commands.size)
+        fake.control = ScreenControl(2, "other")
+        vm.retry(); runCurrent()
+        val frame = fake.frame(); fake.frames.emit(frame); runCurrent(); vm.drawn(frame); runCurrent()
+        vm.command(ScreenCommandKind.Back); runCurrent()
+        assertEquals(2, fake.commands.size)
+    }
+
+    @Test fun resizingRequiresLocalControlAndDoesNotLoopBeforeTheNewFrame() = run { fake, vm ->
+        fake.screens = listOf(ScreenInfo(fake.ref, "Browser", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap"), resize = true), ScreenStatus.Ready, fake.control))
+        vm.retry(); runCurrent()
+        vm.resize(390, 600); runCurrent()
+        vm.resize(390, 600); runCurrent()
+        assertEquals(listOf(ScreenCommand(fake.ref, 1, ScreenCommandKind.Resize, width = 390, height = 600)), fake.commands)
+        fake.screens = fake.screens!!.map { it.copy(control = ScreenControl(2, "other")) }
+        vm.retry(); runCurrent(); vm.resize(400, 700); runCurrent()
+        assertEquals(1, fake.commands.size)
+    }
+
+    @Test fun rapidTypingIsOrderedAndQueuedKeysCannotCrossControlOrDisconnect() = run { fake, vm ->
+        fake.screens = listOf(ScreenInfo(fake.ref, "Screen", ScreenCapabilities(ScreenDelivery.Continuous, setOf("type", "key")), ScreenStatus.Ready, fake.control))
+        vm.retry(); runCurrent()
+        var frame = fake.frame(); fake.frames.emit(frame); runCurrent(); vm.drawn(frame); runCurrent()
+        val gate = CompletableDeferred<Unit>(); fake.inputBlock = gate
+        for (text in listOf("a", "b", "日本語")) vm.input(frame, listOf(ScreenAction(ScreenActionKind.Type, text = text)))
+        runCurrent()
+        assertEquals(1, fake.inputs.size)
+        gate.complete(Unit); runCurrent()
+        assertEquals(listOf("a", "b", "日本語"), fake.inputs.map { it.input.actions.single().text })
+        assertEquals(listOf(0L, 1L, 2L), fake.inputs.map { it.input.sequence })
+        val held = CompletableDeferred<Unit>(); fake.inputBlock = held
+        vm.input(frame, listOf(ScreenAction(ScreenActionKind.Key, key = "Backspace"))); runCurrent()
+        vm.input(frame, listOf(ScreenAction(ScreenActionKind.Type, text = "must not replay")))
+        fake.connected.value = false; runCurrent()
+        held.complete(Unit); runCurrent()
+        assertEquals(4, fake.inputs.size)
+        fake.connected.value = true; runCurrent()
+        frame = fake.frame(); fake.frames.emit(frame); runCurrent(); vm.drawn(frame); runCurrent()
+        assertEquals(4, fake.inputs.size)
+        val controlChanged = CompletableDeferred<Unit>(); fake.inputBlock = controlChanged
+        vm.input(frame, listOf(ScreenAction(ScreenActionKind.Type, text = "before handover"))); runCurrent()
+        vm.input(frame, listOf(ScreenAction(ScreenActionKind.Type, text = "after handover")))
+        fake.screens = fake.screens!!.map { it.copy(control = ScreenControl(2, "other")) }
+        vm.retry(); runCurrent(); controlChanged.complete(Unit); runCurrent()
+        assertEquals(5, fake.inputs.size)
+        assertFalse(vm.state.value.ownsControl)
+    }
+    @Test fun queuedInputStopsOnPartialFailureAndGeometryChange() = run { fake, vm ->
+        fake.screens = listOf(ScreenInfo(fake.ref, "Screen", ScreenCapabilities(ScreenDelivery.Continuous, setOf("type", "key")), ScreenStatus.Ready, fake.control))
+        vm.retry(); runCurrent()
+        val frame = fake.frame(); fake.frames.emit(frame); runCurrent(); vm.drawn(frame); runCurrent()
+        val gate = CompletableDeferred<Unit>(); fake.inputBlock = gate
+        vm.input(frame, listOf(ScreenAction(ScreenActionKind.Type, text = "first"))); runCurrent()
+        vm.input(frame, listOf(ScreenAction(ScreenActionKind.Type, text = "second")))
+        fake.partial = true; gate.complete(Unit); runCurrent()
+        assertEquals(1, fake.inputs.size)
+        assertNull(vm.state.value.displayed)
+        assertContains(vm.state.value.error!!, "0/1")
+        fake.partial = false
+        val next = fake.frame(); fake.frames.emit(next); runCurrent(); vm.drawn(next); runCurrent()
+        val waiting = CompletableDeferred<Unit>(); fake.inputBlock = waiting
+        vm.input(next, listOf(ScreenAction(ScreenActionKind.Type, text = "before resize"))); runCurrent()
+        vm.input(next, listOf(ScreenAction(ScreenActionKind.Type, text = "stale geometry")))
+        val resized = next.copy(sequence = 2, sample = next.sample.copy(geometry = "resized"))
+        fake.frames.emit(resized); runCurrent(); vm.drawn(resized); runCurrent()
+        waiting.complete(Unit); runCurrent()
+        assertEquals(2, fake.inputs.size)
+    }
+
     @Test fun successfulInputKeepsStreamAndConsumesSequencesInOrder() = run { fake, vm ->
         val frame = fake.frame(); fake.frames.emit(frame); runCurrent(); vm.drawn(frame); runCurrent()
         val epoch = fake.epoch
