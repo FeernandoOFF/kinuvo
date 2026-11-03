@@ -5,7 +5,7 @@ package kinuvo.harness.browser
 import dev.kdriver.cdp.CommandMode
 import dev.kdriver.core.browser.Browser
 import dev.kdriver.core.browser.Config
-import dev.kdriver.core.browser.createBrowser
+import dev.kdriver.core.browser.DefaultBrowser
 import dev.kdriver.core.browser.defaultBrowserSearchConfig
 import dev.kdriver.core.connection.Connection
 import dev.kdriver.core.tab.Tab
@@ -83,7 +83,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
         val job = SupervisorJob(scope.coroutineContext[Job])
         val browserScope = CoroutineScope(scope.coroutineContext + job)
         try {
-            val browser = createBrowser(browserScope, Config(userDataDir = Path(directory.absolutePath), browserExecutablePath = Path(executable.absolutePath), host = "127.0.0.1", port = port, autoDiscoverTargets = true, debugStringLimit = 0))
+            val browser = DefaultBrowser(browserScope, Config(userDataDir = Path(directory.absolutePath), browserExecutablePath = Path(executable.absolutePath), host = "127.0.0.1", port = port, autoDiscoverTargets = true, debugStringLimit = 0)).also { it.start() }
             browser.connection!!.send("Browser.setDownloadBehavior", buildJsonObject { put("behavior", "deny") })
             val profile = Profile(browser, process, job, presentation.headless)
             profiles[agent] = profile
@@ -353,14 +353,20 @@ class BrowserRuntime(private val home: File) : BrowserService {
         override val ref = ScreenRef("browser", tabId, owner)
         override val capabilities = ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap", "type", "key", "scroll"), navigation = true, tabs = true, keys = BrowserKeys, modifiers = BrowserModifiers, resize = true, browserWindow = true)
         override fun frames(thumbnail: Boolean): Flow<ScreenSample> = flow {
-            val stream = mutex.withLock {
+            val (stream, retired) = mutex.withLock {
                 val tab = entry(owner, tabId)
                 if (!thumbnail && presentations[owner.agentId]?.hidden != true) tab.page.send("Page.bringToFront")
-                streams.getOrPut(tabId) { live(tab).map { Result.success(it) }.catch { emit(Result.failure(it)) }.shareIn(scope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), replay = 1) }
+                streams.getOrPut(tabId) { live(tab).map { Result.success(it) }.catch { emit(Result.failure(it)) }.shareIn(scope, SharingStarted.WhileSubscribed(replayExpirationMillis = 0), replay = 1) } to tab.retired
             }
-            emitAll(stream.map { it.getOrThrow() })
+            emitAll(merge(stream.map { it.getOrThrow() }, flow<ScreenSample> {
+                retired.await()
+                error("Chrome restarted. Reconnect Live view to continue.")
+            }).buffer(kotlinx.coroutines.channels.Channel.CONFLATED))
         }
     }
+    private fun geometry(width: Int, height: Int, scale: Double, top: Double, x: Double, y: Double) =
+        listOf(width, height, scale, top, x, y).joinToString(":")
+
     private fun live(tab: Entry): Flow<ScreenSample> = channelFlow {
         check(streamSlots.tryAcquire()) { "Too many live Browser streams" }
         val collector = launch(start = CoroutineStart.UNDISPATCHED) {
@@ -369,7 +375,9 @@ class BrowserRuntime(private val home: File) : BrowserService {
                 tab.page.send("Page.screencastFrameAck", buildJsonObject { put("sessionId", params.getValue("sessionId")) })
                 val meta = params.getValue("metadata").jsonObject
                 val image = params.getValue("data").jsonPrimitive.content
-                if (image.length <= 4 * 1024 * 1024) trySend(ScreenSample(image, meta.getValue("deviceWidth").jsonPrimitive.int, meta.getValue("deviceHeight").jsonPrimitive.int, listOf("deviceWidth", "deviceHeight", "pageScaleFactor", "offsetTop", "scrollOffsetX", "scrollOffsetY").joinToString(":") { meta[it].toString() }))
+                if (image.length <= 4 * 1024 * 1024) trySend(ScreenSample(image, meta.getValue("deviceWidth").jsonPrimitive.int, meta.getValue("deviceHeight").jsonPrimitive.int, geometry(meta.getValue("deviceWidth").jsonPrimitive.int, meta.getValue("deviceHeight").jsonPrimitive.int,
+                    meta.getValue("pageScaleFactor").jsonPrimitive.double, meta.getValue("offsetTop").jsonPrimitive.double,
+                    meta.getValue("scrollOffsetX").jsonPrimitive.double, meta.getValue("scrollOffsetY").jsonPrimitive.double)))
             }
         }
         try {
@@ -378,16 +386,19 @@ class BrowserRuntime(private val home: File) : BrowserService {
                 tab.page.send("Emulation.setVisibleSize", buildJsonObject { put("width", tab.width); put("height", tab.height) })
                 val image = tab.page.send("Page.captureScreenshot", buildJsonObject { put("format", "jpeg"); put("quality", 65) }).getValue("data").jsonPrimitive.content
                 check(image.length <= 4 * 1024 * 1024) { "Browser frame exceeds the image budget" }
-                trySend(ScreenSample(image, tab.width, tab.height, "${tab.width}:${tab.height}:initial"))
+                val viewport = tab.page.send("Page.getLayoutMetrics").getValue("cssVisualViewport").jsonObject
+                trySend(ScreenSample(image, tab.width, tab.height, geometry(tab.width, tab.height,
+                    viewport.getValue("scale").jsonPrimitive.double, 0.0,
+                    viewport.getValue("pageX").jsonPrimitive.double, viewport.getValue("pageY").jsonPrimitive.double)))
                 tab.page.send("Page.startScreencast", buildJsonObject { put("format", "jpeg"); put("quality", 65); put("everyNthFrame", 1) })
             }
             tab.retired.await()
             error("Chrome restarted. Reconnect Live view to continue.")
         } finally {
             withContext(NonCancellable) {
-                collector.cancelAndJoin()
-                runCatching { tab.page.send("Page.stopScreencast") }
-                streamSlots.release()
+                collector.cancel()
+                try { withTimeoutOrNull(2000) { collector.join(); runCatching { tab.page.send("Page.stopScreencast") } } }
+                finally { streamSlots.release() }
             }
         }
     }.buffer(kotlinx.coroutines.channels.Channel.CONFLATED)

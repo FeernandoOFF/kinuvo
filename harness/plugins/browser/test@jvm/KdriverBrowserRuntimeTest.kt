@@ -3,6 +3,9 @@ package kinuvo.harness.browser
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
 import java.nio.file.Files
+import java.io.File
+import java.util.concurrent.TimeUnit
+import kotlinx.serialization.json.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
@@ -10,6 +13,30 @@ import kotlinx.coroutines.flow.collect
 import kotlin.test.*
 
 class KdriverBrowserRuntimeTest {
+    @Test fun hostShutdownPersistsTabsBeforeClosingChrome() = runBlocking {
+        val home = Files.createTempDirectory("kinuvo-shutdown-").toFile()
+        val process = ProcessBuilder(File(System.getProperty("java.home"), "bin/java").absolutePath,
+            "-cp", System.getProperty("java.class.path"), BrowserShutdownFixture::class.java.name, home.absolutePath)
+            .redirectErrorStream(true).redirectOutput(File(home, "process.log")).start()
+        try {
+            withTimeout(20_000) {
+                while (!File(home, "ready").exists()) {
+                    check(process.isAlive) { File(home, "process.log").readText() }
+                    delay(20)
+                }
+            }
+            process.destroy()
+            assertTrue(process.waitFor(15, TimeUnit.SECONDS), "Browser host did not stop")
+            val records = Json.parseToJsonElement(File(home, "kdriver-tabs.json").readText()).jsonArray
+            assertEquals(2, records.size)
+            val restored = BrowserRuntime(home)
+            try { assertEquals(2, restored.tabs(BrowserOwner("shutdown")).size) }
+            finally { restored.close() }
+        } finally {
+            if (process.isAlive) { process.destroy(); if (!process.waitFor(5, TimeUnit.SECONDS)) process.destroyForcibly() }
+        }
+    }
+
     @Test fun restoredBackgroundTabsAndLateViewersReceiveFrames() = runBlocking {
         val home = Files.createTempDirectory("kinuvo-restored-frames-").toFile()
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
@@ -223,5 +250,16 @@ class KdriverBrowserRuntimeTest {
             runtime.command(BrowserCommand(owner, BrowserAction.Close, opened.tab.id))
             assertTrue(runtime.tabs(owner).isEmpty())
         } finally { runtime.close(); server.stop(0) }
+    }
+}
+
+object BrowserShutdownFixture {
+    @JvmStatic fun main(args: Array<String>): Unit = runBlocking {
+        val home = File(args.single())
+        val runtime = BrowserRuntime(home)
+        Runtime.getRuntime().addShutdownHook(Thread { runBlocking { runtime.close() } })
+        repeat(2) { runtime.command(BrowserCommand(BrowserOwner("shutdown"), BrowserAction.Open, text = "about:blank")) }
+        File(home, "ready").writeText("ready")
+        awaitCancellation()
     }
 }
