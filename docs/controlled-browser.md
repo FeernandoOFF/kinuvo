@@ -120,7 +120,7 @@ During Takeover, the JVM Browser viewport in a dock or **Fit to phone** mode ada
 including the space left when a mobile keyboard is open. Other viewers of the
 tab see the same viewport. Computer screens keep their source aspect ratio.
 
-Click the page field to focus it and type directly with a hardware keyboard.
+On desktop, click the page field to focus it and type directly with a hardware keyboard.
 Use the keyboard button on touch devices to open the system keyboard and a compact
 row of icon keys. Text is sent as it is committed, without a Send step; IME
 composition waits until commit. Pasting inserts text from the client's clipboard.
