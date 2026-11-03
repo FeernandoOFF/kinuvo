@@ -175,6 +175,8 @@ fun ChatScreen(
                 ?: current.items.attachment(id)?.let { AttachmentPreview(it, null) }
         },
         answers = current.answers,
+        approval = current.data?.live?.approval,
+        questions = current.data?.live?.questions,
         prompts = current.prompts,
         phase = current.phase,
         resume = current.capabilities?.execution?.resume,
