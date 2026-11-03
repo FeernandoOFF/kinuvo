@@ -13,8 +13,9 @@ data class LiveViewState(
     val screens: List<ScreenInfo> = emptyList(), val selected: ScreenRef? = null,
     val connected: Boolean = false, val loaded: Boolean = false, val device: String? = null,
     val subscription: ScreenSubscription? = null, val frame: ScreenFrame? = null,
-    val frameReceivedAt: String? = null, val displayed: ScreenFrame? = null, val pending: Boolean = false, val error: String? = null,
+    val frameReceivedAt: String? = null, val displayed: ScreenFrame? = null, val pending: Boolean = false, val resizing: Boolean = false, val error: String? = null,
     val thumbnails: Map<ScreenRef, ScreenFrame> = emptyMap(),
+    val presentation: BrowserPresentation? = null,
     val requestReason: String? = null, val owner: BrowserOwner? = null,
 ) {
     val screen get() = screens.firstOrNull { it.ref == selected }
@@ -64,13 +65,13 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
             revision++
             early = null
             previews.clear(); previewAcks.clear()
-            state.update { it.copy(connected = connected, subscription = null, frame = if (connected) null else it.frame, displayed = null, device = null, pending = false, thumbnails = emptyMap()) }
+            state.update { it.copy(connected = connected, subscription = null, frame = if (connected) null else it.frame, displayed = null, device = null, pending = false, resizing = false, thumbnails = emptyMap()) }
             if (connected) refresh()
         } }
     }
 
     private fun streamStatus(status: ScreenStreamStatus) {
-        state.update { s -> s.copy(displayed = null, error = status.message,
+        state.update { s -> s.copy(displayed = null, resizing = false, error = status.message,
             screens = s.screens.map { if (it.ref == s.selected) it.copy(status = status.status) else it }) }
     }
     private suspend fun watch(ref: ScreenRef, thumbnail: Boolean, version: Long): ScreenSubscription? = withContext(NonCancellable) {
@@ -81,7 +82,7 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
         if (visible == show) return
         visible = show
         revision++
-        state.update { it.copy(displayed = null, pending = false) }
+        state.update { it.copy(displayed = null, pending = false, resizing = false) }
         viewModelScope.launch { attempt { lock.withLock { if (show && state.value.connected) reconcile(); restart() } } }
     }
     fun retry() { viewModelScope.launch { attempt { lock.withLock { reconcile(); restart() } } } }
@@ -89,7 +90,7 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
         if (state.value.screens.none { it.ref == ref }) return
         if (owner != null && ref.owner != null && ref.owner != owner) return
         revision++
-        state.update { it.copy(selected = ref, frame = null, displayed = null, error = null, pending = false) }
+        state.update { it.copy(selected = ref, frame = null, displayed = null, error = null, pending = false, resizing = false) }
         viewModelScope.launch { attempt { lock.withLock { restart() } } }
     }
     /** Shows [ref] once listed, e.g. when a chat card asks for it while the panel is already open. */
@@ -100,9 +101,10 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
     private suspend fun reconcile() {
         val device = repository.device()
         val all = repository.list(owner).filter { it.ref.owner == owner }
+        val presentation = owner?.takeIf { all.any { it.capabilities.browserWindow } }?.let { repository.presentation(it) }
         state.update { s ->
             val selected = s.selected?.takeIf { ref -> all.any { it.ref == ref } } ?: all.firstOrNull { owner != null && it.ref.owner == owner }?.ref ?: all.firstOrNull()?.ref
-            s.copy(screens = all, selected = selected, device = device, loaded = true,
+            s.copy(screens = all, selected = selected, device = device, loaded = true, presentation = presentation,
                 displayed = s.displayed.takeIf { selected == s.selected && all.firstOrNull { it.ref == selected }?.control == s.control })
         }
     }
@@ -167,8 +169,13 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
         viewModelScope.launch { attempt { lock.withLock {
             if (!state.value.accepts(frame) || state.value.displayed?.ack() == frame.ack()) return@withLock
             repository.ack(frame.ack())
-            if (state.value.accepts(frame)) state.update { it.copy(displayed = frame) }
+            if (state.value.accepts(frame)) state.update { it.copy(displayed = frame, resizing = false) }
         } } }
+    }
+    fun presentation(headless: Boolean, hidden: Boolean) = mutate {
+        val browser = owner ?: return@mutate
+        val updated = repository.presentation(BrowserPresentationRequest(browser, headless, hidden))
+        state.update { it.copy(presentation = updated) }
     }
     fun decodeFailed() { state.update { it.copy(displayed = null, error = "Could not decode this frame. Refresh Live view.") } }
     fun takeover(take: Boolean, steal: Boolean = false) = mutate {
@@ -185,30 +192,79 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
         if (!state.value.interactive) return
         mutate { val s = state.value; repository.command(ScreenCommand(requireNotNull(s.selected), s.control.generation, action, text)) }
     }
+    private var viewport: ScreenCommand? = null
+    fun resize(width: Int, height: Int) {
+        val s = state.value
+        if (!s.connected || s.pending || !s.ownsControl || s.screen?.capabilities?.resize != true) return
+        val w = width.coerceIn(240, 2560)
+        val h = height.coerceIn(160, 2160)
+        if (s.frame?.sample?.let { it.width == w && it.height == h } == true) return
+        val request = ScreenCommand(requireNotNull(s.selected), s.control.generation, ScreenCommandKind.Resize, width = w, height = h)
+        if (viewport == request) return
+        viewport = request
+        mutate(resizing = true) { repository.command(request) }
+    }
     fun close(ref: ScreenRef) {
         val screen = state.value.screens.firstOrNull { it.ref == ref }?.takeIf { it.capabilities.tabs } ?: return
         mutate { repository.command(ScreenCommand(ref, screen.control.generation, ScreenCommandKind.Close, null)) }
     }
+    private data class QueuedInput(val frame: ScreenFrame, val generation: Long, val revision: Long, val actions: List<ScreenAction>)
+    private val inputs = ArrayDeque<QueuedInput>()
+    private var inputJob: Job? = null
+
     fun input(frame: ScreenFrame, actions: List<ScreenAction>) {
         val s = state.value
         if (!s.interactive || s.displayed != frame || actions.isEmpty() || actions.size > 32 || actions.any { it.kind.action !in s.screen!!.capabilities.inputs }) return
-        val request = ScreenInputRequest(frame.subscription, ScreenInput(frame.ack(), frame.sample.geometry, s.control.generation, sequence++, actions))
-        mutate(rewatch = false) {
-            val result = repository.input(request)
-            if (result.applied != actions.size || result.message != null) error("${result.applied}/${actions.size} inputs applied. ${result.message ?: "Observe before trying again."}")
+        if (inputs.size >= 64) {
+            inputs.clear()
+            state.update { it.copy(error = "Input is arriving too quickly. Observe the page before continuing.", displayed = null) }
+            return
+        }
+        inputs.addLast(QueuedInput(frame, s.control.generation, revision, actions.toList()))
+        if (inputJob?.isActive == true) return
+        inputJob = viewModelScope.launch {
+            while (inputs.isNotEmpty()) {
+                val queued = inputs.removeFirst()
+                lock.withLock {
+                    val current = state.value
+                    val displayed = current.displayed
+                    if (queued.revision != revision || !current.interactive || displayed == null ||
+                        current.control.generation != queued.generation || !current.accepts(queued.frame) ||
+                        displayed.sample.geometry != queued.frame.sample.geometry ||
+                        (queued.actions.any { it.kind != ScreenActionKind.Key && it.kind != ScreenActionKind.Type } && displayed.ack() != queued.frame.ack())) {
+                        inputs.clear()
+                        return@withLock
+                    }
+                    try {
+                        val request = ScreenInputRequest(displayed.subscription, ScreenInput(displayed.ack(), displayed.sample.geometry,
+                            queued.generation, sequence++, queued.actions))
+                        val result = repository.input(request)
+                        check(result.applied == queued.actions.size && result.message == null) {
+                            "${result.applied}/${queued.actions.size} inputs applied. ${result.message ?: "Observe before trying again."}"
+                        }
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) {
+                        inputs.clear()
+                        if (queued.revision == revision && state.value.control.generation == queued.generation) {
+                            state.update { it.copy(error = "Outcome unconfirmed. Observe before trying again. ${e.message.orEmpty()}", displayed = null) }
+                            if (state.value.connected) attempt { reconcile(); restart() }
+                        }
+                    }
+                }
+            }
         }
     }
-    private fun mutate(rewatch: Boolean = true, block: suspend () -> Unit) {
+    private fun mutate(rewatch: Boolean = true, resizing: Boolean = false, block: suspend () -> Unit) {
         if (!state.value.connected || state.value.pending) return
         val version = revision
         val before = state.value
-        state.update { it.copy(pending = true, displayed = null, error = null) }
+        state.update { it.copy(pending = true, resizing = resizing, displayed = null, error = null) }
         viewModelScope.launch {
             lock.withLock {
                 var completed = false
                 try { if (version == revision) { block(); completed = true } }
                 catch (e: CancellationException) { throw e }
-                catch (e: Exception) { state.update { it.copy(error = "Outcome unconfirmed. Observe before trying again. ${e.message.orEmpty()}") } }
+                catch (e: Exception) { state.update { it.copy(error = "Outcome unconfirmed. Observe before trying again. ${e.message.orEmpty()}", resizing = false) } }
                 finally {
                     if (version == revision) {
                         attempt {

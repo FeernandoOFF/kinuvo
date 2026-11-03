@@ -12,6 +12,8 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.io.files.Path
+import com.sun.net.httpserver.HttpServer
+import java.net.InetSocketAddress
 import java.io.File
 import java.nio.file.Files
 import java.util.concurrent.TimeUnit
@@ -29,7 +31,7 @@ class BrowserServerTest {
             } })
         try {
             val base = harness.store.agents().first()
-            harness.store.saveConfig(base, base.config.copy(tools = listOf("browser"), approvals = "full"))
+            harness.store.saveConfig(base, base.config.copy(tools = listOf("browser"), approvals = "default"))
             val agent = harness.store.agents().first()
             val session = harness.newSession(agent)
             harness.runner(agent, session.id).run(session.id, "Open a browser").toList()
@@ -55,6 +57,14 @@ class BrowserServerTest {
         var process: Process? = null
         var client: KinuvoClient? = null
         var ordinary: KinuvoClient? = null
+        val fixture = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        fixture.createContext("/") { exchange ->
+            val html = "<title>${exchange.requestURI.path}</title>History fixture".toByteArray()
+            exchange.responseHeaders.add("Content-Type", "text/html")
+            exchange.sendResponseHeaders(200, html.size.toLong())
+            exchange.responseBody.use { it.write(html) }
+        }
+        fixture.start()
         try {
             val local = if (jar != null) {
                 process = ProcessBuilder(File(System.getProperty("java.home"), "bin/java").absolutePath, "-jar", jar, "serve", "--host", "127.0.0.1", "--port", "0")
@@ -91,6 +101,15 @@ class BrowserServerTest {
             assertEquals(listOf(ref.id), client.call(Api.BrowserTabs, BrowserOwner(agent.id)).map { it.id })
             val initial = client.call(Api.Screens, owner).single { it.ref == ref }
             assertNotNull(initial.control.holder)
+            assertTrue(initial.capabilities.resize)
+            client.call(Api.ScreenCommand, ScreenCommand(ref, initial.control.generation, ScreenCommandKind.Resize, width = 390, height = 600))
+            val fixtureUrl = "http://127.0.0.1:${fixture.address.port}"
+            for (path in listOf("first", "second")) client.call(Api.ScreenCommand,
+                ScreenCommand(ref, initial.control.generation, ScreenCommandKind.Navigate, "$fixtureUrl/$path"))
+            client.call(Api.ScreenCommand, ScreenCommand(ref, initial.control.generation, ScreenCommandKind.Back))
+            assertEquals("/first", client.call(Api.Screens, owner).single { it.ref == ref }.title)
+            client.call(Api.ScreenCommand, ScreenCommand(ref, initial.control.generation, ScreenCommandKind.Forward))
+            assertEquals("/second", client.call(Api.Screens, owner).single { it.ref == ref }.title)
             assertFailsWith<IllegalStateException> { client.call(Api.Screens, owner.copy(agentId = "missing")) }
             assertFailsWith<IllegalStateException> { client.call(Api.BrowserCommand, BrowserCommand(owner, BrowserAction.Takeover, ref.id, take = false)) }
             val pairing = client.call(Api.Pairing, PairingParams(refresh = true, management = false))
@@ -106,8 +125,12 @@ class BrowserServerTest {
             val image = withTimeout(15_000) { images.receive() }
             assertEquals(subscription.epoch, image.epoch)
             assertTrue(image.sample.image.length > 1000)
+            assertEquals(390, image.sample.width)
+            assertEquals(600, image.sample.height)
             val ack = ScreenFrameAck(image.subscription, image.epoch, image.sequence)
             assertFailsWith<IllegalStateException> { ordinary.call(Api.ScreenAck, ack) }
+            for (action in listOf(ScreenCommandKind.Back, ScreenCommandKind.Forward, ScreenCommandKind.Resize))
+                assertFailsWith<IllegalStateException> { ordinary.call(Api.ScreenCommand, ScreenCommand(ref, initial.control.generation, action)) }
             client.call(Api.ScreenAck, ack)
             val input = ScreenInputRequest(subscription.id, ScreenInput(ack, image.sample.geometry, initial.control.generation, 0,
                 listOf(ScreenAction(ScreenActionKind.Key, key = "Tab"))))
@@ -163,7 +186,7 @@ class BrowserServerTest {
             assertTrue(client.call(Api.BrowserTabs, owner).isEmpty())
             println("Browser Server proof: ${if (jar == null) "JVM classpath" else "packaged executable jar"}; home ${home.absolutePath}")
         } finally {
-            ordinary?.close(); client?.close(); server?.stop()
+            ordinary?.close(); client?.close(); server?.stop(); fixture.stop(0)
             process?.let { it.destroy(); if (!it.waitFor(10, TimeUnit.SECONDS)) it.destroyForcibly() }
         }
     }

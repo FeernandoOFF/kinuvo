@@ -19,8 +19,8 @@ class BrowserRuntimeTest {
     }
 
     @Test fun navigationAllowsPrivateHttpButRejectsFilesAndCustomSchemes() {
-        listOf("http://127.0.0.1:8080", "http://192.168.1.1", "https://lab.internal", "about:blank").forEach { assertTrue(BrowserRuntime.allowed(it), it) }
-        listOf("file:///etc/passwd", "javascript:alert(1)", "data:text/html,hi", "chrome://settings", "https://user:password@host.test", "https:foo").forEach { assertFalse(BrowserRuntime.allowed(it), it) }
+        listOf("http://127.0.0.1:8080", "http://192.168.1.1", "https://lab.internal", "about:blank").forEach { assertTrue(browserNavigationAllowed(it), it) }
+        listOf("file:///etc/passwd", "javascript:alert(1)", "data:text/html,hi", "chrome://settings", "https://user:password@host.test", "https:foo").forEach { assertFalse(browserNavigationAllowed(it), it) }
     }
 
     @Test fun continuousFramesCoexistWithSemanticOperationsAndHeldTabsRestore() = runBlocking {
@@ -44,7 +44,7 @@ class BrowserRuntimeTest {
             val source = runtime.screen(owner, first.tab.id)
             assertEquals(ScreenDelivery.Continuous, source.capabilities.delivery)
             assertTrue(source.capabilities.keys.containsAll(listOf("Tab", "Escape", "Backspace", "ArrowUp", "ArrowDown", "Enter")))
-            assertFalse("Home" in source.capabilities.keys)
+            assertTrue("Home" in source.capabilities.keys)
             assertTrue("Control" in source.capabilities.modifiers)
             val frames = Channel<ScreenSample>(Channel.UNLIMITED)
             val watching = launch { source.frames().collect { frames.send(it) } }
@@ -71,7 +71,7 @@ class BrowserRuntimeTest {
             assertTrue(again.await().image.isNotEmpty())
             control(runtime, owner, first.tab.id, true)
             runtime.close()
-            val records = File(home, "tabs.json")
+            val records = File(home, "kdriver-tabs.json")
             records.writeText(records.readText().replace("\"agentId\":\"stream-agent\"", "\"agentId\":\"stream-agent\",\"sessionId\":\"legacy-session\""))
             runtime = BrowserRuntime(home)
             val restored = runtime.tabs(owner)
@@ -90,7 +90,7 @@ class BrowserRuntimeTest {
         } finally { runtime.close(); server.stop(0) }
     }
 
-    @Test fun managedChromiumOwnershipReferencesTakeoverPersistenceAndLifecycle() = runBlocking {
+    @Test fun chromeOwnershipReferencesTakeoverPersistenceAndLifecycle() = runBlocking {
         val home = java.nio.file.Files.createTempDirectory("kinuvo-browser-proof-").toFile()
         val runtime = BrowserRuntime(home)
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
@@ -114,13 +114,13 @@ class BrowserRuntimeTest {
             runtime.command(BrowserCommand(owner, BrowserAction.Close, blank.tab.id))
             var frame = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Open, text = url)))
             val tab = frame.tab.id
-            assertTrue(File(home, "runtime/playwright-1.64.0/.chromium-installed").isFile)
             assertTrue(frame.screenshot!!.length > 1000)
             val launches = ProcessHandle.current().descendants().use { processes ->
-                processes.map { it.info().commandLine().orElse("") }.filter { "--remote-debugging-pipe" in it }.toList()
+                processes.map { it.info().commandLine().orElse("") }.filter { "--remote-debugging-port=" in it && home.absolutePath in it && "--type=" !in it }.toList()
             }
-            assertTrue(launches.isNotEmpty(), "Managed Chromium must use a private debugging pipe")
-            assertTrue(launches.none { "--no-sandbox" in it }, "Chromium sandbox must stay enabled")
+            assertTrue(launches.isNotEmpty(), "Chrome must use its isolated debugging port")
+            assertTrue(launches.all { "--remote-debugging-address=127.0.0.1" in it }, "Debugging must stay on loopback")
+            assertTrue(launches.none { "--no-sandbox" in it || "--disable-web-security" in it || "--disable-features=" in it }, "Chrome sandbox and site isolation must stay enabled")
             assertTrue(runtime.tabs(other).isEmpty())
             assertFailsWith<IllegalArgumentException> { runtime.command(BrowserCommand(other, BrowserAction.Capture, tab)) }
             assertFailsWith<IllegalArgumentException> { runtime.command(BrowserCommand(owner.copy(agentId = "other"), BrowserAction.Capture, tab)) }
@@ -133,7 +133,7 @@ class BrowserRuntimeTest {
             frame = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Click, tab, frame.revision, change.ref)))
             val message = frame.elements.first { it.label == "Message" }
             kotlinx.coroutines.delay(1500)
-            assertFailsWith<IllegalArgumentException> {
+            assertFailsWith<IllegalStateException> {
                 runtime.command(BrowserCommand(owner, BrowserAction.Type, tab, frame.revision, message.ref, "overwrite"))
             }
             frame = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Capture, tab)))
@@ -148,14 +148,14 @@ class BrowserRuntimeTest {
             assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Capture, tab)))
             runtime.release(owner.agentId)
             assertTrue(runtime.tabs(owner).isEmpty())
-            assertTrue(File(home, "profiles/${owner.agentId}/Default/Cookies").isFile || File(home, "profiles/${owner.agentId}/Default/Network/Cookies").isFile)
+            assertTrue(File(home, "kdriver-profiles/${owner.agentId}/Default/Cookies").isFile || File(home, "kdriver-profiles/${owner.agentId}/Default/Network/Cookies").isFile)
             frame = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Open, text = "${url}check")))
             assertEquals("Login persisted", frame.tab.title)
             val isolated = assertNotNull(runtime.command(BrowserCommand(other, BrowserAction.Open, text = "${url}check")))
             assertEquals("Isolated", isolated.tab.title)
             assertNotEquals(tab, frame.tab.id)
             val proof = File(home, "browser-proof.jpg"); proof.writeBytes(kotlin.io.encoding.Base64.decode(frame.screenshot!!))
-            println("Managed Chromium proof: ${proof.absolutePath}")
+            println("Chrome proof: ${proof.absolutePath}")
         } finally { runtime.close(); server.stop(0) }
         assertFailsWith<IllegalStateException> { runtime.tabs(owner) }
         Unit

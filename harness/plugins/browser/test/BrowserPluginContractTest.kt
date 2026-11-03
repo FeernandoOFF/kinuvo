@@ -45,6 +45,20 @@ class BrowserPluginContractTest {
         plugin.close()
         assertTrue(browser.closed)
     }
+    @Test fun historyToolsOnlyNeedTheAgentOwnedTab() = runTest {
+        val browser = Browser()
+        val plugin = BrowserPlugin(browser)
+        val tools = plugin.prepare(RunContext(agent, "session"), false).ownedBy(plugin.instance).tools
+        for (name in listOf("browser_back", "browser_forward")) {
+            val tool = tools.single { it.identity?.localId == name }
+            assertEquals(Risk.Low, tool.risk)
+            tool.execute(buildJsonObject { put("tab", "tab") })
+        }
+        assertEquals(listOf(BrowserAction.Back, BrowserAction.Forward), browser.commands.map { it.action })
+        assertTrue(browser.commands.all { it.owner == owner && it.tabId == "tab" && it.text == null })
+        plugin.close()
+    }
+
     @Test fun anApprovalCannotSurviveTakeoverAndHandback() = runTest {
         val browser = Browser()
         val plugin = BrowserPlugin(browser)
