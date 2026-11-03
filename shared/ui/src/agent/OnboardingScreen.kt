@@ -204,8 +204,11 @@ private fun ConnectSetup(app: AppViewModel, agentId: String, section: kinuvo.app
     val back = { if (route.item != null || route.editing) route = route.copy(item = null, editing = false) else onDone() }
     androidx.navigationevent.compose.NavigationBackHandler(androidx.navigationevent.compose.rememberNavigationEventState(androidx.navigationevent.NavigationEventInfo.None)) { back() }
     Box(Modifier.fillMaxSize().background(color(backgroundColor)).windowInsetsPadding(WindowInsets.safeDrawing)) {
-        SettingsScreen(app, settings, onNavigate = { r, _ -> if (r.section != section || editing && r.item != null && !r.editing) onDone() else route = r },
-            onBack = back, onOpenSession = {}, sidebar = false)
+        // No shell beside it, so every page leads with back, clear of the window buttons.
+        CompositionLocalProvider(LocalModalNavigation provides ModalNavigation(back)) {
+            SettingsScreen(app, settings, onNavigate = { r, _ -> if (r.section != section || editing && r.item != null && !r.editing) onDone() else route = r },
+                onBack = back, onOpenSession = {}, sidebar = false)
+        }
     }
 }
 
