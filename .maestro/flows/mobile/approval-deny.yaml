@@ -39,7 +39,7 @@ properties:
     element:
       text: 'Allow shell\?'
     direction: DOWN
-- tapOn: 'Note for the agent \(optional, sent on Deny\)'
+- tapOn: 'Tell the agent what to do instead'
 - inputText: "Do not run this command"
 - runFlow:
     when:

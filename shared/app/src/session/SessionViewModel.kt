@@ -44,7 +44,6 @@ sealed interface ChatItem {
         val identity: ToolIdentity? = null,
         val attachments: List<Attachment> = emptyList(),
     ) : ChatItem {
-        val awaitingApproval get() = approval != null
         val waiting get() = approval != null || questions != null
         val trustHint get() = approval?.trustHint
     }
