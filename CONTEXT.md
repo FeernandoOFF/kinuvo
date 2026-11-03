@@ -72,7 +72,7 @@ A pointer into the user's password manager, written in its own URI syntax inside
 _Avoid_: Secret, credential, vault key
 
 **Approval**:
-The user's decision (allow once, always allow, or deny) on a single tool call or Reflection proposal the Agent wants to apply.
+The user's decision (allow once, allow for this Session, always allow, or deny) on a single tool call or Reflection proposal the Agent wants to apply.
 _Avoid_: Permission, consent
 
 **Risk**:

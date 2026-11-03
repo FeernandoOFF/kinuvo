@@ -624,6 +624,7 @@ class ServerRuntime(
                 require(option == null || pending.options.any { it.id == option })
                 harness.approvals.respond(answer.requestId, when (option) {
                     "allow_once" -> ApprovalDecision.AllowOnce
+                    "allow_session" -> ApprovalDecision.AllowForSession
                     "always_allow" -> ApprovalDecision.AlwaysAllow
                     else -> ApprovalDecision.Deny()
                 })

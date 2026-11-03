@@ -153,6 +153,7 @@ open class HarnessRuntime(
     suspend fun slashActivation(agent: Agent, text: String) = skills.slashActivation(agent, text)
 
     val approvals = ApprovalBroker()
+    private val sessionTrust = SessionTrust()
     /** Pending `ask_user` forms; null answers mean skipped. */
     val questions = Broker<Map<String, List<String>>?>()
 
@@ -263,11 +264,13 @@ open class HarnessRuntime(
             advertisedTools = advertised.map { it.descriptor },
             context = secrets.redact(context),
             warnings = prepared.warnings.map { secrets.redact(it) },
-            approvals = when (routine?.routine?.approvals) {
-                null -> Approvals(ApprovalPolicy(agent, trustRules), approvals)
-                RoutineApprovals.Auto -> Approvals(ApprovalPolicy(agent, trustRules, Tolerance.Full), approvals)
-                RoutineApprovals.Deny -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent)), approvals, ApprovalDecision.Deny(UNATTENDED_DENIAL))
-                RoutineApprovals.Inherit -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent)), approvals, wait = routineApprovalWait, skipped = { routine.skipped += it })
+            approvals = sessionId?.let(sessionTrust::scope).let { session ->
+                when (routine?.routine?.approvals) {
+                    null -> Approvals(ApprovalPolicy(agent, trustRules, session = session), approvals)
+                    RoutineApprovals.Auto -> Approvals(ApprovalPolicy(agent, trustRules, Tolerance.Full, session), approvals)
+                    RoutineApprovals.Deny -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent), session), approvals, ApprovalDecision.Deny(UNATTENDED_DENIAL))
+                    RoutineApprovals.Inherit -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent), session), approvals, wait = routineApprovalWait, skipped = { routine.skipped += it })
+                }
             },
             routine = routine,
             questions = questions,

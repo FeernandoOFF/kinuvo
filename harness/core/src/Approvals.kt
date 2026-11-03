@@ -61,10 +61,15 @@ sealed interface Verdict {
  * Decides which tool calls of one Agent run, need an Approval or are blocked, from the call's [Assessment], the
  * risk [tolerance] and the Agent's Trust and Deny rules. Deterministic: the model has no say.
  */
-class ApprovalPolicy(private val agent: Agent, private val rules: TrustRulesRepository, val tolerance: Tolerance = Tolerance.of(agent.config.approvals)) {
+class ApprovalPolicy(
+    private val agent: Agent,
+    private val rules: TrustRulesRepository,
+    val tolerance: Tolerance = Tolerance.of(agent.config.approvals),
+    private val session: SessionTrust.Scope? = null,
+) {
     suspend fun decide(tool: Tool, args: String = "{}"): Verdict {
         val key = tool.policyKey
-        val rules = rules()
+        val rules = rules().let { r -> session?.get()?.let { s -> r.copy(trusted = (r.trusted + s.trusted).distinct(), shell = (r.shell + s.shell).distinct()) } ?: r }
         val json = runCatching { Json.parseToJsonElement(args).jsonObject }.getOrElse { JsonObject(emptyMap()) }
         val command = if (tool.kind == ToolKind.Shell) json.string("command")?.let(ShellCommand::parse) else null
         blocked(tool, command, rules)?.let { return Verdict.Block(it) }
@@ -90,14 +95,34 @@ class ApprovalPolicy(private val agent: Agent, private val rules: TrustRulesRepo
 
     /** Saves [Verdict.Ask.trustKeys] so the same calls run without asking. */
     suspend fun trust(tool: Tool, keys: List<String>) {
-        if (keys.isEmpty()) return
-        rules.update(agent.id) { current ->
-            if (tool.kind == ToolKind.Shell) current.copy(shell = (current.shell + keys).distinct())
-            else current.copy(trusted = (current.trusted + if (tool.kind == ToolKind.ComputerAction) keys else listOf(tool.policyKey)).distinct())
-        }
+        if (keys.isNotEmpty()) rules.update(agent.id) { it.trusting(tool, keys) }
+    }
+
+    /** Like [trust], but only for this Session; returns false when the run has no Session to remember it in. */
+    fun trustForSession(tool: Tool, keys: List<String>): Boolean {
+        val session = session ?: return false
+        if (keys.isNotEmpty()) session.update { it.trusting(tool, keys) }
+        return true
     }
 
     suspend fun rules(): TrustRules = rules.effective(agent.id)
+}
+
+private fun TrustRules.trusting(tool: Tool, keys: List<String>) =
+    if (tool.kind == ToolKind.Shell) copy(shell = (shell + keys).distinct())
+    else copy(trusted = (trusted + if (tool.kind == ToolKind.ComputerAction) keys else listOf(tool.policyKey)).distinct())
+
+/** Trust rules from "Allow for this Session", per Session; kept in memory, so they end when the Server restarts. */
+@OptIn(ExperimentalAtomicApi::class)
+class SessionTrust {
+    private val rules = AtomicReference(emptyMap<String, TrustRules>())
+
+    fun scope(sessionId: String) = Scope(sessionId)
+
+    inner class Scope internal constructor(private val sessionId: String) {
+        fun get() = rules.load()[sessionId] ?: TrustRules()
+        fun update(transform: (TrustRules) -> TrustRules) = rules.update { it + (sessionId to transform(it[sessionId] ?: TrustRules())) }
+    }
 }
 
 /** Hands pending Approvals (or `ask_user` forms) to the UI and resumes the waiting run when the user answers. */
