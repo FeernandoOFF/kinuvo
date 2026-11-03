@@ -88,10 +88,11 @@ class KdriverBrowserRuntimeTest {
                 assertTrue(hidden.hidden)
                 runtime.presentation(BrowserPresentationRequest(owner, headless = false, hidden = false))
                 assertEquals("kept", runtime.userCommand(BrowserCommand(owner, BrowserAction.Capture, tab))!!.tab.title)
+                val streaming = CompletableDeferred<Unit>()
                 val oldStream = async(start = CoroutineStart.UNDISPATCHED) {
-                    runCatching { runtime.screen(owner, tab).frames().collect { } }.exceptionOrNull()
+                    runCatching { runtime.screen(owner, tab).frames().collect { streaming.complete(Unit) } }.exceptionOrNull()
                 }
-                delay(300)
+                withTimeout(10_000) { streaming.await() }
                 val headless = runtime.presentation(BrowserPresentationRequest(owner, headless = true, hidden = false))
                 assertEquals(true, headless.runningHeadless)
                 assertNotNull(withTimeout(10_000) { oldStream.await() })
