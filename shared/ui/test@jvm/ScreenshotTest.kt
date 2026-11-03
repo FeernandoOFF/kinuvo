@@ -645,6 +645,15 @@ class ScreenshotTest {
         render("nav-phone-routine-detail", 390, 844) { phone { SettingsContent(routines("journal"), SettingsActions(onBack = {}), sidebar = false) } }
         render("nav-phone-tools", 390, 1000) { phone { SettingsContent(tools(null), SettingsActions(), sidebar = false) } }
         render("nav-phone-tools-mcp", 390, 1100) { phone { SettingsContent(tools(itemKey(ConfigScope.Agent, "github")), SettingsActions(onBack = {}), sidebar = false) } }
+        render("nav-phone-tools-rules", 390, 1400) {
+            val computer = PluginInstanceId("kinuvo.computer")
+            val rules = TrustRules(
+                trusted = listOf(ToolIdentity(PluginInstanceId("kinuvo.knowledge"), "knowledge").key, ToolIdentity(computer, "computer_capture").key,
+                    ToolIdentity(computer, "computer_act").key + " safari", github.toolKey("echo", "search_issues"), github.toolKey("echo", "list_commits")),
+                shell = listOf("git status"), deny = DenyRules(tools = listOf("skill_manage", github.toolKey("echo", "create_issue"))))
+            val ui = tools(RulesItem).let { it.copy(state = it.state.copy(config = toolsConfig.copy(details = toolsConfig.details!!.copy(rules = rules)))) }
+            phone { SettingsContent(ui, SettingsActions(onBack = {}), sidebar = false) }
+        }
         render("nav-phone-tools-builtin", 390, 900) { phone { SettingsContent(tools(BuiltInItem), SettingsActions(onBack = {}), sidebar = false) } }
         render("nav-phone-board", 390, 844) { phone { BoardContent(board, BoardActions()) } }
         render("nav-phone-knowledge", 390, 844) { phone { KnowledgeContent(knowledge.copy(state = knowledge.state.copy(route = Route.Knowledge())), KnowledgeActions()) } }

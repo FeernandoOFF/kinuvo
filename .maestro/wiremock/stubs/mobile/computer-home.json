@@ -14,13 +14,13 @@
           {
             "matchesJsonPath": {
               "expression": "$.method",
-              "equalTo": "computer.input"
+              "equalTo": "screens.input"
             }
           },
           {
             "matchesJsonPath": {
-              "expression": "$.params.action.key",
-              "equalTo": "home"
+              "expression": "$.params.input.actions[0].key",
+              "equalTo": "Home"
             }
           }
         ]
@@ -35,7 +35,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"computer\":{\"id\":\"phone\",\"name\":\"Pixel\",\"platform\":\"Android\",\"available\":true,\"control\":\"User\"}}}"
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"applied\":1}}"
         }
       }
     }
