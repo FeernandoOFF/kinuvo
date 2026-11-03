@@ -44,6 +44,13 @@ class SettingsDraftTest {
         }
     }
 
+    @Test fun toolRulesReadAsTheirSourceToolAndScope() {
+        assertEquals(ToolRuleLabel("freeagent (MCP)", "list_tasks", null, true), toolRuleLabel("tool:kinuvo.mcp/agents%2Fdefault%2Ffreeagent/list_tasks"))
+        assertEquals(ToolRuleLabel("github (MCP, every Agent)", "search", null, true), toolRuleLabel("tool:kinuvo.mcp/shared%2Fgithub/search"))
+        assertEquals(ToolRuleLabel("Computer", "computer_act", "io.anytype.app", true), toolRuleLabel("tool:kinuvo.computer/default/computer_act io.anytype.app"))
+        assertEquals(ToolRuleLabel("Any source", "skill_manage", null, false), toolRuleLabel("skill_manage"))
+    }
+
     @Test fun nestedInspectorPagesHaveOneHeaderAndRestoreTheParentScroll() = javax.swing.SwingUtilities.invokeAndWait {
         for (sheet in listOf(false, true)) {
             val nested = mutableStateOf(false)
