@@ -130,6 +130,9 @@ data class ChatState(
     val preview: AttachmentPreview? = null,
     /** Half-filled `ask_user` forms, as in [SessionState.answers]. */
     val answers: Map<String, Map<String, List<String>>> = emptyMap(),
+    /** The Approval and form the run waits on, which [respond][SessionViewModel.respond] and [answer][SessionViewModel.answer] act on. */
+    val approval: AgentEvent.ApprovalRequested? = null,
+    val questions: AgentEvent.QuestionsAsked? = null,
     /** What an external Agent's harness waits on: its permission requests and forms; [harness] names it. */
     val prompts: List<ExecutionPrompt> = emptyList(),
     val harness: String? = null,
@@ -144,6 +147,8 @@ data class ChatState(
     /** Why the open external Session can't continue as is; null while it can. */
     val ended get() = if (external && selected != null && capabilities?.chat?.reasonCode != "archived") SessionEnd.of(phase, capabilities?.chat, resume) else null
     val resumeOnSend get() = external && resumeOnSend(phase, capabilities)
+    /** Everything the open Session waits on from the user, oldest first. */
+    val requests get() = pendingRequests(items, approval, questions, prompts)
     val canStop get() = !external || capabilities?.execution?.cancel == true
     val skills get() = capabilities?.server.supports(ServerFeature.Skills)
     /** Why nothing can be sent, or null when chat works. */
