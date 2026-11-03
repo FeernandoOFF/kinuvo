@@ -75,7 +75,6 @@ import kinuvo.protocol.ExecutionPrompt
 import kinuvo.protocol.ExecutionPhase
 import kinuvo.protocol.AgentInfo
 import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.Risk
 import kinuvo.protocol.AgentSettings
 import kinuvo.protocol.SessionInfo
 import kinuvo.protocol.SessionSettings
@@ -315,6 +314,8 @@ fun ChatContent(
     var composerFocused by remember { mutableStateOf(false) }
     val composerFocus = remember { FocusRequester() }
     var completing by remember { mutableStateOf(false) }
+    val requestInputs = remember { RequestInputs() }
+    LaunchedEffect(state.requests.firstOrNull()?.id) { completing = false }
     val scope = rememberCoroutineScope()
     val connectionNotice = connectionNotice(connection)
     LaunchedEffect(Unit) { if (compose) composerFocus.requestFocus() }
@@ -407,43 +408,55 @@ fun ChatContent(
                     val attachments: @Composable () -> Unit = { if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         state.attachments.forEach { a -> key(a.id) { AttachmentChip(a.attachment, a.upload.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onRemove = if (state.running) null else ({ actions.onRemoveAttachment(a.id) })) } }
                     } }
+                    val requestNotice: (@Composable () -> Unit)? = if (connectionNotice != null || state.dictation?.error != null) ({
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            state.dictation?.error?.let { Text(it, fontSize = 13.sp, color = color(destructiveColor)) }
+                            connectionNotice?.let { (tone, text) -> Text(text, fontSize = 13.sp, color = tone.color()) }
+                        }
+                    }) else null
                     AnimatedContent(voice != null, contentAlignment = Alignment.BottomCenter, transitionSpec = {
                         (fadeIn(tween(220, delayMillis = 80)) + slideInVertically(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) { it / 3 } +
                             scaleIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow), initialScale = 0.94f))
                             .togetherWith(fadeOut(tween(120)) + slideOutVertically(tween(160)) { it / 4 })
                             .using(SizeTransform(clip = false))
                     }) { inVoice ->
-                    if (inVoice) shownVoice?.let { VoiceControls(it, actions.onPauseVoice, actions.onHoldVoice, actions.onSpeaker, actions.onEndVoice, Modifier.widthIn(max = ContentWidth), settings, attachments) }
+                    if (inVoice) shownVoice?.let { shown ->
+                        RequestComposer(state, actions, requestInputs, Modifier.widthIn(max = ContentWidth), tray = true, notice = requestNotice) {
+                            VoiceControls(shown, actions.onPauseVoice, actions.onHoldVoice, actions.onSpeaker, actions.onEndVoice, Modifier.widthIn(max = ContentWidth), settings, attachments)
+                        }
+                    }
                     else Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Composer(
-                        running = state.running,
-                        onSend = { follow.value = true; actions.onDiscardDictation(); actions.onSend(it) },
-                        onStop = actions.onStop,
-                        canStop = state.canStop,
-                        stopWhileSending = state.external && state.canStop,
-                        placeholder = "Chat with ${state.agent?.name ?: "Kinuvo"}",
-                        hint = if (wide && state.items.isEmpty()) "Shift+Enter for new line · Markdown formats as you type" + if (state.skills) " · / for skills" else "" else null,
-                        blocked = if (state.resumeOnSend) null else state.ended?.blocked ?: state.chatBlocked,
-                        modifier = Modifier.widthIn(max = ContentWidth),
-                        state = draft,
-                        focus = composerFocus,
-                        completions = state.completions,
-                        onCompletingChange = { completing = it },
-                        hasAttachments = state.attachments.isNotEmpty(),
-                        sending = state.sending,
-                        attachments = attachments,
-                        controls = settings,
-                        containerColor = color(fieldColor).copy(alpha = 0.7f),
-                        backdrop = Modifier.hazeBlur(HazeInput.Sources(haze), blur),
-                        onVoice = actions.onVoice?.let { start -> { follow.value = true; start() } },
-                        notice = if ((state.external && (state.prompts.isNotEmpty() || (state.chatBlocked != null && state.ended == null))) || connectionNotice != null || state.dictation?.error != null) ({
-                            state.dictation?.error?.let { Text(it, fontSize = 13.sp, color = color(destructiveColor)) }
-                            connectionNotice?.let { (tone, text) -> Text(text, fontSize = 13.sp, color = tone.color()) }
-                            if (state.external) ExternalPrompts(state, actions)
-                        }) else null,
-                        onDictate = actions.onDictate,
-                        dictating = state.dictation?.dictating == true,
-                    )
+                    RequestComposer(state, actions, requestInputs, Modifier.widthIn(max = ContentWidth), notice = requestNotice) {
+                        Composer(
+                            running = state.running,
+                            onSend = { follow.value = true; actions.onDiscardDictation(); actions.onSend(it) },
+                            onStop = actions.onStop,
+                            canStop = state.canStop,
+                            stopWhileSending = state.external && state.canStop,
+                            placeholder = "Chat with ${state.agent?.name ?: "Kinuvo"}",
+                            hint = if (wide && state.items.isEmpty()) "Shift+Enter for new line · Markdown formats as you type" + if (state.skills) " · / for skills" else "" else null,
+                            blocked = if (state.resumeOnSend) null else state.ended?.blocked ?: state.chatBlocked,
+                            modifier = Modifier.widthIn(max = ContentWidth),
+                            state = draft,
+                            focus = composerFocus,
+                            completions = state.completions,
+                            onCompletingChange = { completing = it },
+                            hasAttachments = state.attachments.isNotEmpty(),
+                            sending = state.sending,
+                            attachments = attachments,
+                            controls = settings,
+                            containerColor = color(fieldColor).copy(alpha = 0.7f),
+                            backdrop = Modifier.hazeBlur(HazeInput.Sources(haze), blur),
+                            onVoice = actions.onVoice?.let { start -> { follow.value = true; start() } },
+                            notice = if ((state.external && (state.prompts.isNotEmpty() || (state.chatBlocked != null && state.ended == null))) || connectionNotice != null || state.dictation?.error != null) ({
+                                state.dictation?.error?.let { Text(it, fontSize = 13.sp, color = color(destructiveColor)) }
+                                connectionNotice?.let { (tone, text) -> Text(text, fontSize = 13.sp, color = tone.color()) }
+                                if (state.external) ExternalPrompts(state, actions)
+                            }) else null,
+                            onDictate = actions.onDictate,
+                            dictating = state.dictation?.dictating == true,
+                        )
+                    }
                     }
                     }
                 }
@@ -770,7 +783,7 @@ private fun Messages(
                     Box(Modifier.animateItem(fadeInSpec = if (user) null else tween(250), fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth()) {
                         when (row) {
                             is ChatRow.Single -> if (row.key == "outgoing") Entering { ChatItemView(row.item, actions) }
-                                else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id), state.answers)
+                                else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id))
                             is ChatRow.Steps -> StepsView(row, active = state.running && row === rows.last(), actions = actions)
                         }
                     }
@@ -839,7 +852,7 @@ private fun JumpToBottom(unseen: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = null, answers: Map<String, Map<String, List<String>>> = emptyMap()) {
+private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = null) {
     when (item) {
         is ChatItem.User -> if (item.routine != null) Expandable(Lucide.AlarmClock, requireNotNull(item.routine), subtitle = "routine") { RichMarkdown(item.text) }
         else if (item.task != null) Expandable(Lucide.SquareKanban, requireNotNull(item.task), subtitle = "task") { RichMarkdown(item.text) }
@@ -861,12 +874,7 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
         is ChatItem.Assistant -> if (spoken != null) SpokenText(item.text, spoken, Modifier.fillMaxWidth()) else Markdown(item.text, Modifier.fillMaxWidth())
         is ChatItem.Reasoning -> StepView(item)
         is ChatItem.ToolCall -> when {
-            item.awaitingApproval -> ApprovalCard(item, actions.onDecision)
-            item.questions != null && item.name == "request_takeover" -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                QuestionsCard(requireNotNull(item.questions), answers, actions)
-                Button(onClick = actions.onWatch, style = ButtonStyle.Outlined) { Text("Open Live view") }
-            }
-            item.questions != null -> QuestionsCard(requireNotNull(item.questions), answers, actions)
+            item.waiting -> WaitingForYou()
             (item.identity?.instance?.pluginId == "kinuvo.computer" && item.identity?.localId in setOf("computer_capture", "computer_act")) && item.result == null -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 ToolCallView(item, actions = actions)
                 Button(onClick = actions.onWatch, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Watch live", fontSize = 12.sp) }
@@ -1093,52 +1101,7 @@ private fun ArtifactCard(item: ChatItem.ToolCall, onOpen: (id: String) -> Unit) 
 }
 
 @Composable
-private fun ApprovalCard(item: ChatItem.ToolCall, onDecision: (String, ApprovalDecision) -> Unit) {
-    val note = rememberTextFieldState()
-    var showArgs by remember { mutableStateOf(false) }
-    // A Script's call waits on its own Approval, shown on the Script's card.
-    val name = item.approval?.toolCallName ?: item.name
-    val args = item.approval?.args ?: item.args
-    val identity = item.approval?.identity ?: item.identity
-    val label = identity?.let { "${it.instance.pluginId} › ${it.instance.instanceId} › ${it.localId}" } ?: name
-    Panel(
-        Modifier.fillMaxWidth(),
-        color = color(panelColor),
-        borderColor = color(accentColor).copy(alpha = 0.5f),
-        shape = Theme[shapes][largeShape],
-        contentPadding = PaddingValues(14.dp),
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Lucide.ShieldAlert, Modifier.size(18.dp), tint = color(accentColor))
-                Text("Allow $label?", fontWeight = FontWeight.Normal)
-                item.approval?.let { a ->
-                    Pill(a.risk.name + " risk", tone = when (a.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
-                }
-            }
-            item.approval?.reason?.let { Text(it, color = color(mutedColor), fontSize = 12.sp) }
-            val command = if (identity?.instance?.pluginId == "kinuvo.exec" && identity.localId == "shell") commandOf(args) else null
-            command?.let { CodeBlock(it, language = "shell") }
-            Button(onClick = { showArgs = !showArgs }, style = ButtonStyle.Link, contentColor = color(mutedColor)) {
-                Text(if (showArgs) "Hide arguments" else "Show arguments", fontSize = 12.sp)
-            }
-            if (showArgs) CodeBlock(prettyJson(args), language = "arguments")
-            Input(note, "Note for the agent (optional, sent on Deny)", capitalize = true)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onDecision(item.id, ApprovalDecision.AllowOnce) }, style = ButtonStyle.Primary) { Text("Allow once") }
-                if (item.approval?.trustable != false) Button(onClick = { onDecision(item.id, ApprovalDecision.AllowForSession) }, style = ButtonStyle.Outlined) {
-                    Text("Allow for this Session", singleLine = true)
-                }
-                if (item.approval?.trustable != false) Button(onClick = { onDecision(item.id, ApprovalDecision.AlwaysAllow) }, style = ButtonStyle.Outlined) {
-                    Text(item.trustHint?.let { if (identity?.instance?.pluginId == "kinuvo.computer" && identity.localId == "computer_act") "Always allow in $it" else "Always allow `$it …`" } ?: "Always allow", singleLine = true)
-                }
-                Button(onClick = { onDecision(item.id, ApprovalDecision.Deny(note.text.toString())) }, style = ButtonStyle.Ghost, contentColor = color(destructiveColor)) {
-                    Text("Deny")
-                }
-            }
-        }
-    }
-}
+private fun WaitingForYou() = Text("Waiting for you below", fontSize = 13.sp, color = color(mutedColor))
 
 @Composable
 internal fun RequestMetricsView(metrics: kinuvo.protocol.RequestMetrics, initiallyExpanded: Boolean = false, actions: ChatActions = ChatActions()) {
@@ -1326,12 +1289,12 @@ private fun CompactionMarker(item: ChatItem.Compaction) {
     }
 }
 
-private fun commandOf(args: String): String? =
+internal fun commandOf(args: String): String? =
     runCatching { Json.parseToJsonElement(args).jsonObject["command"]?.jsonPrimitive?.content }.getOrNull()
 
 private val PrettyJson = Json { prettyPrint = true }
 
-private fun prettyJson(args: String): String =
+internal fun prettyJson(args: String): String =
     runCatching { PrettyJson.encodeToString(kotlinx.serialization.json.JsonElement.serializer(), Json.parseToJsonElement(args)) }.getOrDefault(args)
 
 private fun List<ChatItem>.attachment(id: String): Attachment? = firstNotNullOfOrNull { item ->
