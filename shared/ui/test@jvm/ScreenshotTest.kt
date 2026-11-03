@@ -239,8 +239,9 @@ class ScreenshotTest {
     /** Scenes render on the AWT thread, where desktop Compose dispatches effects. */
     @Test
     fun renderScreens() {
-        render("chat-wide-light", 1200, 900) { HarnessTheme(dark = false) { ChatContent(state, ConnectionState.Connected("x"), usage, ChatActions()) } }
-        render("chat-wide-dark", 1200, 900) { HarnessTheme(dark = true) { ChatContent(state, ConnectionState.Disconnected("x"), usage, ChatActions()) } }
+        val waiting = state.copy(approval = state.items.filterIsInstance<ChatItem.ToolCall>().firstNotNullOf { it.approval })
+        render("chat-wide-light", 1200, 900) { HarnessTheme(dark = false) { ChatContent(waiting, ConnectionState.Connected("x"), usage, ChatActions()) } }
+        render("chat-wide-dark", 1200, 900) { HarnessTheme(dark = true) { ChatContent(waiting, ConnectionState.Disconnected("x"), usage, ChatActions()) } }
         val defaults = AgentSettings("gpt-5.6-sol", "medium", "default", "host")
         render("composer-dark", 390, 152) {
             HarnessTheme(dark = true) {
@@ -383,6 +384,7 @@ class ScreenshotTest {
         render("chat-ask-user", 1000, 1100) { HarnessTheme(dark = false) { ChatContent(state.copy(items = cards), ConnectionState.Connected("x"), null, ChatActions()) } }
         render("chat-ask-user-dark", 420, 1200) { HarnessTheme(dark = true) { ChatContent(state.copy(items = cards), ConnectionState.Connected("x"), null, ChatActions()) } }
         renderSteps()
+        renderRequests(form)
         val artifacts = ArtifactsState(
             Route.Artifacts("plan-1"),
             all = listOf(
@@ -686,6 +688,30 @@ class ScreenshotTest {
         render("nav-desktop-settings", 1440, 900) { desktop(Route.Settings("echo", SettingsSection.Providers)) { SettingsContent(SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Providers), providers = listOf(ProviderInfo("codex", "ChatGPT / Codex"), ProviderInfo("openai", "OpenAI API"))), owners, at, capabilities = capabilities), SettingsActions()) } }
     }
 
+    /** What the Agent waits on, in place of the chat input: morphed Composer on phones, tray over it on desktop. */
+    private fun renderRequests(form: AgentEvent.QuestionsAsked) {
+        val shell = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell")
+        val approval = AgentEvent.ApprovalRequested("a1", "t1", "shell", """{"command":"git push origin feat/request-composer"}""", "git push", Risk.High, "Pushes commits to a remote", identity = shell)
+        val takeover = AgentEvent.QuestionsAsked("q2", "t2", "Take over Browser: Sign in to GitHub.", listOf(Question("note", "Note")), ScreenRef("browser", "b1"))
+        val push = ChatItem.ToolCall("t1", "t1", "shell", approval.args, identity = shell, approval = approval)
+        val ask = ChatItem.ToolCall("t3", "c1", "ask_user", "{}", questions = form)
+        val hand = ChatItem.ToolCall("t2", "t2", "request_takeover", """{"reason":"Sign in to GitHub"}""", questions = takeover)
+        val talk = listOf(ChatItem.User("u1", "Push the branch and open the release PR."), ChatItem.Assistant("a1", "Tests are green. I'll push the branch next."))
+        val approving = state.copy(items = talk + push, running = false, approval = approval, questions = form)
+        val asking = state.copy(items = talk + ask, running = false, questions = form)
+        val handing = state.copy(items = talk + hand, running = false, questions = takeover)
+        fun chat(name: String, width: Int, height: Int, dark: Boolean, chat: ChatState) =
+            render(name, width, height) { HarnessTheme(dark = dark) { ChatContent(chat, ConnectionState.Connected("x"), null, ChatActions()) } }
+        chat("request-approval-phone", 390, 844, false, approving)
+        chat("request-approval-desktop-dark", 1100, 760, true, approving)
+        chat("request-form-phone-dark", 390, 844, true, asking)
+        chat("request-form-desktop", 1100, 900, false, asking)
+        chat("request-approval-voice-phone", 390, 844, true, approving.copy(voice = VoiceChatState(VoicePhase.Listening, heard = "Go ahead and push")))
+        chat("request-approval-notice-phone", 390, 844, false, approving.copy(dictation = DictationState(error = "Microphone unavailable")))
+        chat("request-takeover-phone", 390, 844, false, handing)
+        chat("request-takeover-desktop-dark", 1100, 760, true, handing)
+    }
+
     /** Tool calls and reasoning grouped into compact rows, at iPhone width. */
     private fun renderSteps() {
         val think = ChatItem.Reasoning("r1", "Checking git status and open PRs before summarising.")
@@ -706,7 +732,7 @@ class ScreenshotTest {
             ChatItem.Assistant("a2", "Two tests fail in `core`. Want me to push the branch anyway?"),
             ChatItem.Reasoning("r2", "The user asked to push; that needs approval."), push,
         )
-        val phone = state.copy(items = items, running = false)
+        val phone = state.copy(items = items, running = false, approval = push.approval)
         render("chat-steps-phone", 390, 844) { HarnessTheme(dark = false) { ChatContent(phone, ConnectionState.Connected("x"), null, ChatActions()) } }
         val running = state.copy(items = items.take(4) + status.copy(id = "t7", callId = "t7", args = """{"command":"git diff --stat HEAD~3"}""", result = null), running = true)
         render("chat-steps-running-dark", 390, 600) { HarnessTheme(dark = true) { ChatContent(running, ConnectionState.Connected("x"), null, ChatActions()) } }
