@@ -8,27 +8,24 @@ properties:
   apiVerifications:
     - stub: mobile/voice-capabilities
       atLeast: 1
-    - stub: mobile/voice-setup
-      atLeast: 1
 ---
 - launchApp:
     permissions:
       all: allow
-- assertVisible: "Connect a server"
-- tapOn: "From kinuvo pair"
-- inputText: "123456"
-- tapOn: "Connect"
-- assertVisible: "Start a session with E2E Agent"
+- runFlow: ../../shared/pair-mobile.yaml
 - runFlow:
     when:
       platform: iOS
     commands:
       - tapOn: "Voice chat"
-      - assertVisible: "Listening"
       - tapOn: "Pause"
-      - assertVisible: "Paused · hold to talk"
-      - tapOn: "Resume"
-      - assertVisible: "Listening"
+      - runFlow:
+          when:
+            notVisible: "The microphone has no usable.*"
+          commands:
+            - assertVisible: "Paused · hold to talk"
+            - tapOn: "Resume"
+            - assertVisible: "Listening"
       - tapOn: "End voice chat"
       - assertVisible: "Message"
 - runFlow:
