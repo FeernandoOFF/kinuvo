@@ -19,6 +19,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.paneTitle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -162,6 +164,37 @@ fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifie
             ) {
                 Text(option, fontSize = if (small) 12.sp else 13.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (on) color(onBackgroundColor) else color(mutedColor), singleLine = true)
+            }
+        }
+    }
+}
+
+/** What a screen or list shows with nothing in it: an [icon], a [title], an optional [body] and [action], centered. */
+@Composable
+fun EmptyState(icon: ImageVector, title: String, body: String? = null, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
+    Column(modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Icon(icon, Modifier.size(28.dp), tint = color(mutedColor))
+        Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        body?.let { Text(it, fontSize = 14.sp, color = color(mutedColor), textAlign = TextAlign.Center) }
+        action?.let { Box(Modifier.padding(top = 8.dp)) { it() } }
+    }
+}
+
+/** Asks before unsaved edits are dropped: [onKeep] goes back to them, [onDiscard] drops them; [errors] say why saving failed. */
+@Composable
+fun DiscardDialog(onKeep: () -> Unit, onDiscard: () -> Unit, modifier: Modifier = Modifier, errors: List<String> = emptyList()) {
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(Modifier.matchParentSize().background(color(scrimColor)).clickable(remember { MutableInteractionSource() }, indication = null, onClick = onKeep))
+        Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp).widthIn(max = 400.dp).consumeTaps().semantics { paneTitle = "Unsaved changes" },
+            shape = Theme[shapes][largeShape], contentPadding = PaddingValues(20.dp)) {
+            Text("Discard changes?", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(6.dp))
+            Text("Your changes have not been saved.", fontSize = 14.sp, color = color(mutedColor))
+            errors.forEach { Spacer(Modifier.height(8.dp)); Text(it, fontSize = 13.sp, color = color(destructiveColor)) }
+            Spacer(Modifier.height(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(onKeep, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined) { Text("Keep editing") }
+                Button(onDiscard, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined, contentColor = color(destructiveColor)) { Text("Discard") }
             }
         }
     }

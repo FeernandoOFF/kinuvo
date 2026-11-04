@@ -90,13 +90,13 @@ private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions) {
     Column(Modifier.fillMaxSize()) {
         PageHeader(Lucide.BookOpen, "Knowledge", scope = AgentScope(ui.agents, ui.state.agent, "All agents", actions.onFilter).takeIf { ui.agents.size > 1 },
             actions = listOf(PageAction(Lucide.Settings, "Knowledge settings", actions.onSettings)))
-        Column(Modifier.padding(horizontal = 12.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Input(query, "Search people, projects, places…", capitalize = true)
             ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         }
-        LazyColumn(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             if (ui.state.query.isNotBlank()) {
-                item { SectionLabel("Results") }
+                item { SectionLabel("Results", Modifier.padding(start = 6.dp)) }
                 itemsIndexed(ui.state.results, key = { _, n -> "r/${n.ref}" }) { i, n ->
                     Box(Modifier.groupItem(i, ui.state.results.size)) {
                         GroupRow(n.title, { actions.onOpen(n.ref) }, n.type, n.type.icon(), selected = n.ref == ui.state.route.note)
@@ -104,10 +104,10 @@ private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions) {
                 }
                 if (ui.state.results.isEmpty()) item { Muted("No matches.") }
             }
-            item { SectionLabel("Recent changes") }
+            item { SectionLabel("Recent changes", Modifier.padding(start = 6.dp, top = 12.dp)) }
             val changes = ui.state.shownChanges
             if (changes == null) item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Spinner() } }
-            else if (changes.isEmpty()) item { Muted(if (ui.state.agent != null) "This Agent hasn't changed anything yet." else "Agents haven't changed anything yet. They save what they learn as you talk.") }
+            else if (changes.isEmpty()) item { EmptyState(Lucide.Library, "No changes yet", if (ui.state.agent != null) "This Agent hasn't changed anything yet." else "Agents save what they learn as you talk.") }
             else itemsIndexed(changes, key = { _, c -> "c/${c.id}" }) { i, c -> Box(Modifier.groupItem(i, changes.size)) { ChangeRow(c, ui, actions) } }
         }
     }

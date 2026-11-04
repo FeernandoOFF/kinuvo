@@ -43,7 +43,7 @@ internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String,
             asked.questions.forEach { q -> key(q.id) { QuestionField(q, answers[q.id].orEmpty()) { onEdit(asked.questionsId, q.id, it) } } }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onAnswer(answers) }, enabled = ready, style = ButtonStyle.Primary) { Text(if (asked.questions.isEmpty()) "Check again" else "Submit") }
-                Button(onClick = { onAnswer(null) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text(skip) }
+                Button(onClick = { onAnswer(null) }, style = ButtonStyle.Outlined) { Text(skip) }
             }
         }
     }

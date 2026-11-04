@@ -124,6 +124,7 @@ private fun InspectorHeader(state: InspectorState, host: InspectorHost, actions:
         subtitle = if (state.pages.isEmpty()) "Agent settings · every Session" else "${agent?.name ?: "Agent"} · every Session",
     ) {
         if (state.dirty) HeaderButton(Lucide.Check, "Save", actions.onSave, enabled = !state.saving && state.draft?.problems(state.agentId.orEmpty(), host.agents)?.isEmpty() == true)
+        else if (state.pages.isEmpty()) HeaderButton(Lucide.X, "Close", actions.onClose)
     }
 }
 
@@ -176,7 +177,7 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
         val levels = selected?.reasoning ?: (REASONING + draft.reasoning).distinct()
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Lucide.Brain, Modifier.size(16.dp), tint = color(mutedColor))
-            Text("Reasoning", Modifier.weight(1f).padding(start = 10.dp))
+            Text("Reasoning", Modifier.weight(1f).padding(start = 10.dp), fontSize = 15.sp)
             if (levels.isEmpty()) Text("Not supported", color = color(mutedColor), fontSize = 13.sp)
             else Picker(levels, draft.reasoning, { it.replaceFirstChar { c -> c.uppercase() } }, { level -> actions.onEdit { it.copy(reasoning = level) } })
         }
@@ -263,21 +264,7 @@ private fun ModelPage(state: InspectorState, draft: AgentDraft, actions: Inspect
 fun InspectorGuard(state: InspectorState, host: InspectorHost, actions: InspectorActions) {
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = state.guard != null) { actions.onResolve(GuardChoice.Keep) }
     AnimatedVisibility(state.guard != null, enter = fadeIn(), exit = fadeOut()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Box(Modifier.matchParentSize().background(color(scrimColor)).clickable(remember { MutableInteractionSource() }, indication = null) { actions.onResolve(GuardChoice.Keep) })
-            Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp).widthIn(max = 400.dp).consumeTaps().semantics { paneTitle = "Unsaved changes" },
-                contentPadding = PaddingValues(18.dp)) {
-                Text("Discard changes?", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Spacer(Modifier.height(6.dp))
-                Text("Your changes have not been saved.", color = color(mutedColor), fontSize = 14.sp)
-                state.errors.forEach { Spacer(Modifier.height(8.dp)); ErrorMessage(it) }
-                Spacer(Modifier.height(16.dp))
-                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button({ actions.onResolve(GuardChoice.Keep) }, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined) { Text("Keep editing") }
-                    Button({ actions.onResolve(GuardChoice.Discard) }, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined, contentColor = color(destructiveColor)) { Text("Discard") }
-                }
-            }
-        }
+        DiscardDialog({ actions.onResolve(GuardChoice.Keep) }, { actions.onResolve(GuardChoice.Discard) }, errors = state.errors)
     }
 }
 
@@ -313,7 +300,7 @@ private fun Label(text: String) = Text(text, Modifier.padding(start = 2.dp, top 
 @Composable
 private fun NavRow(icon: ImageVector, title: String, value: String?, onClick: () -> Unit) {
     ListRow(false, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
-        Text(title, singleLine = true)
+        Text(title, fontSize = 15.sp, singleLine = true)
         Box(Modifier.weight(1f).padding(start = 12.dp), contentAlignment = Alignment.CenterEnd) {
             value?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End) }
         }

@@ -430,6 +430,12 @@ fun ChatContent(
                     RequestComposer(state, actions, requestInputs, Modifier.widthIn(max = ContentWidth), notice = requestNotice) {
                         val over = state.ended?.takeIf { it.resume == false && !state.resumeOnSend }
                         if (over != null) EndedComposer(over.blocked, actions.onNew, Modifier.widthIn(max = ContentWidth))
+                        // A harness's questions take the composer's place, like the Agent's own requests.
+                        else if (state.external && state.ended == null && state.prompts.isNotEmpty() && state.prompts.all { it is ExecutionPrompt.Questions })
+                            Column(Modifier.widthIn(max = ContentWidth).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(color(fieldColor))
+                                .border(1.dp, color(accentColor).copy(alpha = 0.55f), RoundedCornerShape(28.dp)).padding(horizontal = 18.dp, vertical = 14.dp)) {
+                                ExternalPrompts(state, actions)
+                            }
                         else Composer(
                             running = state.running,
                             onSend = { follow.value = true; actions.onDiscardDictation(); actions.onSend(it) },
@@ -907,7 +913,7 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
                 Text(item.message, color = color(destructiveColor), fontSize = 13.sp)
             }
         }
-        is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message, subtitle = item.code) {
+        is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message, subtitle = "Unfinished reply".takeIf { item.draft.isNotEmpty() }) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { item.draft.forEach { ChatItemView(it, actions) } }
         }
         is ChatItem.Measurement -> Unit
@@ -948,7 +954,7 @@ private fun Expandable(
     val shape = Theme[shapes][mediumShape]
     Disclosure(expanded, { expanded = it }, Modifier.fillMaxWidth().then(if (border) Modifier.border(1.dp, color(borderColor), shape) else Modifier)) {
         Column {
-            ListRow(selected = false, onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 36.dp)) {
+            ListRow(selected = false, onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 44.dp)) {
                 Icon(icon, Modifier.size(15.dp), tint = color(mutedColor))
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(title, fontSize = 13.sp, fontWeight = FontWeight.Normal, singleLine = true)
@@ -1003,7 +1009,7 @@ internal fun StepsView(row: ChatRow.Steps, active: Boolean, initiallyExpanded: B
             ListRow(
                 selected = false,
                 onClick = { expanded = !expanded },
-                modifier = Modifier.heightIn(min = 36.dp).semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" },
+                modifier = Modifier.heightIn(min = 44.dp).semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" },
             ) {
                 val current = row.steps.last()
                 val running = (current as? ChatItem.ToolCall)?.takeIf { it.result == null }?.label()

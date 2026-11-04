@@ -557,7 +557,7 @@ internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSe
             }
         },
     ) {
-        Button(onClick = { open = true }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 6.dp)) {
+        Button(onClick = { open = true }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 10.dp)) {
             Text(label(current), fontSize = 13.sp, color = color(mutedColor))
             Spacer(Modifier.width(4.dp))
             Icon(Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
