@@ -158,6 +158,7 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                                 { sendKey("$copyModifier+C") }, { sendKey("$copyModifier+V") }, "V" in capabilities.keys)
                         }
                         switcher?.let { Box(slot, contentAlignment = Alignment.Center) { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, caption = "Switch", enabled = state.interactive) } }
+                        if (state.owner != null) Box(slot, contentAlignment = Alignment.Center) { DockButton(screensIcon, screensLabel, { controls = true }, caption = screensCaption) }
                     }
                 }
             }
@@ -182,11 +183,14 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
 private fun ScreenOptions(state: LiveViewState, trackpad: Boolean, fitPhone: Boolean, recenter: () -> Unit, fit: () -> Unit, restart: (Boolean) -> Unit, actions: LiveActions, onScreens: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val screen = state.screen
+    val empty = state.ownsControl && state.owner != null && state.presentation == null && !trackpad && screen?.capabilities?.resize != true &&
+        state.error == null && state.connected
+    if (empty) return
     DropdownMenu(expanded = menu, onExpandedChange = { menu = it }, panel = {
         DropdownMenuPanel {
-            // In control, the dock keeps to input; other Screens are one step away here.
-            if (state.ownsControl) DropdownMenuItem(onClick = { menu = false; onScreens() }) {
-                MobileMenuItem(if (state.owner != null) Lucide.PanelsTopLeft else Lucide.MonitorSmartphone, if (state.owner != null) "Tabs & address" else "Computers")
+            // In control, a Computer's dock keeps to input, so other Screens are one step away here; a Browser's dock has Tabs.
+            if (state.ownsControl && state.owner == null) DropdownMenuItem(onClick = { menu = false; onScreens() }) {
+                MobileMenuItem(Lucide.MonitorSmartphone, "Computers")
             }
             BrowserPresentationMenuItems(state) { menu = false; restart(it) }
             if (trackpad) DropdownMenuItem(onClick = { menu = false; recenter() }, enabled = state.interactive) {
@@ -195,9 +199,10 @@ private fun ScreenOptions(state: LiveViewState, trackpad: Boolean, fitPhone: Boo
             if (screen?.capabilities?.resize == true) DropdownMenuItem(onClick = { menu = false; fit() }, enabled = state.ownsControl) {
                 MobileMenuItem(if (fitPhone) Lucide.Check else Lucide.Smartphone, "Fit to phone")
             }
-            DropdownMenuItem(onClick = { menu = false; actions.takeover(!state.ownsControl, state.control.holder != null) },
+            // Hand back sits in the header while in control.
+            if (!state.ownsControl) DropdownMenuItem(onClick = { menu = false; actions.takeover(true, state.control.holder != null) },
                 enabled = state.connected && !state.pending && !state.control.draining && screen != null) {
-                MobileMenuItem(Lucide.Hand, if (state.ownsControl) "Hand back to Agent" else if (state.control.holder != null) "Take over here" else "Take over")
+                MobileMenuItem(Lucide.Hand, if (state.control.holder != null) "Take over here" else "Take over")
             }
             if (state.error != null || !state.connected) DropdownMenuItem(onClick = { menu = false; actions.retry() }) {
                 MobileMenuItem(Lucide.RefreshCw, "Reconnect")

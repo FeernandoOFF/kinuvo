@@ -18,6 +18,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -31,6 +32,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
@@ -104,13 +106,16 @@ internal fun RowScope.ComposerSettings(
     val approvalsButton: @Composable () -> Unit = { ControlButton(Lucide.Hand, "Ask before acting in this Session: $approvals") { approvalsOpen = true } }
     // Says whose settings these are, and leads to the Agent's defaults that every other Session follows.
     val scope: @Composable (close: () -> Unit) -> Unit = { close ->
-        Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("This Session only", style = TextStyles.caption, color = color(mutedColor))
+        Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 2.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("This Session only", Modifier.weight(1f), style = TextStyles.caption, color = color(mutedColor), singleLine = true)
             onAgentDefaults?.let { open ->
-                Row(Modifier.clip(Theme[shapes][smallShape]).clickable { close(); open() }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(Lucide.Settings2, Modifier.size(14.dp), tint = color(accentColor))
-                    Text("Edit ${agent ?: "the Agent"}'s defaults", style = TextStyles.secondary, color = color(accentColor))
+                Row(Modifier.heightIn(min = 36.dp).clip(CircleShape).border(1.dp, color(borderColor), CircleShape)
+                    .clickable(onClickLabel = "Edit ${agent ?: "the Agent"}'s defaults", role = Role.Button) { close(); open() }.padding(start = 10.dp, end = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Icon(Lucide.Settings2, Modifier.size(14.dp), tint = color(mutedColor))
+                    Text("${agent ?: "Agent"}'s defaults", Modifier.widthIn(max = 180.dp), style = TextStyles.caption, singleLine = true, overflow = TextOverflow.Ellipsis)
+                    Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
                 }
             }
         }

@@ -107,6 +107,14 @@ class SessionFlowTest {
         await("Live screen")
         await("Take over")
         screenshot("browser")
+        tap("Take over")
+        server.stub("mobile/browser-held", "screens.list",
+            """[{"ref":{"source":"browser","id":"browser-tab","owner":{"agentId":"e2e","sessionId":"e2e-session"}},"title":"Private site","currentUrl":"http://lab.internal",""" +
+                """"status":"Ready","capabilities":{"delivery":"Continuous","inputs":["tap","type","key","scroll"],"tabs":true,"navigation":true},"control":{"generation":1,"holder":"e2e-device"}}]""", 1)
+        push("""{"type":"event","event":"screens.changed","payload":null,"seq":100}""")
+        await("In control")
+        await("Tabs & address")
+        screenshot("in-control")
         tap("Back")
         await("Hello from WireMock")
         requestsAtLeast("mobile/browser-tabs")
