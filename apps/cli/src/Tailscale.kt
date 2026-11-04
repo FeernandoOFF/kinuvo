@@ -39,10 +39,11 @@ internal class Tailscale(
             val web = config["Web"]?.jsonObject?.filterKeys { it.endsWith(":$httpsPort") }.orEmpty()
             if (tcp == null && web.isEmpty()) return false
             val handlers = web[authority]?.jsonObject?.get("Handlers")?.jsonObject
-            if (tcp?.get("HTTPS")?.jsonPrimitive?.booleanOrNull != true || tcp["TCPForward"] != null ||
-                web.size != 1 || handlers?.keys != setOf("/") || handlers["/"]?.jsonObject?.get("Proxy")?.jsonPrimitive?.contentOrNull != target)
+            val root = handlers?.get("/")
+            if (tcp?.get("HTTPS")?.jsonPrimitive?.booleanOrNull != true || tcp["TCPForward"] != null || web.size != 1 || handlers == null ||
+                root != null && root.jsonObject["Proxy"]?.jsonPrimitive?.contentOrNull != target)
                 throw CliktError("Tailscale port $httpsPort already serves another route. Choose a free port with --tailscale-port; existing routes were kept.")
-            return true
+            return root != null
         }
 
         suspend fun enable() {
@@ -53,7 +54,7 @@ internal class Tailscale(
         }
 
         suspend fun rollback() {
-            if (created && exists()) command("serve", "--https=$httpsPort", "off")
+            if (created && exists()) command("serve", "--https=$httpsPort", "--set-path=/", "off")
             created = false
         }
     }
