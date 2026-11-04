@@ -14,6 +14,7 @@ import kinuvo.protocol.*
 import kinuvo.ui.design.HarnessTheme
 import kinuvo.ui.screen.*
 import java.io.File
+import kotlinx.coroutines.Dispatchers
 import kotlin.io.encoding.Base64
 import kotlin.test.*
 import org.jetbrains.skia.EncodedImageFormat
@@ -30,15 +31,11 @@ class MobileLiveViewScreenTest {
     }
     private fun nodes(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::nodes)
     private fun tree(scene: ImageComposeScene) = scene.semanticsOwners.flatMap { nodes(it.rootSemanticsNode) }
+    // Decoding scenes use Dispatchers.Main so the decode resumes when render flushes it on this thread, not on a worker racing composition.
     private fun awaitFrame(scene: ImageComposeScene) {
         // A deadline rather than a count: the first decode can take seconds on a cold CI runner.
         val deadline = System.nanoTime() + 15_000_000_000L
         while (System.nanoTime() < deadline) {
-            // The decode resumes on the event thread these tests block, so let queued events run.
-            val loop = java.awt.Toolkit.getDefaultToolkit().systemEventQueue.createSecondaryLoop()
-            javax.swing.SwingUtilities.invokeLater { loop.exit() }
-            loop.enter()
-            androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
             scene.render(System.nanoTime())
             if (tree(scene).any { "Live screen" in it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() }) return
             Thread.sleep(10)
@@ -127,7 +124,7 @@ class MobileLiveViewScreenTest {
             override fun hide() = Unit
         }
         val sent = mutableListOf<ScreenAction>()
-        ImageComposeScene(390, 844, Density(1f), content = { HarnessTheme {
+        ImageComposeScene(390, 844, Density(1f), coroutineContext = Dispatchers.Main, content = { HarnessTheme {
             CompositionLocalProvider(androidx.compose.ui.platform.LocalSoftwareKeyboardController provides keyboard) {
                 LiveViewContent(state, LiveActions(input = { _, actions -> sent.addAll(actions) }), {})
             }
@@ -158,7 +155,7 @@ class MobileLiveViewScreenTest {
         val info = ScreenInfo(first, "First", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap"), tabs = true), ScreenStatus.Ready)
         var state by mutableStateOf(LiveViewState(screens = listOf(info, info.copy(ref = second, title = "Second")), selected = first,
             connected = true, owner = owner, frame = frame, displayed = frame, thumbnails = mapOf(second to frame.copy(screen = second))))
-        ImageComposeScene(390, 844, Density(1f), content = { HarnessTheme {
+        ImageComposeScene(390, 844, Density(1f), coroutineContext = Dispatchers.Main, content = { HarnessTheme {
             LiveViewContent(state, LiveActions(select = { state = state.copy(selected = it) }), {})
         } }).use { scene ->
             awaitFrame(scene)
@@ -240,7 +237,7 @@ class MobileLiveViewScreenTest {
         val frame = ScreenFrame(ScreenRef("browser", "one", BrowserOwner("agent")), "sub", "epoch", 1, sample(1000, 500))
         var recenter by mutableIntStateOf(0)
         val sent = mutableListOf<Pair<ScreenFrame, List<ScreenAction>>>()
-        ImageComposeScene(200, 100, Density(1f), content = { HarnessTheme {
+        ImageComposeScene(200, 100, Density(1f), coroutineContext = Dispatchers.Main, content = { HarnessTheme {
             LiveCanvas(frame, true, { f, actions -> sent.add(f to actions) }, {}, {}, trackpad = true, recenter = recenter)
         } }).use { scene ->
             awaitFrame(scene)
@@ -265,7 +262,7 @@ class MobileLiveViewScreenTest {
     @Test fun twoFingerTrackpadMotionScrollsWithoutClicking() = javax.swing.SwingUtilities.invokeAndWait {
         val frame = ScreenFrame(ScreenRef("computer", "one"), "sub", "epoch", 1, sample(1000, 500))
         val sent = mutableListOf<ScreenAction>()
-        ImageComposeScene(200, 200, Density(1f), content = { HarnessTheme {
+        ImageComposeScene(200, 200, Density(1f), coroutineContext = Dispatchers.Main, content = { HarnessTheme {
             LiveCanvas(frame, true, { _, actions -> sent.addAll(actions) }, {}, {}, scroll = true, trackpad = true)
         } }).use { scene ->
             awaitFrame(scene)
@@ -283,7 +280,7 @@ class MobileLiveViewScreenTest {
         val frame = ScreenFrame(ScreenRef("browser", "one", BrowserOwner("agent")), "sub", "epoch", 1, sample(1000, 500))
         var trackpad by mutableStateOf(true)
         val sent = mutableListOf<ScreenAction>()
-        ImageComposeScene(200, 200, Density(1f), content = { HarnessTheme {
+        ImageComposeScene(200, 200, Density(1f), coroutineContext = Dispatchers.Main, content = { HarnessTheme {
             LiveCanvas(frame, true, { _, actions -> sent.addAll(actions) }, {}, {}, trackpad = trackpad)
         } }).use { scene ->
             awaitFrame(scene)

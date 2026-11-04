@@ -25,10 +25,6 @@ class LiveViewScreenTest {
         // A deadline rather than a count: the first decode can take seconds on a cold CI runner.
         val deadline = System.nanoTime() + 15_000_000_000L
         while (System.nanoTime() < deadline) {
-            val loop = java.awt.Toolkit.getDefaultToolkit().systemEventQueue.createSecondaryLoop()
-            javax.swing.SwingUtilities.invokeLater { loop.exit() }
-            loop.enter()
-            androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
             scene.render(System.nanoTime())
             if (scene.semanticsOwners.flatMap { nodes(it.rootSemanticsNode) }.any { "Live screen" in it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() }) return
             Thread.sleep(10)
