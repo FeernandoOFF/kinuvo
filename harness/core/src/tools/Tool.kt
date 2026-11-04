@@ -70,6 +70,8 @@ interface Tool {
     val identity: kinuvo.protocol.ToolIdentity? get() = null
     val displayName: String get() = descriptor.name
     val risk: Risk get() = Risk.Medium
+    /** Whether identical consecutive successful calls can be useful within one turn. */
+    val repeatable: Boolean get() = true
     /** What a call with [args] would do; by default the whole tool at its [risk]. */
     fun assess(args: JsonObject): Assessment = Assessment(listOf(Action(risk, listOf(descriptor.name))))
     suspend fun bind(args: JsonObject): suspend () -> Unit = {}

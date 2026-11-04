@@ -110,6 +110,29 @@ class AgentRunTest {
     }
 
     @Test
+    fun consecutiveSuccessfulActionsAreNotExecutedTwiceButNewTurnsMayRepeatThem() = runTest {
+        var executed = 0
+        var calls = 0
+        val open = object : Tool {
+            override val descriptor = ToolDescriptor("open", "Open a tab")
+            override val repeatable = false
+            override suspend fun execute(args: JsonObject): String { executed++; return "Tab opened" }
+        }
+        val model = scriptedModel { _, _ ->
+            calls++
+            flowOf(StreamFrame.ToolCallComplete("c$calls", "open", "{}"), StreamFrame.End())
+        }
+        val session = store.createSession(agent.id, "")
+        repeat(2) { turn ->
+            val events = AgentRun(agent, store, model, listOf(open)).run(session.id, "Open a tab").toList()
+            assertIs<AgentEvent.RunError>(events.last())
+            assertEquals(turn + 1, executed)
+            assertEquals(1, events.filterIsInstance<AgentEvent.ToolCallResult>().count { !it.isError })
+            assertTrue(events.filterIsInstance<AgentEvent.ToolCallResult>().filter { it.isError }.all { "already succeeded" in it.content })
+        }
+    }
+
+    @Test
     fun repeatedFailingCallsAreNotRunAgainAndEndTheRun() = runTest {
         var runs = 0
         val failing = object : Tool {
