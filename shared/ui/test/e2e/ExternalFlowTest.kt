@@ -23,7 +23,7 @@ class ExternalFlowTest {
         await("Retry limit accepted", 20_000)
         gone("Choose a retry limit")
         await("External transcript retained")
-        await(label("Attach: This harness does not accept this file type").and(isNotEnabled()))
+        await(label("Attach: Attachments can't be sent to this Session").and(isNotEnabled()))
         tap("Message")
         type("Continue external Session")
         tap("Send")

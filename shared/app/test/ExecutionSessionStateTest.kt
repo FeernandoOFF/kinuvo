@@ -67,12 +67,20 @@ class ExecutionSessionStateTest {
         assertEquals("Recovered", assertIs<ChatItem.Assistant>(next.last()).text)
     }
 
+    @Test fun deniedToolKeepsTheUsersNote() {
+        val call = ChatItem.ToolCall("t", "t", "shell", "{}", result = "The user denied this call. Note: not now", isError = true)
+        assertTrue(call.denied)
+        assertEquals("not now", call.denialNote)
+        assertNull(call.copy(result = "The user denied this call.").denialNote)
+    }
+
     @Test fun externalCapabilitiesAndArchiveDoNotOfferNativeFallback() {
         val server = ServerCapabilities("s", features = setOf(ServerFeature.Attachments))
         val caps = SessionCapabilities(server = server, chat = CapabilityState.unavailable("Saved history only", "archived"),
             attachments = mapOf("image/png" to CapabilityState()), execution = ExecutionCapabilities(supportedMimeTypes = setOf("image/png")))
         assertTrue(caps.attachmentInput("image/png").actionable)
         assertFalse(caps.attachmentInput("text/plain").actionable)
+        assertEquals("This file type can't be sent to this Session", caps.attachmentInput("text/plain").reason)
         val state = ChatState(agent = AgentInfo("a", "A", "external", executionKind = ExecutionKind.Acp), selected = "s", capabilities = caps, phase = ExecutionPhase.Lost)
         assertNull(state.ended)
         assertFalse(state.canStop)

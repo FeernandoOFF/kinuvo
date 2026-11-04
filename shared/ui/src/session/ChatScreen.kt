@@ -97,11 +97,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.draw.alpha
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.hazeSource
@@ -342,7 +344,6 @@ fun ChatContent(
                 e.isShortcutPressed && e.key == Key.N -> actions.onNew()
                 e.isShortcutPressed && e.key == Key.Backslash && toggle != null -> toggle()
                 e.isShortcutPressed && e.key == Key.L -> composerFocus.requestFocus()
-                e.isShortcutPressed && e.key == Key.Comma && state.agent != null -> actions.onSettings()
                 e.isShortcutPressed && e.isShiftPressed && e.key == Key.Period && state.running && state.canStop -> actions.onStop()
                 e.isAltPressed && e.key == Key.DirectionUp -> step(-1)
                 e.isAltPressed && e.key == Key.DirectionDown -> step(1)
@@ -593,7 +594,7 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
         val selected = state.sessions.firstOrNull { it.id == state.selected } ?: state.info
         Row(Modifier.weight(1f).padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             state.agent?.let { agent ->
-                Hint("${agent.name}'s settings ${shortcut(",")}", TooltipSide.Bottom) {
+                Hint("${agent.name}'s settings", TooltipSide.Bottom) {
                     Row(Modifier.titleBarControl().clip(RoundedCornerShape(50)).clickable(onClickLabel = "${agent.name}'s settings", onClick = actions.onSettings)
                         .semantics(mergeDescendants = true) { contentDescription = "${agent.name}'s settings" }
                         .background(color(panelColor)).padding(start = 4.dp, end = if (compact) 4.dp else 10.dp, top = 3.dp, bottom = 3.dp),
@@ -946,8 +947,10 @@ private fun EmptyState(state: ChatState, modifier: Modifier) {
                 else -> AvatarState.Idle
             }
             RiveAvatar(BundledAvatar, Modifier.size(180.dp, 120.dp), LocalRiveGaze.current, state.agent?.avatarArtboard, state = avatar)
-            Text(state.agent?.let { "Start a Session with ${it.name}" } ?: "Connecting…", style = TextStyles.headline, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-            Text("Ask anything, or type /skill to activate one.", color = color(mutedColor), textAlign = TextAlign.Center)
+            // Balanced lines, so a wrap never leaves one word alone.
+            Text(state.agent?.let { "Start a Session with ${it.name}" } ?: "Connecting…", style = TextStyles.headline.copy(lineBreak = LineBreak.Heading), lineHeight = 28.sp,
+                fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            Text("Ask anything, or type /skill to activate one.", color = color(mutedColor), textAlign = TextAlign.Center, style = LocalTextStyle.current.copy(lineBreak = LineBreak.Heading))
         }
     }
 }
@@ -962,6 +965,9 @@ private fun Expandable(
     border: Boolean = true,
     initiallyExpanded: Boolean = false,
     tint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+    titleStyle: TextStyle = TextStyles.callout,
+    subtitleStyle: TextStyle = TextStyles.caption,
+    footer: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded) }
@@ -971,12 +977,13 @@ private fun Expandable(
             ListRow(selected = false, onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 44.dp)) {
                 Icon(icon, Modifier.size(15.dp), tint = if (tint.isSpecified) tint else color(mutedColor))
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(title, style = TextStyles.callout, fontWeight = FontWeight.Normal, singleLine = true)
-                    subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
+                    Text(title, style = titleStyle, fontWeight = FontWeight.Normal, singleLine = true)
+                    subtitle?.let { Text(it, Modifier.weight(1f, fill = false), style = subtitleStyle, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
                     status?.invoke()
                 }
                 Icon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
             }
+            footer?.let { Box(Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp)) { it() } }
             DisclosurePanel(contentPadding = PaddingValues(start = 10.dp, top = 6.dp, end = 10.dp, bottom = 10.dp)) { content() }
         }
     }
@@ -1033,16 +1040,17 @@ internal fun StepsView(row: ChatRow.Steps, active: Boolean, initiallyExpanded: B
                     else -> Icon(Lucide.ListChecks, Modifier.size(15.dp), tint = color(mutedColor))
                 }
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val title = when {
-                        active && running != null -> "Running ${running.title}"
-                        active && current is ChatItem.Reasoning -> "Thinking…"
-                        else -> row.summary()
-                    }
-                    Text(title, style = TextStyles.secondary, fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
+                    if (active && running != null) {
+                        Text("Running", style = TextStyles.secondary, fontWeight = FontWeight.Normal, singleLine = true)
+                        Text(running.title, style = if (running.skill) TextStyles.secondary else MonoStyle, singleLine = true, overflow = TextOverflow.Ellipsis)
+                    } else Text(if (active && current is ChatItem.Reasoning) "Thinking…" else row.summary(),
+                        style = TextStyles.secondary, fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
                     if (active) running?.subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
                     else Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
-                        row.tools.take(MaxStepIcons).forEach { Icon(it.label().icon, Modifier.size(12.dp), tint = color(if (it.isError) destructiveColor else mutedColor)) }
-                        if (row.tools.size > MaxStepIcons) Text("+${row.tools.size - MaxStepIcons}", style = TextStyles.overline, color = color(mutedColor))
+                        // One icon per kind of tool, red when any of that kind failed.
+                        val kinds = row.tools.groupBy { it.label().icon }.map { (icon, calls) -> icon to calls.any { it.isError } }
+                        kinds.take(MaxStepIcons).forEach { (icon, failed) -> Icon(icon, Modifier.size(12.dp), tint = color(if (failed) destructiveColor else mutedColor)) }
+                        if (kinds.size > MaxStepIcons) Text("+${kinds.size - MaxStepIcons}", style = TextStyles.overline, color = color(mutedColor))
                     }
                 }
                 if (failed > 0) Text("$failed failed", style = TextStyles.caption, color = color(destructiveColor), singleLine = true)
@@ -1083,7 +1091,8 @@ private fun ToolAttachments(attachments: List<Attachment>, actions: ChatActions)
 @Composable
 private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, actions: ChatActions = ChatActions()) {
     val label = item.label()
-    Expandable(label.icon, label.title, label.subtitle, border = border, status = {
+    Expandable(label.icon, label.title, label.subtitle, border = border, titleStyle = if (label.skill) TextStyles.callout else MonoStyle,
+        subtitleStyle = if (label.skill) TextStyles.caption else MonoStyle.copy(fontSize = 12.sp), status = {
         when {
             item.waiting -> Pill("Needs you", tone = Tone.Warning)
             item.result == null -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 13.dp)
@@ -1091,13 +1100,20 @@ private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, action
             item.isError -> Pill("Failed", tone = Tone.Danger)
             else -> Pill("Done", tone = Tone.Success)
         }
-    }) {
+    }, footer = item.denialNote?.let { note -> { DenialNote(note) } }) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!label.skill && item.args.isNotBlank()) CodeBlock(prettyJson(item.args), language = "Arguments")
             item.result?.let { CodeBlock(it, language = if (item.isError) "Error" else "Result", previewChars = 4000, error = item.isError) }
             ToolAttachments(item.attachments, actions)
         }
     }
+}
+
+/** What the user told the Agent when denying a tool, as a quote under its row. */
+@Composable
+private fun DenialNote(note: String) = Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Box(Modifier.width(2.dp).fillMaxHeight().background(color(borderColor)))
+    Text("Your note: $note", style = TextStyles.secondary, color = color(mutedColor))
 }
 
 /** A past `ask_user` form: each question with what the user answered. */

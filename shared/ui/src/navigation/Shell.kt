@@ -204,12 +204,12 @@ private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellCh
     Box(modifier.fillMaxSize().background(color(railColor)).windowInsetsPadding(insets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
         Row(Modifier.fillMaxSize()) {
             OwnerRail(state, actions, Modifier.windowInsetsPadding(insets.only(WindowInsetsSides.Bottom)), top = 8.dp)
-            ColumnPanel(Modifier.weight(1f)) { ContextColumn(state, actions, chrome, bottom = clear) }
+            ColumnPanel(Modifier.weight(1f)) { ContextColumn(state, actions, chrome, bottom = clear + 16.dp) }
         }
         val sidebar = color(sidebarColor)
         // The lists fade out under the bar instead of showing through around it.
-        Box(Modifier.align(Alignment.BottomStart).padding(start = RailWidth).fillMaxWidth().height(clear)
-            .background(Brush.verticalGradient(0f to sidebar.copy(alpha = 0f), 0.4f to sidebar)))
+        Box(Modifier.align(Alignment.BottomStart).padding(start = RailWidth).fillMaxWidth().height(clear + 32.dp)
+            .background(Brush.verticalGradient(0f to sidebar.copy(alpha = 0f), 0.5f to sidebar)))
         QuickChatBar(state.agent, chrome.draft, Modifier.align(Alignment.BottomStart).padding(start = RailWidth).windowInsetsPadding(insets.only(WindowInsetsSides.Bottom))) { chrome.quickChat = true }
     }
 }
@@ -351,7 +351,9 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
     }
     Column(Modifier.fillMaxSize()) {
         TitleBarRow(leading = false, trailing = false) {
-            Text(state.agent?.name ?: "…", Modifier.weight(1f).padding(horizontal = 8.dp), fontWeight = FontWeight.Bold, singleLine = true, overflow = TextOverflow.Ellipsis)
+            // A long name gets a second, tight line rather than losing its end.
+            Text(state.agent?.name ?: "…", Modifier.weight(1f).padding(horizontal = 8.dp), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                style = TextStyles.title.copy(lineHeight = 20.sp))
             HeaderButton(Lucide.Settings2, "Agent settings", actions.onAgentSettings, enabled = state.agent != null)
             HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", actions.onNew, enabled = state.agent != null)
         }

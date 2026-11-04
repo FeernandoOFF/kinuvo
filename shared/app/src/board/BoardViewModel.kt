@@ -1,5 +1,6 @@
 package kinuvo.app.board
 
+import kinuvo.client.userMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kinuvo.protocol.CreateTaskParams
@@ -48,7 +49,7 @@ class BoardViewModel(private val repo: BoardRepository) : ViewModel() {
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                state.update { it.copy(errors = it.errors + (e.message ?: e.toString())) }
+                state.update { it.copy(errors = it.errors + (e.userMessage)) }
             }
         }
     }

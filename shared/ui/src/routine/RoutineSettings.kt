@@ -34,8 +34,7 @@ internal fun RoutineList(p: Pane) {
     ItemList(
         p, "Routines",
         // An empty list explains itself in its empty state.
-        if (routines?.isEmpty() == true) "" else "Prompts ${ui.agent?.name ?: "the Agent"} runs on a schedule, each in its own Session. Add one here or ask in chat, " +
-            "e.g. “every weekday at 9, summarize my inbox”.",
+        if (routines?.isEmpty() == true) "" else "Prompts ${ui.agent?.name ?: "the Agent"} runs on a schedule, each in its own Session.",
         // An empty list offers one way to add, under it.
         "New routine", routines == null && error == null && !restricted, canAdd = !restricted && routines?.isEmpty() != true,
     ) {
@@ -47,7 +46,7 @@ internal fun RoutineList(p: Pane) {
             }
         }
         if (!restricted && !routines.isNullOrEmpty()) RowGroup { routines.forEach { r ->
-            ItemRow(r.id == ui.route.item, r.icon(), r.name, r.summary(ui.now), { p.go(ui.route.copy(item = r.id, editing = false)) }) { r.statusPill() }
+            ItemRow(r.id == ui.route.item, r.icon(), r.name, r.summary(ui.now), { p.go(ui.route.copy(item = r.id, editing = false)) }, muted = !r.enabled) { r.statusPill() }
         } }
     }
 }

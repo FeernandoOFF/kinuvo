@@ -146,7 +146,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"rich\",\"change\":{\"type\":\"entry\",\"seq\":8,\"entry\":{\"type\":\"tool_result\",\"id\":\"t-push\",\"name\":\"shell\",\"output\":\"Denied by user: Don't push yet\",\"isError\":true}}},\"seq\":10}"
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"rich\",\"change\":{\"type\":\"entry\",\"seq\":8,\"entry\":{\"type\":\"tool_result\",\"id\":\"t-push\",\"name\":\"shell\",\"output\":\"The user denied this call. Note: Don't push yet\",\"isError\":true}}},\"seq\":10}"
         }
       }
     },

@@ -25,8 +25,7 @@ internal fun SkillList(p: Pane) {
     val skills = p.ui.config.skills
     ItemList(
         p, "Skills",
-        "Instructions ${p.ui.agent?.name ?: "the agent"} loads for a kind of task, by itself or when you type /name. " +
-            "Its own Skills win over shared ones of the same name.",
+        "Instructions ${p.ui.agent?.name ?: "the agent"} loads for a kind of task, or when you type /name.",
         "New skill", skills == null,
     ) {
         if (!skills.isNullOrEmpty()) RowGroup { skills.forEach { s ->

@@ -137,6 +137,15 @@ private fun InspectorBody(state: InspectorState, host: InspectorHost, actions: I
         state.errors.forEach { ErrorMessage(it) }
         when (state.page) {
             InspectorPage.Agent -> if (details.info.external) ExternalAgentPage(state, draft, details, host, actions) else AgentPage(state, draft, details, host, actions)
+            InspectorPage.Instructions -> {
+                val agentId = details.info.id
+                RowGroup("Personality") {
+                    FieldRow("Who ${draft.name.ifBlank { "the Agent" }} is") { TextArea(draftField(agentId, "identity", draft.identity) { v -> actions.onEdit { it.copy(identity = v) } }, lines = 6) }
+                }
+                RowGroup("Soul") {
+                    FieldRow("Principles, tone and rules") { TextArea(draftField(agentId, "soul", draft.soul) { v -> actions.onEdit { it.copy(soul = v) } }, lines = 12) }
+                }
+            }
             InspectorPage.Model -> ModelPage(state, draft, actions)
             InspectorPage.Approvals -> RowGroup("Ask before") {
                 APPROVALS.forEach { (key, hint) ->
@@ -156,7 +165,7 @@ private fun InspectorBody(state: InspectorState, host: InspectorHost, actions: I
 private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDetails, host: InspectorHost, actions: InspectorActions) {
     val agent = host.agents.firstOrNull { it.id == details.info.id } ?: details.info
     val agentId = details.info.id
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { AgentAvatar(agent, 64.dp) }
+    AvatarPicker(agent, draft, actions)
     // Labelled fields in grouped rows, like every other Settings form.
     RowGroup("Identity") {
         FieldRow("Name") {
@@ -165,10 +174,11 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
                 Text(it, style = TextStyles.caption, color = color(destructiveColor))
             }
         }
-        FieldRow("Personality") { TextArea(draftField(agentId, "identity", draft.identity) { v -> actions.onEdit { it.copy(identity = v) } }, lines = 3) }
     }
-    RowGroup("Soul") {
-        FieldRow("Principles, tone and rules") { TextArea(draftField(agentId, "soul", draft.soul) { v -> actions.onEdit { it.copy(soul = v) } }, lines = 5) }
+    Group("Instructions") {
+        NavRow(Lucide.ScrollText, "Personality and Soul", draft.identity.lineSequence().map { it.trim().trimStart('#', ' ') }.firstOrNull { it.isNotEmpty() }) {
+            actions.onPush(InspectorPage.Instructions)
+        }
     }
     Group("Model") {
         val selected = state.models.model(draft.provider, draft.model)
@@ -205,7 +215,7 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
     val harness = harnessName(agent, connections)
     val machine = agent.host ?: host.server
     val problems = draft.problems(agentId, host.agents)
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { AgentAvatar(agent, 64.dp) }
+    AvatarPicker(agent, draft, actions)
     Group("Identity", card = false) {
         Label("Name")
         Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
@@ -236,6 +246,18 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
         Text("Instructions, Memory, Skills and tools are set in $harness on $machine.", Modifier.padding(4.dp), style = TextStyles.secondary, color = color(mutedColor))
     }
     Text("Changes apply to ${agent.name}'s new Sessions.", style = TextStyles.caption, color = color(mutedColor))
+}
+
+/** The Agent's face, with the others a tap away on either side. */
+@Composable
+private fun AvatarPicker(agent: AgentInfo, draft: AgentDraft, actions: InspectorActions) {
+    val current = AvatarArtboards.indexOf(draft.avatar).coerceAtLeast(0)
+    val step = { delta: Int -> actions.onEdit { it.copy(avatar = AvatarArtboards[(current + delta + AvatarArtboards.size) % AvatarArtboards.size]) } }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+        HeaderButton(Lucide.ChevronLeft, "Previous avatar", { step(-1) })
+        AgentAvatar(agent.copy(avatar = draft.avatar.ifEmpty { agent.avatar }), 64.dp)
+        HeaderButton(Lucide.ChevronRight, "Next avatar", { step(1) })
+    }
 }
 
 @Composable
@@ -314,6 +336,7 @@ private fun NavRow(icon: ImageVector, title: String, value: String?, onClick: ()
 
 private fun InspectorPage.title() = when (this) {
     InspectorPage.Agent -> "Agent settings"
+    InspectorPage.Instructions -> "Instructions"
     InspectorPage.Model -> "Model"
     InspectorPage.Approvals -> "Risk tolerance"
     InspectorPage.UserNotes -> "User Notes"
