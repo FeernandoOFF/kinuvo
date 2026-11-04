@@ -133,7 +133,7 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
     }
     val links = WIKILINK.findAll(n.body).map { it.groupValues[1] to it.groupValues[2].ifEmpty { it.groupValues[1].substringAfterLast('/') } }.distinct().toList()
     DetailPane(back, n.title) {
-        Pill(n.type.replaceFirstChar { it.uppercase() }, icon = n.type.icon())
+        Pill(n.type.replaceFirstChar { it.uppercase() }, Modifier.padding(start = 16.dp), icon = n.type.icon())
         if (n.properties.isNotEmpty()) DetailGroup("Properties") {
             n.properties.forEach { (k, v) -> DetailRow(k) { Text(v) } }
         }

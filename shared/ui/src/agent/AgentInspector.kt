@@ -283,7 +283,7 @@ internal fun draftField(agentId: String, name: String, value: String, onChange: 
 private fun Group(title: String, hint: String? = null, card: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // Labelled and filled like a RowGroup; fields go without the card, as their own borders already contain them.
-        Row(Modifier.padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.padding(start = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             SectionLabel(title)
             hint?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
         }
