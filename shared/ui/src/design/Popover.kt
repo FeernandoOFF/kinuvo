@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -74,7 +75,7 @@ class Popovers {
                         shape = if (touch) RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp) else Theme[shapes][largeShape],
                         contentPadding = if (touch) PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp) else PaddingValues(12.dp)) {
                         if (touch) Box(Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp).size(36.dp, 4.dp).background(color(mutedColor).copy(alpha = 0.5f), CircleShape))
-                        popover.title?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp), fontSize = 16.sp) }
+                        popover.title?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp), fontSize = 17.sp, fontWeight = FontWeight.SemiBold) }
                         Column(if (touch) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)) else Modifier) { popover.content() }
                     }
                 }

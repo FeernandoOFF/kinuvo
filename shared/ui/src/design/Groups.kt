@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -168,7 +169,7 @@ fun QuietButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifie
 @Composable
 private fun PillButton(label: String, onClick: () -> Unit, modifier: Modifier, textColor: Color) {
     Box(modifier.heightIn(min = 48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
-        Text(label, color = textColor, fontWeight = FontWeight.SemiBold, singleLine = true)
+        Text(label, color = textColor, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, singleLine = true)
     }
 }
 
@@ -207,8 +208,8 @@ fun EmptyState(icon: ImageVector, title: String, body: String? = null, modifier:
 fun DiscardDialog(onKeep: () -> Unit, onDiscard: () -> Unit, modifier: Modifier = Modifier, errors: List<String> = emptyList()) {
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Box(Modifier.matchParentSize().background(color(scrimColor)).clickable(remember { MutableInteractionSource() }, indication = null, onClick = onKeep))
-        Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp).widthIn(max = 400.dp).consumeTaps().semantics { paneTitle = "Unsaved changes" },
-            shape = Theme[shapes][largeShape], contentPadding = PaddingValues(20.dp)) {
+        Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp).widthIn(max = 400.dp).shadow(24.dp, Theme[shapes][largeShape]).consumeTaps()
+            .semantics { paneTitle = "Unsaved changes" }, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(20.dp)) {
             Text("Discard changes?", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))
             Text("Your changes have not been saved.", fontSize = 14.sp, color = color(mutedColor))

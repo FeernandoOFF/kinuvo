@@ -92,7 +92,7 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
         rules = rules.takeIf { it != d.rules },
     )
     val dirty = changes != UpdateAgentParams(d.info.id)
-    DetailPane(p.back, section.title, error = p.ui.error, trailing = { FormActions("Save", dirty, p.ui.state.saved && !dirty, onSave = { p.actions.onSaveAgent(changes) }) }) {
+    DetailPane(p.back, section.title, error = p.ui.error, subtitle = "${p.ui.agent?.name ?: "Agent"} · every Session", trailing = { FormActions("Save", dirty, p.ui.state.saved && !dirty, onSave = { p.actions.onSaveAgent(changes) }) }) {
         when (section) {
             SettingsSection.Workspace -> {
                 RowGroup("Shell and files") {
