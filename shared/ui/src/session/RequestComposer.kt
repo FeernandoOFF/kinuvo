@@ -272,7 +272,10 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
                     Button(onClick = { onDecision(ApprovalDecision.AlwaysAllow) }, modifier = it, style = ButtonStyle.Outlined) { Text(always, singleLine = true, overflow = TextOverflow.Ellipsis) }
                 }
             })
-        Input(input.note, "What to do instead", capitalize = true)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Note for the Agent if you deny (optional)", fontSize = 12.sp, color = color(mutedColor))
+            Input(input.note, "What to do instead", capitalize = true)
+        }
         Button(onClick = { onDecision(ApprovalDecision.Deny(input.note.text.toString())) }, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Outlined,
             contentColor = color(destructiveColor)) { Text("Deny") }
     }

@@ -572,7 +572,7 @@ internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit,
             style = ButtonStyle.Ghost,
             shape = if (LocalInteractionMode.current == InteractionMode.Touch) CircleShape else Theme[shapes][mediumShape],
             contentColor = color(mutedColor),
-            modifier = if (LocalInteractionMode.current == InteractionMode.Touch) Modifier.size(40.dp).background(color(subtleColor), CircleShape)
+            modifier = if (LocalInteractionMode.current == InteractionMode.Touch) Modifier.size(44.dp).background(color(subtleColor), CircleShape)
                 else Modifier.size(32.dp).titleBarControl(),
         ) {
             Icon(icon, Modifier.size(17.dp), contentDescription = label)
@@ -649,9 +649,9 @@ private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatS
         val focus = remember { FocusRequester() }
         LaunchedEffect(Unit) { focus.requestFocus() }
         fun save() { actions.onRename(title.text.toString()); renaming = false }
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Input(title, "Session name", trailing = { if (title.text.isNotEmpty()) IconButton(onClick = { title.clearText() }, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor), modifier = Modifier.size(32.dp)) {
-                Icon(Lucide.X, Modifier.size(14.dp), contentDescription = "Clear")
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Input(title, "Session name", trailing = { if (title.text.isNotEmpty()) IconButton(onClick = { title.clearText() }, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor), modifier = Modifier.size(44.dp)) {
+                Icon(Lucide.X, Modifier.size(16.dp), contentDescription = "Clear")
             } }, modifier = Modifier.focusRequester(focus).onPreviewKeyEvent { e -> (e.type == KeyEventType.KeyDown && e.key == Key.Enter).also { if (it) save() } }, capitalize = true)
             Button(::save, Modifier.fillMaxWidth(), enabled = title.text.toString().trim() != session.title, style = ButtonStyle.Primary) { Text("Save") }
         }

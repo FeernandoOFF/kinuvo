@@ -123,13 +123,13 @@ internal fun SettingsPageHeader(title: String, back: (() -> Unit)? = null, subti
     if (LocalInSheet.current) Box(Modifier.fillMaxWidth().then(LocalSheetDrag.current).heightIn(min = 52.dp).padding(horizontal = 16.dp, vertical = 4.dp)) {
         if (up != null) Box(Modifier.align(Alignment.CenterStart)) { HeaderButton(Lucide.ArrowLeft, "Back", up) }
         Column(Modifier.align(Alignment.Center).padding(horizontal = 72.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, Modifier.weight(1f, fill = false), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis)
-                info?.let { InfoButton(it) }
-            }
+            Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis)
             subtitle?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
         }
-        Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), content = trailing)
+        Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            info?.let { InfoButton(it) }
+            trailing()
+        }
     } else if (LocalInteractionMode.current == InteractionMode.Touch) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (up != null) FloatingBubble(Lucide.ArrowLeft, "Back", up)

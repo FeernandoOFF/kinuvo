@@ -127,7 +127,6 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                     Button(onClick = { actions.takeover(true, state.control.holder != null) }, enabled = state.connected && !state.pending && !state.control.draining,
                         modifier = Modifier.weight(1f), style = ButtonStyle.Primary) {
                         Icon(Lucide.Hand, Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
                         Text(if (state.pending || state.control.draining) "Waiting…" else if (state.control.holder != null) "Take over here" else "Take over")
                     }
                 } else {
@@ -159,7 +158,7 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                             ClipboardButton(state, paste, desktop && "C" in capabilities.keys && copyModifier != null,
                                 { sendKey("$copyModifier+C") }, { sendKey("$copyModifier+V") }, "V" in capabilities.keys)
                         }
-                        switcher?.let { Box(slot, contentAlignment = Alignment.Center) { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, caption = "Switch", enabled = state.interactive) } }
+                        switcher?.takeIf { state.interactive }?.let { Box(slot, contentAlignment = Alignment.Center) { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, caption = "Switch") } }
                     }
                 }
             }
@@ -227,7 +226,7 @@ private fun ClipboardButton(state: LiveViewState, paste: () -> Unit, shortcuts: 
 @Composable
 private fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true) {
     IconButton(onClick = onClick, enabled = enabled, style = ButtonStyle.Ghost, shape = CircleShape,
-        modifier = Modifier.size(40.dp).background(color(subtleColor), CircleShape)) {
+        modifier = Modifier.size(44.dp).background(color(subtleColor), CircleShape)) {
         Icon(icon, Modifier.size(19.dp), contentDescription = label, tint = if (enabled) color(onBackgroundColor) else color(mutedColor))
     }
 }

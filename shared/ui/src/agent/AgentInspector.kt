@@ -157,7 +157,7 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
     val agent = host.agents.firstOrNull { it.id == details.info.id } ?: details.info
     val agentId = details.info.id
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { AgentAvatar(agent, 64.dp) }
-    Group("Identity") {
+    Group("Identity", card = false) {
         Label("Name")
         Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
         draft.problems(agentId, host.agents).filter { it.contains("Name", true) || it.contains("called") }.forEach {
@@ -166,7 +166,7 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
         Label("Personality")
         TextArea(draftField(agentId, "identity", draft.identity) { v -> actions.onEdit { it.copy(identity = v) } }, lines = 3)
     }
-    Group("Soul") {
+    Group("Soul", card = false) {
         Label("Principles, tone and rules")
         TextArea(draftField(agentId, "soul", draft.soul) { v -> actions.onEdit { it.copy(soul = v) } }, lines = 5)
     }
@@ -206,7 +206,7 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
     val machine = agent.host ?: host.server
     val problems = draft.problems(agentId, host.agents)
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { AgentAvatar(agent, 64.dp) }
-    Group("Identity") {
+    Group("Identity", card = false) {
         Label("Name")
         Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
         problems.filter { it.contains("Name", true) || it.contains("called") }.forEach { Text(it, fontSize = 12.sp, color = color(destructiveColor)) }
@@ -280,14 +280,15 @@ internal fun draftField(agentId: String, name: String, value: String, onChange: 
 }
 
 @Composable
-private fun Group(title: String, hint: String? = null, content: @Composable ColumnScope.() -> Unit) {
+private fun Group(title: String, hint: String? = null, card: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        // Labelled and filled like a RowGroup.
+        // Labelled and filled like a RowGroup; fields go without the card, as their own borders already contain them.
         Row(Modifier.padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             SectionLabel(title)
             hint?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
         }
-        Panel(Modifier.fillMaxWidth(), borderColor = Color.Transparent, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
+        if (!card) Column(verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
+        else Panel(Modifier.fillMaxWidth(), borderColor = Color.Transparent, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
         }
     }
