@@ -85,7 +85,7 @@ internal fun SecretField(p: Pane, onPick: (String) -> Unit, field: @Composable (
     val provider = providers?.firstOrNull { it.connected }
     var path by remember { mutableStateOf<List<String>?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        field(provider?.let { { HeaderButton(Lucide.KeyRound, "From ${it.name}", { path = if (path == null) listOf(it.scheme) else null }) } })
+        field(provider?.let { { FieldButton(Lucide.KeyRound, "From ${it.name}", { path = if (path == null) listOf(it.scheme) else null }) } })
         val open = path
         if (provider != null && open != null) SecretBrowser(p, provider, open, { path = it }, { onPick(it); path = null })
     }

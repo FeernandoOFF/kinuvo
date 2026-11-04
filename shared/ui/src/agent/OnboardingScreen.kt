@@ -593,7 +593,7 @@ private fun NameHeadline(s: OnboardingState, display: TextStyle, onEdit: ((Onboa
                 drawRect(tint, Offset(0f, size.height - 3.dp.toPx()), androidx.compose.ui.geometry.Size(size.width, 3.dp.toPx()))
             }.semantics { contentDescription = "Agent name" }, textStyle = display.copy(color = color(onBackgroundColor)), cursorBrush = SolidColor(tint),
                 lineLimits = TextFieldLineLimits.SingleLine, keyboardOptions = inputKeyboard(true))
-            HeaderButton(Lucide.Dices, "Suggest a name", { onEdit { it.copy(agentName = NameIdeas.filter { name -> name != it.agentName }.random()) } })
+            FieldButton(Lucide.Dices, "Suggest a name", { onEdit { it.copy(agentName = NameIdeas.filter { name -> name != it.agentName }.random()) } })
         }
     }
 }
