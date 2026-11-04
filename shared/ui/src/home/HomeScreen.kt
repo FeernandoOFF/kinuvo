@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -150,8 +151,7 @@ private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, open: 
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AgentAvatar(agent, 22.dp)
-            Text(listOfNotNull(agent?.name ?: "Unassigned", kind).joinToString(" · "), Modifier.weight(1f), style = TextStyles.secondary, color = color(mutedColor),
-                singleLine = true, overflow = TextOverflow.Ellipsis)
+            MetaLine(agent?.name ?: "Unassigned", kind, Modifier.weight(1f), TextStyles.secondary)
             Pill("Waiting", tone = Tone.Warning)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -168,7 +168,7 @@ private fun RunningNow(ui: HomeUi, actions: HomeActions) {
         running.forEach { r ->
             val agent = ui.agent(r.agentId)
             val kind = r.session?.kind() ?: "Routine run"
-            HomeRow(agent, r.title, listOfNotNull(agent?.name, kind).joinToString(" · "), { actions.onOpenSession(r.agentId, r.sessionId) }) { Spinner(Modifier.semantics { contentDescription = "Running" }, size = 12.dp, tint = color(accentColor)) }
+            HomeRow(agent, r.title, kind, { actions.onOpenSession(r.agentId, r.sessionId) }, lead = agent?.name) { Spinner(Modifier.semantics { contentDescription = "Running" }, size = 12.dp, tint = color(accentColor)) }
         }
     }
 }
@@ -258,7 +258,8 @@ private fun Empty(text: String) = Text(text, Modifier.padding(start = 23.dp, top
 
 /** A row opening one Session, Task or Routine: [agent]'s avatar (or [icon]), a title and a muted line. */
 @Composable
-private fun HomeRow(agent: AgentInfo?, title: String, subtitle: String, onClick: () -> Unit, icon: ImageVector? = null, flag: String? = null, trailing: @Composable RowScope.() -> Unit = {}) {
+private fun HomeRow(agent: AgentInfo?, title: String, subtitle: String, onClick: () -> Unit, icon: ImageVector? = null, flag: String? = null, lead: String? = null,
+    trailing: @Composable RowScope.() -> Unit = {}) {
     // A fixed leading slot, so rows with an icon and rows with an avatar start their text together.
     ListRow(false, onClick, leading = { Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) { if (icon != null) Icon(icon, Modifier.size(16.dp)) else AgentAvatar(agent, 22.dp) } }) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -266,12 +267,20 @@ private fun HomeRow(agent: AgentInfo?, title: String, subtitle: String, onClick:
             // A flag leads the meta line, so it doesn't take width from the title.
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 flag?.let { Text(it, style = TextStyles.caption, color = Tone.Danger.color(), fontWeight = FontWeight.Medium) }
-                Text(subtitle, Modifier.weight(1f), style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (lead != null) MetaLine(lead, subtitle, Modifier.weight(1f), TextStyles.caption)
+                else Text(subtitle, Modifier.weight(1f), style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
         }
         if (icon != null && agent != null) AgentAvatar(agent, 20.dp)
         trailing()
     }
+}
+
+/** “[lead] · [rest]” on one line, shortening only [lead] (e.g. a long Agent name) so [rest] always shows. */
+@Composable
+private fun MetaLine(lead: String, rest: String, modifier: Modifier, style: TextStyle) = Row(modifier) {
+    Text(lead, Modifier.weight(1f, fill = false), style = style, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+    Text(" · $rest", style = style, color = color(mutedColor), singleLine = true)
 }
 
 private fun SessionInfo.kind() = when {

@@ -52,6 +52,8 @@ class ShowcaseFlowTest {
         repeat(2) { swipe(50, 25, 50, 80); screenshot("chat-up-${it + 1}") }
         tap("Browser")
         await("Kinuvo docs")
+        requestsAtLeast("showcase/browser-watch")
+        gone("Waiting for a fresh screen…")
         screenshot("browser-tab")
     }
 

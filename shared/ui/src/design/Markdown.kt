@@ -148,7 +148,7 @@ fun RichMarkdown(markdown: String, style: TextStyle = markdownTextStyle(), modif
         state.config.codeSpanCornerRadius = 4.sp
         // List items wrap in line with their own text, a short step in from the paragraph.
         state.config.listIndent = 20
-        state.config.codeSpanPadding = com.mohamedrejeb.richeditor.model.TextPaddingValues(horizontal = 3.sp, vertical = 1.sp)
+        state.config.codeSpanPadding = com.mohamedrejeb.richeditor.model.TextPaddingValues(horizontal = 3.sp, vertical = 0.sp)
         state.setMarkdown(markdown)
     }
     val color = LocalContentColor.current

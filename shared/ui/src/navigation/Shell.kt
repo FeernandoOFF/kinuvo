@@ -497,7 +497,8 @@ private fun SessionRow(session: SessionInfo, selected: Boolean, finished: Boolea
 private fun ShellRow(icon: ImageVector, title: String, status: SessionStatus, selected: Boolean, finished: Boolean, onClick: () -> Unit) {
     ListRow(selected, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
         Text(title.trimEnd(), Modifier.weight(1f), style = TextStyles.label, maxLines = 2, overflow = TextOverflow.Ellipsis,
-            color = if (selected || finished || status != SessionStatus.Idle) color(onBackgroundColor) else color(mutedColor))
+            // Idle Sessions recede, but stay clearly readable rather than looking disabled.
+            color = color(onBackgroundColor).copy(alpha = if (selected || finished || status != SessionStatus.Idle) 1f else 0.75f))
         SessionStatusIcon(status, finished)
     }
 }
