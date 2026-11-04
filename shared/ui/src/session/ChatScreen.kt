@@ -1066,9 +1066,9 @@ private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, action
     val label = item.label()
     Expandable(label.icon, label.title, label.subtitle, border = border, status = {
         when {
-            item.result == null -> Spinner(size = 13.dp)
-            item.isError -> Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor))
-            else -> Icon(Lucide.CircleCheck, Modifier.size(14.dp), tint = color(successColor))
+            item.result == null -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 13.dp)
+            item.isError -> Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor), contentDescription = "Failed")
+            else -> Icon(Lucide.CircleCheck, Modifier.size(14.dp), tint = color(successColor), contentDescription = "Succeeded")
         }
     }) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
