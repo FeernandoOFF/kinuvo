@@ -1,0 +1,34 @@
+{
+  "name": "showcase/skills",
+  "priority": 1,
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "skills.list"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":[{\"name\":\"daily\",\"description\":\"Daily planning instructions\",\"scope\":\"Agent\",\"active\":true},{\"name\":\"release-notes\",\"description\":\"Turn a changelog into user-facing release notes with a migration section\",\"scope\":\"Agent\",\"active\":true},{\"name\":\"travel\",\"description\":\"Plan trips: flights, stays and a day-by-day itinerary\",\"scope\":\"Shared\",\"active\":true},{\"name\":\"budget\",\"description\":\"Categorize expenses and compare against the monthly plan\",\"scope\":\"Agent\",\"active\":false,\"modelInvocable\":false},{\"name\":\"code-review\",\"description\":\"Review a diff for bugs, missing tests and unclear names\",\"scope\":\"Shared\",\"active\":true,\"userInvocable\":false}]}"
+        }
+      }
+    }
+  ]
+}
