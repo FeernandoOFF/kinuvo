@@ -3,8 +3,11 @@ package kinuvo.harness.apple
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.ToolNames
+import kinuvo.harness.core.tools.RawSchemaToolDescriptor
 import kinuvo.protocol.CapabilityState
 import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.ExecutionLocation
+import kinuvo.protocol.ToolIdentity
 import kinuvo.protocol.ProtocolJson
 import ai.koog.prompt.Prompt
 import ai.koog.prompt.dsl.ModerationResult
@@ -15,6 +18,7 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.streaming.toMessageResponse
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.onEach
@@ -43,6 +47,7 @@ interface AppleLanguageModel {
     fun generate(requestId: String, model: String, instructions: String, prompt: String, toolsJson: String,
         onText: (String) -> Unit, completion: (String?, String?) -> Unit)
     fun cancel(requestId: String)
+    fun close() {}
     /** Why [model] can't run on this device now, or null when it can. */
     fun unavailableReason(model: String): String?
     fun unavailableCode(model: String): String?
@@ -53,41 +58,48 @@ interface AppleLanguageModel {
 const val SYSTEM = "system"
 const val PRIVATE_CLOUD = "private-cloud"
 
-class AppleProvider(private val native: AppleLanguageModel) : ModelProvider, HarnessPlugin {
+class AppleProvider(private val native: AppleLanguageModel, private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
+    private val estimateTokens: (suspend (Prompt, List<ToolDescriptor>) -> Int)? = null) : ModelProvider, HarnessPlugin {
     override val definition = kinuvo.protocol.PluginDefinition("kinuvo.apple", "Apple")
     override val id = "apple"
     override val name = "Apple"
     override val modelProviders get() = listOf(this)
-    override suspend fun models() = withContext(Dispatchers.Main) {
+    override suspend fun models() = withContext(dispatcher) {
         listOf(SYSTEM to "Apple on-device model", PRIVATE_CLOUD to "Apple Private Cloud Compute").mapNotNull { (id, name) ->
             suspendCoroutine { c -> native.contextSize(id) { c.resume(it) } }.takeIf { it > 0 }
-                ?.let { ModelInfo(id, name, reasoning = emptyList(), input = listOf("text"), tools = true, context = it) }
+                ?.let { ModelInfo(id, name, reasoning = emptyList(), input = listOf("text"), tools = true, context = it,
+                    location = ExecutionLocation.ServerHost, state = availability(id)) }
         }
     }
 
-    override fun usableTools(model: String, tools: List<ToolDescriptor>) = appleTools(tools, if (model == SYSTEM) 6 else 16)
+    override fun usableTools(model: String, tools: List<ToolDescriptor>) = appleTools(tools, max = maxTools(model))
+    override fun usableTools(model: String, tools: List<ToolDescriptor>, identities: Map<String, ToolIdentity>) =
+        appleTools(tools, { identities[it.name]?.localId ?: it.name }, maxTools(model))
+    override fun basicPrompt(model: String) = true
+    private fun maxTools(model: String) = if (model == SYSTEM) 6 else 16
 
-    override suspend fun availability(model: String) = withContext(Dispatchers.Main) {
+    override suspend fun availability(model: String) = withContext(dispatcher) {
         native.unavailableReason(model)?.let { CapabilityState.unavailable(it, native.unavailableCode(model) ?: "unavailable") }
             ?: CapabilityState()
     }
 
-    private val client = AppleLLMClient(native)
+    private val client = AppleLLMClient(native, dispatcher)
     val promptExecutor = koogExecutor(client)
 
     override fun model(config: AgentConfig): AgentModel = model(config, null)
 
     override fun model(config: AgentConfig, info: ModelInfo?): AgentModel {
         require(config.provider == id && config.model in setOf(SYSTEM, PRIVATE_CLOUD)) { "Unsupported Apple model" }
-        return AgentModel(promptExecutor, (info ?: ModelInfo(config.model, reasoning = emptyList(), input = listOf("text"), tools = true)).llModel(Apple))
+        return AgentModel(promptExecutor, (info ?: ModelInfo(config.model, reasoning = emptyList(), input = listOf("text"), tools = true)).llModel(Apple),
+            instructionsInPrompt = false, estimateTokens = estimateTokens)
     }
 
-    override suspend fun close() { promptExecutor.close() }
+    override suspend fun close() { native.close(); promptExecutor.close() }
 }
 
 private object Apple : LLMProvider("apple", "Apple")
 
-class AppleLLMClient(private val native: AppleLanguageModel) : LLMClient() {
+class AppleLLMClient(private val native: AppleLanguageModel, private val dispatcher: CoroutineDispatcher = Dispatchers.Main) : LLMClient() {
     override fun llmProvider(): LLMProvider = Apple
     override fun close() {}
     override suspend fun moderate(prompt: Prompt, model: LLModel): ModerationResult = error("Apple moderation is unavailable")
@@ -98,10 +110,12 @@ class AppleLLMClient(private val native: AppleLanguageModel) : LLMClient() {
 
     override fun executeStreaming(prompt: Prompt, model: LLModel, tools: List<ToolDescriptor>) = callbackFlow {
         val requestId = Uuid.random().toString()
-        val offered = tools.mapNotNull { it.toApple() }
+        val originals = tools.mapNotNull { it.toApple() }
+        val offered = appleOffer(tools)
+        val routes = offered.zip(originals).associate { (short, original) -> short.name to original.name }
         var emitted = ""
-        withContext(Dispatchers.Main) {
-            native.generate(requestId, model.id, prompt.messages.filterIsInstance<Message.System>().joinToString("\n\n") { it.textContent() }, promptFor(prompt.messages), ProtocolJson.encodeToString(offered), onText = { snapshot ->
+        withContext(dispatcher) {
+            native.generate(requestId, model.id, appleInstructions(prompt.messages), applePrompt(prompt.messages, tools), ProtocolJson.encodeToString(offered), onText = { snapshot ->
                 if (snapshot.startsWith(emitted)) {
                     val delta = snapshot.drop(emitted.length)
                     if (delta.isNotEmpty()) trySend(StreamFrame.TextDelta(delta))
@@ -120,7 +134,7 @@ class AppleLLMClient(private val native: AppleLanguageModel) : LLMClient() {
                         trySend(StreamFrame.TextComplete(reply))
                     } else {
                         check(offered.any { it.name == tool }) { "The model asked for $tool, which it wasn't offered" }
-                        trySend(StreamFrame.ToolCallComplete(Uuid.random().toString(), tool, JsonObject(turn - "tool").toString()))
+                        trySend(StreamFrame.ToolCallComplete(Uuid.random().toString(), routes.getValue(tool), JsonObject(turn - "tool").toString()))
                     }
                     trySend(StreamFrame.End())
                     close()
@@ -140,15 +154,23 @@ internal data class AppleTool(val name: String, val description: String, val par
 internal data class AppleParameter(val name: String, val description: String, val type: String, val required: Boolean,
     val values: List<String>? = null, val items: String? = null)
 
-/** The tools an Apple model takes: Memory and web search first, at most [max], skipping ones it can't fill in. */
-internal fun appleTools(tools: List<ToolDescriptor>, max: Int = 6): List<ToolDescriptor> = tools
-    .filter { it.name !in SKIPPED && it.toApple() != null }
-    .sortedWith(compareBy<ToolDescriptor> { PREFERRED.indexOf(it.name).let { i -> if (i < 0) PREFERRED.size else i } }.thenBy { it.name })
+/** The tools an Apple model takes: Memory and web first, at most [max], skipping ones it can't fill in. */
+internal fun appleTools(tools: List<ToolDescriptor>, local: (ToolDescriptor) -> String = { it.name }, max: Int = 6): List<ToolDescriptor> = tools
+    .filter { local(it) !in SKIPPED && it.toApple() != null }
+    .sortedWith(compareBy<ToolDescriptor> { PREFERRED.indexOf(local(it)).let { i -> if (i < 0) PREFERRED.size else i } }.thenBy { local(it) })
     .take(max)
 
-private fun ToolDescriptor.toApple(): AppleTool? {
+/** Compact model-facing names route back to the full tool identity after generation. */
+internal fun appleOffer(tools: List<ToolDescriptor>): List<AppleTool> = tools.mapNotNull { it.toApple() }.mapIndexed { index, tool ->
+    if ("__" !in tool.name) tool else tool.copy(name = "t${index}_${tool.name.substringBeforeLast("__").substringAfterLast("__")}")
+}
+
+internal fun ToolDescriptor.toApple(): AppleTool? {
+    if (this is RawSchemaToolDescriptor) return null
     val parameters = requiredParameters.map { it to true } + optionalParameters.map { it to false }
-    return AppleTool(name, description, parameters.map { (p, required) -> p.apple(required) ?: return null })
+    return AppleTool(name, description, parameters.mapNotNull { (p, required) ->
+        p.apple(required) ?: if (required) return null else null
+    })
 }
 
 private fun ToolParameterDescriptor.apple(required: Boolean): AppleParameter? {
@@ -172,21 +194,35 @@ private val PREFERRED = listOf(ToolNames.MEMORY, ToolNames.WEB_SEARCH, ToolNames
 private val SKIPPED = setOf(ToolNames.SKILLS, ToolNames.ACTIVATE_SKILL, ToolNames.SHELL, ToolNames.KNOWLEDGE, ToolNames.KNOWLEDGE_REWRITE,
     ToolNames.TASKS, ToolNames.ARTIFACT, ToolNames.SCHEDULE, ToolNames.DEVICE_TOOLS, ToolNames.ASK_USER)
 
-internal fun promptFor(history: List<Message>): String = buildString {
-    for (message in history) when (message) {
+/** The basic context and active Skills; the Session's full instructions aren't sent to Apple models. */
+internal fun appleInstructions(history: List<Message>) = history.filterIsInstance<Message.System>().joinToString("\n\n") { it.textContent() }
+
+internal fun applePrompt(history: List<Message>, tools: List<ToolDescriptor>): String {
+    val original = tools.mapNotNull { it.toApple() }
+    val names = original.zip(appleOffer(tools)).associate { (full, short) -> full.name to short.name }
+    return promptFor(history) { names[it] ?: it }
+}
+
+/**
+ * Only the latest user message and this turn's tool steps: given earlier turns, the 3B model copies a prior reply
+ * verbatim or answers an earlier message. Durable facts reach it through Memory and User Notes instead.
+ */
+internal fun promptFor(history: List<Message>, toolName: (String) -> String = { it }): String = buildString {
+    val latest = history.indexOfLast { it is Message.User && it.textContent().isNotEmpty() }.coerceAtLeast(0)
+    for (message in history.drop(latest)) when (message) {
         is Message.System -> Unit
         is Message.User -> {
             if (message.textContent().isNotEmpty()) append("User: ${message.textContent()}\n\n")
             message.parts.filterIsInstance<MessagePart.Tool.Result>().forEach {
-                append("Tool ${it.tool} ${if (it.isError) "failed" else "result"}: ${it.output}\n\n")
+                append("Tool ${toolName(it.tool)} ${if (it.isError) "failed" else "result"}: ${it.output}\n\n")
             }
         }
         is Message.Assistant -> {
             if (message.textContent().isNotEmpty()) append("Agent: ${message.textContent()}\n\n")
             message.parts.filterIsInstance<MessagePart.Tool.Call>().forEach {
-                append("Agent requested ${it.tool}: ${it.args}\n\n")
+                append("Agent requested ${toolName(it.tool)}: ${it.args}\n\n")
             }
         }
     }
-    append("Follow your instructions using the conversation and tool results above. Do not repeat a tool call that already succeeded.\n")
+    append("Answer the user's message using the tool results above. Do not repeat an action already completed for this request. If the tool results satisfy the request, reply to the user now.\n")
 }

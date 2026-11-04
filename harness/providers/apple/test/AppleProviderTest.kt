@@ -8,8 +8,12 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.AgentConfig
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.ToolIdentity
+import kinuvo.protocol.PluginInstanceId
+import kinuvo.harness.core.modelAlias
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -30,8 +34,9 @@ class AppleProviderTest {
         override fun contextSize(model: String, completion: (Int) -> Unit) = completion(if (model == SYSTEM) 8192 else cloud)
         var tools: String? = null
         var instructions: String? = null
+        var prompt: String? = null
         override fun generate(requestId: String, model: String, instructions: String, prompt: String, toolsJson: String,
-            onText: (String) -> Unit, completion: (String?, String?) -> Unit) { this.instructions = instructions; tools = toolsJson; respond(onText, completion) }
+            onText: (String) -> Unit, completion: (String?, String?) -> Unit) { this.instructions = instructions; this.prompt = prompt; tools = toolsJson; respond(onText, completion) }
         override fun cancel(requestId: String) { cancelled = requestId }
     }
 
@@ -41,7 +46,7 @@ class AppleProviderTest {
         model(native).request("stable", listOf(SessionEntry.Context("old context"),
             SessionEntry.Activation("skill", "old instructions"), SessionEntry.Context("latest context"),
             SessionEntry.Activation("skill", "latest instructions")), emptyList()).toList()
-        assertEquals("stable\n\nlatest context\n\nSkill 'skill' is active in this conversation:\n\nlatest instructions", native.instructions)
+        assertEquals("latest context\n\nSkill 'skill' is active in this conversation:\n\nlatest instructions", native.instructions)
     }
 
     @Test
@@ -113,6 +118,36 @@ class AppleProviderTest {
     }
 
     @Test
+    fun shortModelNamesRouteBackToTheOriginalToolIdentity() = runTest {
+        val original = ToolIdentity(PluginInstanceId("kinuvo.browser"), "browser_open").modelAlias()
+        lateinit var native: Native
+        native = Native { _, done ->
+            val offered = Json.parseToJsonElement(native.tools!!).jsonArray.single().jsonObject
+            val name = offered.getValue("name").jsonPrimitive.content
+            assertTrue(name.length < original.length)
+            done("""{"tool":"$name","text":"about:blank"}""", null)
+        }
+        val frames = model(native).request("", emptyList(), listOf(ToolDescriptor(original, "Open Browser"))).toList()
+        assertEquals(original, frames.filterIsInstance<StreamFrame.ToolCallComplete>().single().name)
+        val blocked = ToolIdentity(PluginInstanceId("kinuvo.core"), ToolNames.SHELL)
+        val alias = blocked.modelAlias()
+        assertTrue(AppleProvider(native).usableTools(SYSTEM, listOf(ToolDescriptor(alias, "Shell")), mapOf(alias to blocked)).isEmpty())
+    }
+
+    @Test
+    fun historicalCallsAndResultsUseTheCurrentShortSchemaName() = runTest {
+        val original = ToolIdentity(PluginInstanceId("kinuvo.browser"), "browser_open").modelAlias()
+        val native = Native { _, done -> done("""{"tool":"reply","reply":"Opened."}""", null) }
+        model(native).request("", listOf(SessionEntry.UserMessage("Open Browser"),
+            SessionEntry.ToolCall("call", original, "{}"), SessionEntry.ToolResult("call", original, "Opened")),
+            listOf(ToolDescriptor(original, "Open Browser"))).toList()
+        val short = appleOffer(listOf(ToolDescriptor(original, "Open Browser"))).single().name
+        assertContains(native.prompt.orEmpty(), "Agent requested $short:")
+        assertContains(native.prompt.orEmpty(), "Tool $short result:")
+        assertFalse(original in native.prompt.orEmpty())
+    }
+
+    @Test
     fun nativePromptIncludesUserAndToolMessages() {
         val configured = model(Native())
         val messages = kinuvo.harness.core.SessionMessages(configured).prompt("stable", listOf(
@@ -122,5 +157,19 @@ class AppleProviderTest {
         assertTrue(prompt.contains("User: one"))
         assertTrue(prompt.contains("Agent requested memory"))
         assertTrue(prompt.contains("Tool memory result: OK"))
+    }
+
+    @Test
+    fun nativePromptCarriesOnlyTheLatestTurn() {
+        val configured = model(Native())
+        val messages = kinuvo.harness.core.SessionMessages(configured).prompt("stable", listOf(
+            SessionEntry.UserMessage("what do you know about me?"), SessionEntry.AssistantMessage("I don't know anything about you."),
+            SessionEntry.UserMessage("remember my name"), SessionEntry.ToolCall("c", ToolNames.MEMORY, "{}"),
+            SessionEntry.ToolResult("c", ToolNames.MEMORY, "OK"))).messages
+        val prompt = promptFor(messages)
+        assertFalse("I don't know anything" in prompt, "Earlier replies are copied verbatim by the model")
+        assertFalse("what do you know" in prompt)
+        assertContains(prompt, "User: remember my name")
+        assertContains(prompt, "Tool memory result: OK")
     }
 }

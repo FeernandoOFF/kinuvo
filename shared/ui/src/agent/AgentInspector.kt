@@ -249,7 +249,10 @@ private fun ModelPage(state: InspectorState, draft: AgentDraft, actions: Inspect
                 actions.onEdit { it.copy(provider = group.id, model = model.id, reasoning = model.reasoningFor(it.reasoning)) }
                 actions.onBack()
             }) {
-                Text(model.name, Modifier.weight(1f))
+                Column(Modifier.weight(1f)) {
+                    Text(model.name)
+                    model.state.reason?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+                }
                 if (picked) Icon(Lucide.Check, Modifier.size(14.dp))
             }
         }

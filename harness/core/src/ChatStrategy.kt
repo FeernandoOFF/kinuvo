@@ -24,6 +24,12 @@ internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession
             session.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
             SessionEntry.ToolResult(call.id, call.name, "This exact call already failed in this turn. Don't repeat it; try something else or answer the user.", isError = true, identity = call.identity)
         },
+        repeatable = executor::repeatable,
+        completed = { call ->
+            session.toolStarted(call.id)
+            session.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
+            SessionEntry.ToolResult(call.id, call.name, "This exact action already succeeded. Use its result and answer the user; don't repeat it.", isError = true, identity = call.identity)
+        },
         onResponse = {
             if (session.text().isNotEmpty()) session.emit(AgentEvent.TextMessageEnd(session.messageId, session.text()))
         },
