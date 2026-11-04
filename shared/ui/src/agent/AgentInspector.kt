@@ -123,7 +123,7 @@ private fun InspectorHeader(state: InspectorState, host: InspectorHost, actions:
         back = actions.onBack.takeIf { state.pages.isNotEmpty() },
         subtitle = if (state.pages.isEmpty()) "Agent settings · every Session" else "${agent?.name ?: "Agent"} · every Session",
     ) {
-        if (state.dirty) HeaderButton(Lucide.Check, "Save", actions.onSave, enabled = !state.saving && state.draft?.problems(state.agentId.orEmpty(), host.agents)?.isEmpty() == true)
+        if (state.dirty) SaveButton(actions.onSave, enabled = !state.saving && state.draft?.problems(state.agentId.orEmpty(), host.agents)?.isEmpty() == true)
         else if (state.pages.isEmpty()) HeaderButton(Lucide.X, "Close", actions.onClose)
     }
 }
@@ -294,7 +294,7 @@ private fun Group(title: String, hint: String? = null, content: @Composable Colu
 }
 
 @Composable
-private fun Label(text: String) = Text(text, Modifier.padding(start = 2.dp, top = 2.dp), fontSize = 12.sp, color = color(mutedColor))
+private fun Label(text: String) = Text(text, Modifier.padding(start = 8.dp, top = 2.dp), fontSize = 12.sp, color = color(mutedColor))
 
 /** A row opening a page inside the inspector. */
 @Composable

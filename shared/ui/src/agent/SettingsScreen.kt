@@ -577,10 +577,15 @@ internal fun FormButtons(saveLabel: String, enabled: Boolean, error: String?, on
 
 /** A form's title-bar actions: "Saved" after a save, Cancel when [onCancel] is set, and the primary button. */
 @Composable
+internal fun SaveButton(onSave: () -> Unit, enabled: Boolean = true) =
+    Button(onClick = onSave, enabled = enabled, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text("Save") }
+
+/** Save, and Cancel where [onCancel] is set, for a form's header; a touch screen's sheet shows Save while there's something to save. */
+@Composable
 internal fun FormActions(saveLabel: String, enabled: Boolean, saved: Boolean, onSave: () -> Unit, onCancel: (() -> Unit)? = null, dirty: Boolean = enabled) {
     TrackSettingsEdits(dirty)
     if (LocalInteractionMode.current == InteractionMode.Touch) {
-        if (dirty) HeaderButton(Lucide.Check, "Save", onSave, enabled = enabled)
+        if (dirty) SaveButton(onSave, enabled)
         return
     }
     Row(Modifier.titleBarControl(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {

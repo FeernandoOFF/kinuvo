@@ -41,9 +41,10 @@ internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String,
                 Text(asked.title ?: "Questions for you", fontWeight = FontWeight.Normal)
             }
             asked.questions.forEach { q -> key(q.id) { QuestionField(q, answers[q.id].orEmpty()) { onEdit(asked.questionsId, q.id, it) } } }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onAnswer(answers) }, enabled = ready, style = ButtonStyle.Primary) { Text(if (asked.questions.isEmpty()) "Check again" else "Submit") }
-                Button(onClick = { onAnswer(null) }, style = ButtonStyle.Outlined) { Text(skip) }
+            // Laid out like the Agent's own requests: the answer first, full width.
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onAnswer(answers) }, modifier = Modifier.fillMaxWidth(), enabled = ready, style = ButtonStyle.Primary) { Text(if (asked.questions.isEmpty()) "Check again" else "Submit") }
+                Button(onClick = { onAnswer(null) }, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Outlined) { Text(skip) }
             }
         }
     }

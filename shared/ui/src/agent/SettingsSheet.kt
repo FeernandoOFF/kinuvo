@@ -61,7 +61,9 @@ internal fun SettingsSheet(app: AppViewModel, pages: SnapshotStateList<Route.Set
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = true) {
         if (edits.pending != null) edits.pending = null else back()
     }
-    CompositionLocalProvider(LocalSettingsEdits provides edits, LocalModalNavigation provides ModalNavigation(back.takeIf { pages.size > 1 })) {
+    CompositionLocalProvider(LocalSettingsEdits provides edits, LocalModalNavigation provides ModalNavigation(
+        // A drill-in opened on its own, e.g. a Routine from Home, goes back by closing the sheet.
+        if (pages.size > 1) back else ({ edits.leave { pages.clear() } }).takeIf { pages.firstOrNull()?.section != null })) {
         BottomSheet(true, onDismissRequest = { edits.leave { pages.clear() } }, header = {}, modifier = if (edits.pending != null) Modifier.clearAndSetSemantics {} else Modifier) {
             val route = pages.lastOrNull()
             if (route != null) savedPages.SaveableStateProvider(route.toString()) {

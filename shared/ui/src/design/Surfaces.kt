@@ -157,6 +157,7 @@ fun ListRow(
             .hoverable(interaction)
             .clickable(interaction, Theme[indications][defaultIndication], enabled = enabled, onClick = onClick)
             .alpha(if (enabled) 1f else 0.4f)
+            .heightIn(min = if (LocalInteractionMode.current == InteractionMode.Touch) 48.dp else 0.dp)
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),

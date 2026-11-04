@@ -65,7 +65,7 @@ internal fun HarnessesPane(p: Pane) {
 }
 
 private fun HarnessConnectionStatus.subtitle(server: String) =
-    (if (kind == ExecutionKind.Acp) "ACP command" else "Kinuvo Server") + (config.host?.let { " · $it" } ?: " on $server")
+    (if (kind == ExecutionKind.Acp) "ACP command" else "Kinuvo Server") + config.host?.let { " · $it" }.orEmpty()
 
 @Composable
 private fun HarnessList(p: Pane) {

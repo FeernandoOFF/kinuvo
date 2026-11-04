@@ -54,12 +54,14 @@ internal fun SkillPane(p: Pane) {
 private fun SkillDetail(s: SkillDetails, p: Pane) {
     val info = s.info
     val editable = info.scope != ConfigScope.External
-    DetailPane(p.back, info.name, trailing = { if (editable) HeaderButton(Lucide.Pencil, "Edit", { p.go(p.ui.route.copy(editing = true)) }) }) {
+    DetailPane(p.back, "/${info.name}", trailing = { if (editable) HeaderButton(Lucide.Pencil, "Edit", { p.go(p.ui.route.copy(editing = true)) }) }) {
         p.ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         RowGroup {
-            GroupBox { Text(info.description) }
-            GroupRow("Where", subtitle = info.where() + if (info.active) "" else " · shadowed by another skill of the same name")
-            GroupRow("Used by", subtitle = info.invocation())
+            GroupBox {
+                Text(info.description)
+                DetailRow("Where") { Text(info.where() + if (info.active) "" else " · shadowed by another skill of the same name", fontSize = 15.sp) }
+                DetailRow("Used by") { Text(info.invocation(), fontSize = 15.sp) }
+            }
         }
         if (s.files.isNotEmpty()) RowGroup("Files") { s.files.forEach { GroupRow(it, icon = Lucide.File) } }
         CodeBlock(s.content, language = "SKILL.md")
