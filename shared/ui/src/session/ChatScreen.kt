@@ -550,9 +550,7 @@ private fun PhoneActions(state: ChatState, usage: Usage?, actions: ChatActions) 
     Bubble {
         if (state.selected != null) BubbleButton(Lucide.SquarePen, "New Session", actions.onNew)
         actions.onBrowser?.let { BubbleButton(Lucide.Globe, "Browser", it) }
-        if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, extra = { close ->
-            DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.ChartBar, "Statistics") }
-        }) { open -> BubbleButton(Lucide.Ellipsis, "More", open) }
+        if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, onStatistics = { statistics = true }) { open -> BubbleButton(Lucide.Ellipsis, "More", open) }
     }
     Popover(statistics, { statistics = false }) { ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth()) }
 }
@@ -610,9 +608,7 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
             selected?.let { SessionBadge(it, compact) }
         }
         var statistics by remember(state.selected) { mutableStateOf(false) }
-        if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, extra = { close ->
-            DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.ChartBar, "Statistics") }
-        }) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
+        if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, onStatistics = { statistics = true }) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
         Popover(statistics, { statistics = false }, "Statistics") {
             ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth())
         }
@@ -620,27 +616,31 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
     }
 }
 
-/** Favorite, Rename and, for an external Agent's running Session, Close, under [trigger]; [extra] items go first. */
+/** Statistics, Favorite, Rename and, for an external Agent's running Session, Close, under [trigger]: a sheet on touch screens, a menu otherwise. */
 @Composable
-private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatState, extra: @Composable DropdownMenuPanelContentScope.(close: () -> Unit) -> Unit = {}, trigger: @Composable (open: () -> Unit) -> Unit) {
+private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatState, onStatistics: () -> Unit, trigger: @Composable (open: () -> Unit) -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var renaming by remember(session?.id) { mutableStateOf(false) }
     var closing by remember(session?.id) { mutableStateOf(false) }
     val closable = session != null && chat.external && chat.ended == null && chat.capabilities?.chat?.reasonCode != "archived"
-    DropdownMenu(
+    val items = listOfNotNull(
+        Triple(Lucide.ChartBar, "Statistics", onStatistics),
+        session?.let { Triple(if (it.favorite) Lucide.StarOff else Lucide.Star, if (it.favorite) "Remove from favorites" else "Add to favorites") { actions.onFavorite(!it.favorite) } },
+        session?.let { Triple(Lucide.Pencil, "Rename") { renaming = true } },
+        Triple(Lucide.CircleStop, "Close Session") { closing = true }.takeIf { closable },
+    )
+    if (LocalInteractionMode.current == InteractionMode.Touch && LocalPopovers.current != null) {
+        trigger { menu = true }
+        Popover(menu, { menu = false }) {
+            RowGroup { items.forEach { (icon, label, action) -> GroupRow(label, { menu = false; action() }, icon = icon, chevron = false) } }
+        }
+    } else DropdownMenu(
         expanded = menu,
         onExpandedChange = { menu = it },
         panel = {
             // Keeps a gutter where the window edge pushes the panel back in.
             DropdownMenuPanel(Modifier.padding(end = 12.dp)) {
-                extra { menu = false }
-                if (session != null) {
-                    DropdownMenuItem(onClick = { menu = false; actions.onFavorite(!session.favorite) }) {
-                        MenuItem(if (session.favorite) Lucide.StarOff else Lucide.Star, if (session.favorite) "Remove from favorites" else "Add to favorites")
-                    }
-                    DropdownMenuItem(onClick = { menu = false; renaming = true }) { MenuItem(Lucide.Pencil, "Rename") }
-                    if (closable) DropdownMenuItem(onClick = { menu = false; closing = true }) { MenuItem(Lucide.CircleStop, "Close Session") }
-                }
+                items.forEach { (icon, label, action) -> DropdownMenuItem(onClick = { menu = false; action() }) { MenuItem(icon, label) } }
             }
         },
     ) { trigger { menu = true } }
@@ -963,7 +963,7 @@ private fun Expandable(
             ListRow(selected = false, onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 44.dp)) {
                 Icon(icon, Modifier.size(15.dp), tint = color(mutedColor))
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Normal, singleLine = true)
+                    Text(title, fontSize = 15.sp, fontWeight = FontWeight.Normal, singleLine = true)
                     subtitle?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
                     status?.invoke()
                 }

@@ -410,9 +410,9 @@ internal fun ItemRow(selected: Boolean, icon: ImageVector, title: String, subtit
  * [info] describes the screen behind a (?) by the title.
  */
 @Composable
-internal fun DetailPane(back: (() -> Unit)?, title: String, error: String? = null, info: String? = null, trailing: @Composable RowScope.() -> Unit = {}, content: @Composable ColumnScope.() -> Unit) {
+internal fun DetailPane(back: (() -> Unit)?, title: String, error: String? = null, info: String? = null, subtitle: String? = null, trailing: @Composable RowScope.() -> Unit = {}, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        SettingsPageHeader(title, back, info = info, trailing = trailing)
+        SettingsPageHeader(title, back, subtitle = subtitle, info = info, trailing = trailing)
         Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
             Column(
                 Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),

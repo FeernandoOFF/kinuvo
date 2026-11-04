@@ -95,7 +95,7 @@ fun BoardContent(ui: BoardUi, actions: BoardActions) {
             val list = rememberLazyListState()
             val scope = rememberCoroutineScope()
             Column(Modifier.fillMaxSize()) {
-            if (phone) Segmented(columns.map { s -> s.tab() + tasks.count { it.status == s }.takeIf { it > 0 }?.let { " · $it" }.orEmpty() }, list.firstVisibleItemIndex, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
+            if (phone) Segmented(columns.map { it.tab() }, list.firstVisibleItemIndex, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
                 scope.launch { list.animateScrollToItem(i) }
             }
             LazyRow(Modifier.weight(1f).fillMaxWidth(), list, PaddingValues(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -140,15 +140,13 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
             if (task.notes.isNotBlank()) {
                 Text(task.notes.trim(), color = color(mutedColor), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 Pill(task.listName, icon = Lucide.List)
                 task.due?.let { Pill(it, icon = Lucide.Calendar) }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->
                     actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: ""))
-                }, icon = Lucide.User, modifier = Modifier.weight(1f), stretch = true)
-                Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon(), modifier = Modifier.weight(1f), stretch = true)
+                }, icon = Lucide.User)
+                Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())
             }
             val last = task.sessionIds.lastOrNull()
             if (last != null && task.assignee != null) {

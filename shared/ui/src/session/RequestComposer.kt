@@ -267,7 +267,11 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
         }
         // Without a command to show, the arguments are what's being approved.
         if (command == null || input.arguments) CodeBlock(json, language = "Arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
-        // The two answers side by side; a note for a denial is one tap away.
+        // The two answers side by side; a note for a denial is one tap away and goes above them.
+        if (input.noting) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Note for the Agent, sent with Deny", fontSize = 12.sp, color = color(mutedColor))
+            Input(input.note, "What to do instead", capitalize = true)
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { onDecision(ApprovalDecision.AllowOnce) }, modifier = Modifier.weight(1f), style = ButtonStyle.Primary) { Text("Allow once") }
             Button(onClick = { onDecision(ApprovalDecision.Deny(input.note.text.toString())) }, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined,
@@ -276,10 +280,7 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
         if (event.trustable) Actions(wide,
             primary = { Button(onClick = { onDecision(ApprovalDecision.AllowForSession) }, modifier = it, style = ButtonStyle.Outlined) { Text("Allow for this Session", singleLine = true) } },
             others = { Button(onClick = { onDecision(ApprovalDecision.AlwaysAllow) }, modifier = it, style = ButtonStyle.Outlined) { Text(always, singleLine = true, overflow = TextOverflow.Ellipsis) } })
-        if (input.noting) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Sent with Deny", fontSize = 12.sp, color = color(mutedColor))
-            Input(input.note, "What to do instead", capitalize = true)
-        } else Button(onClick = { input.noting = true }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Link, contentColor = color(mutedColor)) {
+        if (!input.noting) Button(onClick = { input.noting = true }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Link, contentColor = color(mutedColor)) {
             Text("Add a note for the Agent", fontSize = 13.sp)
         }
     }
