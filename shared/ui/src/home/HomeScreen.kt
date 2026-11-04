@@ -103,8 +103,10 @@ fun HomeContent(ui: HomeUi, actions: HomeActions, wide: Boolean? = null) {
                 ) {
                     Text(ui.summary(), fontSize = 20.sp, lineHeight = 28.sp, modifier = Modifier.semantics { heading() })
                     NeedsYou(ui, actions)
-                    RunningNow(ui, actions)
-                    if (twoColumns) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    // The summary already says when nothing runs or is scheduled.
+                    if (ui.today.running.isNotEmpty()) RunningNow(ui, actions)
+                    if (ui.today.next.isEmpty()) DueThisWeek(ui, actions)
+                    else if (twoColumns) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         Box(Modifier.weight(1f)) { NextUp(ui, actions) }
                         Box(Modifier.weight(1f)) { DueThisWeek(ui, actions) }
                     } else {
@@ -162,7 +164,6 @@ private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, detail
 private fun RunningNow(ui: HomeUi, actions: HomeActions) {
     val running = ui.today.running
     Section(Lucide.Activity, "Running now", running.size.takeIf { it > 0 }) {
-        if (running.isEmpty()) Empty("No Session is running.")
         running.forEach { r ->
             val agent = ui.agent(r.agentId)
             val kind = r.session?.kind() ?: "Routine run"
@@ -175,7 +176,6 @@ private fun RunningNow(ui: HomeUi, actions: HomeActions) {
 private fun NextUp(ui: HomeUi, actions: HomeActions) {
     val next = ui.today.next
     Section(Lucide.AlarmClock, "Next up") {
-        if (next.isEmpty()) Empty("No Routine is scheduled.")
         next.groupBy { it.day }.forEach { (day, runs) ->
             SubLabel(ui.dayLabel(day))
             runs.forEach { u ->
@@ -257,7 +257,7 @@ private fun SubLabel(text: String) =
     Text(text.uppercase(), Modifier.padding(start = 8.dp, top = 6.dp, bottom = 2.dp), fontSize = 11.sp, letterSpacing = 0.6.sp, color = color(mutedColor))
 
 @Composable
-private fun Empty(text: String) = Text(text, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 13.sp, color = color(mutedColor))
+private fun Empty(text: String) = Text(text, Modifier.padding(start = 23.dp, top = 2.dp), fontSize = 14.sp, color = color(mutedColor))
 
 /** A row opening one Session, Task or Routine: [agent]'s avatar (or [icon]), a title and a muted line. */
 @Composable

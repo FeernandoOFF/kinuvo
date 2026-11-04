@@ -97,6 +97,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.draw.alpha
@@ -538,6 +539,7 @@ private val VoiceStatusHeight = 44.dp
 private fun PhoneActions(state: ChatState, usage: Usage?, actions: ChatActions) {
     var statistics by remember(state.selected) { mutableStateOf(false) }
     val selected = state.selected?.let { id -> state.sessions.firstOrNull { it.id == id } ?: state.info }
+    if (state.selected == null && actions.onBrowser == null && state.items.isEmpty()) return
     Bubble {
         if (state.selected != null) BubbleButton(Lucide.SquarePen, "New session", actions.onNew)
         actions.onBrowser?.let { BubbleButton(Lucide.Globe, "Browser", it) }
@@ -633,14 +635,14 @@ private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatS
             }
         },
     ) { trigger { menu = true } }
-    if (session != null) Popover(renaming, { renaming = false }, "Rename chat") {
+    if (session != null) Popover(renaming, { renaming = false }, "Rename session") {
         val title = rememberTextFieldState(session.title)
         val focus = remember { FocusRequester() }
         LaunchedEffect(Unit) { focus.requestFocus() }
         fun save() { actions.onRename(title.text.toString()); renaming = false }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Input(title, "Chat name", Modifier.focusRequester(focus).onPreviewKeyEvent { e -> (e.type == KeyEventType.KeyDown && e.key == Key.Enter).also { if (it) save() } }, capitalize = true)
-            Button(::save, Modifier.fillMaxWidth(), enabled = title.text.toString().trim() != session.title) { Text("Save") }
+            Input(title, "Session name", Modifier.focusRequester(focus).onPreviewKeyEvent { e -> (e.type == KeyEventType.KeyDown && e.key == Key.Enter).also { if (it) save() } }, capitalize = true)
+            Button(::save, Modifier.fillMaxWidth(), enabled = title.text.toString().trim() != session.title, style = ButtonStyle.Primary) { Text("Save") }
         }
     }
     if (closable) Popover(closing, { closing = false }, "Close session") { CloseSessionConfirm(chat, { closing = false }) { closing = false; actions.onCloseSession() } }
@@ -925,8 +927,8 @@ private fun EmptyState(state: ChatState, modifier: Modifier) {
                 else -> AvatarState.Idle
             }
             RiveAvatar(BundledAvatar, Modifier.size(180.dp, 120.dp), LocalRiveGaze.current, state.agent?.avatarArtboard, state = avatar)
-            Text(state.agent?.let { "Start a session with ${it.name}" } ?: "Connecting…", fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold)
-            Text("Ask anything, or type /skill to activate one.", color = color(mutedColor))
+            Text(state.agent?.let { "Start a session with ${it.name}" } ?: "Connecting…", fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            Text("Ask anything, or type /skill to activate one.", color = color(mutedColor), textAlign = TextAlign.Center)
         }
     }
 }
