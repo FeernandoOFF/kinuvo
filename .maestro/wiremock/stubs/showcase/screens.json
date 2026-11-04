@@ -1,0 +1,34 @@
+{
+  "name": "showcase/screens",
+  "priority": 1,
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "matchesJsonPath": {
+          "expression": "$.method",
+          "equalTo": "screens.list"
+        }
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":[{\"ref\":{\"source\":\"computer\",\"id\":\"phone\"},\"title\":\"Pixel 9\",\"status\":\"Ready\",\"active\":false,\"control\":{\"generation\":0},\"capabilities\":{\"delivery\":\"Continuous\",\"inputs\":[\"tap\",\"type\",\"key\",\"scroll\"],\"keys\":[\"Back\",\"Home\",\"Recents\"]}},{\"ref\":{\"source\":\"computer\",\"id\":\"desktop\"},\"title\":\"Studio desktop\",\"status\":\"Ready\",\"active\":true,\"control\":{\"generation\":0},\"capabilities\":{\"delivery\":\"Continuous\",\"inputs\":[\"tap\",\"type\",\"key\",\"scroll\"],\"keys\":[\"Escape\",\"Enter\",\"Tab\"],\"modifiers\":[\"Meta\",\"Shift\"],\"windows\":true}},{\"ref\":{\"source\":\"computer\",\"id\":\"laptop\"},\"title\":\"Old laptop\",\"status\":\"Unavailable\",\"active\":false,\"control\":{\"generation\":0},\"capabilities\":{\"delivery\":\"CaptureRefresh\",\"inputs\":[\"tap\"]}},{\"ref\":{\"source\":\"browser\",\"id\":\"tab-docs\",\"owner\":{\"agentId\":\"e2e\",\"sessionId\":\"rich\"}},\"title\":\"Kinuvo docs\",\"status\":\"Ready\",\"active\":false,\"control\":{\"generation\":0},\"currentUrl\":\"https://docs.kinuvo.dev/guides/migrating-to-2-0\",\"capabilities\":{\"delivery\":\"Continuous\",\"inputs\":[\"tap\",\"type\",\"scroll\"],\"navigation\":true,\"tabs\":true}}]}"
+        }
+      }
+    }
+  ]
+}

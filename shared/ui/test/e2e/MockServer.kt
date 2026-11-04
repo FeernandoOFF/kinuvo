@@ -7,7 +7,14 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.*
+import kotlin.time.Clock
+import kotlin.time.Duration.Companion.days
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 /**
  * Serves a Mockstro WireMock profile in-process: `.maestro/wiremock/profiles/<profile>.json` and its WebSocket stubs.
@@ -51,11 +58,29 @@ internal class MockServer(profile: String) {
 
     private fun decode(json: String) = ProtocolJson.decodeFromString(Frame.serializer(), json)
 
-    private fun template(text: String, body: JsonElement) = TEMPLATE.replace(text) { match ->
+    private fun template(text: String, body: JsonElement) = NOW.replace(TEMPLATE.replace(text) { match ->
         when (val value = body.at(match.groupValues[1])) {
             is JsonPrimitive -> value.content
             null -> ""
             else -> value.toString()
+        }
+    }) { now(it.groupValues[1], it.groupValues[2]) }
+
+    /** WireMock's `{{now offset='-2 days' format='epoch'}}`, with `epoch` (milliseconds) or `yyyy-MM-dd` formats, in UTC. */
+    private fun now(offset: String, format: String): String {
+        val (amount, unit) = offset.ifEmpty { "0 seconds" }.split(' ')
+        val step = when (unit.removeSuffix("s")) {
+            "second" -> 1.seconds
+            "minute" -> 1.minutes
+            "hour" -> 1.hours
+            "day" -> 1.days
+            else -> error("Unsupported offset unit in $offset")
+        }
+        val at = Clock.System.now() + step * amount.toInt()
+        return when (format) {
+            "epoch" -> at.toEpochMilliseconds().toString()
+            "yyyy-MM-dd" -> at.toLocalDateTime(TimeZone.UTC).date.toString()
+            else -> error("Unsupported now format $format")
         }
     }
 
@@ -91,6 +116,7 @@ internal class MockServer(profile: String) {
 
     private companion object {
         val TEMPLATE = Regex("""\{\{jsonPath message\.body '([^']+)'}}""")
+        val NOW = Regex("""\{\{now(?: offset='([^']*)')? format='([^']+)'}}""")
     }
 }
 
