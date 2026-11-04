@@ -9,6 +9,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.draggable
 import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -20,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.dismiss
 import androidx.compose.ui.semantics.semantics
@@ -30,6 +32,9 @@ import com.composables.ui.theme.mutedColor
 import com.composables.ui.theme.scrimColor
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+
+/** Swallows taps so they don't reach a scrim below, without `clickable`'s merged semantics hiding the content from screen readers. */
+fun Modifier.consumeTaps() = pointerInput(Unit) { detectTapGestures {} }
 
 internal val LocalSheetDrag = staticCompositionLocalOf<Modifier> { Modifier }
 
@@ -62,8 +67,7 @@ fun BottomSheet(
                     .offset { IntOffset(0, drag.value.roundToInt().coerceAtLeast(0)) }
                     .shadow(16.dp, shape).clip(shape).background(color(backgroundColor), shape)
                     .semantics { dismiss { onDismissRequest(); true } }
-                    // Swallows taps so they don't reach the scrim.
-                    .clickable(remember { MutableInteractionSource() }, indication = null) {},
+                    .consumeTaps(),
             ) {
                 val dragModifier = Modifier.draggable(
                     rememberDraggableState { d -> scope.launch { drag.snapTo(drag.value + d) } },

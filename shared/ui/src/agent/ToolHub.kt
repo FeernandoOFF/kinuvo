@@ -81,7 +81,9 @@ private fun BuiltInTools(p: Pane) {
         RowGroup {
             TOOLS.forEach { (tool, label) ->
                 val offered = ui.capabilities.offers(Integration.Tools, tool)
-                GroupRow(label, subtitle = if (!offered) "Not available on this Server" else "Blocked by a rule".takeIf { tool in blocked }, enabled = offered, chevron = false) {
+                val name = label.substringBefore(" (")
+                val detail = label.substringAfter(" (", "").removeSuffix(")").replaceFirstChar { it.uppercase() }
+                GroupRow(name, subtitle = if (!offered) "Not available on this Server" else if (tool in blocked) "Blocked by a rule" else detail, enabled = offered, chevron = false) {
                     if (offered) Switch(tool in details.settings.tools, { p.actions.onToolAccess(ui.route.agentId, tool, it) })
                 }
             }

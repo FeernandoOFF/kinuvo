@@ -15,6 +15,7 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.composables.compose.ripple.rememberRippleIndication
 import com.composables.interactioncapabilities.currentInteractionCapabilities
@@ -141,7 +142,7 @@ private val HarnessThemeComposable = buildTheme {
         Font(Res.font.libron_italic, FontWeight.Normal, FontStyle.Italic),
         Font(Res.font.libron_bolditalic, FontWeight.Bold, FontStyle.Italic),
     )
-    defaultTextStyle = TextStyle(fontFamily = fontFamily, fontSize = if (touch) 17.sp else 14.sp, lineHeight = if (touch) 26.sp else 21.sp, fontWeight = FontWeight.Normal)
+    defaultTextStyle = TextStyle(fontFamily = fontFamily, fontSize = if (touch) 17.sp else 14.sp, lineHeight = 1.5.em, fontWeight = FontWeight.Normal)
     defaultContentColor = p.text
     val ripple = HapticIndication(rememberRippleIndication(p.text.copy(alpha = 0.08f)))
     defaultIndication = ripple

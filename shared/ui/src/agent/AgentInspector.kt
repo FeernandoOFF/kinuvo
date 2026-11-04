@@ -261,9 +261,9 @@ private fun ModelPage(state: InspectorState, draft: AgentDraft, actions: Inspect
 fun InspectorGuard(state: InspectorState, host: InspectorHost, actions: InspectorActions) {
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = state.guard != null) { actions.onResolve(GuardChoice.Keep) }
     AnimatedVisibility(state.guard != null, enter = fadeIn(), exit = fadeOut()) {
-        Box(Modifier.fillMaxSize().background(color(scrimColor)).clickable(remember { MutableInteractionSource() }, indication = null) { actions.onResolve(GuardChoice.Keep) },
-            contentAlignment = Alignment.Center) {
-            Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp).widthIn(max = 400.dp).clickable(remember { MutableInteractionSource() }, indication = null) {}.semantics { paneTitle = "Unsaved changes" },
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(Modifier.matchParentSize().background(color(scrimColor)).clickable(remember { MutableInteractionSource() }, indication = null) { actions.onResolve(GuardChoice.Keep) })
+            Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp).widthIn(max = 400.dp).consumeTaps().semantics { paneTitle = "Unsaved changes" },
                 contentPadding = PaddingValues(18.dp)) {
                 Text("Discard changes?", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(6.dp))
@@ -272,7 +272,7 @@ fun InspectorGuard(state: InspectorState, host: InspectorHost, actions: Inspecto
                 Spacer(Modifier.height(16.dp))
                 FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button({ actions.onResolve(GuardChoice.Keep) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Keep editing") }
-                    Button({ actions.onResolve(GuardChoice.Discard) }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Discard") }
+                    Button({ actions.onResolve(GuardChoice.Discard) }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small, contentColor = color(destructiveColor)) { Text("Discard") }
                 }
             }
         }
@@ -310,8 +310,10 @@ private fun Label(text: String) = Text(text, Modifier.padding(start = 2.dp, top 
 @Composable
 private fun NavRow(icon: ImageVector, title: String, value: String?, onClick: () -> Unit) {
     ListRow(false, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
-        Text(title, Modifier.weight(1f), singleLine = true)
-        value?.let { Text(it, Modifier.widthIn(max = 200.dp), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End) }
+        Text(title, singleLine = true)
+        Box(Modifier.weight(1f).padding(start = 12.dp), contentAlignment = Alignment.CenterEnd) {
+            value?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End) }
+        }
         Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
     }
 }

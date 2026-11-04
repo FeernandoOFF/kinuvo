@@ -267,7 +267,7 @@ private fun FormatBar(state: RichTextState, visible: Boolean, modifier: Modifier
 
 @Composable
 private fun FormatToggle(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
-    Tooltip(panel = { TooltipPanel { Text(label, fontSize = 12.sp) } }) {
+    Hint(label) {
         IconButton(
             onClick = onClick,
             modifier = Modifier.size(28.dp).focusProperties { canFocus = false },
