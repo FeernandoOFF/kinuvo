@@ -4,10 +4,10 @@ modules:
   - apps/desktop
   - apps/ios
   - apps/web
-  - harness/voice
   - harness/core
   - harness/execution/acp
   - harness/execution/api
+  - harness/models
   - harness/plugins/anytype
   - harness/plugins/browser
   - harness/plugins/cua
@@ -21,10 +21,12 @@ modules:
   - harness/providers/apple
   - harness/providers/codex
   - harness/providers/koog
+  - harness/providers/litert
   - harness/server/embedded
   - harness/server/jvm
   - harness/server/runtime
   - harness/testing
+  - harness/voice
   - shared/app
   - shared/client
   - shared/protocol

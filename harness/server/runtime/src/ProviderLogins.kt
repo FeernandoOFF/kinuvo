@@ -20,7 +20,7 @@ class ProviderLogins(private val providers: List<ModelProvider>, private val sco
     private val errors = ConcurrentMutableMap<String, String>()
     private val lock = Mutex()
 
-    suspend fun list() = providers.map { ProviderInfo(it.id, it.name, it.auth?.account(), errors[it.id], it.apiKey?.status()) }
+    suspend fun list() = providers.map { ProviderInfo(it.id, it.name, it.auth?.account(), errors[it.id], it.apiKey?.status(), it.downloads?.state()) }
 
     suspend fun login(id: String): DeviceCode {
         val auth = provider(id).auth ?: error("${provider(id).name} needs no sign-in")
@@ -61,5 +61,10 @@ class ProviderLogins(private val providers: List<ModelProvider>, private val sco
         changed(list())
     }
 
+    fun download(id: String, model: String) = downloads(id).download(model)
+    fun cancelDownload(id: String) = downloads(id).cancel()
+    suspend fun removeModel(id: String, model: String) { downloads(id).remove(model); changed(list()) }
+
+    private fun downloads(id: String) = provider(id).downloads ?: error("${provider(id).name} downloads no models")
     private fun provider(id: String) = providers.firstOrNull { it.id == id } ?: error("No model provider '$id'")
 }

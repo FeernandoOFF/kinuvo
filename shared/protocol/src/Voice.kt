@@ -18,7 +18,7 @@ data class VoiceSetup(
 enum class VoiceModelKind { Transcription, Synthesis }
 
 @kotlinx.serialization.Serializable
-data class VoiceModelFile(val name: String, val url: String, val bytes: Long, val sha256: String)
+data class ModelFile(val name: String, val url: String, val bytes: Long, val sha256: String)
 @kotlinx.serialization.Serializable
 data class VoiceModel(
     val id: String,
@@ -27,7 +27,7 @@ data class VoiceModel(
     val license: String,
     val source: String,
     val languages: String,
-    val files: List<VoiceModelFile>,
+    val files: List<ModelFile>,
     val archiveRoot: String? = null,
 ) {
     val bytes get() = files.sumOf { it.bytes }

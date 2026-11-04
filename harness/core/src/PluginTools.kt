@@ -16,6 +16,11 @@ fun ToolIdentity.modelAlias(): String {
     return prefix.replace(Regex("[^A-Za-z0-9_-]"), "_").take(46) + "__" + suffix
 }
 
+/** The tool's own name inside a [modelAlias], e.g. `memory`; other names come back unchanged. */
+fun toolLocalName(name: String): String = ALIAS.matchEntire(name)?.groupValues?.get(1) ?: name
+
+private val ALIAS = Regex("[A-Za-z0-9_-]+?__[A-Za-z0-9_-]+?__(.+)__[0-9a-f]{16}")
+
 fun PluginTools.ownedBy(owner: PluginInstanceId, manifest: kinuvo.protocol.PluginManifest? = null): PluginTools {
     manifest?.let {
         require(it.plugin.id == owner.pluginId) { "Manifest belongs to another plugin" }
