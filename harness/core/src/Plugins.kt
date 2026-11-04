@@ -31,6 +31,7 @@ interface ModelProvider {
     /** Signs in to the provider's account; null when it needs no sign-in. */
     val auth: ProviderAuth? get() = null
     val apiKey: ProviderApiKey? get() = null
+    val downloads: ModelDownloads? get() = null
 }
 
 /** Tries an Agent's exec settings without saving them. */
@@ -43,6 +44,15 @@ interface ProviderApiKey {
     suspend fun status(): kinuvo.protocol.ProviderApiKeyStatus
     /** An empty [value] removes the saved setting. */
     suspend fun save(value: String)
+}
+
+/** Models a provider runs from files it downloads to the Server, one download at a time; [changes] follows [state]. */
+interface ModelDownloads {
+    val changes: kotlinx.coroutines.flow.Flow<kinuvo.protocol.ProviderDownloads>
+    fun state(): kinuvo.protocol.ProviderDownloads
+    fun download(model: String)
+    fun cancel()
+    suspend fun remove(model: String)
 }
 
 /** A model provider's account sign-in, done with a device code so it works from any client or a headless Server. */

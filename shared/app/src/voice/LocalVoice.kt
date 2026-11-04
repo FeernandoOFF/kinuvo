@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 typealias VoiceModelKind = kinuvo.protocol.VoiceModelKind
-typealias VoiceModelFile = kinuvo.protocol.VoiceModelFile
+typealias ModelFile = kinuvo.protocol.ModelFile
 typealias VoiceModel = kinuvo.protocol.VoiceModel
 
 data class LocalVoiceState(

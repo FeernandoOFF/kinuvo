@@ -74,7 +74,25 @@ providers:
         context: 32768
 ```
 
-Model IDs are sent unchanged. Unknown capabilities remain unspecified. Text and image attachments use the existing shared conversion; native document attachments and provider-specific reasoning extensions are not supported by this adapter. OpenAI encrypted reasoning from an existing Session is omitted when switching to a compatible endpoint. Codex, OpenAI Responses, and Apple on-device inference retain their existing behavior.
+Model IDs are sent unchanged. Unknown capabilities remain unspecified. Text and image attachments use the existing shared conversion; native document attachments and provider-specific reasoning extensions are not supported by this adapter. OpenAI encrypted reasoning from an existing Session is omitted when switching to a compatible endpoint. Codex, OpenAI Responses, Apple and LiteRT on-device inference retain their existing behavior.
+
+## On-device models
+
+The `local` provider (“On this device”) runs open models on the Server's own machine with [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), so conversations never leave it. It is available on Android embedded Servers and on JVM Servers (desktop and `kinuvo serve`) running on Apple silicon macOS, 64-bit Linux or 64-bit Windows. iOS keeps Apple's on-device models.
+
+Download a model in **Settings → Model providers → On this device**, or pick it during onboarding. Any management Device can start, cancel or remove a download on the selected Server, e.g. a phone downloading onto a desktop Server. Progress follows `providers.changed`.
+
+| Model | Download | Device RAM | Context | Tools |
+| --- | --- | --- | --- | --- |
+| Gemma 4 E2B | 2.6 GB | 6 GB | 8,192 | 8 |
+| Gemma 4 E4B | 3.7 GB | 10 GB | 8,192 | 12 |
+| Qwen3 0.6B | 614 MB | 3 GB | 4,096 | 4 |
+
+All three are Apache-2.0 `.litertlm` files from `litert-community` on Hugging Face, pinned by revision, size and SHA-256. Models the machine can't run are listed with the reason and aren't offered in pickers. Files live in `<Server home>/local-models/<id>/`; an interrupted download resumes, and canceling discards it.
+
+One model is loaded at a time and unloaded after five idle minutes. Loading tries the GPU (Metal, OpenCL) and falls back to the CPU. Each request replays the Session history into a new LiteRT-LM conversation; Kinuvo's agent loop runs the tools. Tool aliases are shortened to their local names for the model, and screen control, Scripts and the tool catalog are left out. A tool call LiteRT-LM can't parse is retried twice with a correction. Replies are capped at 1,024 tokens. Reasoning is off and input is text only.
+
+Qwen3 0.6B is the smallest download but only handles short, simple turns. Gemma 4 E2B is the recommended default.
 
 ## Cache and offline use
 

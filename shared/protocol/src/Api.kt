@@ -183,6 +183,10 @@ object Api {
     val LoginProvider = Method("providers.login", ProviderRef.serializer(), DeviceCode.serializer())
     val SetProviderApiKey = Method("providers.apiKey", SetProviderApiKeyParams.serializer(), Unit.serializer())
     val LogoutProvider = Method("providers.logout", ProviderRef.serializer(), Unit.serializer())
+    /** Starts downloading a model to the Server; progress and the result follow in [ProvidersChanged]. */
+    val DownloadProviderModel = Method("providers.download", ProviderModelRef.serializer(), Unit.serializer())
+    val CancelProviderDownload = Method("providers.cancelDownload", ProviderRef.serializer(), Unit.serializer())
+    val RemoveProviderModel = Method("providers.removeModel", ProviderModelRef.serializer(), Unit.serializer())
     val UploadAttachment = Method("attachments.upload", UploadAttachmentParams.serializer(), kinuvo.protocol.Attachment.serializer())
     val Attachment = Method("attachments.get", AttachmentRef.serializer(), AttachmentData.serializer())
     val DeviceTools = Method("device.tools", DeviceToolsParams.serializer(), Unit.serializer())

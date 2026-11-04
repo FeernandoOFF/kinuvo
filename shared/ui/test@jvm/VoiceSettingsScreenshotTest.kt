@@ -51,6 +51,6 @@ class VoiceSettingsScreenshotTest {
     }
     private fun model(id: String, title: String, kind: VoiceModelKind, bytes: Long) = VoiceModel(id, title, kind,
         if (kind == VoiceModelKind.Synthesis) "OpenRAIL-M" else "MIT", "https://example.org/model", "Multilingual",
-        listOf(VoiceModelFile("model", "https://example.org/model", bytes, "hash")))
+        listOf(ModelFile("model", "https://example.org/model", bytes, "hash")))
     private fun text(node: SemanticsNode): List<String> = node.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text } + node.children.flatMap(::text)
 }

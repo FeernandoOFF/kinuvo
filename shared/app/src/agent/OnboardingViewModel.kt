@@ -108,6 +108,7 @@ data class OnboardingState(
         val account = providers.firstOrNull { it.id == provider }
         return details != null && provider.isNotBlank() && model.isNotBlank() &&
             account?.apiKey?.configured != false && account?.account?.signedIn != false &&
+            account?.downloads?.models?.firstOrNull { it.id == model }?.installed != false &&
             catalog.model(provider, model)?.state?.actionable != false
     }
 }
@@ -122,6 +123,7 @@ class OnboardingViewModel(private val config: ConfigRepository) : ViewModel() {
     init {
         if (config.connection.client != null) config.connection.bind(viewModelScope)
         viewModelScope.launch { harnesses.state.collect { h -> edit { it.copy(connections = h.connections, registrations = h.catalog?.agents.orEmpty()) } } }
+        viewModelScope.launch { config.providers.collect { p -> if (p != null) edit { if (it.details != null) it.copy(providers = p) else it } } }
     }
 
     fun edit(change: (OnboardingState) -> OnboardingState) { state.update(change) }
@@ -217,6 +219,11 @@ class OnboardingViewModel(private val config: ConfigRepository) : ViewModel() {
             edit { it.copy(catalog = catalog, providers = providers, apiKey = "") }
         }
     }
+
+    /** Downloads the chosen model to the Server; progress follows in [OnboardingState.providers]. */
+    fun download() = state.value.let { s -> attempt { config.downloadModel(s.provider, s.model) } }
+
+    fun cancelDownload() = state.value.let { s -> attempt { config.cancelModelDownload(s.provider) } }
 
     fun finish(onDone: () -> Unit) = attempt {
         val s = state.value
