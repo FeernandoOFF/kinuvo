@@ -15,7 +15,7 @@ enum class AttachmentSource { Camera, Photos, Files }
 fun SessionCapabilities.attachmentInput(mimeType: String): CapabilityState {
     val execution = execution
     return when {
-        execution != null && mimeType !in execution.supportedMimeTypes -> CapabilityState.unsupported("This harness does not accept this file type")
+        execution != null && mimeType !in execution.supportedMimeTypes -> CapabilityState.unsupported(if (mimeType.startsWith("image/")) "Photos can't be sent to this Session" else "This file type can't be sent to this Session")
         else -> attachment(mimeType)
     }
 }

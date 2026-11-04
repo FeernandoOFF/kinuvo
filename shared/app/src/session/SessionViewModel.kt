@@ -48,6 +48,7 @@ sealed interface ChatItem {
         val trustHint get() = approval?.trustHint
         /** The user said no to it, which isn't a failure. The Server records only its output, so this reads that. */
         val denied get() = isError && result?.let { it.startsWith("The user denied") || it.startsWith("Denied") } == true
+        val denialNote get() = result?.takeIf { denied }?.substringAfter(" Note: ", "")?.ifBlank { null }
     }
     data class Measurement(override val id: String, val metrics: RequestMetrics) : ChatItem
     data class Notice(override val id: String, val code: String, val message: String, val draft: List<ChatItem> = emptyList()) : ChatItem
@@ -158,7 +159,9 @@ data class ChatState(
         ATTACHMENT_MIME_TYPES.filter { it.startsWith("image/") }.map(caps::attachmentInput).let { types -> types.firstOrNull { it.actionable } ?: types.first() }
     }
     val files get() = capabilities?.let { caps ->
-        ATTACHMENT_MIME_TYPES.map(caps::attachmentInput).let { types -> types.firstOrNull { it.actionable } ?: types.first() }
+        ATTACHMENT_MIME_TYPES.map(caps::attachmentInput).let { types ->
+            types.firstOrNull { it.actionable } ?: types.takeIf { t -> t.distinctBy { it.reason }.size == 1 }?.first() ?: CapabilityState.unsupported("Attachments can't be sent to this Session")
+        }
     }
 }
 
