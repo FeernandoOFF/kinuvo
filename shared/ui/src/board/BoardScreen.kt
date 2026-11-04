@@ -32,6 +32,7 @@ import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
 import kinuvo.protocol.*
 import kinuvo.ui.design.*
+import kotlinx.coroutines.launch
 
 @Composable
 fun BoardScreen(app: AppViewModel, board: BoardViewModel, onOpenSession: (Route.Chat) -> Unit, onSettings: () -> Unit, onOpenTask: (String) -> Unit = {}) {
@@ -87,13 +88,20 @@ fun BoardContent(ui: BoardUi, actions: BoardActions) {
         else BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
             // Phones show one column at a time, snapping, with the next one peeking in.
             val phone = maxWidth < 600.dp
+            val columnWidth = if (phone) maxWidth - 48.dp else 280.dp
             val list = rememberLazyListState()
+            val scope = rememberCoroutineScope()
+            Column(Modifier.fillMaxSize()) {
+            if (phone) Segmented(columns.map { it.tab() }, list.firstVisibleItemIndex, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
+                scope.launch { list.animateScrollToItem(i) }
+            }
             // The end padding lets the last column snap to the same start as the others.
-            LazyRow(Modifier.fillMaxSize(), list, PaddingValues(start = 12.dp, end = if (phone) 36.dp else 12.dp, top = 8.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+            LazyRow(Modifier.weight(1f).fillMaxWidth(), list, PaddingValues(start = 12.dp, end = if (phone) 36.dp else 12.dp, top = 8.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
                 flingBehavior = if (phone) rememberSnapFlingBehavior(list) else ScrollableDefaults.flingBehavior()) {
                 items(columns, key = { it }) { status ->
-                    BoardColumn(status, tasks.filter { it.status == status }, ui, actions, Modifier.width(if (phone) maxWidth - 48.dp else 280.dp))
+                    BoardColumn(status, tasks.filter { it.status == status }, ui, actions, Modifier.width(columnWidth))
                 }
+            }
             }
         }
     }
@@ -177,6 +185,8 @@ internal fun TaskStatus.label() = when (this) {
     TaskStatus.Waiting -> "Waiting on you"
     TaskStatus.Done -> "Done"
 }
+
+private fun TaskStatus.tab() = if (this == TaskStatus.Waiting) "Waiting" else label()
 
 private fun TaskStatus.empty() = when (this) {
     TaskStatus.Todo -> "Nothing to do. Add a task, or assign a list to an agent in Settings."

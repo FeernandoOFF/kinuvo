@@ -101,10 +101,17 @@ fun HomeContent(ui: HomeUi, actions: HomeActions, wide: Boolean? = null) {
                     Modifier.widthIn(max = 820.dp).fillMaxWidth().padding(horizontal = 16.dp).padding(top = 20.dp, bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
-                    Text(ui.summary(), fontSize = 20.sp, lineHeight = 28.sp, modifier = Modifier.semantics { heading() })
                     // Empty sections are left out; the summary already says what isn't happening.
                     val t = ui.today
                     val due = !ui.tasks || t.due?.isEmpty() == true && ui.error == null
+                    val clear = t.needsYou.isEmpty() && t.running.isEmpty() && t.next.isEmpty() && due && t.results.isEmpty()
+                    if (clear) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Icon(Lucide.CircleCheck, Modifier.size(22.dp), tint = color(successColor))
+                            Text("All clear", fontSize = 22.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Text(ui.summary(), fontSize = 15.sp, color = color(mutedColor))
+                    } else Text(ui.summary(), fontSize = 20.sp, lineHeight = 28.sp, modifier = Modifier.semantics { heading() })
                     if (t.needsYou.isNotEmpty()) NeedsYou(ui, actions)
                     if (t.running.isNotEmpty()) RunningNow(ui, actions)
                     if (t.next.isNotEmpty() && !due && twoColumns) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -115,8 +122,7 @@ fun HomeContent(ui: HomeUi, actions: HomeActions, wide: Boolean? = null) {
                         if (!due) DueThisWeek(ui, actions)
                     }
                     if (t.results.isNotEmpty()) Results(ui, actions)
-                    if (t.needsYou.isEmpty() && t.running.isEmpty() && t.next.isEmpty() && due && t.results.isEmpty())
-                        Text("Approvals, running Sessions, Routines, Tasks due this week and new results show up here.", fontSize = 14.sp, color = color(mutedColor))
+                    if (clear) Text("Approvals, running Sessions, Routines, Tasks due this week and new results show up here.", fontSize = 14.sp, color = color(mutedColor))
                 }
             }
         }

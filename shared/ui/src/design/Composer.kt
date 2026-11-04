@@ -137,8 +137,8 @@ fun Composer(
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Column(Modifier.fillMaxWidth()) {
             if (notice != null || blocked != null) {
-                val noticeShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(noticeShape)
+                val noticeShape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
+                Column(Modifier.fillMaxWidth().clip(noticeShape)
                     .background(color(panelColor)).border(1.dp, color(borderColor), noticeShape)
                     .heightIn(max = 320.dp).verticalScroll(rememberScrollState())
                     .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp + NoticeTuck), verticalArrangement = Arrangement.spacedBy(10.dp)) {
