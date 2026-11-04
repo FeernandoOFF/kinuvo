@@ -33,6 +33,12 @@ Tool definitions have stable ordering and recursively sorted schema object keys.
 
 Compaction can summarize completed tool exchanges within the current turn while keeping its user request, current Context and activated Skills. The full transcript remains on disk. Input estimates include tool definitions and reserve output space for known context windows; oversized summaries are chunked, and requests that still cannot fit are rejected before inference.
 
+## Apple on-device models
+
+On macOS, the desktop and standalone Servers automatically offer **Apple → Apple on-device model** when Apple's `/usr/bin/fm` is installed. Enable Apple Intelligence and review and accept the CLI license on the Mac running the Server with `sudo fm license`, then refresh models. Kinuvo shows setup instructions while the license or model is unavailable. No API key is needed. See the [Mac setup guide](../guides/apple-models.md) for requirements, troubleshooting and limits.
+
+On iOS, the embedded Server uses Apple's native Foundation Models framework; the CLI license step applies only to Mac Servers.
+
 ## OpenAI-compatible endpoints
 
 JVM and embedded mobile Servers can connect to OpenAI-compatible Chat Completions APIs through Koog. Add named endpoints to `providers` in the Server home's `config.yaml`, then restart the Server:

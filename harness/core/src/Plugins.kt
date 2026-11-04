@@ -1,5 +1,6 @@
 package kinuvo.harness.core
 
+import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.harness.core.knowledge.KnowledgeSource
 import kinuvo.harness.core.tasks.TaskProvider
 import kinuvo.harness.core.tools.Tool
@@ -23,7 +24,10 @@ interface ModelProvider {
     /** Plan usage, for providers that report it. */
     val usage: StateFlow<Usage?>? get() = null
     /** The [tools] [model] can take, e.g. fewer and simpler ones for a small model; the rest aren't offered. */
-    fun usableTools(model: String, tools: List<ai.koog.agents.core.tools.ToolDescriptor>) = tools
+    fun usableTools(model: String, tools: List<ToolDescriptor>) = tools
+    fun usableTools(model: String, tools: List<ToolDescriptor>, identities: Map<String, ToolIdentity>) = usableTools(model, tools)
+    /** Whether [model] is too small for the full instructions and gets [basicContextFor] instead. */
+    fun basicPrompt(model: String) = false
     /** Signs in to the provider's account; null when it needs no sign-in. */
     val auth: ProviderAuth? get() = null
     val apiKey: ProviderApiKey? get() = null

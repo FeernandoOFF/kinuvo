@@ -691,7 +691,8 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
     RowGroup("Provider") {
         providers.forEach { id ->
             val info = s.providers.firstOrNull { it.id == id }
-            ChoiceRow(Lucide.Brain, info?.name ?: s.catalog.providers.firstOrNull { it.id == id }?.name ?: id, providerStatus(info).orEmpty(), id == s.provider) { onProvider(id) }
+            ChoiceRow(Lucide.Brain, info?.name ?: s.catalog.providers.firstOrNull { it.id == id }?.name ?: id,
+                providerStatus(info) ?: if (id == APPLE) "No setup · private, for simple tasks" else "", id == s.provider) { onProvider(id) }
         }
         ActionRow("Refresh models and sign-in", Lucide.RefreshCw, onRefresh, enabled = !s.busy)
     }
@@ -714,8 +715,12 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
             ActionRow("Open sign-in page", Lucide.ExternalLink, { runCatching { uri.openUri(code.url) } })
         }
     }
+    if (s.provider == APPLE) Text("Apple's on-device model needs no setup and keeps everything on this device. It's small, so it's best for quick chats and remembering things about you. For browsing, files and longer tasks, pick a larger model; you can switch any time in the Agent's settings.",
+        color = color(mutedColor), fontSize = 12.sp)
     (s.catalog.model(s.provider, s.model)?.state?.reason ?: group?.warning ?: s.catalog.warning ?: account?.error)?.let { Text(it, color = color(mutedColor), fontSize = 12.sp) }
 }
+
+private const val APPLE = "apple"
 
 private fun providerStatus(info: ProviderInfo?): String? = when {
     info?.account?.signedIn == true -> "Signed in" + info.account?.label?.let { " as $it" }.orEmpty()

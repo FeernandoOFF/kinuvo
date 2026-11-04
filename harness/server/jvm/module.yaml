@@ -15,6 +15,7 @@ dependencies:
   - ../../plugins/ntfy
   - ../../plugins/protonpass
   - ../../plugins/reminders
+  - ../../providers/apple
   - ../../providers/codex
   - ../../providers/koog
   - io.ktor:ktor-server-cio:3.6.0

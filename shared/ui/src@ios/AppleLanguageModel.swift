@@ -179,6 +179,10 @@ content. After "Tool memory result: OK", reply with a brief confirmation. Read C
         return LanguageModelSession(instructions: instructions)
     }
 
+    func close() {
+        DispatchQueue.main.async { self.tasks.values.forEach { $0.cancel() } }
+    }
+
     func cancel(requestId: String) {
         DispatchQueue.main.async { self.tasks[requestId]?.cancel() }
     }
