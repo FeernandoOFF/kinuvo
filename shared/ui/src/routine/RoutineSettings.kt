@@ -72,7 +72,7 @@ private fun RoutineDetail(r: Routine, p: Pane) {
     DetailPane(p.back, r.name, trailing = { HeaderButton(Lucide.Pencil, "Edit", { p.go(ui.route.copy(editing = true)) }) }) {
         ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         RowGroup {
-            GroupRow("Runs on schedule", subtitle = if (r.enabled) r.nextRun(ui.now) else "Off", chevron = false) { Switch(r.enabled, { actions.onEnabled(r.id, it) }) }
+            GroupRow("Runs on schedule", subtitle = if (r.enabled) r.nextRun(ui.now) else "Off", chevron = false, toggled = r.enabled, onToggle = { actions.onEnabled(r.id, it) })
             ActionRow("Run now", Lucide.Play, { actions.onRunNow(r.id) })
         }
         DetailGroup("Schedule") {

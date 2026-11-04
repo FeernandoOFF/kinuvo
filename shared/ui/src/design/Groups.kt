@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
@@ -17,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -54,7 +56,7 @@ fun Modifier.groupItem(index: Int, count: Int): Modifier {
     return clip(shape)
 }
 
-/** A row of a [RowGroup]: a title over a muted [subtitle], a [value] at the end and a chevron when it opens something. */
+/** A row of a [RowGroup]: a title over a muted [subtitle], a [value] at the end and a chevron when it opens something; with [onToggle], the whole row is one switch. */
 @Composable
 fun GroupRow(
     title: String,
@@ -68,6 +70,8 @@ fun GroupRow(
     chevron: Boolean = onClick != null,
     tint: Color = Color.Unspecified,
     titleLines: Int = 1,
+    toggled: Boolean = false,
+    onToggle: ((Boolean) -> Unit)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -80,6 +84,7 @@ fun GroupRow(
     Row(
         Modifier.fillMaxWidth().heightIn(min = 52.dp).background(background).hoverable(interaction)
             .then(if (onClick != null) Modifier.clickable(interaction, Theme[indications][defaultIndication], enabled = enabled, onClick = onClick) else Modifier)
+            .then(if (onToggle != null) Modifier.toggleable(toggled, interaction, Theme[indications][defaultIndication], enabled, Role.Switch, onToggle) else Modifier)
             .alpha(if (enabled) 1f else 0.45f)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -92,6 +97,7 @@ fun GroupRow(
         }
         value?.let { Text(it, Modifier.widthIn(max = 180.dp), fontSize = 13.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
         trailing()
+        if (onToggle != null && enabled) Box(Modifier.clearAndSetSemantics {}) { Switch(toggled, onToggle) }
         if (chevron) Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
     }
 }

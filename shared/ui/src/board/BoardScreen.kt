@@ -8,7 +8,10 @@ import kinuvo.ui.agent.*
 import kinuvo.ui.navigation.*
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.ScrollableDefaults
+import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
@@ -81,18 +84,23 @@ fun BoardContent(ui: BoardUi, actions: BoardActions) {
         if (ui.state.adding) Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { NewTaskForm(ui, actions) }
         val tasks = ui.tasks
         if (tasks == null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner(size = 24.dp) }
-        else Row(
-            Modifier.weight(1f).fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            columns.forEach { status -> BoardColumn(status, tasks.filter { it.status == status }, ui, actions) }
+        else BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
+            // Phones show one column at a time, snapping, with the next one peeking in.
+            val phone = maxWidth < 600.dp
+            val list = rememberLazyListState()
+            LazyRow(Modifier.fillMaxSize(), list, PaddingValues(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                flingBehavior = if (phone) rememberSnapFlingBehavior(list) else ScrollableDefaults.flingBehavior()) {
+                items(columns, key = { it }) { status ->
+                    BoardColumn(status, tasks.filter { it.status == status }, ui, actions, Modifier.width(if (phone) maxWidth - 48.dp else 280.dp))
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun BoardColumn(status: TaskStatus, tasks: List<TaskInfo>, ui: BoardUi, actions: BoardActions) {
-    Column(Modifier.width(280.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun BoardColumn(status: TaskStatus, tasks: List<TaskInfo>, ui: BoardUi, actions: BoardActions, modifier: Modifier) {
+    Column(modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(status.icon(), Modifier.size(14.dp), tint = status.tone().color())
             Text(status.label(), fontWeight = FontWeight.Normal)

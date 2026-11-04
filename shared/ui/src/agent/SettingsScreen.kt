@@ -501,7 +501,7 @@ internal fun <T> PickerRow(title: String, options: List<T>, current: T, label: (
 /** A setting turned on or off as a row of a [RowGroup]. */
 @Composable
 internal fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Unit, subtitle: String? = null, icon: ImageVector? = null, enabled: Boolean = true) =
-    GroupRow(title, subtitle = subtitle, icon = icon, enabled = enabled, chevron = false) { if (enabled) Switch(checked, onChange) }
+    GroupRow(title, subtitle = subtitle, icon = icon, enabled = enabled, chevron = false, toggled = checked, onToggle = onChange)
 
 /** A (?) showing [text] when tapped: over the app on touch screens, by the button otherwise. */
 @Composable

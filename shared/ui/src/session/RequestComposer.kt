@@ -240,7 +240,8 @@ private fun Actions(wide: Boolean, primary: @Composable (Modifier) -> Unit, othe
 @Composable
 private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInput, wide: Boolean, onDecision: (ApprovalDecision) -> Unit) {
     val identity = event.identity
-    val label = identity?.let { "${it.instance.pluginId} › ${it.instance.instanceId} › ${it.localId}" } ?: event.toolCallName
+    // The title already names a tool without an identity.
+    val label = identity?.let { "${it.instance.pluginId} › ${it.instance.instanceId} › ${it.localId}" }
     val always = event.trustHint?.let { if (identity?.instance?.pluginId == "kinuvo.computer" && identity.localId == "computer_act") "Always allow in $it" else "Always allow `$it …`" } ?: "Always allow"
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         val command = if (event.isShell()) commandOf(event.args) else null
@@ -248,8 +249,8 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
             Text("$ $command", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(color(codeColor)).padding(horizontal = 12.dp, vertical = 9.dp),
                 style = MonoStyle, color = color(onCodeColor), maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(label, Modifier.weight(1f), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+        if (label != null || command != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(label.orEmpty(), Modifier.weight(1f), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             if (command != null) Button(onClick = { input.arguments = !input.arguments }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Link, contentColor = color(mutedColor)) {
                 Text(if (input.arguments) "Hide arguments" else "Arguments", fontSize = 12.sp, singleLine = true)
             }
