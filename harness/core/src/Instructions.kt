@@ -70,3 +70,14 @@ suspend fun personalContextFor(agent: Agent, docs: AgentDocs): String = buildStr
     append("### Memory\n\n${docs.read(agent.id, AgentDoc.Memory).trim()}\n\n")
     append("### User Notes\n\n${docs.read(agent.id, AgentDoc.UserNotes).trim()}\n")
 }
+
+/** The whole prompt for a small on-device model: who it is, what it knows about the user, and its tools. */
+suspend fun basicContextFor(agent: Agent, docs: AgentDocs, tools: List<kinuvo.harness.core.tools.Tool>, today: String): String = buildString {
+    val known = listOf(AgentDoc.UserNotes, AgentDoc.Memory).map { docs.read(agent.id, it).trim() }.filter { it.isNotEmpty() }
+    append("You are ${agent.name}, the user's personal assistant. Keep replies short and friendly.\n\n")
+    append("What you know about the user:\n${known.joinToString("\n").ifEmpty { "Nothing saved yet." }}\n\n")
+    if (tools.isNotEmpty()) append("Tools: ${tools.joinToString { it.identity?.localId ?: it.descriptor.name }}. ")
+    append("Use a tool when the user asks you to do something, and only say it's done after the tool succeeds.")
+    if (tools.any { it.identity?.localId == kinuvo.harness.core.tools.ToolNames.MEMORY }) append(" When the user asks you to remember something, call memory with action=add, target=user and content starting \"The user\".")
+    append("\nToday is $today.\n")
+}
