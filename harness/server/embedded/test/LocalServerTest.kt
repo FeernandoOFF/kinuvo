@@ -32,7 +32,7 @@ class EmbeddedServerHostTest {
             val user = history.filterIsInstance<Message.User>().last()
             when {
                 user.textContent() == "remember tea" && history.last() is Message.User && history.toolResults.isEmpty() && tools.isNotEmpty() ->
-                    flowOf(StreamFrame.ToolCallComplete("remember", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"add","target":"user","content":"Prefers tea"}"""), StreamFrame.End())
+                    flowOf(StreamFrame.ToolCallComplete("remember", "memory", """{"action":"add","target":"user","content":"Prefers tea"}"""), StreamFrame.End())
                 history.toolResults.isNotEmpty() -> flowOf(StreamFrame.TextDelta("Saved."), StreamFrame.End())
                 else -> flowOf(StreamFrame.TextDelta("Reply."), StreamFrame.End())
             }
@@ -189,10 +189,10 @@ class EmbeddedServerHostTest {
             val client = client(server)
             try {
                 run(client, client.call(Api.CreateSession, AgentRef("default")).id, "hi")
-                assertTrue(kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), ToolNames.MEMORY).modelAlias() in offered.last())
+                assertTrue(ToolNames.MEMORY in offered.last())
                 for (local in listOf(ToolNames.ACTIVATE_SKILL, "read_skill_file", ToolNames.SCHEDULE, ToolNames.ARTIFACT))
-                    assertFalse(kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), local).modelAlias() in offered.last())
-                assertTrue(kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.tasks"), ToolNames.TASKS).modelAlias() in offered.last())
+                    assertFalse(local in offered.last())
+                assertTrue(ToolNames.TASKS in offered.last())
             } finally { client.close(); server.close() }
         }
     }

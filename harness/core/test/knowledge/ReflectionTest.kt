@@ -105,7 +105,7 @@ class ReflectionTest {
         var memoryRequests = 0
         val later = mutableListOf<String>()
         val model = scriptedModel { _, tools ->
-            val memory = tools.singleOrNull()?.name == ToolIdentity(PluginInstanceId("kinuvo.core"), "memory").modelAlias()
+            val memory = tools.singleOrNull()?.name == "memory"
             if (memory) {
                 memoryRequests++
                 flowOf(StreamFrame.ToolCallComplete("m-$memoryRequests", tools.single().name,
@@ -165,7 +165,7 @@ class ReflectionTest {
 
     @Test
     fun blockedToolsAreNotOfferedToReflection() = runTest {
-        val memory = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias()
+        val memory = "memory"
         val model = scriptedModel { _, tools ->
             assertFalse(tools.any { it.name == memory })
             flowOf(StreamFrame.TextDelta("Nothing to save."), StreamFrame.End())
@@ -182,7 +182,7 @@ class ReflectionTest {
         val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
             val instructions = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
-            val personal = tools.single().name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias()
+            val personal = tools.single().name == "memory"
             if (personal) {
                 assertTrue("Keep replies concise" in instructions)
                 assertTrue("Lives in Cork" in instructions)
@@ -190,12 +190,12 @@ class ReflectionTest {
             }
             if (history.toolResults.isNotEmpty()) flowOf(StreamFrame.End())
             else if (personal) flowOf(
-                StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"add","target":"memory","content":"Give concrete examples"}"""),
-                StreamFrame.ToolCallComplete("c2", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"replace","target":"user","old_text":"Lives in Cork","content":"Lives in Dublin"}"""),
-                StreamFrame.ToolCallComplete("c3", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"remove","target":"user","old_text":"Likes tea"}"""),
+                StreamFrame.ToolCallComplete("c1", "memory", """{"action":"add","target":"memory","content":"Give concrete examples"}"""),
+                StreamFrame.ToolCallComplete("c2", "memory", """{"action":"replace","target":"user","old_text":"Lives in Cork","content":"Lives in Dublin"}"""),
+                StreamFrame.ToolCallComplete("c3", "memory", """{"action":"remove","target":"user","old_text":"Likes tea"}"""),
                 StreamFrame.End(),
             ) else flowOf(
-                StreamFrame.ToolCallComplete("c4", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"create","type":"person","title":"Ana","reason":"Family relationship","evidence":"user-0: Ana is my sister"}"""),
+                StreamFrame.ToolCallComplete("c4", "knowledge", """{"action":"create","type":"person","title":"Ana","reason":"Family relationship","evidence":"user-0: Ana is my sister"}"""),
                 StreamFrame.End(),
             )
         }
@@ -215,7 +215,7 @@ class ReflectionTest {
         val next = scriptedModel { prompt, tools ->
             val history = prompt.messages
             val instructions = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
-            if (tools.single().name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias()) {
+            if (tools.single().name == "memory") {
                 assertTrue("Lives in Dublin" in instructions)
                 assertTrue("Give concrete examples" in instructions)
                 assertFalse("Lives in Cork" in instructions)
@@ -229,9 +229,9 @@ class ReflectionTest {
     fun failedMemoryWriteDoesNotProduceADiff() = runTest {
         val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
-            if (tools.single().name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias() && history.toolResults.isEmpty()) flowOf(
-                StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"add","target":"memory","content":"Use examples"}"""),
-                StreamFrame.ToolCallComplete("c2", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"remove","target":"memory","old_text":"Missing entry"}"""),
+            if (tools.single().name == "memory" && history.toolResults.isEmpty()) flowOf(
+                StreamFrame.ToolCallComplete("c1", "memory", """{"action":"add","target":"memory","content":"Use examples"}"""),
+                StreamFrame.ToolCallComplete("c2", "memory", """{"action":"remove","target":"memory","old_text":"Missing entry"}"""),
                 StreamFrame.End(),
             ) else flowOf(StreamFrame.End())
         }
@@ -247,8 +247,8 @@ class ReflectionTest {
         val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
             val instructions = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
-            if (tools.single().name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias() && history.toolResults.isEmpty()) flowOf(
-                StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"update","ref":"Kinuvo","append":"Use my suggested structure","reason":"Proposed organization","evidence":"assistant-1: suggested structure"}"""),
+            if (tools.single().name == "knowledge" && history.toolResults.isEmpty()) flowOf(
+                StreamFrame.ToolCallComplete("c1", "knowledge", """{"action":"update","ref":"Kinuvo","append":"Use my suggested structure","reason":"Proposed organization","evidence":"assistant-1: suggested structure"}"""),
                 StreamFrame.End(),
             ) else flowOf(StreamFrame.End())
         }
@@ -275,11 +275,11 @@ class ReflectionTest {
         val agent = home.agent.copy(config = home.agent.config.copy(tools = listOf(ToolNames.SKILLS)))
         val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
-            assertFalse(tools.any { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias() || it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias() })
+            assertFalse(tools.any { it.name == "knowledge" || it.name == "memory" })
             val transcript = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
             assertTrue("check-1" in transcript && "succeeded" in transcript && "passed" in transcript)
             assertTrue("failed" in transcript && "wrong flag" in transcript)
-            if (history.toolResults.none { it.id == "learn" }) flowOf(StreamFrame.ToolCallComplete("learn", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "skill_manage").modelAlias(), args.toString()), StreamFrame.End())
+            if (history.toolResults.none { it.id == "learn" }) flowOf(StreamFrame.ToolCallComplete("learn", "skill_manage", args.toString()), StreamFrame.End())
             else flowOf(StreamFrame.End())
         }
         val result = Reflection(knowledge, home.docs, home.skills).reflect(agent, model, "s1", listOf(
@@ -301,7 +301,7 @@ class ReflectionTest {
         val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
             val instructions = history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent()
-            assertFalse(tools.any { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias() })
+            assertFalse(tools.any { it.name == "memory" })
             assertFalse("Existing memory" in instructions)
             assertFalse("Existing user notes" in instructions)
             flowOf(StreamFrame.TextDelta("Nothing to save."), StreamFrame.End())
@@ -316,9 +316,9 @@ class ReflectionTest {
         home.docs.write(home.agent.id, AgentDoc.Memory, "personal-only")
         val features = listOf(ToolNames.MEMORY, ToolNames.KNOWLEDGE, ToolNames.SKILLS)
         val aliases = listOf(
-            setOf(ToolIdentity(PluginInstanceId("kinuvo.core"), "memory").modelAlias()),
-            setOf(ToolIdentity(PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias()),
-            setOf("activate_skill", "read_skill_file", "skill_manage").map { ToolIdentity(PluginInstanceId("kinuvo.core"), it).modelAlias() }.toSet(),
+            setOf("memory"),
+            setOf("knowledge"),
+            setOf("activate_skill", "read_skill_file", "skill_manage").map { it }.toSet(),
         )
         for (mask in 0..7) {
             val enabled = features.indices.filter { mask and (1 shl it) != 0 }
@@ -351,7 +351,7 @@ class ReflectionTest {
         val model = scriptedModel { prompt, tools ->
             val name = tools.single().name
             if (prompt.messages.toolResults.isNotEmpty()) flowOf(StreamFrame.End())
-            else if (name == ToolIdentity(PluginInstanceId("kinuvo.core"), "memory").modelAlias()) flowOf(
+            else if (name == "memory") flowOf(
                 StreamFrame.ToolCallComplete("same-id", name, """{"action":"replace","target":"memory","old_text":"Use examples","content":"Use examples"}"""), StreamFrame.End(),
             ) else flowOf(
                 StreamFrame.ToolCallComplete("same-id", name, """{"action":"create","type":"person","title":"Ana","reason":"Family","evidence":"user-0"}"""), StreamFrame.End(),

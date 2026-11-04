@@ -19,4 +19,5 @@ The catalog pins three models with a minimum device RAM each. The provider hides
 
 - The JVM package bundles LiteRT-LM's native libraries for macOS arm64, Linux and Windows (about 130 MB); Android adds about 22 MB per 64-bit ABI and has no 32-bit build.
 - Each request replays history into a new conversation, so long Sessions pay prefill on every step. Reusing a conversation's KV cache across steps is future work.
-- Small models need a small, simple tool set: tool aliases are shortened for the model, screen control, Scripts and the tool catalog are excluded, and unparseable calls are retried with a correction.
+- Small models need a small, simple tool set: screen control, Scripts and the tool catalog are excluded, and unparseable calls are retried with a correction.
+- Small models can't repeat hashed tool aliases, so every run now offers tools by their own names and keeps aliases only for clashes (see [Plugins](../reference/plugins.md)).

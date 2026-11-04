@@ -133,7 +133,7 @@ class RunPreparationTest {
             assertEquals(Support.Unknown, inspect(harness, agent, session.id).tools.single().state.support)
             assertFalse(marker.exists())
             harness.runner(agent, session.id).run(session.id, "hi").toList()
-            assertEquals(listOf(McpTool.identity(McpServerConfig.Stdio("local", "", instanceId = "shared/local"), "echo").modelAlias()), seen.last())
+            assertEquals(listOf("echo"), seen.last())
             val cached = inspect(harness, agent, session.id).tools.single()
             assertEquals(seen.last().single(), cached.id)
             assertEquals(Support.Supported, cached.state.support)
@@ -227,7 +227,7 @@ class RunPreparationTest {
             val session = harness.newSession(agent)
             harness.runner(agent, session.id).run(session.id, "hi").toList()
             val sent = seen.last()
-            assertEquals(listOf("call_tool", "describe_tool", "find_tools", "memory"), sent.map { it.split("__")[2] }.sorted())
+            assertEquals(listOf("call_tool", "describe_tool", "find_tools", "memory"), sent.sorted())
             assertEquals(49, inspect(harness, agent, session.id).tools.size)
         } finally { harness.close() }
     }

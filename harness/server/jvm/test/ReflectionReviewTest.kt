@@ -38,7 +38,7 @@ class ReflectionReviewTest {
                 val text = prompt.messages.filterIsInstance<ai.koog.prompt.message.Message.User>().single().textContent()
                 assertTrue("Perform only the Knowledge stage" in text)
                 assertTrue("wrong date" in text)
-                kotlinx.coroutines.flow.flowOf(ai.koog.prompt.streaming.StreamFrame.ToolCallComplete("revision", tools.single { it.name == ToolIdentity(PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias() }.name,
+                kotlinx.coroutines.flow.flowOf(ai.koog.prompt.streaming.StreamFrame.ToolCallComplete("revision", tools.single { it.name == "knowledge" }.name,
                     """{"action":"create","type":"project","title":"Release","append":"Friday","reason":"Correct date","evidence":"review-note proposal"}"""),
                     ai.koog.prompt.streaming.StreamFrame.ToolCallComplete("classify", tools.single { "reflection_feedback" in it.name }.name, """{"lasting":false}"""),
                     ai.koog.prompt.streaming.StreamFrame.End())
