@@ -116,7 +116,7 @@ fun ToggleSwitch(checked: Boolean, onChange: ((Boolean) -> Unit)?, modifier: Mod
             .then(if (checked) Modifier else Modifier.border(1.dp, color(mutedColor).copy(alpha = 0.5f), CircleShape))
             .then(if (onChange != null) Modifier.toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange) else Modifier)
             .alpha(if (enabled) 1f else 0.45f).padding(3.dp),
-    ) { Box(Modifier.offset(x = offset).size(22.dp).background(Color.White, CircleShape)) }
+    ) { Box(Modifier.offset(x = offset).size(22.dp).background(if (checked) Color.White else color(mutedColor), CircleShape)) }
 }
 
 /** Free-form content as a row of a [RowGroup], e.g. a field. */

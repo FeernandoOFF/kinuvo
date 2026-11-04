@@ -79,9 +79,12 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Stri
                             val session = ui.sessions[id]
                             val agentId = session?.agentId ?: task.assignee
                             ListRow(false, { agentId?.let { onOpenSession(it, id) } }, enabled = agentId != null, leading = { Icon(Lucide.MessageSquare, Modifier.size(16.dp)) }) {
+                                val run = if (i == 0) "Latest run" else "Run ${task.sessionIds.size - i}"
+                                // Runs are usually titled after the Task, so those just say which run they are.
+                                val title = session?.title?.takeIf { it != task.title }
                                 Column(Modifier.weight(1f)) {
-                                    Text(session?.title ?: "Run ${task.sessionIds.size - i}", singleLine = true, overflow = TextOverflow.Ellipsis)
-                                    Text(listOfNotNull(if (i == 0) "Latest run" else "Run ${task.sessionIds.size - i}", ui.agents.firstOrNull { it.id == agentId }?.name).joinToString(" · "),
+                                    Text(title ?: run, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    Text(listOfNotNull(run.takeIf { title != null }, ui.agents.firstOrNull { it.id == agentId }?.name).joinToString(" · "),
                                         style = TextStyles.caption, color = color(mutedColor))
                                 }
                                 session?.let { SessionStatusIcon(it.status, false) }

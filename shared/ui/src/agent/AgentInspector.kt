@@ -138,7 +138,7 @@ private fun InspectorBody(state: InspectorState, host: InspectorHost, actions: I
         when (state.page) {
             InspectorPage.Agent -> if (details.info.external) ExternalAgentPage(state, draft, details, host, actions) else AgentPage(state, draft, details, host, actions)
             InspectorPage.Model -> ModelPage(state, draft, actions)
-            InspectorPage.Approvals -> RowGroup {
+            InspectorPage.Approvals -> RowGroup("Ask before") {
                 APPROVALS.forEach { (key, hint) ->
                     GroupRow(key.replaceFirstChar { it.uppercase() }, { actions.onEdit { it.copy(approvals = key) }; actions.onBack() }, hint,
                         selected = draft.approvals == key, chevron = false, titleLines = 1) {

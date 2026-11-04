@@ -11,11 +11,17 @@ import kinuvo.ui.routine.*
 import kinuvo.ui.navigation.*
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -91,7 +97,12 @@ private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions) {
         PageHeader(Lucide.BookOpen, "Knowledge", ui.server, scope = AgentScope(ui.agents, ui.state.agent, "All agents", actions.onFilter).takeIf { ui.agents.size > 1 },
             actions = listOf(PageAction(Lucide.Settings, "Knowledge settings", actions.onSettings)))
         Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Input(query, "Search people, projects, places…", capitalize = true, leading = { Icon(Lucide.Search, Modifier.size(16.dp), tint = color(mutedColor)) })
+            Input(query, "Search people, projects, places…", capitalize = true, leading = { Icon(Lucide.Search, Modifier.size(16.dp), tint = color(mutedColor)) },
+                trailing = if (query.text.isEmpty()) null else ({
+                    Box(Modifier.size(36.dp).clip(CircleShape).clickable { query.clearText() }, contentAlignment = Alignment.Center) {
+                        Icon(Lucide.X, Modifier.size(14.dp), tint = color(mutedColor), contentDescription = "Clear search")
+                    }
+                }))
             ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         }
         LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -135,9 +146,18 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
     DetailPane(back, n.title) {
         Pill(n.type.replaceFirstChar { it.uppercase() }, Modifier.padding(start = 16.dp), icon = n.type.icon())
         if (n.properties.isNotEmpty()) DetailGroup("Properties") {
-            n.properties.forEach { (k, v) -> DetailRow(k.replaceFirstChar { it.uppercase() }) { Text(dateLabel(v)) } }
+            n.properties.forEach { (k, v) -> DetailRow(k.replaceFirstChar { it.uppercase() }) { Text(dateLabel(v), style = markdownTextStyle()) } }
         }
-        if (n.body.isNotBlank()) DetailGroup("Note") { Markdown(WIKILINK.replace(n.body) { m -> "*${m.groupValues[2].ifEmpty { m.groupValues[1] }}*" }) }
+        if (n.body.isNotBlank()) DetailGroup("Note") {
+            // Links to other notes open them in place; any other link opens as usual.
+            val outer = LocalUriHandler.current
+            val notes = remember(outer, actions) { object : UriHandler {
+                override fun openUri(uri: String) = if (uri.startsWith(NOTE_LINK)) actions.onOpen(uri.removePrefix(NOTE_LINK).decodeRef()) else outer.openUri(uri)
+            } }
+            CompositionLocalProvider(LocalUriHandler provides notes) {
+                Markdown(WIKILINK.replace(n.body) { m -> "[${m.groupValues[2].ifEmpty { m.groupValues[1] }}]($NOTE_LINK${m.groupValues[1].encodeRef()})" })
+            }
+        }
         if (links.isNotEmpty()) RowGroup("Linked notes") {
             links.forEach { (ref, label) -> GroupRow(label, { actions.onOpen(ref) }, icon = Lucide.FileText) }
         }
@@ -148,6 +168,9 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
 private fun Muted(text: String) = Text(text, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = color(mutedColor), style = TextStyles.secondary)
 
 private val WIKILINK = Regex("""\[\[([^\]|]+)(?:\|([^\]]*))?]]""")
+private const val NOTE_LINK = "kinuvo-note:"
+private fun String.encodeRef() = replace("%", "%25").replace(" ", "%20").replace("(", "%28").replace(")", "%29")
+private fun String.decodeRef() = replace("%29", ")").replace("%28", "(").replace("%20", " ").replace("%25", "%")
 
 private fun String.icon() = when (this) {
     "person", "profile", "human" -> Lucide.User
