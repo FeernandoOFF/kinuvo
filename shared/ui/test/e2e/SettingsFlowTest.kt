@@ -8,6 +8,11 @@ class SettingsFlowTest {
     @Test fun settingsJourney() = appTest("settings-journey", "mobile-settings-journey") {
         startChat()
         screenshot("chat")
+        tap("Ask before acting in this Session: .*")
+        await("This Session only")
+        screenshot("session-only-sheet")
+        dismissSheet()
+        gone("This Session only")
         swipe(2, 50, 80, 50)
         await("E2E Agent")
         await("New agent")
