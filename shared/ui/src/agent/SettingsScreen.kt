@@ -559,10 +559,9 @@ internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSe
         },
     ) {
         Button(onClick = { open = true }, modifier = if (stretch) Modifier.fillMaxWidth() else Modifier, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 10.dp)) {
-            icon?.let { Icon(it, Modifier.size(14.dp), tint = color(mutedColor)); Spacer(Modifier.width(6.dp)) }
+            icon?.let { Icon(it, Modifier.size(14.dp), tint = color(mutedColor)) }
             // Stretched to a given width, the label takes the room and the chevron keeps to the end.
             Text(label(current), if (stretch) Modifier.weight(1f) else Modifier, fontSize = 13.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
-            Spacer(Modifier.width(4.dp))
             Icon(Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
         }
     }

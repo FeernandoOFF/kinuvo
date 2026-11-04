@@ -255,7 +255,7 @@ private fun SourceTile(label: String, icon: ImageVector, enabled: Boolean, modif
     }
 }
 
-private const val ATTACHMENT_LIMITS = "4 files · 10 MB each"
+private const val ATTACHMENT_LIMITS = "Up to 4 files, 10 MB each"
 
 @Composable
 private fun ControlButton(icon: ImageVector, label: String, enabled: Boolean = true, onClick: () -> Unit) {
@@ -268,7 +268,8 @@ private fun ControlButton(icon: ImageVector, label: String, enabled: Boolean = t
 @Composable
 private fun EffortGauge(fraction: Float) {
     val track = color(mutedColor)
-    val accent = color(accentColor)
+    // Neutral, so it reads as a setting rather than progress.
+    val accent = color(onFieldColor)
     val needle = color(onFieldColor)
     Canvas(Modifier.size(24.dp)) {
         val stroke = 2.dp.toPx()

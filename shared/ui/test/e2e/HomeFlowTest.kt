@@ -17,8 +17,6 @@ class HomeFlowTest {
         push("""{"type":"event","event":"task.changed","payload":{"id":"created","title":"Task updated by server","listId":"personal","listName":"Personal","status":"Todo"},"seq":20}""")
         await("Task updated by server")
         gone("New mobile task")
-        tap("Show done")
-        await("Hide done")
         repeat(6) { if (!visible("Completed fixture task")) swipe(60, 60, 10, 60) }
         await("Completed fixture task")
         screenshot("board-done")

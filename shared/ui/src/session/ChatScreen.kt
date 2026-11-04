@@ -98,6 +98,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.draw.alpha
@@ -571,7 +572,8 @@ internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit,
             style = ButtonStyle.Ghost,
             shape = if (LocalInteractionMode.current == InteractionMode.Touch) CircleShape else Theme[shapes][mediumShape],
             contentColor = color(mutedColor),
-            modifier = Modifier.size(if (LocalInteractionMode.current == InteractionMode.Touch) 40.dp else 32.dp).titleBarControl(),
+            modifier = if (LocalInteractionMode.current == InteractionMode.Touch) Modifier.size(40.dp).background(color(subtleColor), CircleShape)
+                else Modifier.size(32.dp).titleBarControl(),
         ) {
             Icon(icon, Modifier.size(17.dp), contentDescription = label)
         }
@@ -648,7 +650,9 @@ private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatS
         LaunchedEffect(Unit) { focus.requestFocus() }
         fun save() { actions.onRename(title.text.toString()); renaming = false }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Input(title, "Session name", Modifier.focusRequester(focus).onPreviewKeyEvent { e -> (e.type == KeyEventType.KeyDown && e.key == Key.Enter).also { if (it) save() } }, capitalize = true)
+            Input(title, "Session name", trailing = { if (title.text.isNotEmpty()) IconButton(onClick = { title.clearText() }, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor), modifier = Modifier.size(32.dp)) {
+                Icon(Lucide.X, Modifier.size(14.dp), contentDescription = "Clear")
+            } }, modifier = Modifier.focusRequester(focus).onPreviewKeyEvent { e -> (e.type == KeyEventType.KeyDown && e.key == Key.Enter).also { if (it) save() } }, capitalize = true)
             Button(::save, Modifier.fillMaxWidth(), enabled = title.text.toString().trim() != session.title, style = ButtonStyle.Primary) { Text("Save") }
         }
     }

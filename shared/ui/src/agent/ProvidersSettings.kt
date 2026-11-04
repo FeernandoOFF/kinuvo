@@ -43,7 +43,7 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                     if (apiKey.configured) Icon(Lucide.CircleCheck, Modifier.size(18.dp), tint = color(successColor))
                     else Pill("Needed", tone = Tone.Warning)
                 }
-                account == null -> GroupRow("Ready", subtitle = "No sign-in needed", icon = Lucide.CircleCheck)
+                account == null -> GroupRow("No sign-in needed", icon = Lucide.CircleCheck) { Pill("Ready", tone = Tone.Success) }
                 account.signedIn -> GroupRow(account.label ?: "Your account", subtitle = "Signed in", icon = Lucide.CircleUserRound) {
                     Icon(Lucide.CircleCheck, Modifier.size(18.dp), tint = color(successColor))
                 }
