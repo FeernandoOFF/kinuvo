@@ -1,5 +1,6 @@
 package kinuvo.app.artifacts
 
+import kinuvo.client.userMessage
 import kinuvo.app.connection.*
 import kinuvo.app.navigation.*
 
@@ -65,7 +66,7 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            state.update { it.copy(errors = it.errors + (e.message ?: e.toString())) }
+            state.update { it.copy(errors = it.errors + (e.userMessage)) }
         }
     }
 }

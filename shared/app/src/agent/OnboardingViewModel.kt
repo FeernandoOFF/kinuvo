@@ -2,6 +2,7 @@ package kinuvo.app.agent
 
 import kinuvo.app.connection.*
 import kinuvo.app.navigation.SettingsSection
+import kinuvo.client.userMessage
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -269,7 +270,7 @@ class OnboardingViewModel(private val config: ConfigRepository) : ViewModel() {
         edit { it.copy(busy = true, error = null) }
         try { config.connection.run { block() } }
         catch (e: CancellationException) { throw e }
-        catch (e: Exception) { edit { it.copy(error = e.message ?: "Couldn't save. Try again.") } }
+        catch (e: Exception) { edit { it.copy(error = userMessage(e.message) ?: "Couldn't save. Try again.") } }
         finally { if (config.connection.generation == lifetime) edit { it.copy(busy = false) } }
     }
 }

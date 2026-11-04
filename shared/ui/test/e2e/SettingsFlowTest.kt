@@ -56,6 +56,16 @@ class SettingsFlowTest {
         screenshot("risk-tolerance")
         tap("Back")
         await("Agent settings for every Session")
+        tap("Personality and Soul")
+        await("Principles, tone and rules")
+        screenshot("instructions")
+        tap("Back")
+        await("Agent settings for every Session")
+        tap("Next avatar")
+        await("Save")
+        screenshot("avatar-changed")
+        tap("Previous avatar")
+        gone("Save")
 
         repeat(3) { swipe(50, 40, 50, 85) }
         tapBelow("E2E Agent", "Name")

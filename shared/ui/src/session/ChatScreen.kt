@@ -344,7 +344,6 @@ fun ChatContent(
                 e.isShortcutPressed && e.key == Key.N -> actions.onNew()
                 e.isShortcutPressed && e.key == Key.Backslash && toggle != null -> toggle()
                 e.isShortcutPressed && e.key == Key.L -> composerFocus.requestFocus()
-                e.isShortcutPressed && e.key == Key.Comma && state.agent != null -> actions.onSettings()
                 e.isShortcutPressed && e.isShiftPressed && e.key == Key.Period && state.running && state.canStop -> actions.onStop()
                 e.isAltPressed && e.key == Key.DirectionUp -> step(-1)
                 e.isAltPressed && e.key == Key.DirectionDown -> step(1)
@@ -595,7 +594,7 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
         val selected = state.sessions.firstOrNull { it.id == state.selected } ?: state.info
         Row(Modifier.weight(1f).padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             state.agent?.let { agent ->
-                Hint("${agent.name}'s settings ${shortcut(",")}", TooltipSide.Bottom) {
+                Hint("${agent.name}'s settings", TooltipSide.Bottom) {
                     Row(Modifier.titleBarControl().clip(RoundedCornerShape(50)).clickable(onClickLabel = "${agent.name}'s settings", onClick = actions.onSettings)
                         .semantics(mergeDescendants = true) { contentDescription = "${agent.name}'s settings" }
                         .background(color(panelColor)).padding(start = 4.dp, end = if (compact) 4.dp else 10.dp, top = 3.dp, bottom = 3.dp),
