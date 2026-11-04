@@ -204,7 +204,7 @@ private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellCh
     Box(modifier.fillMaxSize().background(color(railColor)).windowInsetsPadding(insets.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))) {
         Row(Modifier.fillMaxSize()) {
             OwnerRail(state, actions, Modifier.windowInsetsPadding(insets.only(WindowInsetsSides.Bottom)), top = 8.dp)
-            ColumnPanel(Modifier.weight(1f)) { ContextColumn(state, actions, chrome, bottom = clear) }
+            ColumnPanel(Modifier.weight(1f)) { ContextColumn(state, actions, chrome, bottom = clear + 16.dp) }
         }
         val sidebar = color(sidebarColor)
         // The lists fade out under the bar instead of showing through around it.

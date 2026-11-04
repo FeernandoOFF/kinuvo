@@ -76,6 +76,7 @@ fun GroupRow(
     titleLines: Int = 1,
     toggled: Boolean = false,
     onToggle: ((Boolean) -> Unit)? = null,
+    badges: (@Composable RowScope.() -> Unit)? = null,
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -97,7 +98,11 @@ fun GroupRow(
     ) {
         leading?.let { ProvideContentColor(if (tint.isSpecified) tint else color(mutedColor)) { it() } }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, maxLines = titleLines, overflow = TextOverflow.Ellipsis, color = tint)
+            if (badges == null) Text(title, maxLines = titleLines, overflow = TextOverflow.Ellipsis, color = tint)
+            else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(title, Modifier.weight(1f, fill = false), maxLines = titleLines, overflow = TextOverflow.Ellipsis, color = tint)
+                badges()
+            }
             subtitle?.takeIf { it.isNotEmpty() }?.let { Text(it, style = TextStyles.secondary, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis) }
         }
         value?.let { Text(it, Modifier.widthIn(max = 180.dp), style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
@@ -181,7 +186,7 @@ fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifie
         options.forEachIndexed { i, option ->
             val on = i == selected
             Box(
-                Modifier.weight(1f, fill = !small).height(if (small) 28.dp else if (LocalInteractionMode.current == InteractionMode.Touch) 48.dp else 40.dp).clip(CircleShape).background(if (on) color(panelColor) else Color.Transparent)
+                Modifier.weight(1f, fill = !small).height(if (small) 28.dp else if (LocalInteractionMode.current == InteractionMode.Touch) 48.dp else 40.dp).clip(CircleShape).background(if (on) color(segmentColor) else Color.Transparent)
                     .clickable(enabled = enabled, role = Role.Tab) { onSelect(i) }.semantics { this.selected = on }
                     .padding(horizontal = if (small) 10.dp else 0.dp),
                 contentAlignment = Alignment.Center,
