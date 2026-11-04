@@ -62,12 +62,12 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Stri
                         task.due?.let { Pill("Due ${dueLabel(it)}", icon = Lucide.Calendar) }
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Status", style = TextStyles.secondary, color = color(mutedColor))
+                        Text("Status", Modifier.width(FieldLabelWidth), style = TextStyles.secondary, color = color(mutedColor))
                         Picker(TaskStatus.entries, task.status, { it.label() }, { s -> onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())
                     }
                     val assignee = ui.agents.firstOrNull { it.id == task.assignee }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Assignee", style = TextStyles.secondary, color = color(mutedColor))
+                        Text("Assignee", Modifier.width(FieldLabelWidth), style = TextStyles.secondary, color = color(mutedColor))
                         Picker(listOf<AgentInfo?>(null) + ui.agents, assignee, { it?.name ?: "Unassigned" }, { a -> onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: "")) }, icon = Lucide.User)
                     }
                     if (task.notes.isNotBlank()) Text(task.notes.trim(), style = TextStyles.secondary)
@@ -104,3 +104,6 @@ internal fun dueLabel(iso: String): String = runCatching {
 internal fun overdue(iso: String): Boolean = runCatching {
     kotlinx.datetime.LocalDate.parse(iso) < kotlin.time.Clock.System.todayIn(TimeZone.currentSystemDefault())
 }.getOrDefault(false)
+
+// One label column, so the pickers line up.
+private val FieldLabelWidth = 84.dp

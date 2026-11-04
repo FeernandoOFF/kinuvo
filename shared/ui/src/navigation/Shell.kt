@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.clearText
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -205,6 +206,10 @@ private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellCh
             OwnerRail(state, actions, Modifier.windowInsetsPadding(insets.only(WindowInsetsSides.Bottom)), top = 8.dp)
             ColumnPanel(Modifier.weight(1f)) { ContextColumn(state, actions, chrome, bottom = clear) }
         }
+        val sidebar = color(sidebarColor)
+        // The lists fade out under the bar instead of showing through around it.
+        Box(Modifier.align(Alignment.BottomStart).padding(start = RailWidth).fillMaxWidth().height(clear)
+            .background(Brush.verticalGradient(0f to sidebar.copy(alpha = 0f), 0.4f to sidebar)))
         QuickChatBar(state.agent, chrome.draft, Modifier.align(Alignment.BottomStart).padding(start = RailWidth).windowInsetsPadding(insets.only(WindowInsetsSides.Bottom))) { chrome.quickChat = true }
     }
 }

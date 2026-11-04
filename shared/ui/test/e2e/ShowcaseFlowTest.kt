@@ -14,8 +14,6 @@ class ShowcaseFlowTest {
         tap("Agents and sessions")
         await("Release notes review for the 2.0 launch.*")
         screenshot("sessions")
-        repeat(2) { swipe(60, 80, 60, 25) }
-        screenshot("sessions-scrolled")
         tap("Older sessions")
         screenshot("older-sessions")
         tap("Research Assistant for Long-Running Investigations")
@@ -31,8 +29,6 @@ class ShowcaseFlowTest {
         screenshot("today")
         repeat(2) { swipe(50, 80, 50, 30) }
         screenshot("today-scrolled")
-        repeat(2) { swipe(50, 80, 50, 30) }
-        screenshot("today-end")
     }
 
     @Test fun boardWithEveryStatus() = appTest("showcase-board", "showcase") {

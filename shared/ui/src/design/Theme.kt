@@ -163,11 +163,11 @@ private val HarnessThemeComposable = buildTheme {
     )
     defaultTextStyle = TextStyle(fontFamily = fontFamily, fontSize = if (touch) 17.sp else 14.sp, lineHeight = 1.5.em, fontWeight = FontWeight.Normal)
     defaultContentColor = p.text
-    val ripple = HapticIndication(rememberRippleIndication(p.text.copy(alpha = 0.08f)))
+    val ripple = HapticIndication(rememberRippleIndication(p.text.copy(alpha = 0.08f)), touch)
     defaultIndication = ripple
     properties[indications] = mapOf(
         com.composables.ui.theme.defaultIndication to ripple,
-        inverseIndication to HapticIndication(rememberRippleIndication(p.background.copy(alpha = 0.12f))),
+        inverseIndication to HapticIndication(rememberRippleIndication(p.background.copy(alpha = 0.12f)), touch),
     )
 
     extend { content ->

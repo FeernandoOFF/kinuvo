@@ -387,7 +387,10 @@ fun ChatContent(
                     exit = fadeOut() + slideOutVertically { -it }) {
                     shownVoice?.let { VoiceStatus(it) }
                 }
+                val background = color(backgroundColor)
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { composerHeight = with(density) { it.height.toDp() } }
+                    // Phones: messages fade out under the composer rather than showing beneath it.
+                    .then(if (floating) Modifier.background(Brush.verticalGradient(0f to background.copy(alpha = 0f), 0.3f to background)) else Modifier)
                     .onFocusChanged { composerFocused = it.hasFocus }.padding(horizontal = 16.dp).padding(bottom = if (wide) 10.dp else 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     LaunchedEffect(state.unsent) { state.unsent?.let { if (draft.annotatedString.text.isBlank()) draft.setMarkdown(it) } }
                     var dictated by remember { mutableStateOf<DictationDraft?>(null) }
@@ -731,7 +734,7 @@ private fun SessionBadge(session: SessionInfo, compact: Boolean = false) = when 
 @Composable
 internal fun SessionStatusIcon(status: SessionStatus, finished: Boolean) = when {
     status == SessionStatus.Waiting -> Icon(Lucide.ShieldAlert, Modifier.size(14.dp), tint = color(warningColor), contentDescription = "Needs approval")
-    status == SessionStatus.Running -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 12.dp)
+    status == SessionStatus.Running -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 12.dp, tint = color(accentColor))
     finished -> Icon(Lucide.Check, Modifier.size(14.dp), tint = color(successColor), contentDescription = "Finished")
     else -> Unit
 }
