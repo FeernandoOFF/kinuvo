@@ -1,5 +1,6 @@
 package kinuvo.app.voice
 
+import kinuvo.client.userMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kinuvo.app.connection.ConnectedServer
@@ -17,12 +18,12 @@ class ServerVoiceViewModel(private val server: ConnectedServer) : ViewModel() {
             val s = server.call { it.call(Api.VoiceModels, Unit) }
             state.value = LocalVoiceState(s.models, s.installed, s.transcription, s.synthesis, s.language, s.downloading, s.downloaded, error = s.error ?: actionError ?: if (!s.supported) "Downloaded voice inference requires a packaged macOS Server." else null)
         } catch (e: CancellationException) { throw e }
-        catch (e: Exception) { state.update { it.copy(error = e.message ?: "Server voice unavailable") } }
+        catch (e: Exception) { state.update { it.copy(error = userMessage(e.message) ?: "Server voice unavailable") } }
     }
     private fun action(block: suspend () -> Unit) { viewModelScope.launch {
         try { block(); actionError = null; refresh() }
         catch (e: CancellationException) { throw e }
-        catch (e: Exception) { actionError = e.message ?: "Voice action failed"; state.update { it.copy(error = actionError) } }
+        catch (e: Exception) { actionError = userMessage(e.message) ?: "Voice action failed"; state.update { it.copy(error = actionError) } }
     } }
     fun retry() = action {}
     fun download(id: String) = action { server.call { it.call(Api.VoiceDownload, id) } }

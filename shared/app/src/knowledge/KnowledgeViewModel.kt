@@ -1,5 +1,6 @@
 package kinuvo.app.knowledge
 
+import kinuvo.client.userMessage
 import kinuvo.app.connection.*
 import kinuvo.app.navigation.*
 
@@ -72,7 +73,7 @@ class KnowledgeViewModel(private val repo: KnowledgeRepository, route: Route.Kno
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                state.update { it.copy(errors = it.errors + (e.message ?: e.toString())) }
+                state.update { it.copy(errors = it.errors + (e.userMessage)) }
             }
         }
     }

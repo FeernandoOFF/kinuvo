@@ -1,5 +1,6 @@
 package kinuvo.app.voice
 
+import kinuvo.client.userMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CancellationException
@@ -51,7 +52,7 @@ class LocalVoiceViewModel(private val repository: LocalVoiceRepository) : ViewMo
                 repository.download(model) { bytes -> state.update { it.copy(downloaded = bytes) } }
                 state.update { it.copy(installed = repository.installed()) }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { state.update { it.copy(error = e.message ?: "Download failed. Retry.") } }
+            catch (e: Exception) { state.update { it.copy(error = userMessage(e.message) ?: "Download failed. Retry.") } }
             finally { state.update { it.copy(downloading = null, downloaded = 0) } }
         }
     }
@@ -77,7 +78,7 @@ class LocalVoiceViewModel(private val repository: LocalVoiceRepository) : ViewMo
                 if (repository.selected(model.kind) == id) select(model.kind, null)
                 state.update { it.copy(installed = repository.installed(), error = null) }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { state.update { it.copy(error = e.message ?: "Cannot remove model") } }
+            catch (e: Exception) { state.update { it.copy(error = userMessage(e.message) ?: "Cannot remove model") } }
             finally { state.update { it.copy(removing = null) } }
         }
     }

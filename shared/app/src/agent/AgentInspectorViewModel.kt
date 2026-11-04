@@ -1,5 +1,6 @@
 package kinuvo.app.agent
 
+import kinuvo.client.userMessage
 import kinuvo.app.connection.*
 
 import androidx.lifecycle.ViewModel
@@ -15,7 +16,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /** The inspector's levels: the Agent's settings, and the pickers and pages opened from them. */
-enum class InspectorPage { Agent, Model, Approvals, UserNotes }
+enum class InspectorPage { Agent, Instructions, Model, Approvals, UserNotes }
 
 /** The Agent defaults the inspector edits, every Session's unless a Session sets its own. */
 data class AgentDraft(
@@ -29,6 +30,8 @@ data class AgentDraft(
     /** An ACP Agent's working folder; [kind] decides what the draft can change. */
     val cwd: String = "",
     val kind: ExecutionKind = ExecutionKind.Native,
+    /** One of [AvatarArtboards]. */
+    val avatar: String = "",
 ) {
     /** Only what differs from [details]; an external Agent's edits are in [registration] instead. */
     fun changes(details: AgentDetails): UpdateAgentParams {
@@ -37,6 +40,7 @@ data class AgentDraft(
         return UpdateAgentParams(
             details.info.id,
             name = name.trim().takeIf { it != details.info.name },
+            avatar = avatar.takeIf { it.isNotEmpty() && it != details.info.avatarArtboard },
             model = model.trim().takeIf { it != s.model || provider != s.provider },
             provider = provider.takeIf { it != s.provider },
             reasoning = reasoning.takeIf { it != s.reasoning },
@@ -46,13 +50,14 @@ data class AgentDraft(
         )
     }
 
-    /** An external Agent's registration with this draft's name and working folder; null when neither changed. */
+    /** An external Agent's registration with this draft's name, avatar and working folder; null when none changed. */
     fun registration(details: AgentDetails): AgentRegistration? {
         val info = details.info
         val connectionId = info.connectionId?.takeIf { kind != ExecutionKind.Native } ?: return null
         val folder = if (kind == ExecutionKind.Acp) cwd.trim() else details.cwd
-        if (name.trim() == info.name && folder == details.cwd) return null
-        return AgentRegistration(info.id, name.trim(), connectionId, info.avatar, folder, details.remoteAgentId)
+        val look = avatar.ifEmpty { info.avatarArtboard }
+        if (name.trim() == info.name && folder == details.cwd && look == info.avatarArtboard) return null
+        return AgentRegistration(info.id, name.trim(), connectionId, look.takeIf { it != info.avatarArtboard } ?: info.avatar, folder, details.remoteAgentId)
     }
 
     /** Why it can't be saved: a name that's missing, too long or another Agent's, no model, or an ACP Agent's working folder. */
@@ -71,7 +76,7 @@ data class AgentDraft(
     companion object {
         const val MaxName = 40
         fun of(d: AgentDetails) = AgentDraft(d.info.name, d.identity, d.soul, d.settings.provider, d.settings.model, d.settings.reasoning, d.settings.approvals,
-            d.cwd.orEmpty(), d.info.executionKind)
+            d.cwd.orEmpty(), d.info.executionKind, d.info.avatarArtboard)
     }
 }
 
@@ -132,7 +137,7 @@ class AgentInspectorViewModel(private val config: ConfigRepository) : ViewModel(
     /** Checks the inspected external Agent's harness again. */
     fun check() {
         val id = state.value.details?.info?.connectionId ?: return
-        viewModelScope.launch { catching { config.connection.run { harnesses.check(id) } }.onFailure { e -> state.update { it.copy(errors = listOf(e.message ?: e.toString())) } } }
+        viewModelScope.launch { catching { config.connection.run { harnesses.check(id) } }.onFailure { e -> state.update { it.copy(errors = listOf(e.userMessage)) } } }
     }
 
     /** Shows [agentId]; false while unsaved edits to another Agent wait on the user. */
@@ -182,7 +187,7 @@ class AgentInspectorViewModel(private val config: ConfigRepository) : ViewModel(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                state.update { it.copy(saving = false, errors = listOf(e.message ?: e.toString())) }
+                state.update { it.copy(saving = false, errors = listOf(e.userMessage)) }
             }
         }
     }

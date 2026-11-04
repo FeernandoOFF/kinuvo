@@ -1,5 +1,6 @@
 package kinuvo.app.connection
 
+import kinuvo.client.userMessage
 import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
@@ -21,7 +22,7 @@ class DevicesRepository(internal val connection: ConnectedServer) {
             suspend fun load() {
                 try { state.value = DevicesState(connection.call { it.call(Api.PairedDevices, Unit) }) }
                 catch (e: CancellationException) { throw e }
-                catch (e: Exception) { state.value = state.value.copy(error = e.message) }
+                catch (e: Exception) { state.value = state.value.copy(error = e.userMessage) }
             }
             launch { client.events(Api.DevicesChanged).collect { load() } }
             client.state.collect {

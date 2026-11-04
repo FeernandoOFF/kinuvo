@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.client.AuthException
+import kinuvo.client.userMessage
 import kinuvo.protocol.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -112,7 +113,7 @@ class AppViewModel(
 
     fun pair(url: String, code: String, name: String = "") {
         val normalized = try { normalizeUrl(url) } catch (e: IllegalArgumentException) {
-            state.update { it.copy(connection = Connection.Unpaired(e.message)) }; return
+            state.update { it.copy(connection = Connection.Unpaired(e.userMessage)) }; return
         }
         connect(Server.Remote(normalized, name = name.trim().ifEmpty { null }), code.trim())
     }
@@ -183,7 +184,7 @@ class AppViewModel(
                 }
             }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { currentCoroutineContext().ensureActive(); state.update { it.copy(notice = e.message ?: "Couldn't revoke Device") } }
+            catch (e: Exception) { currentCoroutineContext().ensureActive(); state.update { it.copy(notice = userMessage(e.message) ?: "Couldn't revoke Device") } }
         }
     }
 
@@ -197,7 +198,7 @@ class AppViewModel(
                 state.update { it.copy(connection = if (connected?.client === ready.client) Connection.Ready(ready.client, saved) else it.connection,
                     servers = servers.all, notice = "Device credential rotated") }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { currentCoroutineContext().ensureActive(); state.update { it.copy(notice = e.message ?: "Couldn't rotate Device credential") } }
+            catch (e: Exception) { currentCoroutineContext().ensureActive(); state.update { it.copy(notice = userMessage(e.message) ?: "Couldn't rotate Device credential") } }
         }
     }
 
@@ -214,7 +215,7 @@ class AppViewModel(
         viewModelScope.launch {
             try { sharing.share(enabled); connect(Server.Embedded) }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { state.update { it.copy(notice = e.message ?: "Couldn't change sharing") } }
+            catch (e: Exception) { state.update { it.copy(notice = userMessage(e.message) ?: "Couldn't change sharing") } }
         }
     }
 
@@ -243,7 +244,7 @@ class AppViewModel(
                 val selected = state.value.pairingBase ?: state.value.capabilities?.serverId?.let(servers::pairingBase)
                 state.update { it.copy(pairing = info, pairingBase = selected?.takeIf { it in info.bases } ?: info.bases.firstOrNull(), pairingError = null) }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { currentCoroutineContext().ensureActive(); if (connected?.client === ready.client) state.update { it.copy(pairingError = e.message) } }
+            catch (e: Exception) { currentCoroutineContext().ensureActive(); if (connected?.client === ready.client) state.update { it.copy(pairingError = e.userMessage) } }
         }
     }
 
@@ -346,7 +347,7 @@ class AppViewModel(
             owner.close()
             if (e is AuthException && server is Server.Remote && server.token != null) runCatching { active = servers.unpair(server) }
             val saved = runCatching { servers.all }.getOrDefault(state.value.servers)
-            state.update { it.copy(connection = Connection.Unpaired(e.message ?: e.toString(), active as? Server.Remote), servers = saved) }
+            state.update { it.copy(connection = Connection.Unpaired(e.userMessage, active as? Server.Remote), servers = saved) }
             return
         }
         state.update {

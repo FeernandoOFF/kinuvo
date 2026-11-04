@@ -122,7 +122,7 @@ class KinuvoClient(
                     first.completeExceptionally(e)
                     return@launch
                 } catch (e: Exception) {
-                    _state.value = ConnectionState.Disconnected(e.message ?: e.toString())
+                    _state.value = ConnectionState.Disconnected(e.userMessage)
                     if (!first.isCompleted) { first.completeExceptionally(e); return@launch }
                 } finally {
                     withContext(NonCancellable) {

@@ -1,5 +1,6 @@
 package kinuvo.app.session
 
+import kinuvo.client.userMessage
 import kinuvo.app.connection.ConnectedServer
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
@@ -49,7 +50,7 @@ class ServerSpeech(private val device: SpeechEngine, private val server: Connect
                     microphone.authorizeAudio { if (current(epoch)) completion(it) }
                 } else device.authorize { if (current(epoch)) completion(it) }
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { if (current(epoch)) completion(e.message ?: "Server voice unavailable") }
+            catch (e: Exception) { if (current(epoch)) completion(userMessage(e.message) ?: "Server voice unavailable") }
         }
     }
     override fun listen(untilPause: Boolean, onPartial: (String) -> Unit, onFinal: (String) -> Unit, onError: (String) -> Unit) {
@@ -73,7 +74,7 @@ class ServerSpeech(private val device: SpeechEngine, private val server: Connect
                     }
                     if (listening()) final(text)
                 } catch (e: CancellationException) { throw e }
-                catch (e: Exception) { if (listening()) failure(e.message ?: "Server transcription failed") }
+                catch (e: Exception) { if (listening()) failure(userMessage(e.message) ?: "Server transcription failed") }
             }
         }, { if (listening()) { capturing = false; failure(it) } }) ?: onError("Device audio capture unavailable")
     }
@@ -110,7 +111,7 @@ class ServerSpeech(private val device: SpeechEngine, private val server: Connect
                 }
                 if (current(epoch) && spokenEpoch == speakingGeneration) onDone()
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { audio?.stopPlayback(); if (current(epoch) && spokenEpoch == speakingGeneration) onError(e.message ?: "Server synthesis failed") }
+            catch (e: Exception) { audio?.stopPlayback(); if (current(epoch) && spokenEpoch == speakingGeneration) onError(userMessage(e.message) ?: "Server synthesis failed") }
         }
         speech = task
         utterances += task

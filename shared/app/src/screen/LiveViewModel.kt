@@ -1,5 +1,6 @@
 package kinuvo.app.screen
 
+import kinuvo.client.userMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kinuvo.app.connection.ConnectedServer
@@ -246,7 +247,7 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
                     catch (e: Exception) {
                         inputs.clear()
                         if (queued.revision == revision && state.value.control.generation == queued.generation) {
-                            state.update { it.copy(error = "Outcome unconfirmed. Observe before trying again. ${e.message.orEmpty()}", displayed = null) }
+                            state.update { it.copy(error = "Outcome unconfirmed. Observe before trying again. ${userMessage(e.message).orEmpty()}", displayed = null) }
                             if (state.value.connected) attempt { reconcile(); restart() }
                         }
                     }
@@ -264,7 +265,7 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
                 var completed = false
                 try { if (version == revision) { block(); completed = true } }
                 catch (e: CancellationException) { throw e }
-                catch (e: Exception) { state.update { it.copy(error = "Outcome unconfirmed. Observe before trying again. ${e.message.orEmpty()}", resizing = false) } }
+                catch (e: Exception) { state.update { it.copy(error = "Outcome unconfirmed. Observe before trying again. ${userMessage(e.message).orEmpty()}", resizing = false) } }
                 finally {
                     if (version == revision) {
                         attempt {
@@ -281,7 +282,7 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
     private suspend fun attempt(block: suspend () -> Unit) {
         try { block() }
         catch (e: CancellationException) { throw e }
-        catch (e: Exception) { state.update { it.copy(error = e.message ?: "Live view unavailable", displayed = null) } }
+        catch (e: Exception) { state.update { it.copy(error = userMessage(e.message) ?: "Live view unavailable", displayed = null) } }
     }
     override fun onCleared() {
         stopped = true

@@ -1,5 +1,6 @@
 package kinuvo.app.agent
 
+import kinuvo.client.userMessage
 import kinuvo.app.connection.*
 import kinuvo.app.routine.*
 import kinuvo.app.navigation.*
@@ -459,7 +460,7 @@ class SettingsViewModel(
                 throw e
             } catch (_: DisconnectedException) {
             } catch (e: Exception) {
-                state.update { it.copy(errors = it.errors + (e.message ?: e.toString())) }
+                state.update { it.copy(errors = it.errors + (e.userMessage)) }
             }
         }
     }

@@ -1,5 +1,6 @@
 package kinuvo.app.board
 
+import kinuvo.client.userMessage
 import kinuvo.app.connection.*
 
 import kinuvo.client.ConnectionState
@@ -44,7 +45,7 @@ class BoardRepository(private val notifications: Notifications, internal val con
         val c = client ?: return@launch
         val result = catching { c.call(Api.TaskLists, Unit) to c.call(Api.Tasks, TasksParams(includeDone = true)) }
         state.update { b ->
-            result.fold({ (lists, tasks) -> BoardData(lists, tasks) }, { b.copy(tasks = b.tasks ?: emptyList(), error = it.message ?: it.toString()) })
+            result.fold({ (lists, tasks) -> BoardData(lists, tasks) }, { b.copy(tasks = b.tasks ?: emptyList(), error = it.userMessage) })
         }
     }
 
