@@ -136,10 +136,11 @@ class TodayTest {
             finished = setOf("done1", "done2"),
         )
         assertEquals(listOf("done1"), result.results.filterIsInstance<Outcome.Finished>().map { it.session.id })
-        assertEquals(listOf("ok", "error", "stopped"), result.results.filterIsInstance<Outcome.RoutineRun>().map { it.routine.id })
-        assertIs<Outcome.Finished>(result.results.first())
-        assertNull(result.results.first().at)
-        assertEquals(now - hour, result.results[1].at)
+        // A failed run leads, then finished Sessions, then the other runs newest first.
+        assertEquals(listOf("error", "ok", "stopped"), result.results.filterIsInstance<Outcome.RoutineRun>().map { it.routine.id })
+        assertIs<Outcome.Finished>(result.results[1])
+        assertNull(result.results[1].at)
+        assertEquals(now - hour, result.results[2].at)
         assertEquals(4, result.results.size)
     }
 

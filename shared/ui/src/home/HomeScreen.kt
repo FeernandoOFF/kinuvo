@@ -140,7 +140,7 @@ private fun NeedsYou(ui: HomeUi, actions: HomeActions) {
     }
 }
 
-/** Something waiting on the user: who and what kind, Waiting, then its title; the whole card opens it. */
+/** Something waiting on the user: who and what kind, then its title; the whole card opens it. */
 @Composable
 private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, open: String, onOpen: () -> Unit) {
     val shape = Theme[shapes][largeShape]
@@ -152,7 +152,6 @@ private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, open: 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AgentAvatar(agent, 22.dp)
             MetaLine(agent?.name ?: "Unassigned", kind, Modifier.weight(1f), TextStyles.secondary)
-            Pill("Waiting", tone = Tone.Warning)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(title, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -216,14 +215,15 @@ private fun Results(ui: HomeUi, actions: HomeActions) {
                 is Outcome.RoutineRun -> {
                     val r = o.routine
                     val agent = ui.agent(r.agentId)
+                    val failed = r.lastStatus == RunStatus.Error
                     val outcome = when (r.lastStatus) {
-                        RunStatus.Error -> "Failed" + (r.lastError?.let { ": $it" } ?: "")
+                        RunStatus.Error -> r.lastError
                         RunStatus.Stopped -> "Stopped"
                         else -> r.lastReport?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim() ?: "Reported"
                     }
-                    HomeRow(agent, r.name, "${agent?.name ?: r.agentId} · ${relative(r.lastRunAt ?: ui.now, ui.now)} · $outcome",
-                        { actions.onOpenSession(r.agentId, r.lastSessionId!!) }) {
-                        if (r.lastStatus == RunStatus.Error) Icon(Lucide.CircleAlert, Modifier.size(14.dp), tint = Tone.Danger.color(), contentDescription = "Failed")
+                    HomeRow(agent, r.name, listOfNotNull(agent?.name ?: r.agentId, relative(r.lastRunAt ?: ui.now, ui.now), outcome).joinToString(" · "),
+                        { actions.onOpenSession(r.agentId, r.lastSessionId!!) }, flag = "Failed".takeIf { failed }) {
+                        if (failed) Icon(Lucide.CircleAlert, Modifier.size(14.dp), tint = Tone.Danger.color(), contentDescription = "Failed")
                     }
                 }
                 is Outcome.Finished -> {

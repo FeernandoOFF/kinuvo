@@ -214,7 +214,13 @@ private fun ColumnScope.Manual(options: WelcomeOptions) {
         val error = options.error
         val codeError = error?.contains("code", ignoreCase = true) == true
         FieldRow("Server address or pairing link") { Input(options.url, "https://your-server:8787", error = error != null && !codeError); error?.takeUnless { codeError }?.let { FieldError(it) } }
-        FieldRow("Pairing code") { Input(options.code, "Code from the Server", error = codeError); error?.takeIf { codeError }?.let { FieldError(it) } }
+        FieldRow("Pairing code") {
+            Input(options.code, "Code from the Server", error = codeError)
+            error?.takeIf { codeError }?.let {
+                FieldError(it)
+                Text("Get a new code on your Server: Settings › Servers & devices › Pair a device.", color = color(mutedColor), style = TextStyles.secondary)
+            }
+        }
         FieldRow("Name on this device") { Input(options.name, "e.g. Home server") }
     }
     if (options.servers.isNotEmpty()) RowGroup("Your servers") {

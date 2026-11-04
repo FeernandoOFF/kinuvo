@@ -101,7 +101,8 @@ internal fun RowScope.ComposerSettings(
         ControlButton(Lucide.Plus, unavailable?.let { files?.reason }?.let { "Attach: $it" } ?: "Attach", enabled = unavailable == null) { attachOpen = true }
     }
     val approvalOptions = listOf<String?>(null) + APPROVALS.keys
-    fun approvalTitle(option: String?) = if (option == null) "Agent's setting (${defaults.approvals})" else option.replaceFirstChar { it.uppercase() }
+    fun approvalTitle(option: String?) = if (option == null) "Use ${agent ?: "the Agent"}'s setting" else option.replaceFirstChar { it.uppercase() }
+    fun approvalHint(option: String?) = APPROVALS[option ?: defaults.approvals].orEmpty().let { if (option == null) "${defaults.approvals.replaceFirstChar { c -> c.uppercase() }} · $it" else it }
     val pickApproval = { option: String? -> approvalsOpen = false; onChange(settings.copy(approvals = option)) }
     val approvalsButton: @Composable () -> Unit = { ControlButton(Lucide.Hand, "Ask before acting in this Session: $approvals") { approvalsOpen = true } }
     // Says whose settings these are, and leads to the Agent's defaults that every other Session follows.
@@ -140,9 +141,9 @@ internal fun RowScope.ComposerSettings(
                 ListRow(settings.approvals == option, { pickApproval(option) }) {
                     Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
                         Text(approvalTitle(option))
-                        Text(APPROVALS[option ?: defaults.approvals].orEmpty(), style = TextStyles.secondary, color = color(mutedColor))
+                        Text(approvalHint(option), style = TextStyles.secondary, color = color(mutedColor))
                     }
-                    if (settings.approvals == option) Icon(Lucide.Check, Modifier.size(16.dp))
+                    if (settings.approvals == option) Icon(Lucide.Check, Modifier.size(16.dp), tint = color(accentColor))
                 }
             }
         }
@@ -173,7 +174,7 @@ internal fun RowScope.ComposerSettings(
                         ) {
                             Column {
                                 Text(approvalTitle(option))
-                                Text(APPROVALS[option ?: defaults.approvals].orEmpty(), style = TextStyles.caption, color = color(mutedColor))
+                                Text(approvalHint(option), style = TextStyles.caption, color = color(mutedColor))
                             }
                         }
                     }

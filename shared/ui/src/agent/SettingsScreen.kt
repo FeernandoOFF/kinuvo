@@ -402,8 +402,8 @@ internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, l
 
 /** A list row with a title, a muted [subtitle] and trailing pills. */
 @Composable
-internal fun ItemRow(selected: Boolean, icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, trailing: @Composable RowScope.() -> Unit = {}) =
-    GroupRow(title, onClick, subtitle, icon, selected = selected, titleLines = 2, trailing = trailing)
+internal fun ItemRow(selected: Boolean, icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, badges: @Composable RowScope.() -> Unit = {}) =
+    GroupRow(title, onClick, subtitle, icon, selected = selected, titleLines = 2, badges = badges)
 
 /**
  * A detail or form screen: a title bar with [trailing] controls over a centered, scrolling column, led by any [error].
@@ -538,7 +538,8 @@ internal fun TextArea(state: TextFieldState, placeholder: String = "", lines: In
 
 /** A dropdown of [options]; [hint] adds a muted second line to each. */
 @Composable
-internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSelect: (T) -> Unit, hint: ((T) -> String)? = null, icon: ImageVector? = null, modifier: Modifier = Modifier, stretch: Boolean = false) {
+internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSelect: (T) -> Unit, hint: ((T) -> String)? = null, icon: ImageVector? = null, modifier: Modifier = Modifier, stretch: Boolean = false,
+    style: ButtonStyle = ButtonStyle.Outlined) {
     var open by remember { mutableStateOf(false) }
     DropdownMenu(
         expanded = open,
@@ -560,10 +561,10 @@ internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSe
             }
         },
     ) {
-        Button(onClick = { open = true }, modifier = if (stretch) Modifier.fillMaxWidth() else Modifier, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 10.dp)) {
+        Button(onClick = { open = true }, modifier = if (stretch) Modifier.fillMaxWidth() else Modifier, style = style, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 10.dp)) {
             icon?.let { Icon(it, Modifier.size(14.dp), tint = color(mutedColor)) }
             // Stretched to a given width, the label takes the room and the chevron keeps to the end.
-            Text(label(current), if (stretch) Modifier.weight(1f) else Modifier.widthIn(max = 180.dp), style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            Text(label(current), if (stretch) Modifier.weight(1f) else Modifier.weight(1f, fill = false).widthIn(max = 180.dp), style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             Icon(Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
         }
     }

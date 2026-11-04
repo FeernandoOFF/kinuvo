@@ -964,6 +964,7 @@ private fun Expandable(
     initiallyExpanded: Boolean = false,
     tint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
     titleStyle: TextStyle = TextStyles.callout,
+    footer: (@Composable () -> Unit)? = null,
     content: @Composable () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded) }
@@ -979,6 +980,7 @@ private fun Expandable(
                 }
                 Icon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
             }
+            footer?.let { Box(Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp)) { it() } }
             DisclosurePanel(contentPadding = PaddingValues(start = 10.dp, top = 6.dp, end = 10.dp, bottom = 10.dp)) { content() }
         }
     }
@@ -1035,12 +1037,11 @@ internal fun StepsView(row: ChatRow.Steps, active: Boolean, initiallyExpanded: B
                     else -> Icon(Lucide.ListChecks, Modifier.size(15.dp), tint = color(mutedColor))
                 }
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    val title = when {
-                        active && running != null -> "Running ${running.title}"
-                        active && current is ChatItem.Reasoning -> "Thinking…"
-                        else -> row.summary()
-                    }
-                    Text(title, style = TextStyles.secondary, fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
+                    if (active && running != null) {
+                        Text("Running", style = TextStyles.secondary, fontWeight = FontWeight.Normal, singleLine = true)
+                        Text(running.title, style = if (running.skill) TextStyles.secondary else MonoStyle, singleLine = true, overflow = TextOverflow.Ellipsis)
+                    } else Text(if (active && current is ChatItem.Reasoning) "Thinking…" else row.summary(),
+                        style = TextStyles.secondary, fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
                     if (active) running?.subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
                     else Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
                         row.tools.take(MaxStepIcons).forEach { Icon(it.label().icon, Modifier.size(12.dp), tint = color(if (it.isError) destructiveColor else mutedColor)) }
@@ -1085,24 +1086,28 @@ private fun ToolAttachments(attachments: List<Attachment>, actions: ChatActions)
 @Composable
 private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, actions: ChatActions = ChatActions()) {
     val label = item.label()
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Expandable(label.icon, label.title, label.subtitle, border = border, titleStyle = if (label.skill) TextStyles.callout else MonoStyle, status = {
-            when {
-                item.waiting -> Pill("Needs you", tone = Tone.Warning)
-                item.result == null -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 13.dp)
-                item.denied -> Pill("Denied")
-                item.isError -> Pill("Failed", tone = Tone.Danger)
-                else -> Pill("Done", tone = Tone.Success)
-            }
-        }) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (!label.skill && item.args.isNotBlank()) CodeBlock(prettyJson(item.args), language = "Arguments")
-                item.result?.let { CodeBlock(it, language = if (item.isError) "Error" else "Result", previewChars = 4000, error = item.isError) }
-                ToolAttachments(item.attachments, actions)
-            }
+    Expandable(label.icon, label.title, label.subtitle, border = border, titleStyle = if (label.skill) TextStyles.callout else MonoStyle, status = {
+        when {
+            item.waiting -> Pill("Needs you", tone = Tone.Warning)
+            item.result == null -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 13.dp)
+            item.denied -> Pill("Denied")
+            item.isError -> Pill("Failed", tone = Tone.Danger)
+            else -> Pill("Done", tone = Tone.Success)
         }
-        item.denialNote?.let { Text("Your note: $it", Modifier.padding(horizontal = 10.dp), style = TextStyles.caption, color = color(mutedColor)) }
+    }, footer = item.denialNote?.let { note -> { DenialNote(note) } }) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!label.skill && item.args.isNotBlank()) CodeBlock(prettyJson(item.args), language = "Arguments")
+            item.result?.let { CodeBlock(it, language = if (item.isError) "Error" else "Result", previewChars = 4000, error = item.isError) }
+            ToolAttachments(item.attachments, actions)
+        }
     }
+}
+
+/** What the user told the Agent when denying a tool, as a quote under its row. */
+@Composable
+private fun DenialNote(note: String) = Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Box(Modifier.width(2.dp).fillMaxHeight().background(color(borderColor)))
+    Text("Your note: $note", style = TextStyles.secondary, color = color(mutedColor))
 }
 
 /** A past `ask_user` form: each question with what the user answered. */

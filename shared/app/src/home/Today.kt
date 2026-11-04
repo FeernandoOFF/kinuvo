@@ -85,7 +85,7 @@ data class Today(
                 running + routineRuns,
                 next,
                 due,
-                (finishedSessions + reported).take(Results),
+                reported.partition { it.routine.lastStatus == RunStatus.Error }.let { (failed, rest) -> failed + finishedSessions + rest }.take(Results),
             )
         }
     }

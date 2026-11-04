@@ -12,6 +12,7 @@ import kinuvo.ui.navigation.*
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.ui.draw.clip
@@ -146,7 +147,18 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
     DetailPane(back, n.title) {
         Pill(n.type.replaceFirstChar { it.uppercase() }, Modifier.padding(start = 16.dp), icon = n.type.icon())
         if (n.properties.isNotEmpty()) DetailGroup("Properties") {
-            n.properties.forEach { (k, v) -> DetailRow(k.replaceFirstChar { it.uppercase() }) { Text(dateLabel(v), style = markdownTextStyle()) } }
+            val uri = LocalUriHandler.current
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                n.properties.forEach { (k, v) ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(k.replaceFirstChar { it.uppercase() }, Modifier.width(96.dp), style = TextStyles.secondary, color = color(mutedColor))
+                        val link = v.takeIf { URL.matches(it) }
+                        if (link != null) Text(v, Modifier.weight(1f).clickable(onClickLabel = "Open link", role = Role.Button) { uri.openUri(if (link.startsWith("http")) link else "https://$link") },
+                            style = TextStyles.secondary, color = color(accentColor))
+                        else Text(dateLabel(v), Modifier.weight(1f), style = TextStyles.secondary)
+                    }
+                }
+            }
         }
         if (n.body.isNotBlank()) DetailGroup("Note") {
             // Links to other notes open them in place; any other link opens as usual.
@@ -163,6 +175,8 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
         }
     }
 }
+
+private val URL = Regex("""^(https?://)?[\w-]+(\.[\w-]+)*\.[a-z]{2,}(/\S*)?$""")
 
 @Composable
 private fun Muted(text: String) = Text(text, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = color(mutedColor), style = TextStyles.secondary)
