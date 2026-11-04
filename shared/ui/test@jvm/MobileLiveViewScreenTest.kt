@@ -31,7 +31,13 @@ class MobileLiveViewScreenTest {
     private fun nodes(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::nodes)
     private fun tree(scene: ImageComposeScene) = scene.semanticsOwners.flatMap { nodes(it.rootSemanticsNode) }
     private fun awaitFrame(scene: ImageComposeScene) {
-        repeat(200) {
+        // A deadline rather than a count: the first decode can take seconds on a cold CI runner.
+        val deadline = System.nanoTime() + 15_000_000_000L
+        while (System.nanoTime() < deadline) {
+            // The decode resumes on the event thread these tests block, so let queued events run.
+            val loop = java.awt.Toolkit.getDefaultToolkit().systemEventQueue.createSecondaryLoop()
+            javax.swing.SwingUtilities.invokeLater { loop.exit() }
+            loop.enter()
             androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
             scene.render(System.nanoTime())
             if (tree(scene).any { "Live screen" in it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() }) return
@@ -92,7 +98,15 @@ class MobileLiveViewScreenTest {
                 File("build/screens/mobile-${if (browser) "browser" else "computer"}-keys.png").writeBytes(scene.render(System.nanoTime()).encodeToData(EncodedImageFormat.PNG)!!.bytes)
                 click(scene, "Hide keys")
                 File("build/screens/mobile-${if (browser) "browser" else "computer"}.png").writeBytes(scene.render(System.nanoTime()).encodeToData(EncodedImageFormat.PNG)!!.bytes)
-                click(scene, if (browser) "Tabs & address" else "Computers")
+                // A Browser's Tabs sit in the dock; a Computer's other Screens are in the options menu.
+                if (browser) click(scene, "Tabs & address")
+                else {
+                    click(scene, "Screen options")
+                    var screens = tree(scene).first { it.config.getOrNull(SemanticsProperties.Text).orEmpty().any { text -> text.text == "Computers" } }
+                    while (screens.config.getOrNull(SemanticsActions.OnClick) == null) screens = screens.parent!!
+                    assertTrue(screens.config[SemanticsActions.OnClick].action!!.invoke())
+                    repeat(8) { scene.render(System.nanoTime()); Thread.sleep(10) }
+                }
                 if (browser) assertTrue(tree(scene).any { "Address" in it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() })
                 click(scene, "Close screen controls")
                 state.value = state.value.copy(connected = false)

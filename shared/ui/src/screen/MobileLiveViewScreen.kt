@@ -78,26 +78,25 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
         Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             back?.let { RoundButton(Lucide.ArrowLeft, "Back", it) }
-            Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(color(accentColor).copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-                Icon(if (state.owner != null) Lucide.Globe else Lucide.Monitor, Modifier.size(18.dp), tint = color(accentColor))
-            }
             Column(Modifier.weight(1f)) {
                 Text(screen?.title?.ifBlank { null } ?: if (state.owner != null) "Browser" else "Computer", singleLine = true, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(Modifier.size(7.dp).clip(CircleShape).background(if (tone == Tone.Neutral) color(mutedColor) else tone.color()))
-                    Text(status, fontSize = 12.sp, color = if (tone == Tone.Neutral) color(mutedColor) else tone.color(), singleLine = true)
+                    Text(status, style = TextStyles.caption, color = if (tone == Tone.Neutral) color(mutedColor) else tone.color(), singleLine = true)
+                    // Which site a Browser tab is on, before anyone takes it over.
+                    screen?.currentUrl?.let { url -> Text("· " + url.substringAfter("://").substringBefore('/'), style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
                 }
             }
             if (state.ownsControl) Row(Modifier.clip(CircleShape).background(color(subtleColor))
-                .clickable(enabled = state.connected && !state.pending && !state.control.draining, onClickLabel = "Hand back to Agent") { actions.takeover(false, false) }
-                .padding(horizontal = 12.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                .clickable(enabled = state.connected && !state.pending && !state.control.draining, onClickLabel = "Hand back to Agent", role = Role.Button) { actions.takeover(false, false) }
+                .heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Lucide.Hand, Modifier.size(15.dp), tint = Tone.Success.color())
-                Text("Hand back", fontSize = 13.sp)
+                Text("Hand back", style = TextStyles.label)
             }
-            ScreenOptions(state, trackpad, fitPhone, { recenter++ }, { fitPhone = !fitPhone }, { restartTo = it }, actions)
+            ScreenOptions(state, trackpad, fitPhone, { recenter++ }, { fitPhone = !fitPhone }, { restartTo = it }, actions) { controls = true }
         }
         Banner(state)
-        pasteError?.let { Text(it, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), color = Tone.Warning.color(), fontSize = 12.sp) }
+        pasteError?.let { Text(it, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), color = Tone.Warning.color(), style = TextStyles.caption) }
         if (screen == null) EmptyStage(state, actions, Modifier.weight(1f).fillMaxWidth())
         else {
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp)) {
@@ -107,8 +106,9 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                     if (state.ownsControl && screen.capabilities.resize && !state.pending) { delay(180); actions.resize(w, h) }
                 }
                 val frame = when (tone) { Tone.Success, Tone.Warning, Tone.Accent -> tone.color().copy(alpha = 0.6f); else -> color(borderColor) }
-                Box(Modifier.fillMaxSize().clip(StageShape).background(color(sidebarColor)).border(if (state.ownsControl) 2.dp else 1.dp, frame, StageShape)) {
-                    LiveCanvas(state.frame, state.interactive, actions.input, actions.drawn, actions.decodeFailed, Modifier.fillMaxSize(),
+                val stroke = if (state.ownsControl) 2.dp else 1.dp
+                Box(Modifier.fillMaxSize().clip(StageShape).background(color(sidebarColor)).border(stroke, frame, StageShape).padding(stroke)) {
+                    LiveCanvas(state.frame, state.interactive, actions.input, actions.drawn, actions.decodeFailed, Modifier.fillMaxSize().clip(StageShape),
                         state.control.generation, "scroll" in screen.capabilities.inputs, trackpad = trackpad, recenter = recenter)
                 }
             }
@@ -120,13 +120,12 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                 val capabilities = screen.capabilities
                 val screensLabel = if (state.owner != null) "Tabs & address" else "Computers"
                 val screensIcon = if (state.owner != null) Lucide.PanelsTopLeft else Lucide.MonitorSmartphone
+                val screensCaption = if (state.owner != null) "Tabs" else "Screens"
                 if (!state.ownsControl) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DockButton(screensIcon, screensLabel, { controls = true })
-                    Text(if (state.control.holder != null) "Another Device has control" else "Take over to tap and type",
-                        Modifier.weight(1f), fontSize = 13.sp, color = color(mutedColor), maxLines = 2)
-                    Button(onClick = { actions.takeover(true, state.control.holder != null) }, enabled = state.connected && !state.pending && !state.control.draining, style = ButtonStyle.Primary) {
+                    DockButton(screensIcon, screensLabel, { controls = true }, caption = screensCaption)
+                    Button(onClick = { actions.takeover(true, state.control.holder != null) }, enabled = state.connected && !state.pending && !state.control.draining,
+                        modifier = Modifier.weight(1f), style = ButtonStyle.Primary) {
                         Icon(Lucide.Hand, Modifier.size(16.dp))
-                        Spacer(Modifier.width(6.dp))
                         Text(if (state.pending || state.control.draining) "Waiting…" else if (state.control.holder != null) "Take over here" else "Take over")
                     }
                 } else {
@@ -140,16 +139,26 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                         desktop && "Tab" in capabilities.keys && "Alt" in capabilities.modifiers -> "Alt+Tab"
                         else -> null
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        DockButton(if (keyboard) Lucide.KeyboardOff else Lucide.Keyboard, if (keyboard) "Hide keyboard" else "Keyboard", { keyboard = !keyboard },
-                            enabled = state.connected && "type" in capabilities.inputs, selected = keyboard)
-                        DockButton(if (android) Lucide.Smartphone else Lucide.Command, if (keyTray) "Hide keys" else "Keys", { keyTray = !keyTray },
-                            enabled = capabilities.keys.isNotEmpty(), selected = keyTray)
-                        DockButton(Lucide.MousePointer2, "Trackpad mode", { trackpad = !trackpad }, enabled = "tap" in capabilities.inputs, selected = trackpad)
-                        ClipboardButton(state, paste, desktop && "C" in capabilities.keys && copyModifier != null,
-                            { sendKey("$copyModifier+C") }, { sendKey("$copyModifier+V") }, "V" in capabilities.keys)
-                        switcher?.let { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, enabled = state.interactive) }
-                        DockButton(screensIcon, screensLabel, { controls = true })
+                    // Equal slots, so a control turning on or off never moves the others.
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        val slot = Modifier.weight(1f)
+                        Box(slot, contentAlignment = Alignment.Center) {
+                            DockButton(if (keyboard) Lucide.KeyboardOff else Lucide.Keyboard, if (keyboard) "Hide keyboard" else "Keyboard", { keyboard = !keyboard }, caption = "Keyboard",
+                                enabled = state.connected && "type" in capabilities.inputs, selected = keyboard)
+                        }
+                        Box(slot, contentAlignment = Alignment.Center) {
+                            DockButton(if (android) Lucide.Smartphone else Lucide.Command, if (keyTray) "Hide keys" else "Keys", { keyTray = !keyTray }, caption = "Keys",
+                                enabled = capabilities.keys.isNotEmpty(), selected = keyTray)
+                        }
+                        Box(slot, contentAlignment = Alignment.Center) {
+                            DockButton(Lucide.MousePointer2, "Trackpad mode", { trackpad = !trackpad }, caption = "Trackpad", enabled = "tap" in capabilities.inputs, selected = trackpad)
+                        }
+                        Box(slot, contentAlignment = Alignment.Center) {
+                            ClipboardButton(state, paste, desktop && "C" in capabilities.keys && copyModifier != null,
+                                { sendKey("$copyModifier+C") }, { sendKey("$copyModifier+V") }, "V" in capabilities.keys)
+                        }
+                        switcher?.let { Box(slot, contentAlignment = Alignment.Center) { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, caption = "Switch", enabled = state.interactive) } }
+                        if (state.owner != null) Box(slot, contentAlignment = Alignment.Center) { DockButton(screensIcon, screensLabel, { controls = true }, caption = screensCaption) }
                     }
                 }
             }
@@ -171,11 +180,18 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
 }
 
 @Composable
-private fun ScreenOptions(state: LiveViewState, trackpad: Boolean, fitPhone: Boolean, recenter: () -> Unit, fit: () -> Unit, restart: (Boolean) -> Unit, actions: LiveActions) {
+private fun ScreenOptions(state: LiveViewState, trackpad: Boolean, fitPhone: Boolean, recenter: () -> Unit, fit: () -> Unit, restart: (Boolean) -> Unit, actions: LiveActions, onScreens: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val screen = state.screen
+    val empty = state.ownsControl && state.owner != null && state.presentation == null && !trackpad && screen?.capabilities?.resize != true &&
+        state.error == null && state.connected
+    if (empty) return
     DropdownMenu(expanded = menu, onExpandedChange = { menu = it }, panel = {
         DropdownMenuPanel {
+            // In control, a Computer's dock keeps to input, so other Screens are one step away here; a Browser's dock has Tabs.
+            if (state.ownsControl && state.owner == null) DropdownMenuItem(onClick = { menu = false; onScreens() }) {
+                MobileMenuItem(Lucide.MonitorSmartphone, "Computers")
+            }
             BrowserPresentationMenuItems(state) { menu = false; restart(it) }
             if (trackpad) DropdownMenuItem(onClick = { menu = false; recenter() }, enabled = state.interactive) {
                 MobileMenuItem(Lucide.Crosshair, "Recenter pointer")
@@ -183,9 +199,10 @@ private fun ScreenOptions(state: LiveViewState, trackpad: Boolean, fitPhone: Boo
             if (screen?.capabilities?.resize == true) DropdownMenuItem(onClick = { menu = false; fit() }, enabled = state.ownsControl) {
                 MobileMenuItem(if (fitPhone) Lucide.Check else Lucide.Smartphone, "Fit to phone")
             }
-            DropdownMenuItem(onClick = { menu = false; actions.takeover(!state.ownsControl, state.control.holder != null) },
+            // Hand back sits in the header while in control.
+            if (!state.ownsControl) DropdownMenuItem(onClick = { menu = false; actions.takeover(true, state.control.holder != null) },
                 enabled = state.connected && !state.pending && !state.control.draining && screen != null) {
-                MobileMenuItem(Lucide.Hand, if (state.ownsControl) "Hand back to Agent" else if (state.control.holder != null) "Take over here" else "Take over")
+                MobileMenuItem(Lucide.Hand, if (state.control.holder != null) "Take over here" else "Take over")
             }
             if (state.error != null || !state.connected) DropdownMenuItem(onClick = { menu = false; actions.retry() }) {
                 MobileMenuItem(Lucide.RefreshCw, "Reconnect")
@@ -207,28 +224,33 @@ private fun ClipboardButton(state: LiveViewState, paste: () -> Unit, shortcuts: 
                 if (remotePaste) DropdownMenuItem(onClick = { menu = false; pasteRemote() }, enabled = state.interactive) { MobileMenuItem(Lucide.Clipboard, "Paste on screen") }
             }
         }
-    }) { DockButton(Lucide.ClipboardPaste, "Clipboard", { menu = true }, enabled = typing || shortcuts && state.interactive) }
+    }) { DockButton(Lucide.ClipboardPaste, "Clipboard", { menu = true }, caption = "Clipboard", enabled = typing || shortcuts && state.interactive) }
 }
 
 @Composable
 private fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true) {
     IconButton(onClick = onClick, enabled = enabled, style = ButtonStyle.Ghost, shape = CircleShape,
-        modifier = Modifier.size(40.dp).background(color(subtleColor), CircleShape)) {
+        modifier = Modifier.size(44.dp).background(color(subtleColor), CircleShape)) {
         Icon(icon, Modifier.size(19.dp), contentDescription = label, tint = if (enabled) color(onBackgroundColor) else color(mutedColor))
     }
 }
 
+/** A dock control: its icon over a short [caption]; [label] is read out. */
 @Composable
-private fun DockButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true, selected: Boolean? = null) {
-    val shape = RoundedCornerShape(14.dp)
-    IconButton(onClick = onClick, enabled = enabled, style = ButtonStyle.Ghost, shape = shape,
-        modifier = Modifier.size(46.dp).background(if (selected == true) color(accentColor).copy(alpha = 0.16f) else Color.Transparent, shape)
-            .semantics { if (selected != null) stateDescription = if (selected) "On" else "Off" }) {
-        Icon(icon, Modifier.size(22.dp), contentDescription = label, tint = when {
-            !enabled -> color(mutedColor).copy(alpha = 0.5f)
-            selected == true -> color(accentColor)
-            else -> color(onPanelColor)
-        })
+private fun DockButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true, selected: Boolean? = null, caption: String) {
+    val shape = CircleShape
+    val tint = when {
+        !enabled -> color(mutedColor).copy(alpha = 0.7f)
+        selected == true -> color(accentColor)
+        else -> color(onPanelColor)
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        IconButton(onClick = onClick, enabled = enabled, style = ButtonStyle.Ghost, shape = shape,
+            modifier = Modifier.size(46.dp, 40.dp).background(if (selected == true) color(accentColor).copy(alpha = 0.16f) else Color.Transparent, shape)
+                .semantics { if (selected != null) stateDescription = if (selected) "On" else "Off" }) {
+            Icon(icon, Modifier.size(22.dp), contentDescription = label, tint = tint)
+        }
+        Text(caption, Modifier.clearAndSetSemantics {}, style = TextStyles.overline, lineHeight = 13.sp, color = if (selected == true) tint else color(mutedColor), singleLine = true)
     }
 }
 
@@ -268,7 +290,8 @@ internal fun MobileKeyTray(state: LiveViewState, actions: LiveActions) {
                         }
                     }
                 }
-                repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
+                // A single short row spreads across the tray; longer ones keep a grid.
+                if (keys.size > 5) repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
         if (capabilities.modifiers.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -277,7 +300,7 @@ internal fun MobileKeyTray(state: LiveViewState, actions: LiveActions) {
             }
             repeat((5 - capabilities.modifiers.size).coerceAtLeast(0)) { Spacer(Modifier.weight(1f)) }
         }
-        if (modifiers.isNotEmpty()) Text("Choose a key to send ${modifiers.joinToString("+")}+…", Modifier.padding(horizontal = 4.dp), fontSize = 11.sp, color = color(mutedColor))
+        if (modifiers.isNotEmpty()) Text("Choose a key to send ${modifiers.joinToString("+")}+…", Modifier.padding(horizontal = 4.dp), style = TextStyles.overline, color = color(mutedColor))
     }
 }
 
@@ -295,6 +318,6 @@ private fun RowScope.KeyCap(key: String, enabled: Boolean, selected: Boolean? = 
             if (selected != null) stateDescription = if (selected) "Selected" else "Not selected"
         }, contentAlignment = Alignment.Center) {
         icon?.let { Icon(it, Modifier.size(18.dp), tint = tint) }
-            ?: Text(KeyLabels[key] ?: key.replace('_', ' '), fontSize = 14.sp, color = tint, singleLine = true)
+            ?: Text(KeyLabels[key] ?: key.replace('_', ' '), style = TextStyles.label, color = tint, singleLine = true)
     }
 }

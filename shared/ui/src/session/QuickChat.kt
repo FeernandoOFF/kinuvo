@@ -94,9 +94,9 @@ private fun QuickChatBarContent(agent: AgentInfo?, draft: TextFieldState, onOpen
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Column(Modifier.weight(1f)) {
-                Text(agent?.name ?: "…", fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                Text(agent?.name ?: "…", style = TextStyles.caption, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                 val text = draft.text.toString()
-                Text(text.ifBlank { "Message ${agent?.name ?: "…"}" }, singleLine = true, overflow = TextOverflow.Ellipsis,
+                Text(text.ifBlank { "Message…" }, style = inputTextStyle(), singleLine = true, overflow = TextOverflow.Ellipsis,
                     color = if (text.isBlank()) color(mutedColor) else color(onBackgroundColor))
             }
             Box(Modifier.size(36.dp).clip(CircleShape).background(color(accentColor)), contentAlignment = Alignment.Center) {
@@ -161,7 +161,7 @@ internal fun QuickChat(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         AgentAvatar(a, 28.dp)
-                        Text(a.name, fontSize = 14.sp, singleLine = true)
+                        Text(a.name, style = TextStyles.label, singleLine = true)
                     }
                 }
             }
@@ -182,7 +182,7 @@ internal fun QuickChat(
                     onKeyboardAction = { send(open = true) },
                     decorator = { field ->
                         Box(contentAlignment = Alignment.CenterStart) {
-                            if (draft.text.isEmpty()) Text("Message ${agent?.name ?: "…"}", color = color(mutedColor), style = inputTextStyle(), singleLine = true, overflow = TextOverflow.Ellipsis)
+                            if (draft.text.isEmpty()) Text("Message…", color = color(mutedColor), style = inputTextStyle(), singleLine = true, overflow = TextOverflow.Ellipsis)
                             field()
                         }
                     },

@@ -28,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import com.composables.ui.theme.mutedColor
+import com.composables.ui.theme.InteractionMode
+import com.composables.ui.theme.LocalInteractionMode
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -59,7 +61,9 @@ internal fun SettingsSheet(app: AppViewModel, pages: SnapshotStateList<Route.Set
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = true) {
         if (edits.pending != null) edits.pending = null else back()
     }
-    CompositionLocalProvider(LocalSettingsEdits provides edits, LocalModalNavigation provides ModalNavigation(back.takeIf { pages.size > 1 })) {
+    CompositionLocalProvider(LocalSettingsEdits provides edits, LocalModalNavigation provides ModalNavigation(
+        // A drill-in opened on its own, e.g. a Routine from Home, goes back by closing the sheet.
+        if (pages.size > 1) back else ({ edits.leave { pages.clear() } }).takeIf { pages.firstOrNull()?.section != null })) {
         BottomSheet(true, onDismissRequest = { edits.leave { pages.clear() } }, header = {}, modifier = if (edits.pending != null) Modifier.clearAndSetSemantics {} else Modifier) {
             val route = pages.lastOrNull()
             if (route != null) savedPages.SaveableStateProvider(route.toString()) {
@@ -81,18 +85,7 @@ internal fun SettingsSheet(app: AppViewModel, pages: SnapshotStateList<Route.Set
 internal fun SettingsDiscardDialog(edits: SettingsEdits) {
     if (edits.pending == null) return
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = true) { edits.pending = null }
-    Box(Modifier.fillMaxSize().background(color(scrimColor)).clickable { edits.pending = null }, contentAlignment = Alignment.Center) {
-        Panel(Modifier.padding(24.dp).widthIn(max = 400.dp).clickable {}.semantics { paneTitle = "Unsaved changes" }, contentPadding = PaddingValues(20.dp)) {
-            Text("Discard changes?")
-            Spacer(Modifier.height(8.dp))
-            Text("Your changes have not been saved.")
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button({ edits.pending = null }) { Text("Keep editing") }
-                Button(edits::discard, contentColor = color(destructiveColor)) { Text("Discard") }
-            }
-        }
-    }
+    DiscardDialog({ edits.pending = null }, edits::discard)
 }
 
 @Composable
@@ -121,22 +114,33 @@ internal fun rememberSettingsViewModel(route: Route.Settings): SettingsViewModel
 internal class ModalNavigation(val back: (() -> Unit)?)
 internal val LocalModalNavigation = staticCompositionLocalOf<ModalNavigation?> { null }
 
-/** A Settings page's title with [back] and [trailing] controls; in a sheet, centered like the platform's sheets. */
+/** A Settings page's title with [back] and [trailing] controls; in a sheet, centered like the platform's sheets, and on other touch screens beside the chat's floating Back. */
 @Composable
 internal fun SettingsPageHeader(title: String, back: (() -> Unit)? = null, subtitle: String? = null,
     info: String? = null, trailing: @Composable RowScope.() -> Unit = {}) {
     val navigation = LocalModalNavigation.current
     val up = if (navigation != null) navigation.back else back
-    if (LocalInSheet.current) Box(Modifier.fillMaxWidth().then(LocalSheetDrag.current).heightIn(min = 52.dp).padding(horizontal = 12.dp, vertical = 4.dp)) {
+    if (LocalInSheet.current) Box(Modifier.fillMaxWidth().then(LocalSheetDrag.current).heightIn(min = 52.dp).padding(horizontal = 16.dp, vertical = 4.dp)) {
         if (up != null) Box(Modifier.align(Alignment.CenterStart)) { HeaderButton(Lucide.ArrowLeft, "Back", up) }
         Column(Modifier.align(Alignment.Center).padding(horizontal = 72.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(title, style = TextStyles.title, fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis)
+            subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
+        }
+        Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            info?.let { InfoButton(it, header = true) }
+            trailing()
+        }
+    } else if (LocalInteractionMode.current == InteractionMode.Touch) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (up != null) FloatingBubble(Lucide.ArrowLeft, "Back", up)
+        Column(Modifier.weight(1f).padding(start = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, Modifier.weight(1f, fill = false), fontSize = 17.sp, fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis)
+                Text(title, Modifier.weight(1f, fill = false), style = TextStyles.title, fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis)
                 info?.let { InfoButton(it) }
             }
-            subtitle?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
+            subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
         }
-        Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), content = trailing)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), content = trailing)
     } else {
         TitleBarRow(leading = up != null) {
             if (up != null) HeaderButton(Lucide.ArrowLeft, "Back", up)
@@ -145,7 +149,7 @@ internal fun SettingsPageHeader(title: String, back: (() -> Unit)? = null, subti
                     Text(title, Modifier.weight(1f, fill = false), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
                     info?.let { InfoButton(it) }
                 }
-                subtitle?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), singleLine = true) }
+                subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true) }
             }
             trailing()
         }

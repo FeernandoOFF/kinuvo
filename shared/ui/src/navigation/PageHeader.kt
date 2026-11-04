@@ -44,23 +44,23 @@ fun PageHeader(icon: ImageVector, title: String, subtitle: String? = null, scope
         chrome?.let { FloatingBubble(Lucide.Menu, "Home and agents", it.onToggleShell) }
         if (scope != null) AgentMenu(scope, Modifier.weight(1f)) { open ->
             Row { FloatingPill(open, "$title, ${scope.label}, change Agent", fill = true, leading = { ScopeAvatar(scope, 26.dp) }) {
-                Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium, singleLine = true)
+                Text(title, style = TextStyles.label, fontWeight = FontWeight.Medium, singleLine = true)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(scope.label, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                    Text(scope.label, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                     Icon(Lucide.ChevronDown, Modifier.size(12.dp), tint = color(mutedColor))
                 }
             } }
         } else FloatingPill(chrome?.onToggleShell ?: {}, listOfNotNull(title, subtitle).joinToString(", "), fill = true,
             leading = { Icon(icon, Modifier.size(18.dp), tint = color(mutedColor)) }) {
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium, singleLine = true)
-            subtitle?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
+            Text(title, style = TextStyles.label, fontWeight = FontWeight.Medium, singleLine = true)
+            subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
         }
         if (actions.isNotEmpty()) Bubble { actions.forEach { BubbleButton(it.icon, it.label, it.onClick) } }
     } else {
         TitleBarRow {
             chrome?.let { if (it.wide) HeaderButton(Lucide.PanelLeft, "Toggle sidebar ${shortcut(".")}", it.onToggleShell) else HeaderButton(Lucide.Menu, "Home and agents", it.onToggleShell) }
             Text(title, Modifier.padding(start = 6.dp), fontWeight = FontWeight.Normal, singleLine = true)
-            subtitle?.let { Text(it, Modifier.weight(1f, fill = false).padding(start = 8.dp), color = color(mutedColor), fontSize = 13.sp, singleLine = true, overflow = TextOverflow.Ellipsis) }
+            subtitle?.let { Text(it, Modifier.weight(1f, fill = false).padding(start = 8.dp), color = color(mutedColor), style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis) }
             scope?.let { s ->
                 AgentMenu(s, Modifier.padding(start = 6.dp)) { open ->
                     Button(onClick = open, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 6.dp), modifier = Modifier.titleBarControl()) {

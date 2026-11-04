@@ -60,7 +60,7 @@ internal fun PairingPanel(info: PairingInfo, selected: String?, onSelect: (Strin
         val shape = RoundedCornerShape(20.dp)
         Box(Modifier.size(212.dp).clip(shape).background(if (live && link != null) Color.White else color(subtleColor), shape), contentAlignment = Alignment.Center) {
             when {
-                link == null -> Text("No address the other device can reach. Use this server's IP or VPN address.", Modifier.padding(20.dp), color = color(mutedColor), fontSize = 13.sp, textAlign = TextAlign.Center)
+                link == null -> Text("No address the other device can reach. Use this server's IP or VPN address.", Modifier.padding(20.dp), color = color(mutedColor), style = TextStyles.secondary, textAlign = TextAlign.Center)
                 live -> Image(rememberQrCodePainter(link), "Pairing QR code for ${base.substringAfter("://")}", Modifier.fillMaxSize().padding(18.dp))
                 else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Icon(Lucide.TimerOff, Modifier.size(28.dp), tint = color(mutedColor))
@@ -71,7 +71,7 @@ internal fun PairingPanel(info: PairingInfo, selected: String?, onSelect: (Strin
         }
         if (link != null && live) {
             Text(if (browser) "Scan with the other device's camera, or open the link in its browser." else "Scan with the other device's camera, or open the link there.",
-                color = color(mutedColor), fontSize = 13.sp, lineHeight = 18.sp, textAlign = TextAlign.Center)
+                color = color(mutedColor), style = TextStyles.secondary, lineHeight = 18.sp, textAlign = TextAlign.Center)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 share?.let { send -> Button({ send(link) }, Modifier.weight(1f), style = ButtonStyle.Primary) { ActionLabel(Lucide.Share, "Share link") } }
                 CopyAction("Copy link", link, Modifier.weight(1f))
@@ -79,16 +79,16 @@ internal fun PairingPanel(info: PairingInfo, selected: String?, onSelect: (Strin
         }
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (base != null && info.bases.size > 1) Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Reachable at", Modifier.weight(1f), color = color(mutedColor), fontSize = 13.sp)
+                Text("Reachable at", Modifier.weight(1f), color = color(mutedColor), style = TextStyles.secondary)
                 Picker(info.bases, base, { it.substringAfter("://") }, onSelect)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(if (live) "Works once, for ${remaining / 60}:${(remaining % 60).toString().padStart(2, '0')}" else "Expired",
-                    Modifier.weight(1f), color = color(mutedColor), fontSize = 13.sp)
+                    Modifier.weight(1f), color = color(mutedColor), style = TextStyles.secondary)
                 if (live) Button(onRefresh, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { ActionLabel(Lucide.RefreshCw, "New code") }
             }
             if (live) Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Code ${info.code.take(6)}…${info.code.takeLast(4)}", Modifier.weight(1f), style = MonoStyle, color = color(mutedColor), fontSize = 12.sp)
+                Text("Code ${info.code.take(6)}…${info.code.takeLast(4)}", Modifier.weight(1f), style = MonoStyle, color = color(mutedColor), fontSize = TextStyles.caption.fontSize)
                 CopyButton(info.code)
             }
         }
@@ -134,13 +134,13 @@ internal fun ConnectionSettingsPane(p: Pane) {
             val name = rememberTextFieldState(shown.name.orEmpty())
             RowGroup(shown.label) {
                 GroupBox {
-                    Text("Name on this Device", color = color(mutedColor), fontSize = 13.sp)
+                    Text("Name on this Device", color = color(mutedColor), style = TextStyles.secondary)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(Modifier.weight(1f)) { Input(name, shown.address) }
                         Button({ p.actions.onRenameServer(shown, name.text.toString()) }, enabled = name.text.toString() != shown.name.orEmpty(),
                             style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text("Save") }
                     }
-                    Text(shown.url, color = color(mutedColor), fontSize = 12.sp)
+                    Text(shown.url, color = color(mutedColor), style = TextStyles.caption)
                 }
                 if (shown == connected) ConfirmRow("Rotate Device credential", Lucide.RotateCcwKey, "Rotate this Device's credential?", p.actions.onRotateToken, "Rotate",
                     destructive = false, detail = "Its other connections disconnect and need the new credential.")
@@ -150,7 +150,7 @@ internal fun ConnectionSettingsPane(p: Pane) {
         } else Text(connected?.label ?: "No Server connected")
         if (connected is Server.Embedded && p.ui.sharing != null) RowGroup("Reach this Server from other Devices") {
             GroupRow("Local network and Tailscale", subtitle = "Other Devices pair with a code from here. Keep it off on networks you don't trust.", icon = Lucide.Wifi, chevron = false) {
-                Switch(p.ui.sharing, p.actions.onShare)
+                ToggleSwitch(p.ui.sharing, p.actions.onShare)
             }
         }
         if (p.ui.capabilities.supports(ServerFeature.Pairing)) {
@@ -166,7 +166,7 @@ internal fun ConnectionSettingsPane(p: Pane) {
                         detail = "It will be able to change Server configuration, pair other devices and answer Approvals.")
                 }
             }
-            Text("Revoking takes effect right away; the device needs a new code to connect again.", Modifier.padding(horizontal = 6.dp), fontSize = 12.sp, color = color(mutedColor))
+            Text("Revoking takes effect right away; the device needs a new code to connect again.", Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(mutedColor))
         }
     }
 }

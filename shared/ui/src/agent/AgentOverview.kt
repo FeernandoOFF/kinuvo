@@ -117,7 +117,7 @@ private fun PersonalityCard(ui: SettingsUi, modifier: Modifier, onClick: () -> U
         else {
             prose(details.identity).takeIf { it.isNotBlank() }?.let { Text(it, maxLines = 4, overflow = TextOverflow.Ellipsis) }
             details.soul.lines().map { it.trim() }.filter { it.startsWith("- ") }.take(3).forEach {
-                Text("· " + it.removePrefix("- "), fontSize = 13.sp, lineHeight = 18.sp, color = color(mutedColor), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("· " + it.removePrefix("- "), style = TextStyles.secondary, lineHeight = 18.sp, color = color(mutedColor), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -134,7 +134,7 @@ private fun RunsOnCard(ui: SettingsUi, modifier: Modifier, onClick: () -> Unit) 
         ui.config.details?.cwd?.let { Text(it, style = MonoStyle, maxLines = 2, overflow = TextOverflow.Ellipsis) }
         val r = readiness(agent.readiness.state(), harness, agent.host ?: ui.serverName, agent.name)
         ReadinessPill(r)
-        r.message?.let { Text(it, fontSize = 13.sp, color = color(mutedColor), maxLines = 3, overflow = TextOverflow.Ellipsis) }
+        r.message?.let { Text(it, style = TextStyles.secondary, color = color(mutedColor), maxLines = 3, overflow = TextOverflow.Ellipsis) }
     }
 }
 
@@ -145,7 +145,7 @@ private fun ManagedCard(ui: SettingsUi, modifier: Modifier) {
     val harness = harnessName(agent, ui.state.harnesses.connections)
     Card(Lucide.Lock, "Managed by $harness", modifier, {}, enabled = true) {
         Text("Instructions, Memory, Skills and tools are set in $harness on ${agent.host ?: ui.serverName}.", color = color(mutedColor))
-        Text("$harness decides when to ask before acting. Answer from any Device with access.", fontSize = 13.sp, color = color(mutedColor))
+        Text("$harness decides when to ask before acting. Answer from any Device with access.", style = TextStyles.secondary, color = color(mutedColor))
     }
 }
 
@@ -171,7 +171,7 @@ private fun RoutinesCard(ui: SettingsUi, modifier: Modifier, onClick: () -> Unit
             else -> routines.take(3).forEach { r ->
                 Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(color(backgroundColor).copy(alpha = 0.4f)).padding(horizontal = 14.dp, vertical = 10.dp)) {
                     Text(r.name, singleLine = true, overflow = TextOverflow.Ellipsis)
-                    Text(r.summary(ui.now), fontSize = 13.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                    Text(r.summary(ui.now), style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                 }
             }
         }
@@ -205,8 +205,8 @@ private fun Tile(icon: ImageVector, title: String, subtitle: String?, modifier: 
     ) {
         Icon(icon, Modifier.size(22.dp), tint = color(mutedColor))
         Column {
-            Text(title, fontSize = 17.sp, fontWeight = FontWeight.Bold, singleLine = true)
-            Text(subtitle ?: "…", fontSize = 13.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            Text(title, style = TextStyles.title, fontWeight = FontWeight.Bold, singleLine = true)
+            Text(subtitle ?: "…", style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
         }
     }
 }

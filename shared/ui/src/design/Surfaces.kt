@@ -23,6 +23,8 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -36,6 +38,9 @@ import com.composables.icons.lucide.CircleX
 import com.composables.icons.lucide.LoaderCircle
 import com.composables.icons.lucide.Lucide
 import com.composables.ui.components.Icon
+import com.composables.ui.components.Tooltip
+import com.composables.ui.components.TooltipPanel
+import com.composables.ui.components.TooltipSide
 import com.composables.ui.components.Text
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
@@ -84,7 +89,7 @@ fun Pill(text: String, modifier: Modifier = Modifier, tone: Tone = Tone.Neutral,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (loading) Spinner(size = 12.dp, tint = c) else icon?.let { Icon(it, Modifier.size(12.dp), tint = c) }
-        Text(text, Modifier.weight(1f, fill = false), fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal, color = c)
+        Text(text, Modifier.weight(1f, fill = false), style = TextStyles.caption, lineHeight = 16.sp, fontWeight = FontWeight.Normal, color = c)
     }
 }
 
@@ -98,7 +103,7 @@ fun Badge(text: String, icon: ImageVector? = null, modifier: Modifier = Modifier
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         icon?.let { Icon(it, Modifier.size(10.dp), tint = c) }
-        Text(text, fontSize = 10.sp, lineHeight = 14.sp, color = c, singleLine = true)
+        Text(text, style = TextStyles.overline, lineHeight = 14.sp, color = c, singleLine = true)
     }
 }
 
@@ -115,7 +120,7 @@ fun ErrorMessage(text: String, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top,
     ) {
         Icon(Lucide.CircleX, Modifier.size(16.dp), tint = c)
-        Text(text, Modifier.weight(1f), fontSize = 12.sp, lineHeight = 18.sp, color = c)
+        Text(text, Modifier.weight(1f), style = TextStyles.caption, lineHeight = 18.sp, color = c)
     }
 }
 
@@ -139,7 +144,7 @@ fun ListRow(
     content: @Composable RowScope.() -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
+    val hovered = interaction.hovered()
     val shape = Theme[shapes][mediumShape]
     val bg = when {
         selected -> color(selectedControlColor)
@@ -154,6 +159,8 @@ fun ListRow(
             .hoverable(interaction)
             .clickable(interaction, Theme[indications][defaultIndication], enabled = enabled, onClick = onClick)
             .alpha(if (enabled) 1f else 0.4f)
+            .heightIn(min = if (LocalInteractionMode.current == InteractionMode.Touch) 48.dp else 0.dp)
+            .semantics { this.selected = selected }
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -169,12 +176,35 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text.uppercase(),
         modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-        fontSize = 11.sp,
+        style = TextStyles.overline,
         lineHeight = 14.sp,
         letterSpacing = 0.6.sp,
         fontWeight = FontWeight.Normal,
         color = color(mutedColor),
     )
+}
+
+/** Hover state; touch screens have none, though some platforms report a tap as one that never ends. */
+@Composable
+fun MutableInteractionSource.hovered(): Boolean {
+    val hovered by collectIsHoveredAsState()
+    return hovered && LocalInteractionMode.current != InteractionMode.Touch
+}
+
+/** A [label] tooltip for pointer users; touch screens read the label from the control instead. */
+@Composable
+fun Hint(label: String, side: TooltipSide = TooltipSide.Top, content: @Composable () -> Unit) {
+    if (LocalInteractionMode.current == InteractionMode.Touch) content()
+    else Tooltip(side = side, panel = { TooltipPanel { Text(label, style = TextStyles.caption) } }) { content() }
+}
+
+/** An action inside a field, e.g. Generate or Open: a quiet icon that leaves the field's own shape alone. */
+@Composable
+fun FieldButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true) {
+    Box(Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClickLabel = label, onClick = onClick)
+        .alpha(if (enabled) 1f else 0.4f), contentAlignment = Alignment.Center) {
+        Icon(icon, Modifier.size(18.dp), tint = color(mutedColor), contentDescription = label)
+    }
 }
 
 internal val RoundedCornerShape100 = androidx.compose.foundation.shape.RoundedCornerShape(100)
@@ -183,7 +213,8 @@ internal val RoundedCornerShape100 = androidx.compose.foundation.shape.RoundedCo
 @Composable
 fun inputTextStyle(): TextStyle {
     val touch = LocalInteractionMode.current == InteractionMode.Touch
-    return LocalTextStyle.current.copy(fontSize = if (touch) 15.sp else 13.sp, lineHeight = if (touch) 22.sp else 19.sp)
+    // Inter, like the messages and values it becomes.
+    return LocalTextStyle.current.copy(fontFamily = interFamily(), fontSize = if (touch) 16.sp else 13.sp, lineHeight = if (touch) 22.sp else 19.sp)
 }
 
 /** The keyboard starts sentences with a capital when [capitalize]; off for URLs, IDs, keys and commands. */
@@ -198,14 +229,17 @@ fun Input(
     secret: Boolean = false,
     capitalize: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
+    error: Boolean = false,
 ) {
     val style = inputTextStyle()
     com.composables.ui.components.TextField(
         state,
         modifier.fillMaxWidth(),
+        leading = leading,
         trailing = trailing,
         backgroundColor = color(backgroundColor),
-        borderColor = color(com.composables.ui.theme.borderColor),
+        borderColor = if (error) color(destructiveColor) else color(com.composables.ui.theme.borderColor),
         placeholder = { Text(placeholder, style = style) },
         textStyle = style,
         outputTransformation = if (secret) androidx.compose.foundation.text.input.OutputTransformation { replace(0, length, "•".repeat(length)) } else null,

@@ -93,23 +93,23 @@ class AccessibilityTest {
                 var time = 0L
                 fun settle() { repeat(10) { scene.render(time.also { time += 100_000_000 }) } }
                 settle()
-                assertNotNull(scene.description("Save"))
+                assertNotNull(scene.text("Save").firstOrNull())
                 assertEquals(if (state.value.guard == null) 0 else 1, scene.text("Discard").size)
-                assertEquals(if (state.value.guard == null) 1 else 0, scene.nodes().count { it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains("Save") == true })
+                assertEquals(if (state.value.guard == null) 1 else 0, scene.text("Save").size)
                 state.value = state.value.copy(guard = InspectorExit.Close)
                 settle()
-                assertNull(scene.description("Save"))
+                assertNull(scene.text("Save").firstOrNull())
                 assertEquals(if (state.value.guard == null) 0 else 1, scene.text("Discard").size)
-                assertEquals(if (state.value.guard == null) 1 else 0, scene.nodes().count { it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains("Save") == true })
+                assertEquals(if (state.value.guard == null) 1 else 0, scene.text("Save").size)
                 assertTrue(scene.nodes().any { it.config.getOrNull(SemanticsProperties.PaneTitle) == "Unsaved changes" })
                 var keep = scene.text("Keep editing").single()
                 while (keep.config.getOrNull(SemanticsActions.OnClick) == null) keep = assertNotNull(keep.parent)
                 assertTrue(keep.config[SemanticsActions.OnClick].action!!.invoke())
                 settle()
                 assertEquals(GuardChoice.Keep, resolved)
-                assertNotNull(scene.description("Save"))
+                assertNotNull(scene.text("Save").firstOrNull())
                 assertEquals(if (state.value.guard == null) 0 else 1, scene.text("Discard").size)
-                assertEquals(if (state.value.guard == null) 1 else 0, scene.nodes().count { it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains("Save") == true })
+                assertEquals(if (state.value.guard == null) 1 else 0, scene.text("Save").size)
             }
         }
     }

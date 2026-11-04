@@ -15,4 +15,9 @@ class MarkdownTest {
         listOf(MdBlock.Prose("Steps:\n\n1. First\n\n2. Second\n\n   More"), MdBlock.Prose("Done.")),
         parseBlocks("Steps:\n\n1. First\n\n2. Second\n\n   More\n\nDone."),
     )
+
+    @Test fun headingsAreTheirOwnBlocks() = assertEquals(
+        listOf(MdBlock.Heading(2, "Goals"), MdBlock.Prose("Ship it.")),
+        parseBlocks("## Goals\nShip it."),
+    )
 }

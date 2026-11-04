@@ -41,9 +41,10 @@ internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String,
                 Text(asked.title ?: "Questions for you", fontWeight = FontWeight.Normal)
             }
             asked.questions.forEach { q -> key(q.id) { QuestionField(q, answers[q.id].orEmpty()) { onEdit(asked.questionsId, q.id, it) } } }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onAnswer(answers) }, enabled = ready, style = ButtonStyle.Primary) { Text(if (asked.questions.isEmpty()) "Check again" else "Submit") }
-                Button(onClick = { onAnswer(null) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text(skip) }
+            // Laid out like the Agent's own requests: the two answers side by side.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = { onAnswer(answers) }, modifier = Modifier.weight(1f), enabled = ready, style = ButtonStyle.Primary) { Text(if (asked.questions.isEmpty()) "Check again" else "Submit") }
+                Button(onClick = { onAnswer(null) }, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined) { Text(skip) }
             }
         }
     }
@@ -52,7 +53,7 @@ internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String,
 @Composable
 internal fun QuestionField(q: Question, value: List<String>, onChange: (List<String>) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Text(if (q.required) "${q.label} *" else q.label, fontSize = 13.sp, fontWeight = FontWeight.Normal)
+        Text(if (q.required) "${q.label} *" else q.label, style = TextStyles.secondary, fontWeight = FontWeight.Normal)
         when (q.kind) {
             QuestionKind.Single, QuestionKind.YesNo -> RadioGroup(value.firstOrNull(), { onChange(listOf(it)) }) {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

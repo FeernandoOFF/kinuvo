@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -100,7 +101,7 @@ internal fun Welcome(options: WelcomeOptions, featured: Int, pokes: List<Int>, o
 @Composable
 private fun Hero(featured: Int, pokes: List<Int>, onPoke: (Int) -> Unit, tint: Color, shape: Shape, modifier: Modifier, padding: PaddingValues, onCancel: (() -> Unit)?) {
     Box(modifier.clip(shape).background(Brush.linearGradient(listOf(tint.copy(alpha = 0.5f), tint.copy(alpha = 0.22f)))).padding(padding)) {
-        Text("kinuvo", Modifier.align(Alignment.TopStart), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text("kinuvo", Modifier.align(Alignment.TopStart), style = TextStyles.headline, fontWeight = FontWeight.Bold)
         onCancel?.let { Box(Modifier.align(Alignment.TopEnd)) { HeaderButton(Lucide.X, "Cancel", it) } }
         Cast(featured, pokes, onPoke, Modifier.fillMaxSize().padding(top = 28.dp))
     }
@@ -159,7 +160,7 @@ private fun ColumnScope.Choices(options: WelcomeOptions, featured: Int, wide: Bo
     Text(if (options.onLocal != null) "Connect to your Kinuvo Server, or set one up right here." else "Connect to Kinuvo on your computer.",
         color = color(mutedColor), fontSize = if (wide) 18.sp else 16.sp)
     Spacer(Modifier.height(8.dp))
-    options.error?.let { Text(it, color = color(destructiveColor), fontSize = 14.sp) }
+    options.error?.let { Text(it, color = color(destructiveColor), style = TextStyles.label) }
     val manual = { options.onManual(true) }
     when {
         options.onScan != null -> {
@@ -185,11 +186,11 @@ private fun QrHelp(onManual: (() -> Unit)?, enabled: Boolean) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         onManual?.let {
             Text("Enter address and code", Modifier.clip(CircleShape).clickable(enabled, role = Role.Button, onClick = it).padding(horizontal = 14.dp, vertical = 8.dp),
-                color = color(onBackgroundColor), style = com.composeunstyled.LocalTextStyle.current.copy(fontSize = 15.sp, textDecoration = TextDecoration.Underline))
+                color = color(onBackgroundColor), style = com.composeunstyled.LocalTextStyle.current.copy(fontSize = TextStyles.callout.fontSize, textDecoration = TextDecoration.Underline))
         }
         Row(Modifier.clip(CircleShape).clickable(role = Role.Button) { open = !open }.semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
             .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Where is the QR code?", color = color(mutedColor), fontSize = 15.sp)
+            Text("Where is the QR code?", color = color(mutedColor), style = TextStyles.callout)
             Icon(if (open) Lucide.ChevronUp else Lucide.ChevronDown, Modifier.size(15.dp), tint = color(mutedColor))
         }
         AnimatedVisibility(open, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
@@ -204,22 +205,30 @@ private fun QrHelp(onManual: (() -> Unit)?, enabled: Boolean) {
 @Composable
 private fun ColumnScope.Manual(options: WelcomeOptions) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        HeaderButton(Lucide.ArrowLeft, "Back", { options.onManual(false) }, enabled = !options.busy)
+        FloatingBubble(Lucide.ArrowLeft, "Back") { if (!options.busy) options.onManual(false) }
         Text("Connect to a Server", style = displayStyle(26.sp))
     }
     Text("Use the address and code your Server shows when you pair a device, or paste its pairing link.", color = color(mutedColor))
     RowGroup {
-        FieldRow("Server address or pairing link") { Input(options.url, "https://your-server:8787") }
-        FieldRow("Pairing code") { Input(options.code, "Code from the Server") }
-        FieldRow("Name on this device") { Input(options.name, "Home server") }
+        // An error about the code shows under it; anything else is about reaching the Server.
+        val error = options.error
+        val codeError = error?.contains("code", ignoreCase = true) == true
+        FieldRow("Server address or pairing link") { Input(options.url, "https://your-server:8787", error = error != null && !codeError); error?.takeUnless { codeError }?.let { FieldError(it) } }
+        FieldRow("Pairing code") { Input(options.code, "Code from the Server", error = codeError); error?.takeIf { codeError }?.let { FieldError(it) } }
+        FieldRow("Name on this device") { Input(options.name, "e.g. Home server") }
     }
     if (options.servers.isNotEmpty()) RowGroup("Your servers") {
         options.servers.forEach { server -> GroupRow(server.label, { options.onServer(server) }, server.address, Lucide.Server, enabled = !options.busy) }
     }
-    options.error?.let { Text(it, color = color(destructiveColor), fontSize = 14.sp) }
     Spacer(Modifier.height(4.dp))
     Cta(OnboardingAction(if (options.busy) "Connecting…" else "Connect", options.url.text.isNotBlank() && options.code.text.isNotBlank(), options.onPair),
         options.busy, Modifier.fillMaxWidth())
+}
+
+@Composable
+private fun FieldError(text: String) = Row(Modifier.semantics { error(text) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor))
+    Text(text, color = color(destructiveColor), style = TextStyles.secondary)
 }
 
 /** A quieter companion to [Cta]. */
@@ -228,6 +237,6 @@ internal fun SecondaryCta(label: String, icon: ImageVector?, onClick: () -> Unit
     Row(Modifier.fillMaxWidth().height(56.dp).clip(CircleShape).background(color(subtleColor)).clickable(enabled, role = Role.Button, onClick = onClick)
         .padding(horizontal = 24.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
         icon?.let { Icon(it, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)) }
-        Text(label, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = color(onBackgroundColor).copy(alpha = if (enabled) 1f else 0.4f))
+        Text(label, fontWeight = FontWeight.Bold, fontSize = TextStyles.title.fontSize, color = color(onBackgroundColor).copy(alpha = if (enabled) 1f else 0.4f))
     }
 }

@@ -323,7 +323,7 @@ internal fun PickAgents(s: OnboardingState, onEdit: ((OnboardingState) -> Onboar
                 onEdit { it.copy(picked = if (agent.id in it.picked) it.picked - agent.id else it.picked + agent.id) }
             }
         } }
-        Text("They run on $host, with its settings. Names already used here get \"($host)\" added; rename them later.", color = color(mutedColor), fontSize = 13.sp)
+        Text("They run on $host, with its settings. Names already used here get \"($host)\" added; rename them later.", color = color(mutedColor), style = TextStyles.secondary)
     }
 }
 
@@ -465,7 +465,7 @@ private fun PhaseTrack(phases: List<Int>, step: Int, onJump: (Int) -> Unit) {
                 }
             }
         }
-        AnimatedContent(PhaseNames[step - 1], transitionSpec = { fadeIn() togetherWith fadeOut() }) { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+        AnimatedContent(PhaseNames[step - 1], transitionSpec = { fadeIn() togetherWith fadeOut() }) { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
     }
 }
 
@@ -532,7 +532,7 @@ internal fun Floating(artboard: String, size: Dp, gaze: Gaze, poke: Int, phase: 
 @Composable
 internal fun SpeechBubble(text: String, modifier: Modifier, shape: RoundedCornerShape) {
     Box(modifier.clip(shape).background(color(panelColor)).border(1.dp, color(borderColor), shape).padding(horizontal = 16.dp, vertical = 12.dp)) {
-        AnimatedContent(text, transitionSpec = { fadeIn(tween(240)) togetherWith fadeOut(tween(120)) }) { Text(it, fontSize = 15.sp, lineHeight = 21.sp) }
+        AnimatedContent(text, transitionSpec = { fadeIn(tween(240)) togetherWith fadeOut(tween(120)) }) { Text(it, style = TextStyles.callout, lineHeight = 21.sp) }
     }
 }
 
@@ -576,8 +576,8 @@ private fun AcpIdentity(s: OnboardingState, onEdit: ((OnboardingState) -> Onboar
     val host = s.connection?.config?.host ?: s.server
     DraftField("Working folder", s.cwd, "/Users/you/project") { value -> onEdit { it.copy(cwd = value) } }
     Text((if (s.cwd.isBlank()) null else cwdProblem(s.cwd)) ?: "On $host. $harness reads and edits files here.",
-        color = color(if (s.cwd.isNotBlank() && cwdProblem(s.cwd) != null) destructiveColor else mutedColor), fontSize = 13.sp)
-    Text("Instructions, Memory, Skills and tools come from $harness.", color = color(mutedColor), fontSize = 13.sp)
+        color = color(if (s.cwd.isNotBlank() && cwdProblem(s.cwd) != null) destructiveColor else mutedColor), style = TextStyles.secondary)
+    Text("Instructions, Memory, Skills and tools come from $harness.", color = color(mutedColor), style = TextStyles.secondary)
 }
 
 @Composable
@@ -593,7 +593,7 @@ private fun NameHeadline(s: OnboardingState, display: TextStyle, onEdit: ((Onboa
                 drawRect(tint, Offset(0f, size.height - 3.dp.toPx()), androidx.compose.ui.geometry.Size(size.width, 3.dp.toPx()))
             }.semantics { contentDescription = "Agent name" }, textStyle = display.copy(color = color(onBackgroundColor)), cursorBrush = SolidColor(tint),
                 lineLimits = TextFieldLineLimits.SingleLine, keyboardOptions = inputKeyboard(true))
-            HeaderButton(Lucide.Dices, "Suggest a name", { onEdit { it.copy(agentName = NameIdeas.filter { name -> name != it.agentName }.random()) } })
+            FieldButton(Lucide.Dices, "Suggest a name", { onEdit { it.copy(agentName = NameIdeas.filter { name -> name != it.agentName }.random()) } })
         }
     }
 }
@@ -612,7 +612,7 @@ private fun TraitSwitch(index: Int, selected: Int, onSelect: (Int) -> Unit) {
                     horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                     Icon(if (choice == 0) TraitIcons[index].first else TraitIcons[index].second, Modifier.size(16.dp), tint = ink)
                     Spacer(Modifier.width(8.dp))
-                    Text(option, color = ink, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, fontSize = 15.sp)
+                    Text(option, color = ink, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, style = TextStyles.callout)
                 }
             }
         }
@@ -625,7 +625,7 @@ private fun PromptEditor(s: OnboardingState, onEdit: ((OnboardingState) -> Onboa
     Row(Modifier.clip(RoundedCornerShape(10.dp)).clickable { open = !open }.padding(vertical = 8.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Icon(Lucide.Pencil, Modifier.size(15.dp), tint = color(mutedColor))
-        Text("Edit the full prompt", color = color(mutedColor), fontSize = 14.sp)
+        Text("Edit the full prompt", color = color(mutedColor), style = TextStyles.label)
         Icon(if (open) Lucide.ChevronUp else Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
     }
     AnimatedVisibility(open, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
@@ -634,7 +634,7 @@ private fun PromptEditor(s: OnboardingState, onEdit: ((OnboardingState) -> Onboa
         LaunchedEffect(prompt) { snapshotFlow { prompt.text.toString() }.collect { value -> onEdit { it.copy(prompt = value) } } }
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             TextArea(prompt, lines = 8)
-            Text("Changing a choice above rebuilds this prompt.", color = color(mutedColor), fontSize = 12.sp)
+            Text("Changing a choice above rebuilds this prompt.", color = color(mutedColor), style = TextStyles.caption)
         }
     }
 }
@@ -648,7 +648,7 @@ internal fun Cta(action: OnboardingAction, busy: Boolean, modifier: Modifier, ic
         if (busy) { Spinner(tint = color(backgroundColor)); Spacer(Modifier.width(10.dp)) }
         else icon?.let { Icon(it, Modifier.size(18.dp), tint = color(backgroundColor)); Spacer(Modifier.width(10.dp)) }
         AnimatedContent(action.label, transitionSpec = { fadeIn() togetherWith fadeOut() }) {
-            Text(it, color = color(backgroundColor), fontWeight = FontWeight.Bold, fontSize = 17.sp)
+            Text(it, color = color(backgroundColor), fontWeight = FontWeight.Bold, style = TextStyles.title)
         }
     }
 }
@@ -656,13 +656,13 @@ internal fun Cta(action: OnboardingAction, busy: Boolean, modifier: Modifier, ic
 @Composable
 internal fun TextAction(action: OnboardingAction, modifier: Modifier) {
     Box(modifier.height(48.dp).clip(CircleShape).clickable(action.enabled, role = Role.Button, onClick = action.run), contentAlignment = Alignment.Center) {
-        Text(action.label, color = color(mutedColor), fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        Text(action.label, color = color(mutedColor), fontWeight = FontWeight.SemiBold, style = TextStyles.callout)
     }
 }
 
 @Composable
 private fun OnboardingField(label: String, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text(label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold); content() }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text(label, style = TextStyles.secondary, fontWeight = FontWeight.SemiBold); content() }
 }
 
 @Composable
@@ -706,9 +706,9 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
         s.deviceCode?.let { code ->
             val uri = LocalUriHandler.current
             GroupBox {
-                Text("Enter this code on the sign-in page", fontSize = 13.sp, color = color(mutedColor))
+                Text("Enter this code on the sign-in page", style = TextStyles.secondary, color = color(mutedColor))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(code.code, style = MonoStyle, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                    Text(code.code, style = MonoStyle, fontSize = TextStyles.headline.fontSize, fontWeight = FontWeight.Bold)
                     CopyButton(code.code)
                 }
             }
@@ -716,8 +716,8 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
         }
     }
     if (s.provider == APPLE) Text("Apple's on-device model needs no setup and keeps everything on this device. It's small, so it's best for quick chats and remembering things about you. For browsing, files and longer tasks, pick a larger model; you can switch any time in the Agent's settings.",
-        color = color(mutedColor), fontSize = 12.sp)
-    (s.catalog.model(s.provider, s.model)?.state?.reason ?: group?.warning ?: s.catalog.warning ?: account?.error)?.let { Text(it, color = color(mutedColor), fontSize = 12.sp) }
+        color = color(mutedColor), style = TextStyles.caption)
+    (s.catalog.model(s.provider, s.model)?.state?.reason ?: group?.warning ?: s.catalog.warning ?: account?.error)?.let { Text(it, color = color(mutedColor), style = TextStyles.caption) }
 }
 
 private const val APPLE = "apple"

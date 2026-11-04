@@ -22,7 +22,9 @@ import com.composables.icons.lucide.X
 
 class LiveViewScreenTest {
     private fun awaitFrame(scene: ImageComposeScene) {
-        repeat(200) {
+        // A deadline rather than a count: the first decode can take seconds on a cold CI runner.
+        val deadline = System.nanoTime() + 15_000_000_000L
+        while (System.nanoTime() < deadline) {
             val loop = java.awt.Toolkit.getDefaultToolkit().systemEventQueue.createSecondaryLoop()
             javax.swing.SwingUtilities.invokeLater { loop.exit() }
             loop.enter()

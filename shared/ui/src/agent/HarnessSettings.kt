@@ -36,7 +36,7 @@ internal fun ReadinessPill(r: Readiness, checking: Boolean = false) =
 internal fun ReadinessNote(r: Readiness, checking: Boolean, onAction: (ReadinessAction) -> Unit, actions: List<ReadinessAction> = r.actions) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         ReadinessPill(r, checking)
-        r.message?.let { Text(it, fontSize = 13.sp, color = color(mutedColor)) }
+        r.message?.let { Text(it, style = TextStyles.secondary, color = color(mutedColor)) }
         if (actions.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             actions.forEach { a ->
                 when (a) {
@@ -65,7 +65,7 @@ internal fun HarnessesPane(p: Pane) {
 }
 
 private fun HarnessConnectionStatus.subtitle(server: String) =
-    (if (kind == ExecutionKind.Acp) "ACP command" else "Kinuvo Server") + " · ${config.host ?: server}"
+    (if (kind == ExecutionKind.Acp) "ACP command" else "Kinuvo Server") + config.host?.let { " · $it" }.orEmpty()
 
 @Composable
 private fun HarnessList(p: Pane) {
@@ -77,7 +77,7 @@ private fun HarnessList(p: Pane) {
         info = "A harness runs Agents. Kinuvo runs its own; an ACP command runs one you already use, like Claude Code or Codex, on $server.") {
         val catalog = h.catalog ?: return@DetailPane Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
         RowGroup {
-            GroupRow("Kinuvo", subtitle = "Built in · $server · ${agentCount(p.ui.agents.count { !it.external })}", icon = Lucide.Sparkles)
+            GroupRow("Kinuvo", subtitle = "Built in · ${agentCount(p.ui.agents.count { !it.external })}", icon = Lucide.Sparkles)
             catalog.connections.forEach { c ->
                 val r = readiness(c, server)
                 ItemRow(false, if (c.kind == ExecutionKind.Acp) Lucide.SquareTerminal else Lucide.ArrowLeftRight, c.config.name,
@@ -93,7 +93,7 @@ private fun HarnessList(p: Pane) {
             GroupRow("Link a Kinuvo Server", { p.go(p.ui.route.copy(item = LinkItem, editing = true)) }, icon = Lucide.Link, enabled = remote,
                 subtitle = if (remote) "Use Agents another Server shares" else "Not available on $server")
             GroupRow("Share Agents", { p.go(p.ui.route.copy(item = ShareItem, editing = true)) }, icon = Lucide.Share2, enabled = remote,
-                subtitle = if (remote) "Let another Server use Agents from $server" else null)
+                subtitle = if (remote) "Let another Server use these Agents" else null)
         }
     }
 }
@@ -125,12 +125,12 @@ private fun HarnessDetail(c: HarnessConnectionStatus, p: Pane) {
             DetailRow("Agents") { Text(agents.joinToString { it.name }.ifEmpty { "None yet" }) }
         }
         Text(if (c.kind == ExecutionKind.Acp) "${c.config.name} keeps its own instructions, Memory, Skills, tools and sign-in on ${c.config.host ?: server}. Kinuvo starts it there, in each Agent's working folder."
-            else "Its Agents run on ${c.config.name}, with that Server's settings. Add them from New Agent.", fontSize = 13.sp, color = color(mutedColor))
+            else "Its Agents run on ${c.config.name}, with that Server's settings. Add them from New Agent.", style = TextStyles.secondary, color = color(mutedColor))
         RowGroup {
             ConfirmRow("Delete", Lucide.Trash2, "Delete ${c.config.name}?", { p.actions.onRemoveHarness(c.config.id) }, enabled = agents.isEmpty(),
                 detail = "Kinuvo stops offering it as a way to run Agents.")
         }
-        if (agents.isNotEmpty()) Text("Used by ${agents.joinToString { it.name }}. Remove those Agents first.", fontSize = 13.sp, color = color(mutedColor))
+        if (agents.isNotEmpty()) Text("Used by ${agents.joinToString { it.name }}. Remove those Agents first.", style = TextStyles.secondary, color = color(mutedColor))
     }
 }
 
@@ -138,9 +138,9 @@ private fun HarnessDetail(c: HarnessConnectionStatus, p: Pane) {
 @Composable
 private fun ProbeLines(probe: ExecutionProbe, harness: String, host: String) {
     listOfNotNull(probe.title, probe.version).joinToString(" ").takeIf { it.isNotBlank() }?.let { Text(it, fontWeight = FontWeight.Normal) }
-    if (probe.authenticated == false) Text("$harness on $host isn't signed in.", fontSize = 13.sp, color = color(mutedColor))
+    if (probe.authenticated == false) Text("$harness on $host isn't signed in.", style = TextStyles.secondary, color = color(mutedColor))
     authMethods(probe).takeIf { it.isNotEmpty() }?.let { methods ->
-        Text("Sign in with ${methods.joinToString(" or ")} in $harness on $host, then check again.", fontSize = 13.sp, color = color(mutedColor))
+        Text("Sign in with ${methods.joinToString(" or ")} in $harness on $host, then check again.", style = TextStyles.secondary, color = color(mutedColor))
     }
 }
 
@@ -167,14 +167,14 @@ private fun AcpFormPane(form: AcpForm, p: Pane) {
                 TextArea(draftField(key, "args", form.args.joinToString("\n")) { v -> p.actions.onEditAcp { it.copy(args = v.split("\n")) } }, "Optional", lines = 2, mono = true)
             }
         }
-        Text("Runs on $host. Use an ACP adapter already installed there, e.g. claude-code-acp.", Modifier.padding(horizontal = 6.dp), fontSize = 12.sp, color = color(mutedColor))
+        Text("Runs on $host. Use an ACP adapter already installed there, e.g. claude-code-acp.", Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(mutedColor))
         RowGroup("Environment") {
             form.environment.forEachIndexed { index, row ->
                 GroupBox {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Input(draftField(key, "env-key-$index", row.first) { v -> p.actions.onEditAcp { f -> f.copy(environment = f.environment.toMutableList().apply { set(index, v to row.second) }) } }, "KEY", Modifier.weight(1f))
                         Input(draftField(key, "env-value-$index", row.second) { v -> p.actions.onEditAcp { f -> f.copy(environment = f.environment.toMutableList().apply { set(index, row.first to v) }) } }, "Value", Modifier.weight(1f))
-                        HeaderButton(Lucide.Trash2, "Remove variable", { p.actions.onEditAcp { f -> f.copy(environment = f.environment.filterIndexed { i, _ -> i != index }) } })
+                        FieldButton(Lucide.Trash2, "Remove variable", { p.actions.onEditAcp { f -> f.copy(environment = f.environment.filterIndexed { i, _ -> i != index }) } })
                     }
                 }
             }
@@ -182,13 +182,13 @@ private fun AcpFormPane(form: AcpForm, p: Pane) {
                 subtitle = "Added to the command on $host; values are stored on the Server".takeIf { form.environment.isEmpty() })
         }
         if (form.codex) Text("For a separate Codex account, set CODEX_HOME to an absolute folder on $host, e.g. /Users/you/.codex-work. Sign in with Codex using that folder on $host, then check again.",
-            Modifier.padding(horizontal = 6.dp), fontSize = 12.sp, color = color(mutedColor))
-        problems.forEach { Text(it, Modifier.padding(horizontal = 6.dp), fontSize = 12.sp, color = color(destructiveColor)) }
+            Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(mutedColor))
+        problems.forEach { Text(it, Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(destructiveColor)) }
         val probe = form.probe?.takeIf { form.checked }
         RowGroup("Check") {
             GroupBox {
                 if (probe == null) Text(if (form.checking) "Checking on $host…" else "Check the command on $host before saving. Checking starts it and closes it; it doesn't start a Session.",
-                    fontSize = 13.sp, color = color(mutedColor))
+                    style = TextStyles.secondary, color = color(mutedColor))
                 else {
                     ProbeLines(probe, form.name.ifBlank { probe.title ?: "The harness" }, host)
                     val r = readiness(probe.readiness.state(), form.name.ifBlank { probe.title ?: "The harness" }, host, command = form.command.trim())
@@ -198,7 +198,7 @@ private fun AcpFormPane(form: AcpForm, p: Pane) {
             }
             ActionRow(if (form.checking) "Checking…" else if (probe == null) "Check" else "Check again", Lucide.PlugZap, p.actions.onCheckAcp, enabled = problems.isEmpty() && !form.checking)
         }
-        if (probe != null && !form.saveable(connections) && problems.isEmpty()) Text("Fix what the check found before saving.", Modifier.padding(horizontal = 6.dp), fontSize = 12.sp, color = color(mutedColor))
+        if (probe != null && !form.saveable(connections) && problems.isEmpty()) Text("Fix what the check found before saving.", Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(mutedColor))
     }
 }
 
@@ -210,7 +210,7 @@ private fun LinkPane(p: Pane) {
     DetailPane(p.back, "Link a Kinuvo Server", error = p.ui.error,
         trailing = { FormActions(if (form.linking) "Linking…" else "Link", problems.isEmpty() && !form.linking, false, onSave = p.actions.onLink, onCancel = p.cancel, dirty = formChanged(form, false)) }) {
         Text("On the other Server, open Settings › Harnesses › Share Agents, pick the Agents it shares with ${p.ui.serverName}, and copy its link code.",
-            Modifier.padding(horizontal = 6.dp), color = color(mutedColor), fontSize = 13.sp)
+            Modifier.padding(horizontal = 6.dp), color = color(mutedColor), style = TextStyles.secondary)
         RowGroup {
             FieldRow("Name", "What this Server calls it, e.g. Studio. Its Agents' rows say they run there.") {
                 Input(draftField("link", "name", form.name) { v -> p.actions.onEditLink { it.copy(name = v) } }, "Studio", capitalize = true)
@@ -220,10 +220,10 @@ private fun LinkPane(p: Pane) {
             }
             FieldRow("Link code") { Input(draftField("link", "token", form.token) { v -> p.actions.onEditLink { it.copy(token = v) } }, "From the other Server", secret = true) }
         }
-        if (form.url.isNotBlank() || form.name.isNotBlank()) problems.forEach { Text(it, Modifier.padding(horizontal = 6.dp), fontSize = 12.sp, color = color(destructiveColor)) }
+        if (form.url.isNotBlank() || form.name.isNotBlank()) problems.forEach { Text(it, Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(destructiveColor)) }
         if (form.cleartext) Pill("Not encrypted: the link code and Agents' messages cross the network in plain text. Use https:// or a VPN such as Tailscale where you can.",
             Modifier.fillMaxWidth(), tone = Tone.Warning, icon = Lucide.TriangleAlert)
-        Text("A link code only lets ${p.ui.serverName} run the Agents it names. It can't change the other Server's settings.", Modifier.padding(horizontal = 6.dp), fontSize = 12.sp, color = color(mutedColor))
+        Text("A link code only lets ${p.ui.serverName} run the Agents it names. It can't change the other Server's settings.", Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(mutedColor))
     }
 }
 
@@ -235,7 +235,7 @@ private fun SharePane(p: Pane) {
     LaunchedEffect(Unit) { p.actions.onLoadGrants() }
     DetailPane(p.back, "Share Agents", error = p.ui.error) {
         Text("Another Kinuvo Server can run the Agents you pick here, on ${p.ui.serverName}. It can't see or change anything else: no settings, other Agents or Sessions it didn't start.",
-            Modifier.padding(horizontal = 6.dp), color = color(mutedColor), fontSize = 13.sp)
+            Modifier.padding(horizontal = 6.dp), color = color(mutedColor), style = TextStyles.secondary)
         val token = form.token
         if (token == null) {
             RowGroup {
@@ -246,14 +246,14 @@ private fun SharePane(p: Pane) {
             RowGroup("Agents it can run") {
                 agents.forEach { a ->
                     GroupRow(a.name, leading = { AgentAvatar(a, 22.dp) }, chevron = false) {
-                        Switch(a.id in form.agents, { on -> p.actions.onEditShare { it.copy(agents = if (on) it.agents + a.id else it.agents - a.id) } })
+                        ToggleSwitch(a.id in form.agents, { on -> p.actions.onEditShare { it.copy(agents = if (on) it.agents + a.id else it.agents - a.id) } })
                     }
                 }
             }
             RowGroup { ActionRow("Make link code", Lucide.KeyRound, p.actions.onShareAgents, enabled = form.problems().isEmpty()) }
         } else RowGroup("Link code for ${form.name}") {
             GroupBox {
-                Text("Paste it into Link a Kinuvo Server on the other Server, with ${p.ui.serverName}'s address. It's shown only now.", fontSize = 13.sp, color = color(mutedColor))
+                Text("Paste it into Link a Kinuvo Server on the other Server, with ${p.ui.serverName}'s address. It's shown only now.", style = TextStyles.secondary, color = color(mutedColor))
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(token, Modifier.weight(1f), style = MonoStyle, maxLines = 2)
                     CopyButton(token)

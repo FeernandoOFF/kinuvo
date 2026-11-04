@@ -20,6 +20,7 @@
     "mobile/browser-tabs",
     "mobile/browser-frame",
     "mobile/browser-ack",
+    "mobile/computer-take",
     "mobile/browser-unwatch"
   ]
 }

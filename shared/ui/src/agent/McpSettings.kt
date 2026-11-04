@@ -87,7 +87,7 @@ private fun McpDetail(s: McpServerInfo, p: Pane) {
             if (s.scope == ConfigScope.Shared) {
                 val everyAgent = p.ui.agents.map { it.id }
                 GroupRow("Use with $agent", subtitle = "Shared; each Agent can turn it on or off", chevron = false) {
-                    Switch(s.agents?.contains(p.ui.route.agentId) != false, { p.actions.onMcpAccess(s.name, p.ui.route.agentId, it, everyAgent) })
+                    ToggleSwitch(s.agents?.contains(p.ui.route.agentId) != false, { p.actions.onMcpAccess(s.name, p.ui.route.agentId, it, everyAgent) })
                 }
             } else GroupRow("Only $agent uses it", subtitle = if (s.active) null else "Overridden", chevron = false)
             GroupRow("Approvals", value = APPROVAL[s.approval].orEmpty(), chevron = false)
@@ -127,9 +127,9 @@ private fun McpDetail(s: McpServerInfo, p: Pane) {
 private fun SignInWaiting(url: String, p: Pane) {
     val pasted = rememberTextFieldState()
     DetailGroup("Signing in") {
-        Text("Finish signing in in your browser. If it doesn't open, open this link:", fontSize = 13.sp)
+        Text("Finish signing in in your browser. If it doesn't open, open this link:", style = TextStyles.secondary)
         SelectionContainer { Text(url, style = MonoStyle, maxLines = 3) }
-        Text("If the browser can't get back to Kinuvo, paste the address it ends on:", fontSize = 13.sp)
+        Text("If the browser can't get back to Kinuvo, paste the address it ends on:", style = TextStyles.secondary)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             Input(pasted, "Paste the address", Modifier.weight(1f))
             ActionButton(Lucide.Check, "Finish", { p.actions.onCompleteMcpSignIn(pasted.value()) }, enabled = pasted.value().isNotEmpty())
@@ -238,7 +238,7 @@ private fun PresetHelp(preset: McpPreset) {
                 McpPresetAuth.OAuth -> "After adding it, sign in with your ${preset.name} account."
                 McpPresetAuth.Token -> "Put your token after \"Bearer\" in Headers, or a \${…} reference to it."
                 McpPresetAuth.OwnClient -> "Create an OAuth client for it (see the setup guide) and enter its ID and secret; the scopes are filled in."
-            }, fontSize = 13.sp, color = color(mutedColor))
+            }, style = TextStyles.secondary, color = color(mutedColor))
         }
         preset.help?.let { ActionRow("Setup guide", Lucide.ExternalLink, { runCatching { uri.openUri(it) } }) }
     }

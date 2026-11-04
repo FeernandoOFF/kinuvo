@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Hand
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MessageCircleQuestionMark
+import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.ShieldAlert
 import com.composables.icons.lucide.X
 import com.composables.ui.components.*
@@ -49,6 +50,7 @@ import kinuvo.protocol.Risk
 import kinuvo.ui.design.*
 
 private val ComposerShape = RoundedCornerShape(28.dp)
+private const val ArgumentLines = 8
 private val TrayShape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
 private val WideBreakpoint = 600.dp
 private val BodyMaxHeight = 380.dp
@@ -66,6 +68,7 @@ internal class RequestInput(note: String = "") {
     val note = TextFieldState(note)
     var step by mutableIntStateOf(0)
     var arguments by mutableStateOf(false)
+    var noting by mutableStateOf(note.isNotEmpty())
 }
 
 /** The [RequestInput] of each open request, by request ID. */
@@ -199,15 +202,17 @@ private fun AgentEvent.ApprovalRequested.isShell() = identity?.instance?.pluginI
 @Composable
 private fun RequestHeader(request: PendingRequest, count: Int, onClose: (() -> Unit)?) {
     val tone = request.tone()
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.size(30.dp).background(tone.copy(alpha = 0.14f), CircleShape), contentAlignment = Alignment.Center) { Icon(request.icon(), Modifier.size(16.dp), tint = tone) }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(request.title(), Modifier.weight(1f), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
-                if (request is PendingRequest.Approval) Pill("${request.event.risk.name} risk", tone = when (request.event.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
-                if (count > 1) Text("1 of $count", fontSize = 12.sp, color = color(mutedColor), singleLine = true)
+                if (count > 1) Text("1 of $count", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
             }
-            request.detail()?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis) }
+            request.detail()?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis) }
+            if (request is PendingRequest.Approval) Box(Modifier.padding(top = 6.dp)) {
+                Pill("${request.event.risk.name} risk", tone = when (request.event.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
+            }
         }
         if (onClose != null) IconButton(onClick = onClose, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor), modifier = Modifier.size(32.dp)) {
             Icon(Lucide.X, Modifier.size(18.dp), contentDescription = "Dismiss")
@@ -240,31 +245,48 @@ private fun Actions(wide: Boolean, primary: @Composable (Modifier) -> Unit, othe
 @Composable
 private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInput, wide: Boolean, onDecision: (ApprovalDecision) -> Unit) {
     val identity = event.identity
-    val label = identity?.let { "${it.instance.pluginId} › ${it.instance.instanceId} › ${it.localId}" } ?: event.toolCallName
+    // The title already names a tool without an identity.
+    val label = identity?.let { "${it.instance.pluginId} › ${it.instance.instanceId} › ${it.localId}" }
     val always = event.trustHint?.let { if (identity?.instance?.pluginId == "kinuvo.computer" && identity.localId == "computer_act") "Always allow in $it" else "Always allow `$it …`" } ?: "Always allow"
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (event.isShell()) commandOf(event.args)?.let { command ->
+        val command = if (event.isShell()) commandOf(event.args) else null
+        if (command != null) {
             Text("$ $command", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(color(codeColor)).padding(horizontal = 12.dp, vertical = 9.dp),
                 style = MonoStyle, color = color(onCodeColor), maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(label, Modifier.weight(1f), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
-            Button(onClick = { input.arguments = !input.arguments }, style = ButtonStyle.Link, contentColor = color(mutedColor)) {
-                Text(if (input.arguments) "Hide arguments" else "Arguments", fontSize = 12.sp, singleLine = true)
-            }
+        val json = prettyJson(event.args)
+        val toggle = when {
+            command != null -> if (input.arguments) "Hide arguments" else "Arguments"
+            json.lines().size > ArgumentLines -> if (input.arguments) "Show less" else "Show all"
+            else -> null
         }
-        if (input.arguments) CodeBlock(prettyJson(event.args), language = "arguments", maxLines = 8)
-        Actions(wide,
-            primary = { Button(onClick = { onDecision(ApprovalDecision.AllowOnce) }, modifier = it, style = ButtonStyle.Primary) { Text("Allow once") } },
-            others = {
-                if (event.trustable) {
-                    Button(onClick = { onDecision(ApprovalDecision.AllowForSession) }, modifier = it, style = ButtonStyle.Outlined) { Text("Allow for this Session", singleLine = true) }
-                    Button(onClick = { onDecision(ApprovalDecision.AlwaysAllow) }, modifier = it, style = ButtonStyle.Outlined) { Text(always, singleLine = true, overflow = TextOverflow.Ellipsis) }
-                }
-            })
-        Input(input.note, "Tell the agent what to do instead", capitalize = true, trailing = {
-            Button(onClick = { onDecision(ApprovalDecision.Deny(input.note.text.toString())) }, style = ButtonStyle.Ghost, contentColor = color(destructiveColor)) { Text("Deny") }
-        })
+        if (label != null || toggle != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(label.orEmpty(), Modifier.weight(1f), style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            toggle?.let { Button(onClick = { input.arguments = !input.arguments }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Link, contentColor = color(mutedColor)) {
+                Text(it, style = TextStyles.caption, singleLine = true)
+            } }
+        }
+        // Without a command to show, the arguments are what's being approved.
+        if (command == null || input.arguments) CodeBlock(json, language = "Arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
+        // The two answers side by side; a note for a denial is one tap away and goes above them.
+        if (input.noting) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Note for the Agent, sent with Deny", style = TextStyles.caption, color = color(mutedColor))
+            Input(input.note, "What to do instead", capitalize = true)
+        }
+        // Writing a note means denying, so Deny takes the emphasis then.
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { onDecision(ApprovalDecision.AllowOnce) }, modifier = Modifier.weight(1f), style = if (input.noting) ButtonStyle.Outlined else ButtonStyle.Primary) { Text("Allow once") }
+            val deny = { onDecision(ApprovalDecision.Deny(input.note.text.toString())) }
+            if (input.noting) DangerButton("Deny", deny, Modifier.weight(1f))
+            else Button(onClick = deny, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined, contentColor = color(destructiveColor)) { Text("Deny") }
+        }
+        if (event.trustable) Actions(wide,
+            primary = { Button(onClick = { onDecision(ApprovalDecision.AllowForSession) }, modifier = it, style = ButtonStyle.Outlined) { Text("Allow for this Session", singleLine = true) } },
+            others = { Button(onClick = { onDecision(ApprovalDecision.AlwaysAllow) }, modifier = it, style = ButtonStyle.Outlined) { Text(always, singleLine = true, overflow = TextOverflow.Ellipsis) } })
+        if (!input.noting) Button(onClick = { input.noting = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp), style = ButtonStyle.Ghost, contentColor = color(onBackgroundColor)) {
+            Icon(Lucide.Pencil, Modifier.size(14.dp))
+            Text("Add a note for the Agent", style = TextStyles.label)
+        }
     }
 }
 
@@ -281,7 +303,7 @@ private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 asked.questions.indices.forEach { i -> Box(Modifier.height(4.dp).weight(1f).clip(CircleShape).background(if (i <= step) color(accentColor) else color(borderColor))) }
             }
-            Text("Question ${step + 1} of ${asked.questions.size}", fontSize = 12.sp, color = color(mutedColor))
+            Text("Question ${step + 1} of ${asked.questions.size}", style = TextStyles.caption, color = color(mutedColor))
         }
         Column(Modifier.bleed(FocusRing).heightIn(max = BodyMaxHeight).verticalScroll(rememberScrollState()).padding(FocusRing), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             shown.forEach { q -> key(asked.questionsId, q.id) { QuestionField(q, answers[q.id].orEmpty()) { actions.onEditAnswer(asked.questionsId, q.id, it) } } }
@@ -309,7 +331,7 @@ private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, 
 @Composable
 private fun TakeoverBody(asked: AgentEvent.QuestionsAsked, input: RequestInput, wide: Boolean, actions: ChatActions) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Hand back in Live view when finished. Answering or skipping keeps Takeover paused.", fontSize = 12.sp, color = color(mutedColor))
+        Text("Hand back in Live view when finished. Answering or skipping keeps Takeover paused.", style = TextStyles.caption, color = color(mutedColor))
         Actions(wide,
             primary = { Button(onClick = { asked.screen?.let { actions.onScreen(it, asked.title) } ?: actions.onWatch() }, modifier = it, style = ButtonStyle.Primary) { Text("Open Live view") } },
             others = { Button(onClick = { actions.onAnswer(null) }, modifier = it, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip") } })

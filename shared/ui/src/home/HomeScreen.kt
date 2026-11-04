@@ -28,6 +28,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -95,23 +96,28 @@ fun HomeContent(ui: HomeUi, actions: HomeActions, wide: Boolean? = null) {
         val isWide = wide ?: (maxWidth >= 720.dp)
         val twoColumns = maxWidth >= 860.dp
         Column(Modifier.fillMaxSize()) {
-            PageHeader(Lucide.House, "Home", listOfNotNull("Today", ui.today.date.long().takeIf { isWide }, ui.server).joinToString(" · "))
+            PageHeader(Lucide.Inbox, "Today", listOfNotNull(ui.today.date.long().takeIf { isWide }, ui.server).joinToString(" · ").ifEmpty { null })
             Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
                 Column(
                     Modifier.widthIn(max = 820.dp).fillMaxWidth().padding(horizontal = 16.dp).padding(top = 20.dp, bottom = 32.dp),
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
-                    Text(ui.summary(), fontSize = 20.sp, lineHeight = 28.sp, modifier = Modifier.semantics { heading() })
-                    NeedsYou(ui, actions)
-                    RunningNow(ui, actions)
-                    if (twoColumns) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    // Empty sections are left out; the summary already says what isn't happening.
+                    val t = ui.today
+                    val due = !ui.tasks || t.due?.isEmpty() == true && ui.error == null
+                    val clear = t.needsYou.isEmpty() && t.running.isEmpty() && t.next.isEmpty() && due && t.results.isEmpty()
+                    if (clear) EmptyState(Lucide.CircleCheck, "All clear", ui.summary())
+                    else Text(ui.summary(), style = TextStyles.headline, lineHeight = 28.sp, modifier = Modifier.semantics { heading() })
+                    if (t.needsYou.isNotEmpty()) NeedsYou(ui, actions)
+                    if (t.running.isNotEmpty()) RunningNow(ui, actions)
+                    if (t.next.isNotEmpty() && !due && twoColumns) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         Box(Modifier.weight(1f)) { NextUp(ui, actions) }
                         Box(Modifier.weight(1f)) { DueThisWeek(ui, actions) }
                     } else {
-                        NextUp(ui, actions)
-                        DueThisWeek(ui, actions)
+                        if (t.next.isNotEmpty()) NextUp(ui, actions)
+                        if (!due) DueThisWeek(ui, actions)
                     }
-                    Results(ui, actions)
+                    if (t.results.isNotEmpty()) Results(ui, actions)
                 }
             }
         }
@@ -125,36 +131,33 @@ private fun NeedsYou(ui: HomeUi, actions: HomeActions) {
         if (items.isEmpty()) Empty("Nothing is waiting on you.")
         items.forEach { a ->
             when (a) {
-                is Attention.Waiting -> AttentionCard(ui.agent(a.session.agentId), a.session.title, a.session.kind(), "Approval or answer waiting in this Session") {
-                    Button({ actions.onOpenSession(a.session.agentId, a.session.id) }, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) {
-                        Icon(Lucide.Hash, Modifier.size(14.dp)); Spacer(Modifier.width(6.dp)); Text("Open Session")
-                    }
+                is Attention.Waiting -> AttentionCard(ui.agent(a.session.agentId), a.session.title, a.session.kind(), "Open Session") {
+                    actions.onOpenSession(a.session.agentId, a.session.id)
                 }
-                is Attention.TaskWaiting -> AttentionCard(ui.agent(a.task.assignee), a.task.title, "Task · ${a.task.listName}", "The Task waits on you") {
-                    Button({ actions.onOpenTask(a.task.id) }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) {
-                        Icon(Lucide.SquareKanban, Modifier.size(14.dp)); Spacer(Modifier.width(6.dp)); Text("Open Task")
-                    }
-                }
+                is Attention.TaskWaiting -> AttentionCard(ui.agent(a.task.assignee), a.task.title, "Task · ${a.task.listName}", "Open Task") { actions.onOpenTask(a.task.id) }
             }
         }
     }
 }
 
+/** Something waiting on the user: who and what kind, Waiting, then its title; the whole card opens it. */
 @Composable
-private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, detail: String, action: @Composable RowScope.() -> Unit) {
+private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, open: String, onOpen: () -> Unit) {
     val shape = Theme[shapes][largeShape]
     Column(
-        Modifier.fillMaxWidth().clip(shape).background(color(panelColor), shape).border(1.dp, Tone.Warning.color().copy(alpha = 0.45f), shape).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.padding(bottom = 10.dp).fillMaxWidth().clip(shape).background(color(panelColor), shape).border(1.dp, Tone.Warning.color().copy(alpha = 0.45f), shape)
+            .clickable(onClickLabel = open, role = Role.Button, onClick = onOpen).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AgentAvatar(agent, 22.dp)
-            Text(agent?.name ?: "Unassigned", fontWeight = FontWeight.Bold, singleLine = true)
-            Text("· $title", Modifier.weight(1f), color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            MetaLine(agent?.name ?: "Unassigned", kind, Modifier.weight(1f), TextStyles.secondary)
             Pill("Waiting", tone = Tone.Warning)
         }
-        Text("$kind · $detail", fontSize = 13.sp, color = color(mutedColor))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), content = action)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
+        }
     }
 }
 
@@ -162,11 +165,10 @@ private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, detail
 private fun RunningNow(ui: HomeUi, actions: HomeActions) {
     val running = ui.today.running
     Section(Lucide.Activity, "Running now", running.size.takeIf { it > 0 }) {
-        if (running.isEmpty()) Empty("No Session is running.")
         running.forEach { r ->
             val agent = ui.agent(r.agentId)
             val kind = r.session?.kind() ?: "Routine run"
-            HomeRow(agent, r.title, listOfNotNull(agent?.name, kind).joinToString(" · "), { actions.onOpenSession(r.agentId, r.sessionId) }) { Spinner(size = 12.dp) }
+            HomeRow(agent, r.title, kind, { actions.onOpenSession(r.agentId, r.sessionId) }, lead = agent?.name) { Spinner(Modifier.semantics { contentDescription = "Running" }, size = 12.dp, tint = color(accentColor)) }
         }
     }
 }
@@ -175,7 +177,6 @@ private fun RunningNow(ui: HomeUi, actions: HomeActions) {
 private fun NextUp(ui: HomeUi, actions: HomeActions) {
     val next = ui.today.next
     Section(Lucide.AlarmClock, "Next up") {
-        if (next.isEmpty()) Empty("No Routine is scheduled.")
         next.groupBy { it.day }.forEach { (day, runs) ->
             SubLabel(ui.dayLabel(day))
             runs.forEach { u ->
@@ -198,12 +199,8 @@ private fun DueThisWeek(ui: HomeUi, actions: HomeActions) {
             due.isEmpty() -> Empty("Nothing is due this week.")
             else -> due.forEach { d ->
                 val agent = ui.agent(d.task.assignee)
-                val when_ = if (d.overdue) "overdue since ${ui.dayLabel(d.date)}" else "due ${ui.dayLabel(d.date)}"
-                HomeRow(agent, d.task.title, "$when_ · ${d.task.listName} · ${d.task.status.label()}", { actions.onOpenTask(d.task.id) },
-                    icon = Lucide.SquareKanban.takeIf { agent == null }) {
-                    if (agent == null) Text("Unassigned", fontSize = 12.sp, color = color(mutedColor))
-                    if (d.overdue) Pill("Overdue", tone = Tone.Danger)
-                }
+                HomeRow(agent, d.task.title, "${ui.dayLabel(d.date)} · ${d.task.listName} · ${d.task.status.label()}", { actions.onOpenTask(d.task.id) },
+                    icon = Lucide.SquareKanban.takeIf { agent == null }, flag = "Overdue".takeIf { d.overdue })
             }
         }
     }
@@ -245,8 +242,8 @@ private fun Section(icon: ImageVector, title: String, count: Int? = null, conten
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(icon, Modifier.size(15.dp), tint = color(mutedColor))
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            count?.let { Text("$it", fontSize = 13.sp, color = color(mutedColor)) }
+            Text(title, fontWeight = FontWeight.Bold, style = TextStyles.label)
+            count?.let { Text("$it", style = TextStyles.secondary, color = color(mutedColor)) }
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp), content = content)
     }
@@ -254,22 +251,36 @@ private fun Section(icon: ImageVector, title: String, count: Int? = null, conten
 
 @Composable
 private fun SubLabel(text: String) =
-    Text(text.uppercase(), Modifier.padding(start = 8.dp, top = 6.dp, bottom = 2.dp), fontSize = 11.sp, letterSpacing = 0.6.sp, color = color(mutedColor))
+    Text(text.uppercase(), Modifier.padding(start = 8.dp, top = 6.dp, bottom = 2.dp), style = TextStyles.overline, letterSpacing = 0.6.sp, color = color(mutedColor))
 
 @Composable
-private fun Empty(text: String) = Text(text, Modifier.padding(horizontal = 8.dp, vertical = 4.dp), fontSize = 13.sp, color = color(mutedColor))
+private fun Empty(text: String) = Text(text, Modifier.padding(start = 23.dp, top = 2.dp), style = TextStyles.label, color = color(mutedColor))
 
 /** A row opening one Session, Task or Routine: [agent]'s avatar (or [icon]), a title and a muted line. */
 @Composable
-private fun HomeRow(agent: AgentInfo?, title: String, subtitle: String, onClick: () -> Unit, icon: ImageVector? = null, trailing: @Composable RowScope.() -> Unit = {}) {
-    ListRow(false, onClick, leading = { if (icon != null) Icon(icon, Modifier.size(12.dp)) else AgentAvatar(agent, 22.dp) }) {
+private fun HomeRow(agent: AgentInfo?, title: String, subtitle: String, onClick: () -> Unit, icon: ImageVector? = null, flag: String? = null, lead: String? = null,
+    trailing: @Composable RowScope.() -> Unit = {}) {
+    // A fixed leading slot, so rows with an icon and rows with an avatar start their text together.
+    ListRow(false, onClick, leading = { Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) { if (icon != null) Icon(icon, Modifier.size(16.dp)) else AgentAvatar(agent, 22.dp) } }) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(title, singleLine = true, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            // A flag leads the meta line, so it doesn't take width from the title.
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                flag?.let { Text(it, style = TextStyles.caption, color = Tone.Danger.color(), fontWeight = FontWeight.Medium) }
+                if (lead != null) MetaLine(lead, subtitle, Modifier.weight(1f), TextStyles.caption)
+                else Text(subtitle, Modifier.weight(1f), style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
         }
         if (icon != null && agent != null) AgentAvatar(agent, 20.dp)
         trailing()
     }
+}
+
+/** “[lead] · [rest]” on one line, shortening only [lead] (e.g. a long Agent name) so [rest] always shows. */
+@Composable
+private fun MetaLine(lead: String, rest: String, modifier: Modifier, style: TextStyle) = Row(modifier) {
+    Text(lead, Modifier.weight(1f, fill = false), style = style, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+    Text(" · $rest", style = style, color = color(mutedColor), singleLine = true)
 }
 
 private fun SessionInfo.kind() = when {
@@ -278,14 +289,12 @@ private fun SessionInfo.kind() = when {
     else -> "Session"
 }
 
-/** “2 things need you, 3 Sessions are running and the next run is Evening journal at 21:00.” */
+/** “2 things need you and 3 Sessions are running.” Next up lists the runs; only an empty schedule is said here. */
 internal fun HomeUi.summary(): String {
     val t = today
     val needs = when (t.needsYou.size) { 0 -> "Nothing needs you"; 1 -> "1 thing needs you"; else -> "${t.needsYou.size} things need you" }
     val running = when (t.running.size) { 0 -> "no Session is running"; 1 -> "1 Session is running"; else -> "${t.running.size} Sessions are running" }
-    val next = t.next.firstOrNull()?.let { "the next run is ${it.routine.name} ${if (it.day == t.date) "at" else dayLabel(it.day).let { d -> "$d at" }} ${time(it.at)}" }
-        ?: "no run is scheduled"
-    return "$needs, $running and $next."
+    return if (t.next.isEmpty()) "$needs, $running and no run is scheduled." else "$needs and $running."
 }
 
 private fun HomeUi.time(at: Long) = Instant.fromEpochMilliseconds(at).toLocalDateTime(zone).let { "${pad(it.hour)}:${pad(it.minute)}" }
