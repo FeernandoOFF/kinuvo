@@ -1,5 +1,7 @@
 package kinuvo.ui.session
 
+import kinuvo.ui.design.TextStyles
+
 import kinuvo.app.session.*
 
 import kotlinx.coroutines.delay
@@ -154,7 +156,7 @@ internal fun VoiceStatus(state: VoiceChatState, modifier: Modifier = Modifier) {
             (fadeIn(tween(200)) + slideInVertically { it / 2 }).togetherWith(fadeOut(tween(120)) + slideOutVertically { -it / 2 }).using(SizeTransform(clip = false))
         }) { status ->
         Text(status, Modifier.background(color(panelColor).copy(alpha = 0.95f), RoundedCornerShape(50)).border(1.dp, color(borderColor), RoundedCornerShape(50)).padding(horizontal = 14.dp, vertical = 6.dp),
-            fontSize = 15.sp, color = color(if (state.error != null) destructiveColor else onBackgroundColor), textAlign = TextAlign.Center, maxLines = 2)
+            style = TextStyles.callout, color = color(if (state.error != null) destructiveColor else onBackgroundColor), textAlign = TextAlign.Center, maxLines = 2)
         }
     }
 }

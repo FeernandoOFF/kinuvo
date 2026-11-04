@@ -86,17 +86,18 @@ internal fun parseBlocks(markdown: String): List<MdBlock> {
 
 private fun cells(row: String) = row.trim().removePrefix("|").removeSuffix("|").split("|").map { it.trim() }
 
+/** Inter: message content, and the type scale's small print. */
 @Composable
-internal fun markdownTextStyle(): TextStyle = LocalTextStyle.current.copy(
-    fontFamily = FontFamily(
-        Font(Res.font.inter_regular, FontWeight.Normal),
-        Font(Res.font.inter_semibold, FontWeight.SemiBold),
-        Font(Res.font.inter_bold, FontWeight.Bold),
-        Font(Res.font.inter_italic, FontWeight.Normal, FontStyle.Italic),
-        Font(Res.font.inter_bolditalic, FontWeight.Bold, FontStyle.Italic),
-    ),
-    fontWeight = FontWeight.Normal,
+internal fun interFamily() = FontFamily(
+    Font(Res.font.inter_regular, FontWeight.Normal),
+    Font(Res.font.inter_semibold, FontWeight.SemiBold),
+    Font(Res.font.inter_bold, FontWeight.Bold),
+    Font(Res.font.inter_italic, FontWeight.Normal, FontStyle.Italic),
+    Font(Res.font.inter_bolditalic, FontWeight.Bold, FontStyle.Italic),
 )
+
+@Composable
+internal fun markdownTextStyle(): TextStyle = LocalTextStyle.current.copy(fontFamily = interFamily(), fontWeight = FontWeight.Normal)
 
 /** Renders Markdown: prose through compose-rich-editor, fences as [CodeBlock], pipe tables as a grid. */
 @Composable

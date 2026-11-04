@@ -312,7 +312,7 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
                     ListRow(selected, { actions.onOpenSession(s.agentId, s.id) }, leading = { AgentAvatar(byId[s.agentId], 18.dp) }) {
                         Column(Modifier.weight(1f)) {
                             Text(s.title, singleLine = true, overflow = TextOverflow.Ellipsis)
-                            Text(byId[s.agentId]?.name ?: s.agentId, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                            Text(byId[s.agentId]?.name ?: s.agentId, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                         }
                         SessionStatusIcon(s.status, false)
                     }
@@ -362,7 +362,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 item(key = "results") { GroupHeader(if (state.hasMore) "Searching older sessions…" else "${found.size} found") }
                 rows(found)
                 if (found.isEmpty() && !state.hasMore) item(key = "none") {
-                    Text("No sessions match", Modifier.padding(horizontal = 10.dp, vertical = 12.dp), color = color(mutedColor), fontSize = 13.sp)
+                    Text("No sessions match", Modifier.padding(horizontal = 10.dp, vertical = 12.dp), color = color(mutedColor), style = TextStyles.secondary)
                 }
                 return@LazyColumn
             }
@@ -391,7 +391,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                         item(key = "earlier:$key") {
                             ListRow(false, { chrome.expanded = if (open) chrome.expanded - key else chrome.expanded + key }, Modifier.padding(start = 16.dp),
                                 leading = { Icon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp)) }) {
-                                Text("${group.earlier.size} earlier", Modifier.weight(1f), color = color(mutedColor), fontSize = 13.sp, singleLine = true)
+                                Text("${group.earlier.size} earlier", Modifier.weight(1f), color = color(mutedColor), style = TextStyles.secondary, singleLine = true)
                             }
                         }
                         if (open) items(group.earlier, key = { it.id }) { run ->
@@ -423,7 +423,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 }
             }
             if (state.sessions.isEmpty() && state.agent != null) item(key = "empty") {
-                Text("No sessions yet", Modifier.padding(horizontal = 10.dp, vertical = 12.dp), color = color(mutedColor), fontSize = 13.sp)
+                Text("No sessions yet", Modifier.padding(horizontal = 10.dp, vertical = 12.dp), color = color(mutedColor), style = TextStyles.secondary)
             }
         }
     }
@@ -440,8 +440,8 @@ private fun SessionSearch(query: TextFieldState, agent: String?, modifier: Modif
     ) {
         Icon(Lucide.Search, Modifier.size(16.dp), tint = color(mutedColor))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (query.text.isEmpty()) Text(agent?.let { "Search $it's sessions" } ?: "Search sessions", fontSize = 15.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
-            BasicTextField(query, Modifier.fillMaxWidth().semantics { contentDescription = "Search sessions" }, textStyle = TextStyle(fontSize = 15.sp, color = color(onBackgroundColor)),
+            if (query.text.isEmpty()) Text(agent?.let { "Search $it's sessions" } ?: "Search sessions", style = TextStyles.callout, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            BasicTextField(query, Modifier.fillMaxWidth().semantics { contentDescription = "Search sessions" }, textStyle = TextStyle(fontSize = TextStyles.callout.fontSize, color = color(onBackgroundColor)),
                 lineLimits = TextFieldLineLimits.SingleLine, cursorBrush = SolidColor(color(accentColor)))
         }
         if (query.text.isNotEmpty()) Box(Modifier.size(36.dp).clip(CircleShape).clickable { query.clearText() }, contentAlignment = Alignment.Center) {
@@ -473,7 +473,7 @@ private fun GroupHeader(title: String, collapsed: Boolean = false, onToggle: (()
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(title.uppercase(), fontSize = 11.sp, lineHeight = 14.sp, letterSpacing = 0.6.sp, color = color(mutedColor), singleLine = true)
+        Text(title.uppercase(), style = TextStyles.overline, lineHeight = 14.sp, letterSpacing = 0.6.sp, color = color(mutedColor), singleLine = true)
         if (onToggle != null) Icon(if (collapsed) Lucide.ChevronRight else Lucide.ChevronDown, Modifier.size(12.dp), tint = color(mutedColor))
     }
 }
@@ -514,7 +514,7 @@ private fun ServerPicker(
         panel = {
             DropdownMenuPanel {
                 Column(Modifier.widthIn(min = 260.dp, max = 340.dp).heightIn(max = 680.dp).verticalScroll(rememberScrollState())) {
-                    DropdownMenuLabel { Text("Servers", fontSize = 12.sp) }
+                    DropdownMenuLabel { Text("Servers", style = TextStyles.caption) }
                     menu.servers.forEach { server ->
                         val active = server == menu.active
                         Row(verticalAlignment = Alignment.CenterVertically) {

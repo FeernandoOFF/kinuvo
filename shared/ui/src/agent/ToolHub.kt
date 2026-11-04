@@ -154,7 +154,7 @@ internal fun McpToolRules(s: McpServerInfo, p: Pane) {
             }
         }
         Text(if (s.approval == "auto") "Auto runs without asking, as the server is set to." else "Ask follows ${ui.agent?.name ?: "the agent"}'s Risk tolerance.",
-            Modifier.padding(horizontal = 6.dp), fontSize = 12.sp, color = color(mutedColor))
+            Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(mutedColor))
     }
 }
 
@@ -178,7 +178,7 @@ private fun AgentRules(p: Pane) {
             }
             ToolRuleGroups(trusted, denyTools, d.rules)
             DetailGroup("Commands") {
-                Text("The rules for every Agent apply too; their blocks win over these.", color = color(mutedColor), fontSize = 13.sp)
+                Text("The rules for every Agent apply too; their blocks win over these.", color = color(mutedColor), style = TextStyles.secondary)
                 FormField("Always allowed commands", "Commands that run with any further arguments, one per line. High-risk ones must match exactly.") { TextArea(shell, "git push\n./kotlin test", lines = 3, capitalize = false) }
                 FormField("Blocked commands", "Patterns with * and ?, matched against each command and the whole line.") { TextArea(denyShell, "git push --force*", lines = 3, capitalize = false) }
             }
@@ -245,7 +245,7 @@ internal fun ToolRuleGroups(trusted: TextFieldState, blocked: TextFieldState, sa
     val rules = (saved.trusted + saved.deny.tools + allowed + denied).distinct()
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         if (rules.isEmpty()) Text("No tools are always allowed or blocked yet. Use Always allow on an Approval, or Allow and Block on an MCP server's tools.",
-            color = color(mutedColor), fontSize = 13.sp)
+            color = color(mutedColor), style = TextStyles.secondary)
         rules.groupBy { toolRuleLabel(it).source }.forEach { (source, lines) ->
             RowGroup(source) {
                 lines.forEach { line ->

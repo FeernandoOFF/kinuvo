@@ -118,12 +118,12 @@ private fun BoardColumn(status: TaskStatus, tasks: List<TaskInfo>, ui: BoardUi, 
         if (header) Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(status.icon(), Modifier.size(14.dp), tint = status.tone().color())
             Text(status.label(), fontWeight = FontWeight.Normal)
-            Text("${tasks.size}", color = color(mutedColor), fontSize = 13.sp)
+            Text("${tasks.size}", color = color(mutedColor), style = TextStyles.secondary)
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(tasks, key = { it.id }) { TaskCard(it, ui.agents, actions) }
             if (tasks.isEmpty()) item {
-                Text(status.empty(), Modifier.padding(horizontal = 4.dp), color = color(mutedColor), fontSize = 13.sp)
+                Text(status.empty(), Modifier.padding(horizontal = 4.dp), color = color(mutedColor), style = TextStyles.secondary)
             }
         }
     }
@@ -140,12 +140,12 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                 Column(Modifier.weight(1f)) {
                     Text(task.title, fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis,
                         style = LocalTextStyle.current.copy(textDecoration = if (task.status == TaskStatus.Done) TextDecoration.LineThrough else null))
-                    Text(listOfNotNull(task.listName, task.due?.let { "due $it" }).joinToString(" · "), fontSize = 13.sp, color = color(mutedColor), singleLine = true)
+                    Text(listOfNotNull(task.listName, task.due?.let { "due $it" }).joinToString(" · "), style = TextStyles.secondary, color = color(mutedColor), singleLine = true)
                 }
                 Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
             }
             if (task.notes.isNotBlank()) {
-                Text(task.notes.trim(), color = color(mutedColor), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Text(task.notes.trim(), color = color(mutedColor), style = TextStyles.secondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
                 Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->

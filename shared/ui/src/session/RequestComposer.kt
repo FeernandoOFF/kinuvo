@@ -207,9 +207,9 @@ private fun RequestHeader(request: PendingRequest, count: Int, onClose: (() -> U
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(request.title(), Modifier.weight(1f), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
-                if (count > 1) Text("1 of $count", fontSize = 12.sp, color = color(mutedColor), singleLine = true)
+                if (count > 1) Text("1 of $count", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
             }
-            request.detail()?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis) }
+            request.detail()?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis) }
             if (request is PendingRequest.Approval) Box(Modifier.padding(top = 6.dp)) {
                 Pill("${request.event.risk.name} risk", tone = when (request.event.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
             }
@@ -261,16 +261,16 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
             else -> null
         }
         if (label != null || toggle != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(label.orEmpty(), Modifier.weight(1f), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            Text(label.orEmpty(), Modifier.weight(1f), style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             toggle?.let { Button(onClick = { input.arguments = !input.arguments }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Link, contentColor = color(mutedColor)) {
-                Text(it, fontSize = 12.sp, singleLine = true)
+                Text(it, style = TextStyles.caption, singleLine = true)
             } }
         }
         // Without a command to show, the arguments are what's being approved.
         if (command == null || input.arguments) CodeBlock(json, language = "Arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
         // The two answers side by side; a note for a denial is one tap away and goes above them.
         if (input.noting) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Note for the Agent, sent with Deny", fontSize = 12.sp, color = color(mutedColor))
+            Text("Note for the Agent, sent with Deny", style = TextStyles.caption, color = color(mutedColor))
             Input(input.note, "What to do instead", capitalize = true)
         }
         // Writing a note means denying, so Deny takes the emphasis then.
@@ -285,7 +285,7 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
             others = { Button(onClick = { onDecision(ApprovalDecision.AlwaysAllow) }, modifier = it, style = ButtonStyle.Outlined) { Text(always, singleLine = true, overflow = TextOverflow.Ellipsis) } })
         if (!input.noting) Button(onClick = { input.noting = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp), style = ButtonStyle.Ghost, contentColor = color(onBackgroundColor)) {
             Icon(Lucide.Pencil, Modifier.size(14.dp))
-            Text("Add a note for the Agent", fontSize = 14.sp)
+            Text("Add a note for the Agent", style = TextStyles.label)
         }
     }
 }
@@ -303,7 +303,7 @@ private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 asked.questions.indices.forEach { i -> Box(Modifier.height(4.dp).weight(1f).clip(CircleShape).background(if (i <= step) color(accentColor) else color(borderColor))) }
             }
-            Text("Question ${step + 1} of ${asked.questions.size}", fontSize = 12.sp, color = color(mutedColor))
+            Text("Question ${step + 1} of ${asked.questions.size}", style = TextStyles.caption, color = color(mutedColor))
         }
         Column(Modifier.bleed(FocusRing).heightIn(max = BodyMaxHeight).verticalScroll(rememberScrollState()).padding(FocusRing), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             shown.forEach { q -> key(asked.questionsId, q.id) { QuestionField(q, answers[q.id].orEmpty()) { actions.onEditAnswer(asked.questionsId, q.id, it) } } }
@@ -331,7 +331,7 @@ private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, 
 @Composable
 private fun TakeoverBody(asked: AgentEvent.QuestionsAsked, input: RequestInput, wide: Boolean, actions: ChatActions) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Text("Hand back in Live view when finished. Answering or skipping keeps Takeover paused.", fontSize = 12.sp, color = color(mutedColor))
+        Text("Hand back in Live view when finished. Answering or skipping keeps Takeover paused.", style = TextStyles.caption, color = color(mutedColor))
         Actions(wide,
             primary = { Button(onClick = { asked.screen?.let { actions.onScreen(it, asked.title) } ?: actions.onWatch() }, modifier = it, style = ButtonStyle.Primary) { Text("Open Live view") } },
             others = { Button(onClick = { actions.onAnswer(null) }, modifier = it, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip") } })

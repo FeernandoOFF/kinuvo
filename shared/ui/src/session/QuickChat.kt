@@ -94,7 +94,7 @@ private fun QuickChatBarContent(agent: AgentInfo?, draft: TextFieldState, onOpen
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Column(Modifier.weight(1f)) {
-                Text(agent?.name ?: "…", fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                Text(agent?.name ?: "…", style = TextStyles.caption, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                 val text = draft.text.toString()
                 Text(text.ifBlank { "Message…" }, singleLine = true, overflow = TextOverflow.Ellipsis,
                     color = if (text.isBlank()) color(mutedColor) else color(onBackgroundColor))
@@ -161,7 +161,7 @@ internal fun QuickChat(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         AgentAvatar(a, 28.dp)
-                        Text(a.name, fontSize = 14.sp, singleLine = true)
+                        Text(a.name, style = TextStyles.label, singleLine = true)
                     }
                 }
             }

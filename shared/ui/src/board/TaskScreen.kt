@@ -51,7 +51,7 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Stri
             }
             else -> Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
                 Column(Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(task.title, fontSize = 20.sp, lineHeight = 28.sp)
+                    Text(task.title, style = TextStyles.headline, lineHeight = 28.sp)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Pill(task.listName, icon = Lucide.List)
                         task.due?.let { Pill("Due $it", icon = Lucide.Calendar) }
@@ -65,7 +65,7 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Stri
                     if (task.notes.isNotBlank()) Text(task.notes.trim())
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         SectionLabel("Runs")
-                        if (task.sessionIds.isEmpty()) Text("No Agent has worked on it yet.", Modifier.padding(horizontal = 10.dp), color = color(mutedColor), fontSize = 13.sp)
+                        if (task.sessionIds.isEmpty()) Text("No Agent has worked on it yet.", Modifier.padding(horizontal = 10.dp), color = color(mutedColor), style = TextStyles.secondary)
                         task.sessionIds.asReversed().forEachIndexed { i, id ->
                             val session = ui.sessions[id]
                             val agentId = session?.agentId ?: task.assignee
@@ -73,7 +73,7 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Stri
                                 Column(Modifier.weight(1f)) {
                                     Text(session?.title ?: "Run ${task.sessionIds.size - i}", singleLine = true, overflow = TextOverflow.Ellipsis)
                                     Text(listOfNotNull(if (i == 0) "Latest run" else "Run ${task.sessionIds.size - i}", ui.agents.firstOrNull { it.id == agentId }?.name).joinToString(" · "),
-                                        fontSize = 12.sp, color = color(mutedColor))
+                                        style = TextStyles.caption, color = color(mutedColor))
                                 }
                                 session?.let { SessionStatusIcon(it.status, false) }
                             }

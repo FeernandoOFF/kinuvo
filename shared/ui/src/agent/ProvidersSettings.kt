@@ -5,7 +5,9 @@ import kinuvo.app.agent.*
 import kinuvo.ui.connection.*
 import kinuvo.ui.board.*
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,12 +48,12 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                 account == null -> GroupRow(provider.name, subtitle = "No sign-in needed", icon = Lucide.CircleCheck) { Pill("Ready", tone = Tone.Success) }
                 account.signedIn -> GroupRow(account.label ?: "Your account", subtitle = "Signed in", icon = Lucide.CircleUserRound) { Pill("Ready", tone = Tone.Success) }
                 code != null -> GroupBox {
-                    Text("Enter this code on the sign-in page", color = color(mutedColor), fontSize = 13.sp)
+                    Text("Enter this code on the sign-in page", color = color(mutedColor), style = TextStyles.secondary)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(code.code, Modifier.weight(1f), style = MonoStyle, fontSize = 22.sp)
+                        Text(code.code, Modifier.weight(1f), style = MonoStyle, fontSize = TextStyles.headline.fontSize)
                         CopyButton(code.code)
                     }
-                    Text("It expires in 15 minutes.", color = color(mutedColor), fontSize = 12.sp)
+                    Text("It expires in 15 minutes.", color = color(mutedColor), style = TextStyles.caption)
                 }
                 else -> GroupRow("Not signed in", subtitle = "Sign in to use its models", icon = Lucide.CircleUserRound) { Pill("Signed out", tone = Tone.Warning) }
             }
@@ -77,10 +79,12 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                 else -> ActionRow("Sign in", Lucide.LogIn, { p.actions.onLoginProvider(provider.id) })
             }
         }
-        provider.error?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = color(destructiveColor), fontSize = 12.sp) }
+        provider.error?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = color(destructiveColor), style = TextStyles.caption) }
         if (apiKey != null) Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Saved keys stay on the Server. Refresh models after changing a key.", Modifier.weight(1f), color = color(mutedColor), fontSize = 12.sp)
-            Button(onClick = p.actions.onRefreshModels, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Refresh models") }
+            Column(Modifier.weight(1f)) {
+                Text("Saved keys stay on the Server. Refresh models after changing a key.", color = color(mutedColor), style = TextStyles.caption)
+                Text("Refresh models", Modifier.clickable(role = Role.Button, onClick = p.actions.onRefreshModels).padding(vertical = 12.dp), color = color(accentColor), style = TextStyles.secondary)
+            }
             if (p.ui.state.saved) Pill("Saved", tone = Tone.Success, icon = Lucide.CircleCheck)
         }
     }

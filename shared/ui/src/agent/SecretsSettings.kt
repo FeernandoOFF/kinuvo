@@ -101,13 +101,13 @@ private fun SecretBrowser(p: Pane, provider: SecretProviderStatus, open: List<St
                 HeaderButton(Lucide.ArrowLeft, "Back", { onPath(open.dropLast(1).takeIf { it.isNotEmpty() }) })
                 Text(
                     (listOf(provider.name) + open.drop(1)).joinToString(" / "),
-                    Modifier.weight(1f).padding(start = 4.dp), fontWeight = FontWeight.Normal, fontSize = 13.sp, singleLine = true, overflow = TextOverflow.Ellipsis,
+                    Modifier.weight(1f).padding(start = 4.dp), fontWeight = FontWeight.Normal, style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis,
                 )
                 HeaderButton(Lucide.X, "Close", { onPath(null) })
             }
             when {
                 entries == null -> Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Spinner() }
-                entries.isEmpty() -> Text("Nothing here", Modifier.padding(10.dp), color = color(mutedColor), fontSize = 13.sp)
+                entries.isEmpty() -> Text("Nothing here", Modifier.padding(10.dp), color = color(mutedColor), style = TextStyles.secondary)
                 else -> Column(Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState())) {
                     entries.forEach { e ->
                         val field = open.size == 3
@@ -120,7 +120,7 @@ private fun SecretBrowser(p: Pane, provider: SecretProviderStatus, open: List<St
                             leading = { Icon(if (field) Lucide.KeyRound else if (open.size == 1) Lucide.Vault else Lucide.FileKey, Modifier.size(14.dp)) },
                         ) {
                             Text(e.name, Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis)
-                            if (e.kind.isNotEmpty()) Text(e.kind, fontSize = 12.sp, color = color(mutedColor))
+                            if (e.kind.isNotEmpty()) Text(e.kind, style = TextStyles.caption, color = color(mutedColor))
                         }
                     }
                 }

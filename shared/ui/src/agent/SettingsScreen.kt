@@ -271,7 +271,7 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
                 sections.forEach { section ->
                     ListRow(selected = section == selected, onClick = { open(section) }, enabled = ui.available(section), leading = { Icon(section.icon(), Modifier.size(16.dp)) }) {
                         Text(section.title, Modifier.weight(1f), singleLine = true)
-                        section.count(ui)?.let { Text("$it", fontSize = 12.sp, color = color(mutedColor)) }
+                        section.count(ui)?.let { Text("$it", style = TextStyles.caption, color = color(mutedColor)) }
                     }
                 }
             }
@@ -393,7 +393,7 @@ internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, l
         if (scope != null && p.back == null) PageHeader(p.ui.route.section?.icon() ?: Lucide.Settings, title, scope = scope, actions = if (canAdd) listOf(add) else emptyList())
         else SettingsPageHeader(title, p.back) { if (canAdd) HeaderButton(add.icon, add.label, add.onClick) }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (intro.isNotEmpty()) Text(intro, color = color(mutedColor), fontSize = 14.sp)
+            if (intro.isNotEmpty()) Text(intro, color = color(mutedColor), style = TextStyles.label)
             if (loading) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
             else rows()
         }
@@ -433,10 +433,10 @@ internal fun DetailGroup(title: String, content: @Composable ColumnScope.() -> U
 internal fun DetailRow(label: String, value: @Composable () -> Unit) {
     BoxWithConstraints {
         if (maxWidth < 420.dp) Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            if (label.isNotEmpty()) Text(label, color = color(mutedColor), fontSize = 13.sp)
+            if (label.isNotEmpty()) Text(label, color = color(mutedColor), style = TextStyles.secondary)
             value()
         } else Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, Modifier.width(120.dp), color = color(mutedColor), fontSize = 13.sp)
+            Text(label, Modifier.width(120.dp), color = color(mutedColor), style = TextStyles.secondary)
             Box(Modifier.weight(1f)) { value() }
         }
     }
@@ -447,7 +447,7 @@ internal fun DetailRow(label: String, value: @Composable () -> Unit) {
 internal fun FormField(label: String, hint: String? = null, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, fontSize = 13.sp, fontWeight = FontWeight.Normal)
+            Text(label, style = TextStyles.secondary, fontWeight = FontWeight.Normal)
             hint?.let { InfoButton(it) }
         }
         content()
@@ -458,7 +458,7 @@ internal fun FormField(label: String, hint: String? = null, content: @Composable
 @Composable
 internal fun FieldRow(label: String, hint: String? = null, content: @Composable () -> Unit) = GroupBox {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, fontSize = 13.sp, color = color(mutedColor))
+        Text(label, style = TextStyles.secondary, color = color(mutedColor))
         hint?.let { InfoButton(it) }
     }
     content()
@@ -478,7 +478,7 @@ internal fun <T> PickerRow(title: String, options: List<T>, current: T, label: (
                     DropdownMenuItem(onClick = { open = false; onSelect(option) }, trailing = if (option == current) ({ Icon(Lucide.Check, Modifier.size(14.dp)) }) else null) {
                         Column {
                             Text(label(option))
-                            hint?.invoke(option)?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+                            hint?.invoke(option)?.takeIf { it.isNotEmpty() }?.let { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
                         }
                     }
                 }
@@ -510,11 +510,11 @@ internal fun InfoButton(text: String, header: Boolean = false) {
     }
     if (LocalInteractionMode.current == InteractionMode.Touch && LocalPopovers.current != null) {
         trigger()
-        Popover(open, { open = false }) { Text(text, fontSize = 14.sp) }
+        Popover(open, { open = false }) { Text(text, style = TextStyles.label) }
     } else DropdownMenu(
         expanded = open,
         onExpandedChange = { open = it },
-        panel = { DropdownMenuPanel { Text(text, Modifier.widthIn(max = 320.dp).padding(horizontal = 10.dp, vertical = 6.dp), fontSize = 13.sp) } },
+        panel = { DropdownMenuPanel { Text(text, Modifier.widthIn(max = 320.dp).padding(horizontal = 10.dp, vertical = 6.dp), style = TextStyles.secondary) } },
     ) { trigger() }
 }
 
@@ -553,7 +553,7 @@ internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSe
                     ) {
                         Column {
                             Text(label(option))
-                            hint?.invoke(option)?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+                            hint?.invoke(option)?.takeIf { it.isNotEmpty() }?.let { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
                         }
                     }
                 }
@@ -563,7 +563,7 @@ internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSe
         Button(onClick = { open = true }, modifier = if (stretch) Modifier.fillMaxWidth() else Modifier, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 10.dp)) {
             icon?.let { Icon(it, Modifier.size(14.dp), tint = color(mutedColor)) }
             // Stretched to a given width, the label takes the room and the chevron keeps to the end.
-            Text(label(current), if (stretch) Modifier.weight(1f) else Modifier, fontSize = 13.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            Text(label(current), if (stretch) Modifier.weight(1f) else Modifier, style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             Icon(Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
         }
     }

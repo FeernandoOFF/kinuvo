@@ -1,5 +1,7 @@
 package kinuvo.ui.session
 
+import kinuvo.ui.design.TextStyles
+
 import kinuvo.app.session.*
 
 import androidx.compose.runtime.*
@@ -69,8 +71,8 @@ internal fun AttachmentChip(attachment: Attachment, base64: String? = null, onPr
             if (preview != null) Image(preview, attachment.name, Modifier.size(52.dp))
             else Icon(Lucide.File, Modifier.size(22.dp))
             Column(Modifier.widthIn(max = 150.dp)) {
-                Text(attachment.name, fontSize = 12.sp, singleLine = true, overflow = TextOverflow.Ellipsis)
-                Text(attachment.sizeLabel, color = color(mutedColor), fontSize = 11.sp)
+                Text(attachment.name, style = TextStyles.caption, singleLine = true, overflow = TextOverflow.Ellipsis)
+                Text(attachment.sizeLabel, color = color(mutedColor), style = TextStyles.overline)
             }
             onOpen?.let { IconButton(onClick = it, style = ButtonStyle.Ghost, modifier = Modifier.size(28.dp)) { Icon(Lucide.Download, Modifier.size(16.dp), contentDescription = "Save ${attachment.name}") } }
             onRemove?.let { IconButton(onClick = it, style = ButtonStyle.Ghost, modifier = Modifier.size(28.dp)) { Icon(Lucide.X, Modifier.size(16.dp), contentDescription = "Remove ${attachment.name}") } }
@@ -88,7 +90,7 @@ internal fun AttachmentPreviewer(preview: AttachmentPreview, onSave: () -> Unit,
             IconButton(onClick = onClose, style = ButtonStyle.Ghost, modifier = Modifier.size(40.dp)) { Icon(Lucide.X, Modifier.size(20.dp), contentDescription = "Close") }
             Column(Modifier.weight(1f)) {
                 Text(attachment.name, singleLine = true, overflow = TextOverflow.Ellipsis)
-                Text(attachment.sizeLabel, color = color(mutedColor), fontSize = 12.sp)
+                Text(attachment.sizeLabel, color = color(mutedColor), style = TextStyles.caption)
             }
             IconButton(onClick = onSave, style = ButtonStyle.Ghost, modifier = Modifier.size(40.dp)) { Icon(Lucide.Download, Modifier.size(20.dp), contentDescription = "Save ${attachment.name}") }
         }

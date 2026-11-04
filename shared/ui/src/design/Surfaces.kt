@@ -89,7 +89,7 @@ fun Pill(text: String, modifier: Modifier = Modifier, tone: Tone = Tone.Neutral,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (loading) Spinner(size = 12.dp, tint = c) else icon?.let { Icon(it, Modifier.size(12.dp), tint = c) }
-        Text(text, Modifier.weight(1f, fill = false), fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Normal, color = c)
+        Text(text, Modifier.weight(1f, fill = false), style = TextStyles.caption, lineHeight = 16.sp, fontWeight = FontWeight.Normal, color = c)
     }
 }
 
@@ -103,7 +103,7 @@ fun Badge(text: String, icon: ImageVector? = null, modifier: Modifier = Modifier
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
         icon?.let { Icon(it, Modifier.size(10.dp), tint = c) }
-        Text(text, fontSize = 10.sp, lineHeight = 14.sp, color = c, singleLine = true)
+        Text(text, style = TextStyles.overline, lineHeight = 14.sp, color = c, singleLine = true)
     }
 }
 
@@ -120,7 +120,7 @@ fun ErrorMessage(text: String, modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top,
     ) {
         Icon(Lucide.CircleX, Modifier.size(16.dp), tint = c)
-        Text(text, Modifier.weight(1f), fontSize = 12.sp, lineHeight = 18.sp, color = c)
+        Text(text, Modifier.weight(1f), style = TextStyles.caption, lineHeight = 18.sp, color = c)
     }
 }
 
@@ -176,7 +176,7 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text.uppercase(),
         modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-        fontSize = 11.sp,
+        style = TextStyles.overline,
         lineHeight = 14.sp,
         letterSpacing = 0.6.sp,
         fontWeight = FontWeight.Normal,
@@ -195,7 +195,7 @@ fun MutableInteractionSource.hovered(): Boolean {
 @Composable
 fun Hint(label: String, side: TooltipSide = TooltipSide.Top, content: @Composable () -> Unit) {
     if (LocalInteractionMode.current == InteractionMode.Touch) content()
-    else Tooltip(side = side, panel = { TooltipPanel { Text(label, fontSize = 12.sp) } }) { content() }
+    else Tooltip(side = side, panel = { TooltipPanel { Text(label, style = TextStyles.caption) } }) { content() }
 }
 
 /** An action inside a field, e.g. Generate or Open: a quiet icon that leaves the field's own shape alone. */

@@ -1,5 +1,7 @@
 package kinuvo.ui.session
 
+import kinuvo.ui.design.TextStyles
+
 import kinuvo.app.session.*
 
 import kinuvo.app.connection.*
@@ -103,12 +105,12 @@ internal fun RowScope.ComposerSettings(
     // Says whose settings these are, and leads to the Agent's defaults that every other Session follows.
     val scope: @Composable (close: () -> Unit) -> Unit = { close ->
         Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("This Session only", fontSize = 12.sp, color = color(mutedColor))
+            Text("This Session only", style = TextStyles.caption, color = color(mutedColor))
             onAgentDefaults?.let { open ->
                 Row(Modifier.clip(Theme[shapes][smallShape]).clickable { close(); open() }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(Lucide.Settings2, Modifier.size(14.dp), tint = color(accentColor))
-                    Text("Edit ${agent ?: "the Agent"}'s defaults", fontSize = 13.sp, color = color(accentColor))
+                    Text("Edit ${agent ?: "the Agent"}'s defaults", style = TextStyles.secondary, color = color(accentColor))
                 }
             }
         }
@@ -123,7 +125,7 @@ internal fun RowScope.ComposerSettings(
                     SourceTile(label, icon, accepts(source), Modifier.weight(1f).fillMaxHeight(), reason) { attach(source) }
                 }
             }
-            Text(ATTACHMENT_LIMITS, Modifier.fillMaxWidth().padding(top = 12.dp), fontSize = 12.sp, color = color(mutedColor), textAlign = TextAlign.Center)
+            Text(ATTACHMENT_LIMITS, Modifier.fillMaxWidth().padding(top = 12.dp), style = TextStyles.caption, color = color(mutedColor), textAlign = TextAlign.Center)
         }
         if (!nativeSettings) return
         approvalsButton()
@@ -133,7 +135,7 @@ internal fun RowScope.ComposerSettings(
                 ListRow(settings.approvals == option, { pickApproval(option) }) {
                     Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
                         Text(approvalTitle(option))
-                        Text(APPROVALS[option ?: defaults.approvals].orEmpty(), fontSize = 13.sp, color = color(mutedColor))
+                        Text(APPROVALS[option ?: defaults.approvals].orEmpty(), style = TextStyles.secondary, color = color(mutedColor))
                     }
                     if (settings.approvals == option) Icon(Lucide.Check, Modifier.size(16.dp))
                 }
@@ -146,7 +148,7 @@ internal fun RowScope.ComposerSettings(
             panel = {
                 DropdownMenuPanel {
                     sources.forEach { (source, label) -> DropdownMenuItem(onClick = { attach(source) }, enabled = accepts(source)) { Text(label) } }
-                    DropdownMenuLabel { Text(ATTACHMENT_LIMITS, fontSize = 12.sp) }
+                    DropdownMenuLabel { Text(ATTACHMENT_LIMITS, style = TextStyles.caption) }
                 }
             },
         ) { attachButton() }
@@ -157,7 +159,7 @@ internal fun RowScope.ComposerSettings(
             onExpandedChange = { approvalsOpen = it },
             panel = {
                 DropdownMenuPanel {
-                    DropdownMenuLabel { Text("Ask before acting", fontSize = 12.sp) }
+                    DropdownMenuLabel { Text("Ask before acting", style = TextStyles.caption) }
                     scope { approvalsOpen = false }
                     approvalOptions.forEach { option ->
                         DropdownMenuItem(
@@ -166,7 +168,7 @@ internal fun RowScope.ComposerSettings(
                         ) {
                             Column {
                                 Text(approvalTitle(option))
-                                Text(APPROVALS[option ?: defaults.approvals].orEmpty(), fontSize = 12.sp, color = color(mutedColor))
+                                Text(APPROVALS[option ?: defaults.approvals].orEmpty(), style = TextStyles.caption, color = color(mutedColor))
                             }
                         }
                     }
@@ -189,7 +191,7 @@ internal fun RowScope.ComposerSettings(
                 Text(effort.replaceFirstChar { it.uppercase() }, color = color(mutedColor), singleLine = true)
                 Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
             }
-            if (levels.isEmpty()) Text("Reasoning not supported", fontSize = 12.sp, color = color(mutedColor))
+            if (levels.isEmpty()) Text("Reasoning not supported", style = TextStyles.caption, color = color(mutedColor))
             else EffortTrack(levels, levels.indexOf(effort)) { onChange(settings.copy(reasoning = levels[it])) }
         } else Column(Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState())) {
             ListRow(false, { listing = false; onChange(settings.copy(model = null, provider = null, reasoning = null)) }) {
@@ -203,7 +205,7 @@ internal fun RowScope.ComposerSettings(
                         if (provider == group.id && settings.model == model.id) Icon(Lucide.Check, Modifier.size(14.dp))
                     }
                 }
-                group.warning?.let { Text(it, Modifier.padding(8.dp), fontSize = 12.sp, color = color(mutedColor)) }
+                group.warning?.let { Text(it, Modifier.padding(8.dp), style = TextStyles.caption, color = color(mutedColor)) }
             }
             if (settings.model != null && selected == null) SectionLabel("Current: ${settings.model}")
             HorizontalSeparator(Modifier.padding(vertical = 6.dp))
@@ -221,7 +223,7 @@ internal fun RowScope.ComposerSettings(
                         else settings.copy(provider = customProvider, model = id, reasoning = null))
                 }, enabled = custom.text.isNotBlank(), buttonSize = ButtonSize.Small) { Text("Use model") }
             }
-            models.warning?.let { Text(it, Modifier.padding(8.dp), fontSize = 12.sp, color = color(mutedColor)) }
+            models.warning?.let { Text(it, Modifier.padding(8.dp), style = TextStyles.caption, color = color(mutedColor)) }
         }
     }
     val gauge: @Composable () -> Unit = {
@@ -250,8 +252,8 @@ private fun SourceTile(label: String, icon: ImageVector, enabled: Boolean, modif
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(icon, Modifier.size(22.dp).alpha(if (enabled) 1f else 0.4f))
-        Text(label, Modifier.alpha(if (enabled) 1f else 0.4f), fontSize = 14.sp)
-        reason?.let { Text(it, fontSize = 11.sp, lineHeight = 14.sp, color = color(mutedColor), textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis) }
+        Text(label, Modifier.alpha(if (enabled) 1f else 0.4f), style = TextStyles.label)
+        reason?.let { Text(it, style = TextStyles.overline, lineHeight = 14.sp, color = color(mutedColor), textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis) }
     }
 }
 

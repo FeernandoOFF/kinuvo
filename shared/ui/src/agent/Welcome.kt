@@ -101,7 +101,7 @@ internal fun Welcome(options: WelcomeOptions, featured: Int, pokes: List<Int>, o
 @Composable
 private fun Hero(featured: Int, pokes: List<Int>, onPoke: (Int) -> Unit, tint: Color, shape: Shape, modifier: Modifier, padding: PaddingValues, onCancel: (() -> Unit)?) {
     Box(modifier.clip(shape).background(Brush.linearGradient(listOf(tint.copy(alpha = 0.5f), tint.copy(alpha = 0.22f)))).padding(padding)) {
-        Text("kinuvo", Modifier.align(Alignment.TopStart), fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        Text("kinuvo", Modifier.align(Alignment.TopStart), style = TextStyles.headline, fontWeight = FontWeight.Bold)
         onCancel?.let { Box(Modifier.align(Alignment.TopEnd)) { HeaderButton(Lucide.X, "Cancel", it) } }
         Cast(featured, pokes, onPoke, Modifier.fillMaxSize().padding(top = 28.dp))
     }
@@ -160,7 +160,7 @@ private fun ColumnScope.Choices(options: WelcomeOptions, featured: Int, wide: Bo
     Text(if (options.onLocal != null) "Connect to your Kinuvo Server, or set one up right here." else "Connect to Kinuvo on your computer.",
         color = color(mutedColor), fontSize = if (wide) 18.sp else 16.sp)
     Spacer(Modifier.height(8.dp))
-    options.error?.let { Text(it, color = color(destructiveColor), fontSize = 14.sp) }
+    options.error?.let { Text(it, color = color(destructiveColor), style = TextStyles.label) }
     val manual = { options.onManual(true) }
     when {
         options.onScan != null -> {
@@ -186,11 +186,11 @@ private fun QrHelp(onManual: (() -> Unit)?, enabled: Boolean) {
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         onManual?.let {
             Text("Enter address and code", Modifier.clip(CircleShape).clickable(enabled, role = Role.Button, onClick = it).padding(horizontal = 14.dp, vertical = 8.dp),
-                color = color(onBackgroundColor), style = com.composeunstyled.LocalTextStyle.current.copy(fontSize = 15.sp, textDecoration = TextDecoration.Underline))
+                color = color(onBackgroundColor), style = com.composeunstyled.LocalTextStyle.current.copy(fontSize = TextStyles.callout.fontSize, textDecoration = TextDecoration.Underline))
         }
         Row(Modifier.clip(CircleShape).clickable(role = Role.Button) { open = !open }.semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
             .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Where is the QR code?", color = color(mutedColor), fontSize = 15.sp)
+            Text("Where is the QR code?", color = color(mutedColor), style = TextStyles.callout)
             Icon(if (open) Lucide.ChevronUp else Lucide.ChevronDown, Modifier.size(15.dp), tint = color(mutedColor))
         }
         AnimatedVisibility(open, enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()) {
@@ -228,7 +228,7 @@ private fun ColumnScope.Manual(options: WelcomeOptions) {
 @Composable
 private fun FieldError(text: String) = Row(Modifier.semantics { error(text) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
     Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor))
-    Text(text, color = color(destructiveColor), fontSize = 13.sp)
+    Text(text, color = color(destructiveColor), style = TextStyles.secondary)
 }
 
 /** A quieter companion to [Cta]. */
@@ -237,6 +237,6 @@ internal fun SecondaryCta(label: String, icon: ImageVector?, onClick: () -> Unit
     Row(Modifier.fillMaxWidth().height(56.dp).clip(CircleShape).background(color(subtleColor)).clickable(enabled, role = Role.Button, onClick = onClick)
         .padding(horizontal = 24.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
         icon?.let { Icon(it, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)) }
-        Text(label, fontWeight = FontWeight.Bold, fontSize = 17.sp, color = color(onBackgroundColor).copy(alpha = if (enabled) 1f else 0.4f))
+        Text(label, fontWeight = FontWeight.Bold, fontSize = TextStyles.title.fontSize, color = color(onBackgroundColor).copy(alpha = if (enabled) 1f else 0.4f))
     }
 }

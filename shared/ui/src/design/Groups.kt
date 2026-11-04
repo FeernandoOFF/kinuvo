@@ -98,9 +98,9 @@ fun GroupRow(
         leading?.let { ProvideContentColor(if (tint.isSpecified) tint else color(mutedColor)) { it() } }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, maxLines = titleLines, overflow = TextOverflow.Ellipsis, color = tint)
-            subtitle?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 13.sp, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis) }
+            subtitle?.takeIf { it.isNotEmpty() }?.let { Text(it, style = TextStyles.secondary, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis) }
         }
-        value?.let { Text(it, Modifier.widthIn(max = 180.dp), fontSize = 13.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
+        value?.let { Text(it, Modifier.widthIn(max = 180.dp), style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
         trailing()
         if (onToggle != null) ToggleSwitch(toggled, null)
         if (chevron) Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
@@ -143,8 +143,8 @@ fun ConfirmRow(label: String, icon: ImageVector, question: String, onConfirm: ()
 fun ConfirmPopover(visible: Boolean, question: String, detail: String?, confirm: String, destructive: Boolean, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     Popover(visible, onDismiss) {
         Column(Modifier.fillMaxWidth().padding(4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(question, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
-            detail?.let { Text(it, color = color(mutedColor), fontSize = 14.sp) }
+            Text(question, style = TextStyles.title, fontWeight = FontWeight.SemiBold)
+            detail?.let { Text(it, color = color(mutedColor), style = TextStyles.label) }
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (destructive) { QuietButton("Cancel", onDismiss, Modifier.weight(1f)); DangerButton(confirm, onConfirm, Modifier.weight(1f)) }
                 else {
@@ -170,7 +170,7 @@ fun QuietButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifie
 @Composable
 private fun PillButton(label: String, onClick: () -> Unit, modifier: Modifier, textColor: Color) {
     Box(modifier.heightIn(min = 48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
-        Text(label, color = textColor, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, singleLine = true)
+        Text(label, color = textColor, style = TextStyles.callout, fontWeight = FontWeight.SemiBold, singleLine = true)
     }
 }
 
@@ -198,8 +198,8 @@ fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifie
 fun EmptyState(icon: ImageVector, title: String, body: String? = null, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
     Column(modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Icon(icon, Modifier.size(28.dp), tint = color(mutedColor))
-        Text(title, fontSize = 17.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-        body?.let { Text(it, fontSize = 14.sp, color = color(mutedColor), textAlign = TextAlign.Center) }
+        Text(title, style = TextStyles.title, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+        body?.let { Text(it, style = TextStyles.label, color = color(mutedColor), textAlign = TextAlign.Center) }
         action?.let { Box(Modifier.padding(top = 8.dp)) { it() } }
     }
 }
@@ -212,10 +212,10 @@ fun DiscardDialog(onKeep: () -> Unit, onDiscard: () -> Unit, modifier: Modifier 
         Box(Modifier.matchParentSize().background(color(scrimColor)).clickable(remember { MutableInteractionSource() }, indication = null, onClick = onKeep))
         Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp).widthIn(max = 400.dp).shadow(24.dp, Theme[shapes][largeShape]).consumeTaps()
             .semantics { paneTitle = "Unsaved changes" }, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(20.dp)) {
-            Text("Discard changes?", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Text("Discard changes?", style = TextStyles.title, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))
-            Text("Your changes have not been saved.", fontSize = 14.sp, color = color(mutedColor))
-            errors.forEach { Spacer(Modifier.height(8.dp)); Text(it, fontSize = 13.sp, color = color(destructiveColor)) }
+            Text("Your changes have not been saved.", style = TextStyles.label, color = color(mutedColor))
+            errors.forEach { Spacer(Modifier.height(8.dp)); Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
             Spacer(Modifier.height(20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 QuietButton("Keep editing", onKeep, Modifier.weight(1f))

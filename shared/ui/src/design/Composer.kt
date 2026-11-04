@@ -142,7 +142,7 @@ fun Composer(
                     .background(color(panelColor)).border(1.dp, color(borderColor), noticeShape)
                     .heightIn(max = 320.dp).verticalScroll(rememberScrollState())
                     .padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    blocked?.let { Text(it, fontSize = 13.sp, color = color(mutedColor)) }
+                    blocked?.let { Text(it, style = TextStyles.secondary, color = color(mutedColor)) }
                     notice?.invoke()
                 }
             }
@@ -204,7 +204,7 @@ fun Composer(
                 FormatBar(state, focused && !state.selection.collapsed, Modifier.align(Alignment.TopStart).offset(x = 8.dp, y = (-44).dp))
             }
         }
-        hint?.takeIf { blocked == null }?.let { Text(it, Modifier.fillMaxWidth(), fontSize = 11.sp, color = color(mutedColor), textAlign = TextAlign.Center) }
+        hint?.takeIf { blocked == null }?.let { Text(it, Modifier.fillMaxWidth(), style = TextStyles.overline, color = color(mutedColor), textAlign = TextAlign.Center) }
     }
 }
 

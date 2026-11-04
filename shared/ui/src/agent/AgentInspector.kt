@@ -146,7 +146,7 @@ private fun InspectorBody(state: InspectorState, host: InspectorHost, actions: I
                     }
                 }
             }
-            InspectorPage.UserNotes -> Text(details.userNotes.ifBlank { "${details.info.name} hasn't written any User Notes yet." }, fontSize = 14.sp,
+            InspectorPage.UserNotes -> Text(details.userNotes.ifBlank { "${details.info.name} hasn't written any User Notes yet." }, style = TextStyles.label,
                 color = color(if (details.userNotes.isBlank()) mutedColor else onBackgroundColor))
         }
     }
@@ -162,7 +162,7 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
         FieldRow("Name") {
             Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
             draft.problems(agentId, host.agents).filter { it.contains("Name", true) || it.contains("called") }.forEach {
-                Text(it, fontSize = 12.sp, color = color(destructiveColor))
+                Text(it, style = TextStyles.caption, color = color(destructiveColor))
             }
         }
         FieldRow("Personality") { TextArea(draftField(agentId, "identity", draft.identity) { v -> actions.onEdit { it.copy(identity = v) } }, lines = 3) }
@@ -177,8 +177,8 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
         val levels = selected?.reasoning ?: (REASONING + draft.reasoning).distinct()
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Lucide.Brain, Modifier.size(16.dp), tint = color(mutedColor))
-            Text("Reasoning", Modifier.weight(1f).padding(start = 10.dp), fontSize = 15.sp)
-            if (levels.isEmpty()) Text("Not supported", color = color(mutedColor), fontSize = 13.sp)
+            Text("Reasoning", Modifier.weight(1f).padding(start = 10.dp), style = TextStyles.callout)
+            if (levels.isEmpty()) Text("Not supported", color = color(mutedColor), style = TextStyles.secondary)
             else Picker(levels, draft.reasoning, { it.replaceFirstChar { c -> c.uppercase() } }, { level -> actions.onEdit { it.copy(reasoning = level) } })
         }
     }
@@ -193,7 +193,7 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
         NavRow(Lucide.FolderOpen, "Workspace", null) { host.onSection(agentId, SettingsSection.Workspace) }
     }
     Text("These are ${agent.name}'s defaults for every Session. A Session's own model, reasoning and Risk tolerance are set from its composer.",
-        fontSize = 12.sp, color = color(mutedColor))
+        style = TextStyles.caption, color = color(mutedColor))
 }
 
 /** An external Agent: its name and where it runs; its harness owns everything else, so Kinuvo's own settings are absent. */
@@ -209,7 +209,7 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
     Group("Identity", card = false) {
         Label("Name")
         Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
-        problems.filter { it.contains("Name", true) || it.contains("called") }.forEach { Text(it, fontSize = 12.sp, color = color(destructiveColor)) }
+        problems.filter { it.contains("Name", true) || it.contains("called") }.forEach { Text(it, style = TextStyles.caption, color = color(destructiveColor)) }
     }
     Group("Runs on") {
         NavRow(if (agent.executionKind == ExecutionKind.Acp) Lucide.SquareTerminal else Lucide.ArrowLeftRight, runsOn(agent, connections, host.server), null) {
@@ -223,19 +223,19 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
         if (agent.executionKind == ExecutionKind.Acp) {
             Label("Working folder")
             Input(draftField(agentId, "cwd", draft.cwd) { v -> actions.onEdit { it.copy(cwd = v) } }, "/Users/you/project")
-            cwdProblem(draft.cwd)?.let { Text(it, fontSize = 12.sp, color = color(destructiveColor)) }
-            Text("On $machine. $harness reads and edits files here.", fontSize = 12.sp, color = color(mutedColor))
+            cwdProblem(draft.cwd)?.let { Text(it, style = TextStyles.caption, color = color(destructiveColor)) }
+            Text("On $machine. $harness reads and edits files here.", style = TextStyles.caption, color = color(mutedColor))
         }
-        details.remoteAgentId?.let { Text("Remote Agent: $it", Modifier.padding(horizontal = 10.dp), fontSize = 13.sp) }
+        details.remoteAgentId?.let { Text("Remote Agent: $it", Modifier.padding(horizontal = 10.dp), style = TextStyles.secondary) }
     }
     Group("Approvals") {
         Text("Kinuvo's Risk tolerance and Trust rules don't apply. $harness decides when to ask before acting; answer from any Device with access.",
-            Modifier.padding(4.dp), fontSize = 13.sp)
+            Modifier.padding(4.dp), style = TextStyles.secondary)
     }
     Group("Managed by $harness") {
-        Text("Instructions, Memory, Skills and tools are set in $harness on $machine.", Modifier.padding(4.dp), fontSize = 13.sp, color = color(mutedColor))
+        Text("Instructions, Memory, Skills and tools are set in $harness on $machine.", Modifier.padding(4.dp), style = TextStyles.secondary, color = color(mutedColor))
     }
-    Text("Changes apply to ${agent.name}'s new Sessions.", fontSize = 12.sp, color = color(mutedColor))
+    Text("Changes apply to ${agent.name}'s new Sessions.", style = TextStyles.caption, color = color(mutedColor))
 }
 
 @Composable
@@ -253,7 +253,7 @@ private fun ModelPage(state: InspectorState, draft: AgentDraft, actions: Inspect
                 if (picked) Icon(Lucide.Check, Modifier.size(14.dp))
             }
         }
-        group.warning?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+        group.warning?.let { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
     }
     if (state.models.model(draft.provider, draft.model) == null) SectionLabel("Current: ${draft.model}")
     ListRow(false, { actions.onLoadModels(true) }, leading = { Icon(Lucide.RefreshCw, Modifier.size(14.dp)) }) { Text("Refresh models", Modifier.weight(1f)) }
@@ -285,7 +285,7 @@ private fun Group(title: String, hint: String? = null, card: Boolean = true, con
         // Labelled and filled like a RowGroup; fields go without the card, as their own borders already contain them.
         Row(Modifier.padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             SectionLabel(title)
-            hint?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+            hint?.let { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
         }
         if (!card) Column(verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
         else Panel(Modifier.fillMaxWidth(), borderColor = Color.Transparent, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
@@ -295,15 +295,15 @@ private fun Group(title: String, hint: String? = null, card: Boolean = true, con
 }
 
 @Composable
-private fun Label(text: String) = Text(text, Modifier.padding(start = 12.dp, top = 2.dp), fontSize = 12.sp, color = color(mutedColor))
+private fun Label(text: String) = Text(text, Modifier.padding(start = 12.dp, top = 2.dp), style = TextStyles.caption, color = color(mutedColor))
 
 /** A row opening a page inside the inspector. */
 @Composable
 private fun NavRow(icon: ImageVector, title: String, value: String?, onClick: () -> Unit) {
     ListRow(false, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
-        Text(title, fontSize = 15.sp, singleLine = true)
+        Text(title, style = TextStyles.callout, singleLine = true)
         Box(Modifier.weight(1f).padding(start = 12.dp), contentAlignment = Alignment.CenterEnd) {
-            value?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End) }
+            value?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End) }
         }
         Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
     }

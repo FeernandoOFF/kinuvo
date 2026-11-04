@@ -36,7 +36,7 @@ fun CodeBlock(code: String, modifier: Modifier = Modifier, language: String? = n
             Modifier.fillMaxWidth().background(color(subtleColor).copy(alpha = 0.6f)).padding(start = 12.dp, end = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(language?.ifBlank { null } ?: "text", Modifier.weight(1f), fontSize = 11.sp, color = if (error) danger else color(mutedColor), singleLine = true)
+            Text(language?.ifBlank { null } ?: "text", Modifier.weight(1f), style = TextStyles.overline, color = if (error) danger else color(mutedColor), singleLine = true)
             CopyButton(code)
         }
         SelectionContainer {
@@ -50,9 +50,9 @@ fun CodeBlock(code: String, modifier: Modifier = Modifier, language: String? = n
         }
         if (shown < code.length) {
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Showing $shown of ${code.length} characters", Modifier.weight(1f), fontSize = 11.sp, color = color(mutedColor))
+                Text("Showing $shown of ${code.length} characters", Modifier.weight(1f), style = TextStyles.overline, color = color(mutedColor))
                 Button(onClick = { shown = minOf(code.length, shown + (previewChars ?: code.length)) }, style = ButtonStyle.Ghost) {
-                    Text("Show more", fontSize = 12.sp)
+                    Text("Show more", style = TextStyles.caption)
                 }
             }
         }
