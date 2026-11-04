@@ -98,7 +98,7 @@ internal fun interFamily() = FontFamily(
 )
 
 @Composable
-internal fun markdownTextStyle(): TextStyle = LocalTextStyle.current.copy(fontFamily = interFamily(), fontWeight = FontWeight.Normal, lineHeight = 1.4.em)
+internal fun markdownTextStyle(): TextStyle = LocalTextStyle.current.copy(fontFamily = interFamily(), fontWeight = FontWeight.Normal, lineHeight = 1.5.em)
 
 /** Renders Markdown: prose through compose-rich-editor, fences as [CodeBlock], pipe tables as a grid. */
 @Composable
@@ -136,6 +136,7 @@ fun RichMarkdown(markdown: String, style: TextStyle = markdownTextStyle(), modif
         state.config.codeSpanCornerRadius = 4.sp
         // List items wrap in line with their own text, a short step in from the paragraph.
         state.config.listIndent = 20
+        state.config.codeSpanPadding = com.mohamedrejeb.richeditor.model.TextPaddingValues(horizontal = 3.sp, vertical = 1.sp)
         state.setMarkdown(markdown)
     }
     val color = LocalContentColor.current
@@ -145,6 +146,8 @@ fun RichMarkdown(markdown: String, style: TextStyle = markdownTextStyle(), modif
 @Composable
 private fun MarkdownTable(rows: List<List<String>>, style: TextStyle) {
     val columns = rows.maxOf { it.size }
+    // Columns take room by their longest cell, so short ones don't leave long ones wrapping.
+    val weights = List(columns) { c -> rows.maxOf { it.getOrElse(c) { "" }.length }.coerceIn(4, 40).toFloat() }
     val border = color(borderColor)
     val shape = Theme[shapes][mediumShape]
     // Columns share the width while they fit; past that the table scrolls sideways at their minimum.
@@ -157,7 +160,7 @@ private fun MarkdownTable(rows: List<List<String>>, style: TextStyle) {
                         RichMarkdown(
                             row.getOrElse(c) { "" },
                             if (r == 0) style.copy(fontWeight = FontWeight.SemiBold) else style,
-                            Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 6.dp),
+                            Modifier.weight(weights[c]).padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
                         )
                     }
                 }

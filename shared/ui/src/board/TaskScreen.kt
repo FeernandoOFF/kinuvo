@@ -22,6 +22,8 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.protocol.*
 import kinuvo.ui.design.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.todayIn
 
 /** One Task with its runs, each opening its exact Session; Back returns to wherever the Task was opened from. */
 @Composable
@@ -65,11 +67,12 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Stri
                     }
                     val assignee = ui.agents.firstOrNull { it.id == task.assignee }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        AgentAvatar(assignee, 20.dp)
-                        Text(assignee?.let { "Assigned to ${it.name}" } ?: "Unassigned", color = color(mutedColor))
+                        Text("Assignee", style = TextStyles.secondary, color = color(mutedColor))
+                        Picker(listOf<AgentInfo?>(null) + ui.agents, assignee, { it?.name ?: "Unassigned" }, { a -> onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: "")) }, icon = Lucide.User)
                     }
-                    if (task.notes.isNotBlank()) Text(task.notes.trim())
-                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (task.notes.isNotBlank()) Text(task.notes.trim(), style = TextStyles.secondary)
+                    // Rows carry their own inset; the list starts at the page edge so their text lines up with the title.
+                    Column(Modifier.offset(x = (-10).dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         SectionLabel("Runs")
                         if (task.sessionIds.isEmpty()) Text("No Agent has worked on it yet.", Modifier.padding(horizontal = 10.dp), color = color(mutedColor), style = TextStyles.secondary)
                         task.sessionIds.asReversed().forEachIndexed { i, id ->
@@ -96,3 +99,8 @@ internal fun dueLabel(iso: String): String = runCatching {
     val d = kotlinx.datetime.LocalDate.parse(iso)
     "${d.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${d.day} ${d.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }}"
 }.getOrDefault(iso)
+
+/** Whether an ISO due date is before today. */
+internal fun overdue(iso: String): Boolean = runCatching {
+    kotlinx.datetime.LocalDate.parse(iso) < kotlin.time.Clock.System.todayIn(TimeZone.currentSystemDefault())
+}.getOrDefault(false)

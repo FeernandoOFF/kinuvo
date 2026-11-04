@@ -91,7 +91,7 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                 .clickable(enabled = state.connected && !state.pending && !state.control.draining, onClickLabel = "Hand back to Agent", role = Role.Button) { actions.takeover(false, false) }
                 .heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Lucide.Hand, Modifier.size(15.dp), tint = Tone.Success.color())
-                Text("Hand back", style = TextStyles.secondary)
+                Text("Hand back", style = TextStyles.label)
             }
             ScreenOptions(state, trackpad, fitPhone, { recenter++ }, { fitPhone = !fitPhone }, { restartTo = it }, actions) { controls = true }
         }

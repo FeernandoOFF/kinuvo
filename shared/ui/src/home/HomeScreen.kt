@@ -130,37 +130,34 @@ private fun NeedsYou(ui: HomeUi, actions: HomeActions) {
         if (items.isEmpty()) Empty("Nothing is waiting on you.")
         items.forEach { a ->
             when (a) {
-                is Attention.Waiting -> AttentionCard(ui.agent(a.session.agentId), a.session.title, a.session.kind(), "approval or answer waiting") {
-                    Button({ actions.onOpenSession(a.session.agentId, a.session.id) }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) {
-                        Icon(Lucide.Hash, Modifier.size(14.dp)); Text("Open Session")
-                    }
+                is Attention.Waiting -> AttentionCard(ui.agent(a.session.agentId), a.session.title, a.session.kind(), "Open Session") {
+                    actions.onOpenSession(a.session.agentId, a.session.id)
                 }
-                is Attention.TaskWaiting -> AttentionCard(ui.agent(a.task.assignee), a.task.title, "Task · ${a.task.listName}", "waits on you") {
-                    Button({ actions.onOpenTask(a.task.id) }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) {
-                        Icon(Lucide.SquareKanban, Modifier.size(14.dp)); Text("Open Task")
-                    }
-                }
+                is Attention.TaskWaiting -> AttentionCard(ui.agent(a.task.assignee), a.task.title, "Task · ${a.task.listName}", "Open Task") { actions.onOpenTask(a.task.id) }
             }
         }
     }
 }
 
+/** Something waiting on the user: who and what kind, Waiting, then its title; the whole card opens it. */
 @Composable
-private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, detail: String, action: @Composable RowScope.() -> Unit) {
+private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, open: String, onOpen: () -> Unit) {
     val shape = Theme[shapes][largeShape]
     Column(
-        Modifier.fillMaxWidth().clip(shape).background(color(panelColor), shape).border(1.dp, Tone.Warning.color().copy(alpha = 0.45f), shape).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        Modifier.padding(bottom = 10.dp).fillMaxWidth().clip(shape).background(color(panelColor), shape).border(1.dp, Tone.Warning.color().copy(alpha = 0.45f), shape)
+            .clickable(onClickLabel = open, role = Role.Button, onClick = onOpen).padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        // The Agent and status on one line, then what waits, so long names and titles each get a line of their own.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AgentAvatar(agent, 22.dp)
-            Text(agent?.name ?: "Unassigned", Modifier.weight(1f), style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            Text(listOfNotNull(agent?.name ?: "Unassigned", kind).joinToString(" · "), Modifier.weight(1f), style = TextStyles.secondary, color = color(mutedColor),
+                singleLine = true, overflow = TextOverflow.Ellipsis)
             Pill("Waiting", tone = Tone.Warning)
         }
-        Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis)
-        Text("$kind · $detail", style = TextStyles.secondary, color = color(mutedColor))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), content = action)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(title, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
+        }
     }
 }
 
@@ -203,7 +200,7 @@ private fun DueThisWeek(ui: HomeUi, actions: HomeActions) {
             else -> due.forEach { d ->
                 val agent = ui.agent(d.task.assignee)
                 // The Overdue pill says it's late; the line keeps the date, list and status.
-                HomeRow(agent, d.task.title, "${if (d.overdue) "" else "due "}${ui.dayLabel(d.date)} · ${d.task.listName} · ${d.task.status.label()}", { actions.onOpenTask(d.task.id) },
+                HomeRow(agent, d.task.title, "${ui.dayLabel(d.date)} · ${d.task.listName} · ${d.task.status.label()}", { actions.onOpenTask(d.task.id) },
                     icon = Lucide.SquareKanban.takeIf { agent == null }) {
                     if (d.overdue) Pill("Overdue", tone = Tone.Danger)
                 }
@@ -269,7 +266,7 @@ private fun HomeRow(agent: AgentInfo?, title: String, subtitle: String, onClick:
     ListRow(false, onClick, leading = { Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) { if (icon != null) Icon(icon, Modifier.size(16.dp)) else AgentAvatar(agent, 22.dp) } }) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         if (icon != null && agent != null) AgentAvatar(agent, 20.dp)
         trailing()

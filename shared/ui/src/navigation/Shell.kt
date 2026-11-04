@@ -440,7 +440,7 @@ private fun SessionSearch(query: TextFieldState, agent: String?, modifier: Modif
     ) {
         Icon(Lucide.Search, Modifier.size(16.dp), tint = color(mutedColor))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (query.text.isEmpty()) Text("Search Sessions", style = TextStyles.callout, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            if (query.text.isEmpty()) Text("Search Sessions", style = inputTextStyle(), color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             BasicTextField(query, Modifier.fillMaxWidth().semantics { contentDescription = "Search sessions" }, textStyle = TextStyle(fontSize = TextStyles.callout.fontSize, color = color(onBackgroundColor)),
                 lineLimits = TextFieldLineLimits.SingleLine, cursorBrush = SolidColor(color(accentColor)))
         }
@@ -469,7 +469,7 @@ private fun GroupHeader(title: String, collapsed: Boolean = false, onToggle: (()
     Row(
         Modifier.fillMaxWidth().padding(top = 12.dp).clip(Theme[shapes][smallShape])
             .then(if (onToggle != null) Modifier.clickable(onClick = onToggle).semantics { stateDescription = if (collapsed) "Collapsed" else "Expanded" } else Modifier)
-            .padding(horizontal = 6.dp, vertical = 4.dp),
+            .heightIn(min = if (onToggle != null) 44.dp else 0.dp).padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
@@ -491,7 +491,7 @@ private fun SessionRow(session: SessionInfo, selected: Boolean, finished: Boolea
 @Composable
 private fun ShellRow(icon: ImageVector, title: String, status: SessionStatus, selected: Boolean, finished: Boolean, onClick: () -> Unit) {
     ListRow(selected, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
-        Text(title.trimEnd(), Modifier.weight(1f), style = TextStyles.label, singleLine = true, overflow = TextOverflow.Ellipsis,
+        Text(title.trimEnd(), Modifier.weight(1f), style = TextStyles.label, maxLines = 2, overflow = TextOverflow.Ellipsis,
             color = if (selected || finished || status != SessionStatus.Idle) color(onBackgroundColor) else color(mutedColor))
         SessionStatusIcon(status, finished)
     }

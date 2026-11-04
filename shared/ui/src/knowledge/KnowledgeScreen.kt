@@ -135,7 +135,7 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
     DetailPane(back, n.title) {
         Pill(n.type.replaceFirstChar { it.uppercase() }, Modifier.padding(start = 16.dp), icon = n.type.icon())
         if (n.properties.isNotEmpty()) DetailGroup("Properties") {
-            n.properties.forEach { (k, v) -> DetailRow(k.replaceFirstChar { it.uppercase() }) { Text(v) } }
+            n.properties.forEach { (k, v) -> DetailRow(k.replaceFirstChar { it.uppercase() }) { Text(dateLabel(v)) } }
         }
         if (n.body.isNotBlank()) DetailGroup("Note") { Markdown(WIKILINK.replace(n.body) { m -> "*${m.groupValues[2].ifEmpty { m.groupValues[1] }}*" }) }
         if (links.isNotEmpty()) RowGroup("Linked notes") {
@@ -157,3 +157,9 @@ private fun String.icon() = when (this) {
     "event" -> Lucide.CalendarDays
     else -> Lucide.BookOpen
 }
+
+/** An ISO date value as "1 Mar 2025"; anything else as written. */
+private fun dateLabel(value: String): String = runCatching {
+    val d = kotlinx.datetime.LocalDate.parse(value)
+    "${d.day} ${d.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${d.year}"
+}.getOrDefault(value)

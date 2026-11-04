@@ -96,7 +96,7 @@ private fun QuickChatBarContent(agent: AgentInfo?, draft: TextFieldState, onOpen
             Column(Modifier.weight(1f)) {
                 Text(agent?.name ?: "…", style = TextStyles.caption, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                 val text = draft.text.toString()
-                Text(text.ifBlank { "Message…" }, singleLine = true, overflow = TextOverflow.Ellipsis,
+                Text(text.ifBlank { "Message…" }, style = inputTextStyle(), singleLine = true, overflow = TextOverflow.Ellipsis,
                     color = if (text.isBlank()) color(mutedColor) else color(onBackgroundColor))
             }
             Box(Modifier.size(36.dp).clip(CircleShape).background(color(accentColor)), contentAlignment = Alignment.Center) {

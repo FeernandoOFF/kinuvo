@@ -199,7 +199,7 @@ private fun Routine.icon(): ImageVector = if (heartbeat) Lucide.HeartPulse else 
 internal fun Routine.summary(now: Long) = trigger.describe() + when {
     !enabled && trigger is Trigger.Once && lastRunAt != null -> " · done"
     !enabled -> ""
-    else -> " · " + (nextRunAt?.let { "next ${relative(it, now)}" } ?: "not scheduled")
+    else -> " · " + (nextRunAt?.let { "next ${relative(it, now).removePrefix("in ")}" } ?: "not scheduled")
 }
 
 private fun Routine.nextRun(now: Long): String = when {
