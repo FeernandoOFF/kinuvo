@@ -1,10 +1,9 @@
 package kinuvo.harness.core.tools
 
 import ai.koog.agents.core.tools.ToolDescriptor
-import kinuvo.harness.core.toolLocalName
 
 /** The tools a small on-device model takes, by their [local] names: Memory and web search first, at most [max], skipping ones it [can't fill in][fits]. */
-fun smallModelTools(tools: List<ToolDescriptor>, max: Int, local: (ToolDescriptor) -> String = { toolLocalName(it.name) }, fits: (ToolDescriptor) -> Boolean = { true }): List<ToolDescriptor> = tools
+fun smallModelTools(tools: List<ToolDescriptor>, max: Int, local: (ToolDescriptor) -> String = { it.name }, fits: (ToolDescriptor) -> Boolean = { true }): List<ToolDescriptor> = tools
     .filter { local(it) !in SKIPPED && fits(it) }
     .sortedWith(compareBy<ToolDescriptor> { PREFERRED.indexOf(local(it)).let { i -> if (i < 0) PREFERRED.size else i } }.thenBy { local(it) })
     .take(max)

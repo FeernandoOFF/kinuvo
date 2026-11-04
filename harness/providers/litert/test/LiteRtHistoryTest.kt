@@ -36,11 +36,4 @@ class LiteRtHistoryTest {
         assertEquals(buildJsonObject { put("n", 3); put("x", 1.5); putJsonArray("tags") { add("a") }; put("on", true) },
             mapOf("n" to 3.0, "x" to 1.5, "tags" to listOf("a"), "on" to true).toJson())
     }
-
-    @Test fun pluginAliasesBecomeShortNamesUnlessTheyClash() {
-        val memory = ai.koog.agents.core.tools.ToolDescriptor("core__default__memory__0123456789abcdef", "")
-        val mine = ai.koog.agents.core.tools.ToolDescriptor("mcp__notes__search__0123456789abcdef", "")
-        val theirs = ai.koog.agents.core.tools.ToolDescriptor("mcp__mail__search__fedcba9876543210", "")
-        assertEquals(mapOf(memory.name to "memory", mine.name to mine.name, theirs.name to theirs.name), shortNames(listOf(memory, mine, theirs)))
-    }
 }

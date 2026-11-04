@@ -41,19 +41,19 @@ class ReflectionActivityTest {
             assertNotNull(caught.map { it.change }.filterIsInstance<SessionChange.Live>().single().state.reflectionId)
             assertEquals(SessionStatus.Idle, harness.log.status(sessionId))
             harness.log.unsubscribeAll(subscriber)
-            val knowledgeStage = tools.singleOrNull()?.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias()
-            val memoryStage = tools.singleOrNull()?.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias()
+            val knowledgeStage = tools.singleOrNull()?.name == "knowledge"
+            val memoryStage = tools.singleOrNull()?.name == "memory"
             if (knowledgeStage) assertTrue("People go in person notes" in history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent())
             emitAll(when {
                 outcome == "failed" -> error("Provider unavailable")
                 outcome == "empty" || history.toolResults.isNotEmpty() -> flowOf(StreamFrame.TextDelta("Finished."), StreamFrame.End())
                 knowledgeStage -> flowOf(
-                    StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"create","type":"person","title":"Ana","reason":"Family","evidence":"user-1: sister Ana"}"""),
+                    StreamFrame.ToolCallComplete("c1", "knowledge", """{"action":"create","type":"person","title":"Ana","reason":"Family","evidence":"user-1: sister Ana"}"""),
                     StreamFrame.End(),
                 )
                 memoryStage -> flowOf(
-                    StreamFrame.ToolCallComplete("c2", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"add","target":"memory","content":"Use examples"}"""),
-                    StreamFrame.ToolCallComplete("c3", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "memory").modelAlias(), """{"action":"add","target":"user","content":"Lives in Dublin"}"""),
+                    StreamFrame.ToolCallComplete("c2", "memory", """{"action":"add","target":"memory","content":"Use examples"}"""),
+                    StreamFrame.ToolCallComplete("c3", "memory", """{"action":"add","target":"user","content":"Lives in Dublin"}"""),
                     StreamFrame.End(),
                 )
                 else -> flowOf(StreamFrame.End())

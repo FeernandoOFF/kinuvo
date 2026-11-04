@@ -247,8 +247,8 @@ class KnowledgeTest {
             val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
             val history = prompt.messages
             assertTrue("Today is 2026-10-04." in history.first { it is Message.User && it.textContent().startsWith("Background Reflection instructions:") }.textContent())
-            if (tools.single().name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias() && history.toolResults.isEmpty()) flowOf(
-                StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"create","type":"person","title":"Ana","set":"{\"relationship\":\"sister\"}","reason":"Family relationship","evidence":"user-0: sister Ana"}"""),
+            if (tools.single().name == "knowledge" && history.toolResults.isEmpty()) flowOf(
+                StreamFrame.ToolCallComplete("c1", "knowledge", """{"action":"create","type":"person","title":"Ana","set":"{\"relationship\":\"sister\"}","reason":"Family relationship","evidence":"user-0: sister Ana"}"""),
                 StreamFrame.End(),
             ) else flowOf(StreamFrame.TextDelta("Saved Ana."), StreamFrame.End())
         }

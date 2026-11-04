@@ -43,8 +43,8 @@ class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
 
     /** Screen control, Scripts and the tool catalog take more steps and context than these models handle well. */
     override fun usableTools(model: String, tools: List<ToolDescriptor>, identities: Map<String, ToolIdentity>) =
-        smallModelTools(tools, localModels.firstOrNull { it.id == model }?.tools ?: 4, { identities[it.name]?.localId ?: toolLocalName(it.name) }) { tool ->
-            (identities[tool.name]?.localId ?: toolLocalName(tool.name)).let { it !in SCREENS_AND_SCRIPTS && !it.startsWith("browser") }
+        smallModelTools(tools, localModels.firstOrNull { it.id == model }?.tools ?: 4, { identities[it.name]?.localId ?: it.name }) { tool ->
+            (identities[tool.name]?.localId ?: tool.name).let { it !in SCREENS_AND_SCRIPTS && !it.startsWith("browser") }
         }
 
     override fun model(config: AgentConfig): AgentModel = model(config, null)
