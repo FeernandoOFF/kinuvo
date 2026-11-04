@@ -41,10 +41,7 @@ internal fun RoutineList(p: Pane) {
         when {
             restricted -> ManagementAccessRequired()
             error != null -> LoadFailure(error, onAction = p.actions.onReloadRoutines)
-            routines?.isEmpty() == true -> Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Icon(Lucide.AlarmClock, Modifier.size(28.dp), tint = color(mutedColor))
-                Text("No routines yet", color = color(mutedColor))
+            routines?.isEmpty() == true -> EmptyState(Lucide.AlarmClock, "No routines yet") {
                 Button(onClick = { p.go(ui.route.copy(item = null, editing = true)) }, style = ButtonStyle.Primary) { Text("Create routine") }
             }
         }

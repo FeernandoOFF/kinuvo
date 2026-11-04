@@ -80,8 +80,8 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                 else -> ActionRow("Sign in", Lucide.LogIn, { p.actions.onLoginProvider(provider.id) })
             }
         }
-        provider.error?.let { Text(it, Modifier.padding(horizontal = 6.dp), color = color(destructiveColor), fontSize = 12.sp) }
-        if (apiKey != null) Row(Modifier.padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        provider.error?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = color(destructiveColor), fontSize = 12.sp) }
+        if (apiKey != null) Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Saved keys stay on the Server. Refresh models after changing it.", Modifier.weight(1f), color = color(mutedColor), fontSize = 12.sp)
             if (p.ui.state.saved) Pill("Saved", tone = Tone.Success, icon = Lucide.CircleCheck)
         }

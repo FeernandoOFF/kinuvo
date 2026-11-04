@@ -535,8 +535,8 @@ internal fun ComputerList(state: LiveViewState, onRetry: () -> Unit, onOpen: (Sc
                     RowGroup { ActionRow("Retry", Lucide.RefreshCw, onRetry) }
                 }
                 !state.loaded -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
-                state.screens.isEmpty() -> Text("No Computers yet. Allow computer use on a phone or computer under Settings → This Device's tools, and turn on computer use in an Agent's tools.",
-                    Modifier.padding(horizontal = 6.dp), color = color(mutedColor))
+                state.screens.isEmpty() -> EmptyState(Lucide.MonitorSmartphone, "No Computers yet",
+                    "Allow computer use on a phone or computer under Settings → This Device's tools, and turn on computer use in an Agent's tools.")
                 else -> RowGroup {
                     state.screens.forEach { screen ->
                         val status = screen.status(state.connected, state.device, state.requestReason.takeIf { screen.ref == state.selected })

@@ -272,9 +272,10 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
                     Button(onClick = { onDecision(ApprovalDecision.AlwaysAllow) }, modifier = it, style = ButtonStyle.Outlined) { Text(always, singleLine = true, overflow = TextOverflow.Ellipsis) }
                 }
             })
-        Input(input.note, "What to do instead", capitalize = true, trailing = {
-            Button(onClick = { onDecision(ApprovalDecision.Deny(input.note.text.toString())) }, style = ButtonStyle.Ghost, contentColor = color(destructiveColor)) { Text("Deny") }
-        })
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.weight(1f)) { Input(input.note, "What to do instead", capitalize = true) }
+            Button(onClick = { onDecision(ApprovalDecision.Deny(input.note.text.toString())) }, style = ButtonStyle.Outlined, contentColor = color(destructiveColor)) { Text("Deny") }
+        }
     }
 }
 

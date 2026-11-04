@@ -93,7 +93,7 @@ private fun HarnessList(p: Pane) {
             GroupRow("Link a Kinuvo Server", { p.go(p.ui.route.copy(item = LinkItem, editing = true)) }, icon = Lucide.Link, enabled = remote,
                 subtitle = if (remote) "Use Agents another Server shares" else "Not available on $server")
             GroupRow("Share Agents", { p.go(p.ui.route.copy(item = ShareItem, editing = true)) }, icon = Lucide.Share2, enabled = remote,
-                subtitle = if (remote) "Let another Server use Agents from $server" else null)
+                subtitle = if (remote) "Let another Server use these Agents" else null)
         }
     }
 }
