@@ -38,7 +38,7 @@ internal fun ExternalPrompts(state: ChatState, actions: ChatActions, modifier: M
             key(prompt.id) {
                 when (prompt) {
                     is ExecutionPrompt.Approval -> ExternalApprovalCard(prompt, harness, actions)
-                    is ExecutionPrompt.Questions -> QuestionsCard(prompt.asked, state.answers, actions.onEditAnswer, { actions.onExternal(prompt, questionsAnswer(prompt, it)) }, skip = if (prompt.native) "Skip" else "Decline", attached = true)
+                    is ExecutionPrompt.Questions -> QuestionsCard(prompt.asked, state.answers, actions.onEditAnswer, { actions.onExternal(prompt, questionsAnswer(prompt, it)) }, skip = if (prompt.native) "Dismiss" else "Decline", attached = true)
                     is ExecutionPrompt.OpenLink -> RequestCard(Lucide.ExternalLink, "Open ${prompt.site}", prompt.message) {
                         Button({ uri.openUri(prompt.url); actions.onExternal(prompt, openLinkAnswer(true)) }) { Text("Open page") }
                         Button({ actions.onExternal(prompt, openLinkAnswer(false)) }, style = ButtonStyle.Ghost) { Text("Decline") }
