@@ -287,13 +287,13 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
         }
         HorizontalSeparator()
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp + bottom), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            item(key = "server") { GroupHeader("On this Server") }
             item(key = "today") {
                 Pinned(Lucide.Inbox, "Today", view == Route.Home, true, actions.onToday, count = state.waiting.size.takeIf { it > 0 })
             }
             item(key = "board") {
                 Pinned(Lucide.SquareKanban, "Board", view == Route.Board || view is Route.Task, state.capabilities.supports(ServerFeature.Tasks), actions.onBoard)
             }
-            item(key = "server") { GroupHeader("On this Server") }
             item(key = "server-rows") {
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     if (state.management && state.capabilities?.features?.contains(ServerFeature.Computer) == true)

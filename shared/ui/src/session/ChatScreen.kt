@@ -571,7 +571,7 @@ internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit,
             enabled = enabled,
             style = ButtonStyle.Ghost,
             shape = if (LocalInteractionMode.current == InteractionMode.Touch) CircleShape else Theme[shapes][mediumShape],
-            contentColor = color(mutedColor),
+            contentColor = if (LocalInteractionMode.current == InteractionMode.Touch) color(onBackgroundColor) else color(mutedColor),
             modifier = if (LocalInteractionMode.current == InteractionMode.Touch) Modifier.size(44.dp).background(color(subtleColor), CircleShape)
                 else Modifier.size(32.dp).titleBarControl(),
         ) {
@@ -919,7 +919,8 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
             }
         }
         is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { item.draft.forEach { ChatItemView(it, actions) } }
+            // What it had written before stopping, quieter than a finished reply.
+            Column(Modifier.alpha(0.7f), verticalArrangement = Arrangement.spacedBy(8.dp)) { item.draft.forEach { ChatItemView(it, actions) } }
         }
         is ChatItem.Measurement -> Unit
         is ChatItem.Reflection -> ReflectionView(item, onReview = actions.onReviewReflection)

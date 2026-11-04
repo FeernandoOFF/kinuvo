@@ -14,6 +14,7 @@ import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,7 +58,9 @@ class Popovers {
                 val drag = remember(popover) { Animatable(0f) }
                 val scope = rememberCoroutineScope()
                 val threshold = with(LocalDensity.current) { 96.dp.toPx() }
-                Box(Modifier.align(if (touch) Alignment.BottomCenter else Alignment.Center).windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp)
+                // On touch screens, the same full-width sheet as Settings; for pointers, a centered panel.
+                Box(Modifier.align(if (touch) Alignment.BottomCenter else Alignment.Center)
+                    .then(if (touch) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)) else Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp))
                     .widthIn(max = if (touch) Dp.Infinity else 440.dp).fillMaxWidth()
                     .animateEnterExit(enter = slideInVertically { if (touch) it else 0 }, exit = slideOutVertically { if (touch) it else 0 })
                     .offset { IntOffset(0, drag.value.roundToInt()) }
@@ -67,10 +70,12 @@ class Popovers {
                         enabled = touch,
                         onDragStopped = { v -> if (drag.value > threshold || v > 1500f) popover.onDismiss() else drag.animateTo(0f) },
                     )) {
-                    Panel(Modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(12.dp)) {
-                        if (touch) Box(Modifier.align(Alignment.CenterHorizontally).padding(bottom = 8.dp).size(36.dp, 4.dp).background(color(mutedColor).copy(alpha = 0.4f), CircleShape))
+                    Panel(Modifier.fillMaxWidth(), color = if (touch) color(backgroundColor) else color(panelColor),
+                        shape = if (touch) RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp) else Theme[shapes][largeShape],
+                        contentPadding = if (touch) PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp) else PaddingValues(12.dp)) {
+                        if (touch) Box(Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp).size(36.dp, 4.dp).background(color(mutedColor).copy(alpha = 0.5f), CircleShape))
                         popover.title?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 12.dp), fontSize = 16.sp) }
-                        popover.content()
+                        Column(if (touch) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)) else Modifier) { popover.content() }
                     }
                 }
             }
