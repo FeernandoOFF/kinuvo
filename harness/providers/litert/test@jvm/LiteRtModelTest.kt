@@ -40,4 +40,17 @@ class LiteRtModelTest {
             provider.close()
         } finally { home.deleteRecursively() }
     }
+
+    @Test fun closingStopsADownload() = runBlocking {
+        if (System.getenv("KINUVO_TEST_LITERT_MODEL") == null) return@runBlocking
+        val home = Files.createTempDirectory("kinuvo-litert-close").toFile()
+        try {
+            val provider = LiteRtProvider(home)
+            val downloads = requireNotNull(provider.downloads)
+            val model = downloads.state().models.firstOrNull { it.supported } ?: return@runBlocking
+            downloads.download(model.id)
+            provider.close()
+            assertNull(downloads.state().downloading)
+        } finally { home.deleteRecursively() }
+    }
 }

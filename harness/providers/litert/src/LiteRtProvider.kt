@@ -54,8 +54,9 @@ class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
         return AgentModel(executor, (info ?: local.info()).llModel(LiteRt))
     }
 
+    private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     override val downloads = object : ModelDownloads {
-        private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         private var job: Job? = null
         private val progress = MutableStateFlow(ProviderDownloads())
         override val changes = MutableStateFlow(state())
@@ -72,7 +73,7 @@ class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
             val local = requireNotNull(localModels.firstOrNull { it.id == model }) { "No on-device model '$model'" }
             reason(local)?.let { error(it) }
             publish { ProviderDownloads(downloading = model) }
-            job = scope.launch(start = CoroutineStart.ATOMIC) {
+            job = downloadScope.launch(start = CoroutineStart.ATOMIC) {
                 var reported = 0L
                 try {
                     files.download(local.download) { bytes ->
@@ -99,7 +100,11 @@ class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
         }
     }
 
-    override suspend fun close() { engines.shutdown(); executor.close() }
+    override suspend fun close() {
+        downloadScope.coroutineContext.job.cancelAndJoin()
+        engines.shutdown()
+        executor.close()
+    }
 
     companion object {
         private const val REPORT = 8L * 1024 * 1024
