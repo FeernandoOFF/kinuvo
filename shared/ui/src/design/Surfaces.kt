@@ -198,6 +198,15 @@ fun Hint(label: String, side: TooltipSide = TooltipSide.Top, content: @Composabl
     else Tooltip(side = side, panel = { TooltipPanel { Text(label, fontSize = 12.sp) } }) { content() }
 }
 
+/** An action inside a field, e.g. Generate or Open: a quiet icon that leaves the field's own shape alone. */
+@Composable
+fun FieldButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true) {
+    Box(Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClickLabel = label, onClick = onClick)
+        .alpha(if (enabled) 1f else 0.4f), contentAlignment = Alignment.Center) {
+        Icon(icon, Modifier.size(18.dp), tint = color(mutedColor), contentDescription = label)
+    }
+}
+
 internal val RoundedCornerShape100 = androidx.compose.foundation.shape.RoundedCornerShape(100)
 
 /** Text typed into inputs: a notch under body text. */

@@ -174,7 +174,7 @@ private fun AcpFormPane(form: AcpForm, p: Pane) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Input(draftField(key, "env-key-$index", row.first) { v -> p.actions.onEditAcp { f -> f.copy(environment = f.environment.toMutableList().apply { set(index, v to row.second) }) } }, "KEY", Modifier.weight(1f))
                         Input(draftField(key, "env-value-$index", row.second) { v -> p.actions.onEditAcp { f -> f.copy(environment = f.environment.toMutableList().apply { set(index, row.first to v) }) } }, "Value", Modifier.weight(1f))
-                        HeaderButton(Lucide.Trash2, "Remove variable", { p.actions.onEditAcp { f -> f.copy(environment = f.environment.filterIndexed { i, _ -> i != index }) } })
+                        FieldButton(Lucide.Trash2, "Remove variable", { p.actions.onEditAcp { f -> f.copy(environment = f.environment.filterIndexed { i, _ -> i != index }) } })
                     }
                 }
             }
