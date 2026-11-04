@@ -65,7 +65,7 @@ internal fun HarnessesPane(p: Pane) {
 }
 
 private fun HarnessConnectionStatus.subtitle(server: String) =
-    (if (kind == ExecutionKind.Acp) "ACP command" else "Kinuvo Server") + " · ${config.host ?: server}"
+    (if (kind == ExecutionKind.Acp) "ACP command" else "Kinuvo Server") + (config.host?.let { " · $it" } ?: " on $server")
 
 @Composable
 private fun HarnessList(p: Pane) {
@@ -77,7 +77,7 @@ private fun HarnessList(p: Pane) {
         info = "A harness runs Agents. Kinuvo runs its own; an ACP command runs one you already use, like Claude Code or Codex, on $server.") {
         val catalog = h.catalog ?: return@DetailPane Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
         RowGroup {
-            GroupRow("Kinuvo", subtitle = "Built in · $server · ${agentCount(p.ui.agents.count { !it.external })}", icon = Lucide.Sparkles)
+            GroupRow("Kinuvo", subtitle = "Built in · ${agentCount(p.ui.agents.count { !it.external })}", icon = Lucide.Sparkles)
             catalog.connections.forEach { c ->
                 val r = readiness(c, server)
                 ItemRow(false, if (c.kind == ExecutionKind.Acp) Lucide.SquareTerminal else Lucide.ArrowLeftRight, c.config.name,

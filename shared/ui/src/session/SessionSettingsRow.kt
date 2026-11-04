@@ -118,7 +118,10 @@ internal fun RowScope.ComposerSettings(
         attachButton()
         Popover(attachOpen, { attachOpen = false }, "Add to chat") {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                sources.forEach { (source, label, icon) -> SourceTile(label, icon, accepts(source), Modifier.weight(1f)) { attach(source) } }
+                sources.forEach { (source, label, icon) ->
+                    val reason = if (accepts(source)) null else (if (source == AttachmentSource.Files) files else photos)?.reason
+                    SourceTile(label, icon, accepts(source), Modifier.weight(1f), reason) { attach(source) }
+                }
             }
             Text(ATTACHMENT_LIMITS, Modifier.fillMaxWidth().padding(top = 12.dp), fontSize = 12.sp, color = color(mutedColor), textAlign = TextAlign.Center)
         }
@@ -238,16 +241,17 @@ internal fun RowScope.ComposerSettings(
 }
 
 @Composable
-private fun SourceTile(label: String, icon: ImageVector, enabled: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun SourceTile(label: String, icon: ImageVector, enabled: Boolean, modifier: Modifier, reason: String? = null, onClick: () -> Unit) {
     val shape = Theme[shapes][largeShape]
     Column(
-        modifier.height(88.dp).clip(shape).background(color(borderColor).copy(alpha = 0.5f), shape).clickable(enabled = enabled, onClick = onClick)
-            .alpha(if (enabled) 1f else 0.4f),
+        modifier.heightIn(min = 88.dp).clip(shape).background(color(borderColor).copy(alpha = 0.5f), shape).clickable(enabled = enabled, onClick = onClick)
+            .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Icon(icon, Modifier.size(22.dp))
-        Text(label, fontSize = 14.sp)
+        Icon(icon, Modifier.size(22.dp).alpha(if (enabled) 1f else 0.4f))
+        Text(label, Modifier.alpha(if (enabled) 1f else 0.4f), fontSize = 14.sp)
+        reason?.let { Text(it, fontSize = 11.sp, lineHeight = 14.sp, color = color(mutedColor), textAlign = TextAlign.Center, maxLines = 2, overflow = TextOverflow.Ellipsis) }
     }
 }
 

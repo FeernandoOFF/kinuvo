@@ -623,7 +623,8 @@ private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatS
         expanded = menu,
         onExpandedChange = { menu = it },
         panel = {
-            DropdownMenuPanel {
+            // Keeps a gutter where the window edge pushes the panel back in.
+            DropdownMenuPanel(Modifier.padding(end = 12.dp)) {
                 extra { menu = false }
                 if (session != null) {
                     DropdownMenuItem(onClick = { menu = false; actions.onFavorite(!session.favorite) }) {
