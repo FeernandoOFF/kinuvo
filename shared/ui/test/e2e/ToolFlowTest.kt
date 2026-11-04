@@ -3,8 +3,8 @@ package kinuvo.ui.e2e
 import kotlin.test.Test
 
 class ToolFlowTest {
-    private val shellCall = """{"type":"tool_call","id":"e2e-tool","name":"shell","args":"{\"command\":\"echo test\"}"}"""
-    private val approval = """{"type":"APPROVAL_REQUESTED","approvalId":"e2e-approval","toolCallId":"e2e-tool","toolCallName":"shell","args":"{\"command\":\"echo test\"}","reason":"Test approval from WireMock","trustable":false}"""
+    private val shellCall = """{"type":"tool_call","id":"e2e-tool","name":"shell","identity":{"instance":{"pluginId":"kinuvo.exec","instanceId":"default"},"localId":"shell"},"args":"{\"command\":\"echo test\"}"}"""
+    private val approval = """{"type":"APPROVAL_REQUESTED","approvalId":"e2e-approval","toolCallId":"e2e-tool","toolCallName":"shell","identity":{"instance":{"pluginId":"kinuvo.exec","instanceId":"default"},"localId":"shell"},"args":"{\"command\":\"echo test\"}","reason":"Test approval from WireMock","trustable":false}"""
 
     private suspend fun AppTest.toolRun(output: String, error: Boolean, reply: String) {
         push(sessionEvent(5, """{"type":"RUN_STARTED","runId":"tool-run"}"""))
@@ -45,7 +45,7 @@ class ToolFlowTest {
         screenshot("streaming")
         push(sessionEntry(7, 2, shellCall))
         push(sessionEvent(8, approval))
-        scrollTo("Allow shell\\?")
+        scrollTo("Run this command\\?")
         await("Test approval from WireMock")
         screenshot("approval")
         tap("Allow once")
@@ -62,7 +62,7 @@ class ToolFlowTest {
         push(sessionEvent(5, """{"type":"RUN_STARTED","runId":"approval-run"}"""))
         push(sessionEntry(7, 2, shellCall))
         push(sessionEvent(8, approval))
-        scrollTo("Allow shell\\?")
+        scrollTo("Run this command\\?")
         tap("Add a note for the Agent")
         tap("What to do instead")
         type("Do not run this command")

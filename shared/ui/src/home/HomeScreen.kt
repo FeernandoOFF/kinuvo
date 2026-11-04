@@ -154,7 +154,7 @@ private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, open: 
             MetaLine(agent?.name ?: "Unassigned", kind, Modifier.weight(1f), TextStyles.secondary)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(title, Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text(title, Modifier.weight(1f), maxLines = 3, overflow = TextOverflow.Ellipsis)
             Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
         }
     }
@@ -222,9 +222,7 @@ private fun Results(ui: HomeUi, actions: HomeActions) {
                         else -> r.lastReport?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim() ?: "Reported"
                     }
                     HomeRow(agent, r.name, listOfNotNull(agent?.name ?: r.agentId, relative(r.lastRunAt ?: ui.now, ui.now), outcome).joinToString(" · "),
-                        { actions.onOpenSession(r.agentId, r.lastSessionId!!) }, flag = "Failed".takeIf { failed }) {
-                        if (failed) Icon(Lucide.CircleAlert, Modifier.size(14.dp), tint = Tone.Danger.color(), contentDescription = "Failed")
-                    }
+                        { actions.onOpenSession(r.agentId, r.lastSessionId!!) }, flag = "Failed".takeIf { failed })
                 }
                 is Outcome.Finished -> {
                     val agent = ui.agent(o.session.agentId)

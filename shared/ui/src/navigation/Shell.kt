@@ -50,6 +50,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
+import com.composeunstyled.LocalTextStyle
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
@@ -351,7 +353,9 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
     }
     Column(Modifier.fillMaxSize()) {
         TitleBarRow(leading = false, trailing = false) {
-            Text(state.agent?.name ?: "…", Modifier.weight(1f).padding(horizontal = 8.dp), fontWeight = FontWeight.Bold, singleLine = true, overflow = TextOverflow.Ellipsis)
+            // A long name wraps to a second, tighter line rather than losing its end.
+            Text(state.agent?.name ?: "…", Modifier.weight(1f).padding(horizontal = 8.dp), fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                style = LocalTextStyle.current.copy(lineHeight = 1.15.em))
             HeaderButton(Lucide.Settings2, "Agent settings", actions.onAgentSettings, enabled = state.agent != null)
             HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", actions.onNew, enabled = state.agent != null)
         }

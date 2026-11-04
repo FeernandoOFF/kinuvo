@@ -393,7 +393,7 @@ internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, l
         if (scope != null && p.back == null) PageHeader(p.ui.route.section?.icon() ?: Lucide.Settings, title, scope = scope, actions = if (canAdd) listOf(add) else emptyList())
         else SettingsPageHeader(title, p.back) { if (canAdd) HeaderButton(add.icon, add.label, add.onClick) }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            if (intro.isNotEmpty()) Text(intro, color = color(mutedColor), style = TextStyles.label)
+            if (intro.isNotEmpty()) Text(intro, color = color(mutedColor), style = TextStyles.secondary)
             if (loading) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
             else rows()
         }
@@ -561,7 +561,8 @@ internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSe
             }
         },
     ) {
-        Button(onClick = { open = true }, modifier = if (stretch) Modifier.fillMaxWidth() else Modifier, style = style, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 10.dp)) {
+        Button(onClick = { open = true }, modifier = if (stretch) Modifier.fillMaxWidth() else Modifier, style = style, buttonSize = ButtonSize.Small,
+            contentPadding = if (style == ButtonStyle.Ghost) PaddingValues(end = 10.dp) else PaddingValues(horizontal = 10.dp)) {
             icon?.let { Icon(it, Modifier.size(14.dp), tint = color(mutedColor)) }
             // Stretched to a given width, the label takes the room and the chevron keeps to the end.
             Text(label(current), if (stretch) Modifier.weight(1f) else Modifier.weight(1f, fill = false).widthIn(max = 180.dp), style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)

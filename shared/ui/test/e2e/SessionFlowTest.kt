@@ -1,5 +1,6 @@
 package kinuvo.ui.e2e
 
+import androidx.compose.ui.test.isEnabled
 import kotlin.test.Test
 
 class SessionFlowTest {
@@ -77,6 +78,7 @@ class SessionFlowTest {
         push("""{"type":"event","event":"screens.changed","payload":null,"seq":100}""")
         push("""{"type":"event","event":"screens.frame","seq":102,"payload":{"screen":{"source":"computer","id":"phone"},"subscription":"computer-sub","epoch":"computer-epoch","sequence":2,"sample":{"image":"iVBORw0KGgoAAAANSUhEUgAAAIAAAABQCAIAAABeYuqzAAAAqElEQVR4nO3RsQkAMAzAsPz/bIdC556RwQIfYNCc+7TYrB/EAwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2H2laxqC4EjqVAAAAAElFTkSuQmCC","width":128,"height":80,"geometry":"fixture"}}}""")
         await("In control")
+        await(label("Switch apps").and(isEnabled()))
         screenshot("in-control")
         tap("Keys")
         screenshot("keys")
