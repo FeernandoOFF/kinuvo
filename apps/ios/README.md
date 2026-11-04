@@ -21,6 +21,45 @@ xcrun devicectl list devices
 
 The project uses Kotlin Toolchain 0.13.0 with incremental compilation enabled. Debug native linking reuses compiler caches; compilation to `.klib` files still runs in full.
 
+## Private wireless installation
+
+On the Mac hosting your builds, with Tailscale connected and Xcode signed into a
+paid Apple Developer account containing your registered iPhone:
+
+```sh
+mise run ios:publish
+```
+
+This archives the current checkout in Release mode, exports an Ad Hoc signed IPA,
+checks its signature and provisioning profile, and publishes a private installer
+at `https://<mac-tailnet-name>/install/ios/`. Open that URL in Safari on the iPhone
+with Tailscale connected and tap **Install Kinuvo**. The page URL stays the same;
+refresh it after publishing another build. Each package has a unique URL to avoid
+cached installations. Builds with the same bundle identifier update the existing
+app and preserve its data; different branches are not separate installations.
+
+Xcode automatically manages distribution signing. The iPhone must already be
+registered in the selected Apple team. The export fails if the account cannot
+create the necessary distribution certificate or profile. The generated page
+shows the build's minimum iOS version and signing expiration.
+
+Archives and logs live in `build/ios-ota/`; published files live in
+`dist/ios-install/`. Release compilation uses an 8 GB Java heap to accommodate
+Kotlin/Native optimization; override it with `KINUVO_IOS_BUILD_HEAP` if needed.
+Keep that directory in place while serving builds. A user launch agent,
+`dev.kinuvo.ios-install`, serves only that directory on `127.0.0.1:8795` and starts
+at login. Tailscale Serve persists across restarts and adds only `/install/ios/`, preserving existing
+routes. Public Funnel on port 443 is rejected. Existing build files are retained
+so an installation in progress can finish. To remove the installer route, run
+`tailscale serve --https=443 --set-path=/install/ios/ off`. To stop the file host,
+run `launchctl bootout gui/$(id -u)/dev.kinuvo.ios-install` and remove its plist
+from `~/Library/LaunchAgents/`.
+
+To export an existing archive without rebuilding, use
+`mise run ios:publish -- --archive /absolute/path/Kinuvo.xcarchive`.
+The command verifies the HTTPS page, manifest and downloaded IPA; successful
+installation and launch still need verification on a registered iPhone.
+
 Debug builds keep `ENABLE_DEBUG_DYLIB=NO` in the Xcode target. This works around unsigned debug dylibs observed with Kotlin Toolchain 0.12.2 during CLI device installs, which iOS refuses to load. Keep this setting when regenerating the Xcode project. The Debug target also defines `DEBUG` in `SWIFT_ACTIVE_COMPILATION_CONDITIONS` for the simulator test override; preserve it when regenerating.
 
 ## On-device demo
