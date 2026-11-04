@@ -163,7 +163,7 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                     Spacer(Modifier.weight(1f))
                     Button(onClick = { actions.onOpenSession(task.assignee!!, last) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(accentColor)) {
                         Icon(Lucide.MessageSquare, Modifier.size(14.dp))
-                        Text("Open run", style = TextStyles.secondary)
+                        Text(if (task.sessionIds.size > 1) "Latest run" else "Open run", style = TextStyles.secondary)
                         if (task.sessionIds.size > 1) Text("${task.sessionIds.size} runs", style = TextStyles.caption, color = color(mutedColor))
                     }
                 }
