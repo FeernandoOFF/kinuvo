@@ -129,10 +129,11 @@ private fun BoardColumn(status: TaskStatus, tasks: List<TaskInfo>, ui: BoardUi, 
 @Composable
 private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActions) {
     val assignee = agents.firstOrNull { it.id == task.assignee }
-    Panel(Modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(12.dp)) {
+    // The whole card opens the Task; its pickers and run link are targets of their own.
+    Panel(Modifier.fillMaxWidth().clip(Theme[shapes][largeShape]).clickable(onClickLabel = "Open task", role = Role.Button) { actions.onOpenTask(task.id) },
+        shape = Theme[shapes][largeShape], contentPadding = PaddingValues(12.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(Theme[shapes][smallShape]).clickable(onClickLabel = "Open task", role = Role.Button) { actions.onOpenTask(task.id) },
-                verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().heightIn(min = 32.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(task.title, Modifier.weight(1f), fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis)
                 Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
             }

@@ -498,11 +498,13 @@ internal fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> U
 
 /** A (?) showing [text] when tapped: over the app on touch screens, by the button otherwise. */
 @Composable
-internal fun InfoButton(text: String) {
+internal fun InfoButton(text: String, header: Boolean = false) {
     var open by remember { mutableStateOf(false) }
+    val touch = LocalInteractionMode.current == InteractionMode.Touch
     val trigger: @Composable () -> Unit = {
+        // In a header, it matches the header's other round buttons.
         IconButton(onClick = { open = !open }, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor),
-            modifier = Modifier.size(if (LocalInteractionMode.current == InteractionMode.Touch) 40.dp else 24.dp)) {
+            modifier = if (header && touch) Modifier.size(44.dp).background(color(subtleColor), CircleShape) else Modifier.size(if (touch) 40.dp else 24.dp)) {
             Icon(Lucide.CircleQuestionMark, Modifier.size(14.dp), contentDescription = "About this")
         }
     }

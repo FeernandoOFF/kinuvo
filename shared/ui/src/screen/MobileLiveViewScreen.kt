@@ -158,7 +158,7 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                             ClipboardButton(state, paste, desktop && "C" in capabilities.keys && copyModifier != null,
                                 { sendKey("$copyModifier+C") }, { sendKey("$copyModifier+V") }, "V" in capabilities.keys)
                         }
-                        switcher?.takeIf { state.interactive }?.let { Box(slot, contentAlignment = Alignment.Center) { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, caption = "Switch") } }
+                        switcher?.let { Box(slot, contentAlignment = Alignment.Center) { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, caption = "Switch", enabled = state.interactive) } }
                     }
                 }
             }

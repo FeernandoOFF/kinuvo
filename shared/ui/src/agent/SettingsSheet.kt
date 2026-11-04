@@ -127,7 +127,7 @@ internal fun SettingsPageHeader(title: String, back: (() -> Unit)? = null, subti
             subtitle?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
         }
         Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            info?.let { InfoButton(it) }
+            info?.let { InfoButton(it, header = true) }
             trailing()
         }
     } else if (LocalInteractionMode.current == InteractionMode.Touch) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
