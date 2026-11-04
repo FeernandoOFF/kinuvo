@@ -1,0 +1,44 @@
+{
+  "name": "showcase/sessions-home",
+  "priority": 1,
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "sessions.list"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.agentId",
+              "equalTo": "home"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"sessions\":[{\"id\":\"h-lights\",\"agentId\":\"home\",\"title\":\"Evening lights\",\"status\":\"Idle\",\"favorite\":false,\"createdAt\":{{now offset='-120 minutes' format='epoch'}}}],\"hasMore\":false}}"
+        }
+      }
+    }
+  ]
+}

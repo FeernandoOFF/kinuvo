@@ -13,6 +13,7 @@ import kinuvo.app.home.*
 import kinuvo.client.KinuvoClient
 import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
+import org.koin.dsl.koinApplication
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -55,5 +56,10 @@ private val appModule = module {
 /** Starts DI once per process; [modules] add or override bindings, e.g. an [EmbeddedServer]. */
 fun startKinuvo(vararg modules: Module, config: KoinApplication.() -> Unit = {}): KoinApplication = startKoin {
     config()
+    modules(appModule, platformModule, *modules)
+}
+
+/** An isolated [KoinApplication] with the app's bindings, for tests; [modules] add or override bindings. */
+internal fun kinuvoApplication(vararg modules: Module): KoinApplication = koinApplication {
     modules(appModule, platformModule, *modules)
 }

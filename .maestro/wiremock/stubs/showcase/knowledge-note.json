@@ -1,0 +1,44 @@
+{
+  "name": "showcase/knowledge-note",
+  "priority": 1,
+  "trigger": {
+    "type": "message",
+    "channel": {
+      "type": "websocket",
+      "initiatingRequestPattern": {
+        "url": "/ws"
+      }
+    },
+    "message": {
+      "body": {
+        "and": [
+          {
+            "matchesJsonPath": {
+              "expression": "$.method",
+              "equalTo": "knowledge.get"
+            }
+          },
+          {
+            "matchesJsonPath": {
+              "expression": "$.params.ref",
+              "equalTo": "kinuvo"
+            }
+          }
+        ]
+      }
+    }
+  },
+  "actions": [
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"ref\":\"kinuvo\",\"type\":\"project\",\"title\":\"Kinuvo\",\"properties\":{\"status\":\"Active\",\"owner\":\"Fernando\",\"started\":\"2025-03-01\",\"repository\":\"github.com/FeernandoOFF/kinuvo\",\"tags\":\"assistant, self-hosted, kotlin\"},\"body\":\"A self-hosted personal AI assistant, maintained by [[fernando|Fernando]].\\n\\n## Goals\\n\\n- Ship **2.0** with incremental sync\\n- Voice chat on every platform\\n- Keep the Server easy to run at home\\n\\n## Notes\\n\\nPlanning happened in [[planning|Kinuvo 2.0 planning]] at the [[lisbon|Lisbon office]]. The open question is [[sync-idea|sync without a Server]].\\n\\nThe mobile apps share one Compose UI; iOS and Android differ only in their platform shells, so most screens are tested once on JVM.\"}}"
+        }
+      }
+    }
+  ]
+}

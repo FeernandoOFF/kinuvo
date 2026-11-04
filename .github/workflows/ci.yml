@@ -29,6 +29,12 @@ jobs:
       # Ubuntu 24.04 restricts unprivileged user namespaces, which Chromium's sandbox needs for the browser tests.
       - run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - run: ./kotlin test -p jvm
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-flow-screens
+          path: shared/ui/build/screens/flows
+          if-no-files-found: ignore
       - if: always() && github.ref == 'refs/heads/main' && steps.cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
