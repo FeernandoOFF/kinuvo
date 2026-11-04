@@ -141,15 +141,25 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                         desktop && "Tab" in capabilities.keys && "Alt" in capabilities.modifiers -> "Alt+Tab"
                         else -> null
                     }
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        DockButton(if (keyboard) Lucide.KeyboardOff else Lucide.Keyboard, if (keyboard) "Hide keyboard" else "Keyboard", { keyboard = !keyboard }, caption = "Keyboard",
-                            enabled = state.connected && "type" in capabilities.inputs, selected = keyboard)
-                        DockButton(if (android) Lucide.Smartphone else Lucide.Command, if (keyTray) "Hide keys" else "Keys", { keyTray = !keyTray }, caption = "Keys",
-                            enabled = capabilities.keys.isNotEmpty(), selected = keyTray)
-                        DockButton(Lucide.MousePointer2, "Trackpad mode", { trackpad = !trackpad }, caption = "Trackpad", enabled = "tap" in capabilities.inputs, selected = trackpad)
-                        ClipboardButton(state, paste, desktop && "C" in capabilities.keys && copyModifier != null,
-                            { sendKey("$copyModifier+C") }, { sendKey("$copyModifier+V") }, "V" in capabilities.keys)
-                        switcher?.takeIf { state.interactive }?.let { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, caption = "Switch") }
+                    // Equal slots, so a control turning on or off never moves the others.
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        val slot = Modifier.weight(1f)
+                        Box(slot, contentAlignment = Alignment.Center) {
+                            DockButton(if (keyboard) Lucide.KeyboardOff else Lucide.Keyboard, if (keyboard) "Hide keyboard" else "Keyboard", { keyboard = !keyboard }, caption = "Keyboard",
+                                enabled = state.connected && "type" in capabilities.inputs, selected = keyboard)
+                        }
+                        Box(slot, contentAlignment = Alignment.Center) {
+                            DockButton(if (android) Lucide.Smartphone else Lucide.Command, if (keyTray) "Hide keys" else "Keys", { keyTray = !keyTray }, caption = "Keys",
+                                enabled = capabilities.keys.isNotEmpty(), selected = keyTray)
+                        }
+                        Box(slot, contentAlignment = Alignment.Center) {
+                            DockButton(Lucide.MousePointer2, "Trackpad mode", { trackpad = !trackpad }, caption = "Trackpad", enabled = "tap" in capabilities.inputs, selected = trackpad)
+                        }
+                        Box(slot, contentAlignment = Alignment.Center) {
+                            ClipboardButton(state, paste, desktop && "C" in capabilities.keys && copyModifier != null,
+                                { sendKey("$copyModifier+C") }, { sendKey("$copyModifier+V") }, "V" in capabilities.keys)
+                        }
+                        switcher?.let { Box(slot, contentAlignment = Alignment.Center) { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, caption = "Switch", enabled = state.interactive) } }
                     }
                 }
             }

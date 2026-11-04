@@ -74,12 +74,13 @@ class BoardActions(
 /** Kanban columns of the user's Tasks, scrolling sideways when they don't fit. */
 @Composable
 fun BoardContent(ui: BoardUi, actions: BoardActions) {
-    val columns = TaskStatus.entries.filter { it != TaskStatus.Done || ui.state.showDone }
+    // Phones page through columns with tabs, so Done is just another tab, and live updates stand in for Refresh.
+    val touch = LocalInteractionMode.current == InteractionMode.Touch
+    val columns = TaskStatus.entries.filter { it != TaskStatus.Done || ui.state.showDone || touch }
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
-        // Phones get the Board's live updates without a Refresh button.
         PageHeader(Lucide.SquareKanban, "Board", actions = listOfNotNull(
-            PageAction(if (ui.state.showDone) Lucide.EyeOff else Lucide.Eye, if (ui.state.showDone) "Hide done" else "Show done") { actions.onShowDone(!ui.state.showDone) },
-            PageAction(Lucide.RefreshCw, "Refresh", actions.onRefresh).takeIf { LocalInteractionMode.current != InteractionMode.Touch },
+            PageAction(if (ui.state.showDone) Lucide.EyeOff else Lucide.Eye, if (ui.state.showDone) "Hide done" else "Show done") { actions.onShowDone(!ui.state.showDone) }.takeUnless { touch },
+            PageAction(Lucide.RefreshCw, "Refresh", actions.onRefresh).takeUnless { touch },
             PageAction(Lucide.Settings, "Task settings", actions.onSettings),
             PageAction(Lucide.Plus, "New task") { actions.onAdding(true) },
         ))
