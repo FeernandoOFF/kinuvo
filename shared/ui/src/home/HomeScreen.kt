@@ -280,14 +280,12 @@ private fun SessionInfo.kind() = when {
     else -> "Session"
 }
 
-/** “2 things need you, 3 Sessions are running and the next run is Evening journal at 21:00.” */
+/** “2 things need you and 3 Sessions are running.” Next up lists the runs; only an empty schedule is said here. */
 internal fun HomeUi.summary(): String {
     val t = today
     val needs = when (t.needsYou.size) { 0 -> "Nothing needs you"; 1 -> "1 thing needs you"; else -> "${t.needsYou.size} things need you" }
     val running = when (t.running.size) { 0 -> "no Session is running"; 1 -> "1 Session is running"; else -> "${t.running.size} Sessions are running" }
-    val next = t.next.firstOrNull()?.let { "the next run is ${it.routine.name} ${if (it.day == t.date) "at" else dayLabel(it.day).let { d -> "$d at" }} ${time(it.at)}" }
-        ?: "no run is scheduled"
-    return "$needs, $running and $next."
+    return if (t.next.isEmpty()) "$needs, $running and no run is scheduled." else "$needs and $running."
 }
 
 private fun HomeUi.time(at: Long) = Instant.fromEpochMilliseconds(at).toLocalDateTime(zone).let { "${pad(it.hour)}:${pad(it.minute)}" }

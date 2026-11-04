@@ -6,6 +6,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -36,13 +38,15 @@ import ui.generated.resources.inter_bold
 import ui.generated.resources.inter_italic
 import ui.generated.resources.inter_bolditalic
 
-/** Markdown text block, split so code fences and tables get their own components. */
+/** Markdown text block, split so headings, code fences and tables get their own components. */
 internal sealed interface MdBlock {
     data class Prose(val text: String) : MdBlock
+    data class Heading(val level: Int, val text: String) : MdBlock
     data class Code(val language: String, val code: String) : MdBlock
     data class Table(val rows: List<List<String>>) : MdBlock
 }
 
+private val heading = Regex("""^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$""")
 private val listItem = Regex("""^\s*([-*+]|\d+[.)])\s""")
 private val tableSeparator = Regex("""^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$""")
 
@@ -66,6 +70,11 @@ internal fun parseBlocks(markdown: String): List<MdBlock> {
                 i++
                 while (i < lines.size && !lines[i].trimStart().startsWith(fence)) code.appendLine(lines[i++])
                 blocks += MdBlock.Code(language, code.toString())
+            }
+            heading.matches(line) -> {
+                flushProse()
+                val (marks, text) = heading.find(line)!!.destructured
+                blocks += MdBlock.Heading(marks.length, text)
             }
             line.trimStart().startsWith("|") && i + 1 < lines.size && tableSeparator.matches(lines[i + 1]) -> {
                 flushProse()
@@ -112,6 +121,9 @@ fun Markdown(text: String, modifier: Modifier = Modifier, style: TextStyle = mar
             if (i > 0) Spacer(Modifier.height(if (block is MdBlock.Prose && blocks[i - 1] is MdBlock.Prose) blankLine else 10.dp))
             when (block) {
                 is MdBlock.Prose -> RichMarkdown(block.text, style, Modifier.fillMaxWidth())
+                // Headings take the UI's serif titles rather than the library's oversized sans.
+                is MdBlock.Heading -> RichMarkdown(block.text, (if (block.level == 1) TextStyles.headline else if (block.level == 2) TextStyles.title else TextStyles.callout)
+                    .copy(fontWeight = FontWeight.Bold), Modifier.fillMaxWidth().padding(top = if (i > 0) 6.dp else 0.dp).semantics { heading() })
                 is MdBlock.Code -> CodeBlock(block.code, language = block.language)
                 is MdBlock.Table -> MarkdownTable(block.rows, style)
             }

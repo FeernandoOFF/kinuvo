@@ -388,9 +388,10 @@ fun ChatContent(
                     shownVoice?.let { VoiceStatus(it) }
                 }
                 val background = color(backgroundColor)
+                val fade = with(density) { ComposerFade.toPx() }
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { composerHeight = with(density) { it.height.toDp() } }
-                    // Phones: messages fade out under the composer rather than showing beneath it.
-                    .then(if (floating) Modifier.background(Brush.verticalGradient(0f to background.copy(alpha = 0f), 0.3f to background)) else Modifier)
+                    // Phones: messages fade out just above the composer and never show around it.
+                    .then(if (floating) Modifier.background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background), endY = fade)).padding(top = ComposerFade) else Modifier)
                     .onFocusChanged { composerFocused = it.hasFocus }.padding(horizontal = 16.dp).padding(bottom = if (wide) 10.dp else 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     LaunchedEffect(state.unsent) { state.unsent?.let { if (draft.annotatedString.text.isBlank()) draft.setMarkdown(it) } }
                     var dictated by remember { mutableStateOf<DictationDraft?>(null) }
@@ -520,6 +521,8 @@ private fun HeaderControls(wide: Boolean, onToggle: (() -> Unit)?, onNew: (() ->
     onToggle?.let { if (wide) HeaderButton(Lucide.PanelLeft, "Toggle sidebar ${shortcut(".")}", it) else HeaderButton(Lucide.Menu, "Agents and sessions", it) }
     onNew?.let { HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", it) }
 }
+
+private val ComposerFade = 24.dp
 
 /** Phones: no title, just bubbles floating over the top of the messages, which fade out under them. */
 @Composable
@@ -885,7 +888,8 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
     when (item) {
         is ChatItem.User -> if (item.routine != null) Expandable(Lucide.AlarmClock, requireNotNull(item.routine), subtitle = "routine") { RichMarkdown(item.text) }
         else if (item.task != null) Expandable(Lucide.SquareKanban, requireNotNull(item.task), subtitle = "task") { RichMarkdown(item.text) }
-        else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        // Inset from the start, so long messages still read as the user's rather than as cards.
+        else Row(Modifier.fillMaxWidth().padding(start = 48.dp), horizontalArrangement = Arrangement.End) {
             Panel(
                 Modifier.widthIn(max = 560.dp),
                 color = color(selectedControlColor),
