@@ -31,7 +31,13 @@ class MobileLiveViewScreenTest {
     private fun nodes(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::nodes)
     private fun tree(scene: ImageComposeScene) = scene.semanticsOwners.flatMap { nodes(it.rootSemanticsNode) }
     private fun awaitFrame(scene: ImageComposeScene) {
-        repeat(200) {
+        // A deadline rather than a count: the first decode can take seconds on a cold CI runner.
+        val deadline = System.nanoTime() + 15_000_000_000L
+        while (System.nanoTime() < deadline) {
+            // The decode resumes on the event thread these tests block, so let queued events run.
+            val loop = java.awt.Toolkit.getDefaultToolkit().systemEventQueue.createSecondaryLoop()
+            javax.swing.SwingUtilities.invokeLater { loop.exit() }
+            loop.enter()
             androidx.compose.runtime.snapshots.Snapshot.sendApplyNotifications()
             scene.render(System.nanoTime())
             if (tree(scene).any { "Live screen" in it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() }) return
