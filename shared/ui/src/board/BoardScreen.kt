@@ -121,7 +121,8 @@ private fun BoardColumn(status: TaskStatus, tasks: List<TaskInfo>, ui: BoardUi, 
             Text("${tasks.size}", color = color(mutedColor), style = TextStyles.secondary)
         }
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(tasks, key = { it.id }) { TaskCard(it, ui.agents, actions) }
+            // Soonest due first, undated last.
+            items(tasks.sortedWith(compareBy(nullsLast()) { it.due }), key = { it.id }) { TaskCard(it, ui.agents, actions) }
             if (tasks.isEmpty()) item {
                 Text(status.empty(), Modifier.padding(horizontal = 4.dp), color = color(mutedColor), style = TextStyles.secondary)
             }
@@ -140,7 +141,10 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                 Column(Modifier.weight(1f)) {
                     Text(task.title, fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis,
                         style = LocalTextStyle.current.copy(textDecoration = if (task.status == TaskStatus.Done) TextDecoration.LineThrough else null))
-                    Text(listOfNotNull(task.listName, task.due?.let { "due ${dueLabel(it)}" }).joinToString(" · "), style = TextStyles.secondary, color = color(mutedColor), singleLine = true)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(listOfNotNull(task.listName, task.due?.let { "due ${dueLabel(it)}" }).joinToString(" · "), Modifier.weight(1f, fill = false), style = TextStyles.secondary, color = color(mutedColor), singleLine = true)
+                        if (task.status != TaskStatus.Done && task.due?.let(::overdue) == true) Pill("Overdue", tone = Tone.Danger)
+                    }
                 }
                 Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
             }
@@ -154,12 +158,12 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                 // Phones show the status as the tab; it changes from the Task itself.
                 if (LocalInteractionMode.current != InteractionMode.Touch)
                     Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())
-            }
-            val last = task.sessionIds.lastOrNull()
-            if (last != null && task.assignee != null) {
-                Button(onClick = { actions.onOpenSession(task.assignee!!, last) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(accentColor)) {
-                    Icon(Lucide.MessageSquare, Modifier.size(14.dp))
-                    Text(if (task.sessionIds.size > 1) "Open latest run (${task.sessionIds.size})" else "Open run", style = TextStyles.secondary)
+                val last = task.sessionIds.lastOrNull()
+                if (last != null && task.assignee != null) {
+                    Button(onClick = { actions.onOpenSession(task.assignee!!, last) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(accentColor)) {
+                        Icon(Lucide.MessageSquare, Modifier.size(14.dp))
+                        Text(if (task.sessionIds.size > 1) "Latest run (${task.sessionIds.size})" else "Open run", style = TextStyles.secondary)
+                    }
                 }
             }
         }

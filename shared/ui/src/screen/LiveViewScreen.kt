@@ -540,7 +540,8 @@ internal fun ComputerList(state: LiveViewState, onRetry: () -> Unit, onOpen: (Sc
                 else -> RowGroup {
                     state.screens.forEach { screen ->
                         val status = screen.status(state.connected, state.device, state.requestReason.takeIf { screen.ref == state.selected })
-                        GroupRow(screen.title, { onOpen(screen.ref) }, status.label, screen.icon(), selected = screen.ref == selected, enabled = status != Status.Unavailable, chevron = status != Status.Unavailable) {
+                        // A status with its own pill doesn't repeat itself underneath.
+                        GroupRow(screen.title, { onOpen(screen.ref) }, status.label.takeUnless { status in setOf(Status.Working, Status.Needed, Status.Elsewhere, Status.Suspended, Status.Yours) }, screen.icon(), selected = screen.ref == selected, enabled = status != Status.Unavailable, chevron = status != Status.Unavailable) {
                             when (status) {
                                 Status.Working -> Pill("Working", tone = Tone.Accent, loading = true)
                                 Status.Needed, Status.Elsewhere, Status.Suspended -> Pill("Needs you", tone = Tone.Warning)

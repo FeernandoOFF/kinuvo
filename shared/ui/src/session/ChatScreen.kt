@@ -98,6 +98,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
@@ -730,7 +731,7 @@ private fun SessionBadge(session: SessionInfo, compact: Boolean = false) = when 
 @Composable
 internal fun SessionStatusIcon(status: SessionStatus, finished: Boolean) = when {
     status == SessionStatus.Waiting -> Icon(Lucide.ShieldAlert, Modifier.size(14.dp), tint = color(warningColor), contentDescription = "Needs approval")
-    status == SessionStatus.Running -> Spinner(size = 12.dp)
+    status == SessionStatus.Running -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 12.dp)
     finished -> Icon(Lucide.Check, Modifier.size(14.dp), tint = color(successColor), contentDescription = "Finished")
     else -> Unit
 }
@@ -917,7 +918,7 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
                 Text(item.message, color = color(destructiveColor), style = TextStyles.secondary)
             }
         }
-        is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message) {
+        is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message, tint = color(warningColor)) {
             // What it had written before stopping, quieter than a finished reply.
             Column(Modifier.alpha(0.85f), verticalArrangement = Arrangement.spacedBy(8.dp)) { item.draft.forEach { ChatItemView(it, actions) } }
         }
@@ -953,6 +954,7 @@ private fun Expandable(
     status: (@Composable () -> Unit)? = null,
     border: Boolean = true,
     initiallyExpanded: Boolean = false,
+    tint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
     content: @Composable () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded) }
@@ -960,7 +962,7 @@ private fun Expandable(
     Disclosure(expanded, { expanded = it }, Modifier.fillMaxWidth().then(if (border) Modifier.border(1.dp, color(borderColor), shape) else Modifier)) {
         Column {
             ListRow(selected = false, onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 44.dp)) {
-                Icon(icon, Modifier.size(15.dp), tint = color(mutedColor))
+                Icon(icon, Modifier.size(15.dp), tint = if (tint.isSpecified) tint else color(mutedColor))
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(title, style = TextStyles.callout, fontWeight = FontWeight.Normal, singleLine = true)
                     subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
