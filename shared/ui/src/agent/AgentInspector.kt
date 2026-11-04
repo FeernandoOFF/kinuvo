@@ -157,18 +157,18 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
     val agent = host.agents.firstOrNull { it.id == details.info.id } ?: details.info
     val agentId = details.info.id
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { AgentAvatar(agent, 64.dp) }
-    Group("Identity", card = false) {
-        Label("Name")
-        Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
-        draft.problems(agentId, host.agents).filter { it.contains("Name", true) || it.contains("called") }.forEach {
-            Text(it, fontSize = 12.sp, color = color(destructiveColor))
+    // Labelled fields in grouped rows, like every other Settings form.
+    RowGroup("Identity") {
+        FieldRow("Name") {
+            Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
+            draft.problems(agentId, host.agents).filter { it.contains("Name", true) || it.contains("called") }.forEach {
+                Text(it, fontSize = 12.sp, color = color(destructiveColor))
+            }
         }
-        Label("Personality")
-        TextArea(draftField(agentId, "identity", draft.identity) { v -> actions.onEdit { it.copy(identity = v) } }, lines = 3)
+        FieldRow("Personality") { TextArea(draftField(agentId, "identity", draft.identity) { v -> actions.onEdit { it.copy(identity = v) } }, lines = 3) }
     }
-    Group("Soul", card = false) {
-        Label("Principles, tone and rules")
-        TextArea(draftField(agentId, "soul", draft.soul) { v -> actions.onEdit { it.copy(soul = v) } }, lines = 5)
+    RowGroup("Soul") {
+        FieldRow("Principles, tone and rules") { TextArea(draftField(agentId, "soul", draft.soul) { v -> actions.onEdit { it.copy(soul = v) } }, lines = 5) }
     }
     Group("Model") {
         val selected = state.models.model(draft.provider, draft.model)
@@ -283,7 +283,7 @@ internal fun draftField(agentId: String, name: String, value: String, onChange: 
 private fun Group(title: String, hint: String? = null, card: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         // Labelled and filled like a RowGroup; fields go without the card, as their own borders already contain them.
-        Row(Modifier.padding(start = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             SectionLabel(title)
             hint?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
         }

@@ -26,6 +26,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextDecoration
+import com.composeunstyled.LocalTextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
@@ -137,7 +139,7 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                 verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(task.title, fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis,
-                        color = if (task.status == TaskStatus.Done) color(mutedColor) else Color.Unspecified)
+                        style = LocalTextStyle.current.copy(textDecoration = if (task.status == TaskStatus.Done) TextDecoration.LineThrough else null))
                     Text(listOfNotNull(task.listName, task.due?.let { "due $it" }).joinToString(" · "), fontSize = 13.sp, color = color(mutedColor), singleLine = true)
                 }
                 Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
@@ -149,7 +151,9 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                 Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->
                     actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: ""))
                 }, icon = Lucide.User)
-                Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())
+                // Phones show the status as the tab; it changes from the Task itself.
+                if (LocalInteractionMode.current != InteractionMode.Touch)
+                    Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())
             }
             val last = task.sessionIds.lastOrNull()
             if (last != null && task.assignee != null) {

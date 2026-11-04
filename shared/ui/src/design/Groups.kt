@@ -112,7 +112,8 @@ fun GroupRow(
 fun ToggleSwitch(checked: Boolean, onChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val offset by animateDpAsState(if (checked) 18.dp else 0.dp)
     Box(
-        modifier.size(46.dp, 28.dp).clip(CircleShape).background(if (checked) color(accentColor) else color(mutedColor).copy(alpha = 0.35f))
+        modifier.size(46.dp, 28.dp).clip(CircleShape).background(if (checked) color(accentColor) else color(borderColor))
+            .then(if (checked) Modifier else Modifier.border(1.dp, color(mutedColor).copy(alpha = 0.5f), CircleShape))
             .then(if (onChange != null) Modifier.toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange) else Modifier)
             .alpha(if (enabled) 1f else 0.45f).padding(3.dp),
     ) { Box(Modifier.offset(x = offset).size(22.dp).background(Color.White, CircleShape)) }
@@ -209,7 +210,7 @@ fun DiscardDialog(onKeep: () -> Unit, onDiscard: () -> Unit, modifier: Modifier 
     // At the bottom, clear of the field being edited, like the app's other sheets.
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
         Box(Modifier.matchParentSize().background(color(scrimColor)).clickable(remember { MutableInteractionSource() }, indication = null, onClick = onKeep))
-        Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp).widthIn(max = 400.dp).shadow(24.dp, Theme[shapes][largeShape]).consumeTaps()
+        Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp).widthIn(max = 400.dp).shadow(24.dp, Theme[shapes][largeShape]).consumeTaps()
             .semantics { paneTitle = "Unsaved changes" }, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(20.dp)) {
             Text("Discard changes?", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))
