@@ -33,7 +33,8 @@ internal fun RoutineList(p: Pane) {
     val restricted = !ui.management
     ItemList(
         p, "Routines",
-        "Prompts ${ui.agent?.name ?: "the agent"} runs on a schedule, each in its own Session. Add one here or ask in chat, " +
+        // An empty list explains itself in its empty state.
+        if (routines?.isEmpty() == true) "" else "Prompts ${ui.agent?.name ?: "the Agent"} runs on a schedule, each in its own Session. Add one here or ask in chat, " +
             "e.g. “every weekday at 9, summarize my inbox”.",
         // An empty list offers one way to add, under it.
         "New routine", routines == null && error == null && !restricted, canAdd = !restricted && routines?.isEmpty() != true,
@@ -41,7 +42,7 @@ internal fun RoutineList(p: Pane) {
         when {
             restricted -> ManagementAccessRequired()
             error != null -> LoadFailure(error, onAction = p.actions.onReloadRoutines)
-            routines?.isEmpty() == true -> EmptyState(Lucide.AlarmClock, "No routines yet", "Create one here, or ask in chat.") {
+            routines?.isEmpty() == true -> EmptyState(Lucide.AlarmClock, "No routines yet", "Prompts ${ui.agent?.name ?: "the Agent"} runs on a schedule. Create one here, or ask in chat, e.g. “every weekday at 9, summarize my inbox”.") {
                 Button(onClick = { p.go(ui.route.copy(item = null, editing = true)) }, style = ButtonStyle.Primary) { Text("Create routine") }
             }
         }

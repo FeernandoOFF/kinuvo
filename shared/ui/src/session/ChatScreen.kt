@@ -920,7 +920,7 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
         }
         is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message) {
             // What it had written before stopping, quieter than a finished reply.
-            Column(Modifier.alpha(0.7f), verticalArrangement = Arrangement.spacedBy(8.dp)) { item.draft.forEach { ChatItemView(it, actions) } }
+            Column(Modifier.alpha(0.85f), verticalArrangement = Arrangement.spacedBy(8.dp)) { item.draft.forEach { ChatItemView(it, actions) } }
         }
         is ChatItem.Measurement -> Unit
         is ChatItem.Reflection -> ReflectionView(item, onReview = actions.onReviewReflection)

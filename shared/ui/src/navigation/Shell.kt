@@ -434,14 +434,14 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
 private fun SessionSearch(query: TextFieldState, agent: String?, modifier: Modifier = Modifier) {
     val shape = Theme[shapes][mediumShape]
     Row(
-        modifier.fillMaxWidth().height(34.dp).clip(shape).background(color(backgroundColor).copy(alpha = 0.6f), shape).border(1.dp, color(borderColor), shape).padding(horizontal = 10.dp),
+        modifier.fillMaxWidth().height(44.dp).clip(shape).background(color(backgroundColor).copy(alpha = 0.6f), shape).border(1.dp, color(borderColor), shape).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(Lucide.Search, Modifier.size(14.dp), tint = color(mutedColor))
+        Icon(Lucide.Search, Modifier.size(16.dp), tint = color(mutedColor))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (query.text.isEmpty()) Text(agent?.let { "Search $it's sessions" } ?: "Search sessions", fontSize = 13.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
-            BasicTextField(query, Modifier.fillMaxWidth().semantics { contentDescription = "Search sessions" }, textStyle = TextStyle(fontSize = 13.sp, color = color(onBackgroundColor)),
+            if (query.text.isEmpty()) Text(agent?.let { "Search $it's sessions" } ?: "Search sessions", fontSize = 15.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            BasicTextField(query, Modifier.fillMaxWidth().semantics { contentDescription = "Search sessions" }, textStyle = TextStyle(fontSize = 15.sp, color = color(onBackgroundColor)),
                 lineLimits = TextFieldLineLimits.SingleLine, cursorBrush = SolidColor(color(accentColor)))
         }
         if (query.text.isNotEmpty()) Box(Modifier.size(36.dp).clip(CircleShape).clickable { query.clearText() }, contentAlignment = Alignment.Center) {

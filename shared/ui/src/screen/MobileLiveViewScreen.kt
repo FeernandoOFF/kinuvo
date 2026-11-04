@@ -83,6 +83,8 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(Modifier.size(7.dp).clip(CircleShape).background(if (tone == Tone.Neutral) color(mutedColor) else tone.color()))
                     Text(status, fontSize = 12.sp, color = if (tone == Tone.Neutral) color(mutedColor) else tone.color(), singleLine = true)
+                    // Which site a Browser tab is on, before anyone takes it over.
+                    screen?.currentUrl?.let { url -> Text("· " + url.substringAfter("://").substringBefore('/'), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
                 }
             }
             if (state.ownsControl) Row(Modifier.clip(CircleShape).background(color(subtleColor))

@@ -273,15 +273,17 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
             Text("Note for the Agent, sent with Deny", fontSize = 12.sp, color = color(mutedColor))
             Input(input.note, "What to do instead", capitalize = true)
         }
+        // Writing a note means denying, so Deny takes the emphasis then.
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { onDecision(ApprovalDecision.AllowOnce) }, modifier = Modifier.weight(1f), style = ButtonStyle.Primary) { Text("Allow once") }
-            Button(onClick = { onDecision(ApprovalDecision.Deny(input.note.text.toString())) }, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined,
-                contentColor = color(destructiveColor)) { Text("Deny") }
+            Button(onClick = { onDecision(ApprovalDecision.AllowOnce) }, modifier = Modifier.weight(1f), style = if (input.noting) ButtonStyle.Outlined else ButtonStyle.Primary) { Text("Allow once") }
+            val deny = { onDecision(ApprovalDecision.Deny(input.note.text.toString())) }
+            if (input.noting) DangerButton("Deny", deny, Modifier.weight(1f))
+            else Button(onClick = deny, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined, contentColor = color(destructiveColor)) { Text("Deny") }
         }
         if (event.trustable) Actions(wide,
             primary = { Button(onClick = { onDecision(ApprovalDecision.AllowForSession) }, modifier = it, style = ButtonStyle.Outlined) { Text("Allow for this Session", singleLine = true) } },
             others = { Button(onClick = { onDecision(ApprovalDecision.AlwaysAllow) }, modifier = it, style = ButtonStyle.Outlined) { Text(always, singleLine = true, overflow = TextOverflow.Ellipsis) } })
-        if (!input.noting) Button(onClick = { input.noting = true }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Ghost, contentColor = color(onBackgroundColor)) {
+        if (!input.noting) Button(onClick = { input.noting = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp), style = ButtonStyle.Ghost, contentColor = color(onBackgroundColor)) {
             Icon(Lucide.Pencil, Modifier.size(14.dp))
             Text("Add a note for the Agent", fontSize = 14.sp)
         }
