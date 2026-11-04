@@ -22,6 +22,7 @@ import com.composables.interactioncapabilities.currentInteractionCapabilities
 import kinuvo.protocol.Platform
 import kinuvo.protocol.currentPlatform
 import com.composables.ui.theme.*
+import com.composeunstyled.LocalTextStyle
 import com.composeunstyled.theme.Theme
 import com.composeunstyled.theme.ThemeToken
 import com.composeunstyled.theme.buildTheme
@@ -72,6 +73,24 @@ private val LocalAccent = compositionLocalOf<Color?> { null }
 
 /** Overrides the platform's interaction mode, e.g. so JVM UI tests render the phone layout. */
 internal val LocalForcedInteractionMode = compositionLocalOf<InteractionMode?> { null }
+
+/**
+ * The type scale, each a step larger on touch screens. Headings and body set in Libron, the brand serif; the small print
+ * ([secondary], [caption], [overline]) in Inter, which holds up better at those sizes.
+ */
+object TextStyles {
+    val headline: TextStyle @Composable get() = libron(22, 20)
+    val title: TextStyle @Composable get() = libron(17, 16)
+    val callout: TextStyle @Composable get() = libron(16, 15)
+    val label: TextStyle @Composable get() = libron(15, 14)
+    val secondary: TextStyle @Composable get() = inter(14, 13)
+    val caption: TextStyle @Composable get() = inter(13, 12)
+    val overline: TextStyle @Composable get() = inter(12, 11)
+
+    @Composable private fun touch() = LocalInteractionMode.current == InteractionMode.Touch
+    @Composable private fun libron(touch: Int, pointer: Int) = LocalTextStyle.current.copy(fontSize = (if (touch()) touch else pointer).sp, lineHeight = 1.4.em)
+    @Composable private fun inter(touch: Int, pointer: Int) = libron(touch, pointer).copy(fontFamily = interFamily(), fontWeight = FontWeight.Normal)
+}
 
 val MonoStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 19.sp)
 

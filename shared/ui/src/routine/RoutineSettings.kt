@@ -99,10 +99,10 @@ private fun RoutineDetail(r: Routine, p: Pane) {
                     }
                 }
             }
-            r.lastError?.let { DetailRow("") { Text(it, color = color(if (r.lastStatus == RunStatus.Error) destructiveColor else mutedColor), fontSize = 13.sp) } }
+            r.lastError?.let { DetailRow("") { Text(it, color = color(if (r.lastStatus == RunStatus.Error) destructiveColor else mutedColor), style = TextStyles.secondary) } }
         }
         DetailGroup(if (r.heartbeat) "Checklist (HEARTBEAT.md)" else "Prompt") {
-            if (r.prompt.isBlank()) Text("Empty. Edit it here, or ask the agent to add items to its Heartbeat checklist.", color = color(mutedColor), fontSize = 13.sp)
+            if (r.prompt.isBlank()) Text("Empty. Edit it here, or ask the agent to add items to its Heartbeat checklist.", color = color(mutedColor), style = TextStyles.secondary)
             else Markdown(r.prompt, Modifier.fillMaxWidth())
         }
         RowGroup("Recent runs") {

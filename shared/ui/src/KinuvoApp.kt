@@ -513,6 +513,6 @@ private fun Loading(connection: Connection) = Box(Modifier.fillMaxSize(), conten
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Spinner(size = 24.dp)
         val server = (connection as? Connection.Connecting)?.server
-        Text(server?.let { "Connecting to ${it.label}…" } ?: "Connecting…", color = color(mutedColor), fontSize = 13.sp)
+        Text(server?.let { "Connecting to ${it.label}…" } ?: "Connecting…", color = color(mutedColor), style = TextStyles.secondary)
     }
 }

@@ -145,7 +145,7 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
 }
 
 @Composable
-private fun Muted(text: String) = Text(text, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = color(mutedColor), fontSize = 13.sp)
+private fun Muted(text: String) = Text(text, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = color(mutedColor), style = TextStyles.secondary)
 
 private val WIKILINK = Regex("""\[\[([^\]|]+)(?:\|([^\]]*))?]]""")
 

@@ -68,7 +68,7 @@ internal fun DeviceToolsGroup(title: String? = null, note: String? = null, empty
                 }
             }
         }
-        note?.let { Text(it, Modifier.padding(horizontal = 6.dp), fontSize = 12.sp, color = color(mutedColor)) }
+        note?.let { Text(it, Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(mutedColor)) }
         state.error?.let { ErrorMessage(it) }
     }
 }

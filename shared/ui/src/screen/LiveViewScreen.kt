@@ -174,7 +174,7 @@ internal fun TabStrip(state: LiveViewState, actions: LiveActions) {
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (yours || paused) Icon(Lucide.Hand, Modifier.size(13.dp), tint = tabColor)
                 else if (screen.active) Spinner(size = 12.dp) else Icon(screen.icon(), Modifier.size(13.dp), tint = color(mutedColor))
-                Text(screen.title.ifBlank { "New tab" }, Modifier.weight(1f, fill = false), fontSize = 13.sp, singleLine = true, overflow = TextOverflow.Ellipsis,
+                Text(screen.title.ifBlank { "New tab" }, Modifier.weight(1f, fill = false), style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis,
                     color = if (selected) Color.Unspecified else color(mutedColor))
                 if (screen.capabilities.tabs)
                     IconButton(onClick = { actions.close(screen.ref) }, enabled = state.connected && !state.pending, style = ButtonStyle.Ghost, modifier = Modifier.size(18.dp)) {
@@ -199,7 +199,7 @@ internal fun AddressBar(state: LiveViewState, actions: LiveActions) {
             Icon(if (address.startsWith("https://")) Lucide.Lock else Lucide.Globe, Modifier.size(13.dp), tint = color(mutedColor))
             androidx.compose.foundation.text.BasicTextField(address, { address = it }, Modifier.weight(1f).semantics { contentDescription = "Address" },
                 enabled = state.interactive, singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(color = color(mutedColor), fontSize = 13.sp),
+                textStyle = androidx.compose.ui.text.TextStyle(color = color(mutedColor), fontSize = TextStyles.secondary.fontSize),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Go),
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(onGo = { actions.command(ScreenCommandKind.Navigate, address) }))
         }
@@ -246,7 +246,7 @@ private fun Stage(state: LiveViewState, screen: ScreenInfo, actions: LiveActions
             .border(if (status == Status.Yours) 2.dp else 1.dp, if (status == Status.Watching || status == Status.Offline) color(borderColor) else status.tone.color(), shape)) {
             LiveCanvas(state.frame, state.interactive, actions.input, actions.drawn, actions.decodeFailed,
                 Modifier.fillMaxSize(), state.control.generation, "scroll" in screen.capabilities.inputs, onFocus)
-            if (!state.connected) state.frameReceivedAt?.let { Text("Last frame · $it", Modifier.align(Alignment.BottomStart).padding(8.dp), fontSize = 12.sp, color = color(mutedColor)) }
+            if (!state.connected) state.frameReceivedAt?.let { Text("Last frame · $it", Modifier.align(Alignment.BottomStart).padding(8.dp), style = TextStyles.caption, color = color(mutedColor)) }
         }
     }
 }
@@ -288,7 +288,7 @@ internal fun ScreenOverview(state: LiveViewState, actions: LiveActions, modifier
                     { _, _ -> }, actions.drawn, {}, Modifier.fillMaxWidth().aspectRatio(1.6f).clip(RoundedCornerShape(6.dp)).background(color(backgroundColor)), gestures = false)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(screen.icon(), Modifier.size(13.dp), tint = color(mutedColor))
-                    Text(screen.title, Modifier.weight(1f), fontSize = 13.sp, singleLine = true, overflow = TextOverflow.Ellipsis)
+                    Text(screen.title, Modifier.weight(1f), style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis)
                     if (screen.capabilities.tabs) IconButton(onClick = { actions.close(screen.ref) }, enabled = state.connected && !state.pending, style = ButtonStyle.Ghost, modifier = Modifier.size(20.dp)) {
                         Icon(Lucide.X, Modifier.size(12.dp), contentDescription = "Close ${screen.title.ifBlank { "tab" }}")
                     }
@@ -469,7 +469,7 @@ internal fun RemoteKeyboard(state: LiveViewState, actions: LiveActions, focus: F
             keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Go, showKeyboardOnFocus = false),
             keyboardActions = KeyboardActions(onGo = { send(listOf(ScreenAction(ScreenActionKind.Key, key = "Enter"))) }),
             decorationBox = { field ->
-                Box { if (expanded && !compact && value.text == RemoteInputAnchor) Text("Type directly into the page…", color = color(mutedColor), fontSize = 13.sp); field() }
+                Box { if (expanded && !compact && value.text == RemoteInputAnchor) Text("Type directly into the page…", color = color(mutedColor), style = TextStyles.secondary); field() }
             })
         if (expanded && !compact) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -480,7 +480,7 @@ internal fun RemoteKeyboard(state: LiveViewState, actions: LiveActions, focus: F
                     HeaderButton(icon, key, { send(listOf(ScreenAction(ScreenActionKind.Key, key = key))); focus.requestFocus() }, enabled = state.interactive)
                 }
             }
-            Text(if (focused) "Typing into the focused field on the page" else "Tap the page field, then type here", fontSize = 12.sp, color = color(mutedColor))
+            Text(if (focused) "Typing into the focused field on the page" else "Tap the page field, then type here", style = TextStyles.caption, color = color(mutedColor))
         }
     }
 }

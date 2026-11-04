@@ -82,21 +82,21 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                 Text(screen?.title?.ifBlank { null } ?: if (state.owner != null) "Browser" else "Computer", singleLine = true, overflow = TextOverflow.Ellipsis)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Box(Modifier.size(7.dp).clip(CircleShape).background(if (tone == Tone.Neutral) color(mutedColor) else tone.color()))
-                    Text(status, fontSize = 12.sp, color = if (tone == Tone.Neutral) color(mutedColor) else tone.color(), singleLine = true)
+                    Text(status, style = TextStyles.caption, color = if (tone == Tone.Neutral) color(mutedColor) else tone.color(), singleLine = true)
                     // Which site a Browser tab is on, before anyone takes it over.
-                    screen?.currentUrl?.let { url -> Text("· " + url.substringAfter("://").substringBefore('/'), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
+                    screen?.currentUrl?.let { url -> Text("· " + url.substringAfter("://").substringBefore('/'), style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
                 }
             }
             if (state.ownsControl) Row(Modifier.clip(CircleShape).background(color(subtleColor))
                 .clickable(enabled = state.connected && !state.pending && !state.control.draining, onClickLabel = "Hand back to Agent", role = Role.Button) { actions.takeover(false, false) }
                 .heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Icon(Lucide.Hand, Modifier.size(15.dp), tint = Tone.Success.color())
-                Text("Hand back", fontSize = 13.sp)
+                Text("Hand back", style = TextStyles.secondary)
             }
             ScreenOptions(state, trackpad, fitPhone, { recenter++ }, { fitPhone = !fitPhone }, { restartTo = it }, actions) { controls = true }
         }
         Banner(state)
-        pasteError?.let { Text(it, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), color = Tone.Warning.color(), fontSize = 12.sp) }
+        pasteError?.let { Text(it, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), color = Tone.Warning.color(), style = TextStyles.caption) }
         if (screen == null) EmptyStage(state, actions, Modifier.weight(1f).fillMaxWidth())
         else {
             BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp)) {
@@ -245,7 +245,7 @@ private fun DockButton(icon: ImageVector, label: String, onClick: () -> Unit, en
                 .semantics { if (selected != null) stateDescription = if (selected) "On" else "Off" }) {
             Icon(icon, Modifier.size(22.dp), contentDescription = label, tint = tint)
         }
-        Text(caption, Modifier.clearAndSetSemantics {}, fontSize = 11.sp, lineHeight = 13.sp, color = if (selected == true) tint else color(mutedColor), singleLine = true)
+        Text(caption, Modifier.clearAndSetSemantics {}, style = TextStyles.overline, lineHeight = 13.sp, color = if (selected == true) tint else color(mutedColor), singleLine = true)
     }
 }
 
@@ -295,7 +295,7 @@ internal fun MobileKeyTray(state: LiveViewState, actions: LiveActions) {
             }
             repeat((5 - capabilities.modifiers.size).coerceAtLeast(0)) { Spacer(Modifier.weight(1f)) }
         }
-        if (modifiers.isNotEmpty()) Text("Choose a key to send ${modifiers.joinToString("+")}+…", Modifier.padding(horizontal = 4.dp), fontSize = 11.sp, color = color(mutedColor))
+        if (modifiers.isNotEmpty()) Text("Choose a key to send ${modifiers.joinToString("+")}+…", Modifier.padding(horizontal = 4.dp), style = TextStyles.overline, color = color(mutedColor))
     }
 }
 
@@ -313,6 +313,6 @@ private fun RowScope.KeyCap(key: String, enabled: Boolean, selected: Boolean? = 
             if (selected != null) stateDescription = if (selected) "Selected" else "Not selected"
         }, contentAlignment = Alignment.Center) {
         icon?.let { Icon(it, Modifier.size(18.dp), tint = tint) }
-            ?: Text(KeyLabels[key] ?: key.replace('_', ' '), fontSize = 14.sp, color = tint, singleLine = true)
+            ?: Text(KeyLabels[key] ?: key.replace('_', ' '), style = TextStyles.label, color = tint, singleLine = true)
     }
 }

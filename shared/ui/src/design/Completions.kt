@@ -36,9 +36,9 @@ internal fun CompletionList(query: CompletionQuery, highlighted: Int, onPick: (C
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text("${query.source.trigger}${item.value}", fontSize = 13.sp, fontWeight = FontWeight.Normal, singleLine = true)
+                Text("${query.source.trigger}${item.value}", style = TextStyles.secondary, fontWeight = FontWeight.Normal, singleLine = true)
                 if (item.description.isNotBlank()) {
-                    Text(item.description, Modifier.weight(1f, fill = false), fontSize = 12.sp, color = color(mutedColor), singleLine = true)
+                    Text(item.description, Modifier.weight(1f, fill = false), style = TextStyles.caption, color = color(mutedColor), singleLine = true)
                 }
             }
         }

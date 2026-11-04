@@ -106,7 +106,7 @@ fun HomeContent(ui: HomeUi, actions: HomeActions, wide: Boolean? = null) {
                     val due = !ui.tasks || t.due?.isEmpty() == true && ui.error == null
                     val clear = t.needsYou.isEmpty() && t.running.isEmpty() && t.next.isEmpty() && due && t.results.isEmpty()
                     if (clear) EmptyState(Lucide.CircleCheck, "All clear", ui.summary())
-                    else Text(ui.summary(), fontSize = 20.sp, lineHeight = 28.sp, modifier = Modifier.semantics { heading() })
+                    else Text(ui.summary(), style = TextStyles.headline, lineHeight = 28.sp, modifier = Modifier.semantics { heading() })
                     if (t.needsYou.isNotEmpty()) NeedsYou(ui, actions)
                     if (t.running.isNotEmpty()) RunningNow(ui, actions)
                     if (t.next.isNotEmpty() && !due && twoColumns) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
@@ -158,7 +158,7 @@ private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, detail
             Text("· $title", Modifier.weight(1f), color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             Pill("Waiting", tone = Tone.Warning)
         }
-        Text("$kind · $detail", fontSize = 13.sp, color = color(mutedColor))
+        Text("$kind · $detail", style = TextStyles.secondary, color = color(mutedColor))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), content = action)
     }
 }
@@ -204,7 +204,7 @@ private fun DueThisWeek(ui: HomeUi, actions: HomeActions) {
                 val when_ = if (d.overdue) "overdue since ${ui.dayLabel(d.date)}" else "due ${ui.dayLabel(d.date)}"
                 HomeRow(agent, d.task.title, "$when_ · ${d.task.listName} · ${d.task.status.label()}", { actions.onOpenTask(d.task.id) },
                     icon = Lucide.SquareKanban.takeIf { agent == null }) {
-                    if (agent == null) Text("Unassigned", fontSize = 12.sp, color = color(mutedColor))
+                    if (agent == null) Text("Unassigned", style = TextStyles.caption, color = color(mutedColor))
                     if (d.overdue) Pill("Overdue", tone = Tone.Danger)
                 }
             }
@@ -248,8 +248,8 @@ private fun Section(icon: ImageVector, title: String, count: Int? = null, conten
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(icon, Modifier.size(15.dp), tint = color(mutedColor))
-            Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-            count?.let { Text("$it", fontSize = 13.sp, color = color(mutedColor)) }
+            Text(title, fontWeight = FontWeight.Bold, style = TextStyles.label)
+            count?.let { Text("$it", style = TextStyles.secondary, color = color(mutedColor)) }
         }
         Column(verticalArrangement = Arrangement.spacedBy(2.dp), content = content)
     }
@@ -257,10 +257,10 @@ private fun Section(icon: ImageVector, title: String, count: Int? = null, conten
 
 @Composable
 private fun SubLabel(text: String) =
-    Text(text.uppercase(), Modifier.padding(start = 8.dp, top = 6.dp, bottom = 2.dp), fontSize = 11.sp, letterSpacing = 0.6.sp, color = color(mutedColor))
+    Text(text.uppercase(), Modifier.padding(start = 8.dp, top = 6.dp, bottom = 2.dp), style = TextStyles.overline, letterSpacing = 0.6.sp, color = color(mutedColor))
 
 @Composable
-private fun Empty(text: String) = Text(text, Modifier.padding(start = 23.dp, top = 2.dp), fontSize = 14.sp, color = color(mutedColor))
+private fun Empty(text: String) = Text(text, Modifier.padding(start = 23.dp, top = 2.dp), style = TextStyles.label, color = color(mutedColor))
 
 /** A row opening one Session, Task or Routine: [agent]'s avatar (or [icon]), a title and a muted line. */
 @Composable
@@ -268,7 +268,7 @@ private fun HomeRow(agent: AgentInfo?, title: String, subtitle: String, onClick:
     ListRow(false, onClick, leading = { if (icon != null) Icon(icon, Modifier.size(12.dp)) else AgentAvatar(agent, 22.dp) }) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, singleLine = true, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
         }
         if (icon != null && agent != null) AgentAvatar(agent, 20.dp)
         trailing()
