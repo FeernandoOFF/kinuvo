@@ -25,7 +25,7 @@ import kinuvo.ui.design.*
 /** [skip] names the button that answers null. */
 @Composable
 internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String, Map<String, List<String>>>,
-    onEdit: (questionsId: String, questionId: String, value: List<String>) -> Unit, onAnswer: (Map<String, List<String>>?) -> Unit, skip: String = "Skip", attached: Boolean = false) {
+    onEdit: (questionsId: String, questionId: String, value: List<String>) -> Unit, onAnswer: (Map<String, List<String>>?) -> Unit, skip: String = "Dismiss", attached: Boolean = false) {
     val answers = asked.questions.associate { it.id to it.default } + drafts[asked.questionsId].orEmpty()
     val ready = asked.questions.none { it.required && answers[it.id].orEmpty().none(String::isNotBlank) }
     Panel(

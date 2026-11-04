@@ -30,12 +30,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Hand
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MessageCircleQuestionMark
 import com.composables.icons.lucide.ShieldAlert
+import com.composables.icons.lucide.X
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.app.session.*
@@ -49,6 +52,14 @@ private val ComposerShape = RoundedCornerShape(28.dp)
 private val TrayShape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
 private val WideBreakpoint = 600.dp
 private val BodyMaxHeight = 380.dp
+private val FocusRing = 4.dp
+
+/** Widens the clip bounds by [inset] on each side without changing layout, so a focus ring drawn outside a field isn't cut off. */
+private fun Modifier.bleed(inset: Dp) = layout { measurable, constraints ->
+    val px = inset.roundToPx()
+    val placeable = measurable.measure(constraints.offset(2 * px, 2 * px))
+    layout(placeable.width - 2 * px, placeable.height - 2 * px) { placeable.place(-px, -px) }
+}
 
 /** In-progress input for one request; kept across a resize between morph and tray. */
 internal class RequestInput(note: String = "") {
@@ -86,24 +97,27 @@ internal fun RequestComposer(
     val requests = state.requests
     val request = requests.firstOrNull()?.takeUnless { it is PendingRequest.External }
     LaunchedEffect(requests) { inputs.retain(requests.map { it.id }.toSet()) }
-    val body: @Composable (PendingRequest, Boolean) -> Unit = { current, wide -> RequestBody(current, state.answers, inputs.of(current), actions, wide) }
+    val body: @Composable (PendingRequest, Boolean) -> Unit = { current, wide ->
+        RequestHeader(current, requests.size, onClose = if (current is PendingRequest.Questions) ({ actions.onAnswer(null) }) else null)
+        RequestBody(current, state.answers, inputs.of(current), actions, wide)
+    }
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val wide = maxWidth >= WideBreakpoint
-        if (tray || wide) Tray(request, requests.size, notice.takeIf { tray }, composer) { body(it, wide) }
-        else Morph(request, requests.size, notice, composer) { body(it, false) }
+        if (tray || wide) Tray(request, notice.takeIf { tray }, composer) { body(it, wide) }
+        else Morph(request, notice, composer) { body(it, false) }
     }
 }
 
 @Composable
-private fun Morph(request: PendingRequest?, count: Int, notice: (@Composable () -> Unit)?, composer: @Composable () -> Unit, body: @Composable (PendingRequest) -> Unit) {
+private fun Morph(request: PendingRequest?, notice: (@Composable () -> Unit)?, composer: @Composable () -> Unit, body: @Composable (PendingRequest) -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (request != null) notice?.invoke()
-        MorphCard(request, count, composer, body)
+        MorphCard(request, composer, body)
     }
 }
 
 @Composable
-private fun MorphCard(request: PendingRequest?, count: Int, composer: @Composable () -> Unit, body: @Composable (PendingRequest) -> Unit) {
+private fun MorphCard(request: PendingRequest?, composer: @Composable () -> Unit, body: @Composable (PendingRequest) -> Unit) {
     AnimatedContent(request, Modifier.fillMaxWidth(), contentKey = { it?.id }, contentAlignment = Alignment.BottomCenter, transitionSpec = {
         (fadeIn(tween(200, delayMillis = 90)) + scaleIn(spring(0.8f, Spring.StiffnessMediumLow), initialScale = 0.96f))
             .togetherWith(fadeOut(tween(90)))
@@ -115,14 +129,13 @@ private fun MorphCard(request: PendingRequest?, count: Int, composer: @Composabl
                 .border(1.dp, current.tone().copy(alpha = 0.55f), ComposerShape).padding(horizontal = 18.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            RequestHeader(current, count)
             body(current)
         }
     }
 }
 
 @Composable
-private fun Tray(request: PendingRequest?, count: Int, notice: (@Composable () -> Unit)?, composer: @Composable () -> Unit, body: @Composable (PendingRequest) -> Unit) {
+private fun Tray(request: PendingRequest?, notice: (@Composable () -> Unit)?, composer: @Composable () -> Unit, body: @Composable (PendingRequest) -> Unit) {
     Column(Modifier.fillMaxWidth()) {
         if (request != null) notice?.let { Box(Modifier.padding(bottom = 6.dp)) { it() } }
         AnimatedVisibility(
@@ -138,7 +151,6 @@ private fun Tray(request: PendingRequest?, count: Int, notice: (@Composable () -
                         .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    RequestHeader(current, count)
                     body(current)
                 }
             }
@@ -185,7 +197,7 @@ private fun PendingRequest.detail(): String? = when (this) {
 private fun AgentEvent.ApprovalRequested.isShell() = identity?.instance?.pluginId == "kinuvo.exec" && identity?.localId == "shell"
 
 @Composable
-private fun RequestHeader(request: PendingRequest, count: Int) {
+private fun RequestHeader(request: PendingRequest, count: Int, onClose: (() -> Unit)?) {
     val tone = request.tone()
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.size(30.dp).background(tone.copy(alpha = 0.14f), CircleShape), contentAlignment = Alignment.Center) { Icon(request.icon(), Modifier.size(16.dp), tint = tone) }
@@ -196,6 +208,9 @@ private fun RequestHeader(request: PendingRequest, count: Int) {
                 if (count > 1) Text("1 of $count", fontSize = 12.sp, color = color(mutedColor), singleLine = true)
             }
             request.detail()?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis) }
+        }
+        if (onClose != null) IconButton(onClick = onClose, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor), modifier = Modifier.size(32.dp)) {
+            Icon(Lucide.X, Modifier.size(18.dp), contentDescription = "Dismiss")
         }
     }
 }
@@ -268,7 +283,7 @@ private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, 
             }
             Text("Question ${step + 1} of ${asked.questions.size}", fontSize = 12.sp, color = color(mutedColor))
         }
-        Column(Modifier.heightIn(max = BodyMaxHeight).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.bleed(FocusRing).heightIn(max = BodyMaxHeight).verticalScroll(rememberScrollState()).padding(FocusRing), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             shown.forEach { q -> key(asked.questionsId, q.id) { QuestionField(q, answers[q.id].orEmpty()) { actions.onEditAnswer(asked.questionsId, q.id, it) } } }
         }
         Actions(wide,
@@ -279,7 +294,14 @@ private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, 
             },
             others = {
                 if (stepped && step > 0) Button(onClick = { input.step = step - 1 }, modifier = it, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Back") }
-                Button(onClick = { actions.onAnswer(null) }, modifier = it, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip") }
+                val current = asked.questions.getOrNull(step)
+                if (stepped && current != null && !current.required) {
+                    val skipped = answers + (current.id to emptyList())
+                    Button(onClick = {
+                        actions.onEditAnswer(asked.questionsId, current.id, emptyList())
+                        if (last) actions.onAnswer(skipped) else input.step = step + 1
+                    }, modifier = it, enabled = !last || asked.questions.all { q -> q == current || ready(q) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip question") }
+                }
             })
     }
 }
