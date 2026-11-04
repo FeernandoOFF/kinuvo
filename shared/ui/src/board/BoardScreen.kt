@@ -40,7 +40,7 @@ fun BoardScreen(app: AppViewModel, board: BoardViewModel, onOpenSession: (Route.
     val appState by app.state.collectAsState()
     val state by board.state.collectAsState()
     BoardContent(
-        BoardUi(state, appState.agents),
+        BoardUi(state, appState.agents, (appState.connection as? Connection.Ready)?.server?.label),
         BoardActions(
             onRefresh = board::refresh,
             onShowDone = board::showDone,
@@ -54,7 +54,7 @@ fun BoardScreen(app: AppViewModel, board: BoardViewModel, onOpenSession: (Route.
     )
 }
 
-data class BoardUi(val state: BoardState, val agents: List<AgentInfo> = emptyList()) {
+data class BoardUi(val state: BoardState, val agents: List<AgentInfo> = emptyList(), val server: String? = null) {
     val tasks get() = state.board.tasks
     val error get() = state.errors.lastOrNull() ?: state.board.error
 }
@@ -78,7 +78,7 @@ fun BoardContent(ui: BoardUi, actions: BoardActions) {
     val touch = LocalInteractionMode.current == InteractionMode.Touch
     val columns = TaskStatus.entries.filter { it != TaskStatus.Done || ui.state.showDone || touch }
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
-        PageHeader(Lucide.SquareKanban, "Board", actions = listOfNotNull(
+        PageHeader(Lucide.SquareKanban, "Board", ui.server, actions = listOfNotNull(
             PageAction(if (ui.state.showDone) Lucide.EyeOff else Lucide.Eye, if (ui.state.showDone) "Hide done" else "Show done") { actions.onShowDone(!ui.state.showDone) }.takeUnless { touch },
             PageAction(Lucide.RefreshCw, "Refresh", actions.onRefresh).takeUnless { touch },
             PageAction(Lucide.Settings, "Task settings", actions.onSettings),

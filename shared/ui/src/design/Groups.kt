@@ -144,11 +144,18 @@ fun ConfirmPopover(visible: Boolean, question: String, detail: String?, confirm:
             detail?.let { Text(it, color = color(mutedColor), fontSize = 14.sp) }
             Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onDismiss, Modifier.weight(1f), style = ButtonStyle.Outlined) { Text("Cancel") }
-                if (destructive) Button(onConfirm, Modifier.weight(1f), style = ButtonStyle.Outlined, contentColor = color(destructiveColor)) { Text(confirm) }
+                if (destructive) DangerButton(confirm, onConfirm, Modifier.weight(1f))
                 else Button(onConfirm, Modifier.weight(1f), style = ButtonStyle.Primary) { Text(confirm) }
             }
         }
     }
+}
+
+/** A filled button for an action that can't be undone, e.g. Discard or Delete. */
+@Composable
+fun DangerButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Box(modifier.heightIn(min = 44.dp).clip(CircleShape).background(color(destructiveColor)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp),
+        contentAlignment = Alignment.Center) { Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, singleLine = true) }
 }
 
 /** A few mutually exclusive choices side by side, e.g. Allow, Ask and Block. */
@@ -195,7 +202,7 @@ fun DiscardDialog(onKeep: () -> Unit, onDiscard: () -> Unit, modifier: Modifier 
             Spacer(Modifier.height(20.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onKeep, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined) { Text("Keep editing") }
-                Button(onDiscard, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined, contentColor = color(destructiveColor)) { Text("Discard") }
+                DangerButton("Discard", onDiscard, Modifier.weight(1f))
             }
         }
     }
