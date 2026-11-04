@@ -36,6 +36,9 @@ import com.composables.icons.lucide.CircleX
 import com.composables.icons.lucide.LoaderCircle
 import com.composables.icons.lucide.Lucide
 import com.composables.ui.components.Icon
+import com.composables.ui.components.Tooltip
+import com.composables.ui.components.TooltipPanel
+import com.composables.ui.components.TooltipSide
 import com.composables.ui.components.Text
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
@@ -139,7 +142,7 @@ fun ListRow(
     content: @Composable RowScope.() -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
+    val hovered = interaction.hovered()
     val shape = Theme[shapes][mediumShape]
     val bg = when {
         selected -> color(selectedControlColor)
@@ -175,6 +178,20 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
         fontWeight = FontWeight.Normal,
         color = color(mutedColor),
     )
+}
+
+/** Hover state; touch screens have none, though some platforms report a tap as one that never ends. */
+@Composable
+fun MutableInteractionSource.hovered(): Boolean {
+    val hovered by collectIsHoveredAsState()
+    return hovered && LocalInteractionMode.current != InteractionMode.Touch
+}
+
+/** A [label] tooltip for pointer users; touch screens read the label from the control instead. */
+@Composable
+fun Hint(label: String, side: TooltipSide = TooltipSide.Top, content: @Composable () -> Unit) {
+    if (LocalInteractionMode.current == InteractionMode.Touch) content()
+    else Tooltip(side = side, panel = { TooltipPanel { Text(label, fontSize = 12.sp) } }) { content() }
 }
 
 internal val RoundedCornerShape100 = androidx.compose.foundation.shape.RoundedCornerShape(100)

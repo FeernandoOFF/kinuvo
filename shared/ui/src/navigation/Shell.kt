@@ -245,7 +245,7 @@ private fun OwnerRail(state: ShellState, actions: ShellActions, modifier: Modifi
 @Composable
 private fun RailItem(name: String, selected: Boolean, news: Boolean, onClick: () -> Unit, enabled: Boolean = true, shortcut: String? = null, content: @Composable () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
+    val hovered = interaction.hovered()
     val pill by animateDpAsState(when {
         selected -> 36.dp
         hovered && enabled -> 20.dp
@@ -255,7 +255,7 @@ private fun RailItem(name: String, selected: Boolean, news: Boolean, onClick: ()
     val shape = if (selected || hovered) Theme[shapes][largeShape] else RoundedCornerShape(50)
     Box(Modifier.fillMaxWidth().height(48.dp)) {
         Box(Modifier.align(Alignment.CenterStart).width(4.dp).height(pill).background(color(onBackgroundColor), RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)))
-        Box(Modifier.align(Alignment.Center)) { Tooltip(side = TooltipSide.End, panel = { TooltipPanel { Text(listOfNotNull(name, shortcut).joinToString(" "), fontSize = 12.sp) } }) {
+        Box(Modifier.align(Alignment.Center)) { Hint(listOfNotNull(name, shortcut).joinToString(" "), TooltipSide.End) {
             Box(
                 Modifier.size(48.dp).clip(shape)
                     .background(if (selected) color(selectedControlColor) else color(panelColor))

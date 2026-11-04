@@ -81,15 +81,16 @@ internal fun SettingsSheet(app: AppViewModel, pages: SnapshotStateList<Route.Set
 internal fun SettingsDiscardDialog(edits: SettingsEdits) {
     if (edits.pending == null) return
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = true) { edits.pending = null }
-    Box(Modifier.fillMaxSize().background(color(scrimColor)).clickable { edits.pending = null }, contentAlignment = Alignment.Center) {
-        Panel(Modifier.padding(24.dp).widthIn(max = 400.dp).clickable {}.semantics { paneTitle = "Unsaved changes" }, contentPadding = PaddingValues(20.dp)) {
-            Text("Discard changes?")
-            Spacer(Modifier.height(8.dp))
-            Text("Your changes have not been saved.")
-            Spacer(Modifier.height(16.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button({ edits.pending = null }) { Text("Keep editing") }
-                Button(edits::discard, contentColor = color(destructiveColor)) { Text("Discard") }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(Modifier.matchParentSize().background(color(scrimColor)).clickable { edits.pending = null })
+        Panel(Modifier.padding(24.dp).widthIn(max = 400.dp).consumeTaps().semantics { paneTitle = "Unsaved changes" }, contentPadding = PaddingValues(20.dp)) {
+            Text("Discard changes?", fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.height(6.dp))
+            Text("Your changes have not been saved.", fontSize = 14.sp, color = color(mutedColor))
+            Spacer(Modifier.height(20.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button({ edits.pending = null }, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined) { Text("Keep editing") }
+                Button(edits::discard, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined, contentColor = color(destructiveColor)) { Text("Discard") }
             }
         }
     }

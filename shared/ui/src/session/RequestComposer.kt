@@ -243,17 +243,19 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
     val label = identity?.let { "${it.instance.pluginId} › ${it.instance.instanceId} › ${it.localId}" } ?: event.toolCallName
     val always = event.trustHint?.let { if (identity?.instance?.pluginId == "kinuvo.computer" && identity.localId == "computer_act") "Always allow in $it" else "Always allow `$it …`" } ?: "Always allow"
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        if (event.isShell()) commandOf(event.args)?.let { command ->
+        val command = if (event.isShell()) commandOf(event.args) else null
+        if (command != null) {
             Text("$ $command", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(color(codeColor)).padding(horizontal = 12.dp, vertical = 9.dp),
                 style = MonoStyle, color = color(onCodeColor), maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(label, Modifier.weight(1f), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
-            Button(onClick = { input.arguments = !input.arguments }, style = ButtonStyle.Link, contentColor = color(mutedColor)) {
+            if (command != null) Button(onClick = { input.arguments = !input.arguments }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Link, contentColor = color(mutedColor)) {
                 Text(if (input.arguments) "Hide arguments" else "Arguments", fontSize = 12.sp, singleLine = true)
             }
         }
-        if (input.arguments) CodeBlock(prettyJson(event.args), language = "arguments", maxLines = 8)
+        // Without a command to show, the arguments are what's being approved.
+        if (command == null || input.arguments) CodeBlock(prettyJson(event.args), language = "arguments", maxLines = 8)
         Actions(wide,
             primary = { Button(onClick = { onDecision(ApprovalDecision.AllowOnce) }, modifier = it, style = ButtonStyle.Primary) { Text("Allow once") } },
             others = {

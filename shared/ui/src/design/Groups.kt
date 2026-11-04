@@ -71,7 +71,7 @@ fun GroupRow(
     trailing: @Composable RowScope.() -> Unit = {},
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
+    val hovered = interaction.hovered()
     val background = when {
         selected -> color(selectedControlColor)
         hovered && onClick != null && enabled -> color(selectedControlColor).copy(alpha = 0.5f)

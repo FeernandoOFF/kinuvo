@@ -427,7 +427,9 @@ fun ChatContent(
                     }
                     else Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     RequestComposer(state, actions, requestInputs, Modifier.widthIn(max = ContentWidth), notice = requestNotice) {
-                        Composer(
+                        val over = state.ended?.takeIf { it.resume == false && !state.resumeOnSend }
+                        if (over != null) EndedComposer(over.blocked, actions.onNew, Modifier.widthIn(max = ContentWidth))
+                        else Composer(
                             running = state.running,
                             onSend = { follow.value = true; actions.onDiscardDictation(); actions.onSend(it) },
                             onStop = actions.onStop,
@@ -491,6 +493,16 @@ internal fun TitleBarRow(modifier: Modifier = Modifier, leading: Boolean = true,
  * The desktop toolbar: the shell's toggle and, narrow, a new Session. Back and forward are left to the shortcuts and
  * mouse buttons.
  */
+/** In place of the composer once a Session can't continue: why, and the way on. */
+@Composable
+private fun EndedComposer(message: String, onNew: () -> Unit, modifier: Modifier) {
+    Panel(modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(16.dp)) {
+        Text(message, fontSize = 14.sp, color = color(mutedColor))
+        Spacer(Modifier.height(12.dp))
+        Button(onNew, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Primary) { Text("New session") }
+    }
+}
+
 @Composable
 private fun HeaderControls(wide: Boolean, onToggle: (() -> Unit)?, onNew: (() -> Unit)?) {
     onToggle?.let { if (wide) HeaderButton(Lucide.PanelLeft, "Toggle sidebar ${shortcut(".")}", it) else HeaderButton(Lucide.Menu, "Agents and sessions", it) }
@@ -544,7 +556,7 @@ private fun MenuItem(icon: ImageVector, text: String) = Row(verticalAlignment = 
 
 @Composable
 internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true) {
-    Tooltip(side = TooltipSide.Bottom, panel = { TooltipPanel { Text(label, fontSize = 12.sp) } }) {
+    Hint(label, TooltipSide.Bottom) {
         IconButton(
             onClick = onClick,
             enabled = enabled,
@@ -566,7 +578,7 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
         val selected = state.sessions.firstOrNull { it.id == state.selected } ?: state.info
         Row(Modifier.weight(1f).padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             state.agent?.let { agent ->
-                Tooltip(side = TooltipSide.Bottom, panel = { TooltipPanel { Text("${agent.name}'s settings ${shortcut(",")}", fontSize = 12.sp) } }) {
+                Hint("${agent.name}'s settings ${shortcut(",")}", TooltipSide.Bottom) {
                     Row(Modifier.titleBarControl().clip(RoundedCornerShape(50)).clickable(onClickLabel = "${agent.name}'s settings", onClick = actions.onSettings)
                         .semantics(mergeDescendants = true) { contentDescription = "${agent.name}'s settings" }
                         .background(color(panelColor)).padding(start = 4.dp, end = if (compact) 4.dp else 10.dp, top = 3.dp, bottom = 3.dp),
