@@ -95,7 +95,7 @@ fun HomeContent(ui: HomeUi, actions: HomeActions, wide: Boolean? = null) {
         val isWide = wide ?: (maxWidth >= 720.dp)
         val twoColumns = maxWidth >= 860.dp
         Column(Modifier.fillMaxSize()) {
-            PageHeader(Lucide.House, "Home", listOfNotNull("Today", ui.today.date.long().takeIf { isWide }, ui.server).joinToString(" · "))
+            PageHeader(Lucide.Inbox, "Today", listOfNotNull(ui.today.date.long().takeIf { isWide }, ui.server).joinToString(" · ").ifEmpty { null })
             Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
                 Column(
                     Modifier.widthIn(max = 820.dp).fillMaxWidth().padding(horizontal = 16.dp).padding(top = 20.dp, bottom = 32.dp),

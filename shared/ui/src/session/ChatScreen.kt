@@ -569,9 +569,9 @@ internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit,
             onClick = onClick,
             enabled = enabled,
             style = ButtonStyle.Ghost,
-            shape = Theme[shapes][mediumShape],
+            shape = if (LocalInteractionMode.current == InteractionMode.Touch) CircleShape else Theme[shapes][mediumShape],
             contentColor = color(mutedColor),
-            modifier = Modifier.size(32.dp).titleBarControl(),
+            modifier = Modifier.size(if (LocalInteractionMode.current == InteractionMode.Touch) 40.dp else 32.dp).titleBarControl(),
         ) {
             Icon(icon, Modifier.size(17.dp), contentDescription = label)
         }
@@ -913,7 +913,7 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
                 Text(item.message, color = color(destructiveColor), fontSize = 13.sp)
             }
         }
-        is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message, subtitle = "Unfinished reply".takeIf { item.draft.isNotEmpty() }) {
+        is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message) {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { item.draft.forEach { ChatItemView(it, actions) } }
         }
         is ChatItem.Measurement -> Unit
@@ -1160,9 +1160,9 @@ internal fun ReflectionView(item: ChatItem.Reflection, initiallyExpanded: Boolea
     Expandable(Lucide.Sparkles, title, subtitle, initiallyExpanded = initiallyExpanded, status = {
         when {
             result == null -> Spinner(size = 13.dp)
-            pending > 0 -> Icon(Lucide.Shield, Modifier.size(14.dp), tint = color(mutedColor))
-            result.error != null -> Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor))
-            else -> Icon(Lucide.CircleCheck, Modifier.size(14.dp), tint = color(successColor))
+            pending > 0 -> Icon(Lucide.Shield, Modifier.size(14.dp), tint = color(mutedColor), contentDescription = "Waiting for review")
+            result.error != null -> Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor), contentDescription = "Failed")
+            else -> Icon(Lucide.CircleCheck, Modifier.size(14.dp), tint = color(successColor), contentDescription = "Done")
         }
     }) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

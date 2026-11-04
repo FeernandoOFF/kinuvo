@@ -104,7 +104,7 @@ class ChatChromeTest {
             fun frame() { repeat(5) { scene.render(time.also { time += 200_000_000 }) } }
             frame()
             assertNull(scene.node("Back"))
-            scene.click("Home, Today")
+            scene.click("Today")
             assertTrue(drawerOpened)
             drawerOpened = false
             scene.click("Home and agents")

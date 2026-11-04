@@ -75,9 +75,10 @@ class BoardActions(
 fun BoardContent(ui: BoardUi, actions: BoardActions) {
     val columns = TaskStatus.entries.filter { it != TaskStatus.Done || ui.state.showDone }
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
-        PageHeader(Lucide.SquareKanban, "Board", actions = listOf(
+        // Phones get the Board's live updates without a Refresh button.
+        PageHeader(Lucide.SquareKanban, "Board", actions = listOfNotNull(
             PageAction(if (ui.state.showDone) Lucide.EyeOff else Lucide.Eye, if (ui.state.showDone) "Hide done" else "Show done") { actions.onShowDone(!ui.state.showDone) },
-            PageAction(Lucide.RefreshCw, "Refresh", actions.onRefresh),
+            PageAction(Lucide.RefreshCw, "Refresh", actions.onRefresh).takeIf { LocalInteractionMode.current != InteractionMode.Touch },
             PageAction(Lucide.Settings, "Task settings", actions.onSettings),
             PageAction(Lucide.Plus, "New task") { actions.onAdding(true) },
         ))
