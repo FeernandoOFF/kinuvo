@@ -12,6 +12,7 @@ import kinuvo.harness.core.tools.Tool
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.RequestKind
 import kinuvo.protocol.SessionEntry
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
@@ -47,7 +48,7 @@ internal class RunSession(
     private val store: Store,
     private val sessionId: String,
     private val runId: String,
-    model: AgentModel,
+    private val model: AgentModel,
     val tools: List<ai.koog.agents.core.tools.ToolDescriptor>,
     callable: List<Tool>,
     private val kind: RequestKind,
@@ -73,6 +74,9 @@ internal class RunSession(
     private var retained: List<Message> = emptyList()
     private var systems: List<Message> = emptyList()
     private val budget = (contextTokens ?: model.model.contextLength?.toInt())?.let { it - minOf(4096, it / 4) }
+    private var compressionSkipped = false
+    private var counted: Pair<Prompt, Int>? = null
+    private val logger = KotlinLogging.logger("kinuvo.context")
     private val threshold = minOf(agent.config.compactAtTokens, budget ?: Int.MAX_VALUE)
 
     val compressionStrategy get() = HistoryCompression { (budget ?: 24_576) - instructions.length / 4 }
@@ -121,10 +125,17 @@ internal class RunSession(
         }
     }
 
-    fun needsCompression(prompt: Prompt): Boolean {
-        if (estimate(prompt) <= threshold) return false
-        if (olderMessages(prompt).isNotEmpty()) return true
-        check(budget == null || estimate(prompt) <= budget) { "The current request and tools exceed this model's context window. Shorten the request or select a larger model." }
+    suspend fun needsCompression(prompt: Prompt): Boolean {
+        val size = estimate(prompt)
+        if (size <= threshold || compressionSkipped && (budget == null || size <= budget)) return false
+        val older = olderMessages(prompt)
+        if (budget != null && size > budget) {
+            val fixed = prompt.withMessages { list -> list.filter { message -> older.none { it === message } } }
+            check(estimate(fixed) <= budget) { "Instructions, Memory, tools and the current request exceed this model's context window. ${diagnostics(fixed, estimate(fixed))}" }
+        }
+        // Summarizing a short exchange usually grows it. The hard input budget still applies.
+        if (older.isNotEmpty() && (budget != null && size > budget || messages.entries(older).estimatedTokens("") >= 512)) return true
+        check(budget == null || size <= budget) { "The current request and tools exceed this model's context window. ${diagnostics(prompt, size)} Shorten instructions, Memory or tool context, or select a larger model." }
         return false
     }
 
@@ -145,8 +156,14 @@ internal class RunSession(
         val original = requireNotNull(before)
         val result = prompt.withMessages { systems + it + retained }
         check(result.messages.any { it is Message.Assistant && it.textContent().isNotBlank() }) { "Compaction produced an empty summary" }
-        check(estimate(result) < estimate(original)) { "Compaction did not reduce the context. Shorten the request or select a larger model." }
-        check(budget == null || estimate(result) <= budget) { "Compaction could not fit this request and tools in the model's context window. Shorten the request or select a larger model." }
+        if (estimate(result) >= estimate(original) && (budget == null || estimate(original) <= budget)) {
+            compressing = false
+            before = null
+            compressionSkipped = true
+            return original
+        }
+        check(estimate(result) < estimate(original)) { "Compaction did not reduce the context. ${diagnostics(original, estimate(original))}" }
+        check(budget == null || estimate(result) <= budget) { "Compaction could not fit this request and tools in the model's context window. ${diagnostics(result, estimate(result))}" }
         val summary = prompt.messages.filterIsInstance<Message.Assistant>().last().textContent()
         append(SessionEntry.Compaction(summary, messages.entries(result.messages)))
         compressing = false
@@ -165,7 +182,21 @@ internal class RunSession(
         }
     }
 
-    private fun estimate(prompt: Prompt): Int = messages.entries(prompt.messages).estimatedTokens(instructions, tools)
+    private suspend fun estimate(prompt: Prompt): Int {
+        counted?.takeIf { it.first === prompt }?.let { return it.second }
+        val size = model.estimateTokens?.invoke(prompt, tools) ?: messages.entries(prompt.messages).estimatedTokens(instructions, tools)
+        logger.debug { diagnostics(prompt, size) }
+        counted = prompt to size
+        return size
+    }
+
+    private fun diagnostics(prompt: Prompt, total: Int): String {
+        val history = messages.entries(prompt.messages)
+        val context = history.filterIsInstance<SessionEntry.Context>().sumOf { it.content.length } / 4
+        val toolTokens = emptyList<SessionEntry>().estimatedTokens("", tools)
+        val conversation = history.filterNot { it is SessionEntry.Context }.estimatedTokens("")
+        return "Input $total tokens; budget $budget. Estimated components: instructions ${instructions.length / 4}, Memory/capabilities $context, tools $toolTokens, history $conversation."
+    }
 }
 
 internal const val COMPACT_HISTORY = "compactHistory"
