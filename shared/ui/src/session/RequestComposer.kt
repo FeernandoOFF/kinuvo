@@ -49,6 +49,7 @@ import kinuvo.protocol.Risk
 import kinuvo.ui.design.*
 
 private val ComposerShape = RoundedCornerShape(28.dp)
+private const val ArgumentLines = 8
 private val TrayShape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
 private val WideBreakpoint = 600.dp
 private val BodyMaxHeight = 380.dp
@@ -249,14 +250,20 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
             Text("$ $command", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(color(codeColor)).padding(horizontal = 12.dp, vertical = 9.dp),
                 style = MonoStyle, color = color(onCodeColor), maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
-        if (label != null || command != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val json = prettyJson(event.args)
+        val toggle = when {
+            command != null -> if (input.arguments) "Hide arguments" else "Arguments"
+            json.lines().size > ArgumentLines -> if (input.arguments) "Show less" else "Show all"
+            else -> null
+        }
+        if (label != null || toggle != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(label.orEmpty(), Modifier.weight(1f), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
-            if (command != null) Button(onClick = { input.arguments = !input.arguments }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Link, contentColor = color(mutedColor)) {
-                Text(if (input.arguments) "Hide arguments" else "Arguments", fontSize = 12.sp, singleLine = true)
-            }
+            toggle?.let { Button(onClick = { input.arguments = !input.arguments }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Link, contentColor = color(mutedColor)) {
+                Text(it, fontSize = 12.sp, singleLine = true)
+            } }
         }
         // Without a command to show, the arguments are what's being approved.
-        if (command == null || input.arguments) CodeBlock(prettyJson(event.args), language = "arguments", maxLines = 8)
+        if (command == null || input.arguments) CodeBlock(json, language = "arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
         Actions(wide,
             primary = { Button(onClick = { onDecision(ApprovalDecision.AllowOnce) }, modifier = it, style = ButtonStyle.Primary) { Text("Allow once") } },
             others = {

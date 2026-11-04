@@ -41,6 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -443,7 +444,9 @@ private fun SessionSearch(query: TextFieldState, agent: String?, modifier: Modif
             BasicTextField(query, Modifier.fillMaxWidth().semantics { contentDescription = "Search sessions" }, textStyle = TextStyle(fontSize = 13.sp, color = color(onBackgroundColor)),
                 lineLimits = TextFieldLineLimits.SingleLine, cursorBrush = SolidColor(color(accentColor)))
         }
-        if (query.text.isNotEmpty()) Icon(Lucide.X, Modifier.size(14.dp).clickable { query.clearText() }, tint = color(mutedColor), contentDescription = "Clear search")
+        if (query.text.isNotEmpty()) Box(Modifier.size(36.dp).clip(CircleShape).clickable { query.clearText() }, contentAlignment = Alignment.Center) {
+            Icon(Lucide.X, Modifier.size(14.dp), tint = color(mutedColor), contentDescription = "Clear search")
+        }
     }
 }
 

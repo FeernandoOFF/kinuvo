@@ -508,7 +508,8 @@ internal fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> U
 internal fun InfoButton(text: String) {
     var open by remember { mutableStateOf(false) }
     val trigger: @Composable () -> Unit = {
-        IconButton(onClick = { open = !open }, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor), modifier = Modifier.size(24.dp)) {
+        IconButton(onClick = { open = !open }, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor),
+            modifier = Modifier.size(if (LocalInteractionMode.current == InteractionMode.Touch) 40.dp else 24.dp)) {
             Icon(Lucide.CircleQuestionMark, Modifier.size(14.dp), contentDescription = "About this")
         }
     }
@@ -564,7 +565,7 @@ internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSe
         },
     ) {
         Button(onClick = { open = true }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 6.dp)) {
-            Text(label(current))
+            Text(label(current), fontSize = 13.sp, color = color(mutedColor))
             Spacer(Modifier.width(4.dp))
             Icon(Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
         }

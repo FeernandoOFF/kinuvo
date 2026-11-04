@@ -102,18 +102,21 @@ fun HomeContent(ui: HomeUi, actions: HomeActions, wide: Boolean? = null) {
                     verticalArrangement = Arrangement.spacedBy(24.dp),
                 ) {
                     Text(ui.summary(), fontSize = 20.sp, lineHeight = 28.sp, modifier = Modifier.semantics { heading() })
-                    NeedsYou(ui, actions)
-                    // The summary already says when nothing runs or is scheduled.
-                    if (ui.today.running.isNotEmpty()) RunningNow(ui, actions)
-                    if (ui.today.next.isEmpty()) DueThisWeek(ui, actions)
-                    else if (twoColumns) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    // Empty sections are left out; the summary already says what isn't happening.
+                    val t = ui.today
+                    val due = !ui.tasks || t.due?.isEmpty() == true && ui.error == null
+                    if (t.needsYou.isNotEmpty()) NeedsYou(ui, actions)
+                    if (t.running.isNotEmpty()) RunningNow(ui, actions)
+                    if (t.next.isNotEmpty() && !due && twoColumns) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                         Box(Modifier.weight(1f)) { NextUp(ui, actions) }
                         Box(Modifier.weight(1f)) { DueThisWeek(ui, actions) }
                     } else {
-                        NextUp(ui, actions)
-                        DueThisWeek(ui, actions)
+                        if (t.next.isNotEmpty()) NextUp(ui, actions)
+                        if (!due) DueThisWeek(ui, actions)
                     }
-                    Results(ui, actions)
+                    if (t.results.isNotEmpty()) Results(ui, actions)
+                    if (t.needsYou.isEmpty() && t.running.isEmpty() && t.next.isEmpty() && due && t.results.isEmpty())
+                        Text("Approvals, running Sessions, Routines, Tasks due this week and new results show up here.", fontSize = 14.sp, color = color(mutedColor))
                 }
             }
         }

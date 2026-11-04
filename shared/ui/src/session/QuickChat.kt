@@ -96,7 +96,7 @@ private fun QuickChatBarContent(agent: AgentInfo?, draft: TextFieldState, onOpen
             Column(Modifier.weight(1f)) {
                 Text(agent?.name ?: "…", fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                 val text = draft.text.toString()
-                Text(text.ifBlank { "Message ${agent?.name ?: "…"}" }, singleLine = true, overflow = TextOverflow.Ellipsis,
+                Text(text.ifBlank { "Message…" }, singleLine = true, overflow = TextOverflow.Ellipsis,
                     color = if (text.isBlank()) color(mutedColor) else color(onBackgroundColor))
             }
             Box(Modifier.size(36.dp).clip(CircleShape).background(color(accentColor)), contentAlignment = Alignment.Center) {
@@ -182,7 +182,7 @@ internal fun QuickChat(
                     onKeyboardAction = { send(open = true) },
                     decorator = { field ->
                         Box(contentAlignment = Alignment.CenterStart) {
-                            if (draft.text.isEmpty()) Text("Message ${agent?.name ?: "…"}", color = color(mutedColor), style = inputTextStyle(), singleLine = true, overflow = TextOverflow.Ellipsis)
+                            if (draft.text.isEmpty()) Text("Message…", color = color(mutedColor), style = inputTextStyle(), singleLine = true, overflow = TextOverflow.Ellipsis)
                             field()
                         }
                     },

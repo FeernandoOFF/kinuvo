@@ -1072,7 +1072,7 @@ private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, action
     }) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (!label.skill && item.args.isNotBlank()) CodeBlock(prettyJson(item.args), language = "arguments")
-            item.result?.let { CodeBlock(it, language = if (item.isError) "error" else "result", previewChars = 4000) }
+            item.result?.let { CodeBlock(it, language = if (item.isError) "error" else "result", previewChars = 4000, error = item.isError) }
             ToolAttachments(item.attachments, actions)
         }
     }

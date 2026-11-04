@@ -88,7 +88,8 @@ fun BoardContent(ui: BoardUi, actions: BoardActions) {
             // Phones show one column at a time, snapping, with the next one peeking in.
             val phone = maxWidth < 600.dp
             val list = rememberLazyListState()
-            LazyRow(Modifier.fillMaxSize(), list, PaddingValues(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+            // The end padding lets the last column snap to the same start as the others.
+            LazyRow(Modifier.fillMaxSize(), list, PaddingValues(start = 12.dp, end = if (phone) 36.dp else 12.dp, top = 8.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
                 flingBehavior = if (phone) rememberSnapFlingBehavior(list) else ScrollableDefaults.flingBehavior()) {
                 items(columns, key = { it }) { status ->
                     BoardColumn(status, tasks.filter { it.status == status }, ui, actions, Modifier.width(if (phone) maxWidth - 48.dp else 280.dp))
