@@ -80,6 +80,7 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
         provider.error?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = color(destructiveColor), fontSize = 12.sp) }
         if (apiKey != null) Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Saved keys stay on the Server. Refresh models after changing a key.", Modifier.weight(1f), color = color(mutedColor), fontSize = 12.sp)
+            Button(onClick = p.actions.onRefreshModels, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Refresh models") }
             if (p.ui.state.saved) Pill("Saved", tone = Tone.Success, icon = Lucide.CircleCheck)
         }
     }

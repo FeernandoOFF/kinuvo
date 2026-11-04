@@ -213,7 +213,8 @@ private fun VoiceButton(icon: ImageVector, label: String, onClick: (() -> Unit)?
     val background = if (active) Modifier.background(color(accentColor).copy(alpha = 0.15f), CircleShape) else Modifier
     IconButton(onClick = { onClick?.invoke() }, enabled = onClick != null, modifier = Modifier.size(40.dp).then(background), style = ButtonStyle.Ghost, shape = CircleShape,
         contentColor = color(if (active) accentColor else onFieldColor)) {
-        if (active) VoiceBars(active = true) else Icon(icon, Modifier.size(22.dp), contentDescription = if (onClick != null) label else "$label (coming soon)")
+        // The bars replace the icon while active, so they carry its label.
+        if (active) VoiceBars(Modifier.semantics { contentDescription = label }, active = true) else Icon(icon, Modifier.size(22.dp), contentDescription = if (onClick != null) label else "$label (coming soon)")
     }
 }
 

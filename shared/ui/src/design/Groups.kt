@@ -181,7 +181,7 @@ fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifie
         options.forEachIndexed { i, option ->
             val on = i == selected
             Box(
-                Modifier.weight(1f, fill = !small).height(if (small) 28.dp else 40.dp).clip(CircleShape).background(if (on) color(panelColor) else Color.Transparent)
+                Modifier.weight(1f, fill = !small).height(if (small) 28.dp else if (LocalInteractionMode.current == InteractionMode.Touch) 48.dp else 40.dp).clip(CircleShape).background(if (on) color(panelColor) else Color.Transparent)
                     .clickable(enabled = enabled, role = Role.Tab) { onSelect(i) }.semantics { this.selected = on }
                     .padding(horizontal = if (small) 10.dp else 0.dp),
                 contentAlignment = Alignment.Center,

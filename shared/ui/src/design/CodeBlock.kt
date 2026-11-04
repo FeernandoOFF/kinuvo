@@ -19,6 +19,8 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.borderColor
 import com.composables.ui.theme.destructiveColor
 import com.composables.ui.theme.mediumShape
+import com.composables.ui.theme.InteractionMode
+import com.composables.ui.theme.LocalInteractionMode
 import com.composables.ui.theme.mutedColor
 import com.composables.ui.theme.shapes
 import com.composeunstyled.theme.Theme
@@ -65,7 +67,7 @@ fun CopyButton(text: String, modifier: Modifier = Modifier) {
     LaunchedEffect(copied) { if (copied) { delay(1500); copied = false } }
     IconButton(
         onClick = { clipboard.setText(AnnotatedString(text)); copied = true },
-        modifier = modifier.size(28.dp),
+        modifier = modifier.size(if (LocalInteractionMode.current == InteractionMode.Touch) 44.dp else 28.dp),
         style = ButtonStyle.Ghost,
         shape = Theme[shapes][mediumShape],
         contentColor = color(mutedColor),
