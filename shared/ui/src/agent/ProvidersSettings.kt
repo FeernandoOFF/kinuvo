@@ -43,10 +43,8 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                     if (apiKey.configured) Icon(Lucide.CircleCheck, Modifier.size(18.dp), tint = color(successColor))
                     else Pill("Needed", tone = Tone.Warning)
                 }
-                account == null -> GroupRow("No sign-in needed", icon = Lucide.CircleCheck) { Pill("Ready", tone = Tone.Success) }
-                account.signedIn -> GroupRow(account.label ?: "Your account", subtitle = "Signed in", icon = Lucide.CircleUserRound) {
-                    Icon(Lucide.CircleCheck, Modifier.size(18.dp), tint = color(successColor))
-                }
+                account == null -> GroupRow(provider.name, subtitle = "No sign-in needed", icon = Lucide.CircleCheck) { Pill("Ready", tone = Tone.Success) }
+                account.signedIn -> GroupRow(account.label ?: "Your account", subtitle = "Signed in", icon = Lucide.CircleUserRound) { Pill("Ready", tone = Tone.Success) }
                 code != null -> GroupBox {
                     Text("Enter this code on the sign-in page", color = color(mutedColor), fontSize = 13.sp)
                     Row(verticalAlignment = Alignment.CenterVertically) {

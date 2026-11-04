@@ -551,7 +551,7 @@ private fun PhoneActions(state: ChatState, usage: Usage?, actions: ChatActions) 
         if (state.selected != null) BubbleButton(Lucide.SquarePen, "New Session", actions.onNew)
         actions.onBrowser?.let { BubbleButton(Lucide.Globe, "Browser", it) }
         if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, extra = { close ->
-            DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
+            DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.ChartBar, "Statistics") }
         }) { open -> BubbleButton(Lucide.Ellipsis, "More", open) }
     }
     Popover(statistics, { statistics = false }) { ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth()) }
@@ -611,7 +611,7 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
         }
         var statistics by remember(state.selected) { mutableStateOf(false) }
         if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, extra = { close ->
-            DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
+            DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.ChartBar, "Statistics") }
         }) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
         Popover(statistics, { statistics = false }, "Statistics") {
             ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth())

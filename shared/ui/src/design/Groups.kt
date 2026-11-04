@@ -155,7 +155,10 @@ fun ConfirmPopover(visible: Boolean, question: String, detail: String?, confirm:
 @Composable
 fun DangerButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(modifier.heightIn(min = 44.dp).clip(CircleShape).background(color(destructiveColor)).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp),
-        contentAlignment = Alignment.Center) { Text(label, color = Color.White, fontWeight = FontWeight.SemiBold, singleLine = true) }
+        contentAlignment = Alignment.Center) {
+        // The page's own background reads on the danger color in both themes.
+        Text(label, color = color(backgroundColor), fontWeight = FontWeight.SemiBold, singleLine = true)
+    }
 }
 
 /** A few mutually exclusive choices side by side, e.g. Allow, Ask and Block. */
