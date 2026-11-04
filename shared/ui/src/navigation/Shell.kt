@@ -265,7 +265,7 @@ private fun RailItem(name: String, selected: Boolean, news: Boolean, onClick: ()
                     .clearAndSetSemantics {
                         contentDescription = name
                         role = Role.Button
-                        stateDescription = if (selected) "Selected" else ""
+                        stateDescription = listOfNotNull("Selected".takeIf { selected }, "New activity".takeIf { news }).joinToString(", ")
                         if (selected) this.selected = true
                         if (!enabled) disabled()
                         onClick { onClick(); true }
@@ -440,7 +440,7 @@ private fun SessionSearch(query: TextFieldState, agent: String?, modifier: Modif
     ) {
         Icon(Lucide.Search, Modifier.size(16.dp), tint = color(mutedColor))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (query.text.isEmpty()) Text(agent?.let { "Search $it's sessions" } ?: "Search sessions", style = TextStyles.callout, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            if (query.text.isEmpty()) Text("Search Sessions", style = TextStyles.callout, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             BasicTextField(query, Modifier.fillMaxWidth().semantics { contentDescription = "Search sessions" }, textStyle = TextStyle(fontSize = TextStyles.callout.fontSize, color = color(onBackgroundColor)),
                 lineLimits = TextFieldLineLimits.SingleLine, cursorBrush = SolidColor(color(accentColor)))
         }
@@ -491,7 +491,7 @@ private fun SessionRow(session: SessionInfo, selected: Boolean, finished: Boolea
 @Composable
 private fun ShellRow(icon: ImageVector, title: String, status: SessionStatus, selected: Boolean, finished: Boolean, onClick: () -> Unit) {
     ListRow(selected, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
-        Text(title, Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis,
+        Text(title.trimEnd(), Modifier.weight(1f), style = TextStyles.label, singleLine = true, overflow = TextOverflow.Ellipsis,
             color = if (selected || finished || status != SessionStatus.Idle) color(onBackgroundColor) else color(mutedColor))
         SessionStatusIcon(status, finished)
     }

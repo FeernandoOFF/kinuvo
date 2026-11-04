@@ -828,7 +828,8 @@ private fun Messages(
             VerticalScrollbar(rememberVerticalScrollbarState(listState), Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(bottom = bottom))
         AnimatedVisibility(
             !following && listState.canScrollForward,
-            Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp + bottom),
+            // At the edge, over the margin rather than the text.
+            Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp + bottom),
             enter = fadeIn() + slideInVertically { it / 2 },
             exit = fadeOut() + slideOutVertically { it / 2 },
         ) {

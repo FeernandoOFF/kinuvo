@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.composables.ui.theme.borderColor
 import com.composables.ui.theme.mediumShape
@@ -97,7 +98,7 @@ internal fun interFamily() = FontFamily(
 )
 
 @Composable
-internal fun markdownTextStyle(): TextStyle = LocalTextStyle.current.copy(fontFamily = interFamily(), fontWeight = FontWeight.Normal)
+internal fun markdownTextStyle(): TextStyle = LocalTextStyle.current.copy(fontFamily = interFamily(), fontWeight = FontWeight.Normal, lineHeight = 1.4.em)
 
 /** Renders Markdown: prose through compose-rich-editor, fences as [CodeBlock], pipe tables as a grid. */
 @Composable
@@ -133,6 +134,8 @@ fun RichMarkdown(markdown: String, style: TextStyle = markdownTextStyle(), modif
         state.config.codeSpanBackgroundColor = code
         state.config.codeSpanStrokeColor = border
         state.config.codeSpanCornerRadius = 4.sp
+        // List items wrap in line with their own text, a short step in from the paragraph.
+        state.config.listIndent = 20
         state.setMarkdown(markdown)
     }
     val color = LocalContentColor.current

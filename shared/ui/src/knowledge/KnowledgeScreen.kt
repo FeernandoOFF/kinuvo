@@ -135,7 +135,7 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
     DetailPane(back, n.title) {
         Pill(n.type.replaceFirstChar { it.uppercase() }, Modifier.padding(start = 16.dp), icon = n.type.icon())
         if (n.properties.isNotEmpty()) DetailGroup("Properties") {
-            n.properties.forEach { (k, v) -> DetailRow(k) { Text(v) } }
+            n.properties.forEach { (k, v) -> DetailRow(k.replaceFirstChar { it.uppercase() }) { Text(v) } }
         }
         if (n.body.isNotBlank()) DetailGroup("Note") { Markdown(WIKILINK.replace(n.body) { m -> "*${m.groupValues[2].ifEmpty { m.groupValues[1] }}*" }) }
         if (links.isNotEmpty()) RowGroup("Linked notes") {
