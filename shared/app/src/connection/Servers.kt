@@ -67,8 +67,13 @@ interface Preferences {
     operator fun set(key: String, value: String?)
 }
 
-/** The Servers this Device knows, the one it last used, and its last view. */
-class Servers(private val prefs: Preferences, private val embedded: EmbeddedServer? = null, private val credentials: DeviceCredentials) {
+/** The Servers this Device knows, the one it last used, and its last view. [transport] replaces the network for remote Servers, e.g. in UI tests. */
+class Servers(
+    private val prefs: Preferences,
+    private val embedded: EmbeddedServer? = null,
+    private val credentials: DeviceCredentials,
+    private val transport: (suspend (url: String) -> FrameConnection)? = null,
+) {
     private val remotes = ListSerializer(Server.Remote.serializer())
 
     val sharing get() = embedded?.sharing
@@ -92,7 +97,7 @@ class Servers(private val prefs: Preferences, private val embedded: EmbeddedServ
         set(value) { prefs[VIEW] = value?.let { Json.encodeToString(LastView.serializer(), it) } }
 
     suspend fun endpoint(server: Server): Endpoint = when (server) {
-        is Server.Remote -> Endpoint(server.url, server.token)
+        is Server.Remote -> Endpoint(server.url, server.token, transport?.let { connect -> { connect(server.url) } })
         Server.Embedded -> requireNotNull(embedded) { "No embedded server on this device" }.endpoint()
     }
 
