@@ -39,6 +39,8 @@ val onAccentColor = ThemeToken<Color>("on_accent")
 val sidebarColor = ThemeToken<Color>("sidebar")
 val railColor = ThemeToken<Color>("rail")
 val subtleColor = ThemeToken<Color>("subtle")
+/** The selected option of a [Segmented] control, raised above its [subtleColor] track. */
+val segmentColor = ThemeToken<Color>("segment")
 val codeColor = ThemeToken<Color>("code")
 val onCodeColor = ThemeToken<Color>("on_code")
 val warningColor = ThemeToken<Color>("warning")
@@ -131,6 +133,7 @@ private val HarnessThemeComposable = buildTheme {
         sidebarColor to p.sidebar,
         railColor to p.rail,
         subtleColor to p.subtle,
+        segmentColor to (if (dark) Color(0xFF4A4A46) else p.panel),
         codeColor to p.code,
         onCodeColor to p.onCode,
         warningColor to p.warning,

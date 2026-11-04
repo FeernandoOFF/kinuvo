@@ -8,12 +8,16 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.FocusInteraction
+import androidx.compose.foundation.interaction.Interaction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -220,6 +224,18 @@ fun inputTextStyle(): TextStyle {
 /** The keyboard starts sentences with a capital when [capitalize]; off for URLs, IDs, keys and commands. */
 fun inputKeyboard(capitalize: Boolean) = KeyboardOptions(capitalization = if (capitalize) KeyboardCapitalization.Sentences else KeyboardCapitalization.None)
 
+/** Shows focus as the field's own border, like the composer, instead of the library's ring outside it. */
+private class FocusBorder(private val source: MutableInteractionSource = MutableInteractionSource()) : MutableInteractionSource by source {
+    var focused by mutableStateOf(false)
+    override suspend fun emit(interaction: Interaction) { if (!track(interaction)) source.emit(interaction) }
+    override fun tryEmit(interaction: Interaction) = track(interaction) || source.tryEmit(interaction)
+    private fun track(interaction: Interaction) = when (interaction) {
+        is FocusInteraction.Focus -> { focused = true; true }
+        is FocusInteraction.Unfocus -> { focused = false; true }
+        else -> false
+    }
+}
+
 /** Single-line bordered text input that stays visible on any surface; [capitalize] for prose such as names and notes. */
 @Composable
 fun Input(
@@ -233,13 +249,19 @@ fun Input(
     error: Boolean = false,
 ) {
     val style = inputTextStyle()
+    val focus = remember { FocusBorder() }
     com.composables.ui.components.TextField(
         state,
         modifier.fillMaxWidth(),
         leading = leading,
         trailing = trailing,
         backgroundColor = color(backgroundColor),
-        borderColor = if (error) color(destructiveColor) else color(com.composables.ui.theme.borderColor),
+        borderColor = when {
+            error -> color(destructiveColor)
+            focus.focused -> color(accentColor).copy(alpha = 0.55f)
+            else -> color(com.composables.ui.theme.borderColor)
+        },
+        interactionSource = focus,
         placeholder = { Text(placeholder, style = style) },
         textStyle = style,
         outputTransformation = if (secret) androidx.compose.foundation.text.input.OutputTransformation { replace(0, length, "•".repeat(length)) } else null,

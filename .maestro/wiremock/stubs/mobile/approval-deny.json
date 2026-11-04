@@ -69,7 +69,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"entry\",\"seq\":3,\"entry\":{\"type\":\"tool_result\",\"id\":\"e2e-tool\",\"name\":\"shell\",\"output\":\"Denied by user: Do not run this command\",\"isError\":true}}},\"seq\":11}"
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"e2e-session\",\"change\":{\"type\":\"entry\",\"seq\":3,\"entry\":{\"type\":\"tool_result\",\"id\":\"e2e-tool\",\"name\":\"shell\",\"output\":\"The user denied this call. Note: Do not run this command\",\"isError\":true}}},\"seq\":11}"
         }
       }
     },

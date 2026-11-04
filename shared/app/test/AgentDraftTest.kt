@@ -14,7 +14,7 @@ class AgentDraftTest {
     private val draft = AgentDraft.of(details)
 
     @Test fun ofCopiesTheAgentsDefaults() {
-        assertEquals(AgentDraft("Ada", "Curious", "Kind", "codex", "gpt", "medium", "default"), draft)
+        assertEquals(AgentDraft("Ada", "Curious", "Kind", "codex", "gpt", "medium", "default", avatar = details.info.avatarArtboard), draft)
     }
 
     @Test fun unchangedDraftHasNoChanges() {
@@ -30,6 +30,8 @@ class AgentDraftTest {
         assertEquals(UpdateAgentParams("a", identity = "Bold"), draft.copy(identity = "Bold").changes(details))
         assertEquals(UpdateAgentParams("a", soul = "Firm"), draft.copy(soul = "Firm").changes(details))
         assertEquals(UpdateAgentParams("a", name = "Ava", soul = "Firm"), draft.copy(name = "Ava", soul = "Firm").changes(details))
+        val other = AvatarArtboards.first { it != details.info.avatarArtboard }
+        assertEquals(UpdateAgentParams("a", avatar = other), draft.copy(avatar = other).changes(details))
     }
 
     @Test fun changingTheProviderSendsTheModelWithIt() {

@@ -53,7 +53,9 @@ import com.composables.ui.theme.onFieldColor
 import kinuvo.protocol.*
 import kinuvo.ui.design.accentColor
 import kinuvo.ui.design.color
+import kinuvo.ui.design.GroupRow
 import kinuvo.ui.design.ListRow
+import kinuvo.ui.design.RowGroup
 import kinuvo.ui.design.SectionLabel
 import kinuvo.ui.design.LocalPopovers
 import kinuvo.ui.design.Popover
@@ -98,10 +100,11 @@ internal fun RowScope.ComposerSettings(
     val attach = { source: AttachmentSource -> attachOpen = false; onAttach(source) }
     val unavailable = listOfNotNull(photos, files).takeIf { it.size == 2 && it.none(CapabilityState::actionable) }
     val attachButton: @Composable () -> Unit = {
-        ControlButton(Lucide.Plus, unavailable?.firstNotNullOfOrNull { it.reason }?.let { "Attach: $it" } ?: "Attach", enabled = unavailable == null) { attachOpen = true }
+        ControlButton(Lucide.Plus, unavailable?.let { files?.reason }?.let { "Attach: $it" } ?: "Attach", enabled = unavailable == null) { attachOpen = true }
     }
     val approvalOptions = listOf<String?>(null) + APPROVALS.keys
-    fun approvalTitle(option: String?) = if (option == null) "Agent's setting (${defaults.approvals})" else option.replaceFirstChar { it.uppercase() }
+    fun approvalTitle(option: String?) = if (option == null) "Use ${agent ?: "the Agent"}'s setting" else option.replaceFirstChar { it.uppercase() }
+    fun approvalHint(option: String?) = APPROVALS[option ?: defaults.approvals].orEmpty().let { if (option == null) "${defaults.approvals.replaceFirstChar { c -> c.uppercase() }} · $it" else it }
     val pickApproval = { option: String? -> approvalsOpen = false; onChange(settings.copy(approvals = option)) }
     val approvalsButton: @Composable () -> Unit = { ControlButton(Lucide.Hand, "Ask before acting in this Session: $approvals") { approvalsOpen = true } }
     // Says whose settings these are, and leads to the Agent's defaults that every other Session follows.
@@ -136,13 +139,11 @@ internal fun RowScope.ComposerSettings(
         approvalsButton()
         Popover(approvalsOpen, { approvalsOpen = false }, "Ask before acting") {
             scope { approvalsOpen = false }
-            approvalOptions.forEach { option ->
-                ListRow(settings.approvals == option, { pickApproval(option) }) {
-                    Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
-                        Text(approvalTitle(option))
-                        Text(APPROVALS[option ?: defaults.approvals].orEmpty(), style = TextStyles.secondary, color = color(mutedColor))
+            RowGroup {
+                approvalOptions.forEach { option ->
+                    GroupRow(approvalTitle(option), { pickApproval(option) }, approvalHint(option), selected = settings.approvals == option, chevron = false) {
+                        if (settings.approvals == option) Icon(Lucide.Check, Modifier.size(16.dp), tint = color(accentColor))
                     }
-                    if (settings.approvals == option) Icon(Lucide.Check, Modifier.size(16.dp))
                 }
             }
         }
@@ -173,7 +174,7 @@ internal fun RowScope.ComposerSettings(
                         ) {
                             Column {
                                 Text(approvalTitle(option))
-                                Text(APPROVALS[option ?: defaults.approvals].orEmpty(), style = TextStyles.caption, color = color(mutedColor))
+                                Text(approvalHint(option), style = TextStyles.caption, color = color(mutedColor))
                             }
                         }
                     }

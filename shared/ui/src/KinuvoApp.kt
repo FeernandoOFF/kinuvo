@@ -193,6 +193,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                     Key.LeftBracket -> shortcutBack()
                     Key.RightBracket -> history.forward()
                     Key.Period -> if (e.isShiftPressed) return@onPreviewKeyEvent false else shell.open = !shell.open
+                    Key.Comma -> agent?.let { guardLeave { openSettings(Route.Settings(it.id), true) } } ?: return@onPreviewKeyEvent false
                     in NumberKeys -> pick(NumberKeys.indexOf(e.key), e.isShiftPressed)
                     else -> return@onPreviewKeyEvent false
                 }
@@ -425,7 +426,9 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onCloseRequest = { if (inspecting?.dirty == true) inspector?.close() else inspectorEdits.leave { inspector?.close() } })
             val homeChrome = HomeChrome({ if (compact) shell.revealed = true else shell.open = !shell.open }, !compact)
             CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers, LocalHomeChrome provides homeChrome) {
-                val blur by animateDpAsState(if (shell.quickChat || popovers.active) 16.dp else 0.dp)
+                // Phones show the Agent's settings as sheets over the screen; wider windows show them beside it, unblurred.
+                val sheet = compact && (inspecting?.open == true || settingsPages.isNotEmpty())
+                val blur by animateDpAsState(if (shell.quickChat || popovers.active || sheet) 16.dp else 0.dp)
                 val screenInsets = if (top == Route.NewAgent || top == Route.Connect) WindowInsets(0) else WindowInsets.safeDrawing
                 val guardSemantics = if (inspecting?.guard != null || inspectorEdits.pending != null || homeEdits.pending != null) Modifier.clearAndSetSemantics {} else Modifier
                 val sheetSemantics = if (inspecting?.open == true || settingsPages.isNotEmpty()) Modifier.clearAndSetSemantics {} else Modifier

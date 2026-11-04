@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.ChevronUp
 import com.composables.icons.lucide.Hand
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MessageCircleQuestionMark
@@ -206,13 +208,11 @@ private fun RequestHeader(request: PendingRequest, count: Int, onClose: (() -> U
         Box(Modifier.size(30.dp).background(tone.copy(alpha = 0.14f), CircleShape), contentAlignment = Alignment.Center) { Icon(request.icon(), Modifier.size(16.dp), tint = tone) }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(request.title(), Modifier.weight(1f), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
+                Text(request.title(), Modifier.weight(1f, fill = false), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
+                if (request is PendingRequest.Approval) Pill("${request.event.risk.name} risk", tone = when (request.event.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
                 if (count > 1) Text("1 of $count", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
             }
             request.detail()?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis) }
-            if (request is PendingRequest.Approval) Box(Modifier.padding(top = 6.dp)) {
-                Pill("${request.event.risk.name} risk", tone = when (request.event.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
-            }
         }
         if (onClose != null) IconButton(onClick = onClose, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor), modifier = Modifier.size(32.dp)) {
             Icon(Lucide.X, Modifier.size(18.dp), contentDescription = "Dismiss")
@@ -262,8 +262,9 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
         }
         if (label != null || toggle != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(label.orEmpty(), Modifier.weight(1f), style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
-            toggle?.let { Button(onClick = { input.arguments = !input.arguments }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Link, contentColor = color(mutedColor)) {
+            toggle?.let { Button(onClick = { input.arguments = !input.arguments }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(accentColor)) {
                 Text(it, style = TextStyles.caption, singleLine = true)
+                Icon(if (input.arguments) Lucide.ChevronUp else Lucide.ChevronDown, Modifier.size(14.dp))
             } }
         }
         // Without a command to show, the arguments are what's being approved.
