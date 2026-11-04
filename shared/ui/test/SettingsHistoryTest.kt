@@ -63,6 +63,7 @@ class SettingsHistoryTest {
             override fun set(key: String, value: String?) {
                 if (value == null) values.remove(key) else values[key] = value
             }
+            override fun clear() = values.clear()
         }
         val credentials = object : DeviceCredentials {
             override fun read(server: String): String? = null

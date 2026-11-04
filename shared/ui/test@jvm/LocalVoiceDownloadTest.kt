@@ -14,6 +14,7 @@ class LocalVoiceDownloadTest {
         val prefs = object : Preferences {
             override fun get(key: String): String? = null
             override fun set(key: String, value: String?) {}
+            override fun clear() {}
         }
         val repository = DesktopVoiceRepository(root, prefs)
         val model = repository.models.first()
@@ -42,6 +43,7 @@ class LocalVoiceDownloadTest {
         val repository = DesktopVoiceRepository(root, object : Preferences {
             override fun get(key: String): String? = null
             override fun set(key: String, value: String?) {}
+            override fun clear() {}
         })
         val model = repository.models.single { it.id == "supertonic-3" }
         val folder = root.resolve(model.id).apply { mkdirs() }
@@ -80,6 +82,7 @@ class LocalVoiceDownloadTest {
         val prefs = object : Preferences {
             override fun get(key: String) = values[key]
             override fun set(key: String, value: String?) { if (value == null) values.remove(key) else values[key] = value }
+            override fun clear() = values.clear()
         }
         val repository = DesktopVoiceRepository(root, prefs)
         try {

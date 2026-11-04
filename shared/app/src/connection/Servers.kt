@@ -65,6 +65,8 @@ data class LastView(val agentId: String, val sessionId: String?)
 interface Preferences {
     operator fun get(key: String): String?
     operator fun set(key: String, value: String?)
+    /** Removes every key this app saved. */
+    fun clear()
 }
 
 /** The Servers this Device knows, the one it last used, and its last view. [transport] replaces the network for remote Servers, e.g. in UI tests. */
@@ -135,6 +137,12 @@ class Servers(
             prefs[CURRENT] = null
             lastView = null
         }
+    }
+
+    /** Forgets every Server and its credential, and every preference, as on a fresh install. Servers aren't told. */
+    fun reset() {
+        remotes().forEach { credentials.delete(it.url) }
+        prefs.clear()
     }
 
     fun unpair(server: Server.Remote): Server.Remote = server.copy(token = null).also { unpaired ->

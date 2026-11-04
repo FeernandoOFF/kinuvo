@@ -81,8 +81,11 @@ class KinuvoClient(
         lastConnect = lastConnect?.copy(token = requireNotNull(token))
     }
 
-    /** Connects (pairing on first use) and keeps the connection alive until [close]. Throws [AuthException] on bad credentials, or whatever stopped the first attempt. */
-    suspend fun connect(): ConnectResult {
+    /**
+     * Connects (pairing on first use) and keeps the connection alive until [close]. Throws [AuthException] on bad credentials,
+     * or whatever stopped the first attempt; with [retry], only bad credentials or protocols stop it before it first connects.
+     */
+    suspend fun connect(retry: Boolean = false): ConnectResult {
         val first = CompletableDeferred<ConnectResult>()
         loop = scope.launch {
             var delayMs = 500L
@@ -123,7 +126,7 @@ class KinuvoClient(
                     return@launch
                 } catch (e: Exception) {
                     _state.value = ConnectionState.Disconnected(e.userMessage)
-                    if (!first.isCompleted) { first.completeExceptionally(e); return@launch }
+                    if (!first.isCompleted && !retry) { first.completeExceptionally(e); return@launch }
                 } finally {
                     withContext(NonCancellable) {
                         reader?.cancelAndJoin()

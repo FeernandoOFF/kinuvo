@@ -5,6 +5,7 @@ import kinuvo.app.connection.*
 import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
@@ -33,6 +34,7 @@ data class SessionData(
 }
 
 /** The loaded pages of an Agent's Sessions, newest first. */
+@Serializable
 data class SessionList(
     val sessions: List<SessionInfo> = emptyList(),
     val hasMore: Boolean = false,
@@ -70,7 +72,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
     private var viewing: String? = null
 
     internal fun attach(client: KinuvoClient) {
-        clear()
+        attached?.cancel()
         attached = scope.launch {
             launch { client.events(Api.Update).collect(::onUpdate) }
             launch { client.events(Api.SessionChanged).collect(::onChanged) }
@@ -79,6 +81,19 @@ class SessionRepository(private val notifications: Notifications, internal val c
     }
 
     internal fun detach() { clear() }
+
+    /** Shows what this Device last saw until the Server is reached; reconnecting catches the Sessions up from there. */
+    internal fun restore(lists: Map<String, SessionList>, sessions: Map<String, CachedSession>) {
+        recent += sessions.keys
+        state.value = RepositoryState(lists = lists,
+            sessions = sessions.mapValues { (_, s) -> SessionData(s.agentId, s.firstSeq, s.entries, loaded = true) })
+    }
+
+    /** The cached Sessions, each with up to its last [MAX_SAVED] entries. */
+    internal fun saved(): Map<String, CachedSession> = state.value.sessions.filterValues { it.loaded }.mapValues { (_, d) ->
+        val drop = (d.entries.size - MAX_SAVED).coerceAtLeast(0)
+        CachedSession(d.agentId, d.firstSeq + drop, d.entries.drop(drop))
+    }
 
     /** [sessionId] is on screen (null: a new Session): keeps it cached and subscribed, and clears its finished mark. */
     fun view(agentId: String, sessionId: String?) = scope.launch {
@@ -271,6 +286,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     private companion object {
         const val MAX_CACHED = 8
+        const val MAX_SAVED = 100
     }
 }
 
