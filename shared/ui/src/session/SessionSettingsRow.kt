@@ -53,7 +53,9 @@ import com.composables.ui.theme.onFieldColor
 import kinuvo.protocol.*
 import kinuvo.ui.design.accentColor
 import kinuvo.ui.design.color
+import kinuvo.ui.design.GroupRow
 import kinuvo.ui.design.ListRow
+import kinuvo.ui.design.RowGroup
 import kinuvo.ui.design.SectionLabel
 import kinuvo.ui.design.LocalPopovers
 import kinuvo.ui.design.Popover
@@ -137,13 +139,11 @@ internal fun RowScope.ComposerSettings(
         approvalsButton()
         Popover(approvalsOpen, { approvalsOpen = false }, "Ask before acting") {
             scope { approvalsOpen = false }
-            approvalOptions.forEach { option ->
-                ListRow(settings.approvals == option, { pickApproval(option) }) {
-                    Column(Modifier.weight(1f).padding(vertical = 4.dp)) {
-                        Text(approvalTitle(option))
-                        Text(approvalHint(option), style = TextStyles.secondary, color = color(mutedColor))
+            RowGroup {
+                approvalOptions.forEach { option ->
+                    GroupRow(approvalTitle(option), { pickApproval(option) }, approvalHint(option), selected = settings.approvals == option, chevron = false) {
+                        if (settings.approvals == option) Icon(Lucide.Check, Modifier.size(16.dp), tint = color(accentColor))
                     }
-                    if (settings.approvals == option) Icon(Lucide.Check, Modifier.size(16.dp), tint = color(accentColor))
                 }
             }
         }
