@@ -11,6 +11,8 @@ kinuvo login
 
 Open the address it prints and enter the device code. This signs in to a provider that supports device-code login; OpenAI API keys are configured separately in the app's model setup. See [models](../reference/models.md).
 
+On a Mac with Apple’s `fm` command, you can use the on-device model without signing in to a cloud provider. Follow the [Apple model setup guide](../guides/apple-models.md) to enable Apple Intelligence and review its CLI license.
+
 Start the Server in the foreground:
 
 ```sh
