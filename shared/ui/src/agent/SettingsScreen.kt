@@ -447,7 +447,7 @@ internal fun DetailRow(label: String, value: @Composable () -> Unit) {
 internal fun FormField(label: String, hint: String? = null, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, style = TextStyles.secondary, fontWeight = FontWeight.Normal)
+            Text(label, style = TextStyles.secondary, color = color(mutedColor))
             hint?.let { InfoButton(it) }
         }
         content()
@@ -563,7 +563,7 @@ internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSe
         Button(onClick = { open = true }, modifier = if (stretch) Modifier.fillMaxWidth() else Modifier, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 10.dp)) {
             icon?.let { Icon(it, Modifier.size(14.dp), tint = color(mutedColor)) }
             // Stretched to a given width, the label takes the room and the chevron keeps to the end.
-            Text(label(current), if (stretch) Modifier.weight(1f) else Modifier, style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            Text(label(current), if (stretch) Modifier.weight(1f) else Modifier.widthIn(max = 180.dp), style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             Icon(Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
         }
     }

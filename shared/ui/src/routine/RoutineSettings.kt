@@ -195,10 +195,11 @@ private fun Routine.statusPill() = when {
 
 private fun Routine.icon(): ImageVector = if (heartbeat) Lucide.HeartPulse else Lucide.AlarmClock
 
-internal fun Routine.summary(now: Long) = "${trigger.describe()} · " + when {
-    !enabled && trigger is Trigger.Once && lastRunAt != null -> "done"
-    !enabled -> "off"
-    else -> nextRunAt?.let { "next ${relative(it, now)}" } ?: "not scheduled"
+// A Routine that's off says so with its pill; the summary keeps to the schedule.
+internal fun Routine.summary(now: Long) = trigger.describe() + when {
+    !enabled && trigger is Trigger.Once && lastRunAt != null -> " · done"
+    !enabled -> ""
+    else -> " · " + (nextRunAt?.let { "next ${relative(it, now)}" } ?: "not scheduled")
 }
 
 private fun Routine.nextRun(now: Long): String = when {
@@ -255,10 +256,19 @@ fun Trigger.describe(): String = when (this) {
         when {
             time == null -> "Cron $expr"
             f[2] == "*" && f[3] == "*" && f[4] == "*" -> "Every day at $time"
-            f[2] == "*" && f[3] == "*" -> "$time on ${f[4]}"
+            f[2] == "*" && f[3] == "*" -> days(f[4])?.let { "$it at $time" } ?: "$time on ${f[4]}"
             else -> "Cron $expr"
         }
     }
 }
 
 private fun pad(n: Int) = n.toString().padStart(2, '0')
+
+private val DAY_NAMES = listOf("Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays")
+
+/** A cron day-of-week field in words, e.g. "1-5" is weekdays and "5" Fridays; null for anything else. */
+private fun days(field: String): String? = when (field.uppercase()) {
+    "1-5", "MON-FRI" -> "Weekdays"
+    "0,6", "6,0", "SAT,SUN" -> "Weekends"
+    else -> field.toIntOrNull()?.takeIf { it in 0..7 }?.let { DAY_NAMES[it % 7] }
+}

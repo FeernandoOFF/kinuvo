@@ -213,7 +213,8 @@ internal val RoundedCornerShape100 = androidx.compose.foundation.shape.RoundedCo
 @Composable
 fun inputTextStyle(): TextStyle {
     val touch = LocalInteractionMode.current == InteractionMode.Touch
-    return LocalTextStyle.current.copy(fontSize = if (touch) 15.sp else 13.sp, lineHeight = if (touch) 22.sp else 19.sp)
+    // Inter, like the messages and values it becomes.
+    return LocalTextStyle.current.copy(fontFamily = interFamily(), fontSize = if (touch) 16.sp else 13.sp, lineHeight = if (touch) 22.sp else 19.sp)
 }
 
 /** The keyboard starts sentences with a capital when [capitalize]; off for URLs, IDs, keys and commands. */

@@ -140,7 +140,7 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                 Column(Modifier.weight(1f)) {
                     Text(task.title, fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis,
                         style = LocalTextStyle.current.copy(textDecoration = if (task.status == TaskStatus.Done) TextDecoration.LineThrough else null))
-                    Text(listOfNotNull(task.listName, task.due?.let { "due $it" }).joinToString(" · "), style = TextStyles.secondary, color = color(mutedColor), singleLine = true)
+                    Text(listOfNotNull(task.listName, task.due?.let { "due ${dueLabel(it)}" }).joinToString(" · "), style = TextStyles.secondary, color = color(mutedColor), singleLine = true)
                 }
                 Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
             }
@@ -157,10 +157,9 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
             }
             val last = task.sessionIds.lastOrNull()
             if (last != null && task.assignee != null) {
-                Button(onClick = { actions.onOpenSession(task.assignee!!, last) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) {
+                Button(onClick = { actions.onOpenSession(task.assignee!!, last) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(accentColor)) {
                     Icon(Lucide.MessageSquare, Modifier.size(14.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(if (task.sessionIds.size > 1) "Open latest run (${task.sessionIds.size})" else "Open run")
+                    Text(if (task.sessionIds.size > 1) "Open latest run (${task.sessionIds.size})" else "Open run", style = TextStyles.secondary)
                 }
             }
         }
@@ -205,7 +204,7 @@ private fun TaskStatus.empty() = when (this) {
     TaskStatus.Done -> "Nothing done yet."
 }
 
-private fun TaskStatus.icon() = when (this) {
+internal fun TaskStatus.icon() = when (this) {
     TaskStatus.Todo -> Lucide.Circle
     TaskStatus.InProgress -> Lucide.LoaderCircle
     TaskStatus.Waiting -> Lucide.Hand

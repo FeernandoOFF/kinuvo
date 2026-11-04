@@ -40,7 +40,10 @@ data class TaskUi(val task: TaskInfo?, val loaded: Boolean, val agents: List<Age
 fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: String, sessionId: String) -> Unit, onUpdate: (UpdateTaskParams) -> Unit = {}) {
     val task = ui.task
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
-        TitleBarRow {
+        // On phones the floating Back alone; the title is the page's heading below it.
+        if (LocalInteractionMode.current == InteractionMode.Touch) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+            onBack?.let { FloatingBubble(Lucide.ArrowLeft, "Back", it) }
+        } else TitleBarRow {
             onBack?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
             Text(task?.title ?: "Task", Modifier.padding(start = 4.dp).weight(1f), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
         }
@@ -50,12 +53,15 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Stri
                 Text(ui.error ?: "This Task is no longer on the Board.", color = color(mutedColor))
             }
             else -> Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
-                Column(Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text(task.title, style = TextStyles.headline, lineHeight = 28.sp)
                     FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Pill(task.listName, icon = Lucide.List)
-                        task.due?.let { Pill("Due $it", icon = Lucide.Calendar) }
-                        Picker(TaskStatus.entries, task.status, { it.label() }, { s -> onUpdate(UpdateTaskParams(task.id, status = s)) })
+                        task.due?.let { Pill("Due ${dueLabel(it)}", icon = Lucide.Calendar) }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("Status", style = TextStyles.secondary, color = color(mutedColor))
+                        Picker(TaskStatus.entries, task.status, { it.label() }, { s -> onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())
                     }
                     val assignee = ui.agents.firstOrNull { it.id == task.assignee }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -69,7 +75,7 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Stri
                         task.sessionIds.asReversed().forEachIndexed { i, id ->
                             val session = ui.sessions[id]
                             val agentId = session?.agentId ?: task.assignee
-                            ListRow(false, { agentId?.let { onOpenSession(it, id) } }, enabled = agentId != null, leading = { Icon(Lucide.SquareKanban, Modifier.size(16.dp)) }) {
+                            ListRow(false, { agentId?.let { onOpenSession(it, id) } }, enabled = agentId != null, leading = { Icon(Lucide.MessageSquare, Modifier.size(16.dp)) }) {
                                 Column(Modifier.weight(1f)) {
                                     Text(session?.title ?: "Run ${task.sessionIds.size - i}", singleLine = true, overflow = TextOverflow.Ellipsis)
                                     Text(listOfNotNull(if (i == 0) "Latest run" else "Run ${task.sessionIds.size - i}", ui.agents.firstOrNull { it.id == agentId }?.name).joinToString(" · "),
@@ -84,3 +90,9 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Stri
         }
     }
 }
+
+/** A Task's due date as "Mon 2 Nov", or as given when it isn't an ISO date. */
+internal fun dueLabel(iso: String): String = runCatching {
+    val d = kotlinx.datetime.LocalDate.parse(iso)
+    "${d.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${d.day} ${d.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }}"
+}.getOrDefault(iso)
