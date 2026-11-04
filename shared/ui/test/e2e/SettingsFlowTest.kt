@@ -93,9 +93,12 @@ class SettingsFlowTest {
         clear()
         type("Saved instructions")
         tap("Edit daily")
+        server.stub("mobile/settings-skill-saved", "skill.get",
+            """{"info":{"name":"daily","description":"Daily planning instructions","scope":"Agent","active":true},"content":"Saved instructions","files":[]}""", 1)
         tap("Save")
         gone("Discard changes\\?")
         await("Daily planning instructions")
+        await("Saved instructions")
         screenshot("skill-saved")
         tap("Back")
         tap("Back")

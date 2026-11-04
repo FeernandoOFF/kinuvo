@@ -102,6 +102,7 @@ import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.foundation.text.input.clearText
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.draw.alpha
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.hazeSource
@@ -962,6 +963,7 @@ private fun Expandable(
     border: Boolean = true,
     initiallyExpanded: Boolean = false,
     tint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
+    titleStyle: TextStyle = TextStyles.callout,
     content: @Composable () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded) }
@@ -971,7 +973,7 @@ private fun Expandable(
             ListRow(selected = false, onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 44.dp)) {
                 Icon(icon, Modifier.size(15.dp), tint = if (tint.isSpecified) tint else color(mutedColor))
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(title, style = TextStyles.callout, fontWeight = FontWeight.Normal, singleLine = true)
+                    Text(title, style = titleStyle, fontWeight = FontWeight.Normal, singleLine = true)
                     subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
                     status?.invoke()
                 }
@@ -1083,20 +1085,23 @@ private fun ToolAttachments(attachments: List<Attachment>, actions: ChatActions)
 @Composable
 private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, actions: ChatActions = ChatActions()) {
     val label = item.label()
-    Expandable(label.icon, label.title, label.subtitle, border = border, status = {
-        when {
-            item.waiting -> Pill("Needs you", tone = Tone.Warning)
-            item.result == null -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 13.dp)
-            item.denied -> Pill("Denied")
-            item.isError -> Pill("Failed", tone = Tone.Danger)
-            else -> Pill("Done", tone = Tone.Success)
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Expandable(label.icon, label.title, label.subtitle, border = border, titleStyle = if (label.skill) TextStyles.callout else MonoStyle, status = {
+            when {
+                item.waiting -> Pill("Needs you", tone = Tone.Warning)
+                item.result == null -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 13.dp)
+                item.denied -> Pill("Denied")
+                item.isError -> Pill("Failed", tone = Tone.Danger)
+                else -> Pill("Done", tone = Tone.Success)
+            }
+        }) {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!label.skill && item.args.isNotBlank()) CodeBlock(prettyJson(item.args), language = "Arguments")
+                item.result?.let { CodeBlock(it, language = if (item.isError) "Error" else "Result", previewChars = 4000, error = item.isError) }
+                ToolAttachments(item.attachments, actions)
+            }
         }
-    }) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!label.skill && item.args.isNotBlank()) CodeBlock(prettyJson(item.args), language = "Arguments")
-            item.result?.let { CodeBlock(it, language = if (item.isError) "Error" else "Result", previewChars = 4000, error = item.isError) }
-            ToolAttachments(item.attachments, actions)
-        }
+        item.denialNote?.let { Text("Your note: $it", Modifier.padding(horizontal = 10.dp), style = TextStyles.caption, color = color(mutedColor)) }
     }
 }
 

@@ -155,7 +155,7 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->
                     actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: ""))
-                }, icon = Lucide.User, modifier = Modifier.weight(1f, fill = false))
+                }, icon = Lucide.User, modifier = Modifier.weight(1f, fill = false).widthIn(max = 160.dp))
                 // Phones show the status as the tab; it changes from the Task itself.
                 if (LocalInteractionMode.current != InteractionMode.Touch)
                     Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())

@@ -208,8 +208,8 @@ private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellCh
         }
         val sidebar = color(sidebarColor)
         // The lists fade out under the bar instead of showing through around it.
-        Box(Modifier.align(Alignment.BottomStart).padding(start = RailWidth).fillMaxWidth().height(clear)
-            .background(Brush.verticalGradient(0f to sidebar.copy(alpha = 0f), 0.4f to sidebar)))
+        Box(Modifier.align(Alignment.BottomStart).padding(start = RailWidth).fillMaxWidth().height(clear + 32.dp)
+            .background(Brush.verticalGradient(0f to sidebar.copy(alpha = 0f), 0.5f to sidebar)))
         QuickChatBar(state.agent, chrome.draft, Modifier.align(Alignment.BottomStart).padding(start = RailWidth).windowInsetsPadding(insets.only(WindowInsetsSides.Bottom))) { chrome.quickChat = true }
     }
 }

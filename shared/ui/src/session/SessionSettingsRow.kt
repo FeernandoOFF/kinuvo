@@ -98,7 +98,7 @@ internal fun RowScope.ComposerSettings(
     val attach = { source: AttachmentSource -> attachOpen = false; onAttach(source) }
     val unavailable = listOfNotNull(photos, files).takeIf { it.size == 2 && it.none(CapabilityState::actionable) }
     val attachButton: @Composable () -> Unit = {
-        ControlButton(Lucide.Plus, unavailable?.firstNotNullOfOrNull { it.reason }?.let { "Attach: $it" } ?: "Attach", enabled = unavailable == null) { attachOpen = true }
+        ControlButton(Lucide.Plus, unavailable?.let { files?.reason }?.let { "Attach: $it" } ?: "Attach", enabled = unavailable == null) { attachOpen = true }
     }
     val approvalOptions = listOf<String?>(null) + APPROVALS.keys
     fun approvalTitle(option: String?) = if (option == null) "Agent's setting (${defaults.approvals})" else option.replaceFirstChar { it.uppercase() }
