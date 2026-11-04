@@ -79,7 +79,7 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             back?.let { RoundButton(Lucide.ArrowLeft, "Back", it) }
             Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(color(accentColor).copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
-                Icon(if (state.owner != null) Lucide.Globe else Lucide.Monitor, Modifier.size(18.dp), tint = color(accentColor))
+                Icon(screen?.icon() ?: if (state.owner != null) Lucide.Globe else Lucide.Monitor, Modifier.size(18.dp), tint = color(accentColor))
             }
             Column(Modifier.weight(1f)) {
                 Text(screen?.title?.ifBlank { null } ?: if (state.owner != null) "Browser" else "Computer", singleLine = true, overflow = TextOverflow.Ellipsis)
@@ -107,8 +107,9 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                     if (state.ownsControl && screen.capabilities.resize && !state.pending) { delay(180); actions.resize(w, h) }
                 }
                 val frame = when (tone) { Tone.Success, Tone.Warning, Tone.Accent -> tone.color().copy(alpha = 0.6f); else -> color(borderColor) }
-                Box(Modifier.fillMaxSize().clip(StageShape).background(color(sidebarColor)).border(if (state.ownsControl) 2.dp else 1.dp, frame, StageShape)) {
-                    LiveCanvas(state.frame, state.interactive, actions.input, actions.drawn, actions.decodeFailed, Modifier.fillMaxSize(),
+                val stroke = if (state.ownsControl) 2.dp else 1.dp
+                Box(Modifier.fillMaxSize().clip(StageShape).background(color(sidebarColor)).border(stroke, frame, StageShape).padding(stroke)) {
+                    LiveCanvas(state.frame, state.interactive, actions.input, actions.drawn, actions.decodeFailed, Modifier.fillMaxSize().clip(StageShape),
                         state.control.generation, "scroll" in screen.capabilities.inputs, trackpad = trackpad, recenter = recenter)
                 }
             }
@@ -123,9 +124,8 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                 val screensCaption = if (state.owner != null) "Tabs" else "Screens"
                 if (!state.ownsControl) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     DockButton(screensIcon, screensLabel, { controls = true }, caption = screensCaption)
-                    Text(if (state.control.holder != null) "Another Device has control" else "Watching",
-                        Modifier.weight(1f), fontSize = 13.sp, color = color(mutedColor), maxLines = 2)
-                    Button(onClick = { actions.takeover(true, state.control.holder != null) }, enabled = state.connected && !state.pending && !state.control.draining, style = ButtonStyle.Primary) {
+                    Button(onClick = { actions.takeover(true, state.control.holder != null) }, enabled = state.connected && !state.pending && !state.control.draining,
+                        modifier = Modifier.weight(1f), style = ButtonStyle.Primary) {
                         Icon(Lucide.Hand, Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(if (state.pending || state.control.draining) "Waiting…" else if (state.control.holder != null) "Take over here" else "Take over")
@@ -234,7 +234,7 @@ private fun DockButton(icon: ImageVector, label: String, onClick: () -> Unit, en
                 .semantics { if (selected != null) stateDescription = if (selected) "On" else "Off" }) {
             Icon(icon, Modifier.size(22.dp), contentDescription = label, tint = tint)
         }
-        Text(caption, Modifier.clearAndSetSemantics {}, fontSize = 10.sp, lineHeight = 12.sp, color = if (selected == true) tint else color(mutedColor), singleLine = true)
+        Text(caption, Modifier.clearAndSetSemantics {}, fontSize = 11.sp, lineHeight = 13.sp, color = if (selected == true) tint else color(mutedColor), singleLine = true)
     }
 }
 

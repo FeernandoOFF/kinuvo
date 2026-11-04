@@ -173,7 +173,7 @@ internal fun TabStrip(state: LiveViewState, actions: LiveActions) {
                 .clickable(onClickLabel = screen.title) { actions.select(screen.ref) }.padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (yours || paused) Icon(Lucide.Hand, Modifier.size(13.dp), tint = tabColor)
-                else if (screen.active) Spinner(size = 12.dp) else Icon(if (screen.ref.owner == null) Lucide.Monitor else Lucide.Globe, Modifier.size(13.dp), tint = color(mutedColor))
+                else if (screen.active) Spinner(size = 12.dp) else Icon(screen.icon(), Modifier.size(13.dp), tint = color(mutedColor))
                 Text(screen.title.ifBlank { "New tab" }, Modifier.weight(1f, fill = false), fontSize = 13.sp, singleLine = true, overflow = TextOverflow.Ellipsis,
                     color = if (selected) Color.Unspecified else color(mutedColor))
                 if (screen.capabilities.tabs)
@@ -287,7 +287,7 @@ internal fun ScreenOverview(state: LiveViewState, actions: LiveActions, modifier
                 LiveCanvas(if (selected) state.frame else state.thumbnails[screen.ref], false,
                     { _, _ -> }, actions.drawn, {}, Modifier.fillMaxWidth().aspectRatio(1.6f).clip(RoundedCornerShape(6.dp)).background(color(backgroundColor)), gestures = false)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(if (screen.ref.owner == null) Lucide.Monitor else Lucide.Globe, Modifier.size(13.dp), tint = color(mutedColor))
+                    Icon(screen.icon(), Modifier.size(13.dp), tint = color(mutedColor))
                     Text(screen.title, Modifier.weight(1f), fontSize = 13.sp, singleLine = true, overflow = TextOverflow.Ellipsis)
                     if (screen.capabilities.tabs) IconButton(onClick = { actions.close(screen.ref) }, enabled = state.connected && !state.pending, style = ButtonStyle.Ghost, modifier = Modifier.size(20.dp)) {
                         Icon(Lucide.X, Modifier.size(12.dp), contentDescription = "Close ${screen.title.ifBlank { "tab" }}")
@@ -540,7 +540,7 @@ internal fun ComputerList(state: LiveViewState, onRetry: () -> Unit, onOpen: (Sc
                 else -> RowGroup {
                     state.screens.forEach { screen ->
                         val status = screen.status(state.connected, state.device, state.requestReason.takeIf { screen.ref == state.selected })
-                        GroupRow(screen.title, { onOpen(screen.ref) }, status.label, Lucide.Monitor, selected = screen.ref == selected) {
+                        GroupRow(screen.title, { onOpen(screen.ref) }, status.label, screen.icon(), selected = screen.ref == selected) {
                             when (status) {
                                 Status.Working -> Pill("Working", tone = Tone.Accent, loading = true)
                                 Status.Needed, Status.Elsewhere, Status.Suspended -> Pill("Needs you", tone = Tone.Warning)
@@ -597,4 +597,11 @@ internal fun BrowserRestartDialog(target: Boolean?, state: LiveViewState, action
             }
         }
     }
+}
+
+/** A Browser tab, a phone (it has Recents) or a computer. */
+internal fun ScreenInfo.icon() = when {
+    ref.owner != null -> Lucide.Globe
+    "Recents" in capabilities.keys -> Lucide.Smartphone
+    else -> Lucide.Monitor
 }

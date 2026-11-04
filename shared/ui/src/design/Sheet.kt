@@ -74,7 +74,8 @@ fun BottomSheet(
                     Orientation.Vertical,
                     onDragStopped = { velocity ->
                         if (drag.value > threshold || velocity > 1500f) onDismissRequest()
-                        drag.animateTo(0f)
+                        // After the drag's queued snaps, so a guard that keeps the sheet open settles it back in place.
+                        scope.launch { drag.animateTo(0f) }
                     },
                 )
                 Column(Modifier.fillMaxWidth().then(dragModifier)) {

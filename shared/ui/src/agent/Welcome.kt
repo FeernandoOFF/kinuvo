@@ -204,7 +204,7 @@ private fun QrHelp(onManual: (() -> Unit)?, enabled: Boolean) {
 @Composable
 private fun ColumnScope.Manual(options: WelcomeOptions) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        HeaderButton(Lucide.ArrowLeft, "Back", { options.onManual(false) }, enabled = !options.busy)
+        FloatingBubble(Lucide.ArrowLeft, "Back") { if (!options.busy) options.onManual(false) }
         Text("Connect to a Server", style = displayStyle(26.sp))
     }
     Text("Use the address and code your Server shows when you pair a device, or paste its pairing link.", color = color(mutedColor))

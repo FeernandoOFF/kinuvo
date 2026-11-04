@@ -62,7 +62,7 @@ private fun SkillDetail(s: SkillDetails, p: Pane) {
             GroupRow("Used by", subtitle = info.invocation())
         }
         if (s.files.isNotEmpty()) RowGroup("Files") { s.files.forEach { GroupRow(it, icon = Lucide.File) } }
-        DetailGroup("SKILL.md") { CodeBlock(s.content, language = "markdown") }
+        CodeBlock(s.content, language = "SKILL.md")
         if (editable) RowGroup {
             ConfirmRow("Delete skill", Lucide.Trash2, "Delete ${info.name}?", { p.actions.onDeleteSkill(info.scope, info.name) }, "Delete",
                 detail = "${p.ui.agent?.name ?: "The agent"} can no longer load it.")

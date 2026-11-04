@@ -95,9 +95,10 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
     DetailPane(p.back, section.title, error = p.ui.error, trailing = { FormActions("Save", dirty, p.ui.state.saved && !dirty, onSave = { p.actions.onSaveAgent(changes) }) }) {
         when (section) {
             SettingsSection.Workspace -> {
-                DetailGroup("Shell and files") {
+                RowGroup("Shell and files") {
                     val (offered, missing) = EXEC.keys.partition { it == "none" || p.ui.capabilities.offers(Integration.Exec, it) }
-                    DetailRow("Runs on") { Picker((offered + s.exec).distinct(), exec, { EXEC[it] ?: it }, { exec = it }) }
+                    PickerRow("Runs on", (offered + s.exec).distinct(), exec, { EXEC[it] ?: it }, { exec = it })
+                    GroupBox {
                     if (missing.isNotEmpty()) Text("Not available on this Server: ${missing.joinToString { EXEC.getValue(it).lowercase() }}.", color = color(mutedColor))
                     // Older Servers ignore these settings and have no test; they're edited in agent.yaml there.
                     val legacy = p.ui.capabilities?.integrations == null
@@ -118,7 +119,8 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
                     val windows = p.ui.capabilities?.platform == Platform.Windows
                     if (exec == "host" && windows) Text("Commands use Bash. Install Git for Windows and add its bin folder (e.g. C:/Program Files/Git/bin) to PATH, then restart Kinuvo.", color = color(mutedColor))
                     if (exec != "none") FormField("Workspace", "Folders $remote the agent's file tools may touch, one per line; commands start in the first.") {
-                        TextArea(workspace, if (windows && exec != "ssh") "C:/Users/you/projects" else "~/projects", lines = 2, capitalize = false)
+                        TextArea(workspace, "e.g. " + if (windows && exec != "ssh") "C:/Users/you/projects" else "~/projects", lines = 1, capitalize = false)
+                    }
                     }
                 }
                 if (exec != "none" && p.ui.capabilities?.integrations != null) DetailGroup("Test") {

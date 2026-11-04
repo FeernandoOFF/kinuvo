@@ -301,7 +301,7 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
                     Pinned(Lucide.AlarmClock, "Routines", (view as? Route.Settings)?.section == SettingsSection.Routines, state.capabilities.supports(ServerFeature.Routines), actions.onRoutines)
                     Pinned(Lucide.Wrench, "Tools & MCP", (view as? Route.Settings)?.section == SettingsSection.Hub, true, actions.onTools)
                     Pinned(Lucide.BookOpen, "Knowledge", view is Route.Knowledge, state.capabilities.supports(ServerFeature.Knowledge), actions.onKnowledge)
-                    Pinned(Lucide.Shapes, "Artifacts", view is Route.Artifacts, state.capabilities.supports(ServerFeature.Artifacts), actions.onArtifacts)
+                    if (state.capabilities.supports(ServerFeature.Artifacts)) Pinned(Lucide.Shapes, "Artifacts", view is Route.Artifacts, true, actions.onArtifacts)
                 }
             }
             fun LazyListScope.sessions(title: String, sessions: List<SessionInfo>) {
