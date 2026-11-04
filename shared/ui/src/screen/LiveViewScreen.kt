@@ -340,7 +340,10 @@ internal fun LiveCanvas(frame: ScreenFrame?, interactive: Boolean, input: (Scree
             val my = ((imageHeightPx * zoom - surfaceHeight) / 2).coerceAtLeast(0f)
             pan = Offset(pan.x.coerceIn(-mx, mx), pan.y.coerceIn(-my, my))
         }
-        if (shown == null) Text("Waiting for a fresh screen…", color = color(mutedColor))
+        if (shown == null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spinner()
+            Text("Waiting for a fresh screen…", color = color(mutedColor), style = TextStyles.secondary)
+        }
         Box(Modifier.fillMaxSize().then(if (gestures) Modifier.pointerInput(binding, trackpad) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)

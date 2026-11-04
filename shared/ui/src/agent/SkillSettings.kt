@@ -59,8 +59,8 @@ private fun SkillDetail(s: SkillDetails, p: Pane) {
         RowGroup {
             GroupBox {
                 Text(info.description)
-                DetailRow("Where") { Text(info.where() + if (info.active) "" else " · shadowed by another skill of the same name", style = TextStyles.callout) }
-                DetailRow("Used by") { Text(info.invocation(), style = TextStyles.callout) }
+                DetailRow("Where") { Text(info.where() + if (info.active) "" else " · shadowed by another skill of the same name", style = markdownTextStyle()) }
+                DetailRow("Used by") { Text(info.invocation(), style = markdownTextStyle()) }
             }
         }
         if (s.files.isNotEmpty()) RowGroup("Files") { s.files.forEach { GroupRow(it, icon = Lucide.File) } }

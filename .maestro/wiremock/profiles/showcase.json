@@ -33,6 +33,7 @@
     "ws/providers",
     "mobile/knowledge-empty",
     "mobile/knowledge-typing",
+    "showcase/browser-watch",
     "showcase/computer-watch"
   ]
 }

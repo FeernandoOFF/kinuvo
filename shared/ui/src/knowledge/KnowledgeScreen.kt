@@ -159,7 +159,7 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
             }
         }
         if (links.isNotEmpty()) RowGroup("Linked notes") {
-            links.forEach { (ref, label) -> GroupRow(label, { actions.onOpen(ref) }, icon = Lucide.FileText) }
+            links.forEach { (ref, label) -> GroupRow(label.replaceFirstChar { it.uppercase() }, { actions.onOpen(ref) }, icon = Lucide.FileText) }
         }
     }
 }

@@ -528,7 +528,7 @@ private val ComposerFade = 24.dp
 @Composable
 private fun FloatingBar(state: ChatState, usage: Usage?, actions: ChatActions, onToggle: (() -> Unit)?, onBack: (() -> Unit)?, modifier: Modifier) {
     val background = color(backgroundColor)
-    Box(modifier.fillMaxWidth().height(FloatingBarHeight).background(Brush.verticalGradient(0.6f to background, 1f to background.copy(alpha = 0f)))) {
+    Box(modifier.fillMaxWidth().height(FloatingBarHeight).background(Brush.verticalGradient(0.75f to background, 1f to background.copy(alpha = 0f)))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (onBack != null) FloatingBubble(Lucide.ArrowLeft, "Back", onBack)
             else onToggle?.let { FloatingBubble(Lucide.Menu, "Agents and sessions", it) }
