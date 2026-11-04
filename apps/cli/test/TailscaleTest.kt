@@ -20,21 +20,29 @@ class TailscaleTest {
                 val port = args.first { it.startsWith("--https=") }.substringAfter('=')
                 config = JsonObject(config + mapOf(
                     "TCP" to JsonObject(config["TCP"]!!.jsonObject + (port to buildJsonObject { put("HTTPS", true) })),
-                    "Web" to Json.parseToJsonElement("""{"mac-mini.tail123.ts.net:$port":{"Handlers":{"/":{"Proxy":"${args.last()}"}}}}"""),
+                    "Web" to buildJsonObject { putJsonObject("mac-mini.tail123.ts.net:$port") { putJsonObject("Handlers") {
+                        handlers(port).forEach { (path, handler) -> put(path, handler) }
+                        putJsonObject("/") { put("Proxy", args.last()) }
+                    } } },
                 ))
                 ProcessOutput(0, "", "")
             }
-            args.last() == "off" -> {
+            args.takeLast(2) == listOf("--set-path=/", "off") -> {
                 val port = args.first { it.startsWith("--https=") }.substringAfter('=')
+                val remaining = JsonObject(handlers(port) - "/")
                 config = JsonObject(config + mapOf(
-                    "TCP" to JsonObject(config["TCP"]!!.jsonObject.filterKeys { it != port }),
-                    "Web" to JsonObject(config["Web"]!!.jsonObject.filterKeys { !it.endsWith(":$port") }),
+                    "TCP" to JsonObject(config["TCP"]!!.jsonObject.filterKeys { it != port || remaining.isNotEmpty() }),
+                    "Web" to if (remaining.isEmpty()) JsonObject(config["Web"]!!.jsonObject.filterKeys { !it.endsWith(":$port") })
+                    else buildJsonObject { putJsonObject("mac-mini.tail123.ts.net:$port") { put("Handlers", remaining) } },
                 ))
                 ProcessOutput(0, "", "")
             }
             else -> error("Unexpected Tailscale command")
         }
     }
+
+    private fun handlers(port: String) =
+        config["Web"]?.jsonObject?.get("mac-mini.tail123.ts.net:$port")?.jsonObject?.get("Handlers")?.jsonObject.orEmpty()
 
     @Test fun configuresPrivateHttpsWithoutReplacingOtherPortsAndReusesItAfterRestart() = runBlocking {
         val route = tailscale.prepare(8788)
@@ -55,11 +63,24 @@ class TailscaleTest {
         assertEquals("https://mac-mini.tail123.ts.net:8443", route.url)
         route.enable()
         route.rollback()
-        assertContains(calls, listOf("serve", "--https=8443", "off"))
+        assertContains(calls, listOf("serve", "--https=8443", "--set-path=/", "off"))
         assertTrue("8787" in config["TCP"]!!.jsonObject)
     }
 
-    @Test fun refusesOccupiedPortsAdditionalPathsAndPublicFunnelRoutes() = runBlocking {
+    @Test fun keepsOtherPathsOnTheSameHttpsPort() = runBlocking {
+        val installer = """{"/install/ios/":{"Proxy":"http://127.0.0.1:8790"}}"""
+        config = Json.parseToJsonElement("""{"TCP":{"443":{"HTTPS":true}},"Web":{"mac-mini.tail123.ts.net:443":{"Handlers":$installer}}}""").jsonObject
+        val route = tailscale.prepare(8788)
+        route.enable()
+        assertEquals(setOf("/", "/install/ios/"), handlers("443").keys)
+        tailscale.prepare(8788).enable()
+        assertEquals(1, calls.count { "--bg" in it })
+        route.rollback()
+        assertEquals(Json.parseToJsonElement(installer), JsonObject(handlers("443")))
+        assertTrue("443" in config["TCP"]!!.jsonObject)
+    }
+
+    @Test fun refusesOccupiedPortsOtherRootRoutesAndPublicFunnelRoutes() = runBlocking {
         val original = config
         assertFailsWith<CliktError> { tailscale.prepare(8788, 8787) }
         assertEquals(original, config)
@@ -68,7 +89,8 @@ class TailscaleTest {
         val valid = config
         for (bad in listOf(
             valid.toString().replace("http://127.0.0.1:8788", "http://127.0.0.1:9999"),
-            valid.toString().replace("\"Handlers\":{", "\"Handlers\":{\"/another\":{\"Proxy\":\"http://127.0.0.1:9999\"},"),
+            valid.toString().replace("\"Handlers\":{", "\"Handlers\":{\"/install/ios/\":{\"Proxy\":\"http://127.0.0.1:8790\"},")
+                .replace("http://127.0.0.1:8788", "http://127.0.0.1:9999"),
             valid.toString().dropLast(1) + ",\"AllowFunnel\":{\"mac-mini.tail123.ts.net:443\":true}}",
         )) {
             config = Json.parseToJsonElement(bad).jsonObject
