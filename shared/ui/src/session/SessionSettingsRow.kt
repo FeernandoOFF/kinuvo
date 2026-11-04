@@ -117,10 +117,10 @@ internal fun RowScope.ComposerSettings(
     if (sheets) {
         attachButton()
         Popover(attachOpen, { attachOpen = false }, "Add to chat") {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 sources.forEach { (source, label, icon) ->
                     val reason = if (accepts(source)) null else (if (source == AttachmentSource.Files) files else photos)?.reason
-                    SourceTile(label, icon, accepts(source), Modifier.weight(1f), reason) { attach(source) }
+                    SourceTile(label, icon, accepts(source), Modifier.weight(1f).fillMaxHeight(), reason) { attach(source) }
                 }
             }
             Text(ATTACHMENT_LIMITS, Modifier.fillMaxWidth().padding(top = 12.dp), fontSize = 12.sp, color = color(mutedColor), textAlign = TextAlign.Center)

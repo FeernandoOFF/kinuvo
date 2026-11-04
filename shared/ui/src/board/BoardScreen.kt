@@ -86,17 +86,16 @@ fun BoardContent(ui: BoardUi, actions: BoardActions) {
         val tasks = ui.tasks
         if (tasks == null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner(size = 24.dp) }
         else BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
-            // Phones show one column at a time, snapping, with the next one peeking in.
+            // Phones show one full column at a time, snapping, picked or swiped to with the status tabs.
             val phone = maxWidth < 600.dp
-            val columnWidth = if (phone) maxWidth - 48.dp else 280.dp
+            val columnWidth = if (phone) maxWidth - 24.dp else 280.dp
             val list = rememberLazyListState()
             val scope = rememberCoroutineScope()
             Column(Modifier.fillMaxSize()) {
             if (phone) Segmented(columns.map { it.tab() }, list.firstVisibleItemIndex, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
                 scope.launch { list.animateScrollToItem(i) }
             }
-            // The end padding lets the last column snap to the same start as the others.
-            LazyRow(Modifier.weight(1f).fillMaxWidth(), list, PaddingValues(start = 12.dp, end = if (phone) 36.dp else 12.dp, top = 8.dp, bottom = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+            LazyRow(Modifier.weight(1f).fillMaxWidth(), list, PaddingValues(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
                 flingBehavior = if (phone) rememberSnapFlingBehavior(list) else ScrollableDefaults.flingBehavior()) {
                 items(columns, key = { it }) { status ->
                     BoardColumn(status, tasks.filter { it.status == status }, ui, actions, Modifier.width(columnWidth))

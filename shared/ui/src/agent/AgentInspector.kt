@@ -294,7 +294,7 @@ internal fun draftField(agentId: String, name: String, value: String, onChange: 
 private fun Group(title: String, hint: String? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color(mutedColor))
+            SectionLabel(title)
             hint?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
         }
         Panel(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {

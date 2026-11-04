@@ -137,22 +137,17 @@ fun Composer(
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Column(Modifier.fillMaxWidth()) {
             if (notice != null || blocked != null) {
-                val noticeShape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
+                val noticeShape = RoundedCornerShape(22.dp)
                 Column(Modifier.fillMaxWidth().clip(noticeShape)
                     .background(color(panelColor)).border(1.dp, color(borderColor), noticeShape)
                     .heightIn(max = 320.dp).verticalScroll(rememberScrollState())
-                    .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 10.dp + NoticeTuck), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    .padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     blocked?.let { Text(it, fontSize = 13.sp, color = color(mutedColor)) }
                     notice?.invoke()
                 }
             }
-            // Tucks over the notice's bottom edge so the two read as one object.
-            val tuck = if (notice != null || blocked != null) NoticeTuck else 0.dp
-            Box(Modifier.fillMaxWidth().layout { measurable, constraints ->
-                val placeable = measurable.measure(constraints)
-                val up = tuck.roundToPx()
-                layout(placeable.width, placeable.height - up) { placeable.place(0, -up) }
-            }) {
+            if (notice != null || blocked != null) Spacer(Modifier.height(8.dp))
+            Box(Modifier.fillMaxWidth()) {
                 Column(
                     Modifier
                         .fillMaxWidth()
@@ -257,8 +252,6 @@ private fun onKey(event: KeyEvent, state: RichTextState, submit: () -> Unit): Bo
     }
     return true
 }
-
-private val NoticeTuck = 14.dp
 
 @Composable
 private fun FormatBar(state: RichTextState, visible: Boolean, modifier: Modifier) = AnimatedVisibility(visible, modifier, enter = fadeIn(), exit = fadeOut()) {
