@@ -121,7 +121,7 @@ private fun InspectorHeader(state: InspectorState, host: InspectorHost, actions:
     SettingsPageHeader(
         if (state.pages.isEmpty()) agent?.name ?: "…" else state.page.title(),
         back = actions.onBack.takeIf { state.pages.isNotEmpty() },
-        subtitle = if (state.pages.isEmpty()) "Agent settings · every Session" else "${agent?.name ?: "Agent"} · every Session",
+        subtitle = if (state.pages.isEmpty()) "Agent settings for every Session" else "${agent?.name ?: "Agent"} · every Session",
     ) {
         if (state.dirty) SaveButton(actions.onSave, enabled = !state.saving && state.draft?.problems(state.agentId.orEmpty(), host.agents)?.isEmpty() == true)
         else if (state.pages.isEmpty()) HeaderButton(Lucide.X, "Close", actions.onClose)
@@ -138,13 +138,12 @@ private fun InspectorBody(state: InspectorState, host: InspectorHost, actions: I
         when (state.page) {
             InspectorPage.Agent -> if (details.info.external) ExternalAgentPage(state, draft, details, host, actions) else AgentPage(state, draft, details, host, actions)
             InspectorPage.Model -> ModelPage(state, draft, actions)
-            InspectorPage.Approvals -> APPROVALS.forEach { (key, hint) ->
-                ListRow(draft.approvals == key, { actions.onEdit { it.copy(approvals = key) }; actions.onBack() }) {
-                    Column(Modifier.weight(1f).padding(vertical = 2.dp)) {
-                        Text(key.replaceFirstChar { it.uppercase() })
-                        Text(hint, fontSize = 12.sp, color = color(mutedColor))
+            InspectorPage.Approvals -> RowGroup {
+                APPROVALS.forEach { (key, hint) ->
+                    GroupRow(key.replaceFirstChar { it.uppercase() }, { actions.onEdit { it.copy(approvals = key) }; actions.onBack() }, hint,
+                        selected = draft.approvals == key, chevron = false, titleLines = 1) {
+                        if (draft.approvals == key) Icon(Lucide.Check, Modifier.size(16.dp), tint = color(accentColor))
                     }
-                    if (draft.approvals == key) Icon(Lucide.Check, Modifier.size(16.dp))
                 }
             }
             InspectorPage.UserNotes -> Text(details.userNotes.ifBlank { "${details.info.name} hasn't written any User Notes yet." }, fontSize = 14.sp,

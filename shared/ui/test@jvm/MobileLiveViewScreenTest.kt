@@ -92,7 +92,11 @@ class MobileLiveViewScreenTest {
                 File("build/screens/mobile-${if (browser) "browser" else "computer"}-keys.png").writeBytes(scene.render(System.nanoTime()).encodeToData(EncodedImageFormat.PNG)!!.bytes)
                 click(scene, "Hide keys")
                 File("build/screens/mobile-${if (browser) "browser" else "computer"}.png").writeBytes(scene.render(System.nanoTime()).encodeToData(EncodedImageFormat.PNG)!!.bytes)
-                click(scene, if (browser) "Tabs & address" else "Computers")
+                click(scene, "Screen options")
+                var screens = tree(scene).first { it.config.getOrNull(SemanticsProperties.Text).orEmpty().any { text -> text.text == if (browser) "Tabs & address" else "Computers" } }
+                while (screens.config.getOrNull(SemanticsActions.OnClick) == null) screens = screens.parent!!
+                assertTrue(screens.config[SemanticsActions.OnClick].action!!.invoke())
+                repeat(8) { scene.render(System.nanoTime()); Thread.sleep(10) }
                 if (browser) assertTrue(tree(scene).any { "Address" in it.config.getOrNull(SemanticsProperties.ContentDescription).orEmpty() })
                 click(scene, "Close screen controls")
                 state.value = state.value.copy(connected = false)

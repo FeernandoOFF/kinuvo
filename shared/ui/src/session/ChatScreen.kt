@@ -752,7 +752,7 @@ private fun Messages(
     val last = items.lastOrNull()
     // A trailing group of steps shows the run's progress itself.
     val thinking = state.running && last !is ChatItem.Assistant && !(last is ChatItem.ToolCall && last.waiting) && rows.lastOrNull() !is ChatRow.Steps
-    val writing = state.running && last is ChatItem.Assistant
+    val writing = state.running && last is ChatItem.Assistant && state.requests.isEmpty()
     val content = Triple(items.size, (last as? ChatItem.Assistant)?.text?.length ?: (last as? ChatItem.Reasoning)?.text?.length, thinking)
     var seen by remember { mutableStateOf(content) }
     val scope = rememberCoroutineScope()
@@ -1075,13 +1075,13 @@ private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, action
             item.waiting -> Pill("Needs you", tone = Tone.Warning)
             item.result == null -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 13.dp)
             item.denied -> Pill("Denied")
-            item.isError -> Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor), contentDescription = "Failed")
-            else -> Icon(Lucide.CircleCheck, Modifier.size(14.dp), tint = color(successColor), contentDescription = "Succeeded")
+            item.isError -> Pill("Failed", tone = Tone.Danger)
+            else -> Pill("Done", tone = Tone.Success)
         }
     }) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!label.skill && item.args.isNotBlank()) CodeBlock(prettyJson(item.args), language = "arguments")
-            item.result?.let { CodeBlock(it, language = if (item.isError) "error" else "result", previewChars = 4000, error = item.isError) }
+            if (!label.skill && item.args.isNotBlank()) CodeBlock(prettyJson(item.args), language = "Arguments")
+            item.result?.let { CodeBlock(it, language = if (item.isError) "Error" else "Result", previewChars = 4000, error = item.isError) }
             ToolAttachments(item.attachments, actions)
         }
     }

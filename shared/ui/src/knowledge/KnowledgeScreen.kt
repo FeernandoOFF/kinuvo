@@ -99,7 +99,7 @@ private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions) {
                 item { SectionLabel("Results", Modifier.padding(start = 6.dp)) }
                 itemsIndexed(ui.state.results, key = { _, n -> "r/${n.ref}" }) { i, n ->
                     Box(Modifier.groupItem(i, ui.state.results.size)) {
-                        GroupRow(n.title, { actions.onOpen(n.ref) }, n.type, n.type.icon(), selected = n.ref == ui.state.route.note)
+                        GroupRow(n.title, { actions.onOpen(n.ref) }, n.type.replaceFirstChar { it.uppercase() }, n.type.icon(), selected = n.ref == ui.state.route.note)
                     }
                 }
                 if (ui.state.results.isEmpty()) item { Muted("No matches.") }
@@ -133,7 +133,7 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
     }
     val links = WIKILINK.findAll(n.body).map { it.groupValues[1] to it.groupValues[2].ifEmpty { it.groupValues[1].substringAfterLast('/') } }.distinct().toList()
     DetailPane(back, n.title) {
-        Pill(n.type, icon = n.type.icon())
+        Pill(n.type.replaceFirstChar { it.uppercase() }, icon = n.type.icon())
         if (n.properties.isNotEmpty()) DetailGroup("Properties") {
             n.properties.forEach { (k, v) -> DetailRow(k) { Text(v) } }
         }

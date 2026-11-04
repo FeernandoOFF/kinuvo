@@ -23,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -129,8 +130,11 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
     val assignee = agents.firstOrNull { it.id == task.assignee }
     Panel(Modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(12.dp)) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(task.title, Modifier.clip(Theme[shapes][smallShape]).clickable(onClickLabel = "Open task") { actions.onOpenTask(task.id) },
-                fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(Theme[shapes][smallShape]).clickable(onClickLabel = "Open task", role = Role.Button) { actions.onOpenTask(task.id) },
+                verticalAlignment = Alignment.CenterVertically) {
+                Text(task.title, Modifier.weight(1f), fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
+            }
             if (task.notes.isNotBlank()) {
                 Text(task.notes.trim(), color = color(mutedColor), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
@@ -138,12 +142,11 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                 Pill(task.listName, icon = Lucide.List)
                 task.due?.let { Pill(it, icon = Lucide.Calendar) }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->
                     actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: ""))
-                }, icon = Lucide.User)
-                Spacer(Modifier.weight(1f))
-                Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())
+                }, icon = Lucide.User, modifier = Modifier.weight(1f), stretch = true)
+                Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon(), modifier = Modifier.weight(1f), stretch = true)
             }
             val last = task.sessionIds.lastOrNull()
             if (last != null && task.assignee != null) {
