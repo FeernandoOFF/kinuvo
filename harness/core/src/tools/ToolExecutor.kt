@@ -24,6 +24,8 @@ class ToolExecutor(
     private val toolsByName = tools.indexedTools()
     private val callable = (advertisedTools + tools.map { it.descriptor }).distinctBy { it.name }
 
+    fun repeatable(name: String) = toolsByName[name]?.repeatable ?: true
+
     suspend fun call(call: SessionEntry.ToolCall, stopped: (String) -> Unit = {}): SessionEntry.ToolResult =
         invoke(call.copy(identity = toolsByName[call.name]?.identity), call.id, stopped)
 
