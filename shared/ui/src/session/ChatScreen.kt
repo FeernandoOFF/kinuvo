@@ -889,7 +889,6 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
         is ChatItem.Assistant -> if (spoken != null) SpokenText(item.text, spoken, Modifier.fillMaxWidth()) else Markdown(item.text, Modifier.fillMaxWidth())
         is ChatItem.Reasoning -> StepView(item)
         is ChatItem.ToolCall -> when {
-            item.waiting -> WaitingForYou()
             (item.identity?.instance?.pluginId == "kinuvo.computer" && item.identity?.localId in setOf("computer_capture", "computer_act")) && item.result == null -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 ToolCallView(item, actions = actions)
                 Button(onClick = actions.onWatch, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Watch live", fontSize = 12.sp) }
@@ -1066,6 +1065,7 @@ private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, action
     val label = item.label()
     Expandable(label.icon, label.title, label.subtitle, border = border, status = {
         when {
+            item.waiting -> Pill("Needs you", tone = Tone.Warning)
             item.result == null -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 13.dp)
             item.isError -> Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor), contentDescription = "Failed")
             else -> Icon(Lucide.CircleCheck, Modifier.size(14.dp), tint = color(successColor), contentDescription = "Succeeded")
@@ -1114,9 +1114,6 @@ private fun ArtifactCard(item: ChatItem.ToolCall, onOpen: (id: String) -> Unit) 
         }
     }
 }
-
-@Composable
-private fun WaitingForYou() = Text("Waiting for you below", fontSize = 13.sp, color = color(mutedColor))
 
 @Composable
 internal fun RequestMetricsView(metrics: kinuvo.protocol.RequestMetrics, initiallyExpanded: Boolean = false, actions: ChatActions = ChatActions()) {

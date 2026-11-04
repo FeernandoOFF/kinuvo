@@ -35,14 +35,17 @@ internal fun RoutineList(p: Pane) {
         p, "Routines",
         "Prompts ${ui.agent?.name ?: "the agent"} runs on a schedule, each in its own session. Add one here or ask in chat, " +
             "e.g. “every weekday at 9, summarize my inbox”.",
-        "New routine", routines == null && error == null && !restricted, canAdd = !restricted,
+        // An empty list offers one way to add, under it.
+        "New routine", routines == null && error == null && !restricted, canAdd = !restricted && routines?.isEmpty() != true,
     ) {
         when {
             restricted -> ManagementAccessRequired()
             error != null -> LoadFailure(error, onAction = p.actions.onReloadRoutines)
-            routines?.isEmpty() == true -> {
-                Text("No routines yet.", color = color(mutedColor), fontSize = 13.sp)
-                Button(onClick = { p.go(ui.route.copy(item = null, editing = true)) }, style = ButtonStyle.Outlined) { Text("Create routine") }
+            routines?.isEmpty() == true -> Column(Modifier.fillMaxWidth().padding(vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Icon(Lucide.AlarmClock, Modifier.size(28.dp), tint = color(mutedColor))
+                Text("No routines yet", color = color(mutedColor))
+                Button(onClick = { p.go(ui.route.copy(item = null, editing = true)) }, style = ButtonStyle.Primary) { Text("Create routine") }
             }
         }
         if (!restricted && !routines.isNullOrEmpty()) RowGroup { routines.forEach { r ->

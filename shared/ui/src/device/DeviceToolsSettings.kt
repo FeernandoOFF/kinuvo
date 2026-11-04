@@ -57,7 +57,7 @@ internal fun DeviceToolsGroup(title: String? = null, note: String? = null, empty
                 }
                 GroupRow(if (kind == DeviceToolKind.Computer) "Computer use" else kind.name, subtitle = if (state.busy == kind) "Requesting access…" else about,
                     icon = kind.icon(), chevron = false) {
-                    Switch(kind in state.enabled, { enabled ->
+                    ToggleSwitch(kind in state.enabled, { enabled ->
                         if (state.busy == null) {
                             if (enabled) {
                                 val attempt = access.authorizing(kind)

@@ -137,14 +137,9 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
             n.properties.forEach { (k, v) -> DetailRow(k) { Text(v) } }
         }
         if (n.body.isNotBlank()) DetailGroup("Note") { Markdown(WIKILINK.replace(n.body) { m -> "*${m.groupValues[2].ifEmpty { m.groupValues[1] }}*" }) }
-        if (links.isNotEmpty()) DetailGroup("Linked notes") {
-            links.forEach { (ref, label) ->
-                Button(onClick = { actions.onOpen(ref) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                    Text(label)
-                }
-            }
+        if (links.isNotEmpty()) RowGroup("Linked notes") {
+            links.forEach { (ref, label) -> GroupRow(label, { actions.onOpen(ref) }, icon = Lucide.FileText) }
         }
-        Text("Ref ${n.ref}", color = color(mutedColor), fontSize = 12.sp)
     }
 }
 

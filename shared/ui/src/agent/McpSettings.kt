@@ -87,7 +87,7 @@ private fun McpDetail(s: McpServerInfo, p: Pane) {
             if (s.scope == ConfigScope.Shared) {
                 val everyAgent = p.ui.agents.map { it.id }
                 GroupRow("Use with $agent", subtitle = "Shared; each Agent can turn it on or off", chevron = false) {
-                    Switch(s.agents?.contains(p.ui.route.agentId) != false, { p.actions.onMcpAccess(s.name, p.ui.route.agentId, it, everyAgent) })
+                    ToggleSwitch(s.agents?.contains(p.ui.route.agentId) != false, { p.actions.onMcpAccess(s.name, p.ui.route.agentId, it, everyAgent) })
                 }
             } else GroupRow("Only $agent uses it", subtitle = if (s.active) null else "Overridden", chevron = false)
             GroupRow("Approvals", value = APPROVAL[s.approval].orEmpty(), chevron = false)

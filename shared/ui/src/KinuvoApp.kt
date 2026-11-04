@@ -114,10 +114,10 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
     val settingsPages = rememberSerializable(serializer = SnapshotStateListSerializer(Route.Settings.serializer())) { mutableStateListOf<Route.Settings>() }
     val inspectorEdits = remember { SettingsEdits() }
     val inspectorPages = rememberSerializable(serializer = SnapshotStateListSerializer(Route.Settings.serializer())) { mutableStateListOf<Route.Settings>() }
-    // Phones show Settings in a sheet; Home's pages, such as Routines, are screens like any other.
+    // Phones show Settings in a sheet; Home's pages, such as Routines, are screens like any other, and what they open goes in the sheet.
     val openSettings: (Route.Settings, Boolean) -> Unit = { route, push ->
         homeEdits.leave {
-            if (history.compact && !route.home) settingsPages.navigate(route, push) else history.open(route, push)
+            if (history.compact && (!route.home || route.item != null || route.editing)) settingsPages.navigate(route, push) else history.open(route, push)
         }
     }
 
