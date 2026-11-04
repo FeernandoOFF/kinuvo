@@ -50,22 +50,23 @@ Run all shared flows on iOS (smoke and regression) with:
 ./mockstrow --dev --owner agent --platform ios run --headless --tags smoke,regression
 ```
 
-Add `--skip-build` when the current debug build is already installed. These flows
-exercise the default Compose shell on Android and iOS:
+Add `--skip-build` when the current debug build is already installed.
 
-- `settings-journey.yaml`: one connection and chat across Home, Agent settings, nested Back and scroll restoration, Keep editing/Discard, Skill edit/discard/save, Workspace, Routine draft guards, Tools, Model providers, Harnesses, and an Agent rename. Server request checks ensure only the intended saves are sent.
+Screen and flow behavior is covered by the Compose UI flows in
+`shared/ui/test/e2e/`, which run the whole app in-process on JVM against these same
+WireMock profiles and stubs (`./kotlin test -m ui -p jvm --include-classes='kinuvo.ui.e2e.*'`).
+Their screenshots go to `shared/ui/build/screens/flows/`. Maestro keeps the flows that
+need a real device: the real WebSocket and launch override, native pickers, microphone
+permission and voice, and OS-level background/resume:
+
 - `chat.yaml`: pairing, Session creation, message sending and the pushed reply.
+- `external-session.yaml`: an external harness Session's question, answer and follow-up.
 - `attachment-picker.yaml`: Files remains enabled for a model with text and image modalities and opens the native file picker.
-- `pairing-rejected.yaml`: an expired pairing code stays on the connection screen.
-- `board.yaml`: open Board from Home in the drawer, load Tasks, create one, receive a live Task update, and show Done.
-- `knowledge.yaml`: open Knowledge from Home in the drawer, empty search, matching search, Note details, linked Notes and back navigation.
-- `approval-streaming.yaml`: streamed text, a tool Approval, Allow once, and the completed reply.
-- `tool-success.yaml`: a tool call, its result, and the completed reply.
-- `tool-error.yaml`: a failed tool result and the Agent's error reply.
-- `approval-deny.yaml`: deny with a note and verify that exact decision reaches the Server.
-- `session-details.yaml`: favorite and rename the open Session from its "…" menu, then find it under Favorites.
-- `computers.yaml`: open Computers from Home in the drawer, Live view of a Computer: a pushed frame, Take over, a key from the controls and Hand back.
+- `external-attachments.yaml` / `external-text-attachments.yaml`: external harness attachment gating and the native file picker.
 - `session-return.yaml`: open Board from Home, receive an event on Board, return to the Session, then background/resume without losing its transcript or resending the message.
+- `voice.yaml`: voice chat with the microphone permission granted.
+
+Add new screen or flow coverage to `shared/ui/test/e2e/`; add a Maestro flow only for device-level behavior.
 
 On phones the drawer is an owner rail (Home, Agents, New agent, Server, Settings) beside a column: the
 Agent's Sessions, or with Home selected Today, Board and the Server-wide Computers, Knowledge and Artifacts.

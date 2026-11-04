@@ -69,6 +69,9 @@ private fun Palette.withAccent(accent: Color) = Palette(
 
 private val LocalAccent = compositionLocalOf<Color?> { null }
 
+/** Overrides the platform's interaction mode, e.g. so JVM UI tests render the phone layout. */
+internal val LocalForcedInteractionMode = compositionLocalOf<InteractionMode?> { null }
+
 val MonoStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 19.sp)
 
 private val HarnessThemeComposable = buildTheme {
@@ -76,7 +79,7 @@ private val HarnessThemeComposable = buildTheme {
     val dark = LocalColorScheme.current == ColorScheme.Dark
     val base = if (dark) Dark else Light
     val p = LocalAccent.current?.let { base.withAccent(it) } ?: base
-    val touch = interactionMode(currentPlatform, currentInteractionCapabilities().hasPointer) == InteractionMode.Touch
+    val touch = (LocalForcedInteractionMode.current ?: interactionMode(currentPlatform, currentInteractionCapabilities().hasPointer)) == InteractionMode.Touch
 
     properties[colors] = mapOf(
         backgroundColor to p.background,
