@@ -507,27 +507,27 @@ internal fun remoteKey(event: KeyEvent, capabilities: ScreenCapabilities): Strin
 
 /** The Computers Agents can control: a list, opening one to its Live view, beside the list on wide windows. */
 @Composable
-fun ComputersScreen(model: LiveViewModel, list: Boolean, onOpen: (ScreenRef) -> Unit, back: (() -> Unit)?) {
+fun ComputersScreen(model: LiveViewModel, list: Boolean, onOpen: (ScreenRef) -> Unit, back: (() -> Unit)?, server: String? = null) {
     val state by model.state.collectAsState()
     val actions = LiveActions(model::select, model::takeover, model::open, model::command, model::input, model::drawn, model::decodeFailed, model::retry, model::showOverview, model::close, model::resize, model::presentation)
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
         if (maxWidth >= 900.dp) Row(Modifier.fillMaxSize()) {
-            Box(Modifier.width(340.dp).fillMaxHeight().background(color(sidebarColor))) { ComputerList(state, actions.retry, actions.select, selected = state.selected) }
+            Box(Modifier.width(340.dp).fillMaxHeight().background(color(sidebarColor))) { ComputerList(state, actions.retry, actions.select, selected = state.selected, server = server) }
             VerticalSeparator()
             Box(Modifier.weight(1f)) {
                 DisposableEffect(model) { model.visible(true); onDispose { model.visible(false) } }
                 if (state.screen != null) LiveViewContent(state, actions, null, docked = true)
                 else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(if (state.loaded) "Pick a Computer to watch it." else "Finding Computers…", color = color(mutedColor)) }
             }
-        } else if (list) ComputerList(state, actions.retry, onOpen)
+        } else if (list) ComputerList(state, actions.retry, onOpen, server = server)
         else LiveViewScreen(model, back)
     }
 }
 
 @Composable
-internal fun ComputerList(state: LiveViewState, onRetry: () -> Unit, onOpen: (ScreenRef) -> Unit, selected: ScreenRef? = null) {
+internal fun ComputerList(state: LiveViewState, onRetry: () -> Unit, onOpen: (ScreenRef) -> Unit, selected: ScreenRef? = null, server: String? = null) {
     Column(Modifier.fillMaxSize()) {
-        PageHeader(Lucide.MonitorSmartphone, "Computers")
+        PageHeader(Lucide.MonitorSmartphone, "Computers", server)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when {
                 !state.loaded && state.error != null -> {

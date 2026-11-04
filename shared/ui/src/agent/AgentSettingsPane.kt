@@ -97,7 +97,7 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
             SettingsSection.Workspace -> {
                 RowGroup("Shell and files") {
                     val (offered, missing) = EXEC.keys.partition { it == "none" || p.ui.capabilities.offers(Integration.Exec, it) }
-                    PickerRow("Runs on", (offered + s.exec).distinct(), exec, { EXEC[it] ?: it.replaceFirstChar { c -> c.uppercase() } }, { exec = it })
+                    PickerRow("Runs on", (offered + s.exec).distinct(), exec, { EXEC[it] ?: it.replaceFirstChar { c -> c.uppercase() } }, { exec = it }, icon = Lucide.Server)
                     GroupBox {
                     if (missing.isNotEmpty()) Text("Not available on this Server: ${missing.joinToString { EXEC.getValue(it).lowercase() }}.", color = color(mutedColor))
                     // Older Servers ignore these settings and have no test; they're edited in agent.yaml there.

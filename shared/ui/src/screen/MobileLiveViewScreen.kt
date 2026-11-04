@@ -78,7 +78,7 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
         Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             back?.let { RoundButton(Lucide.ArrowLeft, "Back", it) }
-            Box(Modifier.size(36.dp).clip(RoundedCornerShape(10.dp)).background(color(accentColor).copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(36.dp).clip(CircleShape).background(color(accentColor).copy(alpha = 0.14f)), contentAlignment = Alignment.Center) {
                 Icon(screen?.icon() ?: if (state.owner != null) Lucide.Globe else Lucide.Monitor, Modifier.size(18.dp), tint = color(accentColor))
             }
             Column(Modifier.weight(1f)) {

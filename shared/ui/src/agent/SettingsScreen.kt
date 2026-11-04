@@ -582,7 +582,7 @@ internal fun FormButtons(saveLabel: String, enabled: Boolean, error: String?, on
 /** A form's title-bar actions: "Saved" after a save, Cancel when [onCancel] is set, and the primary button. */
 @Composable
 internal fun SaveButton(onSave: () -> Unit, enabled: Boolean = true) =
-    Button(onClick = onSave, enabled = enabled, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text("Save") }
+    Button(onClick = onSave, enabled = enabled, style = if (enabled) ButtonStyle.Primary else ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Save") }
 
 /** Save, and Cancel where [onCancel] is set, for a form's header; a touch screen's sheet shows Save while there's something to save. */
 @Composable

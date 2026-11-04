@@ -83,7 +83,7 @@ private fun BuiltInTools(p: Pane) {
                 val offered = ui.capabilities.offers(Integration.Tools, tool)
                 val name = label.substringBefore(" (")
                 val detail = label.substringAfter(" (", "").removeSuffix(")").replaceFirstChar { it.uppercase() }
-                SwitchRow(name, tool in details.settings.tools, { p.actions.onToolAccess(ui.route.agentId, tool, it) },
+                SwitchRow(name, tool in details.settings.tools, { p.actions.onToolAccess(ui.route.agentId, tool, it) }, icon = TOOL_ICONS[tool],
                     subtitle = if (!offered) "Not available on this Server" else if (tool in blocked) "Blocked by a rule" else detail, enabled = offered)
             }
         }
@@ -273,3 +273,7 @@ internal fun ToolRuleGroups(trusted: TextFieldState, blocked: TextFieldState, sa
         }
     }
 }
+
+private val TOOL_ICONS = mapOf("memory" to Lucide.Brain, "web_fetch" to Lucide.Globe, "skills" to Lucide.BookOpen, "schedule" to Lucide.AlarmClock,
+    "knowledge" to Lucide.Library, "tasks" to Lucide.SquareKanban, "ask_user" to Lucide.MessageCircleQuestionMark, "artifact" to Lucide.Shapes,
+    "device_tools" to Lucide.Smartphone, "run_code" to Lucide.Code, "computer" to Lucide.MonitorSmartphone, "browser" to Lucide.PanelsTopLeft)

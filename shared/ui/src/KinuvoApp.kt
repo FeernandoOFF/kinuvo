@@ -387,7 +387,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         entry<Route.Computers> { route ->
                             if (connection !is Connection.Ready) Loading(connection)
                             else kinuvo.ui.screen.ComputersScreen(koinViewModel<kinuvo.app.screen.LiveViewModel>(key = "live/${app.serverLifetime}/$route") { parametersOf(route) },
-                                list = route.computer == null, onOpen = { history.open(Route.Computers(it.id)) }, back = back.takeIf { history.canGoBack })
+                                list = route.computer == null, onOpen = { history.open(Route.Computers(it.id)) }, back = back.takeIf { history.canGoBack }, server = connection.server.label)
                         }
                         entry<Route.Knowledge> { route ->
                             val knowledge = koinViewModel<KnowledgeViewModel>(key = "knowledge/${app.serverLifetime}/${route.note}") { parametersOf(route) }
