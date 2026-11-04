@@ -206,7 +206,8 @@ fun EmptyState(icon: ImageVector, title: String, body: String? = null, modifier:
 /** Asks before unsaved edits are dropped: [onKeep] goes back to them, [onDiscard] drops them; [errors] say why saving failed. */
 @Composable
 fun DiscardDialog(onKeep: () -> Unit, onDiscard: () -> Unit, modifier: Modifier = Modifier, errors: List<String> = emptyList()) {
-    Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    // At the bottom, clear of the field being edited, like the app's other sheets.
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
         Box(Modifier.matchParentSize().background(color(scrimColor)).clickable(remember { MutableInteractionSource() }, indication = null, onClick = onKeep))
         Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp).widthIn(max = 400.dp).shadow(24.dp, Theme[shapes][largeShape]).consumeTaps()
             .semantics { paneTitle = "Unsaved changes" }, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(20.dp)) {

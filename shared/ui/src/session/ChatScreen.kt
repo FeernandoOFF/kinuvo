@@ -552,7 +552,7 @@ private fun PhoneActions(state: ChatState, usage: Usage?, actions: ChatActions) 
         actions.onBrowser?.let { BubbleButton(Lucide.Globe, "Browser", it) }
         if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, onStatistics = { statistics = true }) { open -> BubbleButton(Lucide.Ellipsis, "More", open) }
     }
-    Popover(statistics, { statistics = false }) { ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth()) }
+    Popover(statistics, { statistics = false }, "Statistics") { ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth()) }
 }
 
 @Composable
@@ -631,7 +631,7 @@ private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatS
     )
     if (LocalInteractionMode.current == InteractionMode.Touch && LocalPopovers.current != null) {
         trigger { menu = true }
-        Popover(menu, { menu = false }) {
+        Popover(menu, { menu = false }, session?.title ?: "Session") {
             RowGroup { items.forEach { (icon, label, action) -> GroupRow(label, { menu = false; action() }, icon = icon, chevron = false) } }
         }
     } else DropdownMenu(

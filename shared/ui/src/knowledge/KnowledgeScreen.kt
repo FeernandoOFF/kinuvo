@@ -91,7 +91,7 @@ private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions) {
         PageHeader(Lucide.BookOpen, "Knowledge", ui.server, scope = AgentScope(ui.agents, ui.state.agent, "All agents", actions.onFilter).takeIf { ui.agents.size > 1 },
             actions = listOf(PageAction(Lucide.Settings, "Knowledge settings", actions.onSettings)))
         Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Input(query, "Search people, projects, places…", capitalize = true)
+            Input(query, "Search people, projects, places…", capitalize = true, leading = { Icon(Lucide.Search, Modifier.size(16.dp), tint = color(mutedColor)) })
             ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         }
         LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {

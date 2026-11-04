@@ -77,7 +77,7 @@ private fun BuiltInTools(p: Pane) {
     val ui = p.ui
     val details = ui.config.details ?: return PaneLoading()
     val blocked = details.rules.deny.tools + ui.state.serverRules?.deny?.tools.orEmpty()
-    DetailPane(p.back, "Built-in tools", error = ui.error, info = "Tools that come with Kinuvo. ${ui.agent?.name ?: "The agent"} only sees the ones turned on.") {
+    DetailPane(p.back, "Built-in tools", error = ui.error, subtitle = "${ui.agent?.name ?: "Agent"} · every Session", info = "Tools that come with Kinuvo. ${ui.agent?.name ?: "The agent"} only sees the ones turned on.") {
         RowGroup {
             TOOLS.forEach { (tool, label) ->
                 val offered = ui.capabilities.offers(Integration.Tools, tool)

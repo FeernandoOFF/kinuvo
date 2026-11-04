@@ -105,7 +105,7 @@ private val HarnessThemeComposable = buildTheme {
         borderColor to p.border,
         fieldColor to p.field,
         onFieldColor to p.text,
-        scrimColor to Color.Black.copy(alpha = if (dark) 0.5f else 0.32f),
+        scrimColor to Color.Black.copy(alpha = if (dark) 0.6f else 0.4f),
         ringColor to p.accent.copy(alpha = 0.5f),
         accentColor to p.accent,
         onAccentColor to p.onAccent,
