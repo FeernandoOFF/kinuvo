@@ -150,7 +150,7 @@ internal fun ConnectionSettingsPane(p: Pane) {
         } else Text(connected?.label ?: "No Server connected")
         if (connected is Server.Embedded && p.ui.sharing != null) RowGroup("Reach this Server from other Devices") {
             GroupRow("Local network and Tailscale", subtitle = "Other Devices pair with a code from here. Keep it off on networks you don't trust.", icon = Lucide.Wifi, chevron = false) {
-                Switch(p.ui.sharing, p.actions.onShare)
+                ToggleSwitch(p.ui.sharing, p.actions.onShare)
             }
         }
         if (p.ui.capabilities.supports(ServerFeature.Pairing)) {

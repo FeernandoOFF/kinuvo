@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.*
@@ -18,7 +19,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -97,9 +97,20 @@ fun GroupRow(
         }
         value?.let { Text(it, Modifier.widthIn(max = 180.dp), fontSize = 13.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
         trailing()
-        if (onToggle != null && enabled) Box(Modifier.clearAndSetSemantics {}) { Switch(toggled, onToggle) }
+        if (onToggle != null && enabled) ToggleSwitch(toggled, null)
         if (chevron) Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
     }
+}
+
+/** An on/off switch; without [onChange] it only shows [checked], e.g. in a row that toggles as a whole. */
+@Composable
+fun ToggleSwitch(checked: Boolean, onChange: ((Boolean) -> Unit)?, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    val offset by animateDpAsState(if (checked) 18.dp else 0.dp)
+    Box(
+        modifier.size(46.dp, 28.dp).clip(CircleShape).background(if (checked) color(accentColor) else color(mutedColor).copy(alpha = 0.35f))
+            .then(if (onChange != null) Modifier.toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange) else Modifier)
+            .alpha(if (enabled) 1f else 0.45f).padding(3.dp),
+    ) { Box(Modifier.offset(x = offset).size(22.dp).background(Color.White, CircleShape)) }
 }
 
 /** Free-form content as a row of a [RowGroup], e.g. a field. */

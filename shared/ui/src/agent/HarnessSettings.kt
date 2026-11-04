@@ -246,7 +246,7 @@ private fun SharePane(p: Pane) {
             RowGroup("Agents it can run") {
                 agents.forEach { a ->
                     GroupRow(a.name, leading = { AgentAvatar(a, 22.dp) }, chevron = false) {
-                        Switch(a.id in form.agents, { on -> p.actions.onEditShare { it.copy(agents = if (on) it.agents + a.id else it.agents - a.id) } })
+                        ToggleSwitch(a.id in form.agents, { on -> p.actions.onEditShare { it.copy(agents = if (on) it.agents + a.id else it.agents - a.id) } })
                     }
                 }
             }

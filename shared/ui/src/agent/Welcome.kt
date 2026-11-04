@@ -211,12 +211,17 @@ private fun ColumnScope.Manual(options: WelcomeOptions) {
     RowGroup {
         FieldRow("Server address or pairing link") { Input(options.url, "https://your-server:8787") }
         FieldRow("Pairing code") { Input(options.code, "Code from the Server") }
-        FieldRow("Name on this device") { Input(options.name, "Home server") }
+        FieldRow("Name on this device") { Input(options.name, "e.g. Home server") }
+        options.error?.let { GroupBox {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Lucide.CircleX, Modifier.size(16.dp), tint = color(destructiveColor))
+                Text(it, color = color(destructiveColor), fontSize = 14.sp)
+            }
+        } }
     }
     if (options.servers.isNotEmpty()) RowGroup("Your servers") {
         options.servers.forEach { server -> GroupRow(server.label, { options.onServer(server) }, server.address, Lucide.Server, enabled = !options.busy) }
     }
-    options.error?.let { Text(it, color = color(destructiveColor), fontSize = 14.sp) }
     Spacer(Modifier.height(4.dp))
     Cta(OnboardingAction(if (options.busy) "Connecting…" else "Connect", options.url.text.isNotBlank() && options.code.text.isNotBlank(), options.onPair),
         options.busy, Modifier.fillMaxWidth())

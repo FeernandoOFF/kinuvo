@@ -92,13 +92,13 @@ fun BoardContent(ui: BoardUi, actions: BoardActions) {
             val list = rememberLazyListState()
             val scope = rememberCoroutineScope()
             Column(Modifier.fillMaxSize()) {
-            if (phone) Segmented(columns.map { it.tab() }, list.firstVisibleItemIndex, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
+            if (phone) Segmented(columns.map { s -> s.tab() + tasks.count { it.status == s }.takeIf { it > 0 }?.let { " · $it" }.orEmpty() }, list.firstVisibleItemIndex, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
                 scope.launch { list.animateScrollToItem(i) }
             }
             LazyRow(Modifier.weight(1f).fillMaxWidth(), list, PaddingValues(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
                 flingBehavior = if (phone) rememberSnapFlingBehavior(list) else ScrollableDefaults.flingBehavior()) {
                 items(columns, key = { it }) { status ->
-                    BoardColumn(status, tasks.filter { it.status == status }, ui, actions, Modifier.width(columnWidth))
+                    BoardColumn(status, tasks.filter { it.status == status }, ui, actions, Modifier.width(columnWidth), header = !phone)
                 }
             }
             }
@@ -107,9 +107,9 @@ fun BoardContent(ui: BoardUi, actions: BoardActions) {
 }
 
 @Composable
-private fun BoardColumn(status: TaskStatus, tasks: List<TaskInfo>, ui: BoardUi, actions: BoardActions, modifier: Modifier) {
+private fun BoardColumn(status: TaskStatus, tasks: List<TaskInfo>, ui: BoardUi, actions: BoardActions, modifier: Modifier, header: Boolean) {
     Column(modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (header) Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Icon(status.icon(), Modifier.size(14.dp), tint = status.tone().color())
             Text(status.label(), fontWeight = FontWeight.Normal)
             Text("${tasks.size}", color = color(mutedColor), fontSize = 13.sp)

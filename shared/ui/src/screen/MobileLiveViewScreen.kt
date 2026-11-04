@@ -120,9 +120,10 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                 val capabilities = screen.capabilities
                 val screensLabel = if (state.owner != null) "Tabs & address" else "Computers"
                 val screensIcon = if (state.owner != null) Lucide.PanelsTopLeft else Lucide.MonitorSmartphone
+                val screensCaption = if (state.owner != null) "Tabs" else "Screens"
                 if (!state.ownsControl) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DockButton(screensIcon, screensLabel, { controls = true })
-                    Text(if (state.control.holder != null) "Another Device has control" else "Take over to tap and type",
+                    DockButton(screensIcon, screensLabel, { controls = true }, caption = screensCaption)
+                    Text(if (state.control.holder != null) "Another Device has control" else "Watching",
                         Modifier.weight(1f), fontSize = 13.sp, color = color(mutedColor), maxLines = 2)
                     Button(onClick = { actions.takeover(true, state.control.holder != null) }, enabled = state.connected && !state.pending && !state.control.draining, style = ButtonStyle.Primary) {
                         Icon(Lucide.Hand, Modifier.size(16.dp))
@@ -141,15 +142,15 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                         else -> null
                     }
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        DockButton(if (keyboard) Lucide.KeyboardOff else Lucide.Keyboard, if (keyboard) "Hide keyboard" else "Keyboard", { keyboard = !keyboard },
+                        DockButton(if (keyboard) Lucide.KeyboardOff else Lucide.Keyboard, if (keyboard) "Hide keyboard" else "Keyboard", { keyboard = !keyboard }, caption = "Keyboard",
                             enabled = state.connected && "type" in capabilities.inputs, selected = keyboard)
-                        DockButton(if (android) Lucide.Smartphone else Lucide.Command, if (keyTray) "Hide keys" else "Keys", { keyTray = !keyTray },
+                        DockButton(if (android) Lucide.Smartphone else Lucide.Command, if (keyTray) "Hide keys" else "Keys", { keyTray = !keyTray }, caption = "Keys",
                             enabled = capabilities.keys.isNotEmpty(), selected = keyTray)
-                        DockButton(Lucide.MousePointer2, "Trackpad mode", { trackpad = !trackpad }, enabled = "tap" in capabilities.inputs, selected = trackpad)
+                        DockButton(Lucide.MousePointer2, "Trackpad mode", { trackpad = !trackpad }, caption = "Trackpad", enabled = "tap" in capabilities.inputs, selected = trackpad)
                         ClipboardButton(state, paste, desktop && "C" in capabilities.keys && copyModifier != null,
                             { sendKey("$copyModifier+C") }, { sendKey("$copyModifier+V") }, "V" in capabilities.keys)
-                        switcher?.let { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, enabled = state.interactive) }
-                        DockButton(screensIcon, screensLabel, { controls = true })
+                        switcher?.let { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, caption = "Switch", enabled = state.interactive) }
+                        DockButton(screensIcon, screensLabel, { controls = true }, caption = screensCaption)
                     }
                 }
             }
@@ -207,7 +208,7 @@ private fun ClipboardButton(state: LiveViewState, paste: () -> Unit, shortcuts: 
                 if (remotePaste) DropdownMenuItem(onClick = { menu = false; pasteRemote() }, enabled = state.interactive) { MobileMenuItem(Lucide.Clipboard, "Paste on screen") }
             }
         }
-    }) { DockButton(Lucide.ClipboardPaste, "Clipboard", { menu = true }, enabled = typing || shortcuts && state.interactive) }
+    }) { DockButton(Lucide.ClipboardPaste, "Clipboard", { menu = true }, caption = "Clipboard", enabled = typing || shortcuts && state.interactive) }
 }
 
 @Composable
@@ -218,17 +219,22 @@ private fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, e
     }
 }
 
+/** A dock control: its icon over a short [caption]; [label] is read out. */
 @Composable
-private fun DockButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true, selected: Boolean? = null) {
+private fun DockButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true, selected: Boolean? = null, caption: String) {
     val shape = RoundedCornerShape(14.dp)
-    IconButton(onClick = onClick, enabled = enabled, style = ButtonStyle.Ghost, shape = shape,
-        modifier = Modifier.size(46.dp).background(if (selected == true) color(accentColor).copy(alpha = 0.16f) else Color.Transparent, shape)
-            .semantics { if (selected != null) stateDescription = if (selected) "On" else "Off" }) {
-        Icon(icon, Modifier.size(22.dp), contentDescription = label, tint = when {
-            !enabled -> color(mutedColor).copy(alpha = 0.5f)
-            selected == true -> color(accentColor)
-            else -> color(onPanelColor)
-        })
+    val tint = when {
+        !enabled -> color(mutedColor).copy(alpha = 0.7f)
+        selected == true -> color(accentColor)
+        else -> color(onPanelColor)
+    }
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        IconButton(onClick = onClick, enabled = enabled, style = ButtonStyle.Ghost, shape = shape,
+            modifier = Modifier.size(46.dp, 40.dp).background(if (selected == true) color(accentColor).copy(alpha = 0.16f) else Color.Transparent, shape)
+                .semantics { if (selected != null) stateDescription = if (selected) "On" else "Off" }) {
+            Icon(icon, Modifier.size(22.dp), contentDescription = label, tint = tint)
+        }
+        Text(caption, Modifier.clearAndSetSemantics {}, fontSize = 10.sp, lineHeight = 12.sp, color = if (selected == true) tint else color(mutedColor), singleLine = true)
     }
 }
 
@@ -268,7 +274,8 @@ internal fun MobileKeyTray(state: LiveViewState, actions: LiveActions) {
                         }
                     }
                 }
-                repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
+                // A single short row spreads across the tray; longer ones keep a grid.
+                if (keys.size > 5) repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
         if (capabilities.modifiers.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {

@@ -393,7 +393,7 @@ internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, l
         if (scope != null && p.back == null) PageHeader(p.ui.route.section?.icon() ?: Lucide.Settings, title, scope = scope, actions = if (canAdd) listOf(add) else emptyList())
         else SettingsPageHeader(title, p.back) { if (canAdd) HeaderButton(add.icon, add.label, add.onClick) }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(intro, Modifier.padding(horizontal = 6.dp), color = color(mutedColor), fontSize = 13.sp)
+            Text(intro, color = color(mutedColor), fontSize = 14.sp)
             if (loading) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
             else rows()
         }
