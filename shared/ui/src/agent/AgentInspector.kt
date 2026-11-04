@@ -20,6 +20,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import com.composeunstyled.theme.Theme
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.paneTitle
@@ -119,9 +121,10 @@ private fun InspectorHeader(state: InspectorState, host: InspectorHost, actions:
     SettingsPageHeader(
         if (state.pages.isEmpty()) agent?.name ?: "…" else state.page.title(),
         back = actions.onBack.takeIf { state.pages.isNotEmpty() },
-        subtitle = if (state.pages.isEmpty()) "Agent settings · every Session" else "${agent?.name ?: "Agent"} · every Session",
+        subtitle = if (state.pages.isEmpty()) "Agent settings for every Session" else "${agent?.name ?: "Agent"} · every Session",
     ) {
-        if (state.dirty) HeaderButton(Lucide.Check, "Save", actions.onSave, enabled = !state.saving && state.draft?.problems(state.agentId.orEmpty(), host.agents)?.isEmpty() == true)
+        if (state.dirty) SaveButton(actions.onSave, enabled = !state.saving && state.draft?.problems(state.agentId.orEmpty(), host.agents)?.isEmpty() == true)
+        else if (state.pages.isEmpty()) HeaderButton(Lucide.X, "Close", actions.onClose)
     }
 }
 
@@ -135,16 +138,15 @@ private fun InspectorBody(state: InspectorState, host: InspectorHost, actions: I
         when (state.page) {
             InspectorPage.Agent -> if (details.info.external) ExternalAgentPage(state, draft, details, host, actions) else AgentPage(state, draft, details, host, actions)
             InspectorPage.Model -> ModelPage(state, draft, actions)
-            InspectorPage.Approvals -> APPROVALS.forEach { (key, hint) ->
-                ListRow(draft.approvals == key, { actions.onEdit { it.copy(approvals = key) }; actions.onBack() }) {
-                    Column(Modifier.weight(1f).padding(vertical = 2.dp)) {
-                        Text(key.replaceFirstChar { it.uppercase() })
-                        Text(hint, fontSize = 12.sp, color = color(mutedColor))
+            InspectorPage.Approvals -> RowGroup("Ask before") {
+                APPROVALS.forEach { (key, hint) ->
+                    GroupRow(key.replaceFirstChar { it.uppercase() }, { actions.onEdit { it.copy(approvals = key) }; actions.onBack() }, hint,
+                        selected = draft.approvals == key, chevron = false, titleLines = 1) {
+                        if (draft.approvals == key) Icon(Lucide.Check, Modifier.size(16.dp), tint = color(accentColor))
                     }
-                    if (draft.approvals == key) Icon(Lucide.Check, Modifier.size(16.dp))
                 }
             }
-            InspectorPage.UserNotes -> Text(details.userNotes.ifBlank { "${details.info.name} hasn't written any User Notes yet." }, fontSize = 14.sp,
+            InspectorPage.UserNotes -> Text(details.userNotes.ifBlank { "${details.info.name} hasn't written any User Notes yet." }, style = TextStyles.label,
                 color = color(if (details.userNotes.isBlank()) mutedColor else onBackgroundColor))
         }
     }
@@ -155,17 +157,18 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
     val agent = host.agents.firstOrNull { it.id == details.info.id } ?: details.info
     val agentId = details.info.id
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { AgentAvatar(agent, 64.dp) }
-    Group("Identity") {
-        Label("Name")
-        Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
-        draft.problems(agentId, host.agents).filter { it.contains("Name", true) || it.contains("called") }.forEach {
-            Text(it, fontSize = 12.sp, color = color(destructiveColor))
+    // Labelled fields in grouped rows, like every other Settings form.
+    RowGroup("Identity") {
+        FieldRow("Name") {
+            Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
+            draft.problems(agentId, host.agents).filter { it.contains("Name", true) || it.contains("called") }.forEach {
+                Text(it, style = TextStyles.caption, color = color(destructiveColor))
+            }
         }
-        Label("Personality (IDENTITY.md)")
-        TextArea(draftField(agentId, "identity", draft.identity) { v -> actions.onEdit { it.copy(identity = v) } }, lines = 3)
+        FieldRow("Personality") { TextArea(draftField(agentId, "identity", draft.identity) { v -> actions.onEdit { it.copy(identity = v) } }, lines = 3) }
     }
-    Group("Soul", "Principles, tone and rules") {
-        TextArea(draftField(agentId, "soul", draft.soul) { v -> actions.onEdit { it.copy(soul = v) } }, lines = 5)
+    RowGroup("Soul") {
+        FieldRow("Principles, tone and rules") { TextArea(draftField(agentId, "soul", draft.soul) { v -> actions.onEdit { it.copy(soul = v) } }, lines = 5) }
     }
     Group("Model") {
         val selected = state.models.model(draft.provider, draft.model)
@@ -174,8 +177,8 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
         val levels = selected?.reasoning ?: (REASONING + draft.reasoning).distinct()
         Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Lucide.Brain, Modifier.size(16.dp), tint = color(mutedColor))
-            Text("Reasoning", Modifier.weight(1f).padding(start = 10.dp))
-            if (levels.isEmpty()) Text("Not supported", color = color(mutedColor), fontSize = 13.sp)
+            Text("Reasoning", Modifier.weight(1f).padding(start = 10.dp), style = TextStyles.callout)
+            if (levels.isEmpty()) Text("Not supported", color = color(mutedColor), style = TextStyles.secondary)
             else Picker(levels, draft.reasoning, { it.replaceFirstChar { c -> c.uppercase() } }, { level -> actions.onEdit { it.copy(reasoning = level) } })
         }
     }
@@ -190,7 +193,7 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
         NavRow(Lucide.FolderOpen, "Workspace", null) { host.onSection(agentId, SettingsSection.Workspace) }
     }
     Text("These are ${agent.name}'s defaults for every Session. A Session's own model, reasoning and Risk tolerance are set from its composer.",
-        fontSize = 12.sp, color = color(mutedColor))
+        style = TextStyles.caption, color = color(mutedColor))
 }
 
 /** An external Agent: its name and where it runs; its harness owns everything else, so Kinuvo's own settings are absent. */
@@ -203,10 +206,10 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
     val machine = agent.host ?: host.server
     val problems = draft.problems(agentId, host.agents)
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) { AgentAvatar(agent, 64.dp) }
-    Group("Identity") {
+    Group("Identity", card = false) {
         Label("Name")
         Input(draftField(agentId, "name", draft.name) { v -> actions.onEdit { it.copy(name = v) } }, "Name", capitalize = true)
-        problems.filter { it.contains("Name", true) || it.contains("called") }.forEach { Text(it, fontSize = 12.sp, color = color(destructiveColor)) }
+        problems.filter { it.contains("Name", true) || it.contains("called") }.forEach { Text(it, style = TextStyles.caption, color = color(destructiveColor)) }
     }
     Group("Runs on") {
         NavRow(if (agent.executionKind == ExecutionKind.Acp) Lucide.SquareTerminal else Lucide.ArrowLeftRight, runsOn(agent, connections, host.server), null) {
@@ -220,19 +223,19 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
         if (agent.executionKind == ExecutionKind.Acp) {
             Label("Working folder")
             Input(draftField(agentId, "cwd", draft.cwd) { v -> actions.onEdit { it.copy(cwd = v) } }, "/Users/you/project")
-            cwdProblem(draft.cwd)?.let { Text(it, fontSize = 12.sp, color = color(destructiveColor)) }
-            Text("On $machine. $harness reads and edits files here.", fontSize = 12.sp, color = color(mutedColor))
+            cwdProblem(draft.cwd)?.let { Text(it, style = TextStyles.caption, color = color(destructiveColor)) }
+            Text("On $machine. $harness reads and edits files here.", style = TextStyles.caption, color = color(mutedColor))
         }
-        details.remoteAgentId?.let { Text("Remote Agent: $it", Modifier.padding(horizontal = 10.dp), fontSize = 13.sp) }
+        details.remoteAgentId?.let { Text("Remote Agent: $it", Modifier.padding(horizontal = 10.dp), style = TextStyles.secondary) }
     }
     Group("Approvals") {
         Text("Kinuvo's Risk tolerance and Trust rules don't apply. $harness decides when to ask before acting; answer from any Device with access.",
-            Modifier.padding(4.dp), fontSize = 13.sp)
+            Modifier.padding(4.dp), style = TextStyles.secondary)
     }
     Group("Managed by $harness") {
-        Text("Instructions, Memory, Skills and tools are set in $harness on $machine.", Modifier.padding(4.dp), fontSize = 13.sp, color = color(mutedColor))
+        Text("Instructions, Memory, Skills and tools are set in $harness on $machine.", Modifier.padding(4.dp), style = TextStyles.secondary, color = color(mutedColor))
     }
-    Text("Changes apply to ${agent.name}'s new Sessions.", fontSize = 12.sp, color = color(mutedColor))
+    Text("Changes apply to ${agent.name}'s new Sessions.", style = TextStyles.caption, color = color(mutedColor))
 }
 
 @Composable
@@ -253,7 +256,7 @@ private fun ModelPage(state: InspectorState, draft: AgentDraft, actions: Inspect
                 if (picked) Icon(Lucide.Check, Modifier.size(14.dp))
             }
         }
-        group.warning?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+        group.warning?.let { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
     }
     if (state.models.model(draft.provider, draft.model) == null) SectionLabel("Current: ${draft.model}")
     ListRow(false, { actions.onLoadModels(true) }, leading = { Icon(Lucide.RefreshCw, Modifier.size(14.dp)) }) { Text("Refresh models", Modifier.weight(1f)) }
@@ -264,21 +267,7 @@ private fun ModelPage(state: InspectorState, draft: AgentDraft, actions: Inspect
 fun InspectorGuard(state: InspectorState, host: InspectorHost, actions: InspectorActions) {
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = state.guard != null) { actions.onResolve(GuardChoice.Keep) }
     AnimatedVisibility(state.guard != null, enter = fadeIn(), exit = fadeOut()) {
-        Box(Modifier.fillMaxSize().background(color(scrimColor)).clickable(remember { MutableInteractionSource() }, indication = null) { actions.onResolve(GuardChoice.Keep) },
-            contentAlignment = Alignment.Center) {
-            Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(24.dp).widthIn(max = 400.dp).clickable(remember { MutableInteractionSource() }, indication = null) {}.semantics { paneTitle = "Unsaved changes" },
-                contentPadding = PaddingValues(18.dp)) {
-                Text("Discard changes?", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                Spacer(Modifier.height(6.dp))
-                Text("Your changes have not been saved.", color = color(mutedColor), fontSize = 14.sp)
-                state.errors.forEach { Spacer(Modifier.height(8.dp)); ErrorMessage(it) }
-                Spacer(Modifier.height(16.dp))
-                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button({ actions.onResolve(GuardChoice.Keep) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Keep editing") }
-                    Button({ actions.onResolve(GuardChoice.Discard) }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Discard") }
-                }
-            }
-        }
+        DiscardDialog({ actions.onResolve(GuardChoice.Keep) }, { actions.onResolve(GuardChoice.Discard) }, errors = state.errors)
     }
 }
 
@@ -294,27 +283,31 @@ internal fun draftField(agentId: String, name: String, value: String, onChange: 
 }
 
 @Composable
-private fun Group(title: String, hint: String? = null, content: @Composable ColumnScope.() -> Unit) {
+private fun Group(title: String, hint: String? = null, card: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = color(mutedColor))
-            hint?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+        // Labelled and filled like a RowGroup; fields go without the card, as their own borders already contain them.
+        Row(Modifier.padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            SectionLabel(title)
+            hint?.let { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
         }
-        Panel(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
+        if (!card) Column(verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
+        else Panel(Modifier.fillMaxWidth(), borderColor = Color.Transparent, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
         }
     }
 }
 
 @Composable
-private fun Label(text: String) = Text(text, Modifier.padding(start = 2.dp, top = 2.dp), fontSize = 12.sp, color = color(mutedColor))
+private fun Label(text: String) = Text(text, Modifier.padding(start = 12.dp, top = 2.dp), style = TextStyles.caption, color = color(mutedColor))
 
 /** A row opening a page inside the inspector. */
 @Composable
 private fun NavRow(icon: ImageVector, title: String, value: String?, onClick: () -> Unit) {
     ListRow(false, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
-        Text(title, Modifier.weight(1f), singleLine = true)
-        value?.let { Text(it, Modifier.widthIn(max = 200.dp), fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End) }
+        Text(title, style = TextStyles.callout, singleLine = true)
+        Box(Modifier.weight(1f).padding(start = 12.dp), contentAlignment = Alignment.CenterEnd) {
+            value?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End) }
+        }
         Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
     }
 }

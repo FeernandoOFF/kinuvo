@@ -11,11 +11,17 @@ import kinuvo.ui.routine.*
 import kinuvo.ui.navigation.*
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.input.clearText
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -42,13 +48,13 @@ fun KnowledgeScreen(app: AppViewModel, knowledge: KnowledgeViewModel, onOpen: (R
         }
     }
     KnowledgeContent(
-        KnowledgeUi(state, appState.agents, now),
+        KnowledgeUi(state, appState.agents, now, (appState.connection as? Connection.Ready)?.server?.label),
         KnowledgeActions(onBack = onBack, onSearch = knowledge::search, onFilter = knowledge::filter, onOpen = { onOpen(Route.Knowledge(it)) }, onUndo = knowledge::undo, onSettings = onSettings),
     )
 }
 
 /** What the Knowledge screen shows; [now] (epoch ms) anchors relative times. */
-data class KnowledgeUi(val state: KnowledgeState, val agents: List<AgentInfo> = emptyList(), val now: Long = 0) {
+data class KnowledgeUi(val state: KnowledgeState, val agents: List<AgentInfo> = emptyList(), val now: Long = 0, val server: String? = null) {
     val error get() = state.errors.lastOrNull()
 }
 
@@ -88,26 +94,32 @@ private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions) {
     val query = rememberTextFieldState(ui.state.query)
     LaunchedEffect(query) { snapshotFlow { query.text.toString() }.collect { if (it != ui.state.query) actions.onSearch(it) } }
     Column(Modifier.fillMaxSize()) {
-        PageHeader(Lucide.BookOpen, "Knowledge", scope = AgentScope(ui.agents, ui.state.agent, "All agents", actions.onFilter).takeIf { ui.agents.size > 1 },
+        PageHeader(Lucide.BookOpen, "Knowledge", ui.server, scope = AgentScope(ui.agents, ui.state.agent, "All agents", actions.onFilter).takeIf { ui.agents.size > 1 },
             actions = listOf(PageAction(Lucide.Settings, "Knowledge settings", actions.onSettings)))
-        Column(Modifier.padding(horizontal = 12.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Input(query, "Search people, projects, places…", capitalize = true)
+        Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Input(query, "Search people, projects, places…", capitalize = true, leading = { Icon(Lucide.Search, Modifier.size(16.dp), tint = color(mutedColor)) },
+                trailing = if (query.text.isEmpty()) null else ({
+                    Box(Modifier.size(36.dp).clip(CircleShape).clickable { query.clearText() }, contentAlignment = Alignment.Center) {
+                        Icon(Lucide.X, Modifier.size(14.dp), tint = color(mutedColor), contentDescription = "Clear search")
+                    }
+                }))
             ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         }
-        LazyColumn(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             if (ui.state.query.isNotBlank()) {
-                item { SectionLabel("Results") }
+                item { SectionLabel("Results", Modifier.padding(start = 6.dp)) }
                 itemsIndexed(ui.state.results, key = { _, n -> "r/${n.ref}" }) { i, n ->
                     Box(Modifier.groupItem(i, ui.state.results.size)) {
-                        GroupRow(n.title, { actions.onOpen(n.ref) }, n.type, n.type.icon(), selected = n.ref == ui.state.route.note)
+                        GroupRow(n.title, { actions.onOpen(n.ref) }, n.type.replaceFirstChar { it.uppercase() }, n.type.icon(), selected = n.ref == ui.state.route.note)
                     }
                 }
                 if (ui.state.results.isEmpty()) item { Muted("No matches.") }
             }
-            item { SectionLabel("Recent changes") }
             val changes = ui.state.shownChanges
-            if (changes == null) item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Spinner() } }
-            else if (changes.isEmpty()) item { Muted(if (ui.state.agent != null) "This Agent hasn't changed anything yet." else "Agents haven't changed anything yet. They save what they learn as you talk.") }
+            // While searching, an empty or loading history would only push the results' context away.
+            if (!changes.isNullOrEmpty() || ui.state.query.isBlank()) item { SectionLabel("Recent changes", Modifier.padding(start = 6.dp, top = 12.dp)) }
+            if (changes == null) { if (ui.state.query.isBlank()) item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Spinner() } } }
+            else if (changes.isEmpty()) { if (ui.state.query.isBlank()) item { EmptyState(Lucide.Library, "No changes yet", if (ui.state.agent != null) "This Agent hasn't changed anything yet." else "Agents save what they learn as you talk.") } }
             else itemsIndexed(changes, key = { _, c -> "c/${c.id}" }) { i, c -> Box(Modifier.groupItem(i, changes.size)) { ChangeRow(c, ui, actions) } }
         }
     }
@@ -132,26 +144,33 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
     }
     val links = WIKILINK.findAll(n.body).map { it.groupValues[1] to it.groupValues[2].ifEmpty { it.groupValues[1].substringAfterLast('/') } }.distinct().toList()
     DetailPane(back, n.title) {
-        Pill(n.type, icon = n.type.icon())
+        Pill(n.type.replaceFirstChar { it.uppercase() }, Modifier.padding(start = 16.dp), icon = n.type.icon())
         if (n.properties.isNotEmpty()) DetailGroup("Properties") {
-            n.properties.forEach { (k, v) -> DetailRow(k) { Text(v) } }
+            n.properties.forEach { (k, v) -> DetailRow(k.replaceFirstChar { it.uppercase() }) { Text(dateLabel(v), style = markdownTextStyle()) } }
         }
-        if (n.body.isNotBlank()) DetailGroup("Note") { Markdown(WIKILINK.replace(n.body) { m -> "*${m.groupValues[2].ifEmpty { m.groupValues[1] }}*" }) }
-        if (links.isNotEmpty()) DetailGroup("Linked notes") {
-            links.forEach { (ref, label) ->
-                Button(onClick = { actions.onOpen(ref) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 6.dp)) {
-                    Text(label)
-                }
+        if (n.body.isNotBlank()) DetailGroup("Note") {
+            // Links to other notes open them in place; any other link opens as usual.
+            val outer = LocalUriHandler.current
+            val notes = remember(outer, actions) { object : UriHandler {
+                override fun openUri(uri: String) = if (uri.startsWith(NOTE_LINK)) actions.onOpen(uri.removePrefix(NOTE_LINK).decodeRef()) else outer.openUri(uri)
+            } }
+            CompositionLocalProvider(LocalUriHandler provides notes) {
+                Markdown(WIKILINK.replace(n.body) { m -> "[${m.groupValues[2].ifEmpty { m.groupValues[1] }}]($NOTE_LINK${m.groupValues[1].encodeRef()})" })
             }
         }
-        Text("Ref ${n.ref}", color = color(mutedColor), fontSize = 12.sp)
+        if (links.isNotEmpty()) RowGroup("Linked notes") {
+            links.forEach { (ref, label) -> GroupRow(label.replaceFirstChar { it.uppercase() }, { actions.onOpen(ref) }, icon = Lucide.FileText) }
+        }
     }
 }
 
 @Composable
-private fun Muted(text: String) = Text(text, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = color(mutedColor), fontSize = 13.sp)
+private fun Muted(text: String) = Text(text, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = color(mutedColor), style = TextStyles.secondary)
 
 private val WIKILINK = Regex("""\[\[([^\]|]+)(?:\|([^\]]*))?]]""")
+private const val NOTE_LINK = "kinuvo-note:"
+private fun String.encodeRef() = replace("%", "%25").replace(" ", "%20").replace("(", "%28").replace(")", "%29")
+private fun String.decodeRef() = replace("%29", ")").replace("%28", "(").replace("%20", " ").replace("%25", "%")
 
 private fun String.icon() = when (this) {
     "person", "profile", "human" -> Lucide.User
@@ -161,3 +180,9 @@ private fun String.icon() = when (this) {
     "event" -> Lucide.CalendarDays
     else -> Lucide.BookOpen
 }
+
+/** An ISO date value as "1 Mar 2025"; anything else as written. */
+private fun dateLabel(value: String): String = runCatching {
+    val d = kotlinx.datetime.LocalDate.parse(value)
+    "${d.day} ${d.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${d.year}"
+}.getOrDefault(value)

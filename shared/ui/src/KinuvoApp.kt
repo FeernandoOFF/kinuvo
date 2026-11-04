@@ -114,10 +114,10 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
     val settingsPages = rememberSerializable(serializer = SnapshotStateListSerializer(Route.Settings.serializer())) { mutableStateListOf<Route.Settings>() }
     val inspectorEdits = remember { SettingsEdits() }
     val inspectorPages = rememberSerializable(serializer = SnapshotStateListSerializer(Route.Settings.serializer())) { mutableStateListOf<Route.Settings>() }
-    // Phones show Settings in a sheet; Home's pages, such as Routines, are screens like any other.
+    // Phones show Settings in a sheet; Home's pages, such as Routines, are screens like any other, and what they open goes in the sheet.
     val openSettings: (Route.Settings, Boolean) -> Unit = { route, push ->
         homeEdits.leave {
-            if (history.compact && !route.home) settingsPages.navigate(route, push) else history.open(route, push)
+            if (history.compact && (!route.home || route.item != null || route.editing)) settingsPages.navigate(route, push) else history.open(route, push)
         }
     }
 
@@ -387,7 +387,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         entry<Route.Computers> { route ->
                             if (connection !is Connection.Ready) Loading(connection)
                             else kinuvo.ui.screen.ComputersScreen(koinViewModel<kinuvo.app.screen.LiveViewModel>(key = "live/${app.serverLifetime}/$route") { parametersOf(route) },
-                                list = route.computer == null, onOpen = { history.open(Route.Computers(it.id)) }, back = back.takeIf { history.canGoBack })
+                                list = route.computer == null, onOpen = { history.open(Route.Computers(it.id)) }, back = back.takeIf { history.canGoBack }, server = connection.server.label)
                         }
                         entry<Route.Knowledge> { route ->
                             val knowledge = koinViewModel<KnowledgeViewModel>(key = "knowledge/${app.serverLifetime}/${route.note}") { parametersOf(route) }
@@ -513,6 +513,6 @@ private fun Loading(connection: Connection) = Box(Modifier.fillMaxSize(), conten
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Spinner(size = 24.dp)
         val server = (connection as? Connection.Connecting)?.server
-        Text(server?.let { "Connecting to ${it.label}…" } ?: "Connecting…", color = color(mutedColor), fontSize = 13.sp)
+        Text(server?.let { "Connecting to ${it.label}…" } ?: "Connecting…", color = color(mutedColor), style = TextStyles.secondary)
     }
 }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.clearText
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
@@ -41,6 +42,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -204,6 +206,10 @@ private fun PhoneShell(state: ShellState, actions: ShellActions, chrome: ShellCh
             OwnerRail(state, actions, Modifier.windowInsetsPadding(insets.only(WindowInsetsSides.Bottom)), top = 8.dp)
             ColumnPanel(Modifier.weight(1f)) { ContextColumn(state, actions, chrome, bottom = clear) }
         }
+        val sidebar = color(sidebarColor)
+        // The lists fade out under the bar instead of showing through around it.
+        Box(Modifier.align(Alignment.BottomStart).padding(start = RailWidth).fillMaxWidth().height(clear)
+            .background(Brush.verticalGradient(0f to sidebar.copy(alpha = 0f), 0.4f to sidebar)))
         QuickChatBar(state.agent, chrome.draft, Modifier.align(Alignment.BottomStart).padding(start = RailWidth).windowInsetsPadding(insets.only(WindowInsetsSides.Bottom))) { chrome.quickChat = true }
     }
 }
@@ -245,7 +251,7 @@ private fun OwnerRail(state: ShellState, actions: ShellActions, modifier: Modifi
 @Composable
 private fun RailItem(name: String, selected: Boolean, news: Boolean, onClick: () -> Unit, enabled: Boolean = true, shortcut: String? = null, content: @Composable () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
+    val hovered = interaction.hovered()
     val pill by animateDpAsState(when {
         selected -> 36.dp
         hovered && enabled -> 20.dp
@@ -255,7 +261,7 @@ private fun RailItem(name: String, selected: Boolean, news: Boolean, onClick: ()
     val shape = if (selected || hovered) Theme[shapes][largeShape] else RoundedCornerShape(50)
     Box(Modifier.fillMaxWidth().height(48.dp)) {
         Box(Modifier.align(Alignment.CenterStart).width(4.dp).height(pill).background(color(onBackgroundColor), RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)))
-        Box(Modifier.align(Alignment.Center)) { Tooltip(side = TooltipSide.End, panel = { TooltipPanel { Text(listOfNotNull(name, shortcut).joinToString(" "), fontSize = 12.sp) } }) {
+        Box(Modifier.align(Alignment.Center)) { Hint(listOfNotNull(name, shortcut).joinToString(" "), TooltipSide.End) {
             Box(
                 Modifier.size(48.dp).clip(shape)
                     .background(if (selected) color(selectedControlColor) else color(panelColor))
@@ -264,7 +270,7 @@ private fun RailItem(name: String, selected: Boolean, news: Boolean, onClick: ()
                     .clearAndSetSemantics {
                         contentDescription = name
                         role = Role.Button
-                        stateDescription = if (selected) "Selected" else ""
+                        stateDescription = listOfNotNull("Selected".takeIf { selected }, "New activity".takeIf { news }).joinToString(", ")
                         if (selected) this.selected = true
                         if (!enabled) disabled()
                         onClick { onClick(); true }
@@ -286,13 +292,13 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
         }
         HorizontalSeparator()
         LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp + bottom), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+            item(key = "server") { GroupHeader("On this Server") }
             item(key = "today") {
                 Pinned(Lucide.Inbox, "Today", view == Route.Home, true, actions.onToday, count = state.waiting.size.takeIf { it > 0 })
             }
             item(key = "board") {
                 Pinned(Lucide.SquareKanban, "Board", view == Route.Board || view is Route.Task, state.capabilities.supports(ServerFeature.Tasks), actions.onBoard)
             }
-            item(key = "server") { GroupHeader("On this Server") }
             item(key = "server-rows") {
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     if (state.management && state.capabilities?.features?.contains(ServerFeature.Computer) == true)
@@ -300,7 +306,7 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
                     Pinned(Lucide.AlarmClock, "Routines", (view as? Route.Settings)?.section == SettingsSection.Routines, state.capabilities.supports(ServerFeature.Routines), actions.onRoutines)
                     Pinned(Lucide.Wrench, "Tools & MCP", (view as? Route.Settings)?.section == SettingsSection.Hub, true, actions.onTools)
                     Pinned(Lucide.BookOpen, "Knowledge", view is Route.Knowledge, state.capabilities.supports(ServerFeature.Knowledge), actions.onKnowledge)
-                    Pinned(Lucide.Shapes, "Artifacts", view is Route.Artifacts, state.capabilities.supports(ServerFeature.Artifacts), actions.onArtifacts)
+                    if (state.capabilities.supports(ServerFeature.Artifacts)) Pinned(Lucide.Shapes, "Artifacts", view is Route.Artifacts, true, actions.onArtifacts)
                 }
             }
             fun LazyListScope.sessions(title: String, sessions: List<SessionInfo>) {
@@ -311,7 +317,7 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
                     ListRow(selected, { actions.onOpenSession(s.agentId, s.id) }, leading = { AgentAvatar(byId[s.agentId], 18.dp) }) {
                         Column(Modifier.weight(1f)) {
                             Text(s.title, singleLine = true, overflow = TextOverflow.Ellipsis)
-                            Text(byId[s.agentId]?.name ?: s.agentId, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                            Text(byId[s.agentId]?.name ?: s.agentId, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                         }
                         SessionStatusIcon(s.status, false)
                     }
@@ -347,7 +353,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
         TitleBarRow(leading = false, trailing = false) {
             Text(state.agent?.name ?: "…", Modifier.weight(1f).padding(horizontal = 8.dp), fontWeight = FontWeight.Bold, singleLine = true, overflow = TextOverflow.Ellipsis)
             HeaderButton(Lucide.Settings2, "Agent settings", actions.onAgentSettings, enabled = state.agent != null)
-            HeaderButton(Lucide.SquarePen, "New session ${shortcut("N")}", actions.onNew, enabled = state.agent != null)
+            HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", actions.onNew, enabled = state.agent != null)
         }
         HorizontalSeparator()
         SessionSearch(chrome.query, state.agent?.name, Modifier.padding(start = 8.dp, top = 8.dp, end = 8.dp))
@@ -361,7 +367,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 item(key = "results") { GroupHeader(if (state.hasMore) "Searching older sessions…" else "${found.size} found") }
                 rows(found)
                 if (found.isEmpty() && !state.hasMore) item(key = "none") {
-                    Text("No sessions match", Modifier.padding(horizontal = 10.dp, vertical = 12.dp), color = color(mutedColor), fontSize = 13.sp)
+                    Text("No sessions match", Modifier.padding(horizontal = 10.dp, vertical = 12.dp), color = color(mutedColor), style = TextStyles.secondary)
                 }
                 return@LazyColumn
             }
@@ -390,7 +396,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                         item(key = "earlier:$key") {
                             ListRow(false, { chrome.expanded = if (open) chrome.expanded - key else chrome.expanded + key }, Modifier.padding(start = 16.dp),
                                 leading = { Icon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp)) }) {
-                                Text("${group.earlier.size} earlier", Modifier.weight(1f), color = color(mutedColor), fontSize = 13.sp, singleLine = true)
+                                Text("${group.earlier.size} earlier", Modifier.weight(1f), color = color(mutedColor), style = TextStyles.secondary, singleLine = true)
                             }
                         }
                         if (open) items(group.earlier, key = { it.id }) { run ->
@@ -422,7 +428,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 }
             }
             if (state.sessions.isEmpty() && state.agent != null) item(key = "empty") {
-                Text("No sessions yet", Modifier.padding(horizontal = 10.dp, vertical = 12.dp), color = color(mutedColor), fontSize = 13.sp)
+                Text("No sessions yet", Modifier.padding(horizontal = 10.dp, vertical = 12.dp), color = color(mutedColor), style = TextStyles.secondary)
             }
         }
     }
@@ -433,17 +439,19 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
 private fun SessionSearch(query: TextFieldState, agent: String?, modifier: Modifier = Modifier) {
     val shape = Theme[shapes][mediumShape]
     Row(
-        modifier.fillMaxWidth().height(34.dp).clip(shape).background(color(backgroundColor).copy(alpha = 0.6f), shape).border(1.dp, color(borderColor), shape).padding(horizontal = 10.dp),
+        modifier.fillMaxWidth().height(44.dp).clip(shape).background(color(backgroundColor).copy(alpha = 0.6f), shape).border(1.dp, color(borderColor), shape).padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(Lucide.Search, Modifier.size(14.dp), tint = color(mutedColor))
+        Icon(Lucide.Search, Modifier.size(16.dp), tint = color(mutedColor))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (query.text.isEmpty()) Text(agent?.let { "Search $it's sessions" } ?: "Search sessions", fontSize = 13.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
-            BasicTextField(query, Modifier.fillMaxWidth().semantics { contentDescription = "Search sessions" }, textStyle = TextStyle(fontSize = 13.sp, color = color(onBackgroundColor)),
+            if (query.text.isEmpty()) Text("Search Sessions", style = inputTextStyle(), color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            BasicTextField(query, Modifier.fillMaxWidth().semantics { contentDescription = "Search sessions" }, textStyle = TextStyle(fontSize = TextStyles.callout.fontSize, color = color(onBackgroundColor)),
                 lineLimits = TextFieldLineLimits.SingleLine, cursorBrush = SolidColor(color(accentColor)))
         }
-        if (query.text.isNotEmpty()) Icon(Lucide.X, Modifier.size(14.dp).clickable { query.clearText() }, tint = color(mutedColor), contentDescription = "Clear search")
+        if (query.text.isNotEmpty()) Box(Modifier.size(36.dp).clip(CircleShape).clickable { query.clearText() }, contentAlignment = Alignment.Center) {
+            Icon(Lucide.X, Modifier.size(14.dp), tint = color(mutedColor), contentDescription = "Clear search")
+        }
     }
 }
 
@@ -466,11 +474,11 @@ private fun GroupHeader(title: String, collapsed: Boolean = false, onToggle: (()
     Row(
         Modifier.fillMaxWidth().padding(top = 12.dp).clip(Theme[shapes][smallShape])
             .then(if (onToggle != null) Modifier.clickable(onClick = onToggle).semantics { stateDescription = if (collapsed) "Collapsed" else "Expanded" } else Modifier)
-            .padding(horizontal = 6.dp, vertical = 4.dp),
+            .heightIn(min = if (onToggle != null) 44.dp else 0.dp).padding(horizontal = 6.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(title.uppercase(), fontSize = 11.sp, lineHeight = 14.sp, letterSpacing = 0.6.sp, color = color(mutedColor), singleLine = true)
+        Text(title.uppercase(), style = TextStyles.overline, lineHeight = 14.sp, letterSpacing = 0.6.sp, color = color(mutedColor), singleLine = true)
         if (onToggle != null) Icon(if (collapsed) Lucide.ChevronRight else Lucide.ChevronDown, Modifier.size(12.dp), tint = color(mutedColor))
     }
 }
@@ -488,8 +496,9 @@ private fun SessionRow(session: SessionInfo, selected: Boolean, finished: Boolea
 @Composable
 private fun ShellRow(icon: ImageVector, title: String, status: SessionStatus, selected: Boolean, finished: Boolean, onClick: () -> Unit) {
     ListRow(selected, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
-        Text(title, Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis,
-            color = if (selected || finished || status != SessionStatus.Idle) color(onBackgroundColor) else color(mutedColor))
+        Text(title.trimEnd(), Modifier.weight(1f), style = TextStyles.label, maxLines = 2, overflow = TextOverflow.Ellipsis,
+            // Idle Sessions recede, but stay clearly readable rather than looking disabled.
+            color = color(onBackgroundColor).copy(alpha = if (selected || finished || status != SessionStatus.Idle) 1f else 0.75f))
         SessionStatusIcon(status, finished)
     }
 }
@@ -511,7 +520,7 @@ private fun ServerPicker(
         panel = {
             DropdownMenuPanel {
                 Column(Modifier.widthIn(min = 260.dp, max = 340.dp).heightIn(max = 680.dp).verticalScroll(rememberScrollState())) {
-                    DropdownMenuLabel { Text("Servers", fontSize = 12.sp) }
+                    DropdownMenuLabel { Text("Servers", style = TextStyles.caption) }
                     menu.servers.forEach { server ->
                         val active = server == menu.active
                         Row(verticalAlignment = Alignment.CenterVertically) {

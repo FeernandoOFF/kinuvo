@@ -33,16 +33,17 @@ internal fun RoutineList(p: Pane) {
     val restricted = !ui.management
     ItemList(
         p, "Routines",
-        "Prompts ${ui.agent?.name ?: "the agent"} runs on a schedule, each in its own session. Add one here or ask in chat, " +
+        // An empty list explains itself in its empty state.
+        if (routines?.isEmpty() == true) "" else "Prompts ${ui.agent?.name ?: "the Agent"} runs on a schedule, each in its own Session. Add one here or ask in chat, " +
             "e.g. “every weekday at 9, summarize my inbox”.",
-        "New routine", routines == null && error == null && !restricted, canAdd = !restricted,
+        // An empty list offers one way to add, under it.
+        "New routine", routines == null && error == null && !restricted, canAdd = !restricted && routines?.isEmpty() != true,
     ) {
         when {
             restricted -> ManagementAccessRequired()
             error != null -> LoadFailure(error, onAction = p.actions.onReloadRoutines)
-            routines?.isEmpty() == true -> {
-                Text("No routines yet.", color = color(mutedColor), fontSize = 13.sp)
-                Button(onClick = { p.go(ui.route.copy(item = null, editing = true)) }, style = ButtonStyle.Outlined) { Text("Create routine") }
+            routines?.isEmpty() == true -> EmptyState(Lucide.AlarmClock, "No routines yet", "Prompts ${ui.agent?.name ?: "the Agent"} runs on a schedule. Create one here, or ask in chat, e.g. “every weekday at 9, summarize my inbox”.") {
+                Button(onClick = { p.go(ui.route.copy(item = null, editing = true)) }, style = ButtonStyle.Primary) { Text("Create routine") }
             }
         }
         if (!restricted && !routines.isNullOrEmpty()) RowGroup { routines.forEach { r ->
@@ -72,7 +73,7 @@ private fun RoutineDetail(r: Routine, p: Pane) {
     DetailPane(p.back, r.name, trailing = { HeaderButton(Lucide.Pencil, "Edit", { p.go(ui.route.copy(editing = true)) }) }) {
         ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         RowGroup {
-            GroupRow("Runs on schedule", subtitle = if (r.enabled) r.nextRun(ui.now) else "Off", chevron = false) { Switch(r.enabled, { actions.onEnabled(r.id, it) }) }
+            GroupRow("Runs on schedule", subtitle = if (r.enabled) r.nextRun(ui.now) else "Off", chevron = false, toggled = r.enabled, onToggle = { actions.onEnabled(r.id, it) })
             ActionRow("Run now", Lucide.Play, { actions.onRunNow(r.id) })
         }
         DetailGroup("Schedule") {
@@ -84,8 +85,8 @@ private fun RoutineDetail(r: Routine, p: Pane) {
         DetailGroup("Runs") {
             DetailRow("Session") {
                 val attached = r.sessionId
-                if (attached == null) Text("A new session each run")
-                else Button(onClick = { actions.onOpenSession(attached) }, style = ButtonStyle.Link) { Text("Continues one session") }
+                if (attached == null) Text("A new Session each run")
+                else Button(onClick = { actions.onOpenSession(attached) }, style = ButtonStyle.Link) { Text("Continues one Session") }
             }
             DetailRow("Approvals") { Picker(RoutineApprovals.entries, r.approvals, { it.label() }, { actions.onApprovals(r.id, it) }, hint = { it.hint() }) }
             DetailRow("Last run") {
@@ -98,14 +99,14 @@ private fun RoutineDetail(r: Routine, p: Pane) {
                     }
                 }
             }
-            r.lastError?.let { DetailRow("") { Text(it, color = color(if (r.lastStatus == RunStatus.Error) destructiveColor else mutedColor), fontSize = 13.sp) } }
+            r.lastError?.let { DetailRow("") { Text(it, color = color(if (r.lastStatus == RunStatus.Error) destructiveColor else mutedColor), style = TextStyles.secondary) } }
         }
         DetailGroup(if (r.heartbeat) "Checklist (HEARTBEAT.md)" else "Prompt") {
-            if (r.prompt.isBlank()) Text("Empty. Edit it here, or ask the agent to add items to its Heartbeat checklist.", color = color(mutedColor), fontSize = 13.sp)
+            if (r.prompt.isBlank()) Text("Empty. Edit it here, or ask the agent to add items to its Heartbeat checklist.", color = color(mutedColor), style = TextStyles.secondary)
             else Markdown(r.prompt, Modifier.fillMaxWidth())
         }
         RowGroup("Recent runs") {
-            if (ui.state.runs.isEmpty()) GroupRow(if (r.sessionId != null) "Runs continue the attached session." else "No runs yet.", tint = color(mutedColor))
+            if (ui.state.runs.isEmpty()) GroupRow(if (r.sessionId != null) "Runs continue the attached Session." else "No runs yet.", tint = color(mutedColor))
             ui.state.runs.forEach { session ->
                 GroupRow(session.id.toRunLabel(), { actions.onOpenSession(session.id) }, icon = Lucide.MessageSquare) {
                     if (session.status != SessionStatus.Idle) Pill(if (session.status == SessionStatus.Running) "Running" else "Waiting", tone = Tone.Accent)
@@ -194,10 +195,11 @@ private fun Routine.statusPill() = when {
 
 private fun Routine.icon(): ImageVector = if (heartbeat) Lucide.HeartPulse else Lucide.AlarmClock
 
-internal fun Routine.summary(now: Long) = "${trigger.describe()} · " + when {
-    !enabled && trigger is Trigger.Once && lastRunAt != null -> "done"
-    !enabled -> "off"
-    else -> nextRunAt?.let { "next ${relative(it, now)}" } ?: "not scheduled"
+// A Routine that's off says so with its pill; the summary keeps to the schedule.
+internal fun Routine.summary(now: Long) = trigger.describe() + when {
+    !enabled && trigger is Trigger.Once && lastRunAt != null -> " · done"
+    !enabled -> ""
+    else -> " · " + (nextRunAt?.let { "next ${relative(it, now).removePrefix("in ")}".replace(' ', '\u00A0') } ?: "not scheduled")
 }
 
 private fun Routine.nextRun(now: Long): String = when {
@@ -254,10 +256,19 @@ fun Trigger.describe(): String = when (this) {
         when {
             time == null -> "Cron $expr"
             f[2] == "*" && f[3] == "*" && f[4] == "*" -> "Every day at $time"
-            f[2] == "*" && f[3] == "*" -> "$time on ${f[4]}"
+            f[2] == "*" && f[3] == "*" -> days(f[4])?.let { "$it at $time" } ?: "$time on ${f[4]}"
             else -> "Cron $expr"
         }
     }
 }
 
 private fun pad(n: Int) = n.toString().padStart(2, '0')
+
+private val DAY_NAMES = listOf("Sundays", "Mondays", "Tuesdays", "Wednesdays", "Thursdays", "Fridays", "Saturdays")
+
+/** A cron day-of-week field in words, e.g. "1-5" is weekdays and "5" Fridays; null for anything else. */
+private fun days(field: String): String? = when (field.uppercase()) {
+    "1-5", "MON-FRI" -> "Weekdays"
+    "0,6", "6,0", "SAT,SUN" -> "Weekends"
+    else -> field.toIntOrNull()?.takeIf { it in 0..7 }?.let { DAY_NAMES[it % 7] }
+}

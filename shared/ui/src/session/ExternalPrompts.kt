@@ -75,11 +75,11 @@ private fun RequestCard(icon: ImageVector, title: String, detail: String?, origi
                 Icon(icon, Modifier.size(18.dp), tint = color(accentColor))
                 Text(title, Modifier.weight(1f), fontWeight = FontWeight.Normal)
             }
-            detail?.let { Text(it, fontSize = 13.sp, color = color(mutedColor)) }
+            detail?.let { Text(it, style = TextStyles.secondary, color = color(mutedColor)) }
             origin?.let {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Icon(originIcon, Modifier.size(14.dp), tint = color(mutedColor))
-                    Text(it, fontSize = 12.sp, color = color(mutedColor), maxLines = 1)
+                    Text(it, style = TextStyles.caption, color = color(mutedColor), maxLines = 1)
                 }
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { buttons() }

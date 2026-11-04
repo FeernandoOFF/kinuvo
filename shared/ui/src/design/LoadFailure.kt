@@ -43,9 +43,9 @@ private fun ContentUnavailable(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Icon(icon, Modifier.size(48.dp), tint = color(mutedColor))
-            Text(title, fontSize = 20.sp, lineHeight = 26.sp, textAlign = TextAlign.Center)
-            Text(description, fontSize = 14.sp, lineHeight = 21.sp, textAlign = TextAlign.Center)
-            instructions?.let { Text(it, color = color(mutedColor), fontSize = 12.sp, lineHeight = 18.sp, textAlign = TextAlign.Center) }
+            Text(title, style = TextStyles.headline, lineHeight = 26.sp, textAlign = TextAlign.Center)
+            Text(description, style = TextStyles.label, lineHeight = 21.sp, textAlign = TextAlign.Center)
+            instructions?.let { Text(it, color = color(mutedColor), style = TextStyles.caption, lineHeight = 18.sp, textAlign = TextAlign.Center) }
             action?.let { Button(onClick = onAction, style = ButtonStyle.Outlined) { Text(it) } }
         }
     }

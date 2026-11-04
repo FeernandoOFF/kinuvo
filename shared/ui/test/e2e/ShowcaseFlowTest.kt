@@ -14,8 +14,6 @@ class ShowcaseFlowTest {
         tap("Agents and sessions")
         await("Release notes review for the 2.0 launch.*")
         screenshot("sessions")
-        repeat(2) { swipe(60, 80, 60, 25) }
-        screenshot("sessions-scrolled")
         tap("Older sessions")
         screenshot("older-sessions")
         tap("Research Assistant for Long-Running Investigations")
@@ -31,8 +29,6 @@ class ShowcaseFlowTest {
         screenshot("today")
         repeat(2) { swipe(50, 80, 50, 30) }
         screenshot("today-scrolled")
-        repeat(2) { swipe(50, 80, 50, 30) }
-        screenshot("today-end")
     }
 
     @Test fun boardWithEveryStatus() = appTest("showcase-board", "showcase") {
@@ -41,9 +37,8 @@ class ShowcaseFlowTest {
         tap("Board")
         await("Renew passport before the summer trip.*")
         screenshot("board")
-        tap("Show done")
         repeat(3) { swipe(60, 60, 10, 60); screenshot("board-column-${it + 2}") }
-        repeat(3) { swipe(10, 60, 60, 60) }
+        tap("In progress")
         tap("Prepare the quarterly planning slides")
         screenshot("task-with-runs")
     }
@@ -57,6 +52,8 @@ class ShowcaseFlowTest {
         repeat(2) { swipe(50, 25, 50, 80); screenshot("chat-up-${it + 1}") }
         tap("Browser")
         await("Kinuvo docs")
+        requestsAtLeast("showcase/browser-watch")
+        gone("Waiting for a fresh screen…")
         screenshot("browser-tab")
     }
 

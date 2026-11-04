@@ -6,6 +6,8 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -17,6 +19,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.composables.ui.theme.borderColor
 import com.composables.ui.theme.mediumShape
@@ -35,13 +38,15 @@ import ui.generated.resources.inter_bold
 import ui.generated.resources.inter_italic
 import ui.generated.resources.inter_bolditalic
 
-/** Markdown text block, split so code fences and tables get their own components. */
+/** Markdown text block, split so headings, code fences and tables get their own components. */
 internal sealed interface MdBlock {
     data class Prose(val text: String) : MdBlock
+    data class Heading(val level: Int, val text: String) : MdBlock
     data class Code(val language: String, val code: String) : MdBlock
     data class Table(val rows: List<List<String>>) : MdBlock
 }
 
+private val heading = Regex("""^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$""")
 private val listItem = Regex("""^\s*([-*+]|\d+[.)])\s""")
 private val tableSeparator = Regex("""^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$""")
 
@@ -66,6 +71,11 @@ internal fun parseBlocks(markdown: String): List<MdBlock> {
                 while (i < lines.size && !lines[i].trimStart().startsWith(fence)) code.appendLine(lines[i++])
                 blocks += MdBlock.Code(language, code.toString())
             }
+            heading.matches(line) -> {
+                flushProse()
+                val (marks, text) = heading.find(line)!!.destructured
+                blocks += MdBlock.Heading(marks.length, text)
+            }
             line.trimStart().startsWith("|") && i + 1 < lines.size && tableSeparator.matches(lines[i + 1]) -> {
                 flushProse()
                 val rows = mutableListOf(cells(line))
@@ -86,17 +96,18 @@ internal fun parseBlocks(markdown: String): List<MdBlock> {
 
 private fun cells(row: String) = row.trim().removePrefix("|").removeSuffix("|").split("|").map { it.trim() }
 
+/** Inter: message content, and the type scale's small print. */
 @Composable
-internal fun markdownTextStyle(): TextStyle = LocalTextStyle.current.copy(
-    fontFamily = FontFamily(
-        Font(Res.font.inter_regular, FontWeight.Normal),
-        Font(Res.font.inter_semibold, FontWeight.SemiBold),
-        Font(Res.font.inter_bold, FontWeight.Bold),
-        Font(Res.font.inter_italic, FontWeight.Normal, FontStyle.Italic),
-        Font(Res.font.inter_bolditalic, FontWeight.Bold, FontStyle.Italic),
-    ),
-    fontWeight = FontWeight.Normal,
+internal fun interFamily() = FontFamily(
+    Font(Res.font.inter_regular, FontWeight.Normal),
+    Font(Res.font.inter_semibold, FontWeight.SemiBold),
+    Font(Res.font.inter_bold, FontWeight.Bold),
+    Font(Res.font.inter_italic, FontWeight.Normal, FontStyle.Italic),
+    Font(Res.font.inter_bolditalic, FontWeight.Bold, FontStyle.Italic),
 )
+
+@Composable
+internal fun markdownTextStyle(): TextStyle = LocalTextStyle.current.copy(fontFamily = interFamily(), fontWeight = FontWeight.Normal, lineHeight = 1.5.em)
 
 /** Renders Markdown: prose through compose-rich-editor, fences as [CodeBlock], pipe tables as a grid. */
 @Composable
@@ -110,6 +121,9 @@ fun Markdown(text: String, modifier: Modifier = Modifier, style: TextStyle = mar
             if (i > 0) Spacer(Modifier.height(if (block is MdBlock.Prose && blocks[i - 1] is MdBlock.Prose) blankLine else 10.dp))
             when (block) {
                 is MdBlock.Prose -> RichMarkdown(block.text, style, Modifier.fillMaxWidth())
+                // Headings take the UI's serif titles rather than the library's oversized sans.
+                is MdBlock.Heading -> RichMarkdown(block.text, (if (block.level == 1) TextStyles.headline else if (block.level == 2) TextStyles.title else TextStyles.callout)
+                    .copy(fontWeight = FontWeight.Bold), Modifier.fillMaxWidth().padding(top = if (i > 0) 6.dp else 0.dp).semantics { heading() })
                 is MdBlock.Code -> CodeBlock(block.code, language = block.language)
                 is MdBlock.Table -> MarkdownTable(block.rows, style)
             }
@@ -132,6 +146,9 @@ fun RichMarkdown(markdown: String, style: TextStyle = markdownTextStyle(), modif
         state.config.codeSpanBackgroundColor = code
         state.config.codeSpanStrokeColor = border
         state.config.codeSpanCornerRadius = 4.sp
+        // List items wrap in line with their own text, a short step in from the paragraph.
+        state.config.listIndent = 20
+        state.config.codeSpanPadding = com.mohamedrejeb.richeditor.model.TextPaddingValues(horizontal = 3.sp, vertical = 0.sp)
         state.setMarkdown(markdown)
     }
     val color = LocalContentColor.current
@@ -141,19 +158,22 @@ fun RichMarkdown(markdown: String, style: TextStyle = markdownTextStyle(), modif
 @Composable
 private fun MarkdownTable(rows: List<List<String>>, style: TextStyle) {
     val columns = rows.maxOf { it.size }
+    // Columns take room by their longest cell, so short ones don't leave long ones wrapping.
+    val weights = List(columns) { c -> rows.maxOf { it.getOrElse(c) { "" }.length }.coerceIn(4, 40).toFloat() }
     val border = color(borderColor)
     val shape = Theme[shapes][mediumShape]
-    // Columns share the width while they fit; past that the table scrolls sideways at their minimum.
+    // Every column gets a readable minimum; the rest of the width goes by content. Past the minimums the table scrolls sideways.
     BoxWithConstraints(Modifier.fillMaxWidth().clip(shape).border(1.dp, border, shape)) {
-        val fits = maxWidth >= MinColumnWidth * columns
-        Column(Modifier.horizontalScroll(rememberScrollState(), enabled = !fits).width(if (fits) maxWidth else MinColumnWidth * columns)) {
+        val spare = (maxWidth - MinColumnWidth * columns).coerceAtLeast(0.dp)
+        val widths = weights.map { MinColumnWidth + spare * (it / weights.sum()) }
+        Column(Modifier.horizontalScroll(rememberScrollState(), enabled = spare == 0.dp).width(maxOf(maxWidth, MinColumnWidth * columns))) {
             rows.forEachIndexed { r, row ->
                 Row(if (r == 0) Modifier.background(color(subtleColor)) else Modifier) {
                     repeat(columns) { c ->
                         RichMarkdown(
                             row.getOrElse(c) { "" },
                             if (r == 0) style.copy(fontWeight = FontWeight.SemiBold) else style,
-                            Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 6.dp),
+                            Modifier.width(widths[c]).padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
                         )
                     }
                 }
@@ -162,4 +182,4 @@ private fun MarkdownTable(rows: List<List<String>>, style: TextStyle) {
     }
 }
 
-private val MinColumnWidth = 140.dp
+private val MinColumnWidth = 88.dp

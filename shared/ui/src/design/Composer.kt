@@ -137,15 +137,16 @@ fun Composer(
     Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Column(Modifier.fillMaxWidth()) {
             if (notice != null || blocked != null) {
-                val noticeShape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
-                Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp).clip(noticeShape)
+                val noticeShape = RoundedCornerShape(22.dp)
+                Column(Modifier.fillMaxWidth().clip(noticeShape)
                     .background(color(panelColor)).border(1.dp, color(borderColor), noticeShape)
                     .heightIn(max = 320.dp).verticalScroll(rememberScrollState())
                     .padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    blocked?.let { Text(it, fontSize = 13.sp, color = color(mutedColor)) }
+                    blocked?.let { Text(it, style = TextStyles.secondary, color = color(mutedColor)) }
                     notice?.invoke()
                 }
             }
+            if (notice != null || blocked != null) Spacer(Modifier.height(8.dp))
             Box(Modifier.fillMaxWidth()) {
                 Column(
                     Modifier
@@ -203,7 +204,7 @@ fun Composer(
                 FormatBar(state, focused && !state.selection.collapsed, Modifier.align(Alignment.TopStart).offset(x = 8.dp, y = (-44).dp))
             }
         }
-        hint?.takeIf { blocked == null }?.let { Text(it, Modifier.fillMaxWidth(), fontSize = 11.sp, color = color(mutedColor), textAlign = TextAlign.Center) }
+        hint?.takeIf { blocked == null }?.let { Text(it, Modifier.fillMaxWidth(), style = TextStyles.overline, color = color(mutedColor), textAlign = TextAlign.Center) }
     }
 }
 
@@ -212,7 +213,8 @@ private fun VoiceButton(icon: ImageVector, label: String, onClick: (() -> Unit)?
     val background = if (active) Modifier.background(color(accentColor).copy(alpha = 0.15f), CircleShape) else Modifier
     IconButton(onClick = { onClick?.invoke() }, enabled = onClick != null, modifier = Modifier.size(40.dp).then(background), style = ButtonStyle.Ghost, shape = CircleShape,
         contentColor = color(if (active) accentColor else onFieldColor)) {
-        if (active) VoiceBars(active = true) else Icon(icon, Modifier.size(22.dp), contentDescription = if (onClick != null) label else "$label (coming soon)")
+        // The bars replace the icon while active, so they carry its label.
+        if (active) VoiceBars(Modifier.semantics { contentDescription = label }, active = true) else Icon(icon, Modifier.size(22.dp), contentDescription = if (onClick != null) label else "$label (coming soon)")
     }
 }
 
@@ -267,7 +269,7 @@ private fun FormatBar(state: RichTextState, visible: Boolean, modifier: Modifier
 
 @Composable
 private fun FormatToggle(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
-    Tooltip(panel = { TooltipPanel { Text(label, fontSize = 12.sp) } }) {
+    Hint(label) {
         IconButton(
             onClick = onClick,
             modifier = Modifier.size(28.dp).focusProperties { canFocus = false },

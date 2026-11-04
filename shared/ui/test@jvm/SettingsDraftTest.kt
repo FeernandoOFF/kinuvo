@@ -85,7 +85,7 @@ class SettingsDraftTest {
                 nested.value = true
                 settle()
                 val back = descriptions("Back").single()
-                assertFalse(nodes().any { it.config.getOrNull(SemanticsProperties.Text)?.any { t -> t.text == "Agent settings · every Session" } == true })
+                assertFalse(nodes().any { it.config.getOrNull(SemanticsProperties.Text)?.any { t -> t.text == "Agent settings for every Session" } == true })
                 var button = back
                 while (button.config.getOrNull(SemanticsActions.OnClick) == null) button = assertNotNull(button.parent)
                 button.config[SemanticsActions.OnClick].action!!.invoke()

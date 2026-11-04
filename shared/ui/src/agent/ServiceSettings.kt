@@ -72,8 +72,8 @@ private fun ProviderField(field: SettingsField, form: ServiceFormState, p: Pane,
     val actions: (@Composable () -> Unit)? = if (field.randomPrefix != null || field.link != null) {
         {
             Row {
-                field.randomPrefix?.let { HeaderButton(Lucide.Dices, "Generate ${field.label}", { change { it.generate(field.key) } }) }
-                field.link?.let { HeaderButton(Lucide.ExternalLink, "Open ${field.label}", { link?.let(uri::openUri) }, enabled = link != null) }
+                field.randomPrefix?.let { FieldButton(Lucide.Dices, "Generate ${field.label}", { change { it.generate(field.key) } }) }
+                field.link?.let { FieldButton(Lucide.ExternalLink, "Open ${field.label}", { link?.let(uri::openUri) }, enabled = link != null) }
             }
         }
     } else null
@@ -92,7 +92,7 @@ private fun ProviderField(field: SettingsField, form: ServiceFormState, p: Pane,
             } else Input(input, placeholder, trailing = actions)
             if (configured) Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(if (removing) Lucide.CircleAlert else Lucide.CircleCheck, Modifier.size(14.dp), tint = color(if (removing) warningColor else successColor))
-                Text(if (removing) "  Removed when you save" else "  Saved on the Server", Modifier.weight(1f), fontSize = 13.sp, color = color(mutedColor))
+                Text(if (removing) "  Removed when you save" else "  Saved on the Server", Modifier.weight(1f), style = TextStyles.secondary, color = color(mutedColor))
                 if (removing) Button({ change { it.keepSecret(field.key) } }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Keep") }
                 else Button({ change { it.removeSecret(field.key) } }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(destructiveColor)) { Text("Remove") }
             }

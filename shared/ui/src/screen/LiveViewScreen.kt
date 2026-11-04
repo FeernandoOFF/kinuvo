@@ -173,8 +173,8 @@ internal fun TabStrip(state: LiveViewState, actions: LiveActions) {
                 .clickable(onClickLabel = screen.title) { actions.select(screen.ref) }.padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (yours || paused) Icon(Lucide.Hand, Modifier.size(13.dp), tint = tabColor)
-                else if (screen.active) Spinner(size = 12.dp) else Icon(if (screen.ref.owner == null) Lucide.Monitor else Lucide.Globe, Modifier.size(13.dp), tint = color(mutedColor))
-                Text(screen.title.ifBlank { "New tab" }, Modifier.weight(1f, fill = false), fontSize = 13.sp, singleLine = true, overflow = TextOverflow.Ellipsis,
+                else if (screen.active) Spinner(size = 12.dp) else Icon(screen.icon(), Modifier.size(13.dp), tint = color(mutedColor))
+                Text(screen.title.ifBlank { "New tab" }, Modifier.weight(1f, fill = false), style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis,
                     color = if (selected) Color.Unspecified else color(mutedColor))
                 if (screen.capabilities.tabs)
                     IconButton(onClick = { actions.close(screen.ref) }, enabled = state.connected && !state.pending, style = ButtonStyle.Ghost, modifier = Modifier.size(18.dp)) {
@@ -199,7 +199,7 @@ internal fun AddressBar(state: LiveViewState, actions: LiveActions) {
             Icon(if (address.startsWith("https://")) Lucide.Lock else Lucide.Globe, Modifier.size(13.dp), tint = color(mutedColor))
             androidx.compose.foundation.text.BasicTextField(address, { address = it }, Modifier.weight(1f).semantics { contentDescription = "Address" },
                 enabled = state.interactive, singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(color = color(mutedColor), fontSize = 13.sp),
+                textStyle = androidx.compose.ui.text.TextStyle(color = color(mutedColor), fontSize = TextStyles.secondary.fontSize),
                 keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Go),
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(onGo = { actions.command(ScreenCommandKind.Navigate, address) }))
         }
@@ -246,7 +246,7 @@ private fun Stage(state: LiveViewState, screen: ScreenInfo, actions: LiveActions
             .border(if (status == Status.Yours) 2.dp else 1.dp, if (status == Status.Watching || status == Status.Offline) color(borderColor) else status.tone.color(), shape)) {
             LiveCanvas(state.frame, state.interactive, actions.input, actions.drawn, actions.decodeFailed,
                 Modifier.fillMaxSize(), state.control.generation, "scroll" in screen.capabilities.inputs, onFocus)
-            if (!state.connected) state.frameReceivedAt?.let { Text("Last frame · $it", Modifier.align(Alignment.BottomStart).padding(8.dp), fontSize = 12.sp, color = color(mutedColor)) }
+            if (!state.connected) state.frameReceivedAt?.let { Text("Last frame · $it", Modifier.align(Alignment.BottomStart).padding(8.dp), style = TextStyles.caption, color = color(mutedColor)) }
         }
     }
 }
@@ -287,8 +287,8 @@ internal fun ScreenOverview(state: LiveViewState, actions: LiveActions, modifier
                 LiveCanvas(if (selected) state.frame else state.thumbnails[screen.ref], false,
                     { _, _ -> }, actions.drawn, {}, Modifier.fillMaxWidth().aspectRatio(1.6f).clip(RoundedCornerShape(6.dp)).background(color(backgroundColor)), gestures = false)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Icon(if (screen.ref.owner == null) Lucide.Monitor else Lucide.Globe, Modifier.size(13.dp), tint = color(mutedColor))
-                    Text(screen.title, Modifier.weight(1f), fontSize = 13.sp, singleLine = true, overflow = TextOverflow.Ellipsis)
+                    Icon(screen.icon(), Modifier.size(13.dp), tint = color(mutedColor))
+                    Text(screen.title, Modifier.weight(1f), style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis)
                     if (screen.capabilities.tabs) IconButton(onClick = { actions.close(screen.ref) }, enabled = state.connected && !state.pending, style = ButtonStyle.Ghost, modifier = Modifier.size(20.dp)) {
                         Icon(Lucide.X, Modifier.size(12.dp), contentDescription = "Close ${screen.title.ifBlank { "tab" }}")
                     }
@@ -340,7 +340,10 @@ internal fun LiveCanvas(frame: ScreenFrame?, interactive: Boolean, input: (Scree
             val my = ((imageHeightPx * zoom - surfaceHeight) / 2).coerceAtLeast(0f)
             pan = Offset(pan.x.coerceIn(-mx, mx), pan.y.coerceIn(-my, my))
         }
-        if (shown == null) Text("Waiting for a fresh screen…", color = color(mutedColor))
+        if (shown == null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Spinner()
+            Text("Waiting for a fresh screen…", color = color(mutedColor), style = TextStyles.secondary)
+        }
         Box(Modifier.fillMaxSize().then(if (gestures) Modifier.pointerInput(binding, trackpad) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
@@ -469,7 +472,7 @@ internal fun RemoteKeyboard(state: LiveViewState, actions: LiveActions, focus: F
             keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Go, showKeyboardOnFocus = false),
             keyboardActions = KeyboardActions(onGo = { send(listOf(ScreenAction(ScreenActionKind.Key, key = "Enter"))) }),
             decorationBox = { field ->
-                Box { if (expanded && !compact && value.text == RemoteInputAnchor) Text("Type directly into the page…", color = color(mutedColor), fontSize = 13.sp); field() }
+                Box { if (expanded && !compact && value.text == RemoteInputAnchor) Text("Type directly into the page…", color = color(mutedColor), style = TextStyles.secondary); field() }
             })
         if (expanded && !compact) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -480,7 +483,7 @@ internal fun RemoteKeyboard(state: LiveViewState, actions: LiveActions, focus: F
                     HeaderButton(icon, key, { send(listOf(ScreenAction(ScreenActionKind.Key, key = key))); focus.requestFocus() }, enabled = state.interactive)
                 }
             }
-            Text(if (focused) "Typing into the focused field on the page" else "Tap the page field, then type here", fontSize = 12.sp, color = color(mutedColor))
+            Text(if (focused) "Typing into the focused field on the page" else "Tap the page field, then type here", style = TextStyles.caption, color = color(mutedColor))
         }
     }
 }
@@ -507,27 +510,27 @@ internal fun remoteKey(event: KeyEvent, capabilities: ScreenCapabilities): Strin
 
 /** The Computers Agents can control: a list, opening one to its Live view, beside the list on wide windows. */
 @Composable
-fun ComputersScreen(model: LiveViewModel, list: Boolean, onOpen: (ScreenRef) -> Unit, back: (() -> Unit)?) {
+fun ComputersScreen(model: LiveViewModel, list: Boolean, onOpen: (ScreenRef) -> Unit, back: (() -> Unit)?, server: String? = null) {
     val state by model.state.collectAsState()
     val actions = LiveActions(model::select, model::takeover, model::open, model::command, model::input, model::drawn, model::decodeFailed, model::retry, model::showOverview, model::close, model::resize, model::presentation)
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
         if (maxWidth >= 900.dp) Row(Modifier.fillMaxSize()) {
-            Box(Modifier.width(340.dp).fillMaxHeight().background(color(sidebarColor))) { ComputerList(state, actions.retry, actions.select, selected = state.selected) }
+            Box(Modifier.width(340.dp).fillMaxHeight().background(color(sidebarColor))) { ComputerList(state, actions.retry, actions.select, selected = state.selected, server = server) }
             VerticalSeparator()
             Box(Modifier.weight(1f)) {
                 DisposableEffect(model) { model.visible(true); onDispose { model.visible(false) } }
                 if (state.screen != null) LiveViewContent(state, actions, null, docked = true)
                 else Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text(if (state.loaded) "Pick a Computer to watch it." else "Finding Computers…", color = color(mutedColor)) }
             }
-        } else if (list) ComputerList(state, actions.retry, onOpen)
+        } else if (list) ComputerList(state, actions.retry, onOpen, server = server)
         else LiveViewScreen(model, back)
     }
 }
 
 @Composable
-internal fun ComputerList(state: LiveViewState, onRetry: () -> Unit, onOpen: (ScreenRef) -> Unit, selected: ScreenRef? = null) {
+internal fun ComputerList(state: LiveViewState, onRetry: () -> Unit, onOpen: (ScreenRef) -> Unit, selected: ScreenRef? = null, server: String? = null) {
     Column(Modifier.fillMaxSize()) {
-        PageHeader(Lucide.MonitorSmartphone, "Computers")
+        PageHeader(Lucide.MonitorSmartphone, "Computers", server)
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             when {
                 !state.loaded && state.error != null -> {
@@ -535,12 +538,13 @@ internal fun ComputerList(state: LiveViewState, onRetry: () -> Unit, onOpen: (Sc
                     RowGroup { ActionRow("Retry", Lucide.RefreshCw, onRetry) }
                 }
                 !state.loaded -> Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
-                state.screens.isEmpty() -> Text("No Computers yet. Allow computer use on a phone or computer under Settings → This Device's tools, and turn on computer use in an Agent's tools.",
-                    Modifier.padding(horizontal = 6.dp), color = color(mutedColor))
+                state.screens.isEmpty() -> EmptyState(Lucide.MonitorSmartphone, "No Computers yet",
+                    "Allow computer use on a phone or computer under Settings → This Device's tools, and turn on computer use in an Agent's tools.")
                 else -> RowGroup {
                     state.screens.forEach { screen ->
                         val status = screen.status(state.connected, state.device, state.requestReason.takeIf { screen.ref == state.selected })
-                        GroupRow(screen.title, { onOpen(screen.ref) }, status.label, Lucide.Monitor, selected = screen.ref == selected) {
+                        // A status with its own pill doesn't repeat itself underneath.
+                        GroupRow(screen.title, { onOpen(screen.ref) }, status.label.takeUnless { status in setOf(Status.Working, Status.Needed, Status.Elsewhere, Status.Suspended, Status.Yours) }, screen.icon(), selected = screen.ref == selected, enabled = status != Status.Unavailable, chevron = status != Status.Unavailable) {
                             when (status) {
                                 Status.Working -> Pill("Working", tone = Tone.Accent, loading = true)
                                 Status.Needed, Status.Elsewhere, Status.Suspended -> Pill("Needs you", tone = Tone.Warning)
@@ -597,4 +601,11 @@ internal fun BrowserRestartDialog(target: Boolean?, state: LiveViewState, action
             }
         }
     }
+}
+
+/** A Browser tab, a phone (it has Recents) or a computer. */
+internal fun ScreenInfo.icon() = when {
+    ref.owner != null -> Lucide.Globe
+    "Recents" in capabilities.keys -> Lucide.Smartphone
+    else -> Lucide.Monitor
 }

@@ -15,12 +15,14 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.composables.compose.ripple.rememberRippleIndication
 import com.composables.interactioncapabilities.currentInteractionCapabilities
 import kinuvo.protocol.Platform
 import kinuvo.protocol.currentPlatform
 import com.composables.ui.theme.*
+import com.composeunstyled.LocalTextStyle
 import com.composeunstyled.theme.Theme
 import com.composeunstyled.theme.ThemeToken
 import com.composeunstyled.theme.buildTheme
@@ -72,6 +74,24 @@ private val LocalAccent = compositionLocalOf<Color?> { null }
 /** Overrides the platform's interaction mode, e.g. so JVM UI tests render the phone layout. */
 internal val LocalForcedInteractionMode = compositionLocalOf<InteractionMode?> { null }
 
+/**
+ * The type scale, each a step larger on touch screens. Headings and body set in Libron, the brand serif; the small print
+ * ([secondary], [caption], [overline]) in Inter, which holds up better at those sizes.
+ */
+object TextStyles {
+    val headline: TextStyle @Composable get() = libron(22, 20)
+    val title: TextStyle @Composable get() = libron(17, 16)
+    val callout: TextStyle @Composable get() = libron(16, 15)
+    val label: TextStyle @Composable get() = libron(15, 14)
+    val secondary: TextStyle @Composable get() = inter(14, 13)
+    val caption: TextStyle @Composable get() = inter(13, 12)
+    val overline: TextStyle @Composable get() = inter(12, 11)
+
+    @Composable private fun touch() = LocalInteractionMode.current == InteractionMode.Touch
+    @Composable private fun libron(touch: Int, pointer: Int) = LocalTextStyle.current.copy(fontSize = (if (touch()) touch else pointer).sp, lineHeight = 1.4.em)
+    @Composable private fun inter(touch: Int, pointer: Int) = libron(touch, pointer).copy(fontFamily = interFamily(), fontWeight = FontWeight.Normal)
+}
+
 val MonoStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, lineHeight = 19.sp)
 
 private val HarnessThemeComposable = buildTheme {
@@ -104,7 +124,7 @@ private val HarnessThemeComposable = buildTheme {
         borderColor to p.border,
         fieldColor to p.field,
         onFieldColor to p.text,
-        scrimColor to Color.Black.copy(alpha = if (dark) 0.5f else 0.32f),
+        scrimColor to Color.Black.copy(alpha = if (dark) 0.6f else 0.4f),
         ringColor to p.accent.copy(alpha = 0.5f),
         accentColor to p.accent,
         onAccentColor to p.onAccent,
@@ -141,13 +161,13 @@ private val HarnessThemeComposable = buildTheme {
         Font(Res.font.libron_italic, FontWeight.Normal, FontStyle.Italic),
         Font(Res.font.libron_bolditalic, FontWeight.Bold, FontStyle.Italic),
     )
-    defaultTextStyle = TextStyle(fontFamily = fontFamily, fontSize = if (touch) 17.sp else 14.sp, lineHeight = if (touch) 26.sp else 21.sp, fontWeight = FontWeight.Normal)
+    defaultTextStyle = TextStyle(fontFamily = fontFamily, fontSize = if (touch) 17.sp else 14.sp, lineHeight = 1.5.em, fontWeight = FontWeight.Normal)
     defaultContentColor = p.text
-    val ripple = HapticIndication(rememberRippleIndication(p.text.copy(alpha = 0.08f)))
+    val ripple = HapticIndication(rememberRippleIndication(p.text.copy(alpha = 0.08f)), touch)
     defaultIndication = ripple
     properties[indications] = mapOf(
         com.composables.ui.theme.defaultIndication to ripple,
-        inverseIndication to HapticIndication(rememberRippleIndication(p.background.copy(alpha = 0.12f))),
+        inverseIndication to HapticIndication(rememberRippleIndication(p.background.copy(alpha = 0.12f)), touch),
     )
 
     extend { content ->

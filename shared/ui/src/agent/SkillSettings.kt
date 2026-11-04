@@ -54,15 +54,17 @@ internal fun SkillPane(p: Pane) {
 private fun SkillDetail(s: SkillDetails, p: Pane) {
     val info = s.info
     val editable = info.scope != ConfigScope.External
-    DetailPane(p.back, info.name, trailing = { if (editable) HeaderButton(Lucide.Pencil, "Edit", { p.go(p.ui.route.copy(editing = true)) }) }) {
+    DetailPane(p.back, "/${info.name}", trailing = { if (editable) HeaderButton(Lucide.Pencil, "Edit", { p.go(p.ui.route.copy(editing = true)) }) }) {
         p.ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         RowGroup {
-            GroupBox { Text(info.description) }
-            GroupRow("Where", subtitle = info.where() + if (info.active) "" else " · shadowed by another skill of the same name")
-            GroupRow("Used by", subtitle = info.invocation())
+            GroupBox {
+                Text(info.description)
+                DetailRow("Where") { Text(info.where() + if (info.active) "" else " · shadowed by another skill of the same name", style = markdownTextStyle()) }
+                DetailRow("Used by") { Text(info.invocation(), style = markdownTextStyle()) }
+            }
         }
         if (s.files.isNotEmpty()) RowGroup("Files") { s.files.forEach { GroupRow(it, icon = Lucide.File) } }
-        DetailGroup("SKILL.md") { CodeBlock(s.content, language = "markdown") }
+        CodeBlock(s.content, language = "SKILL.md")
         if (editable) RowGroup {
             ConfirmRow("Delete skill", Lucide.Trash2, "Delete ${info.name}?", { p.actions.onDeleteSkill(info.scope, info.name) }, "Delete",
                 detail = "${p.ui.agent?.name ?: "The agent"} can no longer load it.")
@@ -95,10 +97,10 @@ private fun SkillForm(s: SkillDetails?, p: Pane) {
 private const val TEMPLATE = "---\nname: my-skill\ndescription: What it does and when to use it.\n---\n\nInstructions for the agent.\n"
 
 private fun SkillInfo.where() = when (scope) {
-    ConfigScope.Agent -> "This agent's skills"
+    ConfigScope.Agent -> "This Agent's skills"
     ConfigScope.Shared -> "Shared with every agent"
     ConfigScope.External -> "An extra skill folder (read-only)"
 }
 
-private fun SkillInfo.invocation() = listOfNotNull("the agent".takeIf { modelInvocable }, "you, with /$name".takeIf { userInvocable })
-    .joinToString(" and ").ifEmpty { "no one" }
+private fun SkillInfo.invocation() = listOfNotNull("The Agent".takeIf { modelInvocable }, "you, with /$name".takeIf { userInvocable })
+    .joinToString(" and ").replaceFirstChar { it.uppercase() }.ifEmpty { "No one" }

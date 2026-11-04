@@ -102,7 +102,7 @@ private fun ArtifactList(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                 state.shown.isEmpty() -> item {
                     Text(
                         if (all.isEmpty()) "No artifacts yet. Ask an agent for a report, chart or page and it saves one here." else "No matches.",
-                        Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = color(mutedColor), fontSize = 13.sp,
+                        Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = color(mutedColor), style = TextStyles.secondary,
                     )
                 }
                 else -> itemsIndexed(state.shown, key = { _, a -> a.id }) { i, a ->
@@ -124,7 +124,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
             back?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
             Column(Modifier.weight(1f).padding(start = 4.dp)) {
                 Text(data?.info?.title ?: "Artifact", fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
-                data?.info?.let { Text("${it.type} · ${agents.name(it.agentId)} · ${relative(it.updated, now)}", fontSize = 12.sp, color = color(mutedColor), singleLine = true) }
+                data?.info?.let { Text("${it.type} · ${agents.name(it.agentId)} · ${relative(it.updated, now)}", style = TextStyles.caption, color = color(mutedColor), singleLine = true) }
             }
             val full = state.route.fullScreen
             HeaderButton(if (full) Lucide.Minimize2 else Lucide.Maximize2, if (full) "Exit full screen" else "Full screen", { actions.onFullScreen(!full) })

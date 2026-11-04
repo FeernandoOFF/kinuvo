@@ -271,7 +271,7 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
                 sections.forEach { section ->
                     ListRow(selected = section == selected, onClick = { open(section) }, enabled = ui.available(section), leading = { Icon(section.icon(), Modifier.size(16.dp)) }) {
                         Text(section.title, Modifier.weight(1f), singleLine = true)
-                        section.count(ui)?.let { Text("$it", fontSize = 12.sp, color = color(mutedColor)) }
+                        section.count(ui)?.let { Text("$it", style = TextStyles.caption, color = color(mutedColor)) }
                     }
                 }
             }
@@ -393,7 +393,7 @@ internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, l
         if (scope != null && p.back == null) PageHeader(p.ui.route.section?.icon() ?: Lucide.Settings, title, scope = scope, actions = if (canAdd) listOf(add) else emptyList())
         else SettingsPageHeader(title, p.back) { if (canAdd) HeaderButton(add.icon, add.label, add.onClick) }
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(intro, Modifier.padding(horizontal = 6.dp), color = color(mutedColor), fontSize = 13.sp)
+            if (intro.isNotEmpty()) Text(intro, color = color(mutedColor), style = TextStyles.label)
             if (loading) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
             else rows()
         }
@@ -403,19 +403,19 @@ internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, l
 /** A list row with a title, a muted [subtitle] and trailing pills. */
 @Composable
 internal fun ItemRow(selected: Boolean, icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, trailing: @Composable RowScope.() -> Unit = {}) =
-    GroupRow(title, onClick, subtitle, icon, selected = selected, trailing = trailing)
+    GroupRow(title, onClick, subtitle, icon, selected = selected, titleLines = 2, trailing = trailing)
 
 /**
  * A detail or form screen: a title bar with [trailing] controls over a centered, scrolling column, led by any [error].
  * [info] describes the screen behind a (?) by the title.
  */
 @Composable
-internal fun DetailPane(back: (() -> Unit)?, title: String, error: String? = null, info: String? = null, trailing: @Composable RowScope.() -> Unit = {}, content: @Composable ColumnScope.() -> Unit) {
+internal fun DetailPane(back: (() -> Unit)?, title: String, error: String? = null, info: String? = null, subtitle: String? = null, trailing: @Composable RowScope.() -> Unit = {}, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxSize()) {
-        SettingsPageHeader(title, back, info = info, trailing = trailing)
+        SettingsPageHeader(title, back, subtitle = subtitle, info = info, trailing = trailing)
         Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
             Column(
-                Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 error?.let { ErrorMessage(it) }
@@ -426,24 +426,17 @@ internal fun DetailPane(back: (() -> Unit)?, title: String, error: String? = nul
 }
 
 @Composable
-internal fun DetailGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        SectionLabel(title, Modifier.padding(start = 0.dp))
-        Panel(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
-        }
-    }
-}
+internal fun DetailGroup(title: String, content: @Composable ColumnScope.() -> Unit) = RowGroup(title) { GroupBox(content) }
 
 /** A label beside its value; narrow, above it. */
 @Composable
 internal fun DetailRow(label: String, value: @Composable () -> Unit) {
     BoxWithConstraints {
         if (maxWidth < 420.dp) Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            if (label.isNotEmpty()) Text(label, color = color(mutedColor), fontSize = 13.sp)
+            if (label.isNotEmpty()) Text(label, color = color(mutedColor), style = TextStyles.secondary)
             value()
         } else Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(label, Modifier.width(120.dp), color = color(mutedColor), fontSize = 13.sp)
+            Text(label, Modifier.width(120.dp), color = color(mutedColor), style = TextStyles.secondary)
             Box(Modifier.weight(1f)) { value() }
         }
     }
@@ -454,7 +447,7 @@ internal fun DetailRow(label: String, value: @Composable () -> Unit) {
 internal fun FormField(label: String, hint: String? = null, content: @Composable () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(label, fontSize = 13.sp, fontWeight = FontWeight.Normal)
+            Text(label, style = TextStyles.secondary, color = color(mutedColor))
             hint?.let { InfoButton(it) }
         }
         content()
@@ -465,7 +458,7 @@ internal fun FormField(label: String, hint: String? = null, content: @Composable
 @Composable
 internal fun FieldRow(label: String, hint: String? = null, content: @Composable () -> Unit) = GroupBox {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(label, fontSize = 13.sp, color = color(mutedColor))
+        Text(label, style = TextStyles.secondary, color = color(mutedColor))
         hint?.let { InfoButton(it) }
     }
     content()
@@ -485,7 +478,7 @@ internal fun <T> PickerRow(title: String, options: List<T>, current: T, label: (
                     DropdownMenuItem(onClick = { open = false; onSelect(option) }, trailing = if (option == current) ({ Icon(Lucide.Check, Modifier.size(14.dp)) }) else null) {
                         Column {
                             Text(label(option))
-                            hint?.invoke(option)?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+                            hint?.invoke(option)?.takeIf { it.isNotEmpty() }?.let { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
                         }
                     }
                 }
@@ -501,24 +494,27 @@ internal fun <T> PickerRow(title: String, options: List<T>, current: T, label: (
 /** A setting turned on or off as a row of a [RowGroup]. */
 @Composable
 internal fun SwitchRow(title: String, checked: Boolean, onChange: (Boolean) -> Unit, subtitle: String? = null, icon: ImageVector? = null, enabled: Boolean = true) =
-    GroupRow(title, subtitle = subtitle, icon = icon, enabled = enabled, chevron = false) { if (enabled) Switch(checked, onChange) }
+    GroupRow(title, subtitle = subtitle, icon = icon, enabled = enabled, chevron = false, toggled = checked, onToggle = onChange)
 
 /** A (?) showing [text] when tapped: over the app on touch screens, by the button otherwise. */
 @Composable
-internal fun InfoButton(text: String) {
+internal fun InfoButton(text: String, header: Boolean = false) {
     var open by remember { mutableStateOf(false) }
+    val touch = LocalInteractionMode.current == InteractionMode.Touch
     val trigger: @Composable () -> Unit = {
-        IconButton(onClick = { open = !open }, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor), modifier = Modifier.size(24.dp)) {
+        // In a header, it matches the header's other round buttons.
+        IconButton(onClick = { open = !open }, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor),
+            modifier = if (header && touch) Modifier.size(44.dp).background(color(subtleColor), CircleShape) else Modifier.size(if (touch) 40.dp else 24.dp)) {
             Icon(Lucide.CircleQuestionMark, Modifier.size(14.dp), contentDescription = "About this")
         }
     }
     if (LocalInteractionMode.current == InteractionMode.Touch && LocalPopovers.current != null) {
         trigger()
-        Popover(open, { open = false }) { Text(text, fontSize = 14.sp) }
+        Popover(open, { open = false }) { Text(text, style = TextStyles.label) }
     } else DropdownMenu(
         expanded = open,
         onExpandedChange = { open = it },
-        panel = { DropdownMenuPanel { Text(text, Modifier.widthIn(max = 320.dp).padding(horizontal = 10.dp, vertical = 6.dp), fontSize = 13.sp) } },
+        panel = { DropdownMenuPanel { Text(text, Modifier.widthIn(max = 320.dp).padding(horizontal = 10.dp, vertical = 6.dp), style = TextStyles.secondary) } },
     ) { trigger() }
 }
 
@@ -542,11 +538,12 @@ internal fun TextArea(state: TextFieldState, placeholder: String = "", lines: In
 
 /** A dropdown of [options]; [hint] adds a muted second line to each. */
 @Composable
-internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSelect: (T) -> Unit, hint: ((T) -> String)? = null) {
+internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSelect: (T) -> Unit, hint: ((T) -> String)? = null, icon: ImageVector? = null, modifier: Modifier = Modifier, stretch: Boolean = false) {
     var open by remember { mutableStateOf(false) }
     DropdownMenu(
         expanded = open,
         onExpandedChange = { open = it },
+        modifier = modifier,
         panel = {
             DropdownMenuPanel {
                 options.forEach { option ->
@@ -556,16 +553,17 @@ internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSe
                     ) {
                         Column {
                             Text(label(option))
-                            hint?.invoke(option)?.takeIf { it.isNotEmpty() }?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+                            hint?.invoke(option)?.takeIf { it.isNotEmpty() }?.let { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
                         }
                     }
                 }
             }
         },
     ) {
-        Button(onClick = { open = true }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 6.dp)) {
-            Text(label(current))
-            Spacer(Modifier.width(4.dp))
+        Button(onClick = { open = true }, modifier = if (stretch) Modifier.fillMaxWidth() else Modifier, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 10.dp)) {
+            icon?.let { Icon(it, Modifier.size(14.dp), tint = color(mutedColor)) }
+            // Stretched to a given width, the label takes the room and the chevron keeps to the end.
+            Text(label(current), if (stretch) Modifier.weight(1f) else Modifier.widthIn(max = 180.dp), style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             Icon(Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
         }
     }
@@ -583,10 +581,15 @@ internal fun FormButtons(saveLabel: String, enabled: Boolean, error: String?, on
 
 /** A form's title-bar actions: "Saved" after a save, Cancel when [onCancel] is set, and the primary button. */
 @Composable
+internal fun SaveButton(onSave: () -> Unit, enabled: Boolean = true) =
+    Button(onClick = onSave, enabled = enabled, style = if (enabled) ButtonStyle.Primary else ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Save") }
+
+/** Save, and Cancel where [onCancel] is set, for a form's header; a touch screen's sheet shows Save while there's something to save. */
+@Composable
 internal fun FormActions(saveLabel: String, enabled: Boolean, saved: Boolean, onSave: () -> Unit, onCancel: (() -> Unit)? = null, dirty: Boolean = enabled) {
     TrackSettingsEdits(dirty)
     if (LocalInteractionMode.current == InteractionMode.Touch) {
-        if (dirty) HeaderButton(Lucide.Check, "Save", onSave, enabled = enabled)
+        if (dirty) SaveButton(onSave, enabled)
         return
     }
     Row(Modifier.titleBarControl(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {

@@ -92,12 +92,13 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
         rules = rules.takeIf { it != d.rules },
     )
     val dirty = changes != UpdateAgentParams(d.info.id)
-    DetailPane(p.back, section.title, error = p.ui.error, trailing = { FormActions("Save", dirty, p.ui.state.saved && !dirty, onSave = { p.actions.onSaveAgent(changes) }) }) {
+    DetailPane(p.back, section.title, error = p.ui.error, subtitle = "${p.ui.agent?.name ?: "Agent"} · every Session", trailing = { FormActions("Save", dirty, p.ui.state.saved && !dirty, onSave = { p.actions.onSaveAgent(changes) }) }) {
         when (section) {
             SettingsSection.Workspace -> {
-                DetailGroup("Shell and files") {
+                RowGroup("Shell and files") {
                     val (offered, missing) = EXEC.keys.partition { it == "none" || p.ui.capabilities.offers(Integration.Exec, it) }
-                    DetailRow("Runs on") { Picker((offered + s.exec).distinct(), exec, { EXEC[it] ?: it }, { exec = it }) }
+                    PickerRow("Runs on", (offered + s.exec).distinct(), exec, { EXEC[it] ?: it.replaceFirstChar { c -> c.uppercase() } }, { exec = it }, icon = Lucide.Server)
+                    GroupBox {
                     if (missing.isNotEmpty()) Text("Not available on this Server: ${missing.joinToString { EXEC.getValue(it).lowercase() }}.", color = color(mutedColor))
                     // Older Servers ignore these settings and have no test; they're edited in agent.yaml there.
                     val legacy = p.ui.capabilities?.integrations == null
@@ -117,8 +118,9 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
                     val remote = if (exec == "ssh") "on the remote machine" else "on the Server"
                     val windows = p.ui.capabilities?.platform == Platform.Windows
                     if (exec == "host" && windows) Text("Commands use Bash. Install Git for Windows and add its bin folder (e.g. C:/Program Files/Git/bin) to PATH, then restart Kinuvo.", color = color(mutedColor))
-                    if (exec != "none") FormField("Workspace", "Folders $remote the agent's file tools may touch, one per line; commands start in the first.") {
-                        TextArea(workspace, if (windows && exec != "ssh") "C:/Users/you/projects" else "~/projects", lines = 2, capitalize = false)
+                    if (exec != "none") FormField("Folders", "Folders $remote the agent's file tools may touch, one per line; commands start in the first.") {
+                        TextArea(workspace, "e.g. " + if (windows && exec != "ssh") "C:/Users/you/projects" else "~/projects", lines = 1, capitalize = false)
+                    }
                     }
                 }
                 if (exec != "none" && p.ui.capabilities?.integrations != null) DetailGroup("Test") {
@@ -225,7 +227,7 @@ internal fun NewAgentForm(p: Pane) {
 }
 
 internal val REASONING = listOf("minimal", "low", "medium", "high", "xhigh")
-internal val TOOLS = listOf("memory" to "Memory", "web_fetch" to "Web (fetch, search)", "skills" to "Skills", "schedule" to "Routines", "knowledge" to "Knowledge", "tasks" to "Tasks", "ask_user" to "Ask the user (forms)", "artifact" to "Artifacts", "device_tools" to "Device tools (Contacts, workouts, sleep)", "run_code" to "Scripts (chain tool calls in JavaScript)", "computer" to "Computer use (see and control a screen)", "browser" to "Browser (Server-owned tabs)")
+internal val TOOLS = listOf("memory" to "Memory (what it remembers across Sessions)", "web_fetch" to "Web (fetch, search)", "skills" to "Skills (instructions it can load)", "schedule" to "Routines (prompts on a schedule)", "knowledge" to "Knowledge (your Notes)", "tasks" to "Tasks (the Board)", "ask_user" to "Ask the user (forms)", "artifact" to "Artifacts (pages and charts)", "device_tools" to "Device tools (Contacts, workouts, sleep)", "run_code" to "Scripts (chain tool calls in JavaScript)", "computer" to "Computer use (see and control a screen)", "browser" to "Browser (Server-owned tabs)")
 internal val APPROVALS = mapOf(
     "strict" to "Every tool call",
     "default" to "Anything that changes things",

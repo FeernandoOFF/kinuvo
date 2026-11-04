@@ -97,6 +97,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.foundation.text.input.clearText
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.draw.alpha
@@ -384,7 +387,11 @@ fun ChatContent(
                     exit = fadeOut() + slideOutVertically { -it }) {
                     shownVoice?.let { VoiceStatus(it) }
                 }
+                val background = color(backgroundColor)
+                val fade = with(density) { ComposerFade.toPx() }
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { composerHeight = with(density) { it.height.toDp() } }
+                    // Phones: messages fade out just above the composer and never show around it.
+                    .then(if (floating) Modifier.background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background), endY = fade)).padding(top = ComposerFade) else Modifier)
                     .onFocusChanged { composerFocused = it.hasFocus }.padding(horizontal = 16.dp).padding(bottom = if (wide) 10.dp else 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     LaunchedEffect(state.unsent) { state.unsent?.let { if (draft.annotatedString.text.isBlank()) draft.setMarkdown(it) } }
                     var dictated by remember { mutableStateOf<DictationDraft?>(null) }
@@ -410,8 +417,8 @@ fun ChatContent(
                     } }
                     val requestNotice: (@Composable () -> Unit)? = if (connectionNotice != null || state.dictation?.error != null) ({
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            state.dictation?.error?.let { Text(it, fontSize = 13.sp, color = color(destructiveColor)) }
-                            connectionNotice?.let { (tone, text) -> Text(text, fontSize = 13.sp, color = tone.color()) }
+                            state.dictation?.error?.let { Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
+                            connectionNotice?.let { (tone, text) -> Text(text, style = TextStyles.secondary, color = tone.color()) }
                         }
                     }) else null
                     AnimatedContent(voice != null, contentAlignment = Alignment.BottomCenter, transitionSpec = {
@@ -427,7 +434,15 @@ fun ChatContent(
                     }
                     else Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     RequestComposer(state, actions, requestInputs, Modifier.widthIn(max = ContentWidth), notice = requestNotice) {
-                        Composer(
+                        val over = state.ended?.takeIf { it.resume == false && !state.resumeOnSend }
+                        if (over != null) EndedComposer(over.blocked, actions.onNew, Modifier.widthIn(max = ContentWidth))
+                        // A harness's questions take the composer's place, like the Agent's own requests.
+                        else if (state.external && state.ended == null && state.prompts.isNotEmpty() && state.prompts.all { it is ExecutionPrompt.Questions })
+                            Column(Modifier.widthIn(max = ContentWidth).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(color(fieldColor))
+                                .border(1.dp, color(accentColor).copy(alpha = 0.55f), RoundedCornerShape(28.dp)).padding(horizontal = 18.dp, vertical = 14.dp)) {
+                                ExternalPrompts(state, actions)
+                            }
+                        else Composer(
                             running = state.running,
                             onSend = { follow.value = true; actions.onDiscardDictation(); actions.onSend(it) },
                             onStop = actions.onStop,
@@ -449,8 +464,8 @@ fun ChatContent(
                             backdrop = Modifier.hazeBlur(HazeInput.Sources(haze), blur),
                             onVoice = actions.onVoice?.let { start -> { follow.value = true; start() } },
                             notice = if ((state.external && (state.prompts.isNotEmpty() || (state.chatBlocked != null && state.ended == null))) || connectionNotice != null || state.dictation?.error != null) ({
-                                state.dictation?.error?.let { Text(it, fontSize = 13.sp, color = color(destructiveColor)) }
-                                connectionNotice?.let { (tone, text) -> Text(text, fontSize = 13.sp, color = tone.color()) }
+                                state.dictation?.error?.let { Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
+                                connectionNotice?.let { (tone, text) -> Text(text, style = TextStyles.secondary, color = tone.color()) }
                                 if (state.external) ExternalPrompts(state, actions)
                             }) else null,
                             onDictate = actions.onDictate,
@@ -491,25 +506,37 @@ internal fun TitleBarRow(modifier: Modifier = Modifier, leading: Boolean = true,
  * The desktop toolbar: the shell's toggle and, narrow, a new Session. Back and forward are left to the shortcuts and
  * mouse buttons.
  */
+/** In place of the composer once a Session can't continue: why, and the way on. */
+@Composable
+private fun EndedComposer(message: String, onNew: () -> Unit, modifier: Modifier) {
+    Panel(modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(16.dp)) {
+        Text(message, style = TextStyles.label, color = color(mutedColor))
+        Spacer(Modifier.height(12.dp))
+        Button(onNew, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Primary) { Text("New Session") }
+    }
+}
+
 @Composable
 private fun HeaderControls(wide: Boolean, onToggle: (() -> Unit)?, onNew: (() -> Unit)?) {
     onToggle?.let { if (wide) HeaderButton(Lucide.PanelLeft, "Toggle sidebar ${shortcut(".")}", it) else HeaderButton(Lucide.Menu, "Agents and sessions", it) }
-    onNew?.let { HeaderButton(Lucide.SquarePen, "New session ${shortcut("N")}", it) }
+    onNew?.let { HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", it) }
 }
+
+private val ComposerFade = 24.dp
 
 /** Phones: no title, just bubbles floating over the top of the messages, which fade out under them. */
 @Composable
 private fun FloatingBar(state: ChatState, usage: Usage?, actions: ChatActions, onToggle: (() -> Unit)?, onBack: (() -> Unit)?, modifier: Modifier) {
     val background = color(backgroundColor)
-    Box(modifier.fillMaxWidth().height(FloatingBarHeight).background(Brush.verticalGradient(0.6f to background, 1f to background.copy(alpha = 0f)))) {
+    Box(modifier.fillMaxWidth().height(FloatingBarHeight).background(Brush.verticalGradient(0.75f to background, 1f to background.copy(alpha = 0f)))) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (onBack != null) FloatingBubble(Lucide.ArrowLeft, "Back", onBack)
             else onToggle?.let { FloatingBubble(Lucide.Menu, "Agents and sessions", it) }
             val title = (state.sessions.firstOrNull { it.id == state.selected } ?: state.info)?.title
             state.agent?.let { agent ->
                 FloatingPill(actions.onSettings, "${agent.name} settings", fill = true, leading = { AgentAvatar(agent, 28.dp) }) {
-                    Text(agent.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, singleLine = true, overflow = TextOverflow.Ellipsis)
-                    Text(title ?: "New session", fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                    Text(agent.name, style = TextStyles.label, fontWeight = FontWeight.Medium, singleLine = true, overflow = TextOverflow.Ellipsis)
+                    Text(title ?: "New Session", style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                 }
             }
             if (state.agent == null) Spacer(Modifier.weight(1f))
@@ -526,14 +553,13 @@ private val VoiceStatusHeight = 44.dp
 private fun PhoneActions(state: ChatState, usage: Usage?, actions: ChatActions) {
     var statistics by remember(state.selected) { mutableStateOf(false) }
     val selected = state.selected?.let { id -> state.sessions.firstOrNull { it.id == id } ?: state.info }
+    if (state.selected == null && actions.onBrowser == null && state.items.isEmpty()) return
     Bubble {
-        if (state.selected != null) BubbleButton(Lucide.SquarePen, "New session", actions.onNew)
+        if (state.selected != null) BubbleButton(Lucide.SquarePen, "New Session", actions.onNew)
         actions.onBrowser?.let { BubbleButton(Lucide.Globe, "Browser", it) }
-        if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, extra = { close ->
-            DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
-        }) { open -> BubbleButton(Lucide.Ellipsis, "More", open) }
+        if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, onStatistics = { statistics = true }) { open -> BubbleButton(Lucide.Ellipsis, "More", open) }
     }
-    Popover(statistics, { statistics = false }) { ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth()) }
+    Popover(statistics, { statistics = false }, "Statistics") { ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth()) }
 }
 
 @Composable
@@ -544,14 +570,15 @@ private fun MenuItem(icon: ImageVector, text: String) = Row(verticalAlignment = 
 
 @Composable
 internal fun HeaderButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true) {
-    Tooltip(side = TooltipSide.Bottom, panel = { TooltipPanel { Text(label, fontSize = 12.sp) } }) {
+    Hint(label, TooltipSide.Bottom) {
         IconButton(
             onClick = onClick,
             enabled = enabled,
             style = ButtonStyle.Ghost,
-            shape = Theme[shapes][mediumShape],
-            contentColor = color(mutedColor),
-            modifier = Modifier.size(32.dp).titleBarControl(),
+            shape = if (LocalInteractionMode.current == InteractionMode.Touch) CircleShape else Theme[shapes][mediumShape],
+            contentColor = if (LocalInteractionMode.current == InteractionMode.Touch) color(onBackgroundColor) else color(mutedColor),
+            modifier = if (LocalInteractionMode.current == InteractionMode.Touch) Modifier.size(44.dp).background(color(subtleColor), CircleShape)
+                else Modifier.size(32.dp).titleBarControl(),
         ) {
             Icon(icon, Modifier.size(17.dp), contentDescription = label)
         }
@@ -566,19 +593,19 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
         val selected = state.sessions.firstOrNull { it.id == state.selected } ?: state.info
         Row(Modifier.weight(1f).padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             state.agent?.let { agent ->
-                Tooltip(side = TooltipSide.Bottom, panel = { TooltipPanel { Text("${agent.name}'s settings ${shortcut(",")}", fontSize = 12.sp) } }) {
+                Hint("${agent.name}'s settings ${shortcut(",")}", TooltipSide.Bottom) {
                     Row(Modifier.titleBarControl().clip(RoundedCornerShape(50)).clickable(onClickLabel = "${agent.name}'s settings", onClick = actions.onSettings)
                         .semantics(mergeDescendants = true) { contentDescription = "${agent.name}'s settings" }
                         .background(color(panelColor)).padding(start = 4.dp, end = if (compact) 4.dp else 10.dp, top = 3.dp, bottom = 3.dp),
                         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         AgentAvatar(agent, 20.dp)
-                        if (!compact) Text(agent.name, fontSize = 13.sp, singleLine = true)
+                        if (!compact) Text(agent.name, style = TextStyles.secondary, singleLine = true)
                     }
                 }
                 if (!compact) Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
             }
             Text(
-                selected?.title ?: if (state.agent != null) "New session" else "…",
+                selected?.title ?: if (state.agent != null) "New Session" else "…",
                 Modifier.weight(1f, fill = false),
                 color = if (selected == null) color(mutedColor) else androidx.compose.ui.graphics.Color.Unspecified,
                 fontWeight = FontWeight.Normal,
@@ -588,9 +615,7 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
             selected?.let { SessionBadge(it, compact) }
         }
         var statistics by remember(state.selected) { mutableStateOf(false) }
-        if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, extra = { close ->
-            DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
-        }) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
+        if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, onStatistics = { statistics = true }) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
         Popover(statistics, { statistics = false }, "Statistics") {
             ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth())
         }
@@ -598,40 +623,45 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
     }
 }
 
-/** Favorite, Rename and, for an external Agent's running Session, Close, under [trigger]; [extra] items go first. */
+/** Statistics, Favorite, Rename and, for an external Agent's running Session, Close, under [trigger]: a sheet on touch screens, a menu otherwise. */
 @Composable
-private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatState, extra: @Composable DropdownMenuPanelContentScope.(close: () -> Unit) -> Unit = {}, trigger: @Composable (open: () -> Unit) -> Unit) {
+private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatState, onStatistics: () -> Unit, trigger: @Composable (open: () -> Unit) -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var renaming by remember(session?.id) { mutableStateOf(false) }
     var closing by remember(session?.id) { mutableStateOf(false) }
     val closable = session != null && chat.external && chat.ended == null && chat.capabilities?.chat?.reasonCode != "archived"
-    DropdownMenu(
+    val items = listOfNotNull(
+        Triple(Lucide.ChartBar, "Statistics", onStatistics),
+        session?.let { Triple(if (it.favorite) Lucide.StarOff else Lucide.Star, if (it.favorite) "Remove from favorites" else "Add to favorites") { actions.onFavorite(!it.favorite) } },
+        session?.let { Triple(Lucide.Pencil, "Rename") { renaming = true } },
+        Triple(Lucide.CircleStop, "Close Session") { closing = true }.takeIf { closable },
+    )
+    if (LocalInteractionMode.current == InteractionMode.Touch && LocalPopovers.current != null) {
+        trigger { menu = true }
+        Popover(menu, { menu = false }, session?.title ?: "Session") {
+            RowGroup { items.forEach { (icon, label, action) -> GroupRow(label, { menu = false; action() }, icon = icon, chevron = false) } }
+        }
+    } else DropdownMenu(
         expanded = menu,
         onExpandedChange = { menu = it },
         panel = {
-            DropdownMenuPanel {
-                extra { menu = false }
-                if (session != null) {
-                    DropdownMenuItem(onClick = { menu = false; actions.onFavorite(!session.favorite) }) {
-                        MenuItem(if (session.favorite) Lucide.StarOff else Lucide.Star, if (session.favorite) "Remove from favorites" else "Add to favorites")
-                    }
-                    DropdownMenuItem(onClick = { menu = false; renaming = true }) { MenuItem(Lucide.Pencil, "Rename") }
-                    if (closable) DropdownMenuItem(onClick = { menu = false; closing = true }) { MenuItem(Lucide.CircleStop, "Close session") }
-                }
+            // Keeps a gutter where the window edge pushes the panel back in.
+            DropdownMenuPanel(Modifier.padding(end = 12.dp)) {
+                items.forEach { (icon, label, action) -> DropdownMenuItem(onClick = { menu = false; action() }) { MenuItem(icon, label) } }
             }
         },
     ) { trigger { menu = true } }
-    if (session != null) Popover(renaming, { renaming = false }, "Rename chat") {
+    if (session != null) Popover(renaming, { renaming = false }, "Rename Session") {
         val title = rememberTextFieldState(session.title)
         val focus = remember { FocusRequester() }
         LaunchedEffect(Unit) { focus.requestFocus() }
         fun save() { actions.onRename(title.text.toString()); renaming = false }
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Input(title, "Chat name", Modifier.focusRequester(focus).onPreviewKeyEvent { e -> (e.type == KeyEventType.KeyDown && e.key == Key.Enter).also { if (it) save() } }, capitalize = true)
-            Button(::save, Modifier.fillMaxWidth(), enabled = title.text.toString().trim() != session.title) { Text("Save") }
+        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Input(title, "Session name", trailing = { if (title.text.isNotEmpty()) FieldButton(Lucide.X, "Clear", { title.clearText() }) }, modifier = Modifier.focusRequester(focus).onPreviewKeyEvent { e -> (e.type == KeyEventType.KeyDown && e.key == Key.Enter).also { if (it) save() } }, capitalize = true)
+            Button(::save, Modifier.fillMaxWidth(), enabled = title.text.toString().trim() != session.title, style = ButtonStyle.Primary) { Text("Save") }
         }
     }
-    if (closable) Popover(closing, { closing = false }, "Close session") { CloseSessionConfirm(chat, { closing = false }) { closing = false; actions.onCloseSession() } }
+    if (closable) Popover(closing, { closing = false }, "Close Session") { CloseSessionConfirm(chat, { closing = false }) { closing = false; actions.onCloseSession() } }
 }
 
 /** Asks before closing an external Session, saying what stops and what stays. */
@@ -650,10 +680,10 @@ internal fun CloseSessionConfirm(chat: ChatState, onCancel: () -> Unit, onClose:
                 false -> " $harness can't resume Sessions, so this one can't continue after closing."
                 null -> ""
             })
-        }, fontSize = 14.sp)
+        }, style = TextStyles.label)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
             Button(onCancel, style = ButtonStyle.Ghost) { Text("Keep open") }
-            Button(onClose, style = ButtonStyle.Ghost, contentColor = color(destructiveColor)) { Text(if (busy) "Stop and close" else "Close session") }
+            Button(onClose, style = ButtonStyle.Ghost, contentColor = color(destructiveColor)) { Text(if (busy) "Stop and close" else "Close Session") }
         }
     }
 }
@@ -707,7 +737,7 @@ private fun SessionBadge(session: SessionInfo, compact: Boolean = false) = when 
 @Composable
 internal fun SessionStatusIcon(status: SessionStatus, finished: Boolean) = when {
     status == SessionStatus.Waiting -> Icon(Lucide.ShieldAlert, Modifier.size(14.dp), tint = color(warningColor), contentDescription = "Needs approval")
-    status == SessionStatus.Running -> Spinner(size = 12.dp)
+    status == SessionStatus.Running -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 12.dp, tint = color(accentColor))
     finished -> Icon(Lucide.Check, Modifier.size(14.dp), tint = color(successColor), contentDescription = "Finished")
     else -> Unit
 }
@@ -731,6 +761,7 @@ private fun Messages(
     val last = items.lastOrNull()
     // A trailing group of steps shows the run's progress itself.
     val thinking = state.running && last !is ChatItem.Assistant && !(last is ChatItem.ToolCall && last.waiting) && rows.lastOrNull() !is ChatRow.Steps
+    val writing = state.running && last is ChatItem.Assistant && state.requests.isEmpty()
     val content = Triple(items.size, (last as? ChatItem.Assistant)?.text?.length ?: (last as? ChatItem.Reasoning)?.text?.length, thinking)
     var seen by remember { mutableStateOf(content) }
     val scope = rememberCoroutineScope()
@@ -791,10 +822,10 @@ private fun Messages(
                 state.voice?.heard?.takeIf { it.isNotBlank() }?.let { heard ->
                     item(key = "heard") { Box(Modifier.animateItem(fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth().alpha(0.6f)) { Entering { ChatItemView(ChatItem.User("heard", heard), actions) } } }
                 }
-                if (thinking) item(key = "thinking") {
+                if (thinking || writing) item(key = "thinking") {
                     Row(Modifier.widthIn(max = ContentWidth).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Spinner(tint = color(accentColor))
-                        Text("Working…", color = color(mutedColor), fontSize = 13.sp)
+                        Text(if (writing) "Writing…" else "Working…", color = color(mutedColor), style = TextStyles.secondary)
                     }
                 }
             }
@@ -804,7 +835,8 @@ private fun Messages(
             VerticalScrollbar(rememberVerticalScrollbarState(listState), Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(bottom = bottom))
         AnimatedVisibility(
             !following && listState.canScrollForward,
-            Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp + bottom),
+            // At the edge, over the margin rather than the text.
+            Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp + bottom),
             enter = fadeIn() + slideInVertically { it / 2 },
             exit = fadeOut() + slideOutVertically { it / 2 },
         ) {
@@ -824,8 +856,8 @@ private fun DropOverlay() {
     Box(Modifier.fillMaxSize().padding(12.dp).background(color(backgroundColor).copy(alpha = 0.85f), shape).border(2.dp, color(accentColor).copy(alpha = 0.6f), shape), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(Lucide.Paperclip, Modifier.size(28.dp), tint = color(accentColor))
-            Text("Drop to attach", fontSize = 15.sp)
-            Text("4 files · 10 MB each", fontSize = 12.sp, color = color(mutedColor))
+            Text("Drop to attach", style = TextStyles.callout)
+            Text("4 files · 10 MB each", style = TextStyles.caption, color = color(mutedColor))
         }
     }
 }
@@ -847,7 +879,7 @@ private fun JumpToBottom(unseen: Boolean, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Lucide.ArrowDown, Modifier.size(16.dp), contentDescription = "Jump to the latest")
-        if (unseen) Text("New messages", fontSize = 12.sp)
+        if (unseen) Text("New messages", style = TextStyles.caption)
     }
 }
 
@@ -856,7 +888,8 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
     when (item) {
         is ChatItem.User -> if (item.routine != null) Expandable(Lucide.AlarmClock, requireNotNull(item.routine), subtitle = "routine") { RichMarkdown(item.text) }
         else if (item.task != null) Expandable(Lucide.SquareKanban, requireNotNull(item.task), subtitle = "task") { RichMarkdown(item.text) }
-        else Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+        // Inset from the start, so long messages still read as the user's rather than as cards.
+        else Row(Modifier.fillMaxWidth().padding(start = 48.dp), horizontalArrangement = Arrangement.End) {
             Panel(
                 Modifier.widthIn(max = 560.dp),
                 color = color(selectedControlColor),
@@ -874,10 +907,9 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
         is ChatItem.Assistant -> if (spoken != null) SpokenText(item.text, spoken, Modifier.fillMaxWidth()) else Markdown(item.text, Modifier.fillMaxWidth())
         is ChatItem.Reasoning -> StepView(item)
         is ChatItem.ToolCall -> when {
-            item.waiting -> WaitingForYou()
             (item.identity?.instance?.pluginId == "kinuvo.computer" && item.identity?.localId in setOf("computer_capture", "computer_act")) && item.result == null -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 ToolCallView(item, actions = actions)
-                Button(onClick = actions.onWatch, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Watch live", fontSize = 12.sp) }
+                Button(onClick = actions.onWatch, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Watch live", fontSize = TextStyles.caption.fontSize) }
             }
             item.name == "ask_user" && item.result != null && !item.isError -> Column { AnsweredQuestions(item); ToolAttachments(item.attachments, actions) }
             item.name == "artifact" && item.result != null && !item.isError -> Column { ArtifactCard(item, actions.onOpenArtifact); ToolAttachments(item.attachments, actions) }
@@ -890,11 +922,12 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Lucide.CircleX, Modifier.size(16.dp).padding(top = 2.dp), tint = color(destructiveColor))
-                Text(item.message, color = color(destructiveColor), fontSize = 13.sp)
+                Text(item.message, color = color(destructiveColor), style = TextStyles.secondary)
             }
         }
-        is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message, subtitle = item.code) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { item.draft.forEach { ChatItemView(it, actions) } }
+        is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message, tint = color(warningColor)) {
+            // What it had written before stopping, quieter than a finished reply.
+            Column(Modifier.alpha(0.85f), verticalArrangement = Arrangement.spacedBy(8.dp)) { item.draft.forEach { ChatItemView(it, actions) } }
         }
         is ChatItem.Measurement -> Unit
         is ChatItem.Reflection -> ReflectionView(item, onReview = actions.onReviewReflection)
@@ -913,8 +946,8 @@ private fun EmptyState(state: ChatState, modifier: Modifier) {
                 else -> AvatarState.Idle
             }
             RiveAvatar(BundledAvatar, Modifier.size(180.dp, 120.dp), LocalRiveGaze.current, state.agent?.avatarArtboard, state = avatar)
-            Text(state.agent?.let { "Start a session with ${it.name}" } ?: "Connecting…", fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold)
-            Text("Ask anything, or type /skill to activate one.", color = color(mutedColor))
+            Text(state.agent?.let { "Start a Session with ${it.name}" } ?: "Connecting…", style = TextStyles.headline, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            Text("Ask anything, or type /skill to activate one.", color = color(mutedColor), textAlign = TextAlign.Center)
         }
     }
 }
@@ -928,17 +961,18 @@ private fun Expandable(
     status: (@Composable () -> Unit)? = null,
     border: Boolean = true,
     initiallyExpanded: Boolean = false,
+    tint: androidx.compose.ui.graphics.Color = androidx.compose.ui.graphics.Color.Unspecified,
     content: @Composable () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(initiallyExpanded) }
     val shape = Theme[shapes][mediumShape]
     Disclosure(expanded, { expanded = it }, Modifier.fillMaxWidth().then(if (border) Modifier.border(1.dp, color(borderColor), shape) else Modifier)) {
         Column {
-            ListRow(selected = false, onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 36.dp)) {
-                Icon(icon, Modifier.size(15.dp), tint = color(mutedColor))
+            ListRow(selected = false, onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 44.dp)) {
+                Icon(icon, Modifier.size(15.dp), tint = if (tint.isSpecified) tint else color(mutedColor))
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Normal, singleLine = true)
-                    subtitle?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
+                    Text(title, style = TextStyles.callout, fontWeight = FontWeight.Normal, singleLine = true)
+                    subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
                     status?.invoke()
                 }
                 Icon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
@@ -967,7 +1001,7 @@ private fun StepView(item: ChatItem, border: Boolean = true, actions: ChatAction
     when (item) {
         is ChatItem.ToolCall -> ToolCallView(item, border, actions)
         is ChatItem.Reasoning -> Expandable(Lucide.Brain, "Thinking", border = border) {
-            Text(item.text, style = LocalTextStyle.current.copy(fontStyle = FontStyle.Italic), color = color(mutedColor), fontSize = 13.sp)
+            Text(item.text, style = LocalTextStyle.current.copy(fontStyle = FontStyle.Italic), color = color(mutedColor), fontSize = TextStyles.secondary.fontSize)
         }
         else -> Unit
     }
@@ -989,7 +1023,7 @@ internal fun StepsView(row: ChatRow.Steps, active: Boolean, initiallyExpanded: B
             ListRow(
                 selected = false,
                 onClick = { expanded = !expanded },
-                modifier = Modifier.heightIn(min = 36.dp).semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" },
+                modifier = Modifier.heightIn(min = 44.dp).semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" },
             ) {
                 val current = row.steps.last()
                 val running = (current as? ChatItem.ToolCall)?.takeIf { it.result == null }?.label()
@@ -1004,15 +1038,15 @@ internal fun StepsView(row: ChatRow.Steps, active: Boolean, initiallyExpanded: B
                         active && current is ChatItem.Reasoning -> "Thinking…"
                         else -> row.summary()
                     }
-                    Text(title, fontSize = 13.sp, fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
-                    if (active) running?.subtitle?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
+                    Text(title, style = TextStyles.secondary, fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
+                    if (active) running?.subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
                     else Row(horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.CenterVertically) {
                         row.tools.take(MaxStepIcons).forEach { Icon(it.label().icon, Modifier.size(12.dp), tint = color(if (it.isError) destructiveColor else mutedColor)) }
-                        if (row.tools.size > MaxStepIcons) Text("+${row.tools.size - MaxStepIcons}", fontSize = 11.sp, color = color(mutedColor))
+                        if (row.tools.size > MaxStepIcons) Text("+${row.tools.size - MaxStepIcons}", style = TextStyles.overline, color = color(mutedColor))
                     }
                 }
-                if (failed > 0) Text("$failed failed", fontSize = 12.sp, color = color(destructiveColor), singleLine = true)
-                else if (active && row.steps.size > 1) Text("${row.steps.size} steps", fontSize = 12.sp, color = color(mutedColor), singleLine = true)
+                if (failed > 0) Text("$failed failed", style = TextStyles.caption, color = color(destructiveColor), singleLine = true)
+                else if (active && row.steps.size > 1) Text("${row.steps.size} steps", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
                 Icon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
             }
             DisclosurePanel(contentPadding = PaddingValues(start = 6.dp, end = 6.dp, bottom = 6.dp)) {
@@ -1051,14 +1085,16 @@ private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, action
     val label = item.label()
     Expandable(label.icon, label.title, label.subtitle, border = border, status = {
         when {
-            item.result == null -> Spinner(size = 13.dp)
-            item.isError -> Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor))
-            else -> Icon(Lucide.CircleCheck, Modifier.size(14.dp), tint = color(successColor))
+            item.waiting -> Pill("Needs you", tone = Tone.Warning)
+            item.result == null -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 13.dp)
+            item.denied -> Pill("Denied")
+            item.isError -> Pill("Failed", tone = Tone.Danger)
+            else -> Pill("Done", tone = Tone.Success)
         }
     }) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (!label.skill && item.args.isNotBlank()) CodeBlock(prettyJson(item.args), language = "arguments")
-            item.result?.let { CodeBlock(it, language = if (item.isError) "error" else "result", previewChars = 4000) }
+            if (!label.skill && item.args.isNotBlank()) CodeBlock(prettyJson(item.args), language = "Arguments")
+            item.result?.let { CodeBlock(it, language = if (item.isError) "Error" else "Result", previewChars = 4000, error = item.isError) }
             ToolAttachments(item.attachments, actions)
         }
     }
@@ -1075,8 +1111,8 @@ private fun AnsweredQuestions(item: ChatItem.ToolCall) {
             questions.forEach { q ->
                 val answer = answers?.get(q.id)?.let { a -> (a as? JsonArray)?.joinToString { it.jsonPrimitive.content } ?: a.jsonPrimitive.content }
                 Column {
-                    Text(q.label, fontSize = 12.sp, color = color(mutedColor))
-                    Text(answer ?: "—", fontSize = 13.sp)
+                    Text(q.label, style = TextStyles.caption, color = color(mutedColor))
+                    Text(answer ?: "—", style = TextStyles.secondary)
                 }
             }
         }
@@ -1093,7 +1129,7 @@ private fun ArtifactCard(item: ChatItem.ToolCall, onOpen: (id: String) -> Unit) 
             Icon(Lucide.Shapes, Modifier.size(20.dp), tint = color(accentColor))
             Column(Modifier.weight(1f)) {
                 Text(saved["title"]?.jsonPrimitive?.content ?: id, fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
-                Text(listOfNotNull(saved["type"]?.jsonPrimitive?.content, "artifact").joinToString(" · "), fontSize = 12.sp, color = color(mutedColor), singleLine = true)
+                Text(listOfNotNull(saved["type"]?.jsonPrimitive?.content, "artifact").joinToString(" · "), style = TextStyles.caption, color = color(mutedColor), singleLine = true)
             }
             Button(onClick = { onOpen(id) }, style = ButtonStyle.Outlined) { Text("Open") }
         }
@@ -1101,19 +1137,16 @@ private fun ArtifactCard(item: ChatItem.ToolCall, onOpen: (id: String) -> Unit) 
 }
 
 @Composable
-private fun WaitingForYou() = Text("Waiting for you below", fontSize = 13.sp, color = color(mutedColor))
-
-@Composable
 internal fun RequestMetricsView(metrics: kinuvo.protocol.RequestMetrics, initiallyExpanded: Boolean = false, actions: ChatActions = ChatActions()) {
     val cached = metrics.cachedTokens?.let { "$it cached" } ?: "cache not reported"
     Expandable(Lucide.Gauge, "${metrics.kind} request", "$cached · ${metrics.latencyMs} ms", initiallyExpanded = initiallyExpanded) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${metrics.provider} · ${metrics.model} · ${metrics.reasoning}", fontSize = 12.sp)
-            Text("Duration: ${metrics.latencyMs} ms", fontSize = 12.sp)
-            Text("Input: ${metrics.inputTokens ?: "not reported"} · Output: ${metrics.outputTokens ?: "not reported"}", fontSize = 12.sp)
-            Text("Cache reads: ${metrics.cachedTokens ?: "not reported"} · Cache writes: ${metrics.cacheWriteTokens ?: "not reported"}", fontSize = 12.sp)
-            metrics.firstTokenMs?.let { Text("First token: $it ms", fontSize = 12.sp) }
-            if (!metrics.success) Text("Request did not finish", fontSize = 12.sp, color = color(destructiveColor))
+            Text("${metrics.provider} · ${metrics.model} · ${metrics.reasoning}", style = TextStyles.caption)
+            Text("Duration: ${metrics.latencyMs} ms", style = TextStyles.caption)
+            Text("Input: ${metrics.inputTokens ?: "not reported"} · Output: ${metrics.outputTokens ?: "not reported"}", style = TextStyles.caption)
+            Text("Cache reads: ${metrics.cachedTokens ?: "not reported"} · Cache writes: ${metrics.cacheWriteTokens ?: "not reported"}", style = TextStyles.caption)
+            metrics.firstTokenMs?.let { Text("First token: $it ms", style = TextStyles.caption) }
+            if (!metrics.success) Text("Request did not finish", style = TextStyles.caption, color = color(destructiveColor))
         }
     }
 }
@@ -1142,25 +1175,25 @@ internal fun ReflectionView(item: ChatItem.Reflection, initiallyExpanded: Boolea
     Expandable(Lucide.Sparkles, title, subtitle, initiallyExpanded = initiallyExpanded, status = {
         when {
             result == null -> Spinner(size = 13.dp)
-            pending > 0 -> Icon(Lucide.Shield, Modifier.size(14.dp), tint = color(mutedColor))
-            result.error != null -> Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor))
-            else -> Icon(Lucide.CircleCheck, Modifier.size(14.dp), tint = color(successColor))
+            pending > 0 -> Icon(Lucide.Shield, Modifier.size(14.dp), tint = color(mutedColor), contentDescription = "Waiting for review")
+            result.error != null -> Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor), contentDescription = "Failed")
+            else -> Icon(Lucide.CircleCheck, Modifier.size(14.dp), tint = color(successColor), contentDescription = "Done")
         }
     }) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (result == null) Text("Reviewing this conversation for Knowledge, Memory, User Notes and Skills.", fontSize = 13.sp)
+            if (result == null) Text("Reviewing this conversation for Knowledge, Memory, User Notes and Skills.", style = TextStyles.secondary)
             else {
-                Text("Saved: Knowledge $knowledge · Memory ${result.memory} · User Notes ${result.userNotes} · Skills $skills" + if (conventions > 0) " · Conventions $conventions" else "", fontSize = 13.sp)
+                Text("Saved: Knowledge $knowledge · Memory ${result.memory} · User Notes ${result.userNotes} · Skills $skills" + if (conventions > 0) " · Conventions $conventions" else "", style = TextStyles.secondary)
                 result.memoryChanges.forEach { change ->
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(if (change.target == "memory") "Memory update" else "User Notes update", fontSize = 13.sp)
+                        Text(if (change.target == "memory") "Memory update" else "User Notes update", style = TextStyles.secondary)
                         ReflectionDiff(remember(change) { lineDiff(change.before, change.after) })
                     }
                 }
                 result.proposals.forEach { proposal ->
                     ReflectionProposalView(proposal, item.reviews[proposal.id], proposal.id in item.revised, onReview)
                 }
-                result.error?.let { Text(it, color = color(destructiveColor), fontSize = 13.sp) }
+                result.error?.let { Text(it, color = color(destructiveColor), style = TextStyles.secondary) }
             }
         }
     }
@@ -1178,10 +1211,10 @@ private fun ReflectionProposalView(proposal: kinuvo.protocol.ReflectionProposal,
             proposal.skillBefore != null -> "Skill update"
             else -> "Skill draft"
         }
-        Text(if (conventions) kind else "$kind: $title", fontWeight = FontWeight.Normal, fontSize = 13.sp)
-        Text(proposal.reason, fontSize = 13.sp)
+        Text(if (conventions) kind else "$kind: $title", fontWeight = FontWeight.Normal, style = TextStyles.secondary)
+        Text(proposal.reason, style = TextStyles.secondary)
         // Evidence quotes the conversation; one line is enough to place it.
-        Text("Evidence: ${proposal.evidence}", fontSize = 12.sp, color = color(mutedColor), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text("Evidence: ${proposal.evidence}", style = TextStyles.caption, color = color(mutedColor), maxLines = 1, overflow = TextOverflow.Ellipsis)
         val content = proposal.args["content"]?.jsonPrimitive?.content.orEmpty()
         val edited = if (conventions) proposal.conventionsBefore else proposal.skillBefore?.takeIf { skill }
         // An edited Skill shows only what changes; its whole file stays out of the way.
@@ -1194,8 +1227,8 @@ private fun ReflectionProposalView(proposal: kinuvo.protocol.ReflectionProposal,
         if (before != null) Expandable(Lucide.FileText, "Current content") {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 proposal.note?.let { note ->
-                    Text("${note.title} · ${note.type}", fontSize = 13.sp)
-                    note.properties.forEach { (key, value) -> Text("$key: $value", fontSize = 13.sp) }
+                    Text("${note.title} · ${note.type}", style = TextStyles.secondary)
+                    note.properties.forEach { (key, value) -> Text("$key: $value", style = TextStyles.secondary) }
                 }
                 Markdown(before)
             }
@@ -1216,7 +1249,7 @@ private fun ReflectionProposalView(proposal: kinuvo.protocol.ReflectionProposal,
                             "link_text" -> "Link text"
                             "link_to" -> "Link target"
                             else -> key
-                        }}: $text", fontSize = 13.sp)
+                        }}: $text", style = TextStyles.secondary)
                     }
                 }
             }
@@ -1230,12 +1263,12 @@ private fun ReviewButtons(id: String, approved: Boolean?, revised: Boolean, onRe
     if (approved == null) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         val note = rememberTextFieldState()
         Input(note, "Note for the agent (optional)", capitalize = true)
-        Text("Approving with a note asks for a revision.", fontSize = 12.sp, color = color(mutedColor))
+        Text("Approving with a note asks for a revision.", style = TextStyles.caption, color = color(mutedColor))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { onReview(id, true, note.text.toString()) }, style = ButtonStyle.Primary) { Text("Approve") }
             Button(onClick = { onReview(id, false, note.text.toString()) }, style = ButtonStyle.Ghost) { Text("Reject") }
         }
-    } else Text(if (revised) "Revised; awaiting Approval" else if (approved) "Approved and saved" else "Rejected", fontSize = 12.sp, color = color(mutedColor))
+    } else Text(if (revised) "Revised; awaiting Approval" else if (approved) "Approved and saved" else "Rejected", style = TextStyles.caption, color = color(mutedColor))
 }
 
 /** Added and removed lines, summed up as "+3 −1". */
@@ -1281,7 +1314,7 @@ private fun CompactionMarker(item: ChatItem.Compaction) {
             Button(onClick = { expanded = !expanded }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(mutedColor)) {
                 Icon(Lucide.Archive, Modifier.size(13.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(if (expanded) "Earlier conversation compacted" else "Earlier conversation compacted · show summary", fontSize = 12.sp)
+                Text(if (expanded) "Earlier conversation compacted" else "Earlier conversation compacted · show summary", style = TextStyles.caption)
             }
             HorizontalSeparator(Modifier.weight(1f))
         }

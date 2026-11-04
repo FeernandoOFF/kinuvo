@@ -5,7 +5,9 @@ import kinuvo.app.agent.*
 import kinuvo.ui.connection.*
 import kinuvo.ui.board.*
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -38,22 +40,20 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         RowGroup(provider.name) {
             when {
-                apiKey != null -> GroupRow(if (apiKey.configured) "API key set" else "Add an API key", icon = Lucide.KeyRound,
-                    subtitle = if (apiKey.configured) apiKey.reference ?: apiKey.storage else "Its models work once the Server has a key") {
+                apiKey != null -> GroupRow("API key", icon = Lucide.KeyRound,
+                    subtitle = if (apiKey.configured) apiKey.reference ?: apiKey.storage else "Needs a key on the Server") {
                     if (apiKey.configured) Icon(Lucide.CircleCheck, Modifier.size(18.dp), tint = color(successColor))
                     else Pill("Needed", tone = Tone.Warning)
                 }
-                account == null -> GroupRow("Ready", subtitle = "No sign-in needed", icon = Lucide.CircleCheck)
-                account.signedIn -> GroupRow(account.label ?: "Your account", subtitle = "Signed in", icon = Lucide.CircleUserRound) {
-                    Icon(Lucide.CircleCheck, Modifier.size(18.dp), tint = color(successColor))
-                }
+                account == null -> GroupRow(provider.name, subtitle = "No sign-in needed", icon = Lucide.CircleCheck) { Pill("Ready", tone = Tone.Success) }
+                account.signedIn -> GroupRow(account.label ?: "Your account", subtitle = "Signed in", icon = Lucide.CircleUserRound) { Pill("Ready", tone = Tone.Success) }
                 code != null -> GroupBox {
-                    Text("Enter this code on the sign-in page", color = color(mutedColor), fontSize = 13.sp)
+                    Text("Enter this code on the sign-in page", color = color(mutedColor), style = TextStyles.secondary)
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(code.code, Modifier.weight(1f), style = MonoStyle, fontSize = 22.sp)
+                        Text(code.code, Modifier.weight(1f), style = MonoStyle, fontSize = TextStyles.headline.fontSize)
                         CopyButton(code.code)
                     }
-                    Text("It expires in 15 minutes.", color = color(mutedColor), fontSize = 12.sp)
+                    Text("It expires in 15 minutes.", color = color(mutedColor), style = TextStyles.caption)
                 }
                 else -> GroupRow("Not signed in", subtitle = "Sign in to use its models", icon = Lucide.CircleUserRound) { Pill("Signed out", tone = Tone.Warning) }
             }
@@ -66,8 +66,7 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                                 Input(value, if (key.configured) "New key or \${…} reference" else "API key or \${…} reference", secret = !isReference(value.value()), trailing = trailing)
                             }
                         }
-                        Button({ p.actions.onSaveProviderApiKey(provider.id, value.value()); value.edit { replace(0, length, "") } }, enabled = value.value().isNotBlank(),
-                            style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text("Save") }
+                        SaveButton({ p.actions.onSaveProviderApiKey(provider.id, value.value()); value.edit { replace(0, length, "") } }, enabled = value.value().isNotBlank())
                     }
                 }
                 if (key.saved) ConfirmRow("Remove saved key", Lucide.Trash2, "Remove the saved key for ${provider.name}?", { p.actions.onSaveProviderApiKey(provider.id, "") }, "Remove",
@@ -80,9 +79,12 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                 else -> ActionRow("Sign in", Lucide.LogIn, { p.actions.onLoginProvider(provider.id) })
             }
         }
-        provider.error?.let { Text(it, Modifier.padding(horizontal = 6.dp), color = color(destructiveColor), fontSize = 12.sp) }
-        if (apiKey != null) Row(Modifier.padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Saved keys stay on the Server. Refresh models after changing it.", Modifier.weight(1f), color = color(mutedColor), fontSize = 12.sp)
+        provider.error?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = color(destructiveColor), style = TextStyles.caption) }
+        if (apiKey != null) Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.weight(1f)) {
+                Text("Saved keys stay on the Server. Refresh models after changing a key.", color = color(mutedColor), style = TextStyles.caption)
+                Text("Refresh models", Modifier.clickable(role = Role.Button, onClick = p.actions.onRefreshModels).padding(vertical = 12.dp), color = color(accentColor), style = TextStyles.secondary)
+            }
             if (p.ui.state.saved) Pill("Saved", tone = Tone.Success, icon = Lucide.CircleCheck)
         }
     }
