@@ -51,6 +51,13 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
         devices.attach(client)
     }
 
+    /** Fills the Repositories from [snapshot] after [open], before the Server is reached. */
+    fun restore(snapshot: Snapshot) {
+        sessions.restore(snapshot.lists, snapshot.sessions)
+        routines.restore(snapshot.routines)
+        board.restore(BoardData(snapshot.taskLists, snapshot.tasks))
+    }
+
     fun close() {
         val previous = lifetime
         lifetime = null

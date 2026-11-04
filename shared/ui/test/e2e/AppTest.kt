@@ -46,6 +46,7 @@ internal fun appTest(flow: String, profile: String, block: suspend AppTest.() ->
     val preferences = object : Preferences {
         override fun get(key: String) = values[key]
         override fun set(key: String, value: String?) { if (value == null) values.remove(key) else values[key] = value }
+        override fun clear() = values.clear()
     }
     val credentials = object : DeviceCredentials {
         override fun read(server: String) = tokens[server]

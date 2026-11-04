@@ -46,6 +46,9 @@ class DeviceAccess(private val prefs: Preferences, val reader: DeviceReader, val
 
     fun detach() { cancelAuthorization(); client = null; server = null; state.value = DeviceAccessState() }
 
+    /** Forgets every Server's grants, after the preferences holding them were cleared. */
+    fun reset() { detach(); saved.value = emptyMap() }
+
     fun authorizing(kind: DeviceToolKind): Authorization {
         val attempt = Authorization(kind)
         authorization = attempt

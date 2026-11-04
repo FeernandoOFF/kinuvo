@@ -20,6 +20,10 @@ private class LocalStorePreferences : Preferences {
     override fun set(key: String, value: String?) {
         if (value == null) localStorage.removeItem("kinuvo.$key") else localStorage.setItem("kinuvo.$key", value)
     }
+
+    override fun clear() {
+        (0 until localStorage.length).mapNotNull { localStorage.key(it) }.filter { it.startsWith("kinuvo.") }.forEach(localStorage::removeItem)
+    }
 }
 
 /** Browsers can't read the Device's contacts or health data. */
@@ -47,6 +51,7 @@ internal actual val platformModule = module {
     single<DeviceReader> { NoDeviceReader() }
     single<DeviceCredentials> { BrowserCredentials() }
     single<Preferences> { LocalStorePreferences() }
+    single<ClientCache> { deviceCache("") }
     single<OAuthBrowser> { TabBrowser() }
     single {
         Device(

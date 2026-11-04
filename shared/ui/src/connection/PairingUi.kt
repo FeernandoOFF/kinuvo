@@ -168,6 +168,12 @@ internal fun ConnectionSettingsPane(p: Pane) {
             }
             Text("Revoking takes effect right away; the device needs a new code to connect again.", Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(mutedColor))
         }
+        RowGroup("Data on this device") {
+            ConfirmRow("Clear cached data", Lucide.Eraser, "Clear cached data?", p.actions.onClearCache, "Clear", destructive = false,
+                detail = "Chats and lists saved for offline use are removed from this Device and load again from the Server.")
+            ConfirmRow("Reset this device", Lucide.RotateCcw, "Reset this device?", p.actions.onResetDevice, "Reset",
+                detail = "Removes every Server, credential, preference and cached chat this app keeps here, as on a fresh install. Servers keep their data and still list this Device until it's revoked there.")
+        }
     }
 }
 
