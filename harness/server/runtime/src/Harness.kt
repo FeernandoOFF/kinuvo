@@ -197,7 +197,7 @@ open class HarnessRuntime(
         val eligible = usable(e, all)
         val descriptors = all.map { it.descriptor.name }.toSet()
         val rules = trustRules.effective(agent.id)
-        val catalog = (own.map { ResolvedTool(it.descriptor.name, it.displayName, identity = it.identity) } +
+        val catalog = (own.map { ResolvedTool(renamed[it.descriptor.name] ?: it.descriptor.name, it.displayName, identity = it.identity) } +
             contributed.flatMap { it.catalog }.map { it.copy(id = renamed[it.id] ?: it.id) }).distinctBy { (it.identity?.key ?: it.id) to it.target }.map { tool ->
             val state = when {
                 e.info?.tools == false || e.info?.toolIds?.let { tool.identity?.localId != "*" && tool.identity?.key !in it } == true ||

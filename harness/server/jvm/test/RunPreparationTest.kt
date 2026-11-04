@@ -210,6 +210,22 @@ class RunPreparationTest {
     }
 
     @Test
+    fun coreToolsAProviderLeavesOutAreReportedUnsupported() = runBlocking {
+        val narrow = object : ModelProvider {
+            override val id = "test"
+            override suspend fun models() = listOf(ModelInfo("tools", tools = true))
+            override fun usableTools(model: String, tools: List<ToolDescriptor>) = tools.filter { it.name != "memory" }
+            override fun model(config: AgentConfig) = scriptedModel { _, _ -> flowOf(StreamFrame.End()) }
+        }
+        val harness = harness(providers = listOf(narrow))
+        try {
+            val tools = inspect(harness, agent(harness, listOf("memory", "web_fetch"))).tools.associateBy { it.id }
+            assertFalse(tools.getValue("memory").state.actionable)
+            assertTrue(tools.getValue("web_fetch").state.actionable)
+        } finally { harness.close() }
+    }
+
+    @Test
     fun manyCataloguedToolsReachTheModelOnlyThroughTheCatalog() = runBlocking {
         val many = object : HarnessPlugin {
             override val definition = PluginDefinition("test.many", "Many")
