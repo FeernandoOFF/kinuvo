@@ -20,6 +20,8 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import com.composeunstyled.theme.Theme
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.paneTitle
@@ -270,9 +272,9 @@ fun InspectorGuard(state: InspectorState, host: InspectorHost, actions: Inspecto
                 Text("Your changes have not been saved.", color = color(mutedColor), fontSize = 14.sp)
                 state.errors.forEach { Spacer(Modifier.height(8.dp)); ErrorMessage(it) }
                 Spacer(Modifier.height(16.dp))
-                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button({ actions.onResolve(GuardChoice.Keep) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Keep editing") }
-                    Button({ actions.onResolve(GuardChoice.Discard) }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small, contentColor = color(destructiveColor)) { Text("Discard") }
+                FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button({ actions.onResolve(GuardChoice.Keep) }, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined) { Text("Keep editing") }
+                    Button({ actions.onResolve(GuardChoice.Discard) }, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined, contentColor = color(destructiveColor)) { Text("Discard") }
                 }
             }
         }
@@ -293,11 +295,12 @@ internal fun draftField(agentId: String, name: String, value: String, onChange: 
 @Composable
 private fun Group(title: String, hint: String? = null, content: @Composable ColumnScope.() -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        // Labelled and filled like a RowGroup.
+        Row(Modifier.padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             SectionLabel(title)
             hint?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
         }
-        Panel(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
+        Panel(Modifier.fillMaxWidth(), borderColor = Color.Transparent, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
         }
     }

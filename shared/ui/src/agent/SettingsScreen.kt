@@ -415,7 +415,7 @@ internal fun DetailPane(back: (() -> Unit)?, title: String, error: String? = nul
         SettingsPageHeader(title, back, info = info, trailing = trailing)
         Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
             Column(
-                Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp),
+                Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 error?.let { ErrorMessage(it) }
@@ -426,14 +426,7 @@ internal fun DetailPane(back: (() -> Unit)?, title: String, error: String? = nul
 }
 
 @Composable
-internal fun DetailGroup(title: String, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        SectionLabel(title, Modifier.padding(start = 0.dp))
-        Panel(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), content = content)
-        }
-    }
-}
+internal fun DetailGroup(title: String, content: @Composable ColumnScope.() -> Unit) = RowGroup(title) { GroupBox(content) }
 
 /** A label beside its value; narrow, above it. */
 @Composable

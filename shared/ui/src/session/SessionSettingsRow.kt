@@ -245,8 +245,8 @@ private fun SourceTile(label: String, icon: ImageVector, enabled: Boolean, modif
     val shape = Theme[shapes][largeShape]
     Column(
         modifier.heightIn(min = 88.dp).clip(shape).background(color(borderColor).copy(alpha = 0.5f), shape).clickable(enabled = enabled, onClick = onClick)
-            .padding(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterVertically),
+            .padding(horizontal = 8.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(icon, Modifier.size(22.dp).alpha(if (enabled) 1f else 0.4f))
