@@ -23,6 +23,8 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -158,6 +160,7 @@ fun ListRow(
             .clickable(interaction, Theme[indications][defaultIndication], enabled = enabled, onClick = onClick)
             .alpha(if (enabled) 1f else 0.4f)
             .heightIn(min = if (LocalInteractionMode.current == InteractionMode.Touch) 48.dp else 0.dp)
+            .semantics { this.selected = selected }
             .padding(horizontal = 10.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),

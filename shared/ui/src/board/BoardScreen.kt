@@ -139,11 +139,11 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                 task.due?.let { Pill(it, icon = Lucide.Calendar) }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Nobody" }, { a ->
+                Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->
                     actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: ""))
-                })
+                }, icon = Lucide.User)
                 Spacer(Modifier.weight(1f))
-                Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) })
+                Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())
             }
             val last = task.sessionIds.lastOrNull()
             if (last != null && task.assignee != null) {

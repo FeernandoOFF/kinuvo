@@ -104,10 +104,11 @@ private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions) {
                 }
                 if (ui.state.results.isEmpty()) item { Muted("No matches.") }
             }
-            item { SectionLabel("Recent changes", Modifier.padding(start = 6.dp, top = 12.dp)) }
             val changes = ui.state.shownChanges
+            // While searching, an empty history would only push the results' context away.
+            if (changes?.isEmpty() != true || ui.state.query.isBlank()) item { SectionLabel("Recent changes", Modifier.padding(start = 6.dp, top = 12.dp)) }
             if (changes == null) item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Spinner() } }
-            else if (changes.isEmpty()) item { EmptyState(Lucide.Library, "No changes yet", if (ui.state.agent != null) "This Agent hasn't changed anything yet." else "Agents save what they learn as you talk.") }
+            else if (changes.isEmpty()) { if (ui.state.query.isBlank()) item { EmptyState(Lucide.Library, "No changes yet", if (ui.state.agent != null) "This Agent hasn't changed anything yet." else "Agents save what they learn as you talk.") } }
             else itemsIndexed(changes, key = { _, c -> "c/${c.id}" }) { i, c -> Box(Modifier.groupItem(i, changes.size)) { ChangeRow(c, ui, actions) } }
         }
     }

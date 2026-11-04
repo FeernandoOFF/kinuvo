@@ -102,5 +102,5 @@ private fun SkillInfo.where() = when (scope) {
     ConfigScope.External -> "An extra skill folder (read-only)"
 }
 
-private fun SkillInfo.invocation() = listOfNotNull("the agent".takeIf { modelInvocable }, "you, with /$name".takeIf { userInvocable })
-    .joinToString(" and ").ifEmpty { "no one" }
+private fun SkillInfo.invocation() = listOfNotNull("The Agent".takeIf { modelInvocable }, "you, with /$name".takeIf { userInvocable })
+    .joinToString(" and ").replaceFirstChar { it.uppercase() }.ifEmpty { "No one" }

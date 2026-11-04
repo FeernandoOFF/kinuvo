@@ -46,6 +46,8 @@ sealed interface ChatItem {
     ) : ChatItem {
         val waiting get() = approval != null || questions != null
         val trustHint get() = approval?.trustHint
+        /** The user said no to it, which isn't a failure. The Server records only its output, so this reads that. */
+        val denied get() = isError && result?.let { it.startsWith("The user denied") || it.startsWith("Denied") } == true
     }
     data class Measurement(override val id: String, val metrics: RequestMetrics) : ChatItem
     data class Notice(override val id: String, val code: String, val message: String, val draft: List<ChatItem> = emptyList()) : ChatItem

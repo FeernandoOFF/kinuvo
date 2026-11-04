@@ -120,7 +120,7 @@ internal fun SettingsPageHeader(title: String, back: (() -> Unit)? = null, subti
     info: String? = null, trailing: @Composable RowScope.() -> Unit = {}) {
     val navigation = LocalModalNavigation.current
     val up = if (navigation != null) navigation.back else back
-    if (LocalInSheet.current) Box(Modifier.fillMaxWidth().then(LocalSheetDrag.current).heightIn(min = 52.dp).padding(horizontal = 12.dp, vertical = 4.dp)) {
+    if (LocalInSheet.current) Box(Modifier.fillMaxWidth().then(LocalSheetDrag.current).heightIn(min = 52.dp).padding(horizontal = 16.dp, vertical = 4.dp)) {
         if (up != null) Box(Modifier.align(Alignment.CenterStart)) { HeaderButton(Lucide.ArrowLeft, "Back", up) }
         Column(Modifier.align(Alignment.Center).padding(horizontal = 72.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -164,10 +164,11 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
         draft.problems(agentId, host.agents).filter { it.contains("Name", true) || it.contains("called") }.forEach {
             Text(it, fontSize = 12.sp, color = color(destructiveColor))
         }
-        Label("Personality (IDENTITY.md)")
+        Label("Personality")
         TextArea(draftField(agentId, "identity", draft.identity) { v -> actions.onEdit { it.copy(identity = v) } }, lines = 3)
     }
-    Group("Soul", "Principles, tone and rules") {
+    Group("Soul") {
+        Label("Principles, tone and rules")
         TextArea(draftField(agentId, "soul", draft.soul) { v -> actions.onEdit { it.copy(soul = v) } }, lines = 5)
     }
     Group("Model") {

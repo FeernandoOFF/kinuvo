@@ -149,7 +149,7 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                         DockButton(Lucide.MousePointer2, "Trackpad mode", { trackpad = !trackpad }, caption = "Trackpad", enabled = "tap" in capabilities.inputs, selected = trackpad)
                         ClipboardButton(state, paste, desktop && "C" in capabilities.keys && copyModifier != null,
                             { sendKey("$copyModifier+C") }, { sendKey("$copyModifier+V") }, "V" in capabilities.keys)
-                        switcher?.let { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, caption = "Switch", enabled = state.interactive) }
+                        switcher?.takeIf { state.interactive }?.let { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, caption = "Switch") }
                         DockButton(screensIcon, screensLabel, { controls = true }, caption = screensCaption)
                     }
                 }

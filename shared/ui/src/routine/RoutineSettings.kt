@@ -33,7 +33,7 @@ internal fun RoutineList(p: Pane) {
     val restricted = !ui.management
     ItemList(
         p, "Routines",
-        "Prompts ${ui.agent?.name ?: "the agent"} runs on a schedule, each in its own session. Add one here or ask in chat, " +
+        "Prompts ${ui.agent?.name ?: "the agent"} runs on a schedule, each in its own Session. Add one here or ask in chat, " +
             "e.g. “every weekday at 9, summarize my inbox”.",
         // An empty list offers one way to add, under it.
         "New routine", routines == null && error == null && !restricted, canAdd = !restricted && routines?.isEmpty() != true,
@@ -84,8 +84,8 @@ private fun RoutineDetail(r: Routine, p: Pane) {
         DetailGroup("Runs") {
             DetailRow("Session") {
                 val attached = r.sessionId
-                if (attached == null) Text("A new session each run")
-                else Button(onClick = { actions.onOpenSession(attached) }, style = ButtonStyle.Link) { Text("Continues one session") }
+                if (attached == null) Text("A new Session each run")
+                else Button(onClick = { actions.onOpenSession(attached) }, style = ButtonStyle.Link) { Text("Continues one Session") }
             }
             DetailRow("Approvals") { Picker(RoutineApprovals.entries, r.approvals, { it.label() }, { actions.onApprovals(r.id, it) }, hint = { it.hint() }) }
             DetailRow("Last run") {
@@ -105,7 +105,7 @@ private fun RoutineDetail(r: Routine, p: Pane) {
             else Markdown(r.prompt, Modifier.fillMaxWidth())
         }
         RowGroup("Recent runs") {
-            if (ui.state.runs.isEmpty()) GroupRow(if (r.sessionId != null) "Runs continue the attached session." else "No runs yet.", tint = color(mutedColor))
+            if (ui.state.runs.isEmpty()) GroupRow(if (r.sessionId != null) "Runs continue the attached Session." else "No runs yet.", tint = color(mutedColor))
             ui.state.runs.forEach { session ->
                 GroupRow(session.id.toRunLabel(), { actions.onOpenSession(session.id) }, icon = Lucide.MessageSquare) {
                     if (session.status != SessionStatus.Idle) Pill(if (session.status == SessionStatus.Running) "Running" else "Waiting", tone = Tone.Accent)

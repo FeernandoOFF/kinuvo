@@ -348,7 +348,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
         TitleBarRow(leading = false, trailing = false) {
             Text(state.agent?.name ?: "…", Modifier.weight(1f).padding(horizontal = 8.dp), fontWeight = FontWeight.Bold, singleLine = true, overflow = TextOverflow.Ellipsis)
             HeaderButton(Lucide.Settings2, "Agent settings", actions.onAgentSettings, enabled = state.agent != null)
-            HeaderButton(Lucide.SquarePen, "New session ${shortcut("N")}", actions.onNew, enabled = state.agent != null)
+            HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", actions.onNew, enabled = state.agent != null)
         }
         HorizontalSeparator()
         SessionSearch(chrome.query, state.agent?.name, Modifier.padding(start = 8.dp, top = 8.dp, end = 8.dp))

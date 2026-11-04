@@ -506,14 +506,14 @@ private fun EndedComposer(message: String, onNew: () -> Unit, modifier: Modifier
     Panel(modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(16.dp)) {
         Text(message, fontSize = 14.sp, color = color(mutedColor))
         Spacer(Modifier.height(12.dp))
-        Button(onNew, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Primary) { Text("New session") }
+        Button(onNew, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Primary) { Text("New Session") }
     }
 }
 
 @Composable
 private fun HeaderControls(wide: Boolean, onToggle: (() -> Unit)?, onNew: (() -> Unit)?) {
     onToggle?.let { if (wide) HeaderButton(Lucide.PanelLeft, "Toggle sidebar ${shortcut(".")}", it) else HeaderButton(Lucide.Menu, "Agents and sessions", it) }
-    onNew?.let { HeaderButton(Lucide.SquarePen, "New session ${shortcut("N")}", it) }
+    onNew?.let { HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", it) }
 }
 
 /** Phones: no title, just bubbles floating over the top of the messages, which fade out under them. */
@@ -528,7 +528,7 @@ private fun FloatingBar(state: ChatState, usage: Usage?, actions: ChatActions, o
             state.agent?.let { agent ->
                 FloatingPill(actions.onSettings, "${agent.name} settings", fill = true, leading = { AgentAvatar(agent, 28.dp) }) {
                     Text(agent.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, singleLine = true, overflow = TextOverflow.Ellipsis)
-                    Text(title ?: "New session", fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                    Text(title ?: "New Session", fontSize = 12.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                 }
             }
             if (state.agent == null) Spacer(Modifier.weight(1f))
@@ -547,7 +547,7 @@ private fun PhoneActions(state: ChatState, usage: Usage?, actions: ChatActions) 
     val selected = state.selected?.let { id -> state.sessions.firstOrNull { it.id == id } ?: state.info }
     if (state.selected == null && actions.onBrowser == null && state.items.isEmpty()) return
     Bubble {
-        if (state.selected != null) BubbleButton(Lucide.SquarePen, "New session", actions.onNew)
+        if (state.selected != null) BubbleButton(Lucide.SquarePen, "New Session", actions.onNew)
         actions.onBrowser?.let { BubbleButton(Lucide.Globe, "Browser", it) }
         if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, extra = { close ->
             DropdownMenuItem(onClick = { close(); statistics = true }) { MenuItem(Lucide.Gauge, "Statistics") }
@@ -598,7 +598,7 @@ private fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compac
                 if (!compact) Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
             }
             Text(
-                selected?.title ?: if (state.agent != null) "New session" else "…",
+                selected?.title ?: if (state.agent != null) "New Session" else "…",
                 Modifier.weight(1f, fill = false),
                 color = if (selected == null) color(mutedColor) else androidx.compose.ui.graphics.Color.Unspecified,
                 fontWeight = FontWeight.Normal,
@@ -637,12 +637,12 @@ private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatS
                         MenuItem(if (session.favorite) Lucide.StarOff else Lucide.Star, if (session.favorite) "Remove from favorites" else "Add to favorites")
                     }
                     DropdownMenuItem(onClick = { menu = false; renaming = true }) { MenuItem(Lucide.Pencil, "Rename") }
-                    if (closable) DropdownMenuItem(onClick = { menu = false; closing = true }) { MenuItem(Lucide.CircleStop, "Close session") }
+                    if (closable) DropdownMenuItem(onClick = { menu = false; closing = true }) { MenuItem(Lucide.CircleStop, "Close Session") }
                 }
             }
         },
     ) { trigger { menu = true } }
-    if (session != null) Popover(renaming, { renaming = false }, "Rename session") {
+    if (session != null) Popover(renaming, { renaming = false }, "Rename Session") {
         val title = rememberTextFieldState(session.title)
         val focus = remember { FocusRequester() }
         LaunchedEffect(Unit) { focus.requestFocus() }
@@ -652,7 +652,7 @@ private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatS
             Button(::save, Modifier.fillMaxWidth(), enabled = title.text.toString().trim() != session.title, style = ButtonStyle.Primary) { Text("Save") }
         }
     }
-    if (closable) Popover(closing, { closing = false }, "Close session") { CloseSessionConfirm(chat, { closing = false }) { closing = false; actions.onCloseSession() } }
+    if (closable) Popover(closing, { closing = false }, "Close Session") { CloseSessionConfirm(chat, { closing = false }) { closing = false; actions.onCloseSession() } }
 }
 
 /** Asks before closing an external Session, saying what stops and what stays. */
@@ -674,7 +674,7 @@ internal fun CloseSessionConfirm(chat: ChatState, onCancel: () -> Unit, onClose:
         }, fontSize = 14.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
             Button(onCancel, style = ButtonStyle.Ghost) { Text("Keep open") }
-            Button(onClose, style = ButtonStyle.Ghost, contentColor = color(destructiveColor)) { Text(if (busy) "Stop and close" else "Close session") }
+            Button(onClose, style = ButtonStyle.Ghost, contentColor = color(destructiveColor)) { Text(if (busy) "Stop and close" else "Close Session") }
         }
     }
 }
@@ -752,6 +752,7 @@ private fun Messages(
     val last = items.lastOrNull()
     // A trailing group of steps shows the run's progress itself.
     val thinking = state.running && last !is ChatItem.Assistant && !(last is ChatItem.ToolCall && last.waiting) && rows.lastOrNull() !is ChatRow.Steps
+    val writing = state.running && last is ChatItem.Assistant
     val content = Triple(items.size, (last as? ChatItem.Assistant)?.text?.length ?: (last as? ChatItem.Reasoning)?.text?.length, thinking)
     var seen by remember { mutableStateOf(content) }
     val scope = rememberCoroutineScope()
@@ -812,10 +813,10 @@ private fun Messages(
                 state.voice?.heard?.takeIf { it.isNotBlank() }?.let { heard ->
                     item(key = "heard") { Box(Modifier.animateItem(fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth().alpha(0.6f)) { Entering { ChatItemView(ChatItem.User("heard", heard), actions) } } }
                 }
-                if (thinking) item(key = "thinking") {
+                if (thinking || writing) item(key = "thinking") {
                     Row(Modifier.widthIn(max = ContentWidth).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Spinner(tint = color(accentColor))
-                        Text("Working…", color = color(mutedColor), fontSize = 13.sp)
+                        Text(if (writing) "Writing…" else "Working…", color = color(mutedColor), fontSize = 13.sp)
                     }
                 }
             }
@@ -933,7 +934,7 @@ private fun EmptyState(state: ChatState, modifier: Modifier) {
                 else -> AvatarState.Idle
             }
             RiveAvatar(BundledAvatar, Modifier.size(180.dp, 120.dp), LocalRiveGaze.current, state.agent?.avatarArtboard, state = avatar)
-            Text(state.agent?.let { "Start a session with ${it.name}" } ?: "Connecting…", fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+            Text(state.agent?.let { "Start a Session with ${it.name}" } ?: "Connecting…", fontSize = 20.sp, lineHeight = 28.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
             Text("Ask anything, or type /skill to activate one.", color = color(mutedColor), textAlign = TextAlign.Center)
         }
     }
@@ -1073,6 +1074,7 @@ private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, action
         when {
             item.waiting -> Pill("Needs you", tone = Tone.Warning)
             item.result == null -> Spinner(Modifier.semantics { contentDescription = "Running" }, size = 13.dp)
+            item.denied -> Pill("Denied")
             item.isError -> Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor), contentDescription = "Failed")
             else -> Icon(Lucide.CircleCheck, Modifier.size(14.dp), tint = color(successColor), contentDescription = "Succeeded")
         }
