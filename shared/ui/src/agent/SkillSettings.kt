@@ -97,7 +97,7 @@ private fun SkillForm(s: SkillDetails?, p: Pane) {
 private const val TEMPLATE = "---\nname: my-skill\ndescription: What it does and when to use it.\n---\n\nInstructions for the agent.\n"
 
 private fun SkillInfo.where() = when (scope) {
-    ConfigScope.Agent -> "This agent's skills"
+    ConfigScope.Agent -> "This Agent's skills"
     ConfigScope.Shared -> "Shared with every agent"
     ConfigScope.External -> "An extra skill folder (read-only)"
 }

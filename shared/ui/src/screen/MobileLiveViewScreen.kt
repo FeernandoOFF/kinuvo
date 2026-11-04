@@ -94,7 +94,7 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                 Icon(Lucide.Hand, Modifier.size(15.dp), tint = Tone.Success.color())
                 Text("Hand back", fontSize = 13.sp)
             }
-            ScreenOptions(state, trackpad, fitPhone, { recenter++ }, { fitPhone = !fitPhone }, { restartTo = it }, actions)
+            ScreenOptions(state, trackpad, fitPhone, { recenter++ }, { fitPhone = !fitPhone }, { restartTo = it }, actions) { controls = true }
         }
         Banner(state)
         pasteError?.let { Text(it, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), color = Tone.Warning.color(), fontSize = 12.sp) }
@@ -150,7 +150,6 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
                         ClipboardButton(state, paste, desktop && "C" in capabilities.keys && copyModifier != null,
                             { sendKey("$copyModifier+C") }, { sendKey("$copyModifier+V") }, "V" in capabilities.keys)
                         switcher?.takeIf { state.interactive }?.let { DockButton(Lucide.ArrowRightLeft, "Switch apps", { sendKey(it) }, caption = "Switch") }
-                        DockButton(screensIcon, screensLabel, { controls = true }, caption = screensCaption)
                     }
                 }
             }
@@ -172,11 +171,15 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
 }
 
 @Composable
-private fun ScreenOptions(state: LiveViewState, trackpad: Boolean, fitPhone: Boolean, recenter: () -> Unit, fit: () -> Unit, restart: (Boolean) -> Unit, actions: LiveActions) {
+private fun ScreenOptions(state: LiveViewState, trackpad: Boolean, fitPhone: Boolean, recenter: () -> Unit, fit: () -> Unit, restart: (Boolean) -> Unit, actions: LiveActions, onScreens: () -> Unit) {
     var menu by remember { mutableStateOf(false) }
     val screen = state.screen
     DropdownMenu(expanded = menu, onExpandedChange = { menu = it }, panel = {
         DropdownMenuPanel {
+            // In control, the dock keeps to input; other Screens are one step away here.
+            if (state.ownsControl) DropdownMenuItem(onClick = { menu = false; onScreens() }) {
+                MobileMenuItem(if (state.owner != null) Lucide.PanelsTopLeft else Lucide.MonitorSmartphone, if (state.owner != null) "Tabs & address" else "Computers")
+            }
             BrowserPresentationMenuItems(state) { menu = false; restart(it) }
             if (trackpad) DropdownMenuItem(onClick = { menu = false; recenter() }, enabled = state.interactive) {
                 MobileMenuItem(Lucide.Crosshair, "Recenter pointer")
@@ -222,7 +225,7 @@ private fun RoundButton(icon: ImageVector, label: String, onClick: () -> Unit, e
 /** A dock control: its icon over a short [caption]; [label] is read out. */
 @Composable
 private fun DockButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true, selected: Boolean? = null, caption: String) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = CircleShape
     val tint = when {
         !enabled -> color(mutedColor).copy(alpha = 0.7f)
         selected == true -> color(accentColor)

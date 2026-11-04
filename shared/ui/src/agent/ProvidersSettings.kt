@@ -39,7 +39,7 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
         RowGroup(provider.name) {
             when {
                 apiKey != null -> GroupRow(if (apiKey.configured) "API key set" else "Add an API key", icon = Lucide.KeyRound,
-                    subtitle = if (apiKey.configured) apiKey.reference ?: apiKey.storage else "${provider.name} models need one on the Server") {
+                    subtitle = if (apiKey.configured) apiKey.reference ?: apiKey.storage else "Needs a key on the Server") {
                     if (apiKey.configured) Icon(Lucide.CircleCheck, Modifier.size(18.dp), tint = color(successColor))
                     else Pill("Needed", tone = Tone.Warning)
                 }

@@ -86,6 +86,7 @@ fun GroupRow(
     Row(
         Modifier.fillMaxWidth().heightIn(min = 52.dp).background(background).hoverable(interaction)
             .then(if (onClick != null) Modifier.clickable(interaction, Theme[indications][defaultIndication], enabled = enabled, onClick = onClick) else Modifier)
+            .then(if (selected) Modifier.semantics { this.selected = true } else Modifier)
             .then(if (onToggle != null) Modifier.toggleable(toggled, interaction, Theme[indications][defaultIndication], enabled, Role.Switch, onToggle) else Modifier)
             .alpha(if (enabled) 1f else 0.45f)
             .padding(horizontal = 16.dp, vertical = 10.dp),

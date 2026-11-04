@@ -97,7 +97,7 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
             SettingsSection.Workspace -> {
                 RowGroup("Shell and files") {
                     val (offered, missing) = EXEC.keys.partition { it == "none" || p.ui.capabilities.offers(Integration.Exec, it) }
-                    PickerRow("Runs on", (offered + s.exec).distinct(), exec, { EXEC[it] ?: it }, { exec = it })
+                    PickerRow("Runs on", (offered + s.exec).distinct(), exec, { EXEC[it] ?: it.replaceFirstChar { c -> c.uppercase() } }, { exec = it })
                     GroupBox {
                     if (missing.isNotEmpty()) Text("Not available on this Server: ${missing.joinToString { EXEC.getValue(it).lowercase() }}.", color = color(mutedColor))
                     // Older Servers ignore these settings and have no test; they're edited in agent.yaml there.
@@ -118,7 +118,7 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
                     val remote = if (exec == "ssh") "on the remote machine" else "on the Server"
                     val windows = p.ui.capabilities?.platform == Platform.Windows
                     if (exec == "host" && windows) Text("Commands use Bash. Install Git for Windows and add its bin folder (e.g. C:/Program Files/Git/bin) to PATH, then restart Kinuvo.", color = color(mutedColor))
-                    if (exec != "none") FormField("Workspace", "Folders $remote the agent's file tools may touch, one per line; commands start in the first.") {
+                    if (exec != "none") FormField("Folders", "Folders $remote the agent's file tools may touch, one per line; commands start in the first.") {
                         TextArea(workspace, "e.g. " + if (windows && exec != "ssh") "C:/Users/you/projects" else "~/projects", lines = 1, capitalize = false)
                     }
                     }

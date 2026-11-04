@@ -263,7 +263,7 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
             } }
         }
         // Without a command to show, the arguments are what's being approved.
-        if (command == null || input.arguments) CodeBlock(json, language = "arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
+        if (command == null || input.arguments) CodeBlock(json, language = "Arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
         Actions(wide,
             primary = { Button(onClick = { onDecision(ApprovalDecision.AllowOnce) }, modifier = it, style = ButtonStyle.Primary) { Text("Allow once") } },
             others = {

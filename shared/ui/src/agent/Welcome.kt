@@ -211,9 +211,10 @@ private fun ColumnScope.Manual(options: WelcomeOptions) {
     Text("Use the address and code your Server shows when you pair a device, or paste its pairing link.", color = color(mutedColor))
     RowGroup {
         // An error about the code shows under it; anything else is about reaching the Server.
-        val codeError = options.error?.contains("code", ignoreCase = true) == true
-        FieldRow("Server address or pairing link") { Input(options.url, "https://your-server:8787"); if (!codeError) options.error?.let { FieldError(it) } }
-        FieldRow("Pairing code") { Input(options.code, "Code from the Server"); if (codeError) options.error?.let { FieldError(it) } }
+        val error = options.error
+        val codeError = error?.contains("code", ignoreCase = true) == true
+        FieldRow("Server address or pairing link") { Input(options.url, "https://your-server:8787"); error?.takeUnless { codeError }?.let { FieldError(it) } }
+        FieldRow("Pairing code") { Input(options.code, "Code from the Server"); error?.takeIf { codeError }?.let { FieldError(it) } }
         FieldRow("Name on this device") { Input(options.name, "e.g. Home server") }
     }
     if (options.servers.isNotEmpty()) RowGroup("Your servers") {
