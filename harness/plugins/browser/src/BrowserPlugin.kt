@@ -33,6 +33,7 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
     }
 
     private inner class BrowserTool(val owner: BrowserOwner, val action: BrowserAction) : Tool {
+        override val repeatable = action !in setOf(BrowserAction.Open, BrowserAction.Navigate, BrowserAction.Click, BrowserAction.Type, BrowserAction.Close)
         override val risk = when (action) {
             BrowserAction.Open, BrowserAction.Capture, BrowserAction.Navigate, BrowserAction.Back, BrowserAction.Forward, BrowserAction.Scroll, BrowserAction.Wait -> Risk.Low
             BrowserAction.Click, BrowserAction.Type -> Risk.High

@@ -59,6 +59,10 @@ internal class ToolLoop(
     private val executor: () -> ToolExecutor,
     private val toolName: (String) -> String,
     private val repeated: suspend (SessionEntry.ToolCall) -> SessionEntry.ToolResult,
+    private val repeatable: (String) -> Boolean = { true },
+    private val completed: suspend (SessionEntry.ToolCall) -> SessionEntry.ToolResult = { call ->
+        SessionEntry.ToolResult(call.id, call.name, "This exact action already succeeded. Use its result and answer the user; don't repeat it.", isError = true, identity = call.identity)
+    },
     private val onResponse: suspend () -> Unit = {},
     private val onResult: suspend (SessionEntry.ToolResult) -> Unit = {},
     private val onFrame: suspend (StreamFrame) -> Unit = {},
@@ -66,9 +70,11 @@ internal class ToolLoop(
 ) {
     private val failed = mutableSetOf<Pair<String, String>>()
     private var repeats = 0
+    private var repeatedSuccess = false
+    private var lastSuccessful: Pair<String, String>? = null
     private var pending = emptyList<SessionEntry.ToolCall>()
 
-    fun checkRepeats() = check(repeats < 2) { "Stopped: the model kept repeating a tool call that failed" }
+    fun checkRepeats() = check(repeats < 2) { if (repeatedSuccess) "Stopped: the model kept repeating an action that already succeeded" else "Stopped: the model kept repeating a tool call that failed" }
 
     val request by node<Unit, Unit>("streamResponse") {
         checkRepeats()
@@ -85,10 +91,11 @@ internal class ToolLoop(
         val call = pending.first()
         val key = call.name to canonical(call.args)
         val result = toolCall(call, toolName(call.name)) {
-            if (key in failed) { repeats++; repeated(call) }
+            if (key == lastSuccessful && !repeatable(call.name)) { repeats++; repeatedSuccess = true; completed(call) }
+            else if (key in failed) { repeats++; repeated(call) }
             else executor().call(call, stopped = stopped)
         }
-        if (result.isError) failed += key
+        if (result.isError) failed += key else lastSuccessful = key
         onResult(result)
         llm.writeSession { prompt = prompt.withMessages { it + messages.messages(listOf(result)) } }
         pending = pending.drop(1)

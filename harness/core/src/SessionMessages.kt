@@ -24,13 +24,16 @@ class SessionMessages(private val model: AgentModel) {
 
     fun messages(history: List<SessionEntry>): List<Message> = history.flatMap { entry ->
         if (entry is SessionEntry.Compaction) return@flatMap messages(entry.history)
+        val toolFiles = (entry as? SessionEntry.ToolResult)?.attachments.orEmpty()
+            .filter { model.attachments != null || !it.mimeType.startsWith("image/") }
         val block = prompt("session") {
             when (entry) {
                 is SessionEntry.Context -> system(entry.content)
                 is SessionEntry.UserMessage -> user { if (entry.modelText.isNotBlank()) text(entry.modelText); attach(entry.attachments) }
                 is SessionEntry.AssistantMessage -> assistant(entry.text)
                 is SessionEntry.ToolCall -> toolCall(MessagePart.Tool.Call(entry.id, entry.name, entry.args))
-                is SessionEntry.ToolResult -> toolResult(MessagePart.Tool.Result(entry.id, entry.name, entry.output, entry.isError))
+                is SessionEntry.ToolResult -> toolResult(MessagePart.Tool.Result(entry.id, entry.name,
+                    entry.output + if (toolFiles.size < entry.attachments.size) "\n(Tool screenshot omitted; use the semantic text.)" else "", entry.isError))
                 is SessionEntry.Reasoning -> if (model.replayReasoning && entry.encrypted != null) reasoning(
                     MessagePart.Reasoning(content = emptyList(), summary = listOf(entry.text), encrypted = entry.encrypted, id = entry.id)
                 )
@@ -46,8 +49,8 @@ class SessionMessages(private val model: AgentModel) {
             entries += normalized to listOf(if (entry is SessionEntry.ToolResult) entry.copy(attachments = emptyList()) else entry)
             normalized
         }
-        if (entry is SessionEntry.ToolResult && entry.attachments.isNotEmpty())
-            block + messages(listOf(SessionEntry.UserMessage(TOOL_FILES, attachments = entry.attachments)))
+        if (entry is SessionEntry.ToolResult && toolFiles.isNotEmpty())
+            block + messages(listOf(SessionEntry.UserMessage(TOOL_FILES, attachments = toolFiles)))
         else block
     }
 

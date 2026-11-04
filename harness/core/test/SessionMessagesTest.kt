@@ -8,6 +8,19 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.*
 
 class SessionMessagesTest {
+    @Test
+    fun toolScreenshotsDoNotRequireAnAttachmentReaderForTextOnlyModels() {
+        val model = scriptedModel { _, _ -> emptyFlow() }.copy(attachments = null)
+        val screenshot = Attachment("image", "browser.jpg", "image/jpeg", 20)
+        val result = SessionEntry.ToolResult("open", "browser_open", "LinkedIn URL is open; semantic page text", attachments = listOf(screenshot))
+        val prompt = SessionMessages(model).prompt("", listOf(result))
+        assertTrue(prompt.messages.flatMap { it.parts }.none { it is MessagePart.Attachment })
+        val tool = prompt.messages.flatMap { it.parts }.filterIsInstance<MessagePart.Tool.Result>().single()
+        assertTrue("semantic page text" in tool.output)
+        assertTrue("screenshot omitted" in tool.output)
+        assertEquals(listOf(screenshot), result.attachments)
+    }
+
     private val messages = SessionMessages(scriptedModel { _, _ -> emptyFlow() })
 
     @Test
