@@ -151,10 +151,11 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
             if (task.notes.isNotBlank()) {
                 Text(task.notes.trim(), color = color(mutedColor), style = TextStyles.secondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
+            // One row: a long assignee shortens rather than pushing the run link onto a line of its own.
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->
                     actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: ""))
-                }, icon = Lucide.User)
+                }, icon = Lucide.User, modifier = Modifier.weight(1f, fill = false))
                 // Phones show the status as the tab; it changes from the Task itself.
                 if (LocalInteractionMode.current != InteractionMode.Touch)
                     Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())

@@ -403,7 +403,7 @@ internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, l
 /** A list row with a title, a muted [subtitle] and trailing pills. */
 @Composable
 internal fun ItemRow(selected: Boolean, icon: ImageVector, title: String, subtitle: String, onClick: () -> Unit, trailing: @Composable RowScope.() -> Unit = {}) =
-    GroupRow(title, onClick, subtitle, icon, selected = selected, trailing = trailing)
+    GroupRow(title, onClick, subtitle, icon, selected = selected, titleLines = 2, trailing = trailing)
 
 /**
  * A detail or form screen: a title bar with [trailing] controls over a centered, scrolling column, led by any [error].

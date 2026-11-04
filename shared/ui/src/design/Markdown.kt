@@ -150,17 +150,18 @@ private fun MarkdownTable(rows: List<List<String>>, style: TextStyle) {
     val weights = List(columns) { c -> rows.maxOf { it.getOrElse(c) { "" }.length }.coerceIn(4, 40).toFloat() }
     val border = color(borderColor)
     val shape = Theme[shapes][mediumShape]
-    // Columns share the width while they fit; past that the table scrolls sideways at their minimum.
+    // Every column gets a readable minimum; the rest of the width goes by content. Past the minimums the table scrolls sideways.
     BoxWithConstraints(Modifier.fillMaxWidth().clip(shape).border(1.dp, border, shape)) {
-        val fits = maxWidth >= MinColumnWidth * columns
-        Column(Modifier.horizontalScroll(rememberScrollState(), enabled = !fits).width(if (fits) maxWidth else MinColumnWidth * columns)) {
+        val spare = (maxWidth - MinColumnWidth * columns).coerceAtLeast(0.dp)
+        val widths = weights.map { MinColumnWidth + spare * (it / weights.sum()) }
+        Column(Modifier.horizontalScroll(rememberScrollState(), enabled = spare == 0.dp).width(maxOf(maxWidth, MinColumnWidth * columns))) {
             rows.forEachIndexed { r, row ->
                 Row(if (r == 0) Modifier.background(color(subtleColor)) else Modifier) {
                     repeat(columns) { c ->
                         RichMarkdown(
                             row.getOrElse(c) { "" },
                             if (r == 0) style.copy(fontWeight = FontWeight.SemiBold) else style,
-                            Modifier.weight(weights[c]).padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                            Modifier.width(widths[c]).padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
                         )
                     }
                 }
@@ -169,4 +170,4 @@ private fun MarkdownTable(rows: List<List<String>>, style: TextStyle) {
     }
 }
 
-private val MinColumnWidth = 140.dp
+private val MinColumnWidth = 88.dp

@@ -168,7 +168,7 @@ private fun RunningNow(ui: HomeUi, actions: HomeActions) {
         running.forEach { r ->
             val agent = ui.agent(r.agentId)
             val kind = r.session?.kind() ?: "Routine run"
-            HomeRow(agent, r.title, listOfNotNull(agent?.name, kind).joinToString(" · "), { actions.onOpenSession(r.agentId, r.sessionId) }) { Spinner(size = 12.dp) }
+            HomeRow(agent, r.title, listOfNotNull(agent?.name, kind).joinToString(" · "), { actions.onOpenSession(r.agentId, r.sessionId) }) { Spinner(Modifier.semantics { contentDescription = "Running" }, size = 12.dp, tint = color(accentColor)) }
         }
     }
 }
@@ -199,11 +199,8 @@ private fun DueThisWeek(ui: HomeUi, actions: HomeActions) {
             due.isEmpty() -> Empty("Nothing is due this week.")
             else -> due.forEach { d ->
                 val agent = ui.agent(d.task.assignee)
-                // The Overdue pill says it's late; the line keeps the date, list and status.
                 HomeRow(agent, d.task.title, "${ui.dayLabel(d.date)} · ${d.task.listName} · ${d.task.status.label()}", { actions.onOpenTask(d.task.id) },
-                    icon = Lucide.SquareKanban.takeIf { agent == null }) {
-                    if (d.overdue) Pill("Overdue", tone = Tone.Danger)
-                }
+                    icon = Lucide.SquareKanban.takeIf { agent == null }, flag = "Overdue".takeIf { d.overdue })
             }
         }
     }
@@ -261,12 +258,16 @@ private fun Empty(text: String) = Text(text, Modifier.padding(start = 23.dp, top
 
 /** A row opening one Session, Task or Routine: [agent]'s avatar (or [icon]), a title and a muted line. */
 @Composable
-private fun HomeRow(agent: AgentInfo?, title: String, subtitle: String, onClick: () -> Unit, icon: ImageVector? = null, trailing: @Composable RowScope.() -> Unit = {}) {
+private fun HomeRow(agent: AgentInfo?, title: String, subtitle: String, onClick: () -> Unit, icon: ImageVector? = null, flag: String? = null, trailing: @Composable RowScope.() -> Unit = {}) {
     // A fixed leading slot, so rows with an icon and rows with an avatar start their text together.
     ListRow(false, onClick, leading = { Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) { if (icon != null) Icon(icon, Modifier.size(16.dp)) else AgentAvatar(agent, 22.dp) } }) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(subtitle, style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            // A flag leads the meta line, so it doesn't take width from the title.
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                flag?.let { Text(it, style = TextStyles.caption, color = Tone.Danger.color(), fontWeight = FontWeight.Medium) }
+                Text(subtitle, Modifier.weight(1f), style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
         }
         if (icon != null && agent != null) AgentAvatar(agent, 20.dp)
         trailing()
