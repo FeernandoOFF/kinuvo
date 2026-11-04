@@ -130,12 +130,12 @@ private fun NeedsYou(ui: HomeUi, actions: HomeActions) {
         if (items.isEmpty()) Empty("Nothing is waiting on you.")
         items.forEach { a ->
             when (a) {
-                is Attention.Waiting -> AttentionCard(ui.agent(a.session.agentId), a.session.title, a.session.kind(), "Approval or answer waiting in this Session") {
+                is Attention.Waiting -> AttentionCard(ui.agent(a.session.agentId), a.session.title, a.session.kind(), "approval or answer waiting") {
                     Button({ actions.onOpenSession(a.session.agentId, a.session.id) }, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) {
                         Icon(Lucide.Hash, Modifier.size(14.dp)); Spacer(Modifier.width(6.dp)); Text("Open Session")
                     }
                 }
-                is Attention.TaskWaiting -> AttentionCard(ui.agent(a.task.assignee), a.task.title, "Task · ${a.task.listName}", "The Task waits on you") {
+                is Attention.TaskWaiting -> AttentionCard(ui.agent(a.task.assignee), a.task.title, "Task · ${a.task.listName}", "waits on you") {
                     Button({ actions.onOpenTask(a.task.id) }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) {
                         Icon(Lucide.SquareKanban, Modifier.size(14.dp)); Spacer(Modifier.width(6.dp)); Text("Open Task")
                     }
@@ -152,12 +152,13 @@ private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, detail
         Modifier.fillMaxWidth().clip(shape).background(color(panelColor), shape).border(1.dp, Tone.Warning.color().copy(alpha = 0.45f), shape).padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        // The Agent and status on one line, then what waits, so long names and titles each get a line of their own.
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             AgentAvatar(agent, 22.dp)
-            Text(agent?.name ?: "Unassigned", fontWeight = FontWeight.Bold, singleLine = true)
-            Text("· $title", Modifier.weight(1f), color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+            Text(agent?.name ?: "Unassigned", Modifier.weight(1f), style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             Pill("Waiting", tone = Tone.Warning)
         }
+        Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Text("$kind · $detail", style = TextStyles.secondary, color = color(mutedColor))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), content = action)
     }

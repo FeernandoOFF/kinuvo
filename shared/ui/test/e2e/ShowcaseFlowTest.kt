@@ -41,9 +41,8 @@ class ShowcaseFlowTest {
         tap("Board")
         await("Renew passport before the summer trip.*")
         screenshot("board")
-        tap("Show done")
         repeat(3) { swipe(60, 60, 10, 60); screenshot("board-column-${it + 2}") }
-        repeat(3) { swipe(10, 60, 60, 60) }
+        tap("In progress")
         tap("Prepare the quarterly planning slides")
         screenshot("task-with-runs")
     }
