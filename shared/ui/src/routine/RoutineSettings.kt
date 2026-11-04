@@ -41,7 +41,7 @@ internal fun RoutineList(p: Pane) {
         when {
             restricted -> ManagementAccessRequired()
             error != null -> LoadFailure(error, onAction = p.actions.onReloadRoutines)
-            routines?.isEmpty() == true -> EmptyState(Lucide.AlarmClock, "No routines yet") {
+            routines?.isEmpty() == true -> EmptyState(Lucide.AlarmClock, "No routines yet", "Create one here, or ask in chat.") {
                 Button(onClick = { p.go(ui.route.copy(item = null, editing = true)) }, style = ButtonStyle.Primary) { Text("Create routine") }
             }
         }

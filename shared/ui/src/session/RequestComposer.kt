@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.Hand
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MessageCircleQuestionMark
+import com.composables.icons.lucide.Pencil
 import com.composables.icons.lucide.ShieldAlert
 import com.composables.icons.lucide.X
 import com.composables.ui.components.*
@@ -280,8 +281,9 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
         if (event.trustable) Actions(wide,
             primary = { Button(onClick = { onDecision(ApprovalDecision.AllowForSession) }, modifier = it, style = ButtonStyle.Outlined) { Text("Allow for this Session", singleLine = true) } },
             others = { Button(onClick = { onDecision(ApprovalDecision.AlwaysAllow) }, modifier = it, style = ButtonStyle.Outlined) { Text(always, singleLine = true, overflow = TextOverflow.Ellipsis) } })
-        if (!input.noting) Button(onClick = { input.noting = true }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Link, contentColor = color(mutedColor)) {
-            Text("Add a note for the Agent", fontSize = 13.sp)
+        if (!input.noting) Button(onClick = { input.noting = true }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Ghost, contentColor = color(onBackgroundColor)) {
+            Icon(Lucide.Pencil, Modifier.size(14.dp))
+            Text("Add a note for the Agent", fontSize = 14.sp)
         }
     }
 }

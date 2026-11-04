@@ -219,14 +219,17 @@ fun Input(
     secret: Boolean = false,
     capitalize: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
+    leading: (@Composable () -> Unit)? = null,
+    error: Boolean = false,
 ) {
     val style = inputTextStyle()
     com.composables.ui.components.TextField(
         state,
         modifier.fillMaxWidth(),
+        leading = leading,
         trailing = trailing,
         backgroundColor = color(backgroundColor),
-        borderColor = color(com.composables.ui.theme.borderColor),
+        borderColor = if (error) color(destructiveColor) else color(com.composables.ui.theme.borderColor),
         placeholder = { Text(placeholder, style = style) },
         textStyle = style,
         outputTransformation = if (secret) androidx.compose.foundation.text.input.OutputTransformation { replace(0, length, "•".repeat(length)) } else null,

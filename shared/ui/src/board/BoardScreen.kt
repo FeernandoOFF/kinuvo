@@ -13,6 +13,7 @@ import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -134,15 +135,17 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
             // Its own target, so the card's pickers aren't buttons inside a button.
             Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(Theme[shapes][smallShape]).clickable(onClickLabel = "Open task", role = Role.Button) { actions.onOpenTask(task.id) },
                 verticalAlignment = Alignment.CenterVertically) {
-                Text(task.title, Modifier.weight(1f), fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                Column(Modifier.weight(1f)) {
+                    Text(task.title, fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis,
+                        color = if (task.status == TaskStatus.Done) color(mutedColor) else Color.Unspecified)
+                    Text(listOfNotNull(task.listName, task.due?.let { "due $it" }).joinToString(" · "), fontSize = 13.sp, color = color(mutedColor), singleLine = true)
+                }
                 Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
             }
             if (task.notes.isNotBlank()) {
                 Text(task.notes.trim(), color = color(mutedColor), fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp), itemVerticalAlignment = Alignment.CenterVertically) {
-                Pill(task.listName, icon = Lucide.List)
-                task.due?.let { Pill(it, icon = Lucide.Calendar) }
                 Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->
                     actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: ""))
                 }, icon = Lucide.User)
@@ -211,3 +214,4 @@ private fun TaskStatus.tone() = when (this) {
     TaskStatus.Waiting -> Tone.Warning
     TaskStatus.Done -> Tone.Success
 }
+
