@@ -68,6 +68,13 @@ permission and voice, and OS-level background/resume:
 
 Add new screen or flow coverage to `shared/ui/test/e2e/`; add a Maestro flow only for device-level behavior.
 
+The `showcase` profile (`stubs/showcase/`) serves dense, realistic data for reviewing layouts: three Agents (one with a
+long name), 17+ Sessions with favorites and running/waiting states, a fully populated Today, a Board with every Task
+status, a rich chat transcript (Markdown, a mixed tool chain, an attachment, a Browser tab), Knowledge results and a long
+note, Routines, Skills and several Computers. Its times use WireMock's `{{now offset='…' format='epoch'}}` and
+`format='yyyy-MM-dd'` helpers, so Today and due dates stay current. `ShowcaseFlowTest` screenshots it to
+`shared/ui/build/screens/flows/showcase-*/`.
+
 On phones the drawer is an owner rail (Home, Agents, New agent, Server, Settings) beside a column: the
 Agent's Sessions, or with Home selected Today, Board and the Server-wide Computers, Knowledge and Artifacts.
 Flows reach those screens with `tapOn: "Agents and sessions"`, `tapOn: "Home"`, then the destination.
