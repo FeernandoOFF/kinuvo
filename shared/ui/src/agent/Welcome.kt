@@ -30,6 +30,7 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
@@ -209,15 +210,11 @@ private fun ColumnScope.Manual(options: WelcomeOptions) {
     }
     Text("Use the address and code your Server shows when you pair a device, or paste its pairing link.", color = color(mutedColor))
     RowGroup {
-        FieldRow("Server address or pairing link") { Input(options.url, "https://your-server:8787") }
-        FieldRow("Pairing code") { Input(options.code, "Code from the Server") }
+        // An error about the code shows under it; anything else is about reaching the Server.
+        val codeError = options.error?.contains("code", ignoreCase = true) == true
+        FieldRow("Server address or pairing link") { Input(options.url, "https://your-server:8787"); if (!codeError) options.error?.let { FieldError(it) } }
+        FieldRow("Pairing code") { Input(options.code, "Code from the Server"); if (codeError) options.error?.let { FieldError(it) } }
         FieldRow("Name on this device") { Input(options.name, "e.g. Home server") }
-        options.error?.let { GroupBox {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Lucide.CircleX, Modifier.size(16.dp), tint = color(destructiveColor))
-                Text(it, color = color(destructiveColor), fontSize = 14.sp)
-            }
-        } }
     }
     if (options.servers.isNotEmpty()) RowGroup("Your servers") {
         options.servers.forEach { server -> GroupRow(server.label, { options.onServer(server) }, server.address, Lucide.Server, enabled = !options.busy) }
@@ -225,6 +222,12 @@ private fun ColumnScope.Manual(options: WelcomeOptions) {
     Spacer(Modifier.height(4.dp))
     Cta(OnboardingAction(if (options.busy) "Connecting…" else "Connect", options.url.text.isNotBlank() && options.code.text.isNotBlank(), options.onPair),
         options.busy, Modifier.fillMaxWidth())
+}
+
+@Composable
+private fun FieldError(text: String) = Row(Modifier.semantics { error(text) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor))
+    Text(text, color = color(destructiveColor), fontSize = 13.sp)
 }
 
 /** A quieter companion to [Cta]. */

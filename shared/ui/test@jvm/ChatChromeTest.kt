@@ -155,14 +155,14 @@ class ChatChromeTest {
             frame()
             scene.click("More"); frame()
             scene.click("Rename"); frame()
-            assertNotNull(scene.node("Rename session"))
+            assertNotNull(scene.node("Rename Session"))
             scene.screenshot("desktop-rename", time)
             val input = scene.nodes().first { it.config.getOrNull(SemanticsProperties.EditableText)?.text == info.title }
             input.config[SemanticsActions.SetText].action!!.invoke(AnnotatedString("Trip plans"))
             frame()
             scene.click("Save"); frame()
             assertEquals("Trip plans", renamed)
-            assertNull(scene.node("Rename session"))
+            assertNull(scene.node("Rename Session"))
         }
     }
 

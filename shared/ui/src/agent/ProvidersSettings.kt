@@ -39,7 +39,7 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
         RowGroup(provider.name) {
             when {
                 apiKey != null -> GroupRow(if (apiKey.configured) "API key set" else "Add an API key", icon = Lucide.KeyRound,
-                    subtitle = if (apiKey.configured) apiKey.reference ?: apiKey.storage else "Its models work once the Server has a key") {
+                    subtitle = if (apiKey.configured) apiKey.reference ?: apiKey.storage else "${provider.name} models need one on the Server") {
                     if (apiKey.configured) Icon(Lucide.CircleCheck, Modifier.size(18.dp), tint = color(successColor))
                     else Pill("Needed", tone = Tone.Warning)
                 }
@@ -82,7 +82,7 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
         }
         provider.error?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = color(destructiveColor), fontSize = 12.sp) }
         if (apiKey != null) Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Saved keys stay on the Server. Refresh models after changing it.", Modifier.weight(1f), color = color(mutedColor), fontSize = 12.sp)
+            Text("Saved keys stay on the Server. Refresh models after changing a key.", Modifier.weight(1f), color = color(mutedColor), fontSize = 12.sp)
             if (p.ui.state.saved) Pill("Saved", tone = Tone.Success, icon = Lucide.CircleCheck)
         }
     }

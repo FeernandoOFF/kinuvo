@@ -14,7 +14,7 @@ internal suspend fun AppTest.openPairing(code: String) {
 
 internal suspend fun AppTest.pair() {
     openPairing("123456")
-    await("Start a session with E2E Agent")
+    await("Start a Session with E2E Agent")
 }
 
 internal suspend fun AppTest.startChat() {
