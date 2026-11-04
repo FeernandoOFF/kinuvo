@@ -206,7 +206,10 @@ internal fun RowScope.ComposerSettings(
                 SectionLabel(group.name)
                 group.models.forEach { model ->
                     ListRow(false, { listing = false; onChange(settings.select(group.id, model, defaults)) }) {
-                        Text(model.name, Modifier.weight(1f))
+                        Column(Modifier.weight(1f)) {
+                            Text(model.name)
+                            model.state.reason?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
+                        }
                         if (provider == group.id && settings.model == model.id) Icon(Lucide.Check, Modifier.size(14.dp))
                     }
                 }

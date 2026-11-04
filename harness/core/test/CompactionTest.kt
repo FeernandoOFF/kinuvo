@@ -49,6 +49,35 @@ class CompactionTest {
     }
 
     @Test
+    fun shortTwoTurnHistoryAboveTheSoftThresholdIsNotSummarized() = runTest {
+        val home = TestHome()
+        val agent = home.agent.copy(config = home.agent.config.copy(compactAtTokens = 2252))
+        val session = home.store.createSession(agent.id, "i".repeat(9200))
+        var calls = 0
+        val model = scriptedModel { _, _ -> calls++; flowOf(StreamFrame.TextDelta("I can use Browser tools."), StreamFrame.End()) }
+        repeat(2) { index ->
+            val events = AgentRun(agent, home.store, model, emptyList(), contextTokens = 4096)
+                .run(session.id, if (index == 0) "What tools do you have access to?" else "Can you open the browser?").toList()
+            assertIs<AgentEvent.RunFinished>(events.last())
+            assertTrue(events.none { it is AgentEvent.Compacted })
+        }
+        assertEquals(2, calls)
+    }
+
+    @Test
+    fun providerTokenCountEnforcesTheHardBudgetAndExplainsTheOverhead() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent.id, "short")
+        var calls = 0
+        val model = scriptedModel { _, _ -> calls++; flowOf(StreamFrame.End()) }
+            .copy(estimateTokens = { _, _ -> 3500 })
+        val events = AgentRun(home.agent, home.store, model, emptyList(), contextTokens = 4096).run(session.id, "hello").toList()
+        val error = assertIs<AgentEvent.RunError>(events.last())
+        assertContains(error.message, "Input 3500 tokens; budget 3072")
+        assertEquals(0, calls)
+    }
+
+    @Test
     fun oversizedFreshRequestIsRejectedBeforeCallingTheModel() = runTest {
         val home = TestHome()
         val session = home.store.createSession(home.agent.id, "")
@@ -64,10 +93,10 @@ class CompactionTest {
         val home = TestHome()
         val agent = home.agent.copy(config = home.agent.config.copy(compactAtTokens = 50))
         val session = home.store.createSession(agent.id, "")
-        home.store.append(agent.id, session.id, UserMessage("x".repeat(400)))
-        val model = scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("y".repeat(1000)), StreamFrame.End()) }
+        home.store.append(agent.id, session.id, UserMessage("x".repeat(2400)))
+        val model = scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("y".repeat(4000)), StreamFrame.End()) }
         val events = AgentRun(agent, home.store, model, emptyList()).run(session.id, "next").toList()
-        assertTrue(events.last() is AgentEvent.RunError)
+        assertIs<AgentEvent.RunFinished>(events.last())
         assertTrue(home.store.entries(agent.id, session.id).none { it is Compaction })
     }
 

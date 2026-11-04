@@ -16,6 +16,8 @@ import kotlinx.serialization.json.jsonObject
 class MemoryTool(private val agent: Agent, private val docs: AgentDocs, private val memoryCap: Int = 4000, private val userCap: Int = 2000) : Tool {
     override val risk = Risk.Low
 
+    override val repeatable = false
+
     override val descriptor = ToolDescriptor(
         name = ToolNames.MEMORY,
         description = "Persist concise, durable information across Sessions. target=memory for verified lessons useful across many tasks; " +

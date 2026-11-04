@@ -176,7 +176,7 @@ open class HarnessRuntime(
     private fun usable(e: Effective, tools: List<Tool>): Set<String> {
         if (e.info?.tools == false) return emptySet()
         val listed = tools.filter { t -> e.info?.toolIds?.let { t.identity?.key in it } != false }.map { it.descriptor }
-        return (e.provider?.usableTools(e.agent.config.model, listed) ?: listed).map { it.name }.toSet()
+        return (e.provider?.usableTools(e.agent.config.model, listed, tools.mapNotNull { t -> t.identity?.let { t.descriptor.name to it } }.toMap()) ?: listed).map { it.name }.toSet()
     }
 
     /** [tools] can all be called; the model is sent only [advertised], with catalogued tools behind the catalog's. */
@@ -251,7 +251,9 @@ open class HarnessRuntime(
         val tools = prepared.tools.map(secrets::redacting)
         val advertised = prepared.advertised.map { it.descriptor.name }.toSet().let { names -> tools.filter { it.descriptor.name in names } }
         val sections = plugins.mapNotNull { it.instructions(agent) }
-        val context = kinuvo.harness.core.personalContextFor(agent, docs) + "\n" + kinuvo.harness.core.capabilitiesFor(agent, advertised) + "\nServer platform: $platformDescription. Today is ${Clock.System.todayIn(timeZone)} ($timeZone).\n" + sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
+        val today = "${Clock.System.todayIn(timeZone)} ($timeZone)"
+        val context = if (e.provider?.basicPrompt(agent.config.model) == true) kinuvo.harness.core.basicContextFor(agent, docs, advertised, today)
+        else kinuvo.harness.core.personalContextFor(agent, docs) + "\n" + kinuvo.harness.core.capabilitiesFor(agent, advertised) + "\nServer platform: $platformDescription. Today is ${Clock.System.todayIn(timeZone)} ($timeZone).\n" + sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
             "\n\nCurrent Skills:\n" + kinuvo.harness.core.skillCatalogFor(if (ToolNames.SKILLS in agent.config.tools) skills.load(agent) else emptyList())
         val model = model(e)
         return AgentRun(
