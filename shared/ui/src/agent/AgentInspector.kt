@@ -295,7 +295,7 @@ private fun Group(title: String, hint: String? = null, card: Boolean = true, con
 }
 
 @Composable
-private fun Label(text: String) = Text(text, Modifier.padding(start = 16.dp, top = 2.dp), fontSize = 12.sp, color = color(mutedColor))
+private fun Label(text: String) = Text(text, Modifier.padding(start = 12.dp, top = 2.dp), fontSize = 12.sp, color = color(mutedColor))
 
 /** A row opening a page inside the inspector. */
 @Composable

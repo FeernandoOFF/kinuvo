@@ -100,7 +100,7 @@ fun GroupRow(
         }
         value?.let { Text(it, Modifier.widthIn(max = 180.dp), fontSize = 13.sp, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
         trailing()
-        if (onToggle != null && enabled) ToggleSwitch(toggled, null)
+        if (onToggle != null) ToggleSwitch(toggled, null)
         if (chevron) Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
     }
 }

@@ -200,15 +200,17 @@ private fun AgentEvent.ApprovalRequested.isShell() = identity?.instance?.pluginI
 @Composable
 private fun RequestHeader(request: PendingRequest, count: Int, onClose: (() -> Unit)?) {
     val tone = request.tone()
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         Box(Modifier.size(30.dp).background(tone.copy(alpha = 0.14f), CircleShape), contentAlignment = Alignment.Center) { Icon(request.icon(), Modifier.size(16.dp), tint = tone) }
         Column(Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(request.title(), Modifier.weight(1f), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
-                if (request is PendingRequest.Approval) Pill("${request.event.risk.name} risk", tone = when (request.event.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
                 if (count > 1) Text("1 of $count", fontSize = 12.sp, color = color(mutedColor), singleLine = true)
             }
             request.detail()?.let { Text(it, fontSize = 12.sp, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis) }
+            if (request is PendingRequest.Approval) Box(Modifier.padding(top = 6.dp)) {
+                Pill("${request.event.risk.name} risk", tone = when (request.event.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
+            }
         }
         if (onClose != null) IconButton(onClick = onClose, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor), modifier = Modifier.size(32.dp)) {
             Icon(Lucide.X, Modifier.size(18.dp), contentDescription = "Dismiss")

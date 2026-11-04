@@ -38,7 +38,7 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         RowGroup(provider.name) {
             when {
-                apiKey != null -> GroupRow(if (apiKey.configured) "API key set" else "Add an API key", icon = Lucide.KeyRound,
+                apiKey != null -> GroupRow("API key", icon = Lucide.KeyRound,
                     subtitle = if (apiKey.configured) apiKey.reference ?: apiKey.storage else "Needs a key on the Server") {
                     if (apiKey.configured) Icon(Lucide.CircleCheck, Modifier.size(18.dp), tint = color(successColor))
                     else Pill("Needed", tone = Tone.Warning)
@@ -64,8 +64,7 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                                 Input(value, if (key.configured) "New key or \${…} reference" else "API key or \${…} reference", secret = !isReference(value.value()), trailing = trailing)
                             }
                         }
-                        Button({ p.actions.onSaveProviderApiKey(provider.id, value.value()); value.edit { replace(0, length, "") } }, enabled = value.value().isNotBlank(),
-                            style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text("Save") }
+                        SaveButton({ p.actions.onSaveProviderApiKey(provider.id, value.value()); value.edit { replace(0, length, "") } }, enabled = value.value().isNotBlank())
                     }
                 }
                 if (key.saved) ConfirmRow("Remove saved key", Lucide.Trash2, "Remove the saved key for ${provider.name}?", { p.actions.onSaveProviderApiKey(provider.id, "") }, "Remove",
