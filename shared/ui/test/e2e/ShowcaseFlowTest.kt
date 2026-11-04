@@ -69,6 +69,7 @@ class ShowcaseFlowTest {
         await("Properties")
         screenshot("note")
         scrollTo("Linked notes")
+        swipe(50, 80, 50, 30)
         screenshot("note-links")
     }
 

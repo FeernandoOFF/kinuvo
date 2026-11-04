@@ -26,8 +26,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.style.TextDecoration
-import com.composeunstyled.LocalTextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
@@ -139,8 +137,9 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
             Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(Theme[shapes][smallShape]).clickable(onClickLabel = "Open task", role = Role.Button) { actions.onOpenTask(task.id) },
                 verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
+                    // Done work stays readable: muted rather than struck through.
                     Text(task.title, fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis,
-                        style = LocalTextStyle.current.copy(textDecoration = if (task.status == TaskStatus.Done) TextDecoration.LineThrough else null))
+                        color = if (task.status == TaskStatus.Done) color(mutedColor) else Color.Unspecified)
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(listOfNotNull(task.listName, task.due?.let { "due ${dueLabel(it)}" }).joinToString(" · "), Modifier.weight(1f, fill = false), style = TextStyles.secondary, color = color(mutedColor), singleLine = true)
                         if (task.status != TaskStatus.Done && task.due?.let(::overdue) == true) Pill("Overdue", tone = Tone.Danger)
@@ -155,7 +154,7 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->
                     actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: ""))
-                }, icon = Lucide.User, modifier = Modifier.weight(1f, fill = false).widthIn(max = 160.dp), style = if (task.assignee == null) ButtonStyle.Ghost else ButtonStyle.Outlined)
+                }, icon = Lucide.User, modifier = Modifier.widthIn(max = 160.dp), style = if (task.assignee == null) ButtonStyle.Ghost else ButtonStyle.Outlined)
                 // Phones show the status as the tab; it changes from the Task itself.
                 if (LocalInteractionMode.current != InteractionMode.Touch)
                     Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())

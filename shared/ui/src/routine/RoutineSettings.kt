@@ -34,8 +34,7 @@ internal fun RoutineList(p: Pane) {
     ItemList(
         p, "Routines",
         // An empty list explains itself in its empty state.
-        if (routines?.isEmpty() == true) "" else "Prompts ${ui.agent?.name ?: "the Agent"} runs on a schedule, each in its own Session. Add one here or ask in chat, " +
-            "e.g. “every weekday at 9, summarize my inbox”.",
+        if (routines?.isEmpty() == true) "" else "Prompts ${ui.agent?.name ?: "the Agent"} runs on a schedule, each in its own Session.",
         // An empty list offers one way to add, under it.
         "New routine", routines == null && error == null && !restricted, canAdd = !restricted && routines?.isEmpty() != true,
     ) {
