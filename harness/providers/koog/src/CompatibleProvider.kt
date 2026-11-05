@@ -76,6 +76,7 @@ internal class CompatibleProvider(
     engine: HttpClientEngine = providerEngine(),
     private val key: StoredProviderKey = customKey(configId, options, files, secrets),
 ) : ModelProvider, HarnessPlugin {
+    override val images: ImageGeneration get() = CompatibleImages(http)
     override val id = CUSTOM_PROVIDERS + configId
     override val name = options.name ?: configId
     override val apiKey: ProviderApiKey? = if (options.apiKeyRequired) key else null
@@ -93,7 +94,10 @@ internal class CompatibleProvider(
         val response = http.get("models")
         check(response.status.isSuccess()) { "$name model discovery failed (${response.status.value})" }
         return Json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("data").jsonArray
-            .map { ModelInfo(it.jsonObject.getValue("id").jsonPrimitive.content) }.distinctBy { it.id }.sortedBy { it.id }
+            .map { val m = it.jsonObject; val architecture = m["architecture"] as? JsonObject
+                ModelInfo(m.getValue("id").jsonPrimitive.content,
+                    input = (architecture?.get("input_modalities") as? JsonArray)?.map { it.jsonPrimitive.content },
+                    output = (architecture?.get("output_modalities") as? JsonArray)?.map { it.jsonPrimitive.content }) }.distinctBy { it.id }.sortedBy { it.id }
     }
 
     override fun fileTypes(model: ModelInfo?): Set<String> = emptySet()

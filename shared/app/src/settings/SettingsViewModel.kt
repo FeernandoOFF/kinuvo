@@ -56,6 +56,7 @@ data class SettingsState(
     val services: Map<ServiceKind, ServiceSetup> = emptyMap(),
     /** The last test of a service's settings form. */
     val serviceTest: ServiceTestResult? = null,
+    val imageModel: ProviderModelRef? = null,
     val models: ModelsCatalog = ModelsCatalog(),
     /** Every Agent's config, for the Tools & MCP section. */
     val configs: Map<String, AgentConfig> = emptyMap(),
@@ -73,6 +74,9 @@ data class SettingsState(
     /** The link codes this Server has made, without the codes; null until loaded. */
     val grants: List<ExposureGrant>? = null,
 ) {
+    val imageModels get() = models.providers.flatMap { provider ->
+        provider.models.filter { "image" in it.output.orEmpty() }.map { ProviderModelRef(provider.id, it.id) }
+    }
     val routine get() = routines?.firstOrNull { it.id == route.item }
 }
 
@@ -164,6 +168,12 @@ class SettingsViewModel(
         } finally {
             if (config.connection.isCurrent()) state.update { it.copy(testing = false) }
         }
+    }
+
+    fun saveImageModel(model: ProviderModelRef?) = attempt {
+        require(model == null || model in state.value.imageModels) { "Choose a model that generates images" }
+        val saved = config.saveImageModel(model)
+        state.update { it.copy(imageModel = saved, saved = true) }
     }
 
     fun saveServerRules(rules: TrustRules) = attempt {
@@ -271,6 +281,7 @@ class SettingsViewModel(
     /** Loads the open server-wide section's settings, e.g. to retry after a failure. */
     fun reloadServer() {
         when (state.value.route.section) {
+            SettingsSection.Providers -> attempt { config.imageModel().let { m -> state.update { it.copy(imageModel = m) } } }
             SettingsSection.Tasks -> attempt { config.tasksSetup().also { s -> state.update { it.copy(tasks = s) }; loadLists(TaskProviderRef(s.settings.provider)) } }
             SettingsSection.Knowledge -> attempt { config.knowledgeSetup().let { s -> state.update { it.copy(knowledge = s) } } }
             SettingsSection.Secrets -> loadSecrets()

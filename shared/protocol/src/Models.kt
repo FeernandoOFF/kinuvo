@@ -9,6 +9,7 @@ data class ModelInfo(
     val reasoning: List<String>? = null,
     val defaultReasoning: String? = null,
     val input: List<String>? = null,
+    val output: List<String>? = null,
     val tools: Boolean? = null,
     val context: Int? = null,
     val cost: ModelCost? = null,

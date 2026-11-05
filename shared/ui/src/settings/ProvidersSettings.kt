@@ -32,6 +32,10 @@ import kinuvo.ui.design.*
 internal fun ProvidersSettingsPane(p: Pane) {
     val providers = p.ui.state.providers ?: return ServerLoading(p, "Model providers")
     DetailPane(p.back, "Model providers", error = p.ui.error, info = "Models use the Server’s credentials. Configure its API key or sign in here, wherever the Server runs.") {
+        RowGroup("Image generation") {
+            PickerRow("Image model", listOf(null) + p.ui.state.imageModels, p.ui.state.imageModel,
+                { it?.let { "${it.provider} / ${it.model}" } ?: "Off" }, p.actions.onSaveImageModel)
+        }
         providers.forEach { ProviderGroup(it, p) }
     }
 }

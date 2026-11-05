@@ -4,6 +4,7 @@ import kinuvo.harness.core.AgentConfig
 import kinuvo.harness.core.plugin.HarnessPlugin
 import kinuvo.harness.core.AgentModel
 import kinuvo.harness.core.plugin.ModelProvider
+import kinuvo.harness.core.plugin.ImageGeneration
 import kinuvo.harness.core.koogExecutor
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.CapabilityState
@@ -21,6 +22,7 @@ class CodexProvider(override val auth: CodexAuth = CodexAuth(), private val atta
     private val discovery = lazy { codexHttpClient(auth::tokens, _usage) }
 
     val promptExecutor get() = executor.value
+    override val images: ImageGeneration get() = CodexImages(discovery.value)
     override val id = "codex"
     override val name = "ChatGPT / Codex"
     override val catalogId = "openai"

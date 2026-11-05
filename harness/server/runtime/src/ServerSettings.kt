@@ -7,6 +7,9 @@ import kotlinx.datetime.TimeZone
 import kinuvo.harness.core.store.ReflectionConfig
 
 interface ServerSettings {
+    var imageModel: ProviderModelRef?
+        get() = null
+        set(value) { error("Image model settings are unavailable") }
     var timeZone: TimeZone
     val reflectionEnabled: Boolean
     val reflectionModel: ReflectionConfig get() = ReflectionConfig()

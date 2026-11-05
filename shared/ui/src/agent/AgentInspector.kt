@@ -266,7 +266,7 @@ private fun ModelPage(state: InspectorState, draft: AgentDraft, actions: Inspect
     if (state.models.providers.isEmpty()) Text("Loading models…", color = color(mutedColor))
     state.models.providers.forEach { group ->
         SectionLabel(group.name)
-        group.models.forEach { model ->
+        group.chatModels.forEach { model ->
             val picked = group.id == draft.provider && model.id == draft.model
             ListRow(picked, {
                 actions.onEdit { it.copy(provider = group.id, model = model.id, reasoning = model.reasoningFor(it.reasoning)) }

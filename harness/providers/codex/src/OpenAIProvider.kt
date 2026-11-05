@@ -43,6 +43,7 @@ class OpenAIProvider(
         this(key::resolve, attachments, apiKey = key)
 
     val promptExecutor get() = executor.value
+    override val images: ImageGeneration = OpenAIImages(http)
     override val id = "openai"
     override val name = "OpenAI API"
     override val catalogId = "openai"
@@ -89,6 +90,6 @@ internal fun openAIHttpClient(apiKey: suspend () -> String?, engine: HttpClientE
 
 internal fun parseOpenAIModels(text: String): List<ModelInfo> = Json.parseToJsonElement(text).jsonObject.getValue("data").jsonArray
     .mapNotNull { it.jsonObject["id"]?.jsonPrimitive?.contentOrNull }
-    .filter { (it.startsWith("gpt-") || Regex("o[1-9].*").matches(it)) &&
+    .filter { it.startsWith("gpt-image-") || (it.startsWith("gpt-") || Regex("o[1-9].*").matches(it)) &&
         listOf("audio", "realtime", "transcribe", "tts", "image", "search", "instruct", "deep-research").none(it::contains) }
-    .distinct().sorted().map { ModelInfo(it) }
+    .distinct().sorted().map { ModelInfo(it, output = if (it.startsWith("gpt-image-")) listOf("image") else null) }
