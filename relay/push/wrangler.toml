@@ -2,6 +2,7 @@ name = "kinuvo-push"
 main = "src/index.ts"
 compatibility_date = "2025-10-01"
 workers_dev = true
+routes = [{ pattern = "kinuvo.feernandooff.com", custom_domain = true }]
 
 [vars]
 APNS_TOPIC = "dev.kinuvo.ios"
