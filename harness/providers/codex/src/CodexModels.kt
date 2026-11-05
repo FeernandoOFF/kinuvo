@@ -28,8 +28,16 @@ internal fun parseCodexModels(text: String): List<ModelInfo> {
             id, m["display_name"]?.jsonPrimitive?.contentOrNull ?: id,
             reasoning = (m["supported_reasoning_levels"] as? JsonArray)?.mapNotNull { (it as? JsonObject)?.get("effort")?.jsonPrimitive?.contentOrNull },
             defaultReasoning = m["default_reasoning_level"]?.jsonPrimitive?.contentOrNull,
+            output = (m["output_modalities"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull }
+                ?: listOf("text", "image").takeIf { id in IMAGE_TOOL_MODELS },
             input = (m["input_modalities"] as? JsonArray)?.mapNotNull { it.jsonPrimitive.contentOrNull },
             context = m["context_window"]?.jsonPrimitive?.intOrNull,
         )
     }
 }
+
+
+private val IMAGE_TOOL_MODELS = setOf(
+    "chat-latest", "gpt-5.2", "gpt-5.2-pro", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-pro", "gpt-5.5", "gpt-5.5-pro",
+    "gpt-5.6-cyber", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra", "gpt-6-astra", "gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol", "gpt-6.1-terra",
+)

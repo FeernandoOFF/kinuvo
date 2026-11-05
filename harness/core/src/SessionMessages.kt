@@ -9,7 +9,8 @@ import kinuvo.protocol.SessionEntry
 import kotlin.uuid.Uuid
 
 /** Session conversion belongs to the persistence feature, including files shown after tool results. */
-class SessionMessages(private val model: AgentModel) {
+/** With [imageReferences], user images are listed by ID so the model can pass them to `generate_image`. */
+class SessionMessages(private val model: AgentModel, private val imageReferences: Boolean = false) {
     private val entries = mutableListOf<Pair<Message, List<SessionEntry>>>()
 
     fun prompt(instructions: String, history: List<SessionEntry>): Prompt {
@@ -29,7 +30,7 @@ class SessionMessages(private val model: AgentModel) {
         val block = prompt("session") {
             when (entry) {
                 is SessionEntry.Context -> system(entry.content)
-                is SessionEntry.UserMessage -> user { if (entry.modelText.isNotBlank()) text(entry.modelText); attach(entry.attachments) }
+                is SessionEntry.UserMessage -> user { modelText(entry).takeIf { it.isNotBlank() }?.let(::text); attach(entry.attachments) }
                 is SessionEntry.AssistantMessage -> assistant(entry.text)
                 is SessionEntry.ToolCall -> toolCall(MessagePart.Tool.Call(entry.id, entry.name, entry.args))
                 is SessionEntry.ToolResult -> toolResult(MessagePart.Tool.Result(entry.id, entry.name,
@@ -61,6 +62,11 @@ class SessionMessages(private val model: AgentModel) {
     } }
 
     fun user(message: Message): Boolean = entry(message)?.any { it is SessionEntry.UserMessage && !it.text.startsWith(TOOL_FILES) } == true
+    private fun modelText(entry: SessionEntry.UserMessage): String {
+        val images = entry.attachments.filter { imageReferences && it.mimeType.startsWith("image/") }
+        if (images.isEmpty()) return entry.modelText
+        return listOf(entry.modelText, images.joinToString("\n", "$IMAGE_REFERENCES\n") { "${it.id}: ${it.name}" }).filter(String::isNotBlank).joinToString("\n\n")
+    }
     private fun entry(message: Message) = entries.lastOrNull { it.first === message }?.second
 
     private fun RequestMessagePartsBuilder.attach(list: List<Attachment>) = list.forEach { a ->
@@ -82,3 +88,5 @@ internal fun assistantEntries(message: Message.Assistant): List<SessionEntry> = 
 private fun activation(a: SessionEntry.Activation) = "Skill '${a.name}' is active in this conversation:\n\n${a.content}"
 
 internal const val TOOL_FILES = "Files from the tool results above:"
+
+internal const val IMAGE_REFERENCES = "Image attachment IDs, for generate_image references:"

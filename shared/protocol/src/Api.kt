@@ -212,6 +212,8 @@ object Api {
     val UpdateAgent = Method("agent.update", UpdateAgentParams.serializer(), AgentDetails.serializer())
     val TestExec = Method("exec.test", TestExecParams.serializer(), ExecTestResult.serializer())
     /** Trust and Deny rules every Agent follows; a Server Deny rule wins over an Agent's Trust rule. */
+    val ImageModel = Method("models.image", Unit.serializer(), ProviderModelRef.serializer().nullable)
+    val SaveImageModel = Method("models.saveImage", ProviderModelRef.serializer().nullable, ProviderModelRef.serializer().nullable)
     val ServerRules = Method("rules.server", Unit.serializer(), TrustRules.serializer())
     val SaveServerRules = Method("rules.saveServer", TrustRules.serializer(), TrustRules.serializer())
     val DeleteAgent = Method("agent.delete", AgentRef.serializer(), Unit.serializer())

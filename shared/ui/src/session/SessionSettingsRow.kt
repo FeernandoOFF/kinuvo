@@ -206,7 +206,7 @@ internal fun RowScope.ComposerSettings(
             }
             models.providers.forEach { group ->
                 SectionLabel(group.name)
-                group.models.forEach { model ->
+                group.chatModels.forEach { model ->
                     ListRow(false, { listing = false; onChange(settings.select(group.id, model, defaults)) }) {
                         Column(Modifier.weight(1f)) {
                             Text(model.name)

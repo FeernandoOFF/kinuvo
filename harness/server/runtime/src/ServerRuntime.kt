@@ -435,6 +435,8 @@ class ServerRuntime(
         Api.CreateAgent.name -> respond(r, Api.CreateAgent) { p -> require(executions.catalog().agents.none { it.id == p.agentId }) { "Agent ID is reserved by an external registration" }; admin.create(p) }
         Api.UpdateAgent.name -> respond(r, Api.UpdateAgent) { admin.update(it).also { changedCapabilities() } }
         Api.TestExec.name -> respond(r, Api.TestExec) { admin.testExec(it) }
+        Api.ImageModel.name -> respond(r, Api.ImageModel) { admin.imageModel() }
+        Api.SaveImageModel.name -> respond(r, Api.SaveImageModel) { admin.saveImageModel(it).also { changedCapabilities() } }
         Api.ServerRules.name -> respond(r, Api.ServerRules) { admin.serverRules() }
         Api.SaveServerRules.name -> respond(r, Api.SaveServerRules) { admin.saveServerRules(it).also { changedCapabilities() } }
         Api.DeleteAgent.name -> respond(r, Api.DeleteAgent) { admin.delete(it.agentId) }

@@ -33,6 +33,7 @@ interface ModelProvider {
     val auth: ProviderAuth? get() = null
     val apiKey: ProviderApiKey? get() = null
     val downloads: ModelDownloads? get() = null
+    val images: ImageGeneration? get() = null
 }
 
 /** API keys or Secret references, configured on the Server without exposing saved values. */
@@ -57,4 +58,11 @@ interface ProviderAuth {
     /** Signs in, handing the URL and code to enter to [show]; returns once signed in, or throws when it fails or expires. */
     suspend fun login(show: (DeviceCode) -> Unit)
     suspend fun logout()
+}
+
+
+data class GeneratedImage(val bytes: ByteArray, val mimeType: String = "image/png")
+
+interface ImageGeneration {
+    suspend fun generate(model: String, prompt: String, references: List<GeneratedImage> = emptyList(), size: String? = null): List<GeneratedImage>
 }
