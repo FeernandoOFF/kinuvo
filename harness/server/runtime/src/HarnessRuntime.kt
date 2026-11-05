@@ -7,6 +7,7 @@ import kinuvo.protocol.ATTACHMENT_MIME_TYPES
 import kinuvo.protocol.attachmentInput
 
 import kinuvo.harness.core.*
+import kinuvo.harness.core.tools.GenerateImageTool
 import kinuvo.harness.core.routines.RoutineReportTool
 import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.harness.core.routines.ScheduleTool
@@ -310,7 +311,17 @@ open class HarnessRuntime(
     private suspend fun toolsFor(e: Effective, sessionId: String?, routine: RoutineRun?): List<Tool> {
         val agent = e.agent
         val search = if (ToolNames.WEB_FETCH in agent.config.tools) webSearch() else null
-        return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool))
+        val selected = imageModel
+        val provider = selected?.let { providers[it.provider] }
+        val imageTool = if (selected != null && sessionId != null && provider?.images != null &&
+            provider.availability(selected.model).actionable) GenerateImageTool(provider.images!!, selected.model, {
+                store.entries(agent.id, sessionId).flatMap { entry -> when (entry) {
+                    is SessionEntry.UserMessage -> entry.attachments
+                    is SessionEntry.ToolResult -> entry.attachments
+                    else -> emptyList()
+                } }
+            }, attachments::bytes) else null
+        return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool), imageTool)
     }
 
     private suspend fun builtInTools(e: Effective, sessionId: String?, routine: RoutineRun?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {

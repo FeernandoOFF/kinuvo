@@ -33,6 +33,7 @@ data class Assessment(val actions: List<Action>) {
 }
 
 object ToolNames {
+    const val GENERATE_IMAGE = "generate_image"
     const val MEMORY = "memory"
     const val WEB_FETCH = "web_fetch"
     /** Comes with [WEB_FETCH] when web search is set up. */

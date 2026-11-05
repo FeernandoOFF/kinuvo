@@ -6,6 +6,10 @@ import kinuvo.ui.design.TextStyles
 import kinuvo.app.session.*
 
 import androidx.compose.runtime.*
+import kinuvo.ui.design.Motion
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -78,6 +82,44 @@ internal fun AttachmentChip(attachment: Attachment, base64: String? = null, onPr
             onOpen?.let { IconButton(onClick = it, style = ButtonStyle.Ghost, modifier = Modifier.size(28.dp)) { Icon(Lucide.Download, Modifier.size(16.dp), contentDescription = "Save ${attachment.name}") } }
             onRemove?.let { IconButton(onClick = it, style = ButtonStyle.Ghost, modifier = Modifier.size(28.dp)) { Icon(Lucide.X, Modifier.size(16.dp), contentDescription = "Remove ${attachment.name}") } }
         }
+    }
+}
+
+/** A generated image at its own aspect ratio; tap to preview, with saving over its corner. */
+@Composable
+internal fun GeneratedImage(attachment: Attachment, base64: String?, onPreview: () -> Unit, onSave: () -> Unit) {
+    val image = remember(attachment.id, base64) { attachment.image(base64) }
+    val shape = Theme[shapes][mediumShape]
+    Box(Modifier.widthIn(max = 360.dp).clip(shape)) {
+        if (image != null) Image(image, attachment.name, Modifier.heightIn(max = 360.dp).clickable(onClick = onPreview), contentScale = ContentScale.Fit)
+        else ImagePlaceholder()
+        IconButton(onClick = onSave, style = ButtonStyle.Ghost, modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.space8).size(32.dp)
+            .clip(shape).background(color(backgroundColor).copy(alpha = 0.7f))) {
+            Icon(Lucide.Download, Modifier.size(16.dp), contentDescription = "Save ${attachment.name}")
+        }
+    }
+}
+
+/** Shown while `generate_image` runs, like ChatGPT's: a caption over a shimmering square. */
+@Composable
+internal fun GeneratingImage() {
+    val pulse by rememberInfiniteTransition().animateFloat(0.45f, 1f, infiniteRepeatable(tween(Motion.pulse), RepeatMode.Reverse))
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+        Text("Creating image", color = color(mutedColor), style = TextStyles.caption, modifier = Modifier.graphicsLayer { alpha = pulse })
+        Box(Modifier.clip(Theme[shapes][mediumShape])) { ImagePlaceholder() }
+    }
+}
+
+@Composable
+private fun ImagePlaceholder() {
+    val shift by rememberInfiniteTransition().animateFloat(-1f, 2f, infiniteRepeatable(tween(Motion.pulse, easing = Motion.linear)))
+    val base = color(mutedColor)
+    BoxWithConstraints(Modifier.size(280.dp)) {
+        val width = constraints.maxWidth.toFloat()
+        Box(Modifier.fillMaxSize().background(base.copy(alpha = 0.08f)).background(Brush.linearGradient(
+            listOf(Color.Transparent, base.copy(alpha = 0.14f), Color.Transparent),
+            start = Offset(width * shift, 0f), end = Offset(width * (shift + 0.6f), width * 0.6f),
+        )))
     }
 }
 

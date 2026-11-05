@@ -169,7 +169,7 @@ class OnboardingViewModel(private val config: ConfigRepository) : ViewModel() {
     }
 
     fun selectProvider(id: String) = edit { it.copy(provider = id,
-        model = it.catalog.providers.firstOrNull { group -> group.id == id }?.models?.firstOrNull()?.id.orEmpty(), deviceCode = null, apiKey = "") }
+        model = it.catalog.providers.firstOrNull { group -> group.id == id }?.chatModels?.firstOrNull()?.id.orEmpty(), deviceCode = null, apiKey = "") }
 
     fun choose(index: Int, choice: Int) = edit {
         val choices = it.choices.toMutableList().apply { set(index, choice) }

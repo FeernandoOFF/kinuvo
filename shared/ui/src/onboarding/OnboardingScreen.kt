@@ -682,8 +682,8 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
         ActionRow("Refresh models and sign-in", Lucide.RefreshCw, onRefresh, enabled = !s.busy)
     }
     RowGroup {
-        if (!group?.models.isNullOrEmpty()) PickerRow("Model", (group.models.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
-            { id -> group.models.firstOrNull { it.id == id }?.name ?: id }, { value -> onEdit { it.copy(model = value) } }, Lucide.Cpu)
+        if (!group?.chatModels.isNullOrEmpty()) PickerRow("Model", (group.chatModels.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
+            { id -> group.chatModels.firstOrNull { it.id == id }?.name ?: id }, { value -> onEdit { it.copy(model = value) } }, Lucide.Cpu)
         else key(s.provider) { DraftRow("Model ID", s.model, "Enter a model ID") { value -> onEdit { it.copy(model = value) } } }
         account?.downloads?.let { downloads ->
             downloads.models.filter { it.id == s.model }.takeIf { it.isNotEmpty() }?.let { selected ->

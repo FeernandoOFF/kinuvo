@@ -12,12 +12,14 @@ import kinuvo.protocol.ServiceSettings
 import kinuvo.protocol.TrustRules
 import kotlinx.serialization.Serializable
 import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.ProviderModelRef
 
 /** `config.yaml` in the home folder: everything set up for the whole Server. [rules] are its Trust and Deny rules, for every Agent. */
 @Serializable
 data class ServerConfig(
     val timezone: String? = null,
     val tracing: Boolean = true,
+    val imageModel: ProviderModelRef? = null,
     val knowledge: KnowledgeConfig = KnowledgeConfig(),
     val reflection: ReflectionConfig = ReflectionConfig(),
     val tasks: TasksConfig = TasksConfig(),

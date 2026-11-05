@@ -66,10 +66,41 @@ import org.jetbrains.skia.EncodedImageFormat
 import org.koin.core.context.stopKoin
 import org.koin.dsl.module
 import java.io.File
+import java.io.ByteArrayOutputStream
+import java.awt.image.BufferedImage
+import java.awt.Color as AwtColor
+import javax.imageio.ImageIO
+import kotlin.io.encoding.Base64
 import kotlin.test.Test
 
 /** Renders the main screens to `build/screens/` for eyeballing UI changes: `./kotlin test -m ui -p jvm`. */
 class ScreenshotTest {
+    @Test fun generatedImageInChat() {
+        val bitmap = BufferedImage(320, 200, BufferedImage.TYPE_INT_RGB)
+        bitmap.createGraphics().apply {
+            color = AwtColor(20, 80, 110); fillRect(0, 0, 320, 200)
+            color = AwtColor(240, 190, 80); fillOval(110, 50, 100, 100); dispose()
+        }
+        val bytes = ByteArrayOutputStream().also { ImageIO.write(bitmap, "png", it) }.toByteArray()
+        val attachment = Attachment("generated", "generated-1.png", "image/png", bytes.size)
+        val item = ChatItem.ToolCall("image", "image", "generate_image", "{}", result = "Image attachment: generated", attachments = listOf(attachment))
+        render("chat-generated-image", 420, 860) {
+            HarnessTheme(dark = true) {
+                ChatContent(state.copy(items = listOf(ChatItem.User("user", "Draw a golden sun"), item), running = false),
+                    ConnectionState.Connected("x"), null, ChatActions(downloads = mapOf(attachment.id to AttachmentData(attachment, Base64.encode(bytes)))))
+            }
+        }
+    }
+
+    @Test fun generatingImageInChat() {
+        val item = ChatItem.ToolCall("image", "image", "generate_image", "{}")
+        render("chat-generating-image", 420, 860) {
+            HarnessTheme(dark = true) {
+                ChatContent(state.copy(items = listOf(ChatItem.User("user", "Draw a golden sun"), item), running = true), ConnectionState.Connected("x"), null, ChatActions())
+            }
+        }
+    }
+
     @Test fun renderToolResultPreview() {
         render("tool-result-preview-phone", 390, 420) {
             HarnessTheme(dark = true) {
@@ -254,7 +285,7 @@ class ScreenshotTest {
             }
         }
         val file = UploadAttachmentParams("journal.md", kotlin.io.encoding.Base64.encode("Today's workout".encodeToByteArray()))
-        val png = java.io.ByteArrayOutputStream().also { javax.imageio.ImageIO.write(java.awt.image.BufferedImage(64, 64, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", it) }.toByteArray()
+        val png = ByteArrayOutputStream().also { ImageIO.write(BufferedImage(64, 64, BufferedImage.TYPE_INT_RGB), "png", it) }.toByteArray()
         val photo = UploadAttachmentParams("screenshot.png", kotlin.io.encoding.Base64.encode(png))
         render("chat-attachments", 420, 860) {
             HarnessTheme(dark = true) {

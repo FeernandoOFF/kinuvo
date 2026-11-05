@@ -9,6 +9,7 @@ import kinuvo.harness.core.store.saveKnowledgeConfig
 import kinuvo.harness.core.store.saveTasksConfig
 import kinuvo.harness.core.tasks.TaskProvider
 import kinuvo.harness.core.tasks.TasksConfig
+import kinuvo.protocol.ProviderModelRef
 import kinuvo.protocol.Integration
 import kinuvo.protocol.KnowledgeSettings
 import kinuvo.protocol.KnowledgeSetup
@@ -59,6 +60,10 @@ internal class FileServerSettings(
     private val hosts: PluginHosts,
     clock: () -> Long,
 ) : ServerSettings {
+    override var imageModel: ProviderModelRef?
+        get() = files.config().imageModel
+        set(value) { files.updateConfig { it.copy(imageModel = value) } }
+
     override var timeZone: TimeZone = files.config().timezone?.let { id -> runCatching { TimeZone.of(id) }.getOrNull() } ?: TimeZone.currentSystemDefault()
         set(value) {
             if (value == field) return
