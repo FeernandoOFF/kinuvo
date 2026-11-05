@@ -73,6 +73,7 @@ class ClientCacheTest {
             val state = app.state.value
             assertIs<Connection.Unpaired>(state.connection)
             assertTrue(state.onboarding)
+            assertEquals(1, state.firstRun)
             assertTrue(state.servers.isEmpty())
             assertTrue(state.agents.isEmpty())
             assertTrue(cache.snapshots.isEmpty())

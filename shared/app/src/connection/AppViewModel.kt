@@ -65,6 +65,8 @@ data class AppState(
     val capabilities: ServerCapabilities? = null,
     val routines: Map<String, List<Routine>> = emptyMap(),
     val onboarding: Boolean = false,
+    /** Counts Device resets, so each first run starts its onboarding over. */
+    val firstRun: Int = 0,
     /** The Server to go back to when adding another one is cancelled. */
     val returnTo: Server? = null,
     /** Whether the embedded Server is reachable from other Devices; null when it can't be. */
@@ -448,7 +450,7 @@ class AppViewModel(
         deviceAccess.reset()
         views.clear()
         drafts.clear()
-        state.value = AppState(servers = runCatching { servers.all }.getOrDefault(emptyList()), connection = Connection.Unpaired(), onboarding = true)
+        state.value = AppState(servers = runCatching { servers.all }.getOrDefault(emptyList()), connection = Connection.Unpaired(), onboarding = true, firstRun = state.value.firstRun + 1)
     }
 
     private fun disconnect() {
