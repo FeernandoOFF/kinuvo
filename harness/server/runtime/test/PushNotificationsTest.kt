@@ -41,8 +41,12 @@ class PushNotificationsTest {
         fixture.providerTest = ServiceTestResult("Sent")
         val withNtfy = TestServiceParams(ServiceKind.Notifications, ServiceSettings("ntfy"))
         assertEquals("Sent, and pushed to 1 Device. Couldn't push to https://push.example: HTTP 530", notifications.test(withNtfy).error)
+        fixture.providerTest = ServiceTestResult(error = "ntfy: HTTP 500")
+        assertEquals("ntfy: HTTP 500. Pushed to 1 Device. Couldn't push to https://push.example: HTTP 530", notifications.test(withNtfy).error)
         failures = emptyList()
+        assertEquals("ntfy: HTTP 500. Pushed to 1 Device", notifications.test(withNtfy).error)
+        fixture.providerTest = ServiceTestResult("Sent")
         assertEquals(ServiceTestResult("Sent, and pushed to 1 Device"), notifications.test(withNtfy))
-        assertEquals(6, pushed.size)
+        assertEquals(8, pushed.size)
     }
 }
