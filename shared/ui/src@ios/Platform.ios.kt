@@ -5,6 +5,7 @@ import kinuvo.app.device.*
 import kinuvo.app.session.*
 
 import org.koin.dsl.bind
+import org.koin.dsl.binds
 import org.koin.dsl.module
 import platform.Foundation.NSCachesDirectory
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
@@ -53,6 +54,6 @@ internal actual val platformModule = module {
         else deviceCache(NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true).first() as String + "/client-cache")
     }
     single<OAuthBrowser> { WebAuthBrowser() }
-    single { ApnsPushChannel(enabled = get<MobileTestMode>().override == null) } bind PushChannel::class
+    single { ApnsPushChannel(enabled = get<MobileTestMode>().override == null) } binds arrayOf(PushChannel::class, NotificationPermission::class)
     single { Device(UIDevice.currentDevice.name, NSTimeZone.localTimeZone.name, get<MobileTestMode>().override?.websocketUrl.orEmpty()) }
 }

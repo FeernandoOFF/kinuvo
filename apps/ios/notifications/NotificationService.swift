@@ -14,7 +14,9 @@ final class NotificationService: UNNotificationServiceExtension {
         content.title = push.title
         content.body = push.body
         if let session = push.sessionId { content.threadIdentifier = session }
-        if let agent = push.agentId { content.userInfo["link"] = "kinuvo://chat/\(agent)" + (push.sessionId.map { "/\($0)" } ?? "") }
+        if let agent = push.agentId {
+            content.userInfo["link"] = "kinuvo://chat/\(agent)" + (push.sessionId.map { "/\($0)" } ?? "") + (push.serverId.map { "?server=\($0)" } ?? "")
+        }
         if push.urgent == true { content.interruptionLevel = .timeSensitive }
         return content
     }
@@ -27,4 +29,5 @@ private struct PushMessage: Decodable {
     let agentId: String?
     let sessionId: String?
     let urgent: Bool?
+    let serverId: String?
 }
