@@ -13,6 +13,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.bind
+import org.koin.dsl.binds
 import org.koin.dsl.module
 import java.io.File
 import java.util.TimeZone
@@ -56,6 +57,7 @@ internal actual val platformModule = module {
     single<DeviceCredentials> { get<MobileTestMode>().takeIf { it.override != null }?.credentials ?: AndroidCredentials(androidContext()) }
     single<Preferences> { get<MobileTestMode>().takeIf { it.override != null }?.preferences ?: SharedPreferencesStore(androidContext()) }
     single<ClientCache> { if (get<MobileTestMode>().override != null) ClientCache.None else deviceCache(File(androidContext().cacheDir, "client-cache").path) }
+    single { FcmPushChannel(androidContext(), get(), enabled = get<MobileTestMode>().override == null) } binds arrayOf(PushChannel::class, NotificationPermission::class)
     single<OAuthBrowser> {
         val context = androidContext()
         AppSchemeBrowser { url ->

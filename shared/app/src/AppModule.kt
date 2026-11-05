@@ -22,7 +22,7 @@ val appModule = module {
     single { getOrNull<MobileTestMode>()?.servers ?: Servers(get(), getOrNull(), get()) }
     single { Notifications(getAll()) }
     single { DeviceAccess(get(), get(), getOrNull()) }
-    single { ConnectedServer(get(), get()) }
+    single { ConnectedServer(get(), get(), getOrNull()) }
     single { get<ConnectedServer>().sessions }
     single { get<ConnectedServer>().routines }
     single { get<ConnectedServer>().config }
@@ -31,8 +31,8 @@ val appModule = module {
     single { get<ConnectedServer>().knowledge }
     single { get<ConnectedServer>().devices }
     viewModel { ServerVoiceViewModel(get()) }
-    viewModel { OnboardingViewModel(get()) }
-    viewModel { AppViewModel(get(), get(), get(), get(), getOrNull() ?: ClientCache.None) }
+    viewModel { OnboardingViewModel(get(), getOrNull() ?: NotificationPermission.None) }
+    viewModel { AppViewModel(get(), get(), get(), get(), getOrNull() ?: ClientCache.None, getOrNull() ?: NotificationPermission.None) }
     viewModel { (client: KinuvoClient, route: Route.Chat) -> SessionViewModel(client, get(), route) }
     viewModel { (engine: SpeechEngine, session: SessionViewModel) -> VoiceViewModel(engine, session, get()) }
     viewModel { (transcriber: Transcriber) -> DictationViewModel(if (transcriber is SpeechEngine) ServerSpeech(transcriber, get()) else transcriber) }

@@ -3,6 +3,8 @@ import KotlinModules
 
 @main
 struct KinuvoApp: App {
+    @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var delegate
+
     init() {
         #if DEBUG && targetEnvironment(simulator)
         MobileTestMode_iosKt.enableMobileTests()
@@ -15,6 +17,7 @@ struct KinuvoApp: App {
         QrScanner_iosKt.installQrScanner(scanner: AppleQrScanner())
         LocalServer_iosKt.installBackgroundRuns(keeper: AppleBackgroundRuns())
         Speech_iosKt.installSpeechEngine(engine: AppleSpeech())
+        Push_iosKt.installPush(native: ApplePush.shared)
     }
     var body: some Scene {
         WindowGroup {

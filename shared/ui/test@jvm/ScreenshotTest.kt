@@ -1066,7 +1066,8 @@ I checked your knowledge base just now and didn't find a profile note for you.
             services = mapOf(ServiceKind.Notifications to ServiceSetup(ServiceKind.Notifications, ServiceSettings("ntfy", mapOf("topic" to "kinuvo-7fk2m9qx4hw8")),
                 listOf(ntfy))),
             serviceTest = ServiceTestResult("Sent"),
-        ))
+        ), capabilities = ServerCapabilities("home", setOf(ServerFeature.Push)), devices = DevicesState(listOf(
+            PairedDeviceInfo("p", "Pixel 8", "2026-10-08T12:00:00Z", push = true), PairedDeviceInfo("w", "Web browser", "2026-10-08T12:00:00Z"))))
         render("settings-notifications-narrow", 390, 1000) { HarnessTheme(dark = false) { SettingsContent(notifySettings, SettingsActions(onBack = {})) } }
         val searchSettings = settings.copy(state = settings.state.copy(
             route = Route.Settings("main", SettingsSection.Search),

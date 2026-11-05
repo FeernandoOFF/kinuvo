@@ -54,6 +54,17 @@ class ServiceSettingsTest {
         }
     }
 
+    @Test fun keepsWhetherNotificationsArePushed() = runTest {
+        settings { server ->
+            assertTrue(server.pushNotifications)
+            server.saveService(ServiceKind.Notifications, ServiceSettings(push = false))
+            assertFalse(server.serviceSetup(ServiceKind.Notifications).settings.push)
+            assertFalse(server.pushNotifications)
+            server.saveService(ServiceKind.Notifications, ServiceSettings("first", mapOf("topic" to "news"), push = false))
+            assertEquals(ServiceSettings("first", mapOf("topic" to "news"), push = false), files.serviceConfig(ServiceKind.Notifications))
+        }
+    }
+
     @Test fun savesAndTestsExplicitSecretChangesWithoutPersistingOperations() = runTest {
         val kind = ServiceKind.Notifications
         settings { server ->

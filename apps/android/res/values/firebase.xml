@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Firebase Android app config for push through the Push relay (Push.android.kt). Not secret; empty leaves push off. -->
+<resources>
+    <string name="google_app_id" translatable="false">1:403430020181:android:a95f50d57a08034a2170dc</string>
+    <string name="google_api_key" translatable="false">AIzaSyCfcn5Orser2QQWpkzeS8EPVIaMI4jGsYQ</string>
+    <string name="gcm_defaultSenderId" translatable="false">403430020181</string>
+    <string name="project_id" translatable="false">kinuvo-prod</string>
+</resources>

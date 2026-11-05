@@ -4,7 +4,7 @@ import kinuvo.harness.core.Agent
 import kinuvo.protocol.*
 
 /** The Server's settings: Secret reference providers, services, model provider sign-ins and MCP servers. */
-internal class SettingsRequests(private val harness: HarnessRuntime, private val logins: ProviderLogins, private val agent: suspend (String) -> Agent) {
+internal class SettingsRequests(private val harness: HarnessRuntime, private val logins: ProviderLogins, private val agent: suspend (String) -> Agent, private val notifications: Notifications) {
     suspend fun handle(r: Frame.Request): Frame.Response? = when (r.method) {
         Api.SecretProviders.name -> respond(r, Api.SecretProviders) { harness.secrets.providers.map { it.status() } }
         Api.ConnectSecrets.name -> respond(r, Api.ConnectSecrets) { p -> harness.secrets.provider(p.scheme).run { connect(p.token); harness.secrets.refresh(); status() } }
@@ -13,7 +13,7 @@ internal class SettingsRequests(private val harness: HarnessRuntime, private val
         Api.RefreshSecrets.name -> respond(r, Api.RefreshSecrets) { harness.secrets.refresh() }
         Api.Service.name -> respond(r, Api.Service) { harness.serviceSetup(it.kind) }
         Api.SaveService.name -> respond(r, Api.SaveService) { harness.saveService(it.kind, it.settings, it.secretUpdates) }
-        Api.TestService.name -> respond(r, Api.TestService) { harness.testService(it) }
+        Api.TestService.name -> respond(r, Api.TestService) { if (it.kind == ServiceKind.Notifications) notifications.test(it) else harness.testService(it) }
         Api.Models.name -> respond(r, Api.Models) { harness.modelCatalog(it.refresh) }
         Api.Providers.name -> respond(r, Api.Providers) { logins.list() }
         Api.SetProviderApiKey.name -> respond(r, Api.SetProviderApiKey) { logins.saveApiKey(it.provider, it.value) }

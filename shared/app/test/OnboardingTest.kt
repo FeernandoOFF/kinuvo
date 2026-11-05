@@ -39,6 +39,13 @@ class OnboardingTest {
         assertTrue("No emoji" in coworker && "No emoji" in companion)
     }
 
+    @Test fun notificationsAreSetUpWhenPushedOrSentThroughAProvider() {
+        assertTrue(ServiceSettings().notifies(pushes = true))
+        assertFalse(ServiceSettings().notifies(pushes = false))
+        assertFalse(ServiceSettings(push = false).notifies(pushes = true))
+        assertTrue(ServiceSettings("ntfy", push = false).notifies(pushes = false))
+    }
+
     @Test fun aNewAgentOnlyStepsThroughIdentityAndSoul() {
         val state = OnboardingState(step = 4, steps = AgentSteps)
         assertEquals(5, state.moved(1).step)

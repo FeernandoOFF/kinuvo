@@ -117,9 +117,9 @@ enum class SettingsSection(val title: String, val server: Boolean = false) {
     }
 }
 
-/** Whether the connected Server has the feature and options [section] needs. */
+/** Whether the connected Server has the feature and options [section] needs; Notifications need a provider or pushes. */
 fun ServerCapabilities?.allows(section: SettingsSection) =
-    (section.feature?.let(::supports) ?: true) && (section.integration?.let { offers(it) } ?: true)
+    (section.feature?.let(::supports) ?: true) && ((section.integration?.let { offers(it) } ?: true) || section == SettingsSection.Notifications && supports(ServerFeature.Push))
 
 @OptIn(ExperimentalUuidApi::class)
 private fun newSlot() = Uuid.random().toString()
