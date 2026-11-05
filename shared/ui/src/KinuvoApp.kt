@@ -185,7 +185,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
 
     // Tooltips draw in this host, over everything else.
     val agent = appState.agents.firstOrNull { it.id == appState.agentId } ?: appState.agents.firstOrNull()
-    val accent by animateColorAsState(agent?.ink ?: AvatarInk[0], tween(500))
+    val accent by animateColorAsState(agent?.ink ?: AvatarInk[0], tween(Motion.accent))
     HarnessTheme(accent = agent?.let { accent }) { TooltipHost(Modifier.fillMaxSize()) {
         BoxWithConstraints(Modifier
             .fillMaxSize()
@@ -469,7 +469,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 popovers.Host()
             }
             appState.notice?.let { notice ->
-                Row(Modifier.align(Alignment.BottomCenter).padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.align(Alignment.BottomCenter).padding(Spacing.space16), verticalAlignment = Alignment.CenterVertically) {
                     Pill(notice, Modifier.weight(1f, fill = false), tone = Tone.Danger, icon = Lucide.CircleX)
                     Button(app::dismissNotice, style = ButtonStyle.Ghost) { Text("Dismiss") }
                 }
@@ -521,7 +521,7 @@ private val Pop = defaultPopTransitionSpec<Route>()
 
 @Composable
 private fun Loading(connection: Connection) = Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
         Spinner(size = 24.dp)
         val server = (connection as? Connection.Connecting)?.server
         Text(server?.let { "Connecting to ${it.label}…" } ?: "Connecting…", color = color(mutedColor), style = TextStyles.secondary)

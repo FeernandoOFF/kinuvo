@@ -29,7 +29,7 @@ internal fun ExternalPrompts(state: ChatState, actions: ChatActions, modifier: M
     val harness = state.harness ?: "The harness"
     val host = agent.host ?: "its Server"
     val uri = LocalUriHandler.current
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         state.capabilities?.chat?.takeIf { state.ended == null }?.takeUnless { it.actionable }?.let { chat ->
             val r = readiness(chat, harness, host, agent.name)
             if (ReadinessAction.CheckAgain in r.actions) Button(onClick = actions.onCheckHarness, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Check again") }
@@ -70,19 +70,19 @@ private fun ExternalApprovalCard(prompt: ExecutionPrompt.Approval, harness: Stri
 @Composable
 private fun RequestCard(icon: ImageVector, title: String, detail: String?, origin: String? = null, originIcon: ImageVector = Lucide.Plug, buttons: @Composable () -> Unit) {
     Column(Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 Icon(icon, Modifier.size(18.dp), tint = color(accentColor))
                 Text(title, Modifier.weight(1f), fontWeight = FontWeight.Normal)
             }
             detail?.let { Text(it, style = TextStyles.secondary, color = color(mutedColor)) }
             origin?.let {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                     Icon(originIcon, Modifier.size(14.dp), tint = color(mutedColor))
                     Text(it, style = TextStyles.caption, color = color(mutedColor), maxLines = 1)
                 }
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) { buttons() }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.space8), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) { buttons() }
         }
     }
 }

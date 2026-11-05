@@ -79,10 +79,10 @@ internal fun Welcome(options: WelcomeOptions, featured: Int, pokes: List<Int>, o
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = options.manual && !options.busy) { options.onManual(false) }
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
         val wide = maxWidth >= 800.dp
-        if (wide) Row(Modifier.fillMaxSize().windowInsetsPadding(insets).padding(24.dp), horizontalArrangement = Arrangement.spacedBy(56.dp)) {
-            Hero(featured, pokes, onPoke, tint, RoundedCornerShape(36.dp), Modifier.weight(1.1f).fillMaxHeight(), PaddingValues(28.dp), options.onCancel)
+        if (wide) Row(Modifier.fillMaxSize().windowInsetsPadding(insets).padding(Spacing.space24), horizontalArrangement = Arrangement.spacedBy(Spacing.space56)) {
+            Hero(featured, pokes, onPoke, tint, RoundedCornerShape(Radius.hero), Modifier.weight(1.1f).fillMaxHeight(), PaddingValues(Spacing.space28), options.onCancel)
             Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.CenterStart) {
-                Column(Modifier.widthIn(max = 440.dp).verticalScroll(rememberScrollState()).padding(vertical = 24.dp)) { Panel(options, featured, true) }
+                Column(Modifier.widthIn(max = 440.dp).verticalScroll(rememberScrollState()).padding(vertical = Spacing.space24)) { Panel(options, featured, true) }
             }
         } else {
             val height = maxHeight
@@ -90,11 +90,11 @@ internal fun Welcome(options: WelcomeOptions, featured: Int, pokes: List<Int>, o
             // The hero shrinks while the address form is open, leaving room for it and the keyboard.
             val hero by animateDpAsState(if (options.manual) top + 150.dp else height * 0.46f)
             Column(Modifier.fillMaxSize()) {
-                Hero(featured, pokes, onPoke, tint, RoundedCornerShape(bottomStart = 40.dp, bottomEnd = 40.dp), Modifier.fillMaxWidth().height(hero),
-                    PaddingValues(top = top + 8.dp, start = 22.dp, end = 22.dp, bottom = 16.dp), options.onCancel)
+                Hero(featured, pokes, onPoke, tint, RoundedCornerShape(bottomStart = Radius.heroBottom, bottomEnd = Radius.heroBottom), Modifier.fillMaxWidth().height(hero),
+                    PaddingValues(top = top + Spacing.space8, start = Spacing.space22, end = Spacing.space22, bottom = Spacing.space16), options.onCancel)
                 Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
                     .windowInsetsPadding(insets.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)).imePadding()
-                    .padding(horizontal = 22.dp, vertical = 24.dp)) { Panel(options, featured, false) }
+                    .padding(horizontal = Spacing.space22, vertical = Spacing.space24)) { Panel(options, featured, false) }
             }
         }
     }
@@ -105,7 +105,7 @@ private fun Hero(featured: Int, pokes: List<Int>, onPoke: (Int) -> Unit, tint: C
     Box(modifier.clip(shape).background(Brush.linearGradient(listOf(tint.copy(alpha = 0.5f), tint.copy(alpha = 0.22f)))).padding(padding)) {
         Text("kinuvo", Modifier.align(Alignment.TopStart), style = TextStyles.headline, fontWeight = FontWeight.Bold)
         onCancel?.let { Box(Modifier.align(Alignment.TopEnd)) { HeaderButton(Lucide.X, "Cancel", it) } }
-        Cast(featured, pokes, onPoke, Modifier.fillMaxSize().padding(top = 28.dp))
+        Cast(featured, pokes, onPoke, Modifier.fillMaxSize().padding(top = Spacing.space28))
     }
 }
 
@@ -119,19 +119,19 @@ private fun Cast(featured: Int, pokes: List<Int>, onPoke: (Int) -> Unit, modifie
         val size = minOf(maxHeight * 0.42f, maxWidth * 0.5f, 220.dp)
         // Folded away for the address form: just the Agent and what it says.
         if (maxHeight < 200.dp) return@BoxWithConstraints Row(Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp, Alignment.CenterHorizontally)) {
+            horizontalArrangement = Arrangement.spacedBy(Spacing.space14, Alignment.CenterHorizontally)) {
             Floating(AvatarArtboards[featured], 72.dp, Gaze.Right, pokes[featured], 0f, Modifier.sharedAgent())
-            SpeechBubble(Introductions[featured], Modifier.weight(1f, fill = false), RoundedCornerShape(6.dp, 22.dp, 22.dp, 22.dp))
+            SpeechBubble(Introductions[featured], Modifier.weight(1f, fill = false), RoundedCornerShape(Radius.small, Radius.bubble, Radius.bubble, Radius.bubble))
         }
         Column(Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)) {
-                SpeechBubble(Introductions[featured], Modifier.widthIn(max = 300.dp), RoundedCornerShape(22.dp, 22.dp, 22.dp, 6.dp))
+            Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.space16, Alignment.CenterVertically)) {
+                SpeechBubble(Introductions[featured], Modifier.widthIn(max = 300.dp), RoundedCornerShape(Radius.bubble, Radius.bubble, Radius.bubble, Radius.small))
                 AnimatedContent(featured, transitionSpec = { (fadeIn() + scaleIn(initialScale = 0.8f)) togetherWith (fadeOut() + scaleOut(targetScale = 0.8f)) }) { index ->
                     Floating(AvatarArtboards[index], size, Gaze.Forward, pokes[index], 0f,
                         Modifier.then(if (index == featured) Modifier.sharedAgent() else Modifier).clip(CircleShape).clickable(role = Role.Button) { onPoke(index) })
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space14), verticalAlignment = Alignment.CenterVertically) {
                 AvatarArtboards.take(Introductions.size).forEachIndexed { index, artboard ->
                     val on = index == featured
                     val ring by animateDpAsState(if (on) 2.dp else 0.dp)
@@ -150,7 +150,7 @@ private fun Cast(featured: Int, pokes: List<Int>, onPoke: (Int) -> Unit, modifie
 @Composable
 private fun Panel(options: WelcomeOptions, featured: Int, wide: Boolean) {
     AnimatedContent(options.manual, transitionSpec = { fadeIn() togetherWith fadeOut() }) { manual ->
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
             if (manual) Manual(options) else Choices(options, featured, wide)
         }
     }
@@ -161,7 +161,7 @@ private fun ColumnScope.Choices(options: WelcomeOptions, featured: Int, wide: Bo
     Text("Your agents, on your own Server.", style = displayStyle(if (wide) 48.sp else 34.sp))
     Text(if (options.onLocal != null) "Connect to your Kinuvo Server, or set one up right here." else "Connect to Kinuvo on your computer.",
         color = color(mutedColor), fontSize = if (wide) 18.sp else 16.sp)
-    Spacer(Modifier.height(8.dp))
+    Spacer(Modifier.height(Spacing.space8))
     options.error?.let { Text(it, color = color(destructiveColor), style = TextStyles.label) }
     val manual = { options.onManual(true) }
     when {
@@ -175,7 +175,7 @@ private fun ColumnScope.Choices(options: WelcomeOptions, featured: Int, wide: Bo
         }
         else -> Cta(OnboardingAction("Connect to a Server", run = manual), options.busy, Modifier.fillMaxWidth(), Lucide.Server)
     }
-    if (options.servers.isNotEmpty()) RowGroup("Your servers", Modifier.padding(top = 8.dp)) {
+    if (options.servers.isNotEmpty()) RowGroup("Your servers", Modifier.padding(top = Spacing.space8)) {
         options.servers.forEach { server -> GroupRow(server.label, { options.onServer(server) }, server.address, Lucide.Server, enabled = !options.busy) }
     }
     QrHelp(manual.takeIf { options.onScan != null }, !options.busy)
@@ -187,11 +187,11 @@ private fun QrHelp(onManual: (() -> Unit)?, enabled: Boolean) {
     var open by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
         onManual?.let {
-            Text("Enter address and code", Modifier.clip(CircleShape).clickable(enabled, role = Role.Button, onClick = it).padding(horizontal = 14.dp, vertical = 8.dp),
+            Text("Enter address and code", Modifier.clip(CircleShape).clickable(enabled, role = Role.Button, onClick = it).padding(horizontal = Spacing.space14, vertical = Spacing.space8),
                 color = color(onBackgroundColor), style = com.composeunstyled.LocalTextStyle.current.copy(fontSize = TextStyles.callout.fontSize, textDecoration = TextDecoration.Underline))
         }
         Row(Modifier.clip(CircleShape).clickable(role = Role.Button) { open = !open }.semantics { stateDescription = if (open) "Expanded" else "Collapsed" }
-            .padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            .padding(horizontal = Spacing.space14, vertical = Spacing.space8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             Text("Where is the QR code?", color = color(mutedColor), style = TextStyles.callout)
             Icon(if (open) Lucide.ChevronUp else Lucide.ChevronDown, Modifier.size(15.dp), tint = color(mutedColor))
         }
@@ -206,7 +206,7 @@ private fun QrHelp(onManual: (() -> Unit)?, enabled: Boolean) {
 
 @Composable
 private fun ColumnScope.Manual(options: WelcomeOptions) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         FloatingBubble(Lucide.ArrowLeft, "Back") { if (!options.busy) options.onManual(false) }
         Text("Connect to a Server", style = displayStyle(26.sp))
     }
@@ -228,13 +228,13 @@ private fun ColumnScope.Manual(options: WelcomeOptions) {
     if (options.servers.isNotEmpty()) RowGroup("Your servers") {
         options.servers.forEach { server -> GroupRow(server.label, { options.onServer(server) }, server.address, Lucide.Server, enabled = !options.busy) }
     }
-    Spacer(Modifier.height(4.dp))
+    Spacer(Modifier.height(Spacing.space4))
     Cta(OnboardingAction(if (options.busy) "Connecting…" else "Connect", options.url.text.isNotBlank() && options.code.text.isNotBlank(), options.onPair),
         options.busy, Modifier.fillMaxWidth())
 }
 
 @Composable
-private fun FieldError(text: String) = Row(Modifier.semantics { error(text) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+private fun FieldError(text: String) = Row(Modifier.semantics { error(text) }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
     Icon(Lucide.CircleX, Modifier.size(14.dp), tint = color(destructiveColor))
     Text(text, color = color(destructiveColor), style = TextStyles.secondary)
 }
@@ -243,8 +243,8 @@ private fun FieldError(text: String) = Row(Modifier.semantics { error(text) }, v
 @Composable
 internal fun SecondaryCta(label: String, icon: ImageVector?, onClick: () -> Unit, enabled: Boolean = true) {
     Row(Modifier.fillMaxWidth().height(56.dp).clip(CircleShape).background(color(subtleColor)).clickable(enabled, role = Role.Button, onClick = onClick)
-        .padding(horizontal = 24.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-        icon?.let { Icon(it, Modifier.size(18.dp)); Spacer(Modifier.width(10.dp)) }
+        .padding(horizontal = Spacing.space24), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+        icon?.let { Icon(it, Modifier.size(18.dp)); Spacer(Modifier.width(Spacing.space10)) }
         Text(label, fontWeight = FontWeight.Bold, fontSize = TextStyles.title.fontSize, color = color(onBackgroundColor).copy(alpha = if (enabled) 1f else 0.4f))
     }
 }

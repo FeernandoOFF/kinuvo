@@ -122,31 +122,31 @@ internal fun SettingsPageHeader(title: String, back: (() -> Unit)? = null, subti
     info: String? = null, trailing: @Composable RowScope.() -> Unit = {}) {
     val navigation = LocalModalNavigation.current
     val up = if (navigation != null) navigation.back else back
-    if (LocalInSheet.current) Box(Modifier.fillMaxWidth().then(LocalSheetDrag.current).heightIn(min = 52.dp).padding(horizontal = 16.dp, vertical = 4.dp)) {
+    if (LocalInSheet.current) Box(Modifier.fillMaxWidth().then(LocalSheetDrag.current).heightIn(min = 52.dp).padding(horizontal = Spacing.space16, vertical = Spacing.space4)) {
         if (up != null) Box(Modifier.align(Alignment.CenterStart)) { HeaderButton(Lucide.ArrowLeft, "Back", up) }
-        Column(Modifier.align(Alignment.Center).padding(horizontal = 72.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.align(Alignment.Center).padding(horizontal = Spacing.space72), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(title, style = TextStyles.title, fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis)
             subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
         }
-        Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(Modifier.align(Alignment.CenterEnd), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space4)) {
             info?.let { InfoButton(it, header = true) }
             trailing()
         }
-    } else if (LocalInteractionMode.current == InteractionMode.Touch) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    } else if (LocalInteractionMode.current == InteractionMode.Touch) Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.space12, vertical = Spacing.space6),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         if (up != null) FloatingBubble(Lucide.ArrowLeft, "Back", up)
-        Column(Modifier.weight(1f).padding(start = 4.dp)) {
+        Column(Modifier.weight(1f).padding(start = Spacing.space4)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(title, Modifier.weight(1f, fill = false), style = TextStyles.title, fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis)
                 info?.let { InfoButton(it) }
             }
             subtitle?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
         }
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp), content = trailing)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space4), content = trailing)
     } else {
         TitleBarRow(leading = up != null) {
             if (up != null) HeaderButton(Lucide.ArrowLeft, "Back", up)
-            Column(Modifier.weight(1f).padding(start = 6.dp)) {
+            Column(Modifier.weight(1f).padding(start = Spacing.space6)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(title, Modifier.weight(1f, fill = false), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
                     info?.let { InfoButton(it) }

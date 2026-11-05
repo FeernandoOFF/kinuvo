@@ -3,9 +3,7 @@ package kinuvo.ui.session
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -51,9 +49,9 @@ import kinuvo.protocol.Question
 import kinuvo.protocol.Risk
 import kinuvo.ui.design.*
 
-private val ComposerShape = RoundedCornerShape(28.dp)
+private val ComposerShape = RoundedCornerShape(Radius.composer)
 private const val ArgumentLines = 8
-private val TrayShape = RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp)
+private val TrayShape = RoundedCornerShape(topStart = Radius.bubble, topEnd = Radius.bubble)
 private val WideBreakpoint = 600.dp
 private val BodyMaxHeight = 380.dp
 private val FocusRing = 4.dp
@@ -115,7 +113,7 @@ internal fun RequestComposer(
 
 @Composable
 private fun Morph(request: PendingRequest?, notice: (@Composable () -> Unit)?, composer: @Composable () -> Unit, body: @Composable (PendingRequest) -> Unit) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         if (request != null) notice?.invoke()
         MorphCard(request, composer, body)
     }
@@ -124,15 +122,15 @@ private fun Morph(request: PendingRequest?, notice: (@Composable () -> Unit)?, c
 @Composable
 private fun MorphCard(request: PendingRequest?, composer: @Composable () -> Unit, body: @Composable (PendingRequest) -> Unit) {
     AnimatedContent(request, Modifier.fillMaxWidth(), contentKey = { it?.id }, contentAlignment = Alignment.BottomCenter, transitionSpec = {
-        (fadeIn(tween(200, delayMillis = 90)) + scaleIn(spring(0.8f, Spring.StiffnessMediumLow), initialScale = 0.96f))
-            .togetherWith(fadeOut(tween(90)))
-            .using(SizeTransform(clip = false) { _, _ -> spring(0.85f, Spring.StiffnessMediumLow) })
+        (fadeIn(tween(Motion.enter, delayMillis = Motion.immediate)) + scaleIn(Motion.appearSpring(), initialScale = 0.96f))
+            .togetherWith(fadeOut(tween(Motion.immediate)))
+            .using(SizeTransform(clip = false) { _, _ -> Motion.resizeSpring() })
     }) { current ->
         if (current == null) composer()
         else Column(
             Modifier.fillMaxWidth().clip(ComposerShape).background(color(fieldColor), ComposerShape)
-                .border(1.dp, current.tone().copy(alpha = 0.55f), ComposerShape).padding(horizontal = 18.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .border(1.dp, current.tone().copy(alpha = 0.55f), ComposerShape).padding(horizontal = Spacing.space18, vertical = Spacing.space14),
+            verticalArrangement = Arrangement.spacedBy(Spacing.space12),
         ) {
             body(current)
         }
@@ -142,19 +140,19 @@ private fun MorphCard(request: PendingRequest?, composer: @Composable () -> Unit
 @Composable
 private fun Tray(request: PendingRequest?, notice: (@Composable () -> Unit)?, composer: @Composable () -> Unit, body: @Composable (PendingRequest) -> Unit) {
     Column(Modifier.fillMaxWidth()) {
-        if (request != null) notice?.let { Box(Modifier.padding(bottom = 6.dp)) { it() } }
+        if (request != null) notice?.let { Box(Modifier.padding(bottom = Spacing.space6)) { it() } }
         AnimatedVisibility(
             request != null,
-            enter = expandVertically(spring(0.85f, Spring.StiffnessMediumLow), expandFrom = Alignment.Bottom) + fadeIn(),
+            enter = expandVertically(Motion.resizeSpring(), expandFrom = Alignment.Bottom) + fadeIn(),
             exit = shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(),
         ) {
             var shown by remember { mutableStateOf(request) }
             request?.let { shown = it }
             shown?.let { current ->
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = 12.dp).clip(TrayShape).background(color(panelColor)).border(1.dp, color(borderColor), TrayShape)
-                        .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    Modifier.fillMaxWidth().padding(horizontal = Spacing.space12).clip(TrayShape).background(color(panelColor)).border(1.dp, color(borderColor), TrayShape)
+                        .padding(start = Spacing.space16, end = Spacing.space16, top = Spacing.space12, bottom = Spacing.space24),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.space12),
                 ) {
                     body(current)
                 }
@@ -204,10 +202,10 @@ private fun AgentEvent.ApprovalRequested.isShell() = identity?.instance?.pluginI
 @Composable
 private fun RequestHeader(request: PendingRequest, count: Int, onClose: (() -> Unit)?) {
     val tone = request.tone()
-    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
         Box(Modifier.size(30.dp).background(tone.copy(alpha = 0.14f), CircleShape), contentAlignment = Alignment.Center) { Icon(request.icon(), Modifier.size(16.dp), tint = tone) }
         Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 Text(request.title(), Modifier.weight(1f, fill = false), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
                 if (request is PendingRequest.Approval) Pill("${request.event.risk.name} risk", tone = when (request.event.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
                 if (count > 1) Text("1 of $count", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
@@ -233,10 +231,10 @@ private fun RequestBody(request: PendingRequest, drafts: Map<String, Map<String,
 /** Primary action first and every button full width when stacked; one row aligned right with the primary last when [wide]. */
 @Composable
 private fun Actions(wide: Boolean, primary: @Composable (Modifier) -> Unit, others: @Composable (Modifier) -> Unit) {
-    if (wide) FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    if (wide) FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space8, Alignment.End), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         others(Modifier)
         primary(Modifier)
-    } else Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    } else Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         primary(Modifier.fillMaxWidth())
         others(Modifier.fillMaxWidth())
     }
@@ -248,10 +246,10 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
     // The title already names a tool without an identity.
     val label = identity?.let { "${it.instance.pluginId} › ${it.instance.instanceId} › ${it.localId}" }
     val always = event.trustHint?.let { if (identity?.instance?.pluginId == "kinuvo.computer" && identity.localId == "computer_act") "Always allow in $it" else "Always allow `$it …`" } ?: "Always allow"
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
         val command = if (event.isShell()) commandOf(event.args) else null
         if (command != null) {
-            Text("$ $command", Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(color(codeColor)).padding(horizontal = 12.dp, vertical = 9.dp),
+            Text("$ $command", Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.menu)).background(color(codeColor)).padding(horizontal = Spacing.space12, vertical = 9.dp),
                 style = MonoStyle, color = color(onCodeColor), maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
         val json = prettyJson(event.args)
@@ -260,7 +258,7 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
             json.lines().size > ArgumentLines -> if (input.arguments) "Show less" else "Show all"
             else -> null
         }
-        if (label != null || toggle != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (label != null || toggle != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Text(label.orEmpty(), Modifier.weight(1f), style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
             toggle?.let { Button(onClick = { input.arguments = !input.arguments }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(accentColor)) {
                 Text(it, style = TextStyles.caption, singleLine = true)
@@ -270,12 +268,12 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
         // Without a command to show, the arguments are what's being approved.
         if (command == null || input.arguments) CodeBlock(json, language = "Arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
         // The two answers side by side; a note for a denial is one tap away and goes above them.
-        if (input.noting) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (input.noting) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             Text("Note for the Agent, sent with Deny", style = TextStyles.caption, color = color(mutedColor))
             Input(input.note, "What to do instead", capitalize = true)
         }
         // Writing a note means denying, so Deny takes the emphasis then.
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Button(onClick = { onDecision(ApprovalDecision.AllowOnce) }, modifier = Modifier.weight(1f), style = if (input.noting) ButtonStyle.Outlined else ButtonStyle.Primary) { Text("Allow once") }
             val deny = { onDecision(ApprovalDecision.Deny(input.note.text.toString())) }
             if (input.noting) DangerButton("Deny", deny, Modifier.weight(1f))
@@ -299,14 +297,14 @@ private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, 
     val step = input.step.coerceIn(0, maxOf(asked.questions.lastIndex, 0))
     val last = !stepped || step == asked.questions.lastIndex
     val shown = if (stepped) listOf(asked.questions[step]) else asked.questions
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (stepped) Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
+        if (stepped) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                 asked.questions.indices.forEach { i -> Box(Modifier.height(4.dp).weight(1f).clip(CircleShape).background(if (i <= step) color(accentColor) else color(borderColor))) }
             }
             Text("Question ${step + 1} of ${asked.questions.size}", style = TextStyles.caption, color = color(mutedColor))
         }
-        Column(Modifier.bleed(FocusRing).heightIn(max = BodyMaxHeight).verticalScroll(rememberScrollState()).padding(FocusRing), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.bleed(FocusRing).heightIn(max = BodyMaxHeight).verticalScroll(rememberScrollState()).padding(FocusRing), verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
             shown.forEach { q -> key(asked.questionsId, q.id) { QuestionField(q, answers[q.id].orEmpty()) { actions.onEditAnswer(asked.questionsId, q.id, it) } } }
         }
         Actions(wide,
@@ -331,7 +329,7 @@ private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, 
 
 @Composable
 private fun TakeoverBody(asked: AgentEvent.QuestionsAsked, input: RequestInput, wide: Boolean, actions: ChatActions) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
         Text("Hand back in Live view when finished. Answering or skipping keeps Takeover paused.", style = TextStyles.caption, color = color(mutedColor))
         Actions(wide,
             primary = { Button(onClick = { asked.screen?.let { actions.onScreen(it, asked.title) } ?: actions.onWatch() }, modifier = it, style = ButtonStyle.Primary) { Text("Open Live view") } },

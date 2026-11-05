@@ -11,7 +11,6 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
@@ -127,10 +126,10 @@ internal fun McpToolRules(s: McpServerInfo, p: Pane) {
     val test = ui.state.mcpTest
     LaunchedEffect(s.scope, s.name) { p.actions.onTestMcp(s.scope, s.name) }
     val ask = if (s.approval == "auto") "Auto" else "Ask"
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        SectionLabel("Tools" + (test?.tools?.size?.let { " ($it)" } ?: ""), Modifier.padding(start = 6.dp))
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+        SectionLabel("Tools" + (test?.tools?.size?.let { " ($it)" } ?: ""), Modifier.padding(start = Spacing.space6))
         when {
-            test == null -> Box(Modifier.fillMaxWidth().padding(16.dp)) { Spinner() }
+            test == null -> Box(Modifier.fillMaxWidth().padding(Spacing.space16)) { Spinner() }
             test.needsLogin -> Pill("Sign in to list its tools", tone = Tone.Warning, icon = Lucide.LogIn)
             test.error != null -> Pill("Couldn't connect: ${test.error}", tone = Tone.Danger, icon = Lucide.CircleX)
             test.tools.isEmpty() -> Text("It offers no tools.", color = color(mutedColor))
@@ -155,7 +154,7 @@ internal fun McpToolRules(s: McpServerInfo, p: Pane) {
             }
         }
         Text(if (s.approval == "auto") "Auto runs without asking, as the server is set to." else "Ask follows ${ui.agent?.name ?: "the agent"}'s Risk tolerance.",
-            Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(mutedColor))
+            Modifier.padding(horizontal = Spacing.space6), style = TextStyles.caption, color = color(mutedColor))
     }
 }
 
@@ -244,7 +243,7 @@ internal fun ToolRuleGroups(trusted: TextFieldState, blocked: TextFieldState, sa
     val allowed = trusted.lines()
     val denied = blocked.lines()
     val rules = (saved.trusted + saved.deny.tools + allowed + denied).distinct()
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space16)) {
         if (rules.isEmpty()) Text("No tools are always allowed or blocked yet. Use Always allow on an Approval, or Allow and Block on an MCP server's tools.",
             color = color(mutedColor), style = TextStyles.secondary)
         rules.groupBy { toolRuleLabel(it).source }.forEach { (source, lines) ->

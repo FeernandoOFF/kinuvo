@@ -37,9 +37,9 @@ internal fun ItemList(p: Pane, title: String, intro: String, addLabel: String, l
     Column(Modifier.fillMaxSize()) {
         if (scope != null && p.back == null) PageHeader(p.ui.route.section?.icon() ?: Lucide.Settings, title, scope = scope, actions = if (canAdd) listOf(add) else emptyList())
         else SettingsPageHeader(title, p.back) { if (canAdd) HeaderButton(add.icon, add.label, add.onClick) }
-        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Spacing.space16, vertical = Spacing.space12), verticalArrangement = Arrangement.spacedBy(Spacing.space16)) {
             if (intro.isNotEmpty()) Text(intro, color = color(mutedColor), style = TextStyles.secondary.copy(lineBreak = LineBreak.Heading))
-            if (loading) Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
+            if (loading) Box(Modifier.fillMaxWidth().padding(Spacing.space24), contentAlignment = Alignment.Center) { Spinner() }
             else rows()
         }
     }
@@ -60,8 +60,8 @@ internal fun DetailPane(back: (() -> Unit)?, title: String, error: String? = nul
         SettingsPageHeader(title, back, subtitle = subtitle, info = info, trailing = trailing)
         Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
             Column(
-                Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = Spacing.space16, vertical = Spacing.space12),
+                verticalArrangement = Arrangement.spacedBy(Spacing.space16),
             ) {
                 error?.let { ErrorMessage(it) }
                 content()
@@ -77,7 +77,7 @@ internal fun DetailGroup(title: String, content: @Composable ColumnScope.() -> U
 @Composable
 internal fun DetailRow(label: String, value: @Composable () -> Unit) {
     BoxWithConstraints {
-        if (maxWidth < 420.dp) Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        if (maxWidth < 420.dp) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space2)) {
             if (label.isNotEmpty()) Text(label, color = color(mutedColor), style = TextStyles.secondary)
             value()
         } else Row(verticalAlignment = Alignment.CenterVertically) {
@@ -91,7 +91,7 @@ internal fun DetailRow(label: String, value: @Composable () -> Unit) {
 @Composable
 internal fun FormButtons(saveLabel: String, enabled: Boolean, error: String?, onSave: () -> Unit, onCancel: (() -> Unit)?) {
     error?.let { ErrorMessage(it) }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         Button(onClick = onSave, enabled = enabled, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text(saveLabel) }
         onCancel?.let { Button(onClick = it, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Cancel") } }
     }
@@ -110,7 +110,7 @@ internal fun FormActions(saveLabel: String, enabled: Boolean, saved: Boolean, on
         if (dirty) SaveButton(onSave, enabled)
         return
     }
-    Row(Modifier.titleBarControl(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.titleBarControl(), horizontalArrangement = Arrangement.spacedBy(Spacing.space6), verticalAlignment = Alignment.CenterVertically) {
         if (saved) Pill("Saved", tone = Tone.Success, icon = Lucide.CircleCheck)
         onCancel?.let { Button(onClick = it, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Cancel") } }
         Button(onClick = onSave, enabled = enabled, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text(saveLabel) }

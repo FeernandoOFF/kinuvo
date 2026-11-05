@@ -1,5 +1,6 @@
 package kinuvo.ui.connection
 
+import kinuvo.ui.design.Motion
 import kinuvo.ui.onboarding.*
 import kinuvo.app.connection.*
 import kinuvo.ui.session.*
@@ -58,7 +59,7 @@ internal fun ConnectScreen(
     var featured by remember { mutableIntStateOf(0) }
     var touring by remember { mutableStateOf(true) }
     if (touring) LaunchedEffect(featured) { delay(4500); featured = (featured + 1) % pokes.size; pokes[featured] += 1 }
-    val tint by animateColorAsState(AvatarInk[featured], tween(700))
+    val tint by animateColorAsState(AvatarInk[featured], tween(Motion.avatar))
     Welcome(WelcomeOptions(
         onScan = scan,
         onLocal = { onSelectServer(Server.Embedded) }.takeIf { Server.Embedded in servers && !elsewhere },

@@ -1,5 +1,6 @@
 package kinuvo.ui.session
 
+import kinuvo.ui.design.Spacing
 import kinuvo.ui.design.TextStyles
 
 import kinuvo.app.session.*
@@ -66,8 +67,8 @@ private val Attachment.text get() = mimeType.startsWith("text/") || mimeType == 
 internal fun AttachmentChip(attachment: Attachment, base64: String? = null, onPreview: (() -> Unit)? = null, onOpen: (() -> Unit)? = null, onRemove: (() -> Unit)? = null) {
     val preview = remember(attachment.id, base64) { attachment.image(base64) }
     val shape = Theme[shapes][mediumShape]
-    Panel(onPreview?.let { Modifier.clip(shape).clickable(onClick = it) } ?: Modifier, shape = shape, contentPadding = PaddingValues(8.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Panel(onPreview?.let { Modifier.clip(shape).clickable(onClick = it) } ?: Modifier, shape = shape, contentPadding = PaddingValues(Spacing.space8)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             if (preview != null) Image(preview, attachment.name, Modifier.size(52.dp))
             else Icon(Lucide.File, Modifier.size(22.dp))
             Column(Modifier.widthIn(max = 150.dp)) {
@@ -86,7 +87,7 @@ internal fun AttachmentPreviewer(preview: AttachmentPreview, onSave: () -> Unit,
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None)) { onClose() }
     val attachment = preview.attachment
     Column(modifier.fillMaxSize().background(color(backgroundColor)).clickable(enabled = false) {}) {
-        Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(Spacing.space8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             IconButton(onClick = onClose, style = ButtonStyle.Ghost, modifier = Modifier.size(40.dp)) { Icon(Lucide.X, Modifier.size(20.dp), contentDescription = "Close") }
             Column(Modifier.weight(1f)) {
                 Text(attachment.name, singleLine = true, overflow = TextOverflow.Ellipsis)
@@ -110,11 +111,11 @@ internal fun AttachmentPreviewer(preview: AttachmentPreview, onSave: () -> Unit,
                     Image(image, attachment.name, Modifier.fillMaxSize().transformable(zoom)
                         .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y }, contentScale = ContentScale.Fit)
                 }
-                text != null -> SelectionContainer(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp)) {
+                text != null -> SelectionContainer(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.space16)) {
                     if (attachment.name.endsWith(".md", ignoreCase = true)) Markdown(text, Modifier.fillMaxWidth())
                     else Text(text, Modifier.fillMaxWidth(), style = MonoStyle)
                 }
-                else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
                     Icon(Lucide.File, Modifier.size(40.dp), tint = color(mutedColor))
                     Text("No preview for this file", color = color(mutedColor))
                     Button(onClick = onSave, buttonSize = ButtonSize.Small) { Text("Save") }

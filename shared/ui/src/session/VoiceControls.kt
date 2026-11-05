@@ -71,11 +71,11 @@ internal fun VoiceControls(
     settings: @Composable RowScope.() -> Unit = {},
     attachments: @Composable () -> Unit = {},
 ) {
-    Column(modifier.fillMaxWidth().animateContentSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(20.dp)) {
+    Column(modifier.fillMaxWidth().animateContentSize(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.space20)) {
         attachments()
         PauseButton(state, onPause, onHold)
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = settings)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8), content = settings)
             IconButton(onClick = { onSpeaker(!state.speaker) }, modifier = Modifier.size(52.dp), style = ButtonStyle.Secondary, shape = CircleShape) {
                 Icon(if (state.speaker) Lucide.Volume2 else Lucide.VolumeX, Modifier.size(22.dp), contentDescription = if (state.speaker) "Mute replies" else "Read replies aloud")
             }
@@ -93,7 +93,7 @@ internal fun VoiceControls(
 @Composable
 private fun PauseButton(state: VoiceChatState, onPause: (Boolean) -> Unit, onHold: (Boolean) -> Unit) {
     val listening = state.phase == VoicePhase.Listening && (!state.paused || state.holding)
-    val breath by rememberInfiniteTransition().animateFloat(1f, 1.12f, infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse))
+    val breath by rememberInfiniteTransition().animateFloat(1f, 1.12f, infiniteRepeatable(tween(Motion.breath, easing = Motion.smooth), RepeatMode.Reverse))
     val ring by animateColorAsState(if (listening) color(accentColor).copy(alpha = 0.6f) else Color.Transparent)
     val fill by animateColorAsState(color(if (state.holding) accentColor else secondaryColor))
     val haptics = LocalHapticFeedback.current
@@ -104,12 +104,12 @@ private fun PauseButton(state: VoiceChatState, onPause: (Boolean) -> Unit, onHol
     var pressed by remember { mutableStateOf(false) }
     // Pops in with voice chat, gives under the finger and swells, springing, while held.
     val appear = remember { Animatable(0.6f) }
-    LaunchedEffect(Unit) { appear.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessLow)) }
+    LaunchedEffect(Unit) { appear.animateTo(1f, Motion.voiceAppearSpring()) }
     val press by animateFloatAsState(when {
         state.holding -> 1.12f
         pressed -> 0.92f
         else -> 1f
-    }, spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMedium))
+    }, Motion.voicePressSpring())
     Box(Modifier.size(96.dp).scale(appear.value * press), contentAlignment = Alignment.Center) {
         Box(Modifier.size(76.dp).scale(if (listening) breath else 1f).border(2.dp, ring, CircleShape))
         Box(
@@ -146,7 +146,7 @@ private fun PauseButton(state: VoiceChatState, onPause: (Boolean) -> Unit, onHol
 /** What voice chat is doing. */
 @Composable
 internal fun VoiceStatus(state: VoiceChatState, modifier: Modifier = Modifier) {
-    Box(modifier.widthIn(max = 560.dp).padding(horizontal = 24.dp)) {
+    Box(modifier.widthIn(max = 560.dp).padding(horizontal = Spacing.space24)) {
         val status = state.error ?: if (state.holding) "Listening · let go to send" else if (state.paused) "Paused · hold to talk" else when (state.phase) {
             VoicePhase.Off, VoicePhase.Starting -> "Starting…"
             VoicePhase.Listening -> "Listening"
@@ -154,9 +154,9 @@ internal fun VoiceStatus(state: VoiceChatState, modifier: Modifier = Modifier) {
             VoicePhase.Speaking -> "Speaking"
         }
         AnimatedContent(status, Modifier.align(Alignment.Center), transitionSpec = {
-            (fadeIn(tween(200)) + slideInVertically { it / 2 }).togetherWith(fadeOut(tween(120)) + slideOutVertically { -it / 2 }).using(SizeTransform(clip = false))
+            (fadeIn(tween(Motion.enter)) + slideInVertically { it / 2 }).togetherWith(fadeOut(tween(Motion.fast)) + slideOutVertically { -it / 2 }).using(SizeTransform(clip = false))
         }) { status ->
-        Text(status, Modifier.background(color(panelColor).copy(alpha = 0.95f), PillShape).border(1.dp, color(borderColor), PillShape).padding(horizontal = 14.dp, vertical = 6.dp),
+        Text(status, Modifier.background(color(panelColor).copy(alpha = 0.95f), PillShape).border(1.dp, color(borderColor), PillShape).padding(horizontal = Spacing.space14, vertical = Spacing.space6),
             style = TextStyles.callout, color = color(if (state.error != null) destructiveColor else onBackgroundColor), textAlign = TextAlign.Center, maxLines = 2)
         }
     }
@@ -165,14 +165,14 @@ internal fun VoiceStatus(state: VoiceChatState, modifier: Modifier = Modifier) {
 /** A warm light rising from the bottom edge, brightest while the Agent speaks. */
 @Composable
 internal fun VoiceGlow(state: VoiceChatState, modifier: Modifier = Modifier) {
-    val pulse by rememberInfiniteTransition().animateFloat(0.7f, 1f, infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Reverse))
+    val pulse by rememberInfiniteTransition().animateFloat(0.7f, 1f, infiniteRepeatable(tween(Motion.pulse, easing = Motion.smooth), RepeatMode.Reverse))
     val level by animateFloatAsState(when {
         !state.active -> 0f
         (state.paused && !state.holding) || state.error != null -> 0.08f
         state.phase == VoicePhase.Speaking -> 0.4f
         state.phase == VoicePhase.Listening -> 0.25f
         else -> 0.15f
-    }, tween(600))
+    }, tween(Motion.settle))
     if (level == 0f) return
     val accent = color(accentColor)
     // Screens sit inside the safe area; the light reaches past it to the screen's edges.

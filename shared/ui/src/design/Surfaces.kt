@@ -62,7 +62,7 @@ fun Panel(
     color: Color = color(panelColor),
     borderColor: Color = color(com.composables.ui.theme.borderColor),
     shape: Shape = Theme[shapes][mediumShape],
-    contentPadding: PaddingValues = PaddingValues(12.dp),
+    contentPadding: PaddingValues = PaddingValues(Spacing.space12),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -91,11 +91,11 @@ fun Pill(text: String, modifier: Modifier = Modifier, tone: Tone = Tone.Neutral,
     val c = tone.color()
     Row(
         modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(Radius.menu))
             .background(c.copy(alpha = 0.12f))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .padding(horizontal = Spacing.space8, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space4),
     ) {
         if (loading) Spinner(size = 12.dp, tint = c) else icon?.let { Icon(it, Modifier.size(12.dp), tint = c) }
         Text(text, Modifier.weight(1f, fill = false), style = TextStyles.caption, lineHeight = 16.sp, fontWeight = FontWeight.Normal, color = c)
@@ -107,7 +107,7 @@ fun Pill(text: String, modifier: Modifier = Modifier, tone: Tone = Tone.Neutral,
 fun Badge(text: String, icon: ImageVector? = null, modifier: Modifier = Modifier) {
     val c = color(mutedColor)
     Row(
-        modifier.clip(PillShape).border(1.dp, color(borderColor), PillShape).padding(horizontal = 6.dp, vertical = 1.dp),
+        modifier.clip(PillShape).border(1.dp, color(borderColor), PillShape).padding(horizontal = Spacing.space6, vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
@@ -125,8 +125,8 @@ fun ErrorMessage(text: String, modifier: Modifier = Modifier) {
     }
     val c = Tone.Danger.color()
     Row(
-        modifier.fillMaxWidth().clip(Theme[shapes][mediumShape]).background(c.copy(alpha = 0.12f)).padding(12.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top,
+        modifier.fillMaxWidth().clip(Theme[shapes][mediumShape]).background(c.copy(alpha = 0.12f)).padding(Spacing.space12),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space8), verticalAlignment = Alignment.Top,
     ) {
         Icon(Lucide.CircleX, Modifier.size(16.dp), tint = c)
         Text(text, Modifier.weight(1f), style = TextStyles.caption, lineHeight = 18.sp, color = c)
@@ -137,7 +137,7 @@ fun ErrorMessage(text: String, modifier: Modifier = Modifier) {
 @Composable
 fun Spinner(modifier: Modifier = Modifier, size: Dp = 16.dp, tint: Color = color(mutedColor)) {
     val angle by rememberInfiniteTransition().animateFloat(
-        0f, 360f, infiniteRepeatable(tween(900, easing = LinearEasing)),
+        0f, 360f, infiniteRepeatable(tween(Motion.spin, easing = Motion.linear)),
     )
     Icon(Lucide.LoaderCircle, modifier.size(size).rotate(angle), tint = tint)
 }
@@ -170,9 +170,9 @@ fun ListRow(
             .alpha(if (enabled) 1f else 0.4f)
             .heightIn(min = if (LocalInteractionMode.current == InteractionMode.Touch) 48.dp else 0.dp)
             .semantics { this.selected = selected }
-            .padding(horizontal = 10.dp, vertical = 8.dp),
+            .padding(horizontal = Spacing.space10, vertical = Spacing.space8),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space10),
     ) {
         leading?.let { ProvideContentColor(color(mutedColor)) { it() } }
         content()
@@ -184,7 +184,7 @@ fun ListRow(
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text.uppercase(),
-        modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+        modifier.padding(horizontal = Spacing.space10, vertical = Spacing.space6),
         style = TextStyles.overline,
         lineHeight = 14.sp,
         letterSpacing = 0.6.sp,
