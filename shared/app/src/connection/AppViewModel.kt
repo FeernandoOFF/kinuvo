@@ -1,6 +1,7 @@
 package kinuvo.app.connection
 
 import kinuvo.app.device.*
+import kinuvo.app.board.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
 import kinuvo.app.routine.*
@@ -11,17 +12,25 @@ import androidx.lifecycle.viewModelScope
 import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.client.AuthException
+import kinuvo.client.ProtocolMismatchException
 import kinuvo.client.userMessage
 import kinuvo.protocol.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 
 private val ConnectTimeout = 15.seconds
@@ -36,7 +45,8 @@ sealed interface Connection {
  * Everything app-wide the UI shows. [agentId] is the Agent the shell shows; [sessions] mirrors the [SessionRepository]:
  * session lists and finished marks; [pairing] is set when the connected Server can pair other Devices; [capabilities]
  * are the connected Server's features; [routines] mirrors the [RoutineRepository] for the Agents shown. With [home], the
- * shell's column lists Home's destinations instead of [agentId]'s Sessions.
+ * shell's column lists Home's destinations instead of [agentId]'s Sessions. While a Server isn't [online], what's shown is
+ * what this Device last saw of it, current as of [syncedAt] (epoch milliseconds).
  */
 data class AppState(
     val connection: Connection = Connection.Connecting(),
@@ -55,10 +65,14 @@ data class AppState(
     val capabilities: ServerCapabilities? = null,
     val routines: Map<String, List<Routine>> = emptyMap(),
     val onboarding: Boolean = false,
+    /** Counts Device resets, so each first run starts its onboarding over. */
+    val firstRun: Int = 0,
     /** The Server to go back to when adding another one is cancelled. */
     val returnTo: Server? = null,
     /** Whether the embedded Server is reachable from other Devices; null when it can't be. */
     val sharing: Boolean? = null,
+    val online: Boolean = false,
+    val syncedAt: Long? = null,
 )
 
 /** App-scoped: owns the Server connection so it outlives screens and configuration changes. */
@@ -67,6 +81,7 @@ class AppViewModel(
     private val device: Device,
     private val owner: ConnectedServer,
     private val deviceAccess: DeviceAccess,
+    private val cache: ClientCache = ClientCache.None,
 ) : ViewModel() {
     private val repo get() = owner.sessions
     private val routines get() = owner.routines
@@ -159,6 +174,7 @@ class AppViewModel(
         val leaving = currentServer?.key == server.key
         if (leaving) disconnect()
         servers.forget(server)
+        cache.remove(server.key)
         state.update { it.copy(servers = servers.all, notice = if (revoked) null else "Forgotten here; still paired on the server") }
         if (leaving) {
             servers.all.firstOrNull { it is Server.Embedded }?.let(::use)
@@ -175,6 +191,7 @@ class AppViewModel(
                     val saved = servers.all.filterIsInstance<Server.Remote>().firstOrNull { it.key == ready.server.key }
                     if (saved != null && (saved.token == ready.server.token || saved.token == null)) {
                         val unpaired = servers.unpair(saved)
+                        cache.remove(saved.key)
                         if (currentServer?.key == saved.key) {
                             disconnect()
                             state.update { it.copy(connection = Connection.Unpaired("Unpaired by the server", unpaired), servers = servers.all, pendingPair = null) }
@@ -318,8 +335,10 @@ class AppViewModel(
     suspend fun quickSend(agentId: String, text: String): String? =
         catching { owner.run { repo.createSession(agentId).id.also { repo.send(agentId, it, text) } } }.getOrNull()
 
+    /** Offline, the latest one this Device saw. */
     private suspend fun latestSession(agentId: String): String? =
-        catching { owner.call { it.call(Api.Sessions, SessionsParams(agentId, limit = 1)).sessions.firstOrNull()?.id } }.getOrNull()
+        catching { owner.call { it.call(Api.Sessions, SessionsParams(agentId, limit = 1)).sessions.firstOrNull()?.id } }
+            .getOrElse { state.value.sessions.lists[agentId]?.sessions?.filter { it.routine == null }?.maxByOrNull { it.createdAt ?: 0 }?.id }
 
     private fun connect(server: Server, code: String? = null) {
         disconnect()
@@ -327,9 +346,11 @@ class AppViewModel(
         connecting = viewModelScope.launch { open(server, code) }
     }
 
+    /** Opens [server]; with a [Snapshot] of it, shows that right away and keeps trying to reach it. */
     private suspend fun open(server: Server, code: String?) {
         var active = server
         var client: KinuvoClient? = null
+        var snapshot: Snapshot? = null
         try {
             val endpoint = servers.endpoint(server)
             currentCoroutineContext().ensureActive()
@@ -337,22 +358,35 @@ class AppViewModel(
                 deviceTools = { deviceAccess.tools(endpoint.url) }, deviceRead = { deviceAccess.read(endpoint.url, it) },
                 computer = { deviceAccess.act(endpoint.url, it) }, connection = endpoint.connection)
             owner.open(client, endpoint.url)
-            withTimeoutOrNull(ConnectTimeout) { owner.run { client.connect() } } ?: error("Timed out connecting to ${server.label}")
+            snapshot = if (code == null) cacheFor(server).read(server.key) else null
+            currentCoroutineContext().ensureActive()
+            if (snapshot != null) {
+                owner.restore(snapshot)
+                ready(client, active, snapshot)
+                owner.run { client.connect(retry = true) }
+            } else withTimeoutOrNull(ConnectTimeout) { owner.run { client.connect() } } ?: error("Timed out connecting to ${server.label}")
             client.lastConnect?.let { result -> active = servers.remember(active, result.token, result.capabilities.serverId, result.serverName) }
             servers.select(active)
         } catch (e: Exception) {
             client?.close()
             currentCoroutineContext().ensureActive()
             if (e is CancellationException) throw e
+            watching?.cancel()
             owner.close()
+            if (e is AuthException || e is ProtocolMismatchException) cacheFor(server).remove(server.key)
             if (e is AuthException && server is Server.Remote && server.token != null) runCatching { active = servers.unpair(server) }
             val saved = runCatching { servers.all }.getOrDefault(state.value.servers)
-            state.update { it.copy(connection = Connection.Unpaired(e.userMessage, active as? Server.Remote), servers = saved) }
+            state.update { it.cleared().copy(connection = Connection.Unpaired(e.userMessage, active as? Server.Remote), servers = saved) }
             return
         }
+        if (snapshot == null) ready(client, active, null)
+    }
+
+    private fun ready(client: KinuvoClient, server: Server, snapshot: Snapshot?) {
         state.update {
-            it.copy(connection = Connection.Ready(client, active), servers = servers.all, usage = client.lastConnect?.usage, pendingPair = null, returnTo = null,
-                capabilities = client.lastConnect?.capabilities, sharing = servers.sharing?.enabled)
+            it.copy(connection = Connection.Ready(client, server), servers = servers.all, usage = client.lastConnect?.usage, pendingPair = null, returnTo = null,
+                capabilities = client.lastConnect?.capabilities ?: snapshot?.capabilities, sharing = servers.sharing?.enabled,
+                agents = snapshot?.agents ?: it.agents, syncedAt = snapshot?.syncedAt)
         }
 
         owner.activate()
@@ -361,10 +395,13 @@ class AppViewModel(
             launch { client.events(Api.Usage).collect { u -> state.update { it.copy(usage = u) } } }
             launch { client.events(Api.AgentsChanged).collect(::setAgents) }
             launch { client.events(Api.DevicesChanged).collect { state.update { it.copy(pairing = null) } } }
+            launch { save(cacheFor(server)) }
             client.state.collect {
+                state.update { s -> s.copy(online = it is ConnectionState.Connected) }
                 if (it is ConnectionState.Disconnected && it.rejected) {
                     val remote = connected?.server as? Server.Remote ?: return@collect
                     val unpaired = servers.unpair(remote)
+                    cache.remove(remote.key)
                     disconnect()
                     state.update { s -> s.copy(connection = Connection.Unpaired("Unpaired by the server", unpaired), servers = servers.all, pendingPair = null) }
                     return@collect
@@ -373,11 +410,47 @@ class AppViewModel(
                 client.lastConnect?.let { result ->
                     val current = connected?.server ?: return@let
                     val remembered = servers.remember(current, result.token, result.capabilities.serverId, result.serverName)
-                    state.update { s -> s.copy(connection = Connection.Ready(client, remembered), servers = servers.all, capabilities = result.capabilities) }
+                    state.update { s -> s.copy(connection = Connection.Ready(client, remembered), servers = servers.all, capabilities = result.capabilities, usage = s.usage ?: result.usage) }
                 }
                 refreshAgents()
             }
         }
+    }
+
+    /** While online, saves what's shown once it settles for a second. */
+    private suspend fun save(cache: ClientCache) {
+        if (cache === ClientCache.None) return
+        combine(state, owner.board.state) { s, board -> s to board }
+            .filter { (s, _) -> s.online && s.connection is Connection.Ready }
+            .map { (s, board) -> Snapshot(0, agents = s.agents, capabilities = s.capabilities, lists = s.sessions.lists, sessions = owner.sessions.saved(),
+                routines = s.routines, taskLists = board.lists, tasks = board.tasks) }
+            .distinctUntilChanged()
+            .collectLatest { snapshot ->
+                delay(1.seconds)
+                val key = connected?.server?.key ?: return@collectLatest
+                val now = Clock.System.now().toEpochMilliseconds()
+                cache.write(key, snapshot.copy(syncedAt = now))
+                state.update { it.copy(syncedAt = now) }
+            }
+    }
+
+    private fun cacheFor(server: Server) = if (server is Server.Embedded) ClientCache.None else cache
+
+    /** Drops every Server's saved data on this Device; what's on screen stays until the app reloads it. */
+    fun clearCache() = viewModelScope.launch {
+        cache.clear()
+        state.update { it.copy(notice = "Cached data cleared") }
+    }
+
+    /** Removes everything this app keeps on this Device (Servers, their credentials, preferences, cached data) and starts over. */
+    fun resetDevice() = viewModelScope.launch {
+        disconnect()
+        cache.clear()
+        servers.reset()
+        deviceAccess.reset()
+        views.clear()
+        drafts.clear()
+        state.value = AppState(servers = runCatching { servers.all }.getOrDefault(emptyList()), connection = Connection.Unpaired(), onboarding = true, firstRun = state.value.firstRun + 1)
     }
 
     private fun disconnect() {
@@ -386,8 +459,11 @@ class AppViewModel(
         connecting?.cancel()
         watching?.cancel()
         owner.close()
-        state.update { it.copy(agents = emptyList(), sessions = RepositoryState(), routines = emptyMap(), devices = DevicesState(), usage = null, pairing = null, pairingBase = null, pairingError = null, capabilities = null) }
+        state.update { it.cleared() }
     }
+
+    private fun AppState.cleared() = copy(agents = emptyList(), sessions = RepositoryState(), routines = emptyMap(), devices = DevicesState(), usage = null,
+        pairing = null, pairingBase = null, pairingError = null, capabilities = null, online = false, syncedAt = null)
 
     private suspend fun refreshAgents() {
         if (connected == null) return

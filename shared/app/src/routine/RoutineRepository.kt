@@ -28,7 +28,7 @@ class RoutineRepository(private val notifications: Notifications, internal val c
     private var attached: Job? = null
 
     internal fun attach(client: KinuvoClient) {
-        clear()
+        attached?.cancel()
         attached = scope.launch {
             launch { client.events(Api.RoutinesChanged).collect { c -> state.update { it + (c.agentId to c.routines) } } }
             launch { client.events(Api.RoutineRan).collect { notifications.post(Notice.RoutineRan(it.agentId, it.routine, it.sessionId, it.error)) } }
@@ -37,6 +37,12 @@ class RoutineRepository(private val notifications: Notifications, internal val c
     }
 
     internal fun detach() { clear() }
+
+    /** Reloaded once connected, like those [load]ed. */
+    internal fun restore(routines: Map<String, List<Routine>>) {
+        requested += routines.keys
+        state.value = routines
+    }
 
     fun load(agentId: String) {
         requested += agentId

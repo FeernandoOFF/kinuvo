@@ -222,6 +222,8 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
 
     init {
         repo.connection.bind(viewModelScope, client)
+        // A Session cached on this Device opens before the Server is reached.
+        if (route.agentId != null && route.sessionId in repo.state.value.sessions) state.update { it.copy(resolving = false) }
         viewModelScope.launch {
             state.map { it.route }.distinctUntilChanged()
                 .flatMapLatest { r -> repo.state.map { it.sessions[r.sessionId] to it.skills[r.agentId].orEmpty() } }
@@ -297,6 +299,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         loadModels()
         val agent = route.agentId ?: return
         repo.connection.config.loadDetails(agent)
+        if (agent !in repo.state.value.skills) repo.loadSkills(agent)
         loadCapabilities(agent, route.sessionId, state.value.settings)
         val sessionId = route.sessionId ?: return
         val info = catching { client.call(Api.Session, SessionParams(agent, sessionId)) }.getOrNull() ?: return

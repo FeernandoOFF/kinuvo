@@ -8,6 +8,7 @@ import kinuvo.app.session.*
 import kinuvo.app.agent.*
 import kinuvo.app.navigation.*
 import kinuvo.ui.agent.*
+import kotlin.time.Clock
 import kinuvo.ui.board.*
 import kinuvo.ui.routine.*
 import kinuvo.ui.navigation.*
@@ -188,7 +189,8 @@ fun ChatScreen(
     )
     ChatContent(
         state, connection, appState.usage,
-        ChatActions(
+        syncedAt = appState.syncedAt,
+        actions = ChatActions(
             onNew = { if (route.sessionId != null) onOpen(Route.Chat(route.agentId, compose = true)) },
             onSelect = { id -> if (id != route.sessionId) onOpen(Route.Chat(route.agentId, id)) },
             onSend = session::send,
@@ -305,6 +307,8 @@ fun ChatContent(
     connection: ConnectionState,
     usage: Usage?,
     actions: ChatActions,
+    /** When what's shown was last current, for the offline notice. */
+    syncedAt: Long? = null,
     wide: Boolean? = null,
     compose: Boolean = false,
     onToggleShell: (() -> Unit)? = null,
@@ -322,7 +326,7 @@ fun ChatContent(
     val requestInputs = remember { RequestInputs() }
     LaunchedEffect(state.requests.firstOrNull()?.id) { completing = false }
     val scope = rememberCoroutineScope()
-    val connectionNotice = connectionNotice(connection)
+    val connectionNotice = connectionNotice(connection, syncedAt)
     LaunchedEffect(Unit) { if (compose) composerFocus.requestFocus() }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
@@ -692,10 +696,10 @@ internal fun CloseSessionConfirm(chat: ChatState, onCancel: () -> Unit, onClose:
 /**
  * A composer notice: nothing while connected or briefly down, e.g. back from the background, and a brief "Connected" after a
  * reconnect it showed. While the client retries: "Reconnecting" after [ReconnectingAfter], then
- * "Offline" with the reason once it's been down for [OfflineAfter].
+ * "Offline" with the reason, or when it was last [syncedAt], once it's been down for [OfflineAfter].
  */
 @Composable
-private fun connectionNotice(connection: ConnectionState): Pair<Tone, String>? {
+private fun connectionNotice(connection: ConnectionState, syncedAt: Long?): Pair<Tone, String>? {
     val connected = connection is ConnectionState.Connected
     var down by remember { mutableStateOf(false) }
     var long by remember { mutableStateOf(false) }
@@ -717,7 +721,7 @@ private fun connectionNotice(connection: ConnectionState): Pair<Tone, String>? {
     var shown by remember { mutableStateOf(Tone.Success to "Connected") }
     if (down) shown = when {
         connected -> Tone.Success to "Connected"
-        long -> Tone.Danger to (reason?.let { "Offline · $it. Retrying…" } ?: "Offline · Retrying…")
+        long -> Tone.Danger to ((syncedAt?.let { "Last synced ${relative(it, Clock.System.now().toEpochMilliseconds())}" } ?: reason)?.let { "Offline · $it. Retrying…" } ?: "Offline · Retrying…")
         else -> Tone.Warning to "Reconnecting…"
     }
     return shown.takeIf { down }
