@@ -2,6 +2,13 @@
 useDefault = true
 
 [allowlist]
-description = "Desktop launcher instance marker, not a credential"
+description = "Not credentials: the desktop launcher marker, RFC 8291 test vectors, generated test keys and Web Push key fields"
 regexTarget = "line"
-regexes = ['''token = '--kinuvo-launch-id=' \+ uuid\.uuid4\(\)\.hex''']
+regexes = [
+  '''token = '--kinuvo-launch-id=' \+ uuid\.uuid4\(\)\.hex''',
+  '''let key: P256\.KeyAgreement\.PrivateKey$''',
+]
+paths = [
+  '''^apps/ios/tests/PushKeysTests\.swift$''',
+  '''^relay/push/test/helpers\.ts$''',
+]
