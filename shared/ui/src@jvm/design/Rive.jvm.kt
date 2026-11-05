@@ -1,8 +1,9 @@
 package kinuvo.ui.design
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import dev.muazkadan.rivecmp.RiveDesktop
 
+private val riveReady by lazy { runCatching { RiveDesktop.init() }.isSuccess }
+
 @Composable
-internal actual fun initializeRive(): Boolean = remember { runCatching { RiveDesktop.init() }.isSuccess }
+internal actual fun initializeRive(): Boolean = riveReady
