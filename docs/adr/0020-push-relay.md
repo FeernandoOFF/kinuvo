@@ -18,7 +18,7 @@ Self-hosted Servers can't call APNs or FCM for the published apps: the APNs key 
 
 ## Notification actions
 
-Encrypted Notifications carry a kind and, for Approvals, the Approval ID. Replies and Routine results with a Session offer text Reply; Approvals offer Allow once and plain Deny, requiring unlock (Android 31+). Other Notifications have no actions. A background action uses saved credentials for the sending Server, including this Device's Server, and the existing chat and Approval APIs. It owns a temporary connection rather than the foreground connection and caches, so it cannot switch or interrupt the selected Server. Actions time out after 20 seconds (8 seconds in Android's broadcast lifetime); failures ask the user to open Kinuvo. Actions are never retried automatically.
+Encrypted Notifications carry a kind and, for Approvals, the Approval ID. Replies and Routine results with a Session offer text Reply; Approvals offer Allow once and plain Deny, requiring unlock; Android offers these actions only on API 31+, with older versions opening the app when the Notification is tapped. Other Notifications have no actions. A background action uses saved credentials for the sending Server, including this Device's Server, and the existing chat and Approval APIs. It owns a temporary connection rather than the foreground connection and caches, so it cannot switch or interrupt the selected Server. The temporary connection skips Device tool registration, preserving the foreground connection’s tools and ownership. Actions time out after 20 seconds (8 seconds in Android's broadcast lifetime); failures ask the user to open Kinuvo. Actions are never retried automatically.
 
 ## Consequences
 

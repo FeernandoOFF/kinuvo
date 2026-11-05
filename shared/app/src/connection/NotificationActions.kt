@@ -27,7 +27,7 @@ class NotificationActions(private val servers: Servers, private val device: Devi
             }
             val endpoint = servers.endpoint(server)
             require(endpoint.token != null)
-            val client = KinuvoClient(endpoint.url, device.name, token = endpoint.token, timeZone = device.timeZone, connection = endpoint.connection, dispatcher = dispatcher)
+            val client = KinuvoClient(endpoint.url, device.name, token = endpoint.token, timeZone = device.timeZone, connection = endpoint.connection, dispatcher = dispatcher, registerDeviceTools = false)
             try {
                 client.setActive(false)
                 val connected = client.connect()

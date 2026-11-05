@@ -24,7 +24,9 @@ class NotificationActionsTest {
         remember()
         assertTrue(actions.perform(reply, NotificationAction.Reply("hello")))
         val connect = wire.requests.first { it.method == Api.Connect.name }
-        assertEquals("saved-token", ProtocolJson.decodeFromJsonElement(Api.Connect.params, connect.params).token)
+        val params = ProtocolJson.decodeFromJsonElement(Api.Connect.params, connect.params)
+        assertEquals("saved-token", params.token)
+        assertFalse(params.registerDeviceTools)
         val send = wire.requests.single { it.method == Api.Send.name }
         assertEquals(SendParams("agent", "session", "hello"), ProtocolJson.decodeFromJsonElement(Api.Send.params, send.params))
         assertNull(servers.current)

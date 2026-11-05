@@ -120,7 +120,7 @@ class KinuvoMessagingService : FirebaseMessagingService() {
         if (push.serverId != null) {
             val actions = when {
                 push.kind == PushKind.Reply && push.agentId != null && push.sessionId != null -> listOf("reply" to "Reply")
-                push.kind == PushKind.Approval && push.approvalId != null -> listOf("allow" to "Allow", "deny" to "Deny")
+                push.kind == PushKind.Approval && push.approvalId != null && Build.VERSION.SDK_INT >= 31 -> listOf("allow" to "Allow", "deny" to "Deny")
                 else -> emptyList()
             }
             for ((action, title) in actions) {

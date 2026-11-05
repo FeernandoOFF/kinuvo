@@ -50,9 +50,10 @@ object ProtocolVersion {
 /** Requests a Device may have unanswered on one connection; the Server drops a connection that sends more. */
 const val MAX_CONCURRENT_REQUESTS = 8
 
-/** Exactly one of [token] (a paired device) or [pairingCode] (first connection) is set. [timeZone] is the Device's IANA zone. */
+/** Exactly one of [token] (a paired device) or [pairingCode] (first connection) is set. [timeZone] is the Device's IANA zone.
+ * [registerDeviceTools] is false for temporary connections that must leave the Device's tool registration untouched. */
 @Serializable
-data class ConnectParams(val device: String, val token: String? = null, val pairingCode: String? = null, val timeZone: String? = null, val deviceTools: Set<DeviceToolKind> = emptySet(), @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current)
+data class ConnectParams(val device: String, val token: String? = null, val pairingCode: String? = null, val timeZone: String? = null, val deviceTools: Set<DeviceToolKind> = emptySet(), @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current, val registerDeviceTools: Boolean = true)
 
 @Serializable
 data class ConnectResult(val token: String, val serverName: String, val usage: Usage? = null, val capabilities: ServerCapabilities, val management: Boolean, @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current, val deviceId: String? = null)
