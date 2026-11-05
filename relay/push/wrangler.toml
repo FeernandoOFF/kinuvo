@@ -1,14 +1,13 @@
-name = "kinuvo-push-relay"
+name = "kinuvo-push"
 main = "src/index.ts"
 compatibility_date = "2025-10-01"
-workers_dev = false
-routes = [{ pattern = "push.kinuvo.dev", custom_domain = true }]
+workers_dev = true
 
 [vars]
 APNS_TOPIC = "dev.kinuvo.ios"
-APNS_KEY_ID = ""
-APNS_TEAM_ID = ""
-FCM_PROJECT_ID = ""
+APNS_KEY_ID = "8U45D5CD7S"
+APNS_TEAM_ID = "R5MBZ7H925"
+FCM_PROJECT_ID = "kinuvo-prod"
 
 [[ratelimits]]
 name = "RATE_LIMITER"
