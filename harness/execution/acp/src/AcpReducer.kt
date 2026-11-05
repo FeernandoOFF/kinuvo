@@ -1,7 +1,7 @@
-package kinuvo.execution.acp
+package kinuvo.harness.execution.acp
 
 import java.util.Base64
-import kinuvo.execution.api.ExecutionState
+import kinuvo.harness.execution.api.ExecutionState
 import kinuvo.protocol.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

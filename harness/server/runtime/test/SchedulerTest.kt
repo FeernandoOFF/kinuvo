@@ -3,7 +3,7 @@ package kinuvo.harness.server
 import kinuvo.harness.testing.*
 
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.modelAlias
+import kinuvo.harness.core.plugin.modelAlias
 import kinuvo.harness.core.tools.ToolNames
 import kotlin.time.Duration.Companion.milliseconds
 import kinuvo.protocol.AgentEvent

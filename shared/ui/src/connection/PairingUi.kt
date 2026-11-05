@@ -4,7 +4,7 @@ import kinuvo.app.navigation.SettingsSection
 import kinuvo.ui.device.icon
 import kinuvo.app.connection.*
 import kinuvo.app.agent.*
-import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.board.*
 import kinuvo.ui.navigation.*
 import kinuvo.ui.*
@@ -40,6 +40,7 @@ import kinuvo.protocol.*
 import kinuvo.ui.design.*
 import kotlinx.coroutines.delay
 import kotlin.time.Clock
+import androidx.compose.ui.graphics.vector.ImageVector
 
 /**
  * A pairing code for another Device: a QR code to scan, with the link to share or copy, for the Kinuvo app or a
@@ -108,7 +109,7 @@ private fun CopyAction(label: String, text: String, modifier: Modifier) {
 }
 
 @Composable
-private fun ActionLabel(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String) {
+private fun ActionLabel(icon: ImageVector, label: String) {
     Icon(icon, Modifier.size(15.dp))
     Spacer(Modifier.width(6.dp))
     Text(label, singleLine = true)

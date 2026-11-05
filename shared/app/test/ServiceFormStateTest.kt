@@ -1,5 +1,6 @@
 package kinuvo.app.agent
 
+import kinuvo.app.settings.*
 import kinuvo.protocol.*
 import kotlin.test.*
 

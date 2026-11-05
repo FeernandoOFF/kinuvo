@@ -45,6 +45,7 @@ import com.mohamedrejeb.richeditor.model.rememberRichTextState
 import kotlin.math.PI
 import kotlin.math.sin
 import com.mohamedrejeb.richeditor.ui.BasicRichTextEditor
+import androidx.compose.ui.graphics.Color
 
 /**
  * Chat input on compose-rich-editor. Markdown typed inline (`**bold**`, `*italic*`, `` `code` ``, `- ` lists) turns into
@@ -75,7 +76,7 @@ fun Composer(
     dictating: Boolean = false,
     onVoice: (() -> Unit)? = null,
     blocked: String? = null,
-    containerColor: androidx.compose.ui.graphics.Color = color(fieldColor),
+    containerColor: Color = color(fieldColor),
     /** Drawn under [containerColor], e.g. a blur of what scrolls behind. */
     backdrop: Modifier = Modifier,
     notice: (@Composable () -> Unit)? = null,

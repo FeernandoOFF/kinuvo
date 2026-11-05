@@ -2,6 +2,7 @@ package kinuvo.ui.voice
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.progressSemantics
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,18 +21,6 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.app.voice.*
 import kinuvo.ui.design.*
-import org.koin.compose.getKoin
-
-@Composable
-internal fun LocalVoiceSettings() {
-    val model = getKoin().getOrNull<LocalVoiceViewModel>()
-    if (model == null) {
-        VoiceText("Downloaded voice models are unavailable on this Device.", muted = true)
-        return
-    }
-    val state by model.state.collectAsState()
-    VoiceSettingsContent(state, model::download, model::cancel, model::remove, model::select, model::language)
-}
 
 @Composable
 internal fun VoiceSettingsContent(
@@ -115,7 +104,7 @@ private fun VoiceModelRow(
                     }, muted = true)
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         VoiceText("Download size: ${model.bytes / 1_000_000} MB", muted = true, size = 12)
-                        VoiceText(model.license, Modifier.clickable { uri.openUri(model.source) }, muted = true, size = 12)
+                        VoiceText(model.license, Modifier.clickable(role = Role.Button, onClickLabel = "Open license") { uri.openUri(model.source) }, muted = true, size = 12)
                     }
                 }
             }
@@ -145,9 +134,7 @@ private fun VoiceModelRow(
                 VoiceText("Downloading…", muted = true, size = 12)
                 VoiceText("${state.downloaded / 1_000_000} / ${model.bytes / 1_000_000} MB", muted = true, size = 12)
             }
-            Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(color(borderColor)).progressSemantics(progress)) {
-                Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(color(accentColor)))
-            }
+            ProgressBar(progress)
         }
     }
 }

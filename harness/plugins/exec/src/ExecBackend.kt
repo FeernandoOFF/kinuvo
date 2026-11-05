@@ -1,6 +1,6 @@
 package kinuvo.harness.exec
 
-import kinuvo.harness.core.InstructionSection
+import kinuvo.harness.core.plugin.InstructionSection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext
@@ -10,6 +10,7 @@ import java.nio.file.Paths
 import java.util.Base64
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
+import java.util.UUID
 
 data class ExecResult(val exitCode: Int, val output: String, val timedOut: Boolean = false)
 
@@ -40,7 +41,7 @@ abstract class ExecBackend(
     protected abstract suspend fun execScript(script: String, cwd: String, stdin: String?, timeout: Duration, maxChars: Int = 30_000): ExecResult
 
     private val background = LinkedHashMap<String, BackgroundProcess>()
-    private val tag = java.util.UUID.randomUUID().toString().take(8)
+    private val tag = UUID.randomUUID().toString().take(8)
 
     /** Kills this backend's background processes; subclasses that override must call super. */
     open suspend fun close() {

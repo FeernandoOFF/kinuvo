@@ -1,15 +1,16 @@
 package kinuvo.harness.core.knowledge
 
 import kinuvo.harness.core.Agent
-import kinuvo.harness.core.HarnessPlugin
-import kinuvo.harness.core.InstructionSection
-import kinuvo.harness.core.PluginTools
-import kinuvo.harness.core.RunContext
+import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.harness.core.plugin.InstructionSection
+import kinuvo.harness.core.plugin.PluginTools
+import kinuvo.harness.core.plugin.RunContext
 import kinuvo.harness.core.tools.ToolNames
+import kinuvo.protocol.PluginDefinition
 
 /** The knowledge tools for Agents that have `knowledge` in their tools, and the user's conventions in their instructions. */
 class KnowledgePlugin(private val knowledge: Knowledge) : HarnessPlugin {
-    override val definition = kinuvo.protocol.PluginDefinition("kinuvo.knowledge", "Knowledge")
+    override val definition = PluginDefinition("kinuvo.knowledge", "Knowledge")
     override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
         if (!enabled(run.agent)) return PluginTools()
         val by = ChangeSource(run.agent.id, run.sessionId)

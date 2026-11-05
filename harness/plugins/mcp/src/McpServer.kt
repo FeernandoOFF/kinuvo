@@ -20,6 +20,7 @@ import io.modelcontextprotocol.kotlin.sdk.types.Tool
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonObject
+import kotlinx.coroutines.CancellationException
 
 /** A lazily connected MCP server; reconnects on the next use after a failure. HTTP servers sign in through [auth]. */
 class McpServer(val config: McpServerConfig, private val auth: McpAuth? = null) {
@@ -37,7 +38,7 @@ class McpServer(val config: McpServerConfig, private val auth: McpAuth? = null) 
     private suspend fun <T> withClient(block: suspend (Client) -> T): T = try {
         block(mutex.withLock { client ?: connect().also { client = it } })
     } catch (e: Exception) {
-        if (e is kotlinx.coroutines.CancellationException) throw e
+        if (e is CancellationException) throw e
         val detail = processDetail()
         close()
         val http = config as? McpServerConfig.Http

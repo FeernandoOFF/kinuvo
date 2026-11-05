@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 /** [results] match [query]; [changes] are the latest ones Agents made (null until loaded); [note] is the open one. */
 data class KnowledgeState(
@@ -70,7 +71,7 @@ class KnowledgeViewModel(private val repo: KnowledgeRepository, route: Route.Kno
         viewModelScope.launch {
             try {
                 repo.connection.run { block() }
-            } catch (e: kotlinx.coroutines.CancellationException) {
+            } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 state.update { it.copy(errors = it.errors + (e.userMessage)) }

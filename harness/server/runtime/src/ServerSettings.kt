@@ -1,14 +1,15 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.Notifier
+import kinuvo.harness.core.plugin.Notifier
 import kinuvo.harness.core.tools.WebSearch
 import kinuvo.protocol.*
 import kotlinx.datetime.TimeZone
+import kinuvo.harness.core.store.ReflectionConfig
 
 interface ServerSettings {
     var timeZone: TimeZone
     val reflectionEnabled: Boolean
-    val reflectionModel: kinuvo.harness.core.store.ReflectionConfig get() = kinuvo.harness.core.store.ReflectionConfig()
+    val reflectionModel: ReflectionConfig get() = ReflectionConfig()
     val reflectionPrompt: String
     /** What Settings can set up on this Server, for its capabilities. */
     val integrations: Map<Integration, Set<String>> get() = emptyMap()

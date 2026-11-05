@@ -2,7 +2,7 @@ package kinuvo.ui.connection
 
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
-import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.routine.*
 import kinuvo.ui.navigation.*
 

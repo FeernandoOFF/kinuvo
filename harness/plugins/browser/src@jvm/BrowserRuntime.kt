@@ -15,9 +15,9 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-import kinuvo.harness.core.BrowserService
-import kinuvo.harness.core.ScreenGate
-import kinuvo.harness.core.ScreenSource
+import kinuvo.harness.core.plugin.BrowserService
+import kinuvo.harness.core.plugin.ScreenGate
+import kinuvo.harness.core.plugin.ScreenSource
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -28,6 +28,8 @@ import kotlinx.io.files.Path
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
+import java.net.InetAddress
+import kotlinx.coroutines.channels.Channel
 
 class BrowserRuntime(private val home: File) : BrowserService {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -75,7 +77,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
             ?: defaultBrowserSearchConfig().findChromeExecutable()?.let { File(it.toString()) }
             ?: error("Set KINUVO_BROWSER_EXECUTABLE to a Chrome or Chromium executable")
         require(executable.canExecute()) { "Browser executable is unavailable" }
-        val port = ServerSocket(0, 1, java.net.InetAddress.getLoopbackAddress()).use { it.localPort }
+        val port = ServerSocket(0, 1, InetAddress.getLoopbackAddress()).use { it.localPort }
         val args = mutableListOf(executable.path, "--user-data-dir=${directory.absolutePath}", "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=$port", "--no-first-run", "--no-default-browser-check", "--window-size=1280,800", "about:blank")
         val presentation = presentations[agent] ?: BrowserPresentation()
         if (presentation.headless) args.add(1, "--headless=new")
@@ -361,7 +363,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
             emitAll(merge(stream.map { it.getOrThrow() }, flow<ScreenSample> {
                 retired.await()
                 error("Chrome restarted. Reconnect Live view to continue.")
-            }).buffer(kotlinx.coroutines.channels.Channel.CONFLATED))
+            }).buffer(Channel.CONFLATED))
         }
     }
     private fun geometry(width: Int, height: Int, scale: Double, top: Double, x: Double, y: Double) =
@@ -401,7 +403,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
                 finally { streamSlots.release() }
             }
         }
-    }.buffer(kotlinx.coroutines.channels.Channel.CONFLATED)
+    }.buffer(Channel.CONFLATED)
 
     private suspend fun stop(profile: Profile) {
         runCatching { profile.browser.stop() }

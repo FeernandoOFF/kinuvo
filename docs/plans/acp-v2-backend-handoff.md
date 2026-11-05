@@ -66,7 +66,7 @@ Actual structure: dispatch contract, native snapshot projection, remote client a
 
 ## Execution API module separation
 
-`harness/execution/api` is a small KMP module (`kinuvo.execution.api`) depending only on `shared/protocol`. It owns ExecutionFactory, ExecutionSession, ExecutionState, ExecutionBroker and ExecutionDispatch. No Server/core/Koog, SDK, Compose or process dependency enters this module. ACP production depends on api plus the ACP SDK; runtime is a test-only ACP dependency. Runtime depends on api and owns ExecutionCoordinator, registry/persistence, remote adapter/gateway and native snapshot projection. No compatibility aliases remain.
+`harness/execution/api` is a small KMP module (`kinuvo.harness.execution.api`) depending only on `shared/protocol`. It owns ExecutionFactory, ExecutionSession, ExecutionState, ExecutionBroker and ExecutionDispatch. No Server/core/Koog, SDK, Compose or process dependency enters this module. ACP production depends on api plus the ACP SDK; runtime is a test-only ACP dependency. Runtime depends on api and owns ExecutionCoordinator, registry/persistence, remote adapter/gateway and native snapshot projection. No compatibility aliases remain.
 
 ExecutionDispatch now covers create, agent-owned snapshot, answer, send and stop. NativeExecutionDispatch delegates to the native SessionLog/Runs/brokers without exposing model history. ServerRuntime uses its dispatch selector for creation, source snapshots and remote answers; normal execution answers also support native pending requests. Native typed Approval/Question endpoints and storage remain intact. Existing native model providers remain under harness/core/provider dependencies; neither the API nor ACP imports them.
 

@@ -9,6 +9,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
 import java.io.File
 import java.net.URI
+import java.io.IOException
 
 internal class Tailscale(
     private val executable: String = executable(),
@@ -68,7 +69,7 @@ internal class Tailscale(
     private suspend fun command(vararg args: String): String {
         val result = try {
             withTimeoutOrNull(15_000) { run(listOf(executable) + args) }
-        } catch (e: java.io.IOException) {
+        } catch (e: IOException) {
             throw CliktError("Tailscale CLI is unavailable. Install Tailscale and make its command available on PATH.")
         } ?: throw CliktError("Tailscale ${args.first()} timed out. Check `tailscale status` and enable HTTPS in the Tailscale admin console.")
         if (!result.ok) throw CliktError("Tailscale ${args.first()} failed (${result.code}). Check `tailscale status`, HTTPS certificates and your permission to run `tailscale serve`.")

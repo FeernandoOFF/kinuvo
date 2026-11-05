@@ -3,7 +3,9 @@ package kinuvo.ui
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 
+import kinuvo.app.session.SpeechEngine
 import kinuvo.client.LoopbackCallback
+import kinuvo.ui.session.DesktopSpeechEngine
 import kinuvo.client.oauthState
 import kinuvo.protocol.McpRedirect
 import kinuvo.protocol.Platform
@@ -18,6 +20,7 @@ import java.awt.Desktop
 import java.net.URI
 import java.io.File
 import java.net.InetAddress
+import java.util.TimeZone
 
 /** Opens the default browser and catches its return on localhost ([McpRedirect.Loopback]). */
 internal class LoopbackBrowser : OAuthBrowser {
@@ -63,19 +66,12 @@ private val home get() = System.getenv("KINUVO_HOME")?.let(::File) ?: File(Syste
 
 internal actual val platformModule = module {
     if (currentPlatform == Platform.MacOS || currentPlatform == Platform.Windows) {
-        single<kinuvo.app.session.SpeechEngine> {
-            kinuvo.ui.session.DesktopSpeechEngine()
-        }
-    }
-    if (currentPlatform == Platform.MacOS) {
-        single { kinuvo.ui.voice.DesktopVoiceRepository(
-            File(home, "device-voice/models"), get()) }
-        single { kinuvo.app.voice.LocalVoiceViewModel(get<kinuvo.ui.voice.DesktopVoiceRepository>()) }
+        single<SpeechEngine> { DesktopSpeechEngine() }
     }
     single<DeviceReader> { DesktopDeviceReader() }
     single<DeviceCredentials> { DesktopCredentials(home) }
     single<Preferences> { FilePreferences(home) }
     single<ClientCache> { deviceCache(File(home, "client-cache").path) }
     single<OAuthBrowser> { LoopbackBrowser() }
-    single { Device(runCatching { InetAddress.getLocalHost().hostName }.getOrDefault("desktop"), java.util.TimeZone.getDefault().id) }
+    single { Device(runCatching { InetAddress.getLocalHost().hostName }.getOrDefault("desktop"), TimeZone.getDefault().id) }
 }

@@ -1,8 +1,10 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.core.plugin.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.CancellationException
 
 /** One viewer retains one sent sample and one latest sample, independently of other viewers. */
 class ScreenView(private val screen: ScreenRef, private val subscription: String, private val epoch: String,
@@ -56,7 +58,7 @@ class ScreenView(private val screen: ScreenRef, private val subscription: String
                     applied++
                 }
                 ScreenInputResult(applied)
-            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            } catch (e: CancellationException) { throw e }
             catch (_: Exception) { ScreenInputResult(applied, "Input stopped; the next action's outcome may be unknown. Observe before continuing.") }
         }
     }

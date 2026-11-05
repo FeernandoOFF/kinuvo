@@ -1,5 +1,5 @@
 @file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
-package kinuvo.execution.acp
+package kinuvo.harness.execution.acp
 
 import com.agentclientprotocol.agent.v2.Agent
 import com.agentclientprotocol.client.v2.*
@@ -9,7 +9,7 @@ import com.agentclientprotocol.model.PROTOCOL_VERSION_V2
 import com.agentclientprotocol.model.v2.*
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.StdioTransport
-import kinuvo.execution.api.ExecutionDispatch
+import kinuvo.harness.execution.api.ExecutionDispatch
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel

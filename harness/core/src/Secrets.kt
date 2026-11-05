@@ -11,6 +11,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
+import kinuvo.harness.core.tools.ToolRun
 
 /** A password manager that config can point into with Secret references, e.g. Proton Pass for `${pass://Vault/Item/field}`. */
 interface SecretProvider {
@@ -84,7 +85,7 @@ class Secrets(val providers: List<SecretProvider> = emptyList(), private val ttl
     fun redacting(tool: Tool): Tool = object : Tool by tool {
         override suspend fun execute(args: JsonObject) = redacted { tool.execute(args) }
         override suspend fun execute(args: JsonObject, callId: String) = redacted { tool.execute(args, callId) }
-        override suspend fun execute(args: JsonObject, callId: String, run: kinuvo.harness.core.tools.ToolRun) = redacted { tool.execute(args, callId, run) }
+        override suspend fun execute(args: JsonObject, callId: String, run: ToolRun) = redacted { tool.execute(args, callId, run) }
         private suspend fun redacted(block: suspend () -> String) = try {
             redact(block())
         } catch (e: CancellationException) {

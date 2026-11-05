@@ -11,6 +11,8 @@ dependencies:
   - org.jetbrains.kotlinx:kotlinx-datetime:0.8.0
   - io.ktor:ktor-http:3.6.0
   - io.github.xxfast:kstore:1.1.0
+  - io.insert-koin:koin-core:4.2.2: exported
+  - io.insert-koin:koin-core-viewmodel:4.2.2
 
 dependencies@jvmAndMobile:
   - io.github.xxfast:kstore-file:1.1.0

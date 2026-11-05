@@ -8,11 +8,13 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
+import kinuvo.harness.core.plugin.ConfigurableProvider
+import kinuvo.harness.core.plugin.PluginHost
 
 /** A web search service, e.g. Firecrawl; set up in `config.yaml`. */
-interface WebSearchProvider : kinuvo.harness.core.ConfigurableProvider {
+interface WebSearchProvider : ConfigurableProvider {
     /** The provider with [options], whose values may hold `${…}` references; fails when a required one is missing. */
-    fun configured(options: Map<String, String>, host: kinuvo.harness.core.PluginHost): WebSearch
+    fun configured(options: Map<String, String>, host: PluginHost): WebSearch
 }
 
 interface WebSearch {

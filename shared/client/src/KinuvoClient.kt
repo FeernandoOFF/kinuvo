@@ -13,6 +13,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.incrementAndFetch
+import kotlinx.serialization.json.JsonObject
 
 sealed interface ConnectionState {
     data object Connecting : ConnectionState
@@ -193,7 +194,7 @@ class KinuvoClient(
             throw if (method == Api.Connect) AuthException(message) else IllegalStateException(message)
         }
         if (method == Api.Connect) {
-            val version = (response.payload as? kotlinx.serialization.json.JsonObject)?.get("protocolVersion")
+            val version = (response.payload as? JsonObject)?.get("protocolVersion")
             if (version?.toString() != ProtocolVersion.Current.toString()) throw ProtocolMismatchException()
         }
         return ProtocolJson.decodeFromJsonElement(method.result, response.payload)

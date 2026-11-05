@@ -9,6 +9,7 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Past [LIMIT] tools, the catalogued ones (e.g. MCP servers') aren't each sent to the model: it finds, describes and
@@ -61,7 +62,7 @@ private class DescribeTool(private val catalogued: List<Tool>) : Tool {
                         putJsonObject(p.name) { put("type", p.type.name.lowercase()); put("description", p.description) }
                     }
                 }
-                put("required", buildJsonArray { d.requiredParameters.forEach { add(kotlinx.serialization.json.JsonPrimitive(it.name)) } })
+                put("required", buildJsonArray { d.requiredParameters.forEach { add(JsonPrimitive(it.name)) } })
             }
         }.toString()
     }

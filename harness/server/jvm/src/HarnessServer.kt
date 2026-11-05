@@ -4,13 +4,14 @@ import kotlinx.coroutines.*
 import kinuvo.harness.server.execution.ExecutionStorage
 import kinuvo.harness.server.execution.remoteLinks
 import java.io.File
-import kinuvo.execution.acp.AcpExecutionFactory
-import kinuvo.execution.api.ExecutionState
+import kinuvo.harness.execution.acp.AcpExecutionFactory
+import kinuvo.harness.execution.api.ExecutionState
 import kinuvo.protocol.AttachmentData
+import java.net.InetAddress
 
 class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File(harness.files.home.toString(), "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity()) {
     private val executionStorage = ExecutionStorage(harness.files.home)
-    val runtime: ServerRuntime = ServerRuntime(harness, auth, name, serverVoice = DownloadedVoice(File(harness.files.home.toString())),
+    val runtime: ServerRuntime = ServerRuntime(harness, auth, name,
         remoteLinks = remoteLinks(harness.files.home), security = security, prepareAttachment = ::prepareAttachment,
         executionRegistry = executionStorage.registry, executionFactory = AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment), executionStorage = executionStorage)
     private suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData) = runtime.persistExecutionAttachment(state, data)
@@ -51,4 +52,4 @@ class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File
 }
 
 /** What clients call this Server until they give it an alias. */
-private fun machineName() = runCatching { java.net.InetAddress.getLocalHost().hostName.substringBefore('.') }.getOrNull()?.takeIf { it.isNotBlank() && it != "localhost" } ?: "kinuvo"
+private fun machineName() = runCatching { InetAddress.getLocalHost().hostName.substringBefore('.') }.getOrNull()?.takeIf { it.isNotBlank() && it != "localhost" } ?: "kinuvo"

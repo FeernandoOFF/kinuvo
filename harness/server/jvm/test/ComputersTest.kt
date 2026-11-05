@@ -2,7 +2,7 @@ package kinuvo.harness.server
 
 import kinuvo.harness.testing.*
 
-import kinuvo.harness.core.RunContext
+import kinuvo.harness.core.plugin.RunContext
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.ToolRun
 import kinuvo.protocol.*

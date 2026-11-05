@@ -1,5 +1,6 @@
 package kinuvo.harness.codex
 
+import kinuvo.harness.core.plugin.*
 import ai.koog.http.client.KoogHttpClient
 import ai.koog.http.client.ktor.fromKtorClient
 import ai.koog.prompt.executor.clients.openai.OpenAIClientSettings
@@ -25,6 +26,7 @@ import kinuvo.protocol.CapabilityState
 import kinuvo.protocol.ModelInfo
 import kotlinx.io.readByteArray
 import kotlinx.serialization.json.*
+import kinuvo.protocol.PluginDefinition
 
 /** OpenAI API access shares the Responses adapter with the ChatGPT subscription provider. */
 class OpenAIProvider(
@@ -33,7 +35,7 @@ class OpenAIProvider(
     private val http: HttpClient = openAIHttpClient(keyValue),
     override val apiKey: ProviderApiKey? = null,
 ) : ModelProvider, HarnessPlugin {
-    override val definition = kinuvo.protocol.PluginDefinition("kinuvo.openai", "OpenAI API")
+    override val definition = PluginDefinition("kinuvo.openai", "OpenAI API")
     constructor(files: AgentFiles, secrets: Secrets = Secrets(), attachments: ((Attachment) -> ByteArray)? = null) :
         this(OpenAIKey(files, secrets), attachments)
 

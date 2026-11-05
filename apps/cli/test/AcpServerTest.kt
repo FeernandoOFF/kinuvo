@@ -8,7 +8,7 @@ import com.agentclientprotocol.model.PROTOCOL_VERSION_V2
 import com.agentclientprotocol.model.v2.*
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.StdioTransport
-import kinuvo.execution.acp.KinuvoAgent
+import kinuvo.harness.execution.acp.KinuvoAgent
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.server.Harness
 import kinuvo.harness.server.HarnessServer

@@ -1,7 +1,7 @@
 package kinuvo.harness.server
 
-import kinuvo.execution.api.ExecutionSink
-import kinuvo.execution.api.ExecutionState
+import kinuvo.harness.execution.api.ExecutionSink
+import kinuvo.harness.execution.api.ExecutionState
 import kinuvo.harness.server.execution.executionSnapshot
 import kinuvo.harness.server.execution.remoteEntries
 import kinuvo.protocol.*

@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlin.uuid.Uuid
+import kinuvo.protocol.Attachment
 
 /** How many runs are going and how many events they've produced, e.g. for a host keeping them alive in the background. */
 data class RunActivity(val runs: Int = 0, val steps: Long = 0)
@@ -63,7 +64,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
         message: String,
         activation: SessionEntry.Activation? = null,
         routine: RoutineRef? = null,
-        attachments: List<kinuvo.protocol.Attachment> = emptyList(),
+        attachments: List<Attachment> = emptyList(),
         voice: Boolean = false,
         onEvent: (AgentEvent) -> Unit = {},
         onDone: suspend (stopped: Boolean) -> Unit = {},

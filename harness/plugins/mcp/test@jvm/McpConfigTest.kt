@@ -5,7 +5,7 @@ import kotlinx.io.files.Path
 import java.io.File
 import java.nio.file.Files
 import kinuvo.harness.core.Secrets
-import kinuvo.harness.core.modelAlias
+import kinuvo.harness.core.plugin.modelAlias
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals

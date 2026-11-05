@@ -1,57 +1,13 @@
 package kinuvo.ui
 
-import kinuvo.app.connection.*
-import kinuvo.app.device.*
-import kinuvo.app.session.*
-import kinuvo.app.agent.*
-import kinuvo.app.board.*
-import kinuvo.app.knowledge.*
-import kinuvo.app.navigation.*
-import kinuvo.app.artifacts.*
-import kinuvo.app.home.*
-
-import kinuvo.client.KinuvoClient
+import kinuvo.app.appModule
 import org.koin.core.KoinApplication
 import org.koin.core.context.startKoin
 import org.koin.dsl.koinApplication
 import org.koin.core.module.Module
-import org.koin.core.module.dsl.viewModel
-import org.koin.dsl.module
 
 /** Storage and Device details for the current platform. */
 internal expect val platformModule: Module
-
-private val appModule = module {
-    single { getOrNull<MobileTestMode>()?.servers ?: Servers(get(), getOrNull(), get()) }
-    single { Notifications(getAll()) }
-    single { DeviceAccess(get(), get(), getOrNull()) }
-    single { ConnectedServer(get(), get()) }
-    single { get<ConnectedServer>().sessions }
-    single { get<ConnectedServer>().routines }
-    single { get<ConnectedServer>().config }
-    single { get<ConnectedServer>().harnesses }
-    single { get<ConnectedServer>().board }
-    single { get<ConnectedServer>().knowledge }
-    single { get<ConnectedServer>().devices }
-    viewModel { kinuvo.app.voice.ServerVoiceViewModel(get()) }
-    viewModel { OnboardingViewModel(get()) }
-    viewModel { AppViewModel(get(), get(), get(), get(), getOrNull() ?: ClientCache.None) }
-    viewModel { (client: KinuvoClient, route: Route.Chat) -> SessionViewModel(client, get(), route) }
-    viewModel { (engine: SpeechEngine, session: SessionViewModel) -> VoiceViewModel(engine, session, get()) }
-    viewModel { (transcriber: Transcriber) -> DictationViewModel(if (transcriber is SpeechEngine) ServerSpeech(transcriber, get()) else transcriber) }
-    viewModel { (route: Route.Settings) -> SettingsViewModel(get(), get(), get(), route) }
-    viewModel { BoardViewModel(get()) }
-    viewModel { AgentInspectorViewModel(get()) }
-    viewModel { (app: AppViewModel) -> HomeViewModel(app.state, get()) }
-    viewModel { (route: Route.Knowledge) -> KnowledgeViewModel(get(), route) }
-    viewModel { (client: KinuvoClient, route: Route.Artifacts) -> ArtifactsViewModel(client, route, get()) }
-    viewModel { (route: Route) ->
-        val browser = route as? Route.Browser
-        kinuvo.app.screen.LiveViewModel(get<ConnectedServer>(), browser?.let { kinuvo.protocol.BrowserOwner(it.agentId) },
-            browser?.screen ?: (route as? Route.Computers)?.computer?.let { kinuvo.protocol.ScreenRef("computer", it) }, browser?.reason ?: (route as? Route.Computers)?.reason)
-    }
-
-}
 
 /** Starts DI once per process; [modules] add or override bindings, e.g. an [EmbeddedServer]. */
 fun startKinuvo(vararg modules: Module, config: KoinApplication.() -> Unit = {}): KoinApplication = startKoin {

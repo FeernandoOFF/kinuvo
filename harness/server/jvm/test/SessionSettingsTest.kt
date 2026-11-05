@@ -8,8 +8,8 @@ import kinuvo.harness.codex.CodexAuth
 import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.core.AgentModel
-import kinuvo.harness.core.ModelProvider
-import kinuvo.harness.core.HarnessPlugin
+import kinuvo.harness.core.plugin.ModelProvider
+import kinuvo.harness.core.plugin.HarnessPlugin
 import kinuvo.harness.core.AgentConfig
 import kinuvo.protocol.UpdateAgentParams
 import kinuvo.protocol.SessionEntry

@@ -33,6 +33,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
+import io.ktor.http.ParametersBuilder
+import kotlin.time.Clock
 
 /** An HTTP MCP server refused Kinuvo until the user signs in. */
 class McpAuthRequired(val server: String, scope: String? = null) : Exception(
@@ -51,7 +53,7 @@ class McpAuth(
         followRedirects = false
         install(HttpTimeout) { requestTimeoutMillis = 30_000 }
     },
-    private val now: () -> Long = { kotlin.time.Clock.System.now().epochSeconds },
+    private val now: () -> Long = { Clock.System.now().epochSeconds },
 ) : AutoCloseable {
     /** [secretPost] sends the secret in the form (`client_secret_post`) instead of Basic auth. */
     private class Client(val id: String, val secret: String?, val secretPost: Boolean = false)
@@ -237,7 +239,7 @@ class McpAuth(
 
     private fun expiring(s: McpSignIn) = s.expiresAt != null && s.expiresAt - now() < 60
 
-    private suspend fun tokenRequest(endpoint: String, client: Client, params: io.ktor.http.ParametersBuilder.() -> Unit): HttpResponse =
+    private suspend fun tokenRequest(endpoint: String, client: Client, params: ParametersBuilder.() -> Unit): HttpResponse =
         http.submitForm(endpoint, parameters {
             params()
             if (client.secret == null || client.secretPost) append("client_id", client.id)

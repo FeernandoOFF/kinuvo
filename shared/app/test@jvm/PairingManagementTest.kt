@@ -1,8 +1,8 @@
 package kinuvo.app
 
+import kinuvo.app.agent.*
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
-import kinuvo.app.agent.*
 
 import androidx.lifecycle.ViewModelStore
 import kinuvo.client.KinuvoClient

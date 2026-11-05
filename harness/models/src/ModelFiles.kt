@@ -1,4 +1,4 @@
-package kinuvo.models
+package kinuvo.harness.models
 
 import kinuvo.protocol.ModelFile
 import kotlinx.coroutines.*

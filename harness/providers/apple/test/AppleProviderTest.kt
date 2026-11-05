@@ -10,7 +10,7 @@ import kinuvo.harness.core.tools.ToolNames
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ToolIdentity
 import kinuvo.protocol.PluginInstanceId
-import kinuvo.harness.core.modelAlias
+import kinuvo.harness.core.plugin.modelAlias
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonArray

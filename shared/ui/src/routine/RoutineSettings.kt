@@ -1,8 +1,8 @@
 package kinuvo.ui.routine
 
-import kinuvo.ui.session.HeaderButton
+import kinuvo.ui.design.HeaderButton
 import kinuvo.app.connection.*
-import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.board.*
 import kinuvo.ui.navigation.*
 

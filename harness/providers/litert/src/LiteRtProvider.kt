@@ -1,12 +1,13 @@
 package kinuvo.harness.litert
 
+import kinuvo.harness.core.plugin.*
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.llm.LLMProvider
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.smallModelTools
-import kinuvo.models.ModelFiles
-import kinuvo.models.gigabytes
+import kinuvo.harness.models.ModelFiles
+import kinuvo.harness.models.gigabytes
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow

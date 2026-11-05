@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.server.screens.*
 import kinuvo.protocol.*
 import kotlin.test.*
 

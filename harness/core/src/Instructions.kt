@@ -1,5 +1,9 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.core.skills.Skill
+import kinuvo.harness.core.tools.Tool
+import kinuvo.harness.core.tools.ToolNames
+
 /** Builds the instructions snapshot frozen into a new Session. */
 suspend fun instructionsFor(
     agent: Agent,
@@ -41,7 +45,7 @@ prefers short replies"), not instructions to yourself. Current requests take pre
 Suggestions and silence are not agreement. Background Knowledge changes and learned Skills need the user's Approval."""
 
 /** Derived from the tools of this run, rather than remembered product documentation. */
-fun capabilitiesFor(agent: Agent, tools: List<kinuvo.harness.core.tools.Tool>): String = buildString {
+fun capabilitiesFor(agent: Agent, tools: List<Tool>): String = buildString {
     val names = tools.map { it.identity?.localId ?: it.descriptor.name }.toSet()
     append("## Kinuvo capabilities for this run\n\n")
     append("This current capability summary, Workspace and Conventions supersede older snapshots in this Session.\n")
@@ -61,7 +65,7 @@ fun capabilitiesFor(agent: Agent, tools: List<kinuvo.harness.core.tools.Tool>): 
     append("Tool calls follow the Session's Risk tolerance and Trust/Deny rules. Background Reflection stages Knowledge and learned Skills for explicit Approval regardless of Risk tolerance.\n")
 }
 
-fun skillCatalogFor(skills: List<kinuvo.harness.core.skills.Skill>): String =
+fun skillCatalogFor(skills: List<Skill>): String =
     skills.filter { it.modelInvocable }.sortedBy { it.name }.joinToString("\n") { "- ${it.name}: ${it.description.replace('\n', ' ')}" }
 
 /** Personal documents are refreshed in late context, leaving the instruction prefix stable. */
@@ -72,12 +76,12 @@ suspend fun personalContextFor(agent: Agent, docs: AgentDocs): String = buildStr
 }
 
 /** The whole prompt for a small on-device model: who it is, what it knows about the user, and its tools. */
-suspend fun basicContextFor(agent: Agent, docs: AgentDocs, tools: List<kinuvo.harness.core.tools.Tool>, today: String): String = buildString {
+suspend fun basicContextFor(agent: Agent, docs: AgentDocs, tools: List<Tool>, today: String): String = buildString {
     val known = listOf(AgentDoc.UserNotes, AgentDoc.Memory).map { docs.read(agent.id, it).trim() }.filter { it.isNotEmpty() }
     append("You are ${agent.name}, the user's personal assistant. Keep replies short and friendly.\n\n")
     append("What you know about the user:\n${known.joinToString("\n").ifEmpty { "Nothing saved yet." }}\n\n")
     if (tools.isNotEmpty()) append("Tools: ${tools.joinToString { it.identity?.localId ?: it.descriptor.name }}. ")
     append("Use a tool when the user asks you to do something, and only say it's done after the tool succeeds.")
-    if (tools.any { it.identity?.localId == kinuvo.harness.core.tools.ToolNames.MEMORY }) append(" When the user asks you to remember something, call memory with action=add, target=user and content starting \"The user\".")
+    if (tools.any { it.identity?.localId == ToolNames.MEMORY }) append(" When the user asks you to remember something, call memory with action=add, target=user and content starting \"The user\".")
     append("\nToday is $today.\n")
 }

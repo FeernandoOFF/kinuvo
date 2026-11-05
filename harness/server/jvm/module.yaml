@@ -2,7 +2,6 @@
 product: jvm/lib
 
 dependencies:
-  - ../../voice
   - ../../core: exported
   - ../runtime: exported
   - ../../execution/acp
@@ -19,14 +18,15 @@ dependencies:
   - ../../providers/codex
   - ../../providers/koog
   - ../../providers/litert
-  - io.ktor:ktor-server-cio:3.6.0
-  - io.ktor:ktor-server-websockets:3.6.0
+  - ../../providers/voice
   - ch.qos.logback:logback-classic:1.6.6
 
 test-dependencies:
   - ../../testing
   - $kotlin.test
   - ../../../shared/client
+  - io.ktor:ktor-server-cio:3.6.0
+  - io.ktor:ktor-server-websockets:3.6.0
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
 
 settings:

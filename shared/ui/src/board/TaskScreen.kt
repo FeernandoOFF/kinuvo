@@ -3,7 +3,7 @@ package kinuvo.ui.board
 import kinuvo.app.board.*
 import kinuvo.app.connection.*
 import kinuvo.app.navigation.*
-import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.session.*
 
 import androidx.compose.foundation.background
@@ -24,6 +24,8 @@ import kinuvo.protocol.*
 import kinuvo.ui.design.*
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
+import kotlin.time.Clock
+import kotlinx.datetime.LocalDate
 
 /** One Task with its runs, each opening its exact Session; Back returns to wherever the Task was opened from. */
 @Composable
@@ -99,13 +101,13 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Stri
 
 /** A Task's due date as "Mon 2 Nov", or as given when it isn't an ISO date. */
 internal fun dueLabel(iso: String): String = runCatching {
-    val d = kotlinx.datetime.LocalDate.parse(iso)
+    val d = LocalDate.parse(iso)
     "${d.dayOfWeek.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${d.day} ${d.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }}"
 }.getOrDefault(iso)
 
 /** Whether an ISO due date is before today. */
 internal fun overdue(iso: String): Boolean = runCatching {
-    kotlinx.datetime.LocalDate.parse(iso) < kotlin.time.Clock.System.todayIn(TimeZone.currentSystemDefault())
+    LocalDate.parse(iso) < Clock.System.todayIn(TimeZone.currentSystemDefault())
 }.getOrDefault(false)
 
 // One label column, so the pickers line up.

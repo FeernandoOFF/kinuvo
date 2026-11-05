@@ -1,8 +1,9 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.server.devices.*
 import kinuvo.harness.testing.*
 
-import kinuvo.harness.core.RunContext
+import kinuvo.harness.core.plugin.RunContext
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel

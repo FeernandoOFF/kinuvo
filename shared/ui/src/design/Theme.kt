@@ -54,15 +54,15 @@ private class Palette(
 
 private val Light = Palette(
     background = Color(0xFFFAF9F5), sidebar = Color(0xFFF3F1EA), rail = Color(0xFFE3DFD4), panel = Color.White, field = Color.White,
-    subtle = Color(0xFFF0EEE6), text = Color(0xFF1F1E1B), muted = Color(0xFF75716A), border = Color(0xFFE3E0D6),
-    accent = Color(0xFFC96442), onAccent = Color.White, code = Color(0xFFF3F1EA), onCode = Color(0xFF2B2A27),
-    destructive = Color(0xFFC0392B), warning = Color(0xFFB7791F), success = Color(0xFF2F855A),
+    subtle = Color(0xFFF0EEE6), text = Color(0xFF1F1E1B), muted = Color(0xFF6E6A63), border = Color(0xFFE3E0D6),
+    accent = Color(0xFFB4532F), onAccent = Color.White, code = Color(0xFFF3F1EA), onCode = Color(0xFF2B2A27),
+    destructive = Color(0xFFC0392B), warning = Color(0xFF946010), success = Color(0xFF2A7A52),
 )
 
 private val Dark = Palette(
     background = Color(0xFF262624), sidebar = Color(0xFF1F1E1D), rail = Color(0xFF131211), panel = Color(0xFF30302E), field = Color(0xFF30302E),
     subtle = Color(0xFF353533), text = Color(0xFFEDEDE6), muted = Color(0xFF9C9A92), border = Color(0xFF3F3E3B),
-    accent = Color(0xFFD97757), onAccent = Color.White, code = Color(0xFF1C1B1A), onCode = Color(0xFFE6E4DC),
+    accent = Color(0xFFD97757), onAccent = Color(0xFF1F1E1B), code = Color(0xFF1C1B1A), onCode = Color(0xFFE6E4DC),
     destructive = Color(0xFFF07167), warning = Color(0xFFF6C177), success = Color(0xFF7FD1A0),
 )
 

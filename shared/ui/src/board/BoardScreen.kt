@@ -4,7 +4,7 @@ import kinuvo.app.connection.*
 import kinuvo.app.board.*
 import kinuvo.app.navigation.*
 import kinuvo.ui.session.*
-import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.navigation.*
 
 import androidx.compose.foundation.background

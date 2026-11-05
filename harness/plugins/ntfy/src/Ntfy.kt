@@ -1,5 +1,6 @@
 package kinuvo.harness.ntfy
 
+import kinuvo.harness.core.plugin.*
 import kinuvo.harness.core.*
 import kinuvo.protocol.*
 import kotlinx.serialization.json.buildJsonObject
@@ -8,7 +9,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
 class NtfyPlugin : HarnessPlugin {
-    override val definition = kinuvo.protocol.PluginDefinition("kinuvo.ntfy", "ntfy")
+    override val definition = PluginDefinition("kinuvo.ntfy", "ntfy")
     override val notifications = listOf(object : NotificationProvider {
         override val id = "ntfy"
         override val settings = SettingsSchema(listOf(
