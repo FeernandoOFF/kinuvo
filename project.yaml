@@ -9,15 +9,19 @@ modules:
   - harness/execution/api
   - harness/models
   - harness/plugins/anytype
+  - harness/plugins/bitwarden
   - harness/plugins/browser
+  - harness/plugins/caldav
   - harness/plugins/cua
   - harness/plugins/exec
   - harness/plugins/executor
   - harness/plugins/firecrawl
   - harness/plugins/mcp
   - harness/plugins/ntfy
+  - harness/plugins/onepassword
   - harness/plugins/protonpass
   - harness/plugins/reminders
+  - harness/plugins/todoist
   - harness/providers/apple
   - harness/providers/codex
   - harness/providers/koog

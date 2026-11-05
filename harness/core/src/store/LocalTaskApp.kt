@@ -3,7 +3,7 @@ package kinuvo.harness.core.store
 import kinuvo.harness.core.tasks.ProviderTask
 import kinuvo.harness.core.tasks.TaskChange
 import kinuvo.harness.core.tasks.TaskList
-import kinuvo.harness.core.tasks.TaskProvider
+import kinuvo.harness.core.tasks.TaskApp
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.LocalDate
@@ -13,8 +13,7 @@ import kotlinx.serialization.json.Json
 import kotlin.uuid.Uuid
 
 /** Tasks kept by Kinuvo itself in `tasks.json`, for users without a task app. Starts with an Inbox list. */
-class LocalTaskProvider(private val file: Path) : TaskProvider {
-    override val id = "local"
+class LocalTaskApp(private val file: Path) : TaskApp {
     private val lock = Mutex()
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
 

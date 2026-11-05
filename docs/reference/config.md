@@ -54,11 +54,21 @@ Choose a compatible provider and model together. If the model is missing, unavai
 
 | Field | Type | Default | Example / meaning |
 | --- | --- | --- | --- |
-| `tasks.provider` | string | `local` | `reminders` on a Server offering Apple Reminders |
+| `tasks.provider` | string | `local` | `reminders` on a Server offering Apple Reminders, `todoist` or `caldav` |
 | `tasks.lists` | map of string to string | `{}` | `{Personal: default}` maps list name or ID to Agent ID; empty shows all lists; an empty Agent value leaves it unassigned |
 | `tasks.defaultList` | string or null | `null` | `Personal`; null selects the first available list |
 | `tasks.startBeforeDays` | integer | `3` | `1`; how many days before a due date an assigned Task becomes ready |
 | `tasks.pollMinutes` | integer | `5` | `10`; provider polling interval |
+| `tasks.options` | map of string to string | `{}` | The provider's settings; values can be Secret references. Clients see secret values masked and change them only through explicit secret updates, as for Search and Notifications |
+
+`todoist` takes `token`, an API token from Todoist → Settings → Integrations → Developer, and optionally `url` (default `https://api.todoist.com`); its projects are lists, and done tasks show for 30 days. `caldav` takes `url` (the account's CalDAV address, e.g. `https://cloud.example.com/remote.php/dav` for Nextcloud or `https://caldav.fastmail.com/dav/` for Fastmail), `username` and `password` (an app password where the server offers one); its calendars that hold tasks are lists. The URL must be written out, not a reference, since the server's paths are matched against it. Kinuvo finds the calendars from that address and doesn't follow redirects, so `.well-known` discovery URLs and calendars on another host won't work. iCloud no longer serves Reminders over CalDAV; use `reminders` instead.
+
+```yaml
+tasks:
+  provider: todoist
+  options:
+    token: ${op://Kinuvo/Todoist/credential}
+```
 
 ## Search and Notifications
 

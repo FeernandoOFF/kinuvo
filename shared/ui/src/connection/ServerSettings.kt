@@ -1,5 +1,6 @@
 package kinuvo.ui.connection
 
+import kinuvo.app.settings.ProviderSettingsForm
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.ui.settings.*
@@ -39,8 +40,12 @@ private sealed interface ListUse {
 @Composable
 private fun TasksForm(setup: TasksSetup, p: Pane) {
     val s = setup.settings
-    var provider by remember { mutableStateOf(s.provider) }
-    LaunchedEffect(provider) { p.actions.onLoadLists(provider) }
+    val initialForm = remember { ProviderSettingsForm(setup) }
+    var form by remember { mutableStateOf(initialForm) }
+    val provider = form.provider ?: s.provider
+    // A provider with settings loads its lists once they're filled in; one without loads them right away.
+    val draft = form.fields.isNotEmpty() && provider != s.provider
+    LaunchedEffect(provider) { if (!draft) p.actions.onLoadLists(TaskProviderRef(provider)) }
     val lists = p.ui.state.providerLists[provider]
     // An empty map shows every list, so start them all as shown.
     val initialUses = remember(provider, lists) {
@@ -60,11 +65,12 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
     val poll = rememberTextFieldState(s.pollMinutes.toString())
     val options = listOf(ListUse.Hidden, ListUse.Unassigned) + p.ui.agents.map { ListUse.Agent(it) }
     val shown = lists.orEmpty().filter { uses[it.name] != ListUse.Hidden }
-    val ready = lists != null && startBefore.value().toIntOrNull() != null && poll.value().toIntOrNull() != null
+    val ready = form.editable && (lists != null || form.fields.isNotEmpty()) && startBefore.value().toIntOrNull() != null && poll.value().toIntOrNull() != null
     val save = {
-        p.actions.onSaveTasks(TasksSettings(
+        p.actions.onSaveTasks(SaveTasksParams(TasksSettings(
             provider = provider,
-            lists = uses.mapNotNull { (name, use) ->
+            // Lists that didn't load keep their saved assignments.
+            lists = if (lists == null && provider == s.provider) s.lists else uses.mapNotNull { (name, use) ->
                 when (use) {
                     ListUse.Hidden -> null
                     ListUse.Unassigned -> name to ""
@@ -74,26 +80,33 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
             defaultList = defaultList,
             startBeforeDays = startBefore.value().toInt(),
             pollMinutes = poll.value().toInt(),
-        ))
+            options = form.settings().options,
+        ), form.secretUpdates()))
     }
+    val name = setup.providers.firstOrNull { it.id == provider }?.name ?: provider
     val info = "The Board shows your tasks from the app you pick. Agents start on a task assigned to them when it's due within " +
         "the days below, or right away when it has no date. Write @agent in a task to assign it."
-    DetailPane(p.back, "Tasks", error = p.ui.error, info = info, trailing = { FormActions("Save", ready, p.ui.state.saved, onSave = save, dirty = provider != s.provider || uses != initialUses || defaultList != s.defaultList || startBefore.value() != s.startBeforeDays.toString() || poll.value() != s.pollMinutes.toString()) }) {
+    val dirty = form != initialForm || uses != initialUses || defaultList != s.defaultList || startBefore.value() != s.startBeforeDays.toString() || poll.value() != s.pollMinutes.toString()
+    DetailPane(p.back, "Tasks", error = p.ui.error, info = info, trailing = { FormActions("Save", ready, p.ui.state.saved, onSave = save, dirty = dirty) }) {
         val reminders = "On the Server, install with brew install steipete/tap/remindctl. Request access below; macOS may ask you to allow the app that launched the Server."
         RowGroup {
-            PickerRow("Task app", setup.providers, provider, ::providerName, { provider = it }, Lucide.SquareKanban)
+            PickerRow("Task app", setup.providers.map { it.id }, provider, { id -> setup.providers.firstOrNull { it.id == id }?.name ?: id }, { form = form.select(it) }, Lucide.SquareKanban)
             if (provider == "reminders") ActionRow(if (p.ui.state.testing) "Checking access…" else "Request access", Lucide.ShieldCheck,
                 { p.actions.onAuthorizeTasks(provider) }, enabled = !p.ui.state.testing, subtitle = reminders)
         }
+        ProviderSettingsFields(name, form, p) { update -> form = update(form) }
         RowGroup("Lists") {
             when {
+                lists == null && draft && p.ui.error == null -> GroupRow("Fill in the settings above, then load the lists", tint = color(mutedColor))
                 lists == null && p.ui.error == null -> GroupBox { Spinner() }
-                lists == null -> GroupRow("Couldn’t load lists", subtitle = "Request access or retry.", tint = color(mutedColor))
+                lists == null -> GroupRow("Couldn’t load lists", subtitle = if (form.fields.isNotEmpty()) "Check the settings above and load the lists again." else "Request access or retry.", tint = color(mutedColor))
                 lists.isEmpty() -> GroupRow("No lists found", tint = color(mutedColor))
                 else -> lists.forEach { list ->
                     PickerRow(list.name, options, uses[list.name] ?: ListUse.Unassigned, ::useLabel, { uses = uses + (list.name to it) }, Lucide.List)
                 }
             }
+            if (form.fields.isNotEmpty() && form.editable) ActionRow(if (p.ui.state.testing) "Loading…" else "Load lists with these settings", Lucide.RefreshCw,
+                { p.actions.onLoadLists(TaskProviderRef(provider, form.settings().options, form.secretUpdates())) }, enabled = !p.ui.state.testing)
         }
         RowGroup("Defaults") {
             PickerRow("New tasks go to", listOf<String?>(null) + shown.map { it.name }, defaultList?.takeIf { d -> shown.any { it.name == d } }, { it ?: "The first list" }, { defaultList = it })
@@ -101,12 +114,6 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
             GroupRow("Check for tasks every", chevron = false) { Input(poll, "5", Modifier.width(64.dp)); Text("min", color = color(mutedColor)) }
         }
     }
-}
-
-private fun providerName(id: String) = when (id) {
-    "local" -> "Kinuvo (built in)"
-    "reminders" -> "Apple Reminders"
-    else -> id
 }
 
 private fun useLabel(use: ListUse) = when (use) {

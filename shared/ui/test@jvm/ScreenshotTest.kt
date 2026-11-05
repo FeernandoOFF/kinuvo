@@ -427,7 +427,7 @@ class ScreenshotTest {
             capabilities = capabilities,
         ) }
         render("settings-agent-workspace-windows", 1280, 1000) { HarnessTheme(dark = false) { SettingsContent(windows, SettingsActions()) } }
-        val tasks = windows.copy(state = windows.state.copy(route = Route.Settings("main", SettingsSection.Tasks), tasks = TasksSetup(TasksSettings(), listOf("local")), providerLists = mapOf("local" to emptyList())))
+        val tasks = windows.copy(state = windows.state.copy(route = Route.Settings("main", SettingsSection.Tasks), tasks = TasksSetup(TasksSettings(), listOf(SettingsProvider("local", "Kinuvo (built in)"))), providerLists = mapOf("local" to emptyList())))
         render("settings-tasks-windows", 1280, 860) { HarnessTheme(dark = false) { SettingsContent(tasks, SettingsActions()) } }
         val secrets = windows.copy(state = windows.state.copy(route = Route.Settings("main", SettingsSection.Secrets), secrets = listOf(
             SecretProviderStatus("pass", "Proton Pass", installed = true, tokenStorage = "Windows secure storage"))))
@@ -990,7 +990,9 @@ I checked your knowledge base just now and didn't find a profile note for you.
         render("knowledge-narrow-note", 420, 860) { HarnessTheme(dark = false) { KnowledgeContent(knowledge, KnowledgeActions(onBack = {})) } }
         val tasksSettings = settings.copy(state = settings.state.copy(
             route = Route.Settings("main", SettingsSection.Tasks),
-            tasks = TasksSetup(TasksSettings("reminders", mapOf("Errands" to "main", "Travel" to "")), listOf("local", "reminders")),
+            tasks = TasksSetup(TasksSettings("reminders", mapOf("Errands" to "main", "Travel" to "")), listOf(
+                SettingsProvider("local", "Kinuvo (built in)"), SettingsProvider("reminders", "Apple Reminders"),
+            )),
             providerLists = mapOf("reminders" to listOf(TaskListInfo("a", "Errands"), TaskListInfo("b", "Travel"), TaskListInfo("c", "Groceries"))),
         ))
         render("settings-tasks", 1280, 860) { HarnessTheme(dark = false) { SettingsContent(tasksSettings, SettingsActions()) } }
@@ -1000,6 +1002,15 @@ I checked your knowledge base just now and didn't find a profile note for you.
             errors = listOf("Reminders access is denied for T3 Code (Nightly). Authorizing remindctl in another terminal does not grant this Server access. Enable T3 Code (Nightly) in System Settings → Privacy & Security → Reminders, then click Request access / Retry. If the app isn’t listed, launch the Server from the terminal where remindctl is already authorized."),
         ))
         render("settings-tasks-denied", 900, 1100) { HarnessTheme(dark = true) { SettingsContent(deniedTasks, SettingsActions()) } }
+        val todoist = SettingsProvider("todoist", "Todoist", SettingsSchema(listOf(
+            SettingsField("token", "API token", description = "From Todoist → Settings → Integrations → Developer.", required = true, sensitive = true),
+            SettingsField("url", "API URL", SettingsFieldType.Url, "Only to reach Todoist through a proxy.", defaultValue = "https://api.todoist.com"),
+        )))
+        val todoistTasks = tasksSettings.copy(state = tasksSettings.state.copy(
+            tasks = TasksSetup(TasksSettings("todoist", options = mapOf("token" to KnowledgeSettings.SECRET)), listOf(SettingsProvider("local", "Kinuvo (built in)"), todoist), setOf("token")),
+            providerLists = mapOf("todoist" to listOf(TaskListInfo("1", "Inbox"), TaskListInfo("2", "Home"))),
+        ))
+        render("settings-tasks-todoist", 900, 1100) { HarnessTheme(dark = false) { SettingsContent(todoistTasks, SettingsActions()) } }
         render("settings-tasks-denied-narrow", 420, 1400) { HarnessTheme(dark = true) { SettingsContent(deniedTasks, SettingsActions(onBack = {})) } }
 
         val knowledgeSettings = settings.copy(state = settings.state.copy(

@@ -11,8 +11,8 @@ internal class TaskRequests(private val harness: HarnessRuntime) {
         Api.CreateTask.name -> respond(r, Api.CreateTask) { p -> harness.tasks.create(p.title, p.list, p.notes, p.due?.let(LocalDate::parse), p.assignee) }
         Api.UpdateTask.name -> respond(r, Api.UpdateTask) { p -> harness.tasks.update(p.taskId, p.title, p.status, p.assignee, p.due) }
         Api.TasksSettings.name -> respond(r, Api.TasksSettings) { harness.tasksSetup() }
-        Api.SaveTasksSettings.name -> respond(r, Api.SaveTasksSettings) { harness.saveTasksSettings(it) }
-        Api.ProviderLists.name -> respond(r, Api.ProviderLists) { harness.tasks.providerLists(it.provider) }
+        Api.SaveTasksSettings.name -> respond(r, Api.SaveTasksSettings) { harness.saveTasksSettings(it.settings, it.secretUpdates) }
+        Api.ProviderLists.name -> respond(r, Api.ProviderLists) { harness.taskProviderLists(it) }
         Api.AuthorizeTasks.name -> respond(r, Api.AuthorizeTasks) { harness.tasks.authorize(it.provider) }
         else -> null
     }

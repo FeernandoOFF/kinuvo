@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
 
 /**
  * [routines] is null until they first load; [runs] are the open Routine's latest Sessions, [skill] the open Skill and
@@ -269,7 +271,7 @@ class SettingsViewModel(
     /** Loads the open server-wide section's settings, e.g. to retry after a failure. */
     fun reloadServer() {
         when (state.value.route.section) {
-            SettingsSection.Tasks -> attempt { config.tasksSetup().also { s -> state.update { it.copy(tasks = s) }; loadLists(s.settings.provider) } }
+            SettingsSection.Tasks -> attempt { config.tasksSetup().also { s -> state.update { it.copy(tasks = s) }; loadLists(TaskProviderRef(s.settings.provider)) } }
             SettingsSection.Knowledge -> attempt { config.knowledgeSetup().let { s -> state.update { it.copy(knowledge = s) } } }
             SettingsSection.Secrets -> loadSecrets()
             SettingsSection.Search -> loadService(ServiceKind.Search)
@@ -283,11 +285,20 @@ class SettingsViewModel(
         }
     }
 
-    /** Loads [provider]'s lists once, e.g. when it's picked in the Tasks section. */
-    fun loadLists(provider: String) {
+    /** Loads a provider's lists: the saved settings' once, e.g. when it's picked in the Tasks section, or draft ones' each time. */
+    fun loadLists(ref: TaskProviderRef) {
         listsJob?.cancel()
-        if (provider in state.value.providerLists) return
-        listsJob = attempt { config.providerLists(provider).let { l -> state.update { it.copy(providerLists = it.providerLists + (provider to l), errors = emptyList()) } } }
+        if (ref.options == null && ref.provider in state.value.providerLists) return
+        listsJob = attempt {
+            state.update { it.copy(testing = true) }
+            try {
+                val lists = config.providerLists(ref)
+                state.update { it.copy(providerLists = it.providerLists + (ref.provider to lists), errors = emptyList()) }
+            } finally {
+                // A newer load may have replaced this one; it clears the flag when it ends.
+                if (config.connection.isCurrent() && currentCoroutineContext().job === listsJob) state.update { it.copy(testing = false) }
+            }
+        }
     }
 
     fun authorizeTasks(provider: String) {
@@ -303,8 +314,8 @@ class SettingsViewModel(
         }
     }
 
-    fun saveTasks(settings: TasksSettings) = attempt {
-        val saved = config.saveTasks(settings)
+    fun saveTasks(params: SaveTasksParams) = attempt {
+        val saved = config.saveTasks(params)
         state.update { it.copy(tasks = saved, saved = true) }
     }
 

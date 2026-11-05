@@ -7,13 +7,17 @@ dependencies:
   - ../../execution/acp
   - ../../plugins/browser
   - ../../plugins/anytype
+  - ../../plugins/bitwarden
+  - ../../plugins/caldav
   - ../../plugins/exec
   - ../../plugins/executor
   - ../../plugins/firecrawl
   - ../../plugins/mcp
   - ../../plugins/ntfy
+  - ../../plugins/onepassword
   - ../../plugins/protonpass
   - ../../plugins/reminders
+  - ../../plugins/todoist
   - ../../providers/apple
   - ../../providers/codex
   - ../../providers/koog

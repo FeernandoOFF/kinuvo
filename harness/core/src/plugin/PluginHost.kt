@@ -30,6 +30,15 @@ interface PluginHost {
     suspend fun secret(name: String): String
 }
 
+/** The host of providers built into the Server, which reach nothing through it. */
+object NoPluginHost : PluginHost {
+    override val instance = PluginInstanceId("kinuvo.server")
+    override suspend fun http(request: PluginHttpRequest) = throw PluginAccessDenied(instance, "network ${request.network}")
+    override suspend fun readFile(root: String, path: String) = throw PluginAccessDenied(instance, "file root $root")
+    override suspend fun writeFile(root: String, path: String, bytes: ByteArray) = throw PluginAccessDenied(instance, "file root $root")
+    override suspend fun secret(name: String) = throw PluginAccessDenied(instance, "secret $name")
+}
+
 /** Host-only bindings; these may contain credentials and must never be sent as a manifest. */
 data class PluginGrants(
     val instance: PluginInstanceId,
@@ -146,7 +155,7 @@ class PluginHosts(http: HttpClient, private val expand: suspend (PluginInstanceI
 
     companion object {
         const val MAX_BYTES = 10 * 1024 * 1024
-        private val METHODS = setOf("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
+        private val METHODS = setOf("GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "PROPFIND", "REPORT")
         private val FORBIDDEN_HEADERS = setOf("host", "connection", "content-length", "transfer-encoding", "upgrade")
     }
 }

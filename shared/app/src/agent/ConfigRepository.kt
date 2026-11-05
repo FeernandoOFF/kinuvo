@@ -122,9 +122,9 @@ class ConfigRepository(internal val connection: ConnectedServer) {
 
     suspend fun tasksSetup() = call { it.call(Api.TasksSettings, Unit) }
 
-    suspend fun saveTasks(settings: TasksSettings) = call { it.call(Api.SaveTasksSettings, settings) }
+    suspend fun saveTasks(params: SaveTasksParams) = call { it.call(Api.SaveTasksSettings, params) }
 
-    suspend fun providerLists(provider: String) = call { it.call(Api.ProviderLists, TaskProviderRef(provider)) }
+    suspend fun providerLists(ref: TaskProviderRef) = call { it.call(Api.ProviderLists, ref) }
     suspend fun authorizeTasks(provider: String) = call { it.call(Api.AuthorizeTasks, TaskProviderRef(provider)) }
 
     suspend fun knowledgeSetup() = call { it.call(Api.KnowledgeSettings, Unit) }
