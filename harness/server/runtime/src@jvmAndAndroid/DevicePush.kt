@@ -1,4 +1,5 @@
 package kinuvo.harness.server
+import kinuvo.harness.server.devices.PeerRegistry
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.HttpClient
@@ -9,7 +10,7 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.HttpStatusCode
 import kinuvo.client.WebPush
-import kinuvo.harness.core.Notification
+import kinuvo.harness.core.plugin.Notification
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.PushMessage
 import kinuvo.protocol.PushSubscription
