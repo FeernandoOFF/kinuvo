@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.server.devices.*
 import kinuvo.protocol.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json

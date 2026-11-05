@@ -5,6 +5,8 @@ import kinuvo.protocol.Risk
 import kinuvo.protocol.SessionEntry
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kinuvo.protocol.Attachment
+import kinuvo.protocol.ToolIdentity
 
 /**
  * One thing a call does, e.g. one command of a shell chain. Trust rules match it by [words]: as a prefix, or all of
@@ -67,7 +69,7 @@ enum class ToolKind { Standard, Shell, ComputerAction, AskUser }
 interface Tool {
     val kind: ToolKind get() = ToolKind.Standard
     val descriptor: ToolDescriptor
-    val identity: kinuvo.protocol.ToolIdentity? get() = null
+    val identity: ToolIdentity? get() = null
     val displayName: String get() = descriptor.name
     val risk: Risk get() = Risk.Medium
     /** Whether identical consecutive successful calls can be useful within one turn. */
@@ -104,7 +106,7 @@ interface ToolRun {
     /** Runs [name] with [args], a JSON object; denials and failures come back as an error result. */
     suspend fun call(name: String, args: String): SessionEntry.ToolResult
     /** Shows the model the file [name] with [bytes] alongside this call's result. */
-    suspend fun attach(name: String, bytes: ByteArray): kinuvo.protocol.Attachment = error("Files can't be shown to the model in this run")
+    suspend fun attach(name: String, bytes: ByteArray): Attachment = error("Files can't be shown to the model in this run")
 }
 
 fun JsonObject.string(key: String): String? = get(key)?.jsonPrimitive?.content

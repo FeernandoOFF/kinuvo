@@ -5,7 +5,7 @@ import kinuvo.app.connection.*
 import kinuvo.app.knowledge.*
 import kinuvo.app.navigation.*
 import kinuvo.ui.session.*
-import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.board.*
 import kinuvo.ui.routine.*
 import kinuvo.ui.navigation.*
@@ -37,6 +37,8 @@ import kinuvo.protocol.*
 import kinuvo.ui.design.*
 import kotlinx.coroutines.delay
 import kotlin.time.Clock
+import androidx.compose.ui.graphics.Color
+import kotlinx.datetime.LocalDate
 
 @Composable
 fun KnowledgeScreen(app: AppViewModel, knowledge: KnowledgeViewModel, onOpen: (Route.Knowledge) -> Unit, onBack: (() -> Unit)?, onSettings: () -> Unit) {
@@ -99,11 +101,7 @@ private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions) {
             actions = listOf(PageAction(Lucide.Settings, "Knowledge settings", actions.onSettings)))
         Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Input(query, "Search people, projects, places…", capitalize = true, leading = { Icon(Lucide.Search, Modifier.size(16.dp), tint = color(mutedColor)) },
-                trailing = if (query.text.isEmpty()) null else ({
-                    Box(Modifier.size(36.dp).clip(CircleShape).clickable { query.clearText() }, contentAlignment = Alignment.Center) {
-                        Icon(Lucide.X, Modifier.size(14.dp), tint = color(mutedColor), contentDescription = "Clear search")
-                    }
-                }))
+                trailing = if (query.text.isEmpty()) null else ({ FieldButton(Lucide.X, "Clear search", { query.clearText() }) }))
             ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         }
         LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
@@ -130,7 +128,7 @@ private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions) {
 private fun ChangeRow(change: KnowledgeChange, ui: KnowledgeUi, actions: KnowledgeActions) {
     val agent = ui.agents.firstOrNull { it.id == change.agentId }?.name ?: change.agentId
     GroupRow(change.summary, { actions.onOpen(change.ref) }, listOfNotNull(agent, relative(change.at, ui.now)).joinToString(" · "),
-        selected = change.ref == ui.state.route.note, chevron = false, titleLines = 2, tint = if (change.undone) color(mutedColor) else androidx.compose.ui.graphics.Color.Unspecified) {
+        selected = change.ref == ui.state.route.note, chevron = false, titleLines = 2, tint = if (change.undone) color(mutedColor) else Color.Unspecified) {
         if (change.undone) Pill("Undone")
         else Button(onClick = { actions.onUndo(change.id) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Undo") }
     }
@@ -197,6 +195,6 @@ private fun String.icon() = when (this) {
 
 /** An ISO date value as "1 Mar 2025"; anything else as written. */
 private fun dateLabel(value: String): String = runCatching {
-    val d = kotlinx.datetime.LocalDate.parse(value)
+    val d = LocalDate.parse(value)
     "${d.day} ${d.month.name.take(3).lowercase().replaceFirstChar { it.uppercase() }} ${d.year}"
 }.getOrDefault(value)

@@ -1,9 +1,10 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.server.reflection.*
 import kinuvo.harness.testing.*
 
 import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.modelAlias
+import kinuvo.harness.core.plugin.modelAlias
 import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.core.knowledge.ChangeSource

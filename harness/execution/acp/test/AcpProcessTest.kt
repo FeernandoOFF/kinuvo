@@ -1,6 +1,6 @@
 @file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
 
-package kinuvo.execution.acp
+package kinuvo.harness.execution.acp
 
 import com.agentclientprotocol.client.v2.ElicitationHandler
 import com.agentclientprotocol.model.v2.CreateElicitationRequest

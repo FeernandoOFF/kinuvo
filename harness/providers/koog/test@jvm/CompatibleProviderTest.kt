@@ -114,7 +114,7 @@ class CompatibleProviderTest {
             assertEquals(options, files.config().providers["local"])
             val providers = compatibleProviders(files)
             try {
-                assertEquals(listOf("local"), providers.flatMap { it.modelProviders }.map { it.id })
+                assertEquals(listOf("custom/local"), providers.flatMap { it.modelProviders }.map { it.id })
                 val local = providers.last().modelProviders.single()
                 assertEquals(options.models, local.models())
                 assertTrue(local.availability("local").actionable)

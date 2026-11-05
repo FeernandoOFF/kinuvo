@@ -1,7 +1,7 @@
 package kinuvo.harness.server
 
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.HarnessPlugin
+import kinuvo.harness.core.plugin.HarnessPlugin
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.LocalTaskProvider
 import kinuvo.harness.core.store.deleteTree

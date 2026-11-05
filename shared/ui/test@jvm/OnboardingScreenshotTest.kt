@@ -2,7 +2,10 @@ package kinuvo.ui
 
 import kinuvo.app.connection.*
 import kinuvo.app.agent.*
+import kinuvo.app.onboarding.*
 import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
+import kinuvo.ui.onboarding.*
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.ImageComposeScene

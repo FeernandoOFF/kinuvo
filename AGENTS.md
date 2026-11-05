@@ -4,7 +4,7 @@ Self-hosted personal AI assistant. Terms: `CONTEXT.md`. Decisions: `docs/adr/`.
 
 ## Layout
 
-- `harness/`: runs Agents: `core` (KMP), `plugins/` (anytype, exec, executor, firecrawl, mcp, ntfy, protonpass, reminders), `providers/` (apple, codex), `server/` (`runtime` KMP, `jvm` host, `embedded` on-device).
+- `harness/`: runs Agents: `core` (KMP, plugin SPI in `core/plugin`), `execution/` (`api` contracts, `acp` external harnesses), `models` (verified model downloads), `plugins/` (anytype, browser, exec, executor, firecrawl, mcp, ntfy, protonpass, reminders; `cua` is the desktop Computer driver), `providers/` (apple, codex, koog, litert, voice), `server/` (`runtime` KMP, `jvm` host, `embedded` on-device, with each phone's plugin list), `testing`.
 - `shared/`: KMP, used by clients: `protocol`, `client`, `app` (Compose-free feature logic), `ui` (Compose Multiplatform, matching feature packages).
 - `apps/`: platform shells (desktop, android, ios, web) and `cli`, the `kinuvo` command (headless server + management commands).
 
@@ -28,7 +28,7 @@ Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p j
 - Use the `CONTEXT.md` terms in code and docs.
 - Document current behavior and decisions, with future work clearly identified. Omit POC narratives, abandoned implementations, stash references and development-session history.
 - Use imports instead of fully qualified type names in code, except where names conflict.
-- Keep apps thin: platform code goes in `expect`/`actual` + Koin modules in `shared/ui`. Don't pass platform dependencies through composables.
+- Keep apps thin: platform code goes in `expect`/`actual` + Koin modules in `shared/ui`. Don't pass platform dependencies through composables. The shared Koin graph (`appModule`) lives in `shared/app/src/AppModule.kt`; `shared/ui` adds `platformModule`.
 - The embedded server is just another `Server`. No special cases in ViewModels; UI labels only.
 - ViewModels expose one state data class with orthogonal fields, using explicit backing fields (`val state: StateFlow<S>` / `field = MutableStateFlow(...)`), not `_state` pairs.
 - Write minimal code with few comments, and match the surrounding style.

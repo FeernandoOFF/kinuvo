@@ -14,6 +14,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Duration.Companion.seconds
+import kinuvo.harness.core.tools.ToolKind
 
 fun execTools(backend: ExecBackend): List<Tool> = listOf(
     ShellTool(backend),
@@ -28,7 +29,7 @@ fun execTools(backend: ExecBackend): List<Tool> = listOf(
 private fun JsonObject.int(key: String) = get(key)?.jsonPrimitive?.intOrNull
 
 class ShellTool(private val backend: ExecBackend) : Tool {
-    override val kind = kinuvo.harness.core.tools.ToolKind.Shell
+    override val kind = ToolKind.Shell
     override fun assess(args: JsonObject) = args.string("command")?.let { ShellCommand.parse(it).assess(backend.roots) } ?: super.assess(args)
 
     override val descriptor = ToolDescriptor(

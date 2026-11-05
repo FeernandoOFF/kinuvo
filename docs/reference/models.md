@@ -55,9 +55,9 @@ providers:
     apiKeyEnv: HOSTED_MODELS_API_KEY
 ```
 
-Each entry's key becomes a provider ID in the Agent and Session model pickers. Include the API version prefix in `baseUrl`: the client appends `models` and `chat/completions`. Addresses are relative to the Server. Local runtimes such as Ollama can be configured through their OpenAI-compatible API.
+Each entry's key becomes the provider ID `custom/<key>` in the Agent and Session model pickers, so it never replaces a built-in provider such as `openai` or `codex`. An agent.yaml `provider:` may still name a custom provider by its bare key unless a built-in provider (`openai`, `codex`, `apple`, `local`) has that ID; then the bare key means the built-in one. On upgrade, Agents and Sessions that named a custom provider sharing a built-in ID are pointed at `custom/<key>` once. Include the API version prefix in `baseUrl`: the client appends `models` and `chat/completions`. Addresses are relative to the Server. Local runtimes such as Ollama can be configured through their OpenAI-compatible API.
 
-Authenticated endpoints default to `OPENAI_COMPATIBLE_API_KEY` when `apiKeyEnv` is omitted. Configure their keys or Secret references in **Settings → Model providers**, or set the named Server environment variable. Each endpoint has separate credential storage using its provider ID. Set `apiKeyRequired: false` for unauthenticated endpoints; a configured environment key is still sent when present.
+Authenticated endpoints default to `OPENAI_COMPATIBLE_API_KEY` when `apiKeyEnv` is omitted. Configure their keys or Secret references in **Settings → Model providers**, or set the named Server environment variable. Each endpoint has separate credential storage (`custom-<key>`). A key saved earlier under the bare key moves there on first use; a bare `openai` key stays with the built-in OpenAI API provider and is only copied. Set `apiKeyRequired: false` for unauthenticated endpoints; a configured environment key is still sent when present.
 
 An optional `models` list replaces discovery and describes known capabilities:
 
@@ -115,6 +115,6 @@ override fun model(config: AgentConfig): Model = buildModel(config)
 override fun model(config: AgentConfig, info: ModelInfo?): Model = buildModel(config, info)
 ```
 
-Add the plugin to `jvmPlugins` in `harness/server/jvm/src/Plugins.kt`, or pass it in `Harness(plugins = ...)` for another host. Plugins are compiled into the host today. Only installed plugins are exposed. Discovery runs on the Server; credentials never go to Models.dev or clients. Plugins without discovery keep working through custom IDs. Use `catalogId = null` for providers without a matching Models.dev catalog.
+Add it to `jvmProviders` in `harness/server/jvm/src/Plugins.kt` for JVM hosts and to `embeddedPlugins` in `harness/server/embedded/src@android|@ios/EmbeddedPlugins.*.kt` for phones, or pass it in `Harness(plugins = ...)` for another host. Plugins are compiled into the host today. Only installed plugins are exposed. Discovery runs on the Server; credentials never go to Models.dev or clients. Plugins without discovery keep working through custom IDs. Use `catalogId = null` for providers without a matching Models.dev catalog.
 
 `ModelInfo.reasoning = null` means unknown; an empty list means unsupported; otherwise the list contains the accepted values. `defaultReasoning` is optional. The UI uses those options when selecting a model and preserves custom IDs. Codex omits the reasoning parameter when the selected effort is `none`.

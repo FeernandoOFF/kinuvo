@@ -8,6 +8,7 @@ Plugins supply tools, model providers, Knowledge sources, Task providers, search
 | Module | Contribution |
 | --- | --- |
 | `harness/plugins/anytype` | Anytype Knowledge source |
+| `harness/plugins/browser` | Controlled browser for Agents |
 | `harness/plugins/exec` | Shell and file tools using host, container or SSH Exec backends |
 | `harness/plugins/executor` | Sandboxed JavaScript Scripts through `run_code`, calling the Agent's other tools under the same Approvals |
 | `harness/plugins/firecrawl` | Web search and page extraction |
@@ -17,8 +18,11 @@ Plugins supply tools, model providers, Knowledge sources, Task providers, search
 | `harness/plugins/reminders` | Apple Reminders Task provider where the platform supports it |
 | `harness/providers/codex` | Codex and OpenAI API model providers |
 | `harness/providers/apple` | Native Apple model provider for supported builds |
+| `harness/providers/koog` | Custom providers: configured OpenAI-compatible endpoints (`custom/<key>`) |
+| `harness/providers/litert` | `local` on-device models through LiteRT-LM |
+| `harness/providers/voice` | Downloaded Server voice models (`DownloadedVoice`) |
 
-The JVM host installs the tool and service plugins above, Codex/OpenAI model providers, and a Proton Pass Secret reference provider. Embedded hosts assemble their own available plugins. Installing a plugin module in source does not mean every Device can use it.
+The JVM host installs the tool and service plugins above, Codex/OpenAI model providers, and a Proton Pass Secret reference provider. Phones' lists live in `harness/server/embedded` (`embeddedPlugins`). The desktop Computer driver (`harness/plugins/cua`) is wired by the desktop app and CLI, not installed as a plugin. Installing a plugin module in source does not mean every Device can use it.
 
 ## Manifests and host access
 

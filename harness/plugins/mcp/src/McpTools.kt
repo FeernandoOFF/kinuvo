@@ -1,7 +1,7 @@
 package kinuvo.harness.mcp
 
 import kinuvo.harness.core.tools.RawSchemaToolDescriptor
-import kinuvo.harness.core.modelAlias
+import kinuvo.harness.core.plugin.modelAlias
 import kinuvo.protocol.PluginInstanceId
 import kinuvo.protocol.ToolIdentity
 
@@ -14,6 +14,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.io.files.Path
+import kotlinx.serialization.json.JsonArray
 
 class McpTool(
     private val server: McpServer,
@@ -77,7 +78,7 @@ class McpManager(
                 server.listTools().filter { server.config.allows(it.name) }.map { t ->
                     val schema = buildJsonObject {
                         t.inputSchema.properties?.let { put("properties", it) }
-                        t.inputSchema.required?.let { req -> put("required", kotlinx.serialization.json.JsonArray(req.map(::JsonPrimitive))) }
+                        t.inputSchema.required?.let { req -> put("required", JsonArray(req.map(::JsonPrimitive))) }
                         t.inputSchema.defs?.let { put("\$defs", it) }
                     }
                     McpTool(server, t.name, t.description ?: t.title ?: t.name, schema, t.annotations?.readOnlyHint == true, t.annotations?.destructiveHint == true)

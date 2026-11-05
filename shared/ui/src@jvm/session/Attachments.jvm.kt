@@ -22,6 +22,7 @@ import java.awt.Frame
 import java.io.File
 import java.net.URI
 import kotlin.io.encoding.Base64
+import kotlinx.coroutines.CancellationException
 
 internal actual fun attachmentImage(bytes: ByteArray, fullSize: Boolean): ImageBitmap? = Image.makeFromEncoded(bytes).toComposeImageBitmap()
 
@@ -80,7 +81,7 @@ private fun rememberFileReader(onResult: (List<UploadAttachmentParams>, String?)
                     }
                 }
                 result(selected, null)
-            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            } catch (e: CancellationException) { throw e }
             catch (e: Exception) { result(emptyList(), e.message) }
         }
     } }
@@ -99,7 +100,7 @@ internal actual fun rememberAttachmentSaver(onError: (String) -> Unit): (Attachm
         dialog.dispose()
         if (name != null) scope.launch {
             try { withContext(Dispatchers.IO) { File(directory, name).writeBytes(Base64.decode(data.base64)) } }
-            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: CancellationException) { throw e }
             catch (e: Exception) { error(e.message ?: "Couldn't save attachment") }
         }
     } }

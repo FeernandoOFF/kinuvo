@@ -49,6 +49,11 @@ import com.composables.ui.components.Text
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
 import com.composeunstyled.ProvideContentColor
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.OutputTransformation
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.ui.semantics.Role
 
 /** A bordered container for cards, menus and code. */
 @Composable
@@ -86,7 +91,7 @@ fun Pill(text: String, modifier: Modifier = Modifier, tone: Tone = Tone.Neutral,
     val c = tone.color()
     Row(
         modifier
-            .clip(androidx.compose.foundation.shape.RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
             .background(c.copy(alpha = 0.12f))
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -102,7 +107,7 @@ fun Pill(text: String, modifier: Modifier = Modifier, tone: Tone = Tone.Neutral,
 fun Badge(text: String, icon: ImageVector? = null, modifier: Modifier = Modifier) {
     val c = color(mutedColor)
     Row(
-        modifier.clip(RoundedCornerShape100).border(1.dp, color(borderColor), RoundedCornerShape100).padding(horizontal = 6.dp, vertical = 1.dp),
+        modifier.clip(PillShape).border(1.dp, color(borderColor), PillShape).padding(horizontal = 6.dp, vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(3.dp),
     ) {
@@ -205,13 +210,14 @@ fun Hint(label: String, side: TooltipSide = TooltipSide.Top, content: @Composabl
 /** An action inside a field, e.g. Generate or Open: a quiet icon that leaves the field's own shape alone. */
 @Composable
 fun FieldButton(icon: ImageVector, label: String, onClick: () -> Unit, enabled: Boolean = true) {
-    Box(Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape).clickable(enabled = enabled, role = androidx.compose.ui.semantics.Role.Button, onClickLabel = label, onClick = onClick)
+    Box(Modifier.size(40.dp).clip(CircleShape).clickable(enabled = enabled, role = Role.Button, onClickLabel = label, onClick = onClick)
         .alpha(if (enabled) 1f else 0.4f), contentAlignment = Alignment.Center) {
         Icon(icon, Modifier.size(18.dp), tint = color(mutedColor), contentDescription = label)
     }
 }
 
-internal val RoundedCornerShape100 = androidx.compose.foundation.shape.RoundedCornerShape(100)
+/** Fully rounded ends, for pills and chips. */
+internal val PillShape = RoundedCornerShape(50)
 
 /** Text typed into inputs: a notch under body text. */
 @Composable
@@ -239,7 +245,7 @@ private class FocusBorder(private val source: MutableInteractionSource = Mutable
 /** Single-line bordered text input that stays visible on any surface; [capitalize] for prose such as names and notes. */
 @Composable
 fun Input(
-    state: androidx.compose.foundation.text.input.TextFieldState,
+    state: TextFieldState,
     placeholder: String,
     modifier: Modifier = Modifier,
     secret: Boolean = false,
@@ -264,7 +270,7 @@ fun Input(
         interactionSource = focus,
         placeholder = { Text(placeholder, style = style) },
         textStyle = style,
-        outputTransformation = if (secret) androidx.compose.foundation.text.input.OutputTransformation { replace(0, length, "•".repeat(length)) } else null,
+        outputTransformation = if (secret) OutputTransformation { replace(0, length, "•".repeat(length)) } else null,
         keyboardOptions = if (secret) KeyboardOptions(keyboardType = KeyboardType.Password) else inputKeyboard(capitalize),
     )
 }

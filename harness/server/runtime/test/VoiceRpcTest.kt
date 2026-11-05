@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.server.devices.*
 import kinuvo.harness.core.voice.*
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
@@ -37,7 +38,7 @@ class VoiceRpcTest {
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
         }
-        val server = ServerRuntime(RuntimeFixture().runtime(voice = voice), peers, security = ConnectionSecurity(concurrentRequests = 1))
+        val server = ServerRuntime(RuntimeFixture(voice = voice).runtime(), peers, security = ConnectionSecurity(concurrentRequests = 1))
         val client = KinuvoClient("local:test", "test", connection = { clientConnection })
         server.start()
         val serving = launch { server.serve(serverConnection) }
@@ -83,7 +84,7 @@ class VoiceRpcTest {
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
         }
-        val server = ServerRuntime(RuntimeFixture().runtime(voice = voice), peers)
+        val server = ServerRuntime(RuntimeFixture(voice = voice).runtime(), peers)
         var id = 0
         suspend fun <P, R> call(method: Method<P, R>, params: P): Frame.Response {
             val requestId = (++id).toString()

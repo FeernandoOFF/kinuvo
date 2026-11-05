@@ -1,9 +1,9 @@
 package kinuvo.ui.session
 
 import kinuvo.app.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.app.session.*
 import kinuvo.protocol.ExecutionPrompt
-import kinuvo.ui.agent.*
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*

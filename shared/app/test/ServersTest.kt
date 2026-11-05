@@ -1,7 +1,7 @@
 package kinuvo.app
 
-import kinuvo.app.connection.*
 import kinuvo.app.agent.*
+import kinuvo.app.connection.*
 
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test

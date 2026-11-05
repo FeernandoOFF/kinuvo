@@ -3,7 +3,7 @@ package kinuvo.ui.device
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 import kinuvo.app.agent.*
-import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.*
 
 import androidx.compose.foundation.layout.*

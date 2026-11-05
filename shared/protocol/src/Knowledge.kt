@@ -1,6 +1,7 @@
 package kinuvo.protocol
 
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 
 /** A property notes can have, as the knowledge provider defines it; [format] is e.g. text, number, date or objects. */
 @Serializable
@@ -38,7 +39,7 @@ data class KnowledgeChange(
     /** The provider and space the change was made in. */
     val scope: String,
     /** How the provider reverts it; only it reads this. */
-    val undo: kotlinx.serialization.json.JsonElement,
+    val undo: JsonElement,
 )
 
 @Serializable

@@ -16,6 +16,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.nio.file.attribute.PosixFilePermissions
+import kotlinx.coroutines.NonCancellable
 
 internal class ServiceCommands : Group(
     "service", "Run the Server as a service of this machine's user, started at login and restarted when it exits (launchd or systemd).",
@@ -215,7 +216,7 @@ private class InstallService : CoreSuspendingCliktCommand("install") {
             val serviceEnv = if (tailscale) env - "KINUVO_PUBLIC_URL" else env + publicUrl?.let { mapOf("KINUVO_PUBLIC_URL" to it) }.orEmpty()
             manager.install(ServiceSpec(java, installed.path, if (tailscale) "127.0.0.1" else host, port, log.path, serviceEnv, computer, tailscale, tailscalePort))
         } catch (e: Throwable) {
-            kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { runCatching { route?.rollback() }.exceptionOrNull()?.let(e::addSuppressed) }
+            kotlinx.coroutines.withContext(NonCancellable) { runCatching { route?.rollback() }.exceptionOrNull()?.let(e::addSuppressed) }
             throw e
         }
         echo("Installed ${manager.file} (${manager.state()})")

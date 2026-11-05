@@ -1,6 +1,7 @@
 package kinuvo.harness.server
 
-import kinuvo.execution.api.*
+import kinuvo.harness.server.devices.*
+import kinuvo.harness.execution.api.*
 import kinuvo.harness.server.execution.ExecutionRegistry
 import kinuvo.protocol.*
 import kotlinx.coroutines.*

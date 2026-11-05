@@ -1,6 +1,6 @@
 package kinuvo.harness.server.execution
 
-import kinuvo.execution.api.*
+import kinuvo.harness.execution.api.*
 import kinuvo.client.KinuvoClient
 import kinuvo.client.ConnectionState
 import kinuvo.protocol.*
@@ -9,6 +9,8 @@ import kotlinx.serialization.json.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.uuid.Uuid
+import kinuvo.client.AuthException
+import kinuvo.client.DisconnectedException
 
 /** KMP adapter: a linked party receives no management credential or catalog secrets. */
 class RemoteExecutionFactory(private val links: RemoteLinks, private val serverId: String, private val readiness: suspend (String, Boolean, String) -> Unit = { _, _, _ -> }) : ExecutionFactory {
@@ -33,7 +35,7 @@ class RemoteExecutionFactory(private val links: RemoteLinks, private val serverI
         val remote = config.connection as? ExecutionConnection.Remote ?: return ExecutionProbe(ExecutionReadiness(true, false, "Not a remote connection", "unsupported"))
         return try { discover(remote.serverId); ExecutionProbe(ExecutionReadiness(true, true)) }
         catch (e: CancellationException) { throw e }
-        catch (_: kinuvo.client.AuthException) { ExecutionProbe(ExecutionReadiness(true, false, "Remote access revoked", "access_revoked")) }
+        catch (_: AuthException) { ExecutionProbe(ExecutionReadiness(true, false, "Remote access revoked", "access_revoked")) }
         catch (_: Exception) { ExecutionProbe(ExecutionReadiness(true, false, "Remote Server unavailable", "host_offline")) }
     }
 
@@ -101,7 +103,7 @@ class RemoteExecutionFactory(private val links: RemoteLinks, private val serverI
                                 reconcile(snapshot)
                                 if (snapshot.phase != ExecutionPhase.Lost) readiness(config.id, true, "")
                             }
-                            catch (_: kinuvo.client.DisconnectedException) { readiness(config.id, false, "host_offline") }
+                            catch (_: DisconnectedException) { readiness(config.id, false, "host_offline") }
                             catch (_: TimeoutCancellationException) { readiness(config.id, false, "host_offline") }
                         } else if ((client.state.value as? ConnectionState.Disconnected)?.rejected == true) {
                             readiness(config.id, false, "access_revoked")

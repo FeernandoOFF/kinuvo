@@ -1,6 +1,6 @@
 package kinuvo.harness.server.execution
 
-import kinuvo.execution.api.*
+import kinuvo.harness.execution.api.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.harness.core.store.SessionCommitConflict
 import kinuvo.harness.server.SessionLog
@@ -60,7 +60,7 @@ class ExecutionCoordinator(
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 save(saved.copy(lost = true, failure = "Execution recovery failed: ${e.message}"))
-                KotlinLogging.logger("kinuvo.execution").error { "Recovery failed for ${saved.agentId}/${saved.sessionId}: ${e.message}" }
+                KotlinLogging.logger("kinuvo.harness.execution").error { "Recovery failed for ${saved.agentId}/${saved.sessionId}: ${e.message}" }
             }
         }
     }
@@ -85,6 +85,25 @@ class ExecutionCoordinator(
     suspend fun agentInUse(agentId: String) = lock.withLock { records.values.any { it.agentId == agentId && (it.sessionId in live || it.sessionId in opening) } }
     suspend fun record(id: String) = lock.withLock { records.getValue(id) }
     suspend fun archives() = lock.withLock { records.values.filter { it.archived }.map { it.registration }.distinctBy { it.id } }
+    /** [agentId]'s registration, including one archived in the catalog or kept only by its saved Sessions. */
+    suspend fun registrationOrArchived(agentId: String) =
+        registry.registration(agentId) ?: registry.catalog().agents.firstOrNull { it.id == agentId && it.archived } ?: archives().firstOrNull { it.id == agentId }
+
+    /** What an external Agent's [sessionId], or a new Session, can do while its connection has [readiness]. */
+    suspend fun capabilities(agentId: String, sessionId: String?, readiness: ExecutionReadiness, server: ServerCapabilities, seq: Long): SessionCapabilities {
+        val saved = sessionId?.let { session(agentId, it); record(it) }
+        val support = saved?.support
+        val availability = when {
+            saved?.archived == true || readiness.reasonCode == "archived" -> CapabilityState.unavailable("Agent registration archived", "archived")
+            saved?.failure != null -> CapabilityState.unavailable(saved.failure, "recovery_failed")
+            saved?.closed == true -> CapabilityState.unavailable("Execution closed", "session_closed")
+            saved?.lost == true -> CapabilityState.unavailable("Execution connection ended; saved history remains available", "session_lost")
+            !readiness.online -> CapabilityState.unavailable(readiness.reason ?: "Check connection", readiness.reasonCode ?: "checking")
+            else -> CapabilityState()
+        }
+        return SessionCapabilities(seq, server, availability, attachments = support?.supportedMimeTypes.orEmpty().associateWith { availability }, execution = support)
+    }
+
     suspend fun restore(agentId: String) { lock.withLock { records.values.filter { it.agentId == agentId && it.archived } }.forEach { saved -> mutate(saved.sessionId) { it.copy(archived = false) } } }
     suspend fun archive(agentId: String) { lock.withLock { records.values.filter { it.agentId == agentId } }.forEach { save(it.copy(archived = true)) } }
     suspend fun session(agentId: String, id: String): SessionInfo {

@@ -7,13 +7,13 @@ import kinuvo.client.KinuvoClient
 import kinuvo.harness.codex.CodexAuth
 import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.codex.CodexProvider
-import kinuvo.harness.core.HarnessPlugin
-import kinuvo.harness.core.McpManagement
+import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.harness.core.plugin.McpManagement
 import kinuvo.harness.core.store.saveServiceConfig
-import kinuvo.harness.core.Notification
-import kinuvo.harness.core.NotificationProvider
+import kinuvo.harness.core.plugin.Notification
+import kinuvo.harness.core.plugin.NotificationProvider
 import kinuvo.harness.core.store.serviceConfig
-import kinuvo.harness.core.Notifier
+import kinuvo.harness.core.plugin.Notifier
 import kinuvo.protocol.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -37,7 +37,7 @@ class NotificationsTest {
     private val provider = object : NotificationProvider {
         override val id = "test"
         override val settings = SettingsSchema(listOf(SettingsField("token", "Token", sensitive = true), SettingsField("topic", "Topic")))
-        override fun configured(options: Map<String, String>, host: kinuvo.harness.core.PluginHost) = Notifier { sent.send(it) }
+        override fun configured(options: Map<String, String>, host: kinuvo.harness.core.plugin.PluginHost) = Notifier { sent.send(it) }
     }
 
     @Test

@@ -1,6 +1,6 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.HarnessPlugin
+import kinuvo.harness.core.plugin.HarnessPlugin
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import java.nio.file.Files

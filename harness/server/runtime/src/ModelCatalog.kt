@@ -1,6 +1,7 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.ModelProvider
+import kinuvo.harness.core.plugin.CUSTOM_PROVIDERS
+import kinuvo.harness.core.plugin.ModelProvider
 import kinuvo.harness.core.store.readTextOrNull
 import kinuvo.harness.core.store.writeAtomically
 import kinuvo.protocol.*
@@ -14,6 +15,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.files.Path
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
+import kotlin.time.Clock
 
 @Serializable
 private data class CachedModels(val at: Long, val models: List<ModelInfo>)
@@ -29,7 +31,7 @@ class ModelCatalog(
     private val file: Path,
     private val providers: List<ModelProvider>,
     private val fetchMetadata: suspend () -> JsonObject,
-    private val clock: () -> Long = { kotlin.time.Clock.System.now().toEpochMilliseconds() },
+    private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {
     private val lock = Mutex()
     private var cache = runCatching { file.readTextOrNull()?.let { ProtocolJson.decodeFromString<ModelCache>(it) } }.getOrNull() ?: ModelCache()
@@ -49,7 +51,9 @@ class ModelCatalog(
             } else failed += "metadata"
         }
         val result = providers.map { provider ->
-            var saved = cache.providers[provider.id]
+            // Models cached under a custom provider's bare ID, before custom IDs were prefixed.
+            val legacy = provider.id.removePrefix(CUSTOM_PROVIDERS).takeIf { it != provider.id && providers.none { p -> p.id == it } }
+            var saved = cache.providers[provider.id] ?: legacy?.let { cache.providers[it] }
             if (refresh || due(provider.id, saved?.at, HOUR, now)) {
                 attempted[provider.id] = now
                 val models = attempt { provider.models().distinctBy { it.id } }

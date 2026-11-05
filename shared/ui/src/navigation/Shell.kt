@@ -6,6 +6,7 @@ import kinuvo.app.navigation.*
 import kinuvo.ui.connection.*
 import kinuvo.ui.session.*
 import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.board.*
 
 import androidx.compose.animation.core.animateDpAsState
@@ -258,7 +259,7 @@ private fun RailItem(name: String, selected: Boolean, news: Boolean, onClick: ()
         news -> 8.dp
         else -> 0.dp
     })
-    val shape = if (selected || hovered) Theme[shapes][largeShape] else RoundedCornerShape(50)
+    val shape = if (selected || hovered) Theme[shapes][largeShape] else PillShape
     Box(Modifier.fillMaxWidth().height(48.dp)) {
         Box(Modifier.align(Alignment.CenterStart).width(4.dp).height(pill).background(color(onBackgroundColor), RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)))
         Box(Modifier.align(Alignment.Center)) { Hint(listOfNotNull(name, shortcut).joinToString(" "), TooltipSide.End) {
@@ -451,9 +452,7 @@ private fun SessionSearch(query: TextFieldState, agent: String?, modifier: Modif
             BasicTextField(query, Modifier.fillMaxWidth().semantics { contentDescription = "Search sessions" }, textStyle = TextStyle(fontSize = TextStyles.callout.fontSize, color = color(onBackgroundColor)),
                 lineLimits = TextFieldLineLimits.SingleLine, cursorBrush = SolidColor(color(accentColor)))
         }
-        if (query.text.isNotEmpty()) Box(Modifier.size(36.dp).clip(CircleShape).clickable { query.clearText() }, contentAlignment = Alignment.Center) {
-            Icon(Lucide.X, Modifier.size(14.dp), tint = color(mutedColor), contentDescription = "Clear search")
-        }
+        if (query.text.isNotEmpty()) FieldButton(Lucide.X, "Clear search", { query.clearText() })
     }
 }
 

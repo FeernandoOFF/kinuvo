@@ -14,29 +14,18 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
-import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.codex.CodexProvider
-import kinuvo.harness.codex.OpenAIProvider
-import kinuvo.harness.koog.compatibleProviders
-import kinuvo.harness.litert.LiteRtProvider
-import kinuvo.harness.core.PrivateFile
-import kinuvo.harness.core.store.AgentFiles
-import kinuvo.harness.core.store.FileAttachments
-import kinuvo.harness.firecrawl.FirecrawlPlugin
-import kinuvo.harness.ntfy.NtfyPlugin
-import kinuvo.harness.executor.ExecutorPlugin
-import kinuvo.harness.anytype.AnytypePlugin
-import kinuvo.harness.mcp.McpPlugin
 import kinuvo.harness.server.BUILT_IN_FEATURES
 import kinuvo.harness.server.DeviceAuth
 import kinuvo.harness.server.EmbeddedServerHost
+import kinuvo.harness.server.embeddedPlugins
 import kinuvo.harness.server.NetworkListener
-import kinuvo.harness.server.SharedPeers
+import kinuvo.harness.server.devices.SharedPeers
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import org.koin.mp.KoinPlatform.getKoin
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.files.Path
+import java.io.File
 
 /**
  * A Server in the app's process; [ServerService] keeps it running, with its Routines, while the app is in the background.
@@ -48,7 +37,7 @@ internal class AndroidEmbeddedServer(private val context: Context, private val b
     private var listener: NetworkListener? = null
     private val prefs = context.getSharedPreferences("kinuvo-server", Context.MODE_PRIVATE)
     private val home = Path(context.filesDir.path, "Kinuvo")
-    private val auth = DeviceAuth(java.io.File(home.toString(), "server-devices.json"))
+    private val auth = DeviceAuth(File(home.toString(), "server-devices.json"))
 
     override val sharing: ServerSharing = object : ServerSharing {
             override val enabled get() = prefs.getBoolean(SHARED, false)
@@ -66,13 +55,8 @@ internal class AndroidEmbeddedServer(private val context: Context, private val b
 
     suspend fun host(): EmbeddedServerHost = lock.withLock {
         server ?: run {
-            val files = AgentFiles(home)
-            val attachments = FileAttachments(Path(home, "attachments"))::bytes
             val browser = withContext(Dispatchers.Main.immediate) { if (browserRuntime.available) listOf(BrowserPlugin(browserRuntime)) else emptyList() }
-            EmbeddedServerHost.create(home, plugins = listOf(
-                CodexProvider(CodexAuth(PrivateFile(Path(home, "codex-auth.json"))), attachments),
-                OpenAIProvider(files, attachments = attachments), McpPlugin(files), FirecrawlPlugin(), NtfyPlugin(), ExecutorPlugin(), AnytypePlugin(files),
-            ) + browser + compatibleProviders(files, attachments = attachments) + LiteRtProvider(java.io.File(home.toString())), continuous = true, features = BUILT_IN_FEATURES, peers = { SharedPeers(it, auth) })
+            EmbeddedServerHost.create(home, plugins = embeddedPlugins(home, browser), continuous = true, features = BUILT_IN_FEATURES, peers = { SharedPeers(it, auth) })
                 .also { server = it; listenLocked(it) }
         }
     }

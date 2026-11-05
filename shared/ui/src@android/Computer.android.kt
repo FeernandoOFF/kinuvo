@@ -28,14 +28,27 @@ import kotlin.coroutines.resume
 import kotlin.io.encoding.Base64
 import kotlin.math.max
 import kotlin.math.roundToInt
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.Point
+import android.graphics.drawable.GradientDrawable
+import android.hardware.display.DisplayManager
+import android.os.Handler
+import android.os.Looper
+import android.view.Gravity
+import android.view.WindowManager
+import android.view.accessibility.AccessibilityWindowInfo
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
 
 /** Kinuvo's Accessibility service: present while the user has it turned on in Android's settings. */
 class ComputerService : AccessibilityService() {
     @Volatile internal var lastEvent = 0L
     /** The user took over from the overlay; Agents wait until they hand back. */
     @Volatile internal var userControl = false
-    private val main = android.os.Handler(android.os.Looper.getMainLooper())
-    private var overlay: android.widget.LinearLayout? = null
+    private val main = Handler(Looper.getMainLooper())
+    private var overlay: LinearLayout? = null
     private val hide = Runnable { if (!userControl) removeOverlay() }
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -72,28 +85,28 @@ class ComputerService : AccessibilityService() {
 
     private fun showOverlay(text: String, action: String, onAction: () -> Unit) {
         val density = resources.displayMetrics.density
-        val bar = overlay ?: android.widget.LinearLayout(this).also { layout ->
-            layout.orientation = android.widget.LinearLayout.HORIZONTAL
-            layout.gravity = android.view.Gravity.CENTER_VERTICAL
+        val bar = overlay ?: LinearLayout(this).also { layout ->
+            layout.orientation = LinearLayout.HORIZONTAL
+            layout.gravity = Gravity.CENTER_VERTICAL
             layout.setPadding((16 * density).toInt(), (6 * density).toInt(), (6 * density).toInt(), (6 * density).toInt())
-            layout.background = android.graphics.drawable.GradientDrawable().apply { setColor(0xEE1F1D1A.toInt()); cornerRadius = 24 * density }
-            layout.addView(android.widget.TextView(this).apply { setTextColor(android.graphics.Color.WHITE); textSize = 14f })
-            layout.addView(android.widget.Button(this).apply { isAllCaps = false; textSize = 14f })
-            val params = android.view.WindowManager.LayoutParams(
-                android.view.WindowManager.LayoutParams.WRAP_CONTENT, android.view.WindowManager.LayoutParams.WRAP_CONTENT,
-                android.view.WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
-                android.graphics.PixelFormat.TRANSLUCENT,
-            ).apply { gravity = android.view.Gravity.TOP or android.view.Gravity.CENTER_HORIZONTAL; y = (40 * density).toInt() }
-            getSystemService(android.view.WindowManager::class.java).addView(layout, params)
+            layout.background = GradientDrawable().apply { setColor(0xEE1F1D1A.toInt()); cornerRadius = 24 * density }
+            layout.addView(TextView(this).apply { setTextColor(Color.WHITE); textSize = 14f })
+            layout.addView(Button(this).apply { isAllCaps = false; textSize = 14f })
+            val params = WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT,
+            ).apply { gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL; y = (40 * density).toInt() }
+            getSystemService(WindowManager::class.java).addView(layout, params)
             overlay = layout
         }
-        (bar.getChildAt(0) as android.widget.TextView).text = text
-        (bar.getChildAt(1) as android.widget.Button).apply { this.text = action; setOnClickListener { onAction() } }
+        (bar.getChildAt(0) as TextView).text = text
+        (bar.getChildAt(1) as Button).apply { this.text = action; setOnClickListener { onAction() } }
     }
 
     private fun removeOverlay() {
-        overlay?.let { runCatching { getSystemService(android.view.WindowManager::class.java).removeView(it) } }
+        overlay?.let { runCatching { getSystemService(WindowManager::class.java).removeView(it) } }
         overlay = null
     }
 
@@ -290,9 +303,9 @@ internal class AndroidComputer(private val context: Context) : ComputerDriver {
      */
     private fun appAt(service: ComputerService, x: Float, y: Float): String? = runCatching {
         val bounds = Rect()
-        val window = service.windows.filter { it.type != android.view.accessibility.AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY }
+        val window = service.windows.filter { it.type != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY }
             .sortedByDescending { it.layer }.firstOrNull { it.getBoundsInScreen(bounds); bounds.contains(x.toInt(), y.toInt()) } ?: return@runCatching null
-        if (window.type == android.view.accessibility.AccessibilityWindowInfo.TYPE_INPUT_METHOD) focusedInput(service)?.packageName?.toString()
+        if (window.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD) focusedInput(service)?.packageName?.toString()
         else window.root?.packageName?.toString()
     }.getOrNull()
 
@@ -307,8 +320,8 @@ internal class AndroidComputer(private val context: Context) : ComputerDriver {
 
     private fun screenSize(): Pair<Int, Int> {
         val metrics = context.resources.displayMetrics
-        val display = (context.getSystemService(Context.DISPLAY_SERVICE) as android.hardware.display.DisplayManager).getDisplay(Display.DEFAULT_DISPLAY)
-        val real = android.graphics.Point().also { @Suppress("DEPRECATION") display.getRealSize(it) }
+        val display = (context.getSystemService(Context.DISPLAY_SERVICE) as DisplayManager).getDisplay(Display.DEFAULT_DISPLAY)
+        val real = Point().also { @Suppress("DEPRECATION") display.getRealSize(it) }
         return if (real.x > 0) real.x to real.y else metrics.widthPixels to metrics.heightPixels
     }
 
@@ -326,8 +339,8 @@ internal class AndroidComputer(private val context: Context) : ComputerDriver {
             return ComputerScreen("frame", (w * scale).roundToInt(), (h * scale).roundToInt(), service.rootInActiveWindow?.packageName?.toString(), screenshot = image, platform = PLATFORM, actions = ComputerActionKind.android)
         }
         val roots = runCatching {
-            service.windows.filter { it.type != android.view.accessibility.AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY }
-                .sortedWith(compareByDescending<android.view.accessibility.AccessibilityWindowInfo> { it.isActive }.thenByDescending { it.layer }).mapNotNull { it.root }
+            service.windows.filter { it.type != AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY }
+                .sortedWith(compareByDescending<AccessibilityWindowInfo> { it.isActive }.thenByDescending { it.layer }).mapNotNull { it.root }
         }.getOrDefault(emptyList()).ifEmpty { listOfNotNull(service.rootInActiveWindow) }
         val bounds = Rect()
         fun visit(node: AccessibilityNodeInfo, depth: Int) {

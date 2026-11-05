@@ -1,7 +1,6 @@
 package kinuvo.app.navigation
 
 import kinuvo.app.connection.*
-import kinuvo.app.agent.*
 
 import kinuvo.protocol.Integration
 import kinuvo.protocol.ServerCapabilities
@@ -11,6 +10,7 @@ import kinuvo.protocol.supports
 import kotlinx.serialization.Serializable
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
+import kinuvo.protocol.ScreenRef
 
 /** A destination in the app's back stack; saved across configuration changes and process death. */
 @Serializable
@@ -62,7 +62,7 @@ sealed interface Route {
     data class Computers(val computer: String? = null, val reason: String? = null) : Route
 
     @Serializable
-    data class Browser(val agentId: String, val sessionId: String? = null, val screen: kinuvo.protocol.ScreenRef? = null, val reason: String? = null) : Route
+    data class Browser(val agentId: String, val sessionId: String? = null, val screen: ScreenRef? = null, val reason: String? = null) : Route
 
     companion object {
         fun chat(view: LastView?) = Chat(view?.agentId, view?.sessionId)

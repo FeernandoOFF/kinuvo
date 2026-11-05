@@ -2,7 +2,7 @@ package kinuvo.cli
 
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import kinuvo.execution.api.NativeExecutionDispatch
+import kinuvo.harness.execution.api.NativeExecutionDispatch
 import kinuvo.protocol.*
 
 internal class AcpCommand : ServerCommand("acp", "Expose one native Agent over ACP v2 stdio through the running Server.") {
@@ -10,7 +10,7 @@ internal class AcpCommand : ServerCommand("acp", "Expose one native Agent over A
     override suspend fun run() = session.call(running = true) {
         require(client.call(Api.Agents, Unit).any { it.id == selected && it.executionKind == ExecutionKind.Native }) { "Select an existing native Agent" }
         val dispatch = client.acpDispatch()
-        kinuvo.execution.acp.serveAcp(dispatch, selected)
+        kinuvo.harness.execution.acp.serveAcp(dispatch, selected)
     }
 }
 

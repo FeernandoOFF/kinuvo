@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.plugin.*
 import kinuvo.harness.core.*
 import kinuvo.harness.core.knowledge.Knowledge
 import kinuvo.harness.core.store.AgentFiles
@@ -42,6 +43,9 @@ import kinuvo.harness.core.store.config
 import kinuvo.harness.core.store.updateConfig
 import kotlinx.datetime.TimeZone
 import kotlinx.io.files.Path
+import kinuvo.harness.core.tools.WebSearchProvider
+import kinuvo.protocol.DEFAULT_REFLECTION_PROMPT
+import kotlin.concurrent.Volatile
 
 internal class FileServerSettings(
     private val files: AgentFiles,
@@ -60,10 +64,10 @@ internal class FileServerSettings(
         }
     override val reflectionModel get() = files.config().reflection
     override val reflectionEnabled get() = files.knowledgeConfig().reflection
-    override val reflectionPrompt get() = files.knowledgeConfig().reflectionPrompt ?: kinuvo.protocol.DEFAULT_REFLECTION_PROMPT
+    override val reflectionPrompt get() = files.knowledgeConfig().reflectionPrompt ?: DEFAULT_REFLECTION_PROMPT
     /** The Markdown folder and the provider picked; both change with [saveKnowledgeSettings]. */
-    @kotlin.concurrent.Volatile private var knowledgeFolder = files.knowledgeRoot(userHome)
-    @kotlin.concurrent.Volatile private var knowledgeProvider = files.knowledgeConfig().provider
+    @Volatile private var knowledgeFolder = files.knowledgeRoot(userHome)
+    @Volatile private var knowledgeProvider = files.knowledgeConfig().provider
     private val knowledgeSources = listOf(MarkdownKnowledgeSource { knowledgeFolder }) + external.flatMap { it.knowledgeSources }
     val knowledge = Knowledge(
         { knowledgeSource(knowledgeProvider) },
@@ -123,7 +127,7 @@ internal class FileServerSettings(
         s.conventions.keys.forEach(::knowledgeSource)
         files.saveKnowledgeConfig(files.knowledgeConfig().copy(
             path = path, reflection = s.reflection, provider = s.provider, options = options,
-            reflectionPrompt = s.reflectionPrompt?.trim()?.takeIf { it.isNotEmpty() && it != kinuvo.protocol.DEFAULT_REFLECTION_PROMPT },
+            reflectionPrompt = s.reflectionPrompt?.trim()?.takeIf { it.isNotEmpty() && it != DEFAULT_REFLECTION_PROMPT },
         ))
         s.conventions.forEach { (provider, text) -> writeAtomically(files.conventions(provider), text.trim().let { if (it.isEmpty()) "" else "$it\n" }) }
         knowledgeFolder = files.knowledgeRoot(userHome).also { it.createDirectories() }
@@ -219,7 +223,7 @@ internal class FileServerSettings(
             secrets = effective.filterKeys { it in access.secrets })
         val host = hosts.bind(plugin.manifest, plugin.instance) { grant }
         return when (kind) {
-            ServiceKind.Search -> (definition as kinuvo.harness.core.tools.WebSearchProvider).configured(effective, host)
+            ServiceKind.Search -> (definition as WebSearchProvider).configured(effective, host)
             ServiceKind.Notifications -> (definition as NotificationProvider).configured(effective, host)
         }
     }

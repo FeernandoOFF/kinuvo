@@ -2,6 +2,7 @@ package kinuvo.ui.agent
 
 import kinuvo.app.connection.*
 import kinuvo.app.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.app.navigation.*
 import kinuvo.ui.session.*
 import kinuvo.ui.routine.*
@@ -14,6 +15,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -97,7 +99,7 @@ private val CardShape = RoundedCornerShape(24.dp)
 @Composable
 private fun Card(icon: ImageVector, title: String, modifier: Modifier, onClick: () -> Unit, enabled: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier.clip(CardShape).background(color(accentColor).copy(alpha = 0.16f)).clickable(enabled = enabled, onClick = onClick).alpha(if (enabled) 1f else 0.5f).padding(20.dp),
+        modifier.clip(CardShape).background(color(accentColor).copy(alpha = 0.16f)).clickable(enabled = enabled, role = Role.Button, onClick = onClick).alpha(if (enabled) 1f else 0.5f).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -163,7 +165,7 @@ private fun RoutinesCard(ui: SettingsUi, modifier: Modifier, onClick: () -> Unit
             routines.isEmpty() -> {
                 Spacer(Modifier.weight(1f, fill = false))
                 Text("Nothing scheduled yet", style = LocalTextStyle.current.copy(fontStyle = FontStyle.Italic, fontWeight = FontWeight.Bold))
-                Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(onClick = onNew), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onNew), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("Set one up")
                     Icon(Lucide.ArrowRight, Modifier.size(14.dp))
                 }
@@ -199,7 +201,7 @@ private fun Tiles(ui: SettingsUi, wide: Boolean, modifier: Modifier, open: (Sett
 @Composable
 private fun Tile(icon: ImageVector, title: String, subtitle: String?, modifier: Modifier, enabled: Boolean, onClick: () -> Unit) {
     Row(
-        modifier.clip(RoundedCornerShape(16.dp)).background(color(railColor)).clickable(enabled = enabled, onClick = onClick).alpha(if (enabled) 1f else 0.5f).padding(horizontal = 24.dp, vertical = 20.dp),
+        modifier.clip(RoundedCornerShape(16.dp)).background(color(railColor)).clickable(enabled = enabled, role = Role.Button, onClick = onClick).alpha(if (enabled) 1f else 0.5f).padding(horizontal = 24.dp, vertical = 20.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {

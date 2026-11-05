@@ -3,11 +3,9 @@
 product: jvm/app
 
 dependencies:
-  - com.agentclientprotocol:acp:0.33.0
   - ../../harness/execution/acp
   - ../../harness/execution/api
   - ../../harness/server/jvm
-  - ../../harness/providers/codex
   - ../../harness/plugins/cua
   - ../../shared/client
   - com.github.ajalt.clikt:clikt-core:5.1.0
@@ -17,6 +15,7 @@ dependencies:
 
 test-dependencies:
   - ../../harness/testing
+  - ../../harness/providers/codex
   - com.agentclientprotocol:acp:0.33.0
   - $kotlin.test
 

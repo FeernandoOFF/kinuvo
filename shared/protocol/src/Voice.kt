@@ -14,12 +14,12 @@ data class VoiceSetup(
     val speechToSpeech: Boolean = false,
 )
 
-@kotlinx.serialization.Serializable
+@Serializable
 enum class VoiceModelKind { Transcription, Synthesis }
 
-@kotlinx.serialization.Serializable
+@Serializable
 data class ModelFile(val name: String, val url: String, val bytes: Long, val sha256: String)
-@kotlinx.serialization.Serializable
+@Serializable
 data class VoiceModel(
     val id: String,
     val title: String,

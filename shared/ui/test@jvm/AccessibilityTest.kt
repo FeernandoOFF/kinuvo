@@ -12,10 +12,11 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
 import com.composables.ui.components.Text
 import kinuvo.app.agent.*
+import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.protocol.AgentDetails
 import kinuvo.protocol.AgentInfo
 import kinuvo.protocol.AgentSettings
-import kinuvo.ui.agent.*
 import kinuvo.ui.design.FloatingPill
 import kinuvo.ui.design.HarnessTheme
 import kinuvo.ui.design.Reveal

@@ -23,6 +23,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.uuid.Uuid
+import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.json.JsonElement
 
 sealed interface ChatItem {
     val id: String
@@ -357,7 +360,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         val pending = state.value.attachments
         if ((text.isBlank() && pending.isEmpty()) || state.value.running || (state.value.capabilities?.chat?.actionable == false && !state.value.resumeOnSend)) return
         val submission = pendingSubmission?.takeIf { it.text == text && it.attachments == pending.map { a -> a.id } && it.voice == voice }
-            ?: PendingSubmission(kotlin.uuid.Uuid.random().toString(), text, pending.map { it.id }, voice)
+            ?: PendingSubmission(Uuid.random().toString(), text, pending.map { it.id }, voice)
         pendingSubmission = submission
         state.update { s ->
             s.copy(
@@ -370,7 +373,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         val uploads = mutableMapOf<String, Attachment>()
         viewModelScope.launch {
             try { repo.connection.run { ordered.withLock { sendNow(agent, text, pending, uploads, voice, submission.id) } } }
-            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 state.update { it.copy(errors = it.errors + listOfNotNull(e.report()), outgoing = null, unsent = text, attachments = pending.map { p -> p.copy(uploaded = uploads[p.id] ?: p.uploaded) } + it.attachments) }
             }
@@ -407,7 +410,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     fun addAttachments(files: List<UploadAttachmentParams>, error: String? = null) {
         if (error != null) { attachmentError(error); return }
         if (state.value.running || files.isEmpty()) return
-        val pending = files.map { PendingAttachment(kotlin.uuid.Uuid.random().toString(), it) }
+        val pending = files.map { PendingAttachment(Uuid.random().toString(), it) }
         val all = state.value.attachments + pending
         val issue = when {
             all.size > MAX_ATTACHMENTS -> "Attach up to 4 files"
@@ -463,7 +466,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         val sessionId = route.sessionId ?: return
         val agentId = route.agentId ?: return
         viewModelScope.launch { attempt {
-            client.call(Api.ReviewReflection, kinuvo.protocol.ReviewReflectionParams(agentId, sessionId, proposalId, approve, note?.trim()?.takeIf { it.isNotEmpty() }))
+            client.call(Api.ReviewReflection, ReviewReflectionParams(agentId, sessionId, proposalId, approve, note?.trim()?.takeIf { it.isNotEmpty() }))
             if (approve) repo.loadSkills(agentId)
         } }
     }
@@ -507,7 +510,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     }
 
     /** Answers the harness's request [prompt]: [answer] is its own JSON response. The first Device to answer wins. */
-    fun answerExternal(prompt: ExecutionPrompt, answer: kotlinx.serialization.json.JsonElement) {
+    fun answerExternal(prompt: ExecutionPrompt, answer: JsonElement) {
         val sessionId = route.sessionId ?: return
         viewModelScope.launch { attempt {
             if (!repo.answer(sessionId, prompt.id, answer)) state.update { it.copy(errors = it.errors + "Already answered, or the harness stopped waiting.") }
@@ -529,7 +532,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     private suspend fun attempt(block: suspend () -> Unit) {
         try {
             repo.connection.run { block() }
-        } catch (e: kotlinx.coroutines.CancellationException) {
+        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             state.update { it.copy(errors = it.errors + listOfNotNull(e.report())) }

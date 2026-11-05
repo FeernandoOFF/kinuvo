@@ -17,6 +17,12 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import kotlin.io.encoding.Base64
 import kotlin.math.roundToInt
+import java.awt.Color
+import java.awt.image.BufferedImage
+import javax.imageio.IIOImage
+import javax.imageio.ImageIO
+import javax.imageio.ImageWriteParam
+import kotlinx.coroutines.CancellationException
 
 /** cua-driver's tools, called with their JSON arguments; the result is the tool's JSON with any image under `image`. */
 interface Driver {
@@ -73,7 +79,7 @@ class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let {
             val screen = capture(d, request.screenshot, request.elements)
             ComputerResult(if (error == null) DeviceToolStatus.Ready else DeviceToolStatus.Denied, error, screen)
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            if (e is CancellationException) throw e
             close()
             ComputerResult(DeviceToolStatus.Unavailable, "cua-driver failed: ${e.message}")
         }
@@ -341,14 +347,14 @@ class DesktopComputer(private val connect: (() -> Driver)? = findDriver()?.let {
 
 /** PNG to JPEG (base64, width, height): screenshots are sent to the model and to Live view many times. */
 private fun jpeg(png: ByteArray): Triple<String, Int, Int> {
-    val source = javax.imageio.ImageIO.read(png.inputStream()) ?: error("Unreadable screenshot")
-    val rgb = java.awt.image.BufferedImage(source.width, source.height, java.awt.image.BufferedImage.TYPE_INT_RGB)
-    rgb.createGraphics().apply { drawImage(source, 0, 0, java.awt.Color.WHITE, null); dispose() }
+    val source = ImageIO.read(png.inputStream()) ?: error("Unreadable screenshot")
+    val rgb = BufferedImage(source.width, source.height, BufferedImage.TYPE_INT_RGB)
+    rgb.createGraphics().apply { drawImage(source, 0, 0, Color.WHITE, null); dispose() }
     val out = ByteArrayOutputStream()
-    val writer = javax.imageio.ImageIO.getImageWritersByFormatName("jpeg").next()
-    writer.output = javax.imageio.ImageIO.createImageOutputStream(out)
-    writer.write(null, javax.imageio.IIOImage(rgb, null, null), writer.defaultWriteParam.apply {
-        compressionMode = javax.imageio.ImageWriteParam.MODE_EXPLICIT; compressionQuality = 0.8f
+    val writer = ImageIO.getImageWritersByFormatName("jpeg").next()
+    writer.output = ImageIO.createImageOutputStream(out)
+    writer.write(null, IIOImage(rgb, null, null), writer.defaultWriteParam.apply {
+        compressionMode = ImageWriteParam.MODE_EXPLICIT; compressionQuality = 0.8f
     })
     writer.dispose()
     return Triple(Base64.encode(out.toByteArray()), source.width, source.height)

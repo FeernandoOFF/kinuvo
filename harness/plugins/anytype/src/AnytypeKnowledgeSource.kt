@@ -32,6 +32,9 @@ import kinuvo.harness.core.sha256
 import io.ktor.http.parseUrl
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeSource
+import kotlin.concurrent.Volatile
+import kotlinx.io.IOException
+import kotlinx.io.files.Path
 
 /**
  * Knowledge in an Anytype space, through the local API v2: notes are objects with the space's own types and properties,
@@ -53,7 +56,7 @@ class AnytypeKnowledgeSource private constructor(
     override fun snapshot(): KnowledgeSource = options().toMap().let { config ->
         AnytypeKnowledgeSource({ config }, client, expand, cache, lock)
     }
-    override fun configured(options: Map<String, String>, folder: kotlinx.io.files.Path): KnowledgeSource =
+    override fun configured(options: Map<String, String>, folder: Path): KnowledgeSource =
         AnytypeKnowledgeSource({ options }, client, expand)
 
     private class Space(val scope: String, val schema: KnowledgeSchema, val formats: Map<String, String>, val templates: Map<String, Map<String, String>>, val at: TimeSource.Monotonic.ValueTimeMark)
@@ -62,7 +65,7 @@ class AnytypeKnowledgeSource private constructor(
     }
     private class Reply(val json: JsonObject, val etag: String?)
 
-    private class Cache { @kotlin.concurrent.Volatile var space: Space? = null }
+    private class Cache { @Volatile var space: Space? = null }
     private val json = Json { ignoreUnknownKeys = true }
 
     override fun checkOptions(options: Map<String, String>) {
@@ -333,7 +336,7 @@ class AnytypeKnowledgeSource private constructor(
                 }
             } catch (e: HttpRequestTimeoutException) {
                 throw IllegalStateException("Anytype at ${url(o)} didn't answer in time; check that the Anytype app on the Server isn't stuck", e)
-            } catch (e: kotlinx.io.IOException) {
+            } catch (e: IOException) {
                 throw IllegalStateException(
                     "Can't reach Anytype at ${url(o)}: open the Anytype app on the Server (its API only runs while it's open), or check the API URL", e,
                 )

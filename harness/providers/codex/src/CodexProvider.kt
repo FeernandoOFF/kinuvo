@@ -1,9 +1,9 @@
 package kinuvo.harness.codex
 
 import kinuvo.harness.core.AgentConfig
-import kinuvo.harness.core.HarnessPlugin
+import kinuvo.harness.core.plugin.HarnessPlugin
 import kinuvo.harness.core.AgentModel
-import kinuvo.harness.core.ModelProvider
+import kinuvo.harness.core.plugin.ModelProvider
 import kinuvo.harness.core.koogExecutor
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.CapabilityState
@@ -11,10 +11,11 @@ import kinuvo.protocol.ModelInfo
 import kinuvo.protocol.Usage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kinuvo.protocol.PluginDefinition
 
 /** Builds Codex-backed [AgentModel]s sharing one authenticated client; [usage] tracks plan usage. */
 class CodexProvider(override val auth: CodexAuth = CodexAuth(), private val attachments: ((Attachment) -> ByteArray)? = null) : ModelProvider, HarnessPlugin {
-    override val definition = kinuvo.protocol.PluginDefinition("kinuvo.codex", "ChatGPT / Codex")
+    override val definition = PluginDefinition("kinuvo.codex", "ChatGPT / Codex")
     private val _usage = MutableStateFlow<Usage?>(null)
     private val executor = lazy { koogExecutor(codexLLMClient(auth, _usage)) }
     private val discovery = lazy { codexHttpClient(auth::tokens, _usage) }

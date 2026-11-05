@@ -8,6 +8,8 @@ import kinuvo.harness.core.AgentDoc
 import kinuvo.protocol.ServiceKind
 import kinuvo.protocol.ServiceSettings
 import kotlinx.io.files.Path
+import kinuvo.harness.core.knowledge.KnowledgeConfig
+import kinuvo.harness.core.tasks.TasksConfig
 
 /** Where everything lives under the Kinuvo home folder. The one place that knows the on-disk layout. */
 class AgentFiles(val home: Path) {
@@ -63,13 +65,13 @@ fun AgentFiles.knowledgeRoot(userHome: Path?, path: String? = knowledgeConfig().
 
 fun AgentFiles.tasksConfig() = config().tasks
 
-fun AgentFiles.saveTasksConfig(tasks: kinuvo.harness.core.tasks.TasksConfig) = updateConfig { it.copy(tasks = tasks) }
+fun AgentFiles.saveTasksConfig(tasks: TasksConfig) = updateConfig { it.copy(tasks = tasks) }
 
 fun AgentFiles.serviceConfig(kind: ServiceKind): ServiceSettings = config().service(kind)
 
 fun AgentFiles.saveServiceConfig(kind: ServiceKind, settings: ServiceSettings) = updateConfig { it.service(kind, settings) }
 
-fun AgentFiles.saveKnowledgeConfig(knowledge: kinuvo.harness.core.knowledge.KnowledgeConfig) = updateConfig { it.copy(knowledge = knowledge) }
+fun AgentFiles.saveKnowledgeConfig(knowledge: KnowledgeConfig) = updateConfig { it.copy(knowledge = knowledge) }
 
 private val agentConfigLock = Lock()
 

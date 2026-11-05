@@ -1,11 +1,11 @@
 @file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
 
-package kinuvo.execution.acp
+package kinuvo.harness.execution.acp
 
 import com.agentclientprotocol.agent.v2.Agent
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.StdioTransport
-import kinuvo.execution.api.ExecutionDispatch
+import kinuvo.harness.execution.api.ExecutionDispatch
 import kotlinx.coroutines.*
 import kotlinx.io.asSink
 import kotlinx.io.asSource

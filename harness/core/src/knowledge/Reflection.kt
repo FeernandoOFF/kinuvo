@@ -1,5 +1,6 @@
 package kinuvo.harness.core.knowledge
 
+import kinuvo.harness.core.plugin.*
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.agent.exception.AIAgentMaxNumberOfIterationsReachedException

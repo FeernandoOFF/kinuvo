@@ -38,6 +38,7 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.ProvideContentColor
 import com.composeunstyled.theme.Theme
+import androidx.compose.foundation.shape.RoundedCornerShape
 
 /** Rows in one rounded card, divided by hairlines, under an optional caption. */
 @Composable
@@ -56,7 +57,7 @@ fun RowGroup(title: String? = null, modifier: Modifier = Modifier, content: @Com
 /** Rounds the first and last of [count] rows of a lazy list so they read as one [RowGroup]. */
 fun Modifier.groupItem(index: Int, count: Int): Modifier {
     val r = 16.dp
-    val shape = androidx.compose.foundation.shape.RoundedCornerShape(if (index == 0) r else 0.dp, if (index == 0) r else 0.dp, if (index == count - 1) r else 0.dp, if (index == count - 1) r else 0.dp)
+    val shape = RoundedCornerShape(if (index == 0) r else 0.dp, if (index == 0) r else 0.dp, if (index == count - 1) r else 0.dp, if (index == count - 1) r else 0.dp)
     return clip(shape)
 }
 
