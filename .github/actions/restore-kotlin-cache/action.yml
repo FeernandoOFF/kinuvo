@@ -1,0 +1,35 @@
+name: Restore Kotlin caches
+description: Restores the toolchain and every suite's Maven artifacts that CI saves on main.
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/restore@v4
+      with:
+        path: |
+          ~/.cache/JetBrains/Kotlin/cli
+          ~/.cache/JetBrains/Kotlin/extract.cache/*jdk*
+          ~/.cache/JetBrains/Kotlin/extract.cache/*jbr*
+        key: kotlin-toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('kotlin', '**/*.yaml') }}
+        restore-keys: kotlin-toolchain-v1-${{ runner.os }}-${{ runner.arch }}-
+    # CI saves only Linux X64; Maven artifacts are arch-independent, and resolving from an empty cache fails on androidx.activity.
+    - uses: actions/cache/restore@v4
+      with:
+        path: ~/.cache/JetBrains/Kotlin/.m2.cache
+        key: kotlin-m2-v1-${{ runner.os }}-${{ runner.arch }}-ui-${{ hashFiles('**/*.yaml') }}
+        restore-keys: |
+          kotlin-m2-v1-${{ runner.os }}-${{ runner.arch }}-ui-
+          kotlin-m2-v1-${{ runner.os }}-X64-ui-
+    - uses: actions/cache/restore@v4
+      with:
+        path: ~/.cache/JetBrains/Kotlin/.m2.cache
+        key: kotlin-m2-v1-${{ runner.os }}-${{ runner.arch }}-server-${{ hashFiles('**/*.yaml') }}
+        restore-keys: |
+          kotlin-m2-v1-${{ runner.os }}-${{ runner.arch }}-server-
+          kotlin-m2-v1-${{ runner.os }}-X64-server-
+    - uses: actions/cache/restore@v4
+      with:
+        path: ~/.cache/JetBrains/Kotlin/.m2.cache
+        key: kotlin-m2-v1-${{ runner.os }}-${{ runner.arch }}-rest-${{ hashFiles('**/*.yaml') }}
+        restore-keys: |
+          kotlin-m2-v1-${{ runner.os }}-${{ runner.arch }}-rest-
+          kotlin-m2-v1-${{ runner.os }}-X64-rest-
