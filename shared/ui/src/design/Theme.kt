@@ -76,6 +76,9 @@ private val LocalAccent = compositionLocalOf<Color?> { null }
 /** Overrides the platform's interaction mode, e.g. so JVM UI tests render the phone layout. */
 internal val LocalForcedInteractionMode = compositionLocalOf<InteractionMode?> { null }
 
+/** Whether sheets blur the screen behind them; JVM UI tests turn it off, since software rendering redraws it every frame. */
+internal val LocalBackdropBlur = compositionLocalOf { true }
+
 /**
  * The type scale, each a step larger on touch screens. Headings and body set in Libron, the brand serif; the small print
  * ([secondary], [caption], [overline]) in Inter, which holds up better at those sizes.
