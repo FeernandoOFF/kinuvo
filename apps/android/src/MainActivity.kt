@@ -7,7 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import kinuvo.ui.KinuvoApp
-import kinuvo.ui.requestNotifications
+import kinuvo.ui.attachNotifications
 import kinuvo.app.connection.openLink
 import kinuvo.app.connection.openNewChat
 import kinuvo.ui.startKinuvo
@@ -25,7 +25,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         intent?.let(::open)
-        requestNotifications(this)
+        attachNotifications(this)
         setContent { KinuvoApp() }
     }
 

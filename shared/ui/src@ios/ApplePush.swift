@@ -2,8 +2,9 @@ import UIKit
 import UserNotifications
 import KotlinModules
 
-/// APNs through the Push relay. Asks for Notifications when Kotlin starts it, reports this install's subscription while
-/// they're allowed, and opens a tapped Notification's Session.
+/// APNs through the Push relay. Registers when Kotlin starts it, asks for Notifications when Kotlin requests it (after
+/// onboarding or on opening a chat), reports this install's subscription while they're allowed, and opens a tapped
+/// Notification's Session.
 final class ApplePush: NSObject, NativePush, UNUserNotificationCenterDelegate {
     static let shared = ApplePush()
     private var relay = ""
@@ -15,9 +16,13 @@ final class ApplePush: NSObject, NativePush, UNUserNotificationCenterDelegate {
             self.relay = relay
             self.update = update
             NotificationCenter.default.addObserver(self, selector: #selector(self.refresh), name: UIApplication.didBecomeActiveNotification, object: nil)
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
-                DispatchQueue.main.async { UIApplication.shared.registerForRemoteNotifications() }
-            }
+            UIApplication.shared.registerForRemoteNotifications()
+        }
+    }
+
+    func requestPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in
+            DispatchQueue.main.async { self.refresh() }
         }
     }
 
