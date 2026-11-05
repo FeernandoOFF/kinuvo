@@ -146,14 +146,14 @@ private val HarnessThemeComposable = buildTheme {
     defaultTextSelectionColors = selection
     properties[textSelectionColors] = mapOf(com.composables.ui.theme.defaultTextSelectionColors to selection)
     properties[shapes] = mapOf(
-        smallShape to RoundedCornerShape(6.dp),
-        mediumShape to RoundedCornerShape(10.dp),
-        largeShape to RoundedCornerShape(16.dp),
-        buttonShape to RoundedCornerShape(if (touch) 100.dp else 8.dp),
-        dialogShape to RoundedCornerShape(16.dp),
-        sheetShape to RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        menuShape to RoundedCornerShape(12.dp),
-        fieldShape to RoundedCornerShape(if (touch) 14.dp else 10.dp),
+        smallShape to RoundedCornerShape(Radius.small),
+        mediumShape to RoundedCornerShape(Radius.medium),
+        largeShape to RoundedCornerShape(Radius.large),
+        buttonShape to RoundedCornerShape(if (touch) Radius.touchButton else Radius.button),
+        dialogShape to RoundedCornerShape(Radius.large),
+        sheetShape to RoundedCornerShape(topStart = Radius.sheet, topEnd = Radius.sheet),
+        menuShape to RoundedCornerShape(Radius.menu),
+        fieldShape to RoundedCornerShape(if (touch) Radius.touchField else Radius.medium),
     )
     properties[shadows] = mapOf(
         raisedShadow to Shadow(radius = 12.dp, color = Color.Black, offset = DpOffset(0.dp, 2.dp), alpha = if (dark) 0.3f else 0.08f),

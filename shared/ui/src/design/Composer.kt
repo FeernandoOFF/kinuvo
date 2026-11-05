@@ -134,20 +134,20 @@ fun Composer(
         state.clear()
     }
 
-    val shape = RoundedCornerShape(28.dp)
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    val shape = RoundedCornerShape(Radius.composer)
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         Column(Modifier.fillMaxWidth()) {
             if (notice != null || blocked != null) {
-                val noticeShape = RoundedCornerShape(22.dp)
+                val noticeShape = RoundedCornerShape(Radius.bubble)
                 Column(Modifier.fillMaxWidth().clip(noticeShape)
                     .background(color(panelColor)).border(1.dp, color(borderColor), noticeShape)
                     .heightIn(max = 320.dp).verticalScroll(rememberScrollState())
-                    .padding(horizontal = 14.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    .padding(horizontal = Spacing.space14, vertical = Spacing.space10), verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
                     blocked?.let { Text(it, style = TextStyles.secondary, color = color(mutedColor)) }
                     notice?.invoke()
                 }
             }
-            if (notice != null || blocked != null) Spacer(Modifier.height(8.dp))
+            if (notice != null || blocked != null) Spacer(Modifier.height(Spacing.space8))
             Box(Modifier.fillMaxWidth()) {
                 Column(
                     Modifier
@@ -156,11 +156,11 @@ fun Composer(
                         .then(backdrop)
                         .background(containerColor, shape)
                         .border(1.dp, if (focused) color(accentColor).copy(alpha = 0.55f) else color(borderColor), shape)
-                        .padding(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                        .padding(Spacing.space8),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.space8),
                 ) {
                     attachments()
-                    Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
+                    Box(Modifier.fillMaxWidth().padding(horizontal = Spacing.space8, vertical = Spacing.space6)) {
                         val style = inputTextStyle()
                         if (empty) Text(placeholder, color = color(mutedColor), style = style)
                         BasicRichTextEditor(
@@ -177,8 +177,8 @@ fun Composer(
                                 .onPreviewKeyEvent { it.type == KeyEventType.KeyDown && (onCompletionKey(it) || onKey(it, state, ::submit)) },
                         )
                     }
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp), content = controls)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+                        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8), content = controls)
                         VoiceButton(Lucide.Mic, if (dictating) "Stop dictating" else "Dictate", onDictate, dictating)
                         val accent = Modifier.size(40.dp).background(color(accentColor), CircleShape)
                         if (sending && !stopWhileSending) {
@@ -223,7 +223,7 @@ private fun VoiceButton(icon: ImageVector, label: String, onClick: (() -> Unit)?
 @Composable
 internal fun VoiceBars(modifier: Modifier = Modifier, active: Boolean = false) {
     val tint = LocalContentColor.current
-    val phase = if (active) rememberInfiniteTransition().animateFloat(0f, 2 * PI.toFloat(), infiniteRepeatable(tween(900, easing = LinearEasing))).value else null
+    val phase = if (active) rememberInfiniteTransition().animateFloat(0f, 2 * PI.toFloat(), infiniteRepeatable(tween(Motion.spin, easing = Motion.linear))).value else null
     Canvas(modifier.size(20.dp)) {
         val bar = 2.2.dp.toPx()
         listOf(0.35f, 0.75f, 1f, 0.75f, 0.35f).forEachIndexed { i, h ->
@@ -257,8 +257,8 @@ private fun onKey(event: KeyEvent, state: RichTextState, submit: () -> Unit): Bo
 
 @Composable
 private fun FormatBar(state: RichTextState, visible: Boolean, modifier: Modifier) = AnimatedVisibility(visible, modifier, enter = fadeIn(), exit = fadeOut()) {
-    Panel(shape = Theme[shapes][mediumShape], contentPadding = PaddingValues(4.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    Panel(shape = Theme[shapes][mediumShape], contentPadding = PaddingValues(Spacing.space4)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space2)) {
             FormatToggle(Lucide.Bold, "Bold ${shortcut("B")}", state.currentSpanStyle.fontWeight == Bold.fontWeight) { state.toggleSpanStyle(Bold) }
             FormatToggle(Lucide.Italic, "Italic ${shortcut("I")}", state.currentSpanStyle.fontStyle == Italic.fontStyle) { state.toggleSpanStyle(Italic) }
             FormatToggle(Lucide.Code, "Code ${shortcut("E")}", state.isCodeSpan) { state.toggleCodeSpan() }

@@ -134,7 +134,7 @@ private fun InspectorBody(state: InspectorState, host: InspectorHost, actions: I
     val draft = state.draft
     val details = state.details
     if (draft == null || details == null) return Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner() }
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Spacing.space16, vertical = Spacing.space14), verticalArrangement = Arrangement.spacedBy(Spacing.space16)) {
         state.errors.forEach { ErrorMessage(it) }
         when (state.page) {
             InspectorPage.Agent -> if (details.info.external) ExternalAgentPage(state, draft, details, host, actions) else AgentPage(state, draft, details, host, actions)
@@ -186,9 +186,9 @@ private fun AgentPage(state: InspectorState, draft: AgentDraft, details: AgentDe
         val provider = state.models.providers.firstOrNull { it.id == draft.provider }?.name ?: draft.provider
         NavRow(Lucide.Cpu, "Model", "${selected?.name ?: draft.model} · $provider") { actions.onPush(InspectorPage.Model) }
         val levels = selected?.reasoning ?: (REASONING + draft.reasoning).distinct()
-        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.space10, vertical = Spacing.space4), verticalAlignment = Alignment.CenterVertically) {
             Icon(Lucide.Brain, Modifier.size(16.dp), tint = color(mutedColor))
-            Text("Reasoning", Modifier.weight(1f).padding(start = 10.dp), style = TextStyles.callout)
+            Text("Reasoning", Modifier.weight(1f).padding(start = Spacing.space10), style = TextStyles.callout)
             if (levels.isEmpty()) Text("Not supported", color = color(mutedColor), style = TextStyles.secondary)
             else Picker(levels, draft.reasoning, { it.replaceFirstChar { c -> c.uppercase() } }, { level -> actions.onEdit { it.copy(reasoning = level) } })
         }
@@ -228,7 +228,7 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
         }
         val r = readiness(agent.readiness.state(), harness, machine, agent.name,
             (state.connection?.config?.connection as? ExecutionConnection.Acp)?.command?.firstOrNull())
-        Box(Modifier.padding(horizontal = 10.dp, vertical = 4.dp)) {
+        Box(Modifier.padding(horizontal = Spacing.space10, vertical = Spacing.space4)) {
             ReadinessNote(r, state.checking, { a -> if (a == ReadinessAction.CheckAgain) actions.onCheck() else host.onSection(agentId, SettingsSection.Harnesses) })
         }
         if (agent.executionKind == ExecutionKind.Acp) {
@@ -237,14 +237,14 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
             cwdProblem(draft.cwd)?.let { Text(it, style = TextStyles.caption, color = color(destructiveColor)) }
             Text("On $machine. $harness reads and edits files here.", style = TextStyles.caption, color = color(mutedColor))
         }
-        details.remoteAgentId?.let { Text("Remote Agent: $it", Modifier.padding(horizontal = 10.dp), style = TextStyles.secondary) }
+        details.remoteAgentId?.let { Text("Remote Agent: $it", Modifier.padding(horizontal = Spacing.space10), style = TextStyles.secondary) }
     }
     Group("Approvals") {
         Text("Kinuvo's Risk tolerance and Trust rules don't apply. $harness decides when to ask before acting; answer from any Device with access.",
-            Modifier.padding(4.dp), style = TextStyles.secondary)
+            Modifier.padding(Spacing.space4), style = TextStyles.secondary)
     }
     Group("Managed by $harness") {
-        Text("Instructions, Memory, Skills and tools are set in $harness on $machine.", Modifier.padding(4.dp), style = TextStyles.secondary, color = color(mutedColor))
+        Text("Instructions, Memory, Skills and tools are set in $harness on $machine.", Modifier.padding(Spacing.space4), style = TextStyles.secondary, color = color(mutedColor))
     }
     Text("Changes apply to ${agent.name}'s new Sessions.", style = TextStyles.caption, color = color(mutedColor))
 }
@@ -254,7 +254,7 @@ private fun ExternalAgentPage(state: InspectorState, draft: AgentDraft, details:
 private fun AvatarPicker(agent: AgentInfo, draft: AgentDraft, actions: InspectorActions) {
     val current = AvatarArtboards.indexOf(draft.avatar).coerceAtLeast(0)
     val step = { delta: Int -> actions.onEdit { it.copy(avatar = AvatarArtboards[(current + delta + AvatarArtboards.size) % AvatarArtboards.size]) } }
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space16, Alignment.CenterHorizontally), verticalAlignment = Alignment.CenterVertically) {
         HeaderButton(Lucide.ChevronLeft, "Previous avatar", { step(-1) })
         AgentAvatar(agent.copy(avatar = draft.avatar.ifEmpty { agent.avatar }), 64.dp)
         HeaderButton(Lucide.ChevronRight, "Next avatar", { step(1) })
@@ -307,28 +307,28 @@ internal fun draftField(agentId: String, name: String, value: String, onChange: 
 
 @Composable
 private fun Group(title: String, hint: String? = null, card: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         // Labelled and filled like a RowGroup; fields go without the card, as their own borders already contain them.
-        Row(Modifier.padding(start = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(Modifier.padding(start = Spacing.space6), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             SectionLabel(title)
             hint?.let { Text(it, style = TextStyles.caption, color = color(mutedColor)) }
         }
-        if (!card) Column(verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
-        else Panel(Modifier.fillMaxWidth(), borderColor = Color.Transparent, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp), content = content)
+        if (!card) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6), content = content)
+        else Panel(Modifier.fillMaxWidth(), borderColor = Color.Transparent, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(horizontal = Spacing.space8, vertical = Spacing.space8)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6), content = content)
         }
     }
 }
 
 @Composable
-private fun Label(text: String) = Text(text, Modifier.padding(start = 12.dp, top = 2.dp), style = TextStyles.caption, color = color(mutedColor))
+private fun Label(text: String) = Text(text, Modifier.padding(start = Spacing.space12, top = Spacing.space2), style = TextStyles.caption, color = color(mutedColor))
 
 /** A row opening a page inside the inspector. */
 @Composable
 private fun NavRow(icon: ImageVector, title: String, value: String?, onClick: () -> Unit) {
     ListRow(false, onClick, leading = { Icon(icon, Modifier.size(16.dp)) }) {
         Text(title, style = TextStyles.callout, singleLine = true)
-        Box(Modifier.weight(1f).padding(start = 12.dp), contentAlignment = Alignment.CenterEnd) {
+        Box(Modifier.weight(1f).padding(start = Spacing.space12), contentAlignment = Alignment.CenterEnd) {
             value?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.End) }
         }
         Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))

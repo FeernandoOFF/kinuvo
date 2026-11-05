@@ -11,7 +11,6 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import com.composables.ui.components.*
 import com.composables.icons.lucide.*
 import com.composables.ui.theme.mutedColor
@@ -126,7 +125,7 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
                 }
                 if (exec != "none" && p.ui.capabilities?.integrations != null) DetailGroup("Test") {
                     FormField("Command", "Optional; runs in the first Workspace folder with these unsaved settings.") { Input(command, "git status") }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space8), verticalAlignment = Alignment.CenterVertically) {
                         ActionButton(Lucide.PlugZap, "Test connection", {
                             p.actions.onTestExec(TestExecParams(d.info.id, exec, workspace.lines(), container, ssh, command.value().ifEmpty { null }))
                         }, enabled = !p.ui.state.testing)

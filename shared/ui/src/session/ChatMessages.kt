@@ -11,8 +11,6 @@ import kinuvo.ui.routine.*
 import kinuvo.ui.navigation.*
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.ui.graphics.TransformOrigin
@@ -78,9 +76,9 @@ internal fun Messages(
     modifier: Modifier,
     actions: ChatActions,
     /** Room under the last message for the composer floating over it. */
-    bottom: Dp = 0.dp,
+    bottom: Dp = Spacing.none,
     /** Room above the first message for bubbles floating over it. */
-    top: Dp = 0.dp,
+    top: Dp = Spacing.none,
 ) {
     var following by follow
     val items = state.items
@@ -126,8 +124,8 @@ internal fun Messages(
             LazyColumn(
                 Modifier.fillMaxSize(),
                 state = listState,
-                contentPadding = PaddingValues(start = 16.dp, top = 20.dp + top, end = 16.dp, bottom = 20.dp + bottom),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                contentPadding = PaddingValues(start = Spacing.space16, top = Spacing.space20 + top, end = Spacing.space16, bottom = Spacing.space20 + bottom),
+                verticalArrangement = Arrangement.spacedBy(Spacing.space14),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 items(rows, key = { it.key }, contentType = {
@@ -138,7 +136,7 @@ internal fun Messages(
                 }) { row ->
                     // A sent message replaces its outgoing copy in place, so only the outgoing one animates in.
                     val user = (row as? ChatRow.Single)?.item is ChatItem.User
-                    Box(Modifier.animateItem(fadeInSpec = if (user) null else tween(250), fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth()) {
+                    Box(Modifier.animateItem(fadeInSpec = if (user) null else tween(Motion.item), fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth()) {
                         when (row) {
                             is ChatRow.Single -> if (row.key == "outgoing") Entering { ChatItemView(row.item, actions) }
                                 else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id))
@@ -150,7 +148,7 @@ internal fun Messages(
                     item(key = "heard") { Box(Modifier.animateItem(fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth().alpha(0.6f)) { Entering { ChatItemView(ChatItem.User("heard", heard), actions) } } }
                 }
                 if (thinking || writing) item(key = "thinking") {
-                    Row(Modifier.widthIn(max = ContentWidth).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.widthIn(max = ContentWidth).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                         Spinner(tint = color(accentColor))
                         Text(if (writing) "Writing…" else "Working…", color = color(mutedColor), style = TextStyles.secondary)
                     }
@@ -163,7 +161,7 @@ internal fun Messages(
         AnimatedVisibility(
             !following && listState.canScrollForward,
             // At the edge, over the margin rather than the text.
-            Modifier.align(Alignment.BottomEnd).padding(end = 12.dp, bottom = 12.dp + bottom),
+            Modifier.align(Alignment.BottomEnd).padding(end = Spacing.space12, bottom = Spacing.space12 + bottom),
             enter = fadeIn() + slideInVertically { it / 2 },
             exit = fadeOut() + slideOutVertically { it / 2 },
         ) {
@@ -180,8 +178,8 @@ internal fun Messages(
 @Composable
 internal fun DropOverlay() {
     val shape = Theme[shapes][largeShape]
-    Box(Modifier.fillMaxSize().padding(12.dp).background(color(backgroundColor).copy(alpha = 0.85f), shape).border(2.dp, color(accentColor).copy(alpha = 0.6f), shape), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Box(Modifier.fillMaxSize().padding(Spacing.space12).background(color(backgroundColor).copy(alpha = 0.85f), shape).border(2.dp, color(accentColor).copy(alpha = 0.6f), shape), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Icon(Lucide.Paperclip, Modifier.size(28.dp), tint = color(accentColor))
             Text("Drop to attach", style = TextStyles.callout)
             Text("4 files · 10 MB each", style = TextStyles.caption, color = color(mutedColor))
@@ -192,7 +190,7 @@ internal fun DropOverlay() {
 @Composable
 private fun Entering(content: @Composable () -> Unit) {
     val shown = remember { MutableTransitionState(false) }.apply { targetState = true }
-    AnimatedVisibility(shown, enter = fadeIn(tween(200)) + slideInVertically(spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow)) { it }
+    AnimatedVisibility(shown, enter = fadeIn(tween(Motion.enter)) + slideInVertically(Motion.appearSpring()) { it }
         + scaleIn(initialScale = 0.92f, transformOrigin = TransformOrigin(1f, 1f))) { content() }
 }
 
@@ -201,8 +199,8 @@ private fun JumpToBottom(unseen: Boolean, onClick: () -> Unit) {
     val shape = PillShape
     Row(
         Modifier.height(40.dp).widthIn(min = 40.dp).shadow(6.dp, shape).clip(shape).background(color(panelColor)).border(1.dp, color(borderColor), shape)
-            .clickable(onClick = onClick).padding(horizontal = if (unseen) 14.dp else 0.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+            .clickable(onClick = onClick).padding(horizontal = if (unseen) Spacing.space14 else Spacing.none),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space6, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(Lucide.ArrowDown, Modifier.size(16.dp), contentDescription = "Jump to the latest")
@@ -216,14 +214,14 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
         is ChatItem.User -> if (item.routine != null) Expandable(Lucide.AlarmClock, requireNotNull(item.routine), subtitle = "routine") { RichMarkdown(item.text) }
         else if (item.task != null) Expandable(Lucide.SquareKanban, requireNotNull(item.task), subtitle = "task") { RichMarkdown(item.text) }
         // Inset from the start, so long messages still read as the user's rather than as cards.
-        else Row(Modifier.fillMaxWidth().padding(start = 48.dp), horizontalArrangement = Arrangement.End) {
+        else Row(Modifier.fillMaxWidth().padding(start = Spacing.space48), horizontalArrangement = Arrangement.End) {
             Panel(
                 Modifier.widthIn(max = 560.dp),
                 color = color(selectedControlColor),
                 borderColor = Color.Transparent,
                 shape = Theme[shapes][largeShape],
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
-            ) { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                contentPadding = PaddingValues(horizontal = Spacing.space14, vertical = Spacing.space10),
+            ) { Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 if (item.text.isNotBlank()) RichMarkdown(item.text)
                 item.attachments.forEach { a ->
                     LaunchedEffect(a.id) { if (a.mimeType.startsWith("image/")) actions.onLoadAttachment(a.id) }
@@ -234,7 +232,7 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
         is ChatItem.Assistant -> if (spoken != null) SpokenText(item.text, spoken, Modifier.fillMaxWidth()) else Markdown(item.text, Modifier.fillMaxWidth())
         is ChatItem.Reasoning -> StepView(item)
         is ChatItem.ToolCall -> when {
-            (item.identity?.instance?.pluginId == "kinuvo.computer" && item.identity?.localId in setOf("computer_capture", "computer_act")) && item.result == null -> Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            (item.identity?.instance?.pluginId == "kinuvo.computer" && item.identity?.localId in setOf("computer_capture", "computer_act")) && item.result == null -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.space2)) {
                 ToolCallView(item, actions = actions)
                 Button(onClick = actions.onWatch, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Watch live", fontSize = TextStyles.caption.fontSize) }
             }
@@ -247,14 +245,14 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
             color = color(destructiveColor).copy(alpha = 0.08f),
             borderColor = color(destructiveColor).copy(alpha = 0.3f),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(Lucide.CircleX, Modifier.size(16.dp).padding(top = 2.dp), tint = color(destructiveColor))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+                Icon(Lucide.CircleX, Modifier.size(16.dp).padding(top = Spacing.space2), tint = color(destructiveColor))
                 Text(item.message, color = color(destructiveColor), style = TextStyles.secondary)
             }
         }
         is ChatItem.Notice -> Expandable(Lucide.TriangleAlert, item.message, tint = color(warningColor)) {
             // What it had written before stopping, quieter than a finished reply.
-            Column(Modifier.alpha(0.85f), verticalArrangement = Arrangement.spacedBy(8.dp)) { item.draft.forEach { ChatItemView(it, actions) } }
+            Column(Modifier.alpha(0.85f), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) { item.draft.forEach { ChatItemView(it, actions) } }
         }
         is ChatItem.Measurement -> Unit
         is ChatItem.Reflection -> ReflectionView(item, onReview = actions.onReviewReflection)
@@ -265,8 +263,8 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
 
 @Composable
 private fun EmptyState(state: ChatState, modifier: Modifier) {
-    Box(modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Box(modifier.fillMaxWidth().padding(Spacing.space24), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
             val avatar = when {
                 state.running -> AvatarState.Working
                 state.voice?.active == true || state.dictation?.dictating == true -> AvatarState.Listening
@@ -302,15 +300,15 @@ internal fun Expandable(
         Column {
             ListRow(selected = false, onClick = { expanded = !expanded }, modifier = Modifier.heightIn(min = 44.dp)) {
                 Icon(icon, Modifier.size(15.dp), tint = if (tint.isSpecified) tint else color(mutedColor))
-                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                     Text(title, style = titleStyle, fontWeight = FontWeight.Normal, singleLine = true)
                     subtitle?.let { Text(it, Modifier.weight(1f, fill = false), style = subtitleStyle, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
                     status?.invoke()
                 }
                 Icon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
             }
-            footer?.let { Box(Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp)) { it() } }
-            DisclosurePanel(contentPadding = PaddingValues(start = 10.dp, top = 6.dp, end = 10.dp, bottom = 10.dp)) { content() }
+            footer?.let { Box(Modifier.padding(start = Spacing.space10, end = Spacing.space10, bottom = Spacing.space10)) { it() } }
+            DisclosurePanel(contentPadding = PaddingValues(start = Spacing.space10, top = Spacing.space6, end = Spacing.space10, bottom = Spacing.space10)) { content() }
         }
     }
 }
@@ -365,7 +363,7 @@ internal fun StepsView(row: ChatRow.Steps, active: Boolean, initiallyExpanded: B
                     failed > 0 -> Icon(Lucide.CircleX, Modifier.size(15.dp), tint = color(destructiveColor))
                     else -> Icon(Lucide.ListChecks, Modifier.size(15.dp), tint = color(mutedColor))
                 }
-                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                     if (active && running != null) {
                         Text("Running", style = TextStyles.secondary, fontWeight = FontWeight.Normal, singleLine = true)
                         Text(running.title, style = if (running.skill) TextStyles.secondary else MonoStyle, singleLine = true, overflow = TextOverflow.Ellipsis)
@@ -383,9 +381,9 @@ internal fun StepsView(row: ChatRow.Steps, active: Boolean, initiallyExpanded: B
                 else if (active && row.steps.size > 1) Text("${row.steps.size} steps", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
                 Icon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
             }
-            DisclosurePanel(contentPadding = PaddingValues(start = 6.dp, end = 6.dp, bottom = 6.dp)) {
+            DisclosurePanel(contentPadding = PaddingValues(start = Spacing.space6, end = Spacing.space6, bottom = Spacing.space6)) {
                 Column {
-                    HorizontalSeparator(Modifier.padding(bottom = 4.dp))
+                    HorizontalSeparator(Modifier.padding(bottom = Spacing.space4))
                     row.steps.forEach { key(it.id) { StepView(it, border = false, actions = actions) } }
                 }
             }
@@ -427,7 +425,7 @@ private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, action
             else -> Pill("Done", tone = Tone.Success)
         }
     }, footer = item.denialNote?.let { note -> { DenialNote(note) } }) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             if (!label.skill && item.args.isNotBlank()) CodeBlock(prettyJson(item.args), language = "Arguments")
             item.result?.let { CodeBlock(it, language = if (item.isError) "Error" else "Result", previewChars = 4000, error = item.isError) }
             ToolAttachments(item.attachments, actions)
@@ -437,7 +435,7 @@ private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, action
 
 /** What the user told the Agent when denying a tool, as a quote under its row. */
 @Composable
-private fun DenialNote(note: String) = Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun DenialNote(note: String) = Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
     Box(Modifier.width(2.dp).fillMaxHeight().background(color(borderColor)))
     Text("Your note: $note", style = TextStyles.secondary, color = color(mutedColor))
 }
@@ -449,7 +447,7 @@ private fun AnsweredQuestions(item: ChatItem.ToolCall) {
     val questions = runCatching { ProtocolJson.decodeFromJsonElement(ListSerializer(Question.serializer()), args!!.getValue("questions")) }.getOrDefault(emptyList())
     val answers = runCatching { Json.parseToJsonElement(item.result.orEmpty()).jsonObject }.getOrNull()
     Expandable(Lucide.MessageCircleQuestionMark, args?.get("title")?.jsonPrimitive?.content?.ifBlank { null } ?: "Questions", if (answers == null) "skipped" else "answered") {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             questions.forEach { q ->
                 val answer = answers?.get(q.id)?.let { a -> (a as? JsonArray)?.joinToString { it.jsonPrimitive.content } ?: a.jsonPrimitive.content }
                 Column {
@@ -466,8 +464,8 @@ private fun AnsweredQuestions(item: ChatItem.ToolCall) {
 private fun ArtifactCard(item: ChatItem.ToolCall, onOpen: (id: String) -> Unit) {
     val saved = runCatching { Json.parseToJsonElement(item.result.orEmpty()).jsonObject }.getOrNull()
     val id = saved?.get("id")?.jsonPrimitive?.content ?: return ToolCallView(item)
-    Panel(Modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Panel(Modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(horizontal = Spacing.space14, vertical = Spacing.space10)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
             Icon(Lucide.Shapes, Modifier.size(20.dp), tint = color(accentColor))
             Column(Modifier.weight(1f)) {
                 Text(saved["title"]?.jsonPrimitive?.content ?: id, fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
@@ -482,7 +480,7 @@ private fun ArtifactCard(item: ChatItem.ToolCall, onOpen: (id: String) -> Unit) 
 internal fun RequestMetricsView(metrics: RequestMetrics, initiallyExpanded: Boolean = false, actions: ChatActions = ChatActions()) {
     val cached = metrics.cachedTokens?.let { "$it cached" } ?: "cache not reported"
     Expandable(Lucide.Gauge, "${metrics.kind} request", "$cached · ${metrics.latencyMs} ms", initiallyExpanded = initiallyExpanded) {
-        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
             Text("${metrics.provider} · ${metrics.model} · ${metrics.reasoning}", style = TextStyles.caption)
             Text("Duration: ${metrics.latencyMs} ms", style = TextStyles.caption)
             Text("Input: ${metrics.inputTokens ?: "not reported"} · Output: ${metrics.outputTokens ?: "not reported"}", style = TextStyles.caption)
@@ -502,12 +500,12 @@ private fun CompactionMarker(item: ChatItem.Compaction) {
             HorizontalSeparator(Modifier.weight(1f))
             Button(onClick = { expanded = !expanded }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(mutedColor)) {
                 Icon(Lucide.Archive, Modifier.size(13.dp))
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(Spacing.space6))
                 Text(if (expanded) "Earlier conversation compacted" else "Earlier conversation compacted · show summary", style = TextStyles.caption)
             }
             HorizontalSeparator(Modifier.weight(1f))
         }
-        if (expanded) Markdown(item.summary, Modifier.padding(top = 8.dp))
+        if (expanded) Markdown(item.summary, Modifier.padding(top = Spacing.space8))
     }
 }
 

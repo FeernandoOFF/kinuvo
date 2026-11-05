@@ -45,38 +45,38 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Stri
     val task = ui.task
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
         // On phones the floating Back alone; the title is the page's heading below it.
-        if (LocalInteractionMode.current == InteractionMode.Touch) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        if (LocalInteractionMode.current == InteractionMode.Touch) Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.space12, vertical = Spacing.space6)) {
             onBack?.let { FloatingBubble(Lucide.ArrowLeft, "Back", it) }
         } else TitleBarRow {
             onBack?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
-            Text(task?.title ?: "Task", Modifier.padding(start = 4.dp).weight(1f), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
+            Text(task?.title ?: "Task", Modifier.padding(start = Spacing.space4).weight(1f), fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
         }
         when {
             task == null && !ui.loaded -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner(size = 24.dp) }
-            task == null -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+            task == null -> Box(Modifier.fillMaxSize().padding(Spacing.space24), contentAlignment = Alignment.Center) {
                 Text(ui.error ?: "This Task is no longer on the Board.", color = color(mutedColor))
             }
             else -> Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
-                Column(Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(Modifier.widthIn(max = 680.dp).fillMaxWidth().padding(horizontal = Spacing.space16, vertical = Spacing.space16), verticalArrangement = Arrangement.spacedBy(Spacing.space16)) {
                     Text(task.title, style = TextStyles.headline, lineHeight = 28.sp)
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.space6), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                         Pill(task.listName, icon = Lucide.List)
                         task.due?.let { Pill("Due ${dueLabel(it)}", icon = Lucide.Calendar) }
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                         Text("Status", Modifier.width(FieldLabelWidth), style = TextStyles.secondary, color = color(mutedColor))
                         Picker(TaskStatus.entries, task.status, { it.label() }, { s -> onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())
                     }
                     val assignee = ui.agents.firstOrNull { it.id == task.assignee }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                         Text("Assignee", Modifier.width(FieldLabelWidth), style = TextStyles.secondary, color = color(mutedColor))
                         Picker(listOf<AgentInfo?>(null) + ui.agents, assignee, { it?.name ?: "Unassigned" }, { a -> onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: "")) }, icon = Lucide.User)
                     }
                     if (task.notes.isNotBlank()) Text(task.notes.trim(), style = TextStyles.secondary)
                     // Rows carry their own inset; the list starts at the page edge so their text lines up with the title.
-                    Column(Modifier.offset(x = (-10).dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Column(Modifier.offset(x = (-10).dp), verticalArrangement = Arrangement.spacedBy(Spacing.space2)) {
                         SectionLabel("Runs")
-                        if (task.sessionIds.isEmpty()) Text("No Agent has worked on it yet.", Modifier.padding(horizontal = 10.dp), color = color(mutedColor), style = TextStyles.secondary)
+                        if (task.sessionIds.isEmpty()) Text("No Agent has worked on it yet.", Modifier.padding(horizontal = Spacing.space10), color = color(mutedColor), style = TextStyles.secondary)
                         task.sessionIds.asReversed().forEachIndexed { i, id ->
                             val session = ui.sessions[id]
                             val agentId = session?.agentId ?: task.assignee

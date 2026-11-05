@@ -23,9 +23,9 @@ internal fun TitleBarRow(modifier: Modifier = Modifier, leading: Boolean = true,
             .fillMaxWidth()
             .height(chrome?.height ?: 52.dp)
             .padding(chrome?.padding(leading, trailing) ?: PaddingValues())
-            .padding(horizontal = 10.dp),
+            .padding(horizontal = Spacing.space10),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space4),
         content = content,
     )
 }

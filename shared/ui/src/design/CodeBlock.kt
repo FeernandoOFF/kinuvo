@@ -31,9 +31,9 @@ import kotlinx.coroutines.delay
 fun CodeBlock(code: String, modifier: Modifier = Modifier, language: String? = null, maxLines: Int = Int.MAX_VALUE, previewChars: Int? = null, error: Boolean = false) {
     var shown by remember(code, previewChars) { mutableIntStateOf(minOf(code.length, previewChars ?: code.length)) }
     val danger = color(destructiveColor)
-    Panel(modifier.fillMaxWidth(), color = color(codeColor), borderColor = if (error) danger.copy(alpha = 0.5f) else color(borderColor), contentPadding = PaddingValues(0.dp)) {
+    Panel(modifier.fillMaxWidth(), color = color(codeColor), borderColor = if (error) danger.copy(alpha = 0.5f) else color(borderColor), contentPadding = PaddingValues(Spacing.none)) {
         Row(
-            Modifier.fillMaxWidth().background(color(subtleColor).copy(alpha = 0.6f)).padding(start = 12.dp, end = 4.dp),
+            Modifier.fillMaxWidth().background(color(subtleColor).copy(alpha = 0.6f)).padding(start = Spacing.space12, end = Spacing.space4),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(language?.ifBlank { null } ?: "text", Modifier.weight(1f), style = TextStyles.overline, color = if (error) danger else color(mutedColor), singleLine = true)
@@ -42,14 +42,14 @@ fun CodeBlock(code: String, modifier: Modifier = Modifier, language: String? = n
         SelectionContainer {
             Text(
                 code.take(shown).trimEnd('\n'),
-                Modifier.horizontalScroll(rememberScrollState()).padding(12.dp),
+                Modifier.horizontalScroll(rememberScrollState()).padding(Spacing.space12),
                 style = MonoStyle,
                 color = color(onCodeColor),
                 maxLines = maxLines,
             )
         }
         if (shown < code.length) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.space12, vertical = Spacing.space4), verticalAlignment = Alignment.CenterVertically) {
                 Text("Showing $shown of ${code.length} characters", Modifier.weight(1f), style = TextStyles.overline, color = color(mutedColor))
                 Button(onClick = { shown = minOf(code.length, shown + (previewChars ?: code.length)) }, style = ButtonStyle.Ghost) {
                     Text("Show more", style = TextStyles.caption)

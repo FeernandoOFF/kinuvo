@@ -24,14 +24,14 @@ import kotlin.math.roundToInt
 
 @Composable
 internal fun ChatStatisticsContent(usage: Usage?, measurements: List<RequestMetrics>, modifier: Modifier = Modifier) {
-    LazyColumn(modifier.heightIn(max = 560.dp), contentPadding = PaddingValues(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    LazyColumn(modifier.heightIn(max = 560.dp), contentPadding = PaddingValues(Spacing.space12), verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
                 Text("Statistics", style = TextStyles.title)
                 Text(usage?.let { "${it.provider} usage${it.plan?.let { plan -> " · $plan" }.orEmpty()}" } ?: "Provider usage", style = TextStyles.caption, color = color(mutedColor))
                 if (usage == null || usage.windows.isEmpty()) Text("Usage limits not reported", style = TextStyles.caption, color = color(mutedColor))
                 usage?.windows?.forEach { window ->
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             val label = if (window.windowMinutes >= 1440) "${window.windowMinutes / 1440}d" else "${window.windowMinutes / 60}h"
                             Text(label, Modifier.weight(1f), style = TextStyles.caption)

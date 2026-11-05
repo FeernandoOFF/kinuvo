@@ -43,8 +43,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 /** Rows in one rounded card, divided by hairlines, under an optional caption. */
 @Composable
 fun RowGroup(title: String? = null, modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
-    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        title?.let { SectionLabel(it, Modifier.padding(start = 6.dp)) }
+    Column(modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+        title?.let { SectionLabel(it, Modifier.padding(start = Spacing.space6)) }
         val shape = Theme[shapes][largeShape]
         Column(
             Modifier.fillMaxWidth().clip(shape).background(color(borderColor), shape),
@@ -56,8 +56,8 @@ fun RowGroup(title: String? = null, modifier: Modifier = Modifier, content: @Com
 
 /** Rounds the first and last of [count] rows of a lazy list so they read as one [RowGroup]. */
 fun Modifier.groupItem(index: Int, count: Int): Modifier {
-    val r = 16.dp
-    val shape = RoundedCornerShape(if (index == 0) r else 0.dp, if (index == 0) r else 0.dp, if (index == count - 1) r else 0.dp, if (index == count - 1) r else 0.dp)
+    val r = Radius.large
+    val shape = RoundedCornerShape(if (index == 0) r else Radius.none, if (index == 0) r else Radius.none, if (index == count - 1) r else Radius.none, if (index == count - 1) r else Radius.none)
     return clip(shape)
 }
 
@@ -93,14 +93,14 @@ fun GroupRow(
             .then(if (selected) Modifier.semantics { this.selected = true } else Modifier)
             .then(if (onToggle != null) Modifier.toggleable(toggled, interaction, Theme[indications][defaultIndication], enabled, Role.Switch, onToggle) else Modifier)
             .alpha(if (enabled) 1f else 0.6f)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = Spacing.space16, vertical = Spacing.space10),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space12),
     ) {
         leading?.let { ProvideContentColor(if (tint.isSpecified) tint else color(mutedColor)) { it() } }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.space2)) {
             if (badges == null) Text(title, maxLines = titleLines, overflow = TextOverflow.Ellipsis, color = tint)
-            else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 Text(title, Modifier.weight(1f, fill = false), maxLines = titleLines, overflow = TextOverflow.Ellipsis, color = tint)
                 badges()
             }
@@ -128,7 +128,7 @@ fun ToggleSwitch(checked: Boolean, onChange: ((Boolean) -> Unit)?, modifier: Mod
 /** Free-form content as a row of a [RowGroup], e.g. a field. */
 @Composable
 fun GroupBox(content: @Composable ColumnScope.() -> Unit) {
-    Column(Modifier.fillMaxWidth().background(color(panelColor)).padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+    Column(Modifier.fillMaxWidth().background(color(panelColor)).padding(horizontal = Spacing.space16, vertical = Spacing.space12), verticalArrangement = Arrangement.spacedBy(Spacing.space10), content = content)
 }
 
 /** A row that does something right away, e.g. Reconnect; [destructive] ones are red. */
@@ -148,10 +148,10 @@ fun ConfirmRow(label: String, icon: ImageVector, question: String, onConfirm: ()
 @Composable
 fun ConfirmPopover(visible: Boolean, question: String, detail: String?, confirm: String, destructive: Boolean, onDismiss: () -> Unit, onConfirm: () -> Unit) {
     Popover(visible, onDismiss) {
-        Column(Modifier.fillMaxWidth().padding(4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.fillMaxWidth().padding(Spacing.space4), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Text(question, style = TextStyles.title, fontWeight = FontWeight.SemiBold)
             detail?.let { Text(it, color = color(mutedColor), style = TextStyles.label) }
-            Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth().padding(top = Spacing.space8), horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
                 if (destructive) { QuietButton("Cancel", onDismiss, Modifier.weight(1f)); DangerButton(confirm, onConfirm, Modifier.weight(1f)) }
                 else {
                     Button(onDismiss, Modifier.weight(1f), style = ButtonStyle.Outlined) { Text("Cancel") }
@@ -175,7 +175,7 @@ fun QuietButton(label: String, onClick: () -> Unit, modifier: Modifier = Modifie
 
 @Composable
 private fun PillButton(label: String, onClick: () -> Unit, modifier: Modifier, textColor: Color) {
-    Box(modifier.heightIn(min = 48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+    Box(modifier.heightIn(min = 48.dp).clip(CircleShape).clickable(role = Role.Button, onClick = onClick).padding(horizontal = Spacing.space16), contentAlignment = Alignment.Center) {
         Text(label, color = textColor, style = TextStyles.callout, fontWeight = FontWeight.SemiBold, singleLine = true)
     }
 }
@@ -189,7 +189,7 @@ fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifie
             Box(
                 Modifier.weight(1f, fill = !small).height(if (small) 28.dp else if (LocalInteractionMode.current == InteractionMode.Touch) 48.dp else 40.dp).clip(CircleShape).background(if (on) color(segmentColor) else Color.Transparent)
                     .clickable(enabled = enabled, role = Role.Tab) { onSelect(i) }.semantics { this.selected = on }
-                    .padding(horizontal = if (small) 10.dp else 0.dp),
+                    .padding(horizontal = if (small) Spacing.space10 else Spacing.none),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(option, fontSize = if (small) 12.sp else 13.sp, fontWeight = if (on) FontWeight.SemiBold else FontWeight.Normal,
@@ -202,11 +202,11 @@ fun Segmented(options: List<String>, selected: Int, modifier: Modifier = Modifie
 /** What a screen or list shows with nothing in it: an [icon], a [title], an optional [body] and [action], centered. */
 @Composable
 fun EmptyState(icon: ImageVector, title: String, body: String? = null, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null) {
-    Column(modifier.fillMaxWidth().padding(vertical = 32.dp, horizontal = 16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(modifier.fillMaxWidth().padding(vertical = Spacing.space32, horizontal = Spacing.space16), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         Icon(icon, Modifier.size(28.dp), tint = color(mutedColor))
         Text(title, style = TextStyles.title, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
         body?.let { Text(it, style = TextStyles.label, color = color(mutedColor), textAlign = TextAlign.Center) }
-        action?.let { Box(Modifier.padding(top = 8.dp)) { it() } }
+        action?.let { Box(Modifier.padding(top = Spacing.space8)) { it() } }
     }
 }
 
@@ -216,14 +216,14 @@ fun DiscardDialog(onKeep: () -> Unit, onDiscard: () -> Unit, modifier: Modifier 
     // At the bottom, clear of the field being edited, like the app's other sheets.
     Box(modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
         Box(Modifier.matchParentSize().background(color(scrimColor)).clickable(remember { MutableInteractionSource() }, indication = null, onClick = onKeep))
-        Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(16.dp).widthIn(max = 400.dp).shadow(24.dp, Theme[shapes][largeShape]).consumeTaps()
-            .semantics { paneTitle = "Unsaved changes" }, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(20.dp)) {
+        Panel(Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(Spacing.space16).widthIn(max = 400.dp).shadow(24.dp, Theme[shapes][largeShape]).consumeTaps()
+            .semantics { paneTitle = "Unsaved changes" }, shape = Theme[shapes][largeShape], contentPadding = PaddingValues(Spacing.space20)) {
             Text("Discard changes?", style = TextStyles.title, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(Spacing.space6))
             Text("Your changes have not been saved.", style = TextStyles.label, color = color(mutedColor))
-            errors.forEach { Spacer(Modifier.height(8.dp)); Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
-            Spacer(Modifier.height(20.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            errors.forEach { Spacer(Modifier.height(Spacing.space8)); Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
+            Spacer(Modifier.height(Spacing.space20))
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
                 QuietButton("Keep editing", onKeep, Modifier.weight(1f))
                 DangerButton("Discard", onDiscard, Modifier.weight(1f))
             }

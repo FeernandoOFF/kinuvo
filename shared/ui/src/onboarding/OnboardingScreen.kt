@@ -290,11 +290,11 @@ internal fun HarnessChoices(s: OnboardingState, acp: Boolean, remote: Boolean, a
     /** Opens the Harnesses form: a new ACP command (null), or [LinkItem]. */
     onAdd: (String?) -> Unit) {
     val pick = { choice: HarnessChoice -> onEdit { it.choose(choice) } }
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space16)) {
         RowGroup {
             ChoiceRow(Lucide.Sparkles, "Kinuvo on ${s.server}", "Kinuvo's own Agent. You set its Soul, Memory, Skills and tools.", s.harness == HarnessChoice.Kinuvo) { pick(HarnessChoice.Kinuvo) }
         }
-        if (s.connections == null) return@Column Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
+        if (s.connections == null) return@Column Box(Modifier.fillMaxWidth().padding(Spacing.space24), contentAlignment = Alignment.Center) { Spinner() }
         RowGroup("ACP agent on ${s.server}") {
             if (!acp) ChoiceRow(Lucide.SquareTerminal, "ACP agent", "ACP commands need a computer Server. ${s.server.replaceFirstChar { it.uppercase() }} can't run them.", false, enabled = false) {}
             else {
@@ -324,11 +324,11 @@ internal fun HarnessChoices(s: OnboardingState, acp: Boolean, remote: Boolean, a
 /** A linked Server's shared Agents to add, each picked explicitly; ones already added stay checked. */
 @Composable
 internal fun PickAgents(s: OnboardingState, onEdit: ((OnboardingState) -> OnboardingState) -> Unit) {
-    val shared = s.shared ?: return Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) { Spinner() }
+    val shared = s.shared ?: return Box(Modifier.fillMaxWidth().padding(Spacing.space24), contentAlignment = Alignment.Center) { Spinner() }
     val host = s.connection?.config?.host ?: s.connection?.config?.name ?: "The other Server"
     val registrations = s.registrations
     if (shared.isEmpty()) return Text("$host doesn't share any Agents with ${s.server} yet. Pick some in its Settings › Harnesses › Share Agents.", color = color(mutedColor))
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         RowGroup { shared.forEach { agent ->
             val added = s.added(agent.id, registrations) != null
             val on = added || agent.id in s.picked
@@ -385,11 +385,11 @@ internal fun OnboardingContent(
     // The welcome's Agents take turns introducing themselves until one is tapped.
     var touring by remember { mutableStateOf(true) }
     if (s.step == 0 && touring) LaunchedEffect(featured) { delay(4500); feature((featured + 1) % pokes.size) }
-    val tint by animateColorAsState(AvatarInk[if (s.step == 0) featured else s.avatar], tween(700))
+    val tint by animateColorAsState(AvatarInk[if (s.step == 0) featured else s.avatar], tween(Motion.avatar))
     CompositionLocalProvider(LocalTint provides tint) { SharedTransitionLayout {
         // Leaving the welcome, its Agent flies to its place in the steps while the rest crossfades.
         // Each side keeps the state it was shown with, so the steps fading out never see the welcome's step.
-        AnimatedContent(s, contentKey = { it.step == 0 }, transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(300)) }) { s ->
+        AnimatedContent(s, contentKey = { it.step == 0 }, transitionSpec = { fadeIn(tween(Motion.slow)) togetherWith fadeOut(tween(Motion.standard)) }) { s ->
         CompositionLocalProvider(LocalAgentShare provides AgentShare(this@SharedTransitionLayout, this)) {
         if (s.step == 0) return@CompositionLocalProvider welcome(featured, pokes, { touring = false; feature(it) }, tint, insets)
         Box(Modifier.fillMaxSize().background(color(backgroundColor)).drawBehind {
@@ -400,17 +400,17 @@ internal fun OnboardingContent(
             BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(insets).imePadding()) {
                 val wide = maxWidth >= 800.dp
                 val roomy = maxHeight >= 600.dp
-                val gutter = if (wide) 48.dp else 22.dp
-                Column(Modifier.fillMaxSize().padding(horizontal = gutter, vertical = 12.dp)) {
+                val gutter = if (wide) Spacing.space48 else Spacing.space22
+                Column(Modifier.fillMaxSize().padding(horizontal = gutter, vertical = Spacing.space12)) {
                     OnboardingTopBar(s, onEdit, onClose, gutter)
                     val form: @Composable ColumnScope.() -> Unit = {
                         StepForm(s, onEdit, onChoice, wide, model, connect, harness, pick, Modifier.weight(1f).fillMaxWidth())
-                        (s.error ?: connectionError)?.let { Text(it, color = color(destructiveColor), modifier = Modifier.padding(bottom = 10.dp)) }
+                        (s.error ?: connectionError)?.let { Text(it, color = color(destructiveColor), modifier = Modifier.padding(bottom = Spacing.space10)) }
                         Cta(action, s.busy || working, if (wide) Modifier.widthIn(min = 260.dp) else Modifier.fillMaxWidth())
                     }
-                    if (wide) Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(64.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (wide) Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space64), verticalAlignment = Alignment.CenterVertically) {
                         AgentStage(s, onEdit, true, Modifier.weight(1.1f).fillMaxHeight())
-                        Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = 24.dp), content = form)
+                        Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = Spacing.space24), content = form)
                     } else {
                         if (roomy) AgentStage(s, onEdit, false, Modifier.fillMaxWidth().height(if (s.step == 4) 230.dp else 190.dp))
                         Column(Modifier.weight(1f), content = form)
@@ -443,7 +443,7 @@ private fun OnboardingTopBar(s: OnboardingState, onEdit: ((OnboardingState) -> O
     val chrome = LocalWindowChrome.current
     // Clear of the desktop window buttons the content draws under, on both sides so the track stays centred.
     val inset = (maxOf(chrome?.leadingInset ?: 0.dp, chrome?.trailingInset ?: 0.dp) - gutter).coerceAtLeast(0.dp)
-    Row(Modifier.fillMaxWidth().height(64.dp).padding(top = 4.dp).padding(horizontal = inset)) {
+    Row(Modifier.fillMaxWidth().height(64.dp).padding(top = Spacing.space4).padding(horizontal = inset)) {
         Box(Modifier.width(48.dp).height(38.dp), contentAlignment = Alignment.CenterStart) {
             if (s.step != s.steps.first()) HeaderButton(Lucide.ArrowLeft, "Back", { onEdit { it.moved(-1) } }, enabled = !s.busy)
             else onClose?.let { HeaderButton(Lucide.X, "Cancel", it, enabled = !s.busy) }
@@ -451,7 +451,7 @@ private fun OnboardingTopBar(s: OnboardingState, onEdit: ((OnboardingState) -> O
         Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
             PhaseTrack(s.steps.filter { it > 0 }, s.step) { step -> if (!s.busy) onEdit { it.copy(step = step, error = null) } }
         }
-        Spacer(Modifier.width(48.dp))
+        Spacer(Modifier.width(Spacing.space48))
     }
 }
 
@@ -459,7 +459,7 @@ private fun OnboardingTopBar(s: OnboardingState, onEdit: ((OnboardingState) -> O
 private fun PhaseTrack(phases: List<Int>, step: Int, onJump: (Int) -> Unit) {
     val tint = LocalTint.current
     val ink = color(onBackgroundColor)
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             phases.forEachIndexed { index, phase ->
                 val icon = Phases[phase - 1]
@@ -470,7 +470,7 @@ private fun PhaseTrack(phases: List<Int>, step: Int, onJump: (Int) -> Unit) {
                     Box(Modifier.width(12.dp).height(2.dp).background(line))
                 }
                 val background by animateColorAsState(when { current -> ink; done -> tint.copy(alpha = 0.35f); else -> Color.Transparent })
-                val size by animateDpAsState(if (current) 38.dp else 30.dp, spring(dampingRatio = 0.6f))
+                val size by animateDpAsState(if (current) 38.dp else 30.dp, Motion.selectionSpring())
                 Box(Modifier.size(size).clip(CircleShape).background(background)
                     .then(if (!current && !done) Modifier.border(1.dp, color(borderColor), CircleShape) else Modifier)
                     .then(if (done) Modifier.titleBarControl().clickable(role = Role.Button) { onJump(phase) } else Modifier)
@@ -501,25 +501,25 @@ private fun AgentStage(s: OnboardingState, onEdit: ((OnboardingState) -> Onboard
                 .pointerInput(Unit) { detectTapGestures { poke++ } }.semantics { contentDescription = AvatarArtboards[avatar] })
         }
     }
-    if (s.step == SoulStep && !wide) Row(modifier.padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    if (s.step == SoulStep && !wide) Row(modifier.padding(vertical = Spacing.space8), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
         face(110.dp)
-        SpeechBubble(voicePreview(s), Modifier.weight(1f), RoundedCornerShape(22.dp, 22.dp, 22.dp, 6.dp))
+        SpeechBubble(voicePreview(s), Modifier.weight(1f), RoundedCornerShape(Radius.bubble, Radius.bubble, Radius.bubble, Radius.small))
     } else Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
         if (s.step == 4) {
             var drag by remember { mutableFloatStateOf(0f) }
             Row(Modifier.pointerInput(Unit) {
                 detectHorizontalDragGestures(onDragEnd = { if (abs(drag) > 48.dp.toPx()) cycle(if (drag < 0) 1 else -1); drag = 0f }) { _, delta -> drag += delta }
-            }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (wide) 8.dp else 0.dp)) {
+            }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (wide) Spacing.space8 else Spacing.none)) {
                 listOf(-1, 0, 1).forEach { delta ->
                     if (delta == 0) face(size)
                     else Floating(AvatarArtboards[(s.avatar + delta + count) % count], size * 0.42f, if (delta < 0) Gaze.Right else Gaze.Left, 0, delta.toFloat(),
                         Modifier.alpha(0.5f).clip(CircleShape).clickable(role = Role.Button) { cycle(delta) }.semantics { contentDescription = if (delta < 0) "Previous look" else "Next look" })
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Spacing.space12))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AvatarInk.forEachIndexed { index, ink ->
-                    val width by animateDpAsState(if (index == s.avatar) 24.dp else 8.dp, spring(dampingRatio = 0.6f))
+                    val width by animateDpAsState(if (index == s.avatar) 24.dp else 8.dp, Motion.selectionSpring())
                     Box(Modifier.clip(CircleShape).clickable(role = Role.Button) { onEdit { it.copy(avatar = index) } }.padding(5.dp).semantics { contentDescription = AvatarArtboards[index] }) {
                         Box(Modifier.size(width, 8.dp).clip(CircleShape).background(ink))
                     }
@@ -527,8 +527,8 @@ private fun AgentStage(s: OnboardingState, onEdit: ((OnboardingState) -> Onboard
             }
         } else face(size)
         if (s.step == SoulStep) {
-            Spacer(Modifier.height(20.dp))
-            SpeechBubble(voicePreview(s), Modifier.widthIn(max = 380.dp), RoundedCornerShape(6.dp, 22.dp, 22.dp, 22.dp))
+            Spacer(Modifier.height(Spacing.space20))
+            SpeechBubble(voicePreview(s), Modifier.widthIn(max = 380.dp), RoundedCornerShape(Radius.small, Radius.bubble, Radius.bubble, Radius.bubble))
         }
     }
 }
@@ -542,11 +542,11 @@ private fun StepForm(
         val forward = s.steps.indexOf(targetState) > s.steps.indexOf(initialState)
         (fadeIn() + slideInHorizontally { if (forward) it / 6 else -it / 6 }) togetherWith (fadeOut() + slideOutHorizontally { if (forward) -it / 6 else it / 6 })
     }, modifier = modifier) { step ->
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = Spacing.space20), verticalArrangement = Arrangement.spacedBy(Spacing.space14)) {
             val display = displayStyle(if (wide) 40.sp else 30.sp)
             if (step == 4) NameHeadline(s, display, onEdit) else Text(Headlines[step - 1], style = display)
             Text(Subtitles[step - 1], color = color(mutedColor))
-            Spacer(Modifier.height(2.dp))
+            Spacer(Modifier.height(Spacing.space2))
             when (step) {
                 2 -> model()
                 3 -> {
@@ -585,7 +585,7 @@ private fun NameHeadline(s: OnboardingState, display: TextStyle, onEdit: ((Onboa
     LaunchedEffect(field) { snapshotFlow { field.text.toString() }.collect { value -> onEdit { it.copy(agentName = value) } } }
     Column {
         Text("Hey ${s.userName.ifBlank { "there" }}, I'm", style = display)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             BasicTextField(field, Modifier.weight(1f).drawBehind {
                 drawRect(tint, Offset(0f, size.height - 3.dp.toPx()), Size(size.width, 3.dp.toPx()))
             }.semantics { contentDescription = "Agent name" }, textStyle = display.copy(color = color(onBackgroundColor)), cursorBrush = SolidColor(tint),
@@ -598,9 +598,9 @@ private fun NameHeadline(s: OnboardingState, display: TextStyle, onEdit: ((Onboa
 @Composable
 private fun TraitSwitch(index: Int, selected: Int, onSelect: (Int) -> Unit) {
     val tint = LocalTint.current
-    val thumb by animateFloatAsState(selected.toFloat(), spring(dampingRatio = 0.7f, stiffness = 500f))
+    val thumb by animateFloatAsState(selected.toFloat(), Motion.thumbSpring())
     BoxWithConstraints(Modifier.fillMaxWidth().height(50.dp).clip(CircleShape).background(color(subtleColor))) {
-        Box(Modifier.offset(x = maxWidth / 2 * thumb).width(maxWidth / 2).fillMaxHeight().padding(4.dp).clip(CircleShape).background(tint.copy(alpha = 0.4f)))
+        Box(Modifier.offset(x = maxWidth / 2 * thumb).width(maxWidth / 2).fillMaxHeight().padding(Spacing.space4).clip(CircleShape).background(tint.copy(alpha = 0.4f)))
         Row(Modifier.fillMaxSize()) {
             PersonalityChoices[index].second.forEachIndexed { choice, option ->
                 val on = choice == selected
@@ -608,7 +608,7 @@ private fun TraitSwitch(index: Int, selected: Int, onSelect: (Int) -> Unit) {
                 Row(Modifier.weight(1f).fillMaxHeight().clip(CircleShape).clickable(role = Role.RadioButton) { onSelect(choice) },
                     horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                     Icon(if (choice == 0) TraitIcons[index].first else TraitIcons[index].second, Modifier.size(16.dp), tint = ink)
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(Spacing.space8))
                     Text(option, color = ink, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal, style = TextStyles.callout)
                 }
             }
@@ -619,8 +619,8 @@ private fun TraitSwitch(index: Int, selected: Int, onSelect: (Int) -> Unit) {
 @Composable
 private fun PromptEditor(s: OnboardingState, onEdit: ((OnboardingState) -> OnboardingState) -> Unit) {
     var open by rememberSaveable { mutableStateOf(false) }
-    Row(Modifier.clip(RoundedCornerShape(10.dp)).clickable(role = Role.Button) { open = !open }.padding(vertical = 8.dp, horizontal = 4.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Row(Modifier.clip(RoundedCornerShape(Radius.medium)).clickable(role = Role.Button) { open = !open }.padding(vertical = Spacing.space8, horizontal = Spacing.space4),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         Icon(Lucide.Pencil, Modifier.size(15.dp), tint = color(mutedColor))
         Text("Edit the full prompt", color = color(mutedColor), style = TextStyles.label)
         Icon(if (open) Lucide.ChevronUp else Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
@@ -629,7 +629,7 @@ private fun PromptEditor(s: OnboardingState, onEdit: ((OnboardingState) -> Onboa
         val prompt = rememberTextFieldState(s.prompt)
         LaunchedEffect(s.prompt) { if (prompt.text.toString() != s.prompt) prompt.setTextAndPlaceCursorAtEnd(s.prompt) }
         LaunchedEffect(prompt) { snapshotFlow { prompt.text.toString() }.collect { value -> onEdit { it.copy(prompt = value) } } }
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             TextArea(prompt, lines = 8)
             Text("Changing a choice above rebuilds this prompt.", color = color(mutedColor), style = TextStyles.caption)
         }
@@ -645,7 +645,7 @@ internal fun TextAction(action: OnboardingAction, modifier: Modifier) {
 
 @Composable
 private fun OnboardingField(label: String, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { Text(label, style = TextStyles.secondary, fontWeight = FontWeight.SemiBold); content() }
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) { Text(label, style = TextStyles.secondary, fontWeight = FontWeight.SemiBold); content() }
 }
 
 @Composable
@@ -697,7 +697,7 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
             val uri = LocalUriHandler.current
             GroupBox {
                 Text("Enter this code on the sign-in page", style = TextStyles.secondary, color = color(mutedColor))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                     Text(code.code, style = MonoStyle, fontSize = TextStyles.headline.fontSize, fontWeight = FontWeight.Bold)
                     CopyButton(code.code)
                 }

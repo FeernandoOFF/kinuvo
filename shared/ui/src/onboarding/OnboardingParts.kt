@@ -46,9 +46,9 @@ import androidx.compose.ui.unit.TextUnit
 
 @Composable
 internal fun Floating(artboard: String, size: Dp, gaze: Gaze, poke: Int, phase: Float, modifier: Modifier = Modifier) {
-    val bob by rememberInfiniteTransition().animateFloat(0f, 2 * PI.toFloat(), infiniteRepeatable(tween(3800, easing = LinearEasing)))
+    val bob by rememberInfiniteTransition().animateFloat(0f, 2 * PI.toFloat(), infiniteRepeatable(tween(Motion.bob, easing = Motion.linear)))
     val pop = remember { Animatable(1f) }
-    LaunchedEffect(poke) { if (poke > 0) { pop.animateTo(1.06f, tween(110)); pop.animateTo(1f, spring(dampingRatio = 0.3f, stiffness = 320f)) } }
+    LaunchedEffect(poke) { if (poke > 0) { pop.animateTo(1.06f, tween(Motion.poke)); pop.animateTo(1f, Motion.pokeSpring()) } }
     RiveAvatar(BundledAvatar, modifier.size(size).graphicsLayer {
         translationY = sin(bob + phase) * 5.dp.toPx(); scaleX = pop.value; scaleY = pop.value
     }, gaze, artboard, poke)
@@ -56,8 +56,8 @@ internal fun Floating(artboard: String, size: Dp, gaze: Gaze, poke: Int, phase: 
 
 @Composable
 internal fun SpeechBubble(text: String, modifier: Modifier, shape: RoundedCornerShape) {
-    Box(modifier.clip(shape).background(color(panelColor)).border(1.dp, color(borderColor), shape).padding(horizontal = 16.dp, vertical = 12.dp)) {
-        AnimatedContent(text, transitionSpec = { fadeIn(tween(240)) togetherWith fadeOut(tween(120)) }) { Text(it, style = TextStyles.callout, lineHeight = 21.sp) }
+    Box(modifier.clip(shape).background(color(panelColor)).border(1.dp, color(borderColor), shape).padding(horizontal = Spacing.space16, vertical = Spacing.space12)) {
+        AnimatedContent(text, transitionSpec = { fadeIn(tween(Motion.transition)) togetherWith fadeOut(tween(Motion.fast)) }) { Text(it, style = TextStyles.callout, lineHeight = 21.sp) }
     }
 }
 
@@ -65,10 +65,10 @@ internal fun SpeechBubble(text: String, modifier: Modifier, shape: RoundedCorner
 internal fun Cta(action: OnboardingAction, busy: Boolean, modifier: Modifier, icon: ImageVector? = null) {
     val enabled = action.enabled && !busy
     val ink by animateColorAsState(color(onBackgroundColor).copy(alpha = if (enabled) 1f else 0.3f))
-    Row(modifier.height(56.dp).clip(CircleShape).background(ink).clickable(enabled, role = Role.Button, onClick = action.run).padding(horizontal = 28.dp),
+    Row(modifier.height(56.dp).clip(CircleShape).background(ink).clickable(enabled, role = Role.Button, onClick = action.run).padding(horizontal = Spacing.space28),
         horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
-        if (busy) { Spinner(tint = color(backgroundColor)); Spacer(Modifier.width(10.dp)) }
-        else icon?.let { Icon(it, Modifier.size(18.dp), tint = color(backgroundColor)); Spacer(Modifier.width(10.dp)) }
+        if (busy) { Spinner(tint = color(backgroundColor)); Spacer(Modifier.width(Spacing.space10)) }
+        else icon?.let { Icon(it, Modifier.size(18.dp), tint = color(backgroundColor)); Spacer(Modifier.width(Spacing.space10)) }
         AnimatedContent(action.label, transitionSpec = { fadeIn() togetherWith fadeOut() }) {
             Text(it, color = color(backgroundColor), fontWeight = FontWeight.Bold, style = TextStyles.title)
         }

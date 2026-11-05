@@ -14,7 +14,6 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
@@ -132,7 +131,7 @@ private fun SignInWaiting(url: String, p: Pane) {
         Text("Finish signing in in your browser. If it doesn't open, open this link:", style = TextStyles.secondary)
         SelectionContainer { Text(url, style = MonoStyle, maxLines = 3) }
         Text("If the browser can't get back to Kinuvo, paste the address it ends on:", style = TextStyles.secondary)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space8), verticalAlignment = Alignment.CenterVertically) {
             Input(pasted, "Paste the address", Modifier.weight(1f))
             ActionButton(Lucide.Check, "Finish", { p.actions.onCompleteMcpSignIn(pasted.value()) }, enabled = pasted.value().isNotEmpty())
             ActionButton(Lucide.X, "Cancel", p.actions.onCancelMcpSignIn)

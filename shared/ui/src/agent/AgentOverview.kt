@@ -62,19 +62,19 @@ fun AgentContent(ui: SettingsUi, onOpen: (Route.Settings) -> Unit, onBack: (() -
             }
             val tiles: @Composable (Modifier) -> Unit = { m -> if (!external) Tiles(ui, wide, m, open) }
             val greeting = "Hi, I’m ${ui.agent?.name ?: "…"}"
-            if (wide) Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 24.dp).clip(RoundedCornerShape(28.dp)).background(color(sidebarColor))) {
+            if (wide) Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = Spacing.space24).padding(bottom = Spacing.space24).clip(RoundedCornerShape(Radius.composer)).background(color(sidebarColor))) {
                 // Between the cards, shrinking and wrapping for long names.
-                Greeting(greeting, Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(top = 96.dp, start = 360.dp, end = 360.dp).height(144.dp), 56.sp)
+                Greeting(greeting, Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(top = Spacing.space96, start = 360.dp, end = 360.dp).height(144.dp), 56.sp)
                 AgentAvatar(ui.agent, 440.dp, Modifier.align(Alignment.Center))
-                personality(Modifier.align(Alignment.TopStart).padding(20.dp).width(320.dp).height(280.dp))
-                routines(Modifier.align(Alignment.TopEnd).padding(20.dp).width(320.dp).height(280.dp))
-                tiles(Modifier.align(Alignment.BottomCenter).padding(20.dp))
+                personality(Modifier.align(Alignment.TopStart).padding(Spacing.space20).width(320.dp).height(280.dp))
+                routines(Modifier.align(Alignment.TopEnd).padding(Spacing.space20).width(320.dp).height(280.dp))
+                tiles(Modifier.align(Alignment.BottomCenter).padding(Spacing.space20))
             } else Column(
-                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp).padding(bottom = 24.dp),
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = Spacing.space16).padding(bottom = Spacing.space24),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.space16),
             ) {
-                Greeting(greeting, Modifier.padding(top = 8.dp).fillMaxWidth().heightIn(max = 96.dp), 36.sp)
+                Greeting(greeting, Modifier.padding(top = Spacing.space8).fillMaxWidth().heightIn(max = 96.dp), 36.sp)
                 AgentAvatar(ui.agent, 200.dp)
                 personality(Modifier.fillMaxWidth())
                 routines(Modifier.fillMaxWidth())
@@ -94,15 +94,15 @@ private fun Greeting(text: String, modifier: Modifier, max: TextUnit) = BasicTex
     autoSize = TextAutoSize.StepBased(minFontSize = 24.sp, maxFontSize = max),
 )
 
-private val CardShape = RoundedCornerShape(24.dp)
+private val CardShape = RoundedCornerShape(Radius.card)
 
 @Composable
 private fun Card(icon: ImageVector, title: String, modifier: Modifier, onClick: () -> Unit, enabled: Boolean = true, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        modifier.clip(CardShape).background(color(accentColor).copy(alpha = 0.16f)).clickable(enabled = enabled, role = Role.Button, onClick = onClick).alpha(if (enabled) 1f else 0.5f).padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        modifier.clip(CardShape).background(color(accentColor).copy(alpha = 0.16f)).clickable(enabled = enabled, role = Role.Button, onClick = onClick).alpha(if (enabled) 1f else 0.5f).padding(Spacing.space20),
+        verticalArrangement = Arrangement.spacedBy(Spacing.space14),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
             Icon(icon, Modifier.size(20.dp))
             Text(title, fontWeight = FontWeight.Bold)
         }
@@ -165,13 +165,13 @@ private fun RoutinesCard(ui: SettingsUi, modifier: Modifier, onClick: () -> Unit
             routines.isEmpty() -> {
                 Spacer(Modifier.weight(1f, fill = false))
                 Text("Nothing scheduled yet", style = LocalTextStyle.current.copy(fontStyle = FontStyle.Italic, fontWeight = FontWeight.Bold))
-                Row(Modifier.clip(RoundedCornerShape(8.dp)).clickable(role = Role.Button, onClick = onNew), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.clip(RoundedCornerShape(Radius.button)).clickable(role = Role.Button, onClick = onNew), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                     Text("Set one up")
                     Icon(Lucide.ArrowRight, Modifier.size(14.dp))
                 }
             }
             else -> routines.take(3).forEach { r ->
-                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(color(backgroundColor).copy(alpha = 0.4f)).padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.menu)).background(color(backgroundColor).copy(alpha = 0.4f)).padding(horizontal = Spacing.space14, vertical = Spacing.space10)) {
                     Text(r.name, singleLine = true, overflow = TextOverflow.Ellipsis)
                     Text(r.summary(ui.now), style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                 }
@@ -194,16 +194,16 @@ private fun Tiles(ui: SettingsUi, wide: Boolean, modifier: Modifier, open: (Sett
         val enabled = ui.available(section)
         Tile(info.first, info.second, if (enabled) info.third else UNAVAILABLE, m, enabled) { open(section) }
     }
-    if (wide) Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) { tiles.indices.forEach { tile(Modifier.weight(1f), it) } }
-    else Column(modifier, verticalArrangement = Arrangement.spacedBy(10.dp)) { tiles.indices.forEach { tile(Modifier.fillMaxWidth(), it) } }
+    if (wide) Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space16)) { tiles.indices.forEach { tile(Modifier.weight(1f), it) } }
+    else Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.space10)) { tiles.indices.forEach { tile(Modifier.fillMaxWidth(), it) } }
 }
 
 @Composable
 private fun Tile(icon: ImageVector, title: String, subtitle: String?, modifier: Modifier, enabled: Boolean, onClick: () -> Unit) {
     Row(
-        modifier.clip(RoundedCornerShape(16.dp)).background(color(railColor)).clickable(enabled = enabled, role = Role.Button, onClick = onClick).alpha(if (enabled) 1f else 0.5f).padding(horizontal = 24.dp, vertical = 20.dp),
+        modifier.clip(RoundedCornerShape(Radius.large)).background(color(railColor)).clickable(enabled = enabled, role = Role.Button, onClick = onClick).alpha(if (enabled) 1f else 0.5f).padding(horizontal = Spacing.space24, vertical = Spacing.space20),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space16),
     ) {
         Icon(icon, Modifier.size(22.dp), tint = color(mutedColor))
         Column {
