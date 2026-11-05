@@ -52,6 +52,6 @@ Opening the app already reconnects and shows waiting Approvals. BGAppRefresh and
 
 ## Setup you need to do
 
-- A Cloudflare account; the relay runs on `workers.dev`.
+- A Cloudflare account with the relay's domain (`kinuvo.feernandooff.com`).
 - An Apple APNs auth key (`.p8`, key ID, team ID), an App Group, and an NSE App ID.
 - A Firebase project, its Android app config, and a service-account JSON.
