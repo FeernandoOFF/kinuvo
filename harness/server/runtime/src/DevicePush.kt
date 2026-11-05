@@ -1,6 +1,7 @@
 package kinuvo.harness.server
+import kinuvo.harness.server.devices.PeerRegistry
 
-import kinuvo.harness.core.Notification
+import kinuvo.harness.core.plugin.Notification
 
 /** Pushes Notifications to every paired Device that subscribed, through its Web Push endpoint. */
 interface DevicePush : AutoCloseable {

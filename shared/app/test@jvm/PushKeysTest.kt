@@ -11,6 +11,7 @@ private class Prefs : Preferences {
     private val values = mutableMapOf<String, String>()
     override fun get(key: String) = values[key]
     override fun set(key: String, value: String?) { if (value == null) values.remove(key) else values[key] = value }
+    override fun clear() = values.clear()
 }
 
 class PushKeysTest {
