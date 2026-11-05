@@ -14,8 +14,7 @@ import java.io.IOException
 import java.time.OffsetDateTime
 import java.time.ZoneId
 
-class RemindersCli(private val command: String = executable(), private val hostApp: String? = launchingApp()) : TaskProvider {
-    override val id = "reminders"
+class RemindersCli(private val command: String = executable(), private val hostApp: String? = launchingApp()) : TaskApp {
 
     override suspend fun authorize() {
         val result = call("authorize").jsonObject

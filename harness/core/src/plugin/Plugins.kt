@@ -21,10 +21,10 @@ interface HarnessPlugin {
     val definition: PluginDefinition
     val instanceId: String get() = "default"
     val manifest: PluginManifest get() {
-        val configurable = webSearch + notifications
+        val configurable = webSearch + notifications + taskProviders
         return PluginManifest(definition, discoversTools = true,
             providers = modelProviders.map { PluginProviderDefinition(it.id, it.name, PluginProviderKind.Model) } +
-                taskProviders.map { PluginProviderDefinition(it.id, it.id, PluginProviderKind.Tasks) } +
+                taskProviders.map { PluginProviderDefinition(it.id, it.name, PluginProviderKind.Tasks, it.settings) } +
                 knowledgeSources.map { PluginProviderDefinition(it.id, it.id, PluginProviderKind.Knowledge) } +
                 webSearch.map { PluginProviderDefinition(it.id, it.name, PluginProviderKind.WebSearch, it.settings) } +
                 notifications.map { PluginProviderDefinition(it.id, it.name, PluginProviderKind.Notifications, it.settings) },

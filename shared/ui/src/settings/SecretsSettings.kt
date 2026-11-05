@@ -24,12 +24,8 @@ import kinuvo.protocol.SecretProviderStatus
 import kinuvo.protocol.secretReference
 import kinuvo.ui.design.*
 
-internal const val REFERENCES = "KEY=value per line; values can use \${VAR} from .env files or \${pass://Vault/Item/field} from Proton Pass."
+internal const val REFERENCES = "KEY=value per line; values can use \${VAR} from .env files or a password manager reference such as \${pass://Vault/Item/field}."
 
-private val REFERENCE = Regex("""\$\{[^}]+\}""")
-
-/** Whether [value] is just a `${…}` reference, which isn't secret itself. */
-internal fun isReference(value: String) = REFERENCE.matches(value.trim())
 
 /** Puts [text] where the cursor is, replacing any selection. */
 internal fun TextFieldState.insert(text: String) = edit { replace(selection.min, selection.max, text) }
@@ -58,11 +54,7 @@ private fun ProviderGroup(s: SecretProviderStatus, p: Pane) {
         }
         GroupRow("References", value = "\${${s.scheme}://…}", chevron = false)
         if (s.tokenStorage.isNotEmpty()) GroupRow("Token kept in", value = s.tokenStorage, chevron = false)
-        if (s.installed) FieldRow(
-            if (s.connected) "Replace access token" else "Access token",
-            if (s.scheme == "pass") "In Proton Pass → Settings → Access tokens, create a token for an AI agent with only the vaults Kinuvo may read, " +
-                "then paste the instructions it shows (or just the token in them). It's read-only, and Proton Pass logs every read with what it was for." else null,
-        ) {
+        if (s.installed) FieldRow(if (s.connected) "Replace access token" else "Access token", tokenHelp(s.scheme)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 Box(Modifier.weight(1f)) { Input(token, "Paste the token or instructions", secret = true) }
                 Button({ p.actions.onConnectSecrets(s.scheme, token.value()) }, enabled = token.value().isNotEmpty() && !p.ui.state.testing,
@@ -74,19 +66,36 @@ private fun ProviderGroup(s: SecretProviderStatus, p: Pane) {
     }
 }
 
+private fun tokenHelp(scheme: String) = when (scheme) {
+    "pass" -> "In Proton Pass → Settings → Access tokens, create a token for an AI agent with only the vaults Kinuvo may read, " +
+        "then paste the instructions it shows (or just the token in them). It's read-only, and Proton Pass logs every read with what it was for."
+    "op" -> "In 1Password → Developer → Service accounts, create a read-only service account with only the vaults Kinuvo may read " +
+        "(not your Personal vault, which service accounts can't reach), then paste its token. References read op://Vault/Item/field."
+    "bws" -> "In Bitwarden Secrets Manager → Machine accounts, create one with read access to only the projects Kinuvo may read, " +
+        "then paste an access token from it. References read bws://Project/KEY."
+    else -> null
+}
+
 /**
- * A secret [field] with a key button inside it, given as its trailing content, when a password manager is connected: it
- * browses vaults, items and fields (names only) below the field and gives the picked field's reference to [onPick].
+ * A secret [field] with a key button inside it per connected password manager, given as its trailing content: it browses
+ * vaults, items and fields (names only) below the field and gives the picked field's reference to [onPick].
  */
 @Composable
 internal fun SecretField(p: Pane, onPick: (String) -> Unit, field: @Composable (trailing: (@Composable () -> Unit)?) -> Unit) {
     val providers = p.ui.state.secrets
     LaunchedEffect(providers == null) { if (providers == null) p.actions.onLoadSecrets() }
-    val provider = providers?.firstOrNull { it.connected }
+    val connected = providers.orEmpty().filter { it.connected }
     var path by remember { mutableStateOf<List<String>?>(null) }
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
-        field(provider?.let { { FieldButton(Lucide.KeyRound, "From ${it.name}", { path = if (path == null) listOf(it.scheme) else null }) } })
+        field(connected.takeIf { it.isNotEmpty() }?.let { all ->
+            {
+                Row {
+                    all.forEach { FieldButton(Lucide.KeyRound, "From ${it.name}", { path = if (path?.firstOrNull() == it.scheme) null else listOf(it.scheme) }) }
+                }
+            }
+        })
         val open = path
+        val provider = connected.firstOrNull { it.scheme == open?.firstOrNull() }
         if (provider != null && open != null) SecretBrowser(p, provider, open, { path = it }, { onPick(it); path = null })
     }
 }
@@ -110,7 +119,7 @@ private fun SecretBrowser(p: Pane, provider: SecretProviderStatus, open: List<St
                 entries.isEmpty() -> Text("Nothing here", Modifier.padding(Spacing.space10), color = color(mutedColor), style = TextStyles.secondary)
                 else -> Column(Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState())) {
                     entries.forEach { e ->
-                        val field = open.size == 3
+                        val field = open.size == provider.levels
                         ListRow(
                             selected = false,
                             onClick = {

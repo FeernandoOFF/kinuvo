@@ -1,5 +1,7 @@
 package kinuvo.harness.core.tasks
 
+import kinuvo.harness.core.plugin.ConfigurableProvider
+import kinuvo.harness.core.plugin.PluginHost
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.Serializable
 
@@ -27,11 +29,28 @@ data class TaskChange(
 )
 
 /**
- * The user's task app, the source of truth for title, notes, due date and done. What Kinuvo adds on top (status,
- * assignee, Sessions) lives in the Board, not here. [id] is what `provider:` names in `config.yaml`'s `tasks`.
+ * A task app Kinuvo can use, e.g. Todoist. [id] is what `provider:` names in `config.yaml`'s `tasks`, and [settings] are
+ * that section's `options`; [configured] gives the [TaskApp] they reach.
  */
-interface TaskProvider {
-    val id: String
+interface TaskProvider : ConfigurableProvider {
+    /** The task app for [options] (defaults applied), reaching it through [host]. */
+    fun configured(options: Map<String, String>, host: PluginHost): TaskApp
+
+    companion object {
+        /** A provider with no settings, always giving [app], e.g. Apple Reminders. */
+        fun of(id: String, name: String, app: TaskApp): TaskProvider = object : TaskProvider {
+            override val id = id
+            override val name = name
+            override fun configured(options: Map<String, String>, host: PluginHost) = app
+        }
+    }
+}
+
+/**
+ * The user's task app, the source of truth for title, notes, due date and done. What Kinuvo adds on top (status,
+ * assignee, Sessions) lives in the Board, not here.
+ */
+interface TaskApp {
     suspend fun authorize() {}
     suspend fun lists(): List<TaskList>
     suspend fun tasks(listId: String, includeDone: Boolean = false): List<ProviderTask>

@@ -2,9 +2,6 @@ package kinuvo.harness.core
 
 private val LINE = Regex("""^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$""")
 
-/** `${VAR}`, `${VAR:-default}` or a Secret reference `${scheme://…}`: groups name, default, uri. */
-internal val REFERENCE = Regex("""\$\{(?:([A-Za-z_][A-Za-z0-9_]*)(?::-([^}]*))?|([a-z][a-z0-9+.-]*://[^}]+))\}""")
-
 /** `KEY=value` lines; `#` comments, optional `export `, quoted values. */
 fun parseDotEnv(text: String): Map<String, String> = text.lines().mapNotNull { raw ->
     val m = LINE.find(raw.trim()) ?: return@mapNotNull null

@@ -14,7 +14,9 @@ interface ServerSettings {
     /** What Settings can set up on this Server, for its capabilities. */
     val integrations: Map<Integration, Set<String>> get() = emptyMap()
     fun tasksSetup(): TasksSetup
-    suspend fun saveTasksSettings(s: TasksSettings): TasksSetup
+    suspend fun saveTasksSettings(s: TasksSettings, secretUpdates: Map<String, SecretUpdate> = emptyMap()): TasksSetup
+    /** Every list of [ref]'s provider, with its draft settings when given. */
+    suspend fun taskProviderLists(ref: TaskProviderRef): List<TaskListInfo>
     fun knowledgeSetup(): KnowledgeSetup
     fun saveKnowledgeSettings(s: KnowledgeSettings): KnowledgeSetup
     suspend fun testKnowledge(s: KnowledgeSettings): KnowledgeTestResult

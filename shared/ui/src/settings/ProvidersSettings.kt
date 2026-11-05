@@ -24,6 +24,7 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.protocol.ProviderDownloads
 import kinuvo.protocol.ProviderInfo
+import kinuvo.protocol.isReference
 import kinuvo.ui.design.*
 
 /** The Server's model providers: sign in to the ones that need an account, with a code entered in a browser. */
