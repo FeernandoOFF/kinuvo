@@ -1,6 +1,7 @@
 package kinuvo.harness.core
 
 import kinuvo.harness.core.tools.Tool
+import kinuvo.protocol.REFERENCE
 import kinuvo.protocol.SecretEntry
 import kinuvo.protocol.SecretProviderStatus
 import kotlinx.coroutines.CancellationException
@@ -110,7 +111,7 @@ class Secrets(val providers: List<SecretProvider> = emptyList(), private val ttl
         private const val MIN_REDACTED = 4
 
         /** Whether [value] is a single `${…}` reference, which isn't secret itself. */
-        fun isReference(value: String) = REFERENCE.matchEntire(value.trim()) != null
+        fun isReference(value: String) = kinuvo.protocol.isReference(value)
 
         fun hasReferences(value: String) = REFERENCE.containsMatchIn(value)
 

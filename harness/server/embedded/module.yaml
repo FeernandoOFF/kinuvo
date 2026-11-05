@@ -9,6 +9,8 @@ dependencies:
   - ../../plugins/mcp
   - ../../plugins/firecrawl
   - ../../plugins/ntfy
+  - ../../plugins/todoist
+  - ../../plugins/caldav
   - ../../plugins/executor
   - ../../plugins/anytype
 

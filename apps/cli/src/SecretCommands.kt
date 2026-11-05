@@ -7,7 +7,7 @@ import com.github.ajalt.clikt.parameters.options.option
 import kinuvo.protocol.*
 
 internal class SecretCommands : Group(
-    "secrets", "Connect the Server's password manager for \${pass://Vault/Item/field} references in config.",
+    "secrets", "Connect the Server's password managers for references in config: \${pass://…} (Proton Pass), \${op://…} (1Password), \${bws://…} (Bitwarden).",
     SecretsStatus(), ConnectSecrets(), DisconnectSecrets(), BrowseSecrets(), RefreshSecrets(),
 )
 
@@ -20,8 +20,8 @@ private class SecretsStatus : ServerCommand("status", "Show each password manage
     }
 }
 
-private class ConnectSecrets : ServerCommand("connect", "Save an access token and sign in: paste the token when asked, or pipe the AI agent instructions (pbpaste | kinuvo secrets connect).") {
-    private val scheme by option("--scheme").default("pass")
+private class ConnectSecrets : ServerCommand("connect", "Save an access token and sign in: paste the token when asked, or pipe it (pbpaste | kinuvo secrets connect --scheme op).") {
+    private val scheme by option("--scheme", help = "pass, op or bws").default("pass")
 
     override suspend fun run() {
         val token = System.console()?.readPassword("Access token: ")?.let(::String) ?: generateSequence(::readlnOrNull).joinToString("\n")
@@ -39,13 +39,14 @@ private class DisconnectSecrets : ServerCommand("disconnect", "Forget the access
     }
 }
 
-private class BrowseSecrets : ServerCommand("browse", "List vaults, a vault's items, or an item's fields (names only).") {
+private class BrowseSecrets : ServerCommand("browse", "List vaults (or projects), their items, or an item's fields (names only).") {
     private val path by argument("VAULT [ITEM]").multiple()
     private val scheme by option("--scheme").default("pass")
 
     override suspend fun run() {
+        val levels = session.call { client.call(Api.SecretProviders, Unit) }.firstOrNull { it.scheme == scheme }?.levels ?: 3
         val entries = session.call { client.call(Api.BrowseSecrets, BrowseSecretsParams(scheme, path)) }
-        if (path.size == 2) entries.forEach { echo(secretReference(scheme, path + it.name)) }
+        if (path.size == levels - 1) entries.forEach { echo(secretReference(scheme, path + it.name)) }
         else echo(table(listOf("NAME", "KIND"), entries.map { listOf(it.name, it.kind) }))
     }
 }
