@@ -29,17 +29,18 @@ internal class WebPushDevices(private val peers: PeerRegistry, private val serve
 }) : DevicePush {
     override suspend fun send(notification: Notification) = coroutineScope {
         val message = notification.message(serverId)
-        peers.pushSubscriptions().map { subscription ->
+        val failures = peers.pushSubscriptions().map { subscription ->
             async {
                 try { deliver(subscription, message, notification.urgent) }
                 catch (e: CancellationException) { throw e }
-                catch (e: Exception) { log.warn { "Push to ${subscription.endpoint.substringBefore("/v1/")} failed: ${e.message}" }; false }
+                catch (e: Exception) { "${subscription.endpoint.substringBefore("/v1/")}: ${e.message}".also { log.warn { "Push to $it failed" } } }
             }
-        }.awaitAll().count { it }
+        }.awaitAll()
+        Pushed(failures.count { it == null }, failures.filterNotNull())
     }
 
-    /** Whether the endpoint took [message]; one that's gone is forgotten. */
-    private suspend fun deliver(subscription: PushSubscription, message: ByteArray, urgent: Boolean): Boolean {
+    /** Null when the endpoint took [message], else why not; one that's gone is forgotten. */
+    private suspend fun deliver(subscription: PushSubscription, message: ByteArray, urgent: Boolean): String? {
         val body = WebPush.encrypt(message, WebPush.base64(subscription.p256dh), WebPush.base64(subscription.auth))
         val response = http.post(subscription.endpoint) {
             header("Content-Encoding", "aes128gcm")
@@ -50,10 +51,10 @@ internal class WebPushDevices(private val peers: PeerRegistry, private val serve
         }
         if (response.status == HttpStatusCode.NotFound || response.status == HttpStatusCode.Gone) {
             peers.dropPush(subscription.endpoint)
-            return false
+            return "${subscription.endpoint.substringBefore("/v1/")} no longer takes pushes; open the app on that Device to subscribe again"
         }
         check(response.status.value in 200..299) { "HTTP ${response.status.value}" }
-        return true
+        return null
     }
 
     override fun close() = http.close()

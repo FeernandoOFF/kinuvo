@@ -33,7 +33,7 @@ class DevicePushTest {
             assertEquals("high", request.headers["Urgency"])
             respond("", HttpStatusCode.Created)
         }))
-        assertEquals(1, push.send(Notification("Kinuvo needs an Approval", "shell: rm -rf build", "agent", "session", urgent = true)))
+        assertEquals(Pushed(1), push.send(Notification("Kinuvo needs an Approval", "shell: rm -rf build", "agent", "session", urgent = true)))
         val (url, body) = sent.single()
         assertEquals("https://relay.test/v1/fcm/a", url)
         val message = ProtocolJson.decodeFromString(PushMessage.serializer(), WebPush.decrypt(body, keys, secret).decodeToString())
@@ -42,7 +42,7 @@ class DevicePushTest {
 
     @Test fun `a gone endpoint is forgotten`() = runTest {
         auth.setPush(pair("phone"), subscription("https://relay.test/v1/apns/production/b"))
-        assertEquals(0, WebPushDevices(auth, "server-1", HttpClient(MockEngine { respond("", HttpStatusCode.Gone) })).send(Notification("t", "b")))
+        assertEquals(0, WebPushDevices(auth, "server-1", HttpClient(MockEngine { respond("", HttpStatusCode.Gone) })).send(Notification("t", "b")).delivered)
         assertEquals(emptyList(), auth.pushSubscriptions())
     }
 
