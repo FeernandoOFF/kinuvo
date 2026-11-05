@@ -110,8 +110,11 @@ class ProtocolTest {
 
     @Test
     fun chatLinksRoundTrip() {
-        assertEquals("kai" to "20261005-1200-ab12", Links.parseChat(Links.chat("kai", "20261005-1200-ab12")))
-        assertEquals("kai" to null, Links.parseChat("kinuvo://chat/kai"))
+        assertEquals(ChatLink("kai", "20261005-1200-ab12"), Links.parseChat(Links.chat("kai", "20261005-1200-ab12")))
+        assertEquals(ChatLink("kai"), Links.parseChat("kinuvo://chat/kai"))
+        assertEquals(ChatLink("kai", "s1", "4f1c-9a"), Links.parseChat(Links.chat("kai", "s1", "4f1c-9a")))
+        assertEquals(ChatLink("kai", serverId = "4f1c-9a"), Links.parseChat("kinuvo://chat/kai?server=4f1c-9a"))
+        assertEquals(null, Links.parseChat("kinuvo://chat/kai?server=a/b"))
         assertEquals(null, Links.parseChat("kinuvo://chat/../etc"))
         assertEquals(null, Links.parseChat("https://chat/kai"))
     }

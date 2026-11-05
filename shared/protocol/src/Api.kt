@@ -190,6 +190,8 @@ object Api {
     val UploadAttachment = Method("attachments.upload", UploadAttachmentParams.serializer(), kinuvo.protocol.Attachment.serializer())
     val Attachment = Method("attachments.get", AttachmentRef.serializer(), AttachmentData.serializer())
     val DeviceTools = Method("device.tools", DeviceToolsParams.serializer(), Unit.serializer())
+    /** Sets where the Server pushes this Device's Notifications. */
+    val SubscribePush = Method("device.push", PushParams.serializer(), Unit.serializer())
     val DeviceRead = Method("device.read", DeviceToolRequest.serializer(), DeviceToolResult.serializer())
     /** Sent by the Server to a Device that lets Agents control it; answered in the background too. */
     val ComputerAct = Method("computer.act", ComputerRequest.serializer(), ComputerResult.serializer())

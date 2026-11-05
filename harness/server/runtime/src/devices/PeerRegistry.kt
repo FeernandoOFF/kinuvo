@@ -3,6 +3,7 @@ package kinuvo.harness.server.devices
 import kinuvo.protocol.DeviceToolKind
 import kinuvo.protocol.PairedDeviceInfo
 import kinuvo.protocol.PairingCode
+import kinuvo.protocol.PushSubscription
 import kinuvo.protocol.ToolDevice
 
 interface PeerRegistry {
@@ -22,4 +23,11 @@ interface PeerRegistry {
 
     /** Unpairs the Device with [id]; false when there's none. */
     fun revoke(id: String): Boolean = false
+
+    /** Where paired Devices receive Notifications; empty when this Server can't push. */
+    val pushable: Boolean get() = false
+    fun setPush(token: String, subscription: PushSubscription?) {}
+    fun pushSubscriptions(): List<PushSubscription> = emptyList()
+    /** Forgets [endpoint] once its push service says it's gone. */
+    fun dropPush(endpoint: String) {}
 }

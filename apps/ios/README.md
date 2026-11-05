@@ -101,7 +101,19 @@ In the desktop app, open the Server menu and choose **Pair a phone**. For a head
 
 With `--tailscale`, use the advertised `https://<machine>.<tailnet>.ts.net` address and connect the iPhone to the same tailnet. HTTPS and secure WebSockets use Apple's networking engine. See [browser access](../../docs/browser-access.md) for the Server setup. For direct private-network addresses, use the same Wi-Fi or VPN and allow local-network access when iOS asks. `localhost` on an iPhone refers to the phone, so use the Server machine's address. The simulator can reach a Server on the Mac through `127.0.0.1`.
 
-Pairing is remembered across app launches. The shared client reconnects while the app is active; remote runs remain on the Server in the background. iOS push notifications are not included.
+Pairing is remembered across app launches. The shared client reconnects while the app is active; remote runs remain on the Server in the background.
+
+## Push notifications
+
+Notifications from a remote Server arrive through APNs and the Push relay ([ADR 0020](../../docs/adr/0020-push-relay.md)). The app registers for remote notifications on launch and asks for Notifications when onboarding finishes or a chat first opens; once they're allowed, it subscribes on each connected Server with `…/apns/sandbox/<token>` (Debug) or `…/apns/production/<token>` (Release). Its Web Push keys stay in the Keychain group `<team>.dev.kinuvo.shared`. The **notifications** target, a Notification Service Extension (`dev.kinuvo.ios.notifications`), decrypts each push in Swift with CryptoKit (`notifications/PushKeys.swift`) and shows its title and body; it links no Kotlin, to stay within the extension's memory limit. Tapping one opens its Session on the Server that sent it, switching Servers when another one is selected. Approvals and questions are time-sensitive. Mobile test runs don't ask or subscribe.
+
+The Apple Developer portal needs Push Notifications and Time Sensitive Notifications on `dev.kinuvo.ios`, and an App ID for `dev.kinuvo.ios.notifications`; automatic signing creates these and the Keychain group. `aps-environment` is `development`; archives for TestFlight or the App Store are signed with `production`.
+
+Check the decryption against RFC 8291's test vector on the Mac:
+
+```sh
+mise run exec -- apps/ios/tests/test-push-keys.sh
+```
 
 To verify HTTPS and the secure WebSocket handshake against an existing Server without pairing a Device:
 

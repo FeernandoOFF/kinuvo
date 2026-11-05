@@ -28,4 +28,6 @@ interface ServerSettings {
     suspend fun testService(p: TestServiceParams): ServiceTestResult
     fun webSearch(): WebSearch?
     fun notifier(): Notifier?
+    /** Whether Notifications are also pushed to paired Devices. */
+    val pushNotifications: Boolean get() = true
 }

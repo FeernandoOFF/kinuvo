@@ -8,10 +8,10 @@ enum class ServiceKind { Search, Notifications }
 
 /**
  * The [provider] in use (null: none) and its [options], whose values may hold `${…}` references. Secret options come
- * back masked; changes use [SecretUpdate].
+ * back masked; changes use [SecretUpdate]. For Notifications, [push] also pushes them to paired Devices, with or without a provider.
  */
 @Serializable
-data class ServiceSettings(val provider: String? = null, val options: Map<String, String> = emptyMap())
+data class ServiceSettings(val provider: String? = null, val options: Map<String, String> = emptyMap(), val push: Boolean = true)
 
 /** The settings and the providers this Server has. */
 @Serializable

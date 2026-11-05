@@ -63,6 +63,18 @@ class ServersTest {
     }
 
     @Test
+    fun findsSavedServersByServerId() {
+        val prefs = MemoryPreferences()
+        val servers = Servers(prefs, FakeEmbedded, prefs.credentials)
+        val office = servers.remember(Server.Remote("ws://office:8787/ws"), "tok", "office")
+        servers.remember(Server.Embedded, "local", "phone")
+        assertEquals(office, servers.find("office"))
+        assertEquals(Server.Embedded, servers.find("phone"))
+        assertNull(servers.find("other"))
+        assertNull(Servers(prefs, credentials = prefs.credentials).find("phone"))
+    }
+
+    @Test
     fun remembersLastView() {
         val prefs = MemoryPreferences()
         Servers(prefs, credentials = prefs.credentials).lastView = LastView("work", "s1")

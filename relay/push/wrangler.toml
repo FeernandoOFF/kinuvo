@@ -1,0 +1,22 @@
+name = "kinuvo-push"
+main = "src/index.ts"
+compatibility_date = "2025-10-01"
+workers_dev = false
+routes = [{ pattern = "push.kinuvo.feernandooff.com", custom_domain = true }]
+
+[vars]
+APNS_TOPIC = "dev.kinuvo.ios"
+APNS_KEY_ID = "8U45D5CD7S"
+APNS_TEAM_ID = "R5MBZ7H925"
+FCM_PROJECT_ID = "kinuvo-prod"
+
+[[ratelimits]]
+name = "RATE_LIMITER"
+namespace_id = "1801"
+
+  [ratelimits.simple]
+  limit = 30
+  period = 60
+
+[observability]
+enabled = true

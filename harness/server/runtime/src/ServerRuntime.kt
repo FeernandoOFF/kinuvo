@@ -95,7 +95,8 @@ class ServerRuntime(
         { answer -> answerNative(answer) },
         ::sendNative, runs::stop,
     )
-    private val notifications = Notifications(harness, scope, runs::routine) { external.registrationOrArchived(it)?.name }
+    private val devicePush = devicePush(auth, harness.serverId)
+    private val notifications = Notifications(harness, scope, runs::routine, { external.registrationOrArchived(it)?.name }, devicePush)
     private val scheduler = Scheduler(harness, runs, scope, onRan = { broadcast(Api.RoutineRan, it); notifications.routineRan(it) })
     private val admin = Admin(harness, runs) { broadcast(Api.AgentsChanged, it) }
     private val reflectionReview = ReflectionReview(harness)
@@ -106,14 +107,14 @@ class ServerRuntime(
     private val voice = VoiceRequests(harness, ::changedCapabilities)
     private val knowledge = KnowledgeRequests(harness)
     private val tasks = TaskRequests(harness)
-    private val settings = SettingsRequests(harness, logins, ::agent)
+    private val settings = SettingsRequests(harness, logins, ::agent, notifications)
     private var scheduling = false
     private var started = false
     private var closed = false
     private val lifecycle = Mutex()
     private val executionManagement = Mutex()
 
-    val capabilities get() = ServerCapabilities(harness.serverId, harness.features + setOf(ServerFeature.Screens) + if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet(),
+    val capabilities get() = ServerCapabilities(harness.serverId, harness.features + setOf(ServerFeature.Screens) + (if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet()) + (if (devicePush != null) setOf(ServerFeature.Push) else emptySet()),
         if (foregroundOnly) ExecutionLifetime.Foreground else ExecutionLifetime.Continuous,
         if (scheduling) WakeSupport.Scheduled else WakeSupport.None, integrations = (harness.integrations + (if (executionFactory != null) mapOf(Integration.Harness to setOf("acp", "remote")) else mapOf(Integration.Harness to setOf("remote")))).mapKeys { it.key.name }, platform = harness.platform, voice = voice.providers.setup)
     /** Runs going and the events they've produced; a foreground-only host keeps them alive while it can. */
@@ -194,7 +195,7 @@ class ServerRuntime(
             runs.stopAll()
             clients.block { it.toList() }.forEach { it.disconnect() }
         } finally {
-            try { scope.coroutineContext[Job]?.cancelAndJoin() } finally { harness.close() }
+            try { scope.coroutineContext[Job]?.cancelAndJoin() } finally { try { devicePush?.close() } finally { harness.close() } }
         }
     }
 
@@ -486,6 +487,7 @@ class ServerRuntime(
         Api.RemoveRoutine.name -> respond(r, Api.RemoveRoutine) { p -> check(harness.routines.remove(agent(p.agentId), p.routineId)) { "No routine '${p.routineId}'" } }
         Api.Presence.name -> respond(r, Api.Presence) { client.watching = it.active; client.refreshTools(); if (foregroundOnly && unwatched()) stopWaiting(); changedCapabilities() }
         Api.DeviceTools.name -> respond(r, Api.DeviceTools) { client.refreshTools(it.tools); changedCapabilities(); broadcast(Api.DevicesChanged, Unit) }
+        Api.SubscribePush.name -> respond(r, Api.SubscribePush) { p -> client.authenticated { auth.setPush(it, p.subscription) }; broadcast(Api.DevicesChanged, Unit) }
         Api.RotateToken.name -> respond(r, Api.RotateToken) {
             check(!client.browser) { "Rotate browser credentials over HTTPS" }
             val replacement = client.authenticated { auth.rotate(it).also { client.token = it } }

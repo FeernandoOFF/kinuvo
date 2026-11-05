@@ -17,7 +17,7 @@ import kotlin.time.Duration.Companion.days
 
 @Serializable
 data class PairedDevice(val name: String, val tokenSha256: String, val pairedAt: String, val tools: Set<DeviceToolKind> = emptySet(), val lastSeen: String? = null,
-    val id: String, val management: Boolean, val expiresAt: String)
+    val id: String, val management: Boolean, val expiresAt: String, val push: PushSubscription? = null)
 
 @Serializable
 private data class DevicesFile(val devices: List<PairedDevice> = emptyList())
@@ -84,7 +84,7 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
     override fun paired(token: String): List<PairedDeviceInfo> {
         val current = device(token)?.id
         return devices().map { PairedDeviceInfo(it.id, it.name, it.pairedAt, it.lastSeen, current = it.id == current,
-            tools = it.tools, management = it.management, expiresAt = it.expiresAt) }
+            tools = it.tools, management = it.management, expiresAt = it.expiresAt, push = it.push != null) }
     }
 
     @Synchronized
@@ -141,6 +141,30 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
         if (device == null) require(tools.isEmpty()) { "Pair this Device before enabling its tools" }
         else save(devices().map { if (it.id == device.id) it.copy(tools = tools) else it })
         return device?.id ?: identity(sha256(token))
+    }
+
+    override val pushable = true
+
+    @Synchronized
+    override fun setPush(token: String, subscription: PushSubscription?) {
+        check(valid(token)) { "Device access expired" }
+        val device = device(token) ?: return
+        subscription?.let { require(it.endpoint.startsWith("https://")) { "Push endpoints must use HTTPS" } }
+        // One Device per endpoint: a reinstall or re-pair takes it over.
+        save(devices().map { when {
+            it.id == device.id -> it.copy(push = subscription)
+            it.push?.endpoint == subscription?.endpoint -> it.copy(push = null)
+            else -> it
+        } })
+    }
+
+    @Synchronized
+    override fun pushSubscriptions() = devices().filter(::unexpired).mapNotNull { it.push }
+
+    @Synchronized
+    override fun dropPush(endpoint: String) {
+        val devices = devices()
+        if (devices.any { it.push?.endpoint == endpoint }) save(devices.map { if (it.push?.endpoint == endpoint) it.copy(push = null) else it })
     }
 
     private fun device(token: String): PairedDevice? {

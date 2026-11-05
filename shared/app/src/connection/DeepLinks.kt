@@ -2,6 +2,7 @@ package kinuvo.app.connection
 
 import kinuvo.app.navigation.*
 
+import kinuvo.protocol.ChatLink
 import kinuvo.protocol.Links
 import kinuvo.protocol.McpRedirect
 import kinuvo.protocol.PairLink
@@ -10,6 +11,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 /** The last `kinuvo://` link the platform opened the app with, until the app shows it. */
 val pendingLink = MutableStateFlow<Route.Chat?>(null)
 val pendingPairLink = MutableStateFlow<PairLink?>(null)
+/** A chat link naming its Server, until the [AppViewModel] selects that Server and passes the Session on to [pendingLink]. */
+val pendingServerLink = MutableStateFlow<ChatLink?>(null)
 
 /** Called by the platform shells when the app is opened with [url]; ignores links it doesn't know. */
 fun openLink(url: String) {
@@ -18,7 +21,9 @@ fun openLink(url: String) {
         return
     }
     Links.parsePair(url)?.let { pendingPairLink.value = it; return }
-    Links.parseChat(url)?.let { (agent, session) -> pendingLink.value = Route.Chat(agent, session) }
+    Links.parseChat(url)?.let { link ->
+        if (link.serverId != null) pendingServerLink.value = link else pendingLink.value = Route.Chat(link.agentId, link.sessionId)
+    }
 }
 
 /** A new Session a platform shortcut asked for, until the SessionViewModel for [slot] takes it: [voice] starts voice chat, [message] is sent. */

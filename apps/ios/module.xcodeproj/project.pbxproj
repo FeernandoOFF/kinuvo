@@ -15,7 +15,36 @@
 		A8E591E0DDAD4A838B177103 /* ../../shared/ui/src@ios/AppleFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177104 /* ../../shared/ui/src@ios/AppleFolderAccess.swift */; };
 		B7C0DE51A9F04E2E9A3C2201 /* ../../shared/ui/src@ios/AppleQrScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C0DE51A9F04E2E9A3C2202 /* ../../shared/ui/src@ios/AppleQrScanner.swift */; };
 		A8E591E0DDAD4A838B177009 /* AppleSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B17700A /* AppleSpeech.swift */; };
+		C0DE70500000000000000001 /* ../../shared/ui/src@ios/ApplePush.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000002 /* ../../shared/ui/src@ios/ApplePush.swift */; };
+		C0DE70500000000000000003 /* PushKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000004 /* PushKeys.swift */; };
+		C0DE70500000000000000005 /* PushKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000004 /* PushKeys.swift */; };
+		C0DE70500000000000000006 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000007 /* NotificationService.swift */; };
+		C0DE70500000000000000011 /* KinuvoNotifications.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000010 /* KinuvoNotifications.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C0DE70500000000000000019 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 29FA6EF1CBC93936EF95660C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C0DE70500000000000000013;
+			remoteInfo = notifications;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		C0DE70500000000000000017 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				C0DE70500000000000000011 /* KinuvoNotifications.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		A8E591E0DDAD4A838B177008 /* AppleKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/AppleKeychain.swift"; sourceTree = SOURCE_ROOT; };
@@ -28,6 +57,12 @@
 		A8E591E0DDAD4A838B177104 /* ../../shared/ui/src@ios/AppleFolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/AppleFolderAccess.swift"; sourceTree = SOURCE_ROOT; };
 		B7C0DE51A9F04E2E9A3C2202 /* ../../shared/ui/src@ios/AppleQrScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/AppleQrScanner.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B17700A /* AppleSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/AppleSpeech.swift"; sourceTree = SOURCE_ROOT; };
+		C0DE70500000000000000002 /* ../../shared/ui/src@ios/ApplePush.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../shared/ui/src@ios/ApplePush.swift"; sourceTree = SOURCE_ROOT; };
+		C0DE70500000000000000004 /* PushKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushKeys.swift; sourceTree = "<group>"; };
+		C0DE70500000000000000007 /* NotificationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationService.swift; sourceTree = "<group>"; };
+		C0DE70500000000000000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.info; path = Info.plist; sourceTree = "<group>"; };
+		C0DE70500000000000000009 /* Notifications.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Notifications.entitlements; sourceTree = "<group>"; };
+		C0DE70500000000000000010 /* KinuvoNotifications.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KinuvoNotifications.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -52,6 +87,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C0DE70500000000000000015 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -61,6 +103,8 @@
 				29FA6D261A4ADE9AE71720B6 /* Products */,
 				29FA6C632C5E9C2CA8E497A5 /* Info.plist */,
 				29FA6339BB8DB2E19C54C879 /* src */,
+				C0DE70500000000000000012 /* notifications */,
+				C0DE70500000000000000002 /* ../../shared/ui/src@ios/ApplePush.swift */,
 				A8E591E0DDAD4A838B177002 /* ../../shared/ui/src@ios/AppleDeviceReader.swift */,
 				A8E591E0DDAD4A838B177004 /* ../../shared/ui/src@ios/AppleAttachmentPicker.swift */,
 				A8E591E0DDAD4A838B177106 /* ../../shared/ui/src@ios/AppleBackgroundRuns.swift */,
@@ -76,8 +120,20 @@
 			isa = PBXGroup;
 			children = (
 				29FA6B51CBB0E5CA09FB0275 /* Kinuvo.app */,
+				C0DE70500000000000000010 /* KinuvoNotifications.appex */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		C0DE70500000000000000012 /* notifications */ = {
+			isa = PBXGroup;
+			children = (
+				C0DE70500000000000000007 /* NotificationService.swift */,
+				C0DE70500000000000000004 /* PushKeys.swift */,
+				C0DE70500000000000000008 /* Info.plist */,
+				C0DE70500000000000000009 /* Notifications.entitlements */,
+			);
+			path = notifications;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -91,10 +147,12 @@
 				29FA651FA641A60EB2D87F7C /* Sources */,
 				29FA6708579CCE9D9F3B329E /* Frameworks */,
 				29FA6F86AE36ABA3413642D5 /* Resources */,
+				C0DE70500000000000000017 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C0DE70500000000000000018 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				29FA6339BB8DB2E19C54C879 /* src */,
@@ -103,6 +161,23 @@
 			productName = app;
 			productReference = 29FA6B51CBB0E5CA09FB0275 /* Kinuvo.app */;
 			productType = "com.apple.product-type.application";
+		};
+		C0DE70500000000000000013 /* notifications */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C0DE70500000000000000020 /* Build configuration list for PBXNativeTarget "notifications" */;
+			buildPhases = (
+				C0DE70500000000000000014 /* Sources */,
+				C0DE70500000000000000015 /* Frameworks */,
+				C0DE70500000000000000016 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = notifications;
+			productName = notifications;
+			productReference = C0DE70500000000000000010 /* KinuvoNotifications.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -125,12 +200,20 @@
 			projectRoot = "";
 			targets = (
 				29FA6F9C1DFC6D0BA1D22105 /* app */,
+				C0DE70500000000000000013 /* notifications */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		29FA6F86AE36ABA3413642D5 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0DE70500000000000000016 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -170,10 +253,29 @@
 				A8E591E0DDAD4A838B177007 /* AppleKeychain.swift in Sources */,
 				A8E591E0DDAD4A838B177005 /* AppleLanguageModel.swift in Sources */,
 				A8E591E0DDAD4A838B177009 /* AppleSpeech.swift in Sources */,
+				C0DE70500000000000000001 /* ../../shared/ui/src@ios/ApplePush.swift in Sources */,
+				C0DE70500000000000000003 /* PushKeys.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C0DE70500000000000000014 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C0DE70500000000000000006 /* NotificationService.swift in Sources */,
+				C0DE70500000000000000005 /* PushKeys.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		C0DE70500000000000000018 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C0DE70500000000000000013 /* notifications */;
+			targetProxy = C0DE70500000000000000019 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		29FA692286D8B1AE3E67E583 /* Debug */ = {
@@ -256,6 +358,66 @@
 			};
 			name = Release;
 		};
+		C0DE70500000000000000021 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = notifications/Notifications.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = R5MBZ7H925;
+				ENABLE_DEBUG_DYLIB = NO;
+				ENABLE_TESTABILITY = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = notifications/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.kinuvo.ios.notifications;
+				PRODUCT_NAME = KinuvoNotifications;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1 2";
+			};
+			name = Debug;
+		};
+		C0DE70500000000000000022 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_ENTITLEMENTS = notifications/Notifications.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = R5MBZ7H925;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = notifications/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.5;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.kinuvo.ios.notifications;
+				PRODUCT_NAME = KinuvoNotifications;
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1 2";
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -273,6 +435,15 @@
 			buildConfigurations = (
 				29FA692286D8B1AE3E67E583 /* Debug */,
 				29FA69BDC898014BA58EBF16 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C0DE70500000000000000020 /* Build configuration list for PBXNativeTarget "notifications" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C0DE70500000000000000021 /* Debug */,
+				C0DE70500000000000000022 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
