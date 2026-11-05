@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 /** The hosted Push relay that forwards to APNs and FCM; see ADR 0018. */
-const val PUSH_RELAY = "https://kinuvo.feernandooff.com/v1"
+const val PUSH_RELAY = "https://push.kinuvo.feernandooff.com/v1"
 
 /** This install's push channel (APNs or FCM): null until the OS hands out a token, or after the user turns Notifications off. */
 interface PushChannel {

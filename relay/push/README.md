@@ -40,7 +40,7 @@ npm install
 npx wrangler deploy
 ```
 
-It serves `https://kinuvo.feernandooff.com` (custom domain in `routes`); `kinuvo-push.me-856.workers.dev` stays on for builds that still use it.
+It serves `https://push.kinuvo.feernandooff.com` (custom domain in `routes`).
 
 ## Local testing
 
