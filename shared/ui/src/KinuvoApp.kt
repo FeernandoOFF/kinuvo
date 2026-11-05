@@ -93,7 +93,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
     val appState by app.state.collectAsState()
     if (appState.onboarding) {
         // One for the whole first run: connecting a Server mustn't start it over, as one keyed by the Server would.
-        HarnessTheme { OnboardingScreen(app, koinViewModel<OnboardingViewModel>(key = "first-run")) }
+        HarnessTheme { OnboardingScreen(app, koinViewModel<OnboardingViewModel>(key = "first-run-${appState.firstRun}")) }
         return
     }
     val connection = appState.connection
