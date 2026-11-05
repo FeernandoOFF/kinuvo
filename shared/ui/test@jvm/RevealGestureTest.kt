@@ -1,6 +1,6 @@
 package kinuvo.ui
 
-import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.navigation.*
 
 import androidx.compose.foundation.layout.Box

@@ -1,6 +1,6 @@
 @file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
 
-package kinuvo.execution.acp
+package kinuvo.harness.execution.acp
 
 import com.agentclientprotocol.agent.v2.*
 import com.agentclientprotocol.client.v2.ClientInfo
@@ -13,7 +13,7 @@ import com.agentclientprotocol.model.PermissionOptionId
 import com.agentclientprotocol.model.v2.*
 import com.agentclientprotocol.protocol.jsonRpcInvalidParams
 import com.agentclientprotocol.rpc.ACPJson
-import kinuvo.execution.api.ExecutionDispatch
+import kinuvo.harness.execution.api.ExecutionDispatch
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.QuestionKind
 import kinuvo.protocol.AgentEvent

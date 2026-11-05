@@ -1,5 +1,8 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.server.devices.*
+import kinuvo.harness.server.reflection.*
+import kinuvo.harness.server.screens.*
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import co.touchlab.stately.collections.ConcurrentMutableSet
 import co.touchlab.stately.concurrency.Lock
@@ -7,22 +10,17 @@ import co.touchlab.stately.concurrency.withLock
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.harness.core.Agent
 import kinuvo.harness.server.execution.*
-import kinuvo.execution.api.*
+import kinuvo.harness.execution.api.*
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.serializer
 import kotlinx.serialization.json.JsonObject
 import kinuvo.harness.core.routines.NEW_SESSIONS
 import kinuvo.harness.core.routines.with
-import kinuvo.harness.core.voice.Audio
-import kinuvo.harness.core.voice.AudioFormat
-import kinuvo.harness.core.voice.MAX_RECORDING_BYTES
-import kinuvo.harness.core.voice.VoiceProviders
 import kinuvo.protocol.*
 import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.incrementAndFetch
-import kotlin.io.encoding.Base64
 import kotlin.time.TimeSource
 import kotlinx.coroutines.*
 import kotlinx.coroutines.selects.select
@@ -33,10 +31,10 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
-import kotlinx.serialization.KSerializer
-import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.concurrent.Volatile
+import kotlin.uuid.Uuid
 
 private val log = KotlinLogging.logger("kinuvo.server")
 
@@ -51,7 +49,6 @@ class ServerRuntime(
     private val executionFactory: ExecutionFactory? = null,
     private val executionStorage: ExecutionRecoveryStore = MemoryExecutionRecovery(),
     val remoteLinks: RemoteLinks = RemoteLinks(),
-    private val serverVoice: ServerVoice? = null,
     private val prepareAttachment: (UploadAttachmentParams) -> UploadAttachmentParams = { it },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -98,7 +95,7 @@ class ServerRuntime(
         { answer -> answerNative(answer) },
         ::sendNative, runs::stop,
     )
-    private val notifications = Notifications(harness, scope, runs::routine) { executions.registration(it)?.name ?: external.archives().firstOrNull { a -> a.id == it }?.name }
+    private val notifications = Notifications(harness, scope, runs::routine) { external.registrationOrArchived(it)?.name }
     private val scheduler = Scheduler(harness, runs, scope, onRan = { broadcast(Api.RoutineRan, it); notifications.routineRan(it) })
     private val admin = Admin(harness, runs) { broadcast(Api.AgentsChanged, it) }
     private val reflectionReview = ReflectionReview(harness)
@@ -106,10 +103,10 @@ class ServerRuntime(
     private val reflector = Reflector(harness, scope, runs::isActive)
     private val dispatcher = TaskDispatcher(harness, runs, scope)
     private val seq = AtomicLong(0)
-    /** A selected downloaded model takes precedence over configured OpenAI-compatible providers. */
-    private val voice get() = serverVoice?.providers.let { local ->
-        VoiceProviders(local?.transcriber ?: harness.voice.transcriber, harness.voice.processor, local?.synthesizer ?: harness.voice.synthesizer, harness.voice.speechToSpeech)
-    }
+    private val voice = VoiceRequests(harness, ::changedCapabilities)
+    private val knowledge = KnowledgeRequests(harness)
+    private val tasks = TaskRequests(harness)
+    private val settings = SettingsRequests(harness, logins, ::agent)
     private var scheduling = false
     private var started = false
     private var closed = false
@@ -118,7 +115,7 @@ class ServerRuntime(
 
     val capabilities get() = ServerCapabilities(harness.serverId, harness.features + setOf(ServerFeature.Screens) + if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet(),
         if (foregroundOnly) ExecutionLifetime.Foreground else ExecutionLifetime.Continuous,
-        if (scheduling) WakeSupport.Scheduled else WakeSupport.None, integrations = (harness.integrations + (if (executionFactory != null) mapOf(Integration.Harness to setOf("acp", "remote")) else mapOf(Integration.Harness to setOf("remote")))).mapKeys { it.key.name }, platform = harness.platform, voice = voice.setup)
+        if (scheduling) WakeSupport.Scheduled else WakeSupport.None, integrations = (harness.integrations + (if (executionFactory != null) mapOf(Integration.Harness to setOf("acp", "remote")) else mapOf(Integration.Harness to setOf("remote")))).mapKeys { it.key.name }, platform = harness.platform, voice = voice.providers.setup)
     /** Runs going and the events they've produced; a foreground-only host keeps them alive while it can. */
     val runActivity get() = runs.activity
 
@@ -197,7 +194,7 @@ class ServerRuntime(
             runs.stopAll()
             clients.block { it.toList() }.forEach { it.disconnect() }
         } finally {
-            try { serverVoice?.close(); scope.coroutineContext[Job]?.cancelAndJoin() } finally { harness.close() }
+            try { scope.coroutineContext[Job]?.cancelAndJoin() } finally { harness.close() }
         }
     }
 
@@ -207,18 +204,18 @@ class ServerRuntime(
         val screenFrames = ScreenFrameLane()
         val screens = Screens(harness.computers, { harness.browser }, ::browserOwner, scope, { requireNotNull(deviceId) }, screenBudget,
             screenFrames::offer, { screenFrames.remove(it.subscription); offer(frame(Api.ScreenStatus, it)) })
-        @kotlin.concurrent.Volatile override var watching = true
-        @kotlin.concurrent.Volatile var token: String? = null
+        @Volatile override var watching = true
+        @Volatile var token: String? = null
         private val credentialLock = Lock()
         var linked = false
         fun valid() = credentialLock.withLock { token?.let { if (linked) remoteLinks.exposure(it) != null else auth.valid(it) } != false }
         fun <T> authenticated(block: (String) -> T): T = credentialLock.withLock { block(requireNotNull(token)) }
         var deviceId: String? = null
         var tools: Set<DeviceToolKind> = emptySet()
-        @kotlin.concurrent.Volatile var closeAfterResponse: String? = null
+        @Volatile var closeAfterResponse: String? = null
         private val pending = ConcurrentMutableMap<String, CompletableDeferred<Frame.Response>>()
         val readDevice: suspend (DeviceToolRequest) -> DeviceToolResult = { p ->
-            val id = kotlin.uuid.Uuid.random().toString()
+            val id = Uuid.random().toString()
             val response = CompletableDeferred<Frame.Response>()
             pending[id] = response
             try {
@@ -230,7 +227,7 @@ class ServerRuntime(
         }
 
         val actComputer: suspend (ComputerRequest) -> ComputerResult = { p ->
-            val id = kotlin.uuid.Uuid.random().toString()
+            val id = Uuid.random().toString()
             val response = CompletableDeferred<Frame.Response>()
             pending[id] = response
             try {
@@ -405,53 +402,17 @@ class ServerRuntime(
         }
         if (!client.authenticated(auth::management) && r.method !in DEVICE_METHODS)
             return Frame.Response(r.id, ok = false, error = "This action requires management access")
-        return when (r.method) {
-        Api.VoiceModels.name -> respond(r, Api.VoiceModels) { serverVoice?.state() ?: VoiceModelsState() }
-        Api.VoiceSetup.name -> respond(r, Api.VoiceSetup) { voice.setup }
-        Api.VoiceDownload.name -> respond(r, Api.VoiceDownload) { requireNotNull(serverVoice).download(it) }
-        Api.VoiceCancelDownload.name -> respond(r, Api.VoiceCancelDownload) { requireNotNull(serverVoice).cancelDownload() }
-        Api.VoiceRemove.name -> respond(r, Api.VoiceRemove) { requireNotNull(serverVoice).remove(it); changedCapabilities() }
-        Api.VoiceSelect.name -> respond(r, Api.VoiceSelect) { requireNotNull(serverVoice).select(it); changedCapabilities() }
-        Api.VoiceLanguage.name -> respond(r, Api.VoiceLanguage) { requireNotNull(serverVoice).language(it) }
-        Api.Transcribe.name -> respond(r, Api.Transcribe) { p ->
-            val provider = checkNotNull(voice.transcriber) { "Server transcription is not configured" }
-            require(p.base64.length <= (MAX_RECORDING_BYTES + 2) / 3 * 4) { "Recording is too large" }
-            provider.transcribe(Audio(Base64.decode(p.base64), AudioFormat.Wav))
-        }
-        Api.Synthesize.name -> respond(r, Api.Synthesize) { p ->
-            val provider = checkNotNull(voice.synthesizer) { "Server synthesis is not configured" }
-            SpeechAudio(Base64.encode(provider.synthesize(p.text).bytes))
-        }
+        return voice.handle(r) ?: knowledge.handle(r) ?: tasks.handle(r) ?: settings.handle(r) ?: when (r.method) {
         Api.Capabilities.name -> respond(r, Api.Capabilities) { p ->
-            val registration = executions.registration(p.agentId) ?: executions.catalog().agents.firstOrNull { it.id == p.agentId && it.archived } ?: external.archives().firstOrNull { it.id == p.agentId }
+            val registration = external.registrationOrArchived(p.agentId)
             if (registration == null) harness.capabilities(agent(p.agentId), p.sessionId, p.settings, capabilities, seq.load())
-            else {
-                val info = externalInfo(registration)
-                val saved = p.sessionId?.let { external.session(p.agentId, it); external.record(it) }
-                val support = saved?.support
-                val availability = when {
-                    saved?.archived == true || info.readiness.reasonCode == "archived" -> CapabilityState.unavailable("Agent registration archived", "archived")
-                    saved?.failure != null -> CapabilityState.unavailable(saved.failure, "recovery_failed")
-                    saved?.closed == true -> CapabilityState.unavailable("Execution closed", "session_closed")
-                    saved?.lost == true -> CapabilityState.unavailable("Execution connection ended; saved history remains available", "session_lost")
-                    !info.readiness.online -> CapabilityState.unavailable(info.readiness.reason ?: "Check connection", info.readiness.reasonCode ?: "checking")
-                    else -> CapabilityState()
-                }
-                SessionCapabilities(seq.load(), capabilities, availability,
-                    attachments = support?.supportedMimeTypes.orEmpty().associateWith { availability }, execution = support)
-            }
+            else external.capabilities(p.agentId, p.sessionId, externalInfo(registration).readiness, capabilities, seq.load())
         }
-        Api.Models.name -> respond(r, Api.Models) { harness.modelCatalog(it.refresh) }
         Api.ProbeHarnessConnection.name -> respond(r, Api.ProbeHarnessConnection) { checkHarness(it) }
         Api.ResumeExecution.name -> respond(r, Api.ResumeExecution) { executionManagement.withLock { external.resume(it.id) } }
         Api.CloseExecution.name -> respond(r, Api.CloseExecution) { executionManagement.withLock { external.closeExecution(it.id) } }
-        Api.ExecutionSnapshot.name -> respond(r, Api.ExecutionSnapshot) {
-            if (external.owns(it.id)) external.snapshot(it.id) else {
-                val owner = harness.store.agents().firstOrNull { a -> harness.store.sessions(a.id).any { s -> s.id == it.id } } ?: error("Unknown Session")
-                nativeExecution.snapshot(owner.id, it.id)
-            }
-        }
-        Api.ExecutionAnswer.name -> respond(r, Api.ExecutionAnswer) { if (external.owns(it.sessionId)) external.answer(it) else nativeExecution.answer(it) }
+        Api.ExecutionSnapshot.name -> respond(r, Api.ExecutionSnapshot) { if (external.owns(it.id)) external.snapshot(it.id) else nativeExecution.snapshot(nativeOwner(it.id) ?: error("Unknown Session"), it.id) }
+        Api.ExecutionAnswer.name -> respond(r, Api.ExecutionAnswer) { dispatchFor(it.sessionId).answer(it) }
         Api.GrantExecution.name -> respond(r, Api.GrantExecution) { p ->
             require(p.agentIds.all { id -> if (executions.registration(id) != null) executions.configured(id).connection !is ExecutionConnection.Remote else harness.store.agents().any { it.id == id } }) { "Only installed source execution Agents may be exposed" }
             remoteLinks.grant(p)
@@ -470,7 +431,7 @@ class ServerRuntime(
         Api.RegisterExternalAgent.name -> respond(r, Api.RegisterExternalAgent) { executionManagement.withLock { val existing = executions.registration(it.id); check(existing == null || !external.agentInUse(existing.id)) { "Agent has live Sessions" }; require(harness.store.agents().none { a -> a.id == it.id }) { "Agent ID belongs to a native Agent" }; executions.register(it).also { a -> external.restore(a.id); catalogChanged() } } }
         Api.UnregisterExternalAgent.name -> respond(r, Api.UnregisterExternalAgent) { executionManagement.withLock { val a = executions.registration(it.id); check(a == null || !external.agentInUse(a.id)) { "Agent has live Sessions" }; external.archive(it.id); executions.removeAgent(it.id).also { catalogChanged() } } }
         Api.Agents.name -> respond(r, Api.Agents) { admin.agents() + externalAgents() }
-        Api.Agent.name -> respond(r, Api.Agent) { (executions.registration(it.agentId) ?: executions.catalog().agents.firstOrNull { a -> a.id == it.agentId && a.archived } ?: external.archives().firstOrNull { a -> a.id == it.agentId })?.let { a -> AgentDetails(externalInfo(a), AgentSettings("", "", "", "external"), "", "", managed = true, cwd = a.cwd, remoteAgentId = a.remoteAgentId) } ?: admin.details(agent(it.agentId)) }
+        Api.Agent.name -> respond(r, Api.Agent) { external.registrationOrArchived(it.agentId)?.let { a -> AgentDetails(externalInfo(a), AgentSettings("", "", "", "external"), "", "", managed = true, cwd = a.cwd, remoteAgentId = a.remoteAgentId) } ?: admin.details(agent(it.agentId)) }
         Api.CreateAgent.name -> respond(r, Api.CreateAgent) { p -> require(executions.catalog().agents.none { it.id == p.agentId }) { "Agent ID is reserved by an external registration" }; admin.create(p) }
         Api.UpdateAgent.name -> respond(r, Api.UpdateAgent) { admin.update(it).also { changedCapabilities() } }
         Api.TestExec.name -> respond(r, Api.TestExec) { admin.testExec(it) }
@@ -483,13 +444,6 @@ class ServerRuntime(
         Api.Skill.name -> respond(r, Api.Skill) { admin.skill(agent(it.agentId), it.name, it.scope) }
         Api.SaveSkill.name -> respond(r, Api.SaveSkill) { admin.saveSkill(it) }
         Api.DeleteSkill.name -> respond(r, Api.DeleteSkill) { admin.deleteSkill(it) }
-        Api.McpServers.name -> respond(r, Api.McpServers) { harness.mcp.mcpServers(agent(it.agentId)) }
-        Api.SaveMcp.name -> respond(r, Api.SaveMcp) { harness.mcp.saveMcp(it) }
-        Api.RemoveMcp.name -> respond(r, Api.RemoveMcp) { harness.mcp.removeMcp(it) }
-        Api.TestMcp.name -> respond(r, Api.TestMcp) { harness.mcp.testMcp(it) }
-        Api.LoginMcp.name -> respond(r, Api.LoginMcp) { harness.mcp.loginMcp(it) }
-        Api.CompleteMcpLogin.name -> respond(r, Api.CompleteMcpLogin) { harness.mcp.completeMcpLogin(it) }
-        Api.LogoutMcp.name -> respond(r, Api.LogoutMcp) { harness.mcp.logoutMcp(it) }
         Api.CatchUp.name -> respond(r, Api.CatchUp) { harness.log.subscribe(it.agentId, it.sessionId, it.after, it.limit.coerceIn(1, MAX_PAGE), client) }
         Api.Unsubscribe.name -> respond(r, Api.Unsubscribe) { harness.log.unsubscribe(it.sessionId, client) }
         Api.History.name -> respond(r, Api.History) { harness.log.history(it.agentId, it.sessionId, it.before, it.limit.coerceIn(1, MAX_PAGE)) }
@@ -528,32 +482,6 @@ class ServerRuntime(
             checkNotNull(harness.routines.update(agent(p.agentId), p.routineId) { it.copy(runRequested = true) }) { "No routine '${p.routineId}'" }
         }
         Api.RemoveRoutine.name -> respond(r, Api.RemoveRoutine) { p -> check(harness.routines.remove(agent(p.agentId), p.routineId)) { "No routine '${p.routineId}'" } }
-        Api.KnowledgeSearch.name -> respond(r, Api.KnowledgeSearch) { harness.knowledge.search(it.query, it.type, it.limit.coerceIn(1, MAX_PAGE)) }
-        Api.KnowledgeNote.name -> respond(r, Api.KnowledgeNote) { harness.knowledge.find(it.ref) ?: error("No note '${it.ref}'") }
-        Api.KnowledgeChanges.name -> respond(r, Api.KnowledgeChanges) { harness.knowledge.changes(it.limit.coerceIn(1, MAX_PAGE)) }
-        Api.UndoKnowledgeChange.name -> respond(r, Api.UndoKnowledgeChange) { harness.knowledge.undo(it.changeId) }
-        Api.TaskLists.name -> respond(r, Api.TaskLists) { harness.tasks.lists() }
-        Api.Tasks.name -> respond(r, Api.Tasks) { harness.tasks.all(it.includeDone) }
-        Api.CreateTask.name -> respond(r, Api.CreateTask) { p ->
-            harness.tasks.create(p.title, p.list, p.notes, p.due?.let(kotlinx.datetime.LocalDate::parse), p.assignee)
-        }
-        Api.UpdateTask.name -> respond(r, Api.UpdateTask) { p -> harness.tasks.update(p.taskId, p.title, p.status, p.assignee, p.due) }
-        Api.TasksSettings.name -> respond(r, Api.TasksSettings) { harness.tasksSetup() }
-        Api.SaveTasksSettings.name -> respond(r, Api.SaveTasksSettings) { harness.saveTasksSettings(it) }
-        Api.ProviderLists.name -> respond(r, Api.ProviderLists) { harness.tasks.providerLists(it.provider) }
-        Api.AuthorizeTasks.name -> respond(r, Api.AuthorizeTasks) { harness.tasks.authorize(it.provider) }
-        Api.KnowledgeSettings.name -> respond(r, Api.KnowledgeSettings) { harness.knowledgeSetup() }
-        Api.SaveKnowledgeSettings.name -> respond(r, Api.SaveKnowledgeSettings) { harness.saveKnowledgeSettings(it) }
-        Api.TestKnowledge.name -> respond(r, Api.TestKnowledge) { harness.testKnowledge(it) }
-        Api.SecretProviders.name -> respond(r, Api.SecretProviders) { harness.secrets.providers.map { it.status() } }
-        Api.ConnectSecrets.name -> respond(r, Api.ConnectSecrets) { p ->
-            harness.secrets.provider(p.scheme).run { connect(p.token); harness.secrets.refresh(); status() }
-        }
-        Api.DisconnectSecrets.name -> respond(r, Api.DisconnectSecrets) { p ->
-            harness.secrets.provider(p.scheme).run { disconnect(); harness.secrets.refresh(); status() }
-        }
-        Api.BrowseSecrets.name -> respond(r, Api.BrowseSecrets) { harness.secrets.provider(it.scheme).browse(it.path) }
-        Api.RefreshSecrets.name -> respond(r, Api.RefreshSecrets) { harness.secrets.refresh() }
         Api.Presence.name -> respond(r, Api.Presence) { client.watching = it.active; client.refreshTools(); if (foregroundOnly && unwatched()) stopWaiting(); changedCapabilities() }
         Api.DeviceTools.name -> respond(r, Api.DeviceTools) { client.refreshTools(it.tools); changedCapabilities(); broadcast(Api.DevicesChanged, Unit) }
         Api.RotateToken.name -> respond(r, Api.RotateToken) {
@@ -603,16 +531,6 @@ class ServerRuntime(
         Api.WatchComputer.name -> respond(r, Api.WatchComputer) { error("Use bounded screens.watch") }
         Api.ComputerInput.name -> respond(r, Api.ComputerInput) { error("Use frame-bound screens.input") }
         Api.Takeover.name -> respond(r, Api.Takeover) { error("Use generation-bound screens.control") }
-        Api.Providers.name -> respond(r, Api.Providers) { logins.list() }
-        Api.SetProviderApiKey.name -> respond(r, Api.SetProviderApiKey) { logins.saveApiKey(it.provider, it.value) }
-        Api.LoginProvider.name -> respond(r, Api.LoginProvider) { logins.login(it.provider) }
-        Api.LogoutProvider.name -> respond(r, Api.LogoutProvider) { logins.logout(it.provider) }
-        Api.DownloadProviderModel.name -> respond(r, Api.DownloadProviderModel) { logins.download(it.provider, it.model) }
-        Api.CancelProviderDownload.name -> respond(r, Api.CancelProviderDownload) { logins.cancelDownload(it.provider) }
-        Api.RemoveProviderModel.name -> respond(r, Api.RemoveProviderModel) { logins.removeModel(it.provider, it.model) }
-        Api.Service.name -> respond(r, Api.Service) { harness.serviceSetup(it.kind) }
-        Api.SaveService.name -> respond(r, Api.SaveService) { harness.saveService(it.kind, it.settings, it.secretUpdates) }
-        Api.TestService.name -> respond(r, Api.TestService) { harness.testService(it) }
         else -> Frame.Response(r.id, ok = false, error = "Unknown method ${r.method}")
         }
     }
@@ -626,8 +544,13 @@ class ServerRuntime(
 
     private suspend fun sourceSnapshot(agentId: String, sessionId: String) = execution(agentId).snapshot(agentId, sessionId)
 
+    /** Native and external Sessions each run through their own [ExecutionDispatch]; this picks the one that owns [sessionId]. */
+    private suspend fun dispatchFor(sessionId: String): ExecutionDispatch = if (external.owns(sessionId)) external else nativeExecution
+
+    private suspend fun nativeOwner(sessionId: String) = harness.store.agents().firstOrNull { a -> harness.store.sessions(a.id).any { it.id == sessionId } }?.id
+
     private suspend fun answerNative(answer: ExecutionAnswer): Boolean {
-        val agentId = harness.store.agents().firstOrNull { a -> harness.store.sessions(a.id).any { it.id == answer.sessionId } }?.id ?: return false
+        val agentId = nativeOwner(answer.sessionId) ?: return false
 
         val pending = nativeExecution.snapshot(agentId, answer.sessionId).pending.firstOrNull { it.id == answer.requestId }
         return when (pending?.kind) {
@@ -682,10 +605,7 @@ class ServerRuntime(
         return SendResult(sessionId, run.id, message, activation)
     }
 
-    private suspend fun stop(sessionId: String) {
-        val execution: ExecutionDispatch = if (external.owns(sessionId)) external else nativeExecution
-        execution.stop(sessionId)
-    }
+    private suspend fun stop(sessionId: String) = dispatchFor(sessionId).stop(sessionId)
 
     private suspend fun checkHarness(config: HarnessConnection): ExecutionProbe {
         val probe = try {
@@ -739,21 +659,7 @@ class ServerRuntime(
 
     private fun <T> frame(type: EventType<T>, payload: T): Frame.Event = Frame.Event(type.name, ProtocolJson.encodeToJsonElement(type.payload, payload), seq.incrementAndFetch())
 
-    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
-    private suspend fun <P, R> respond(r: Frame.Request, method: Method<P, R>, block: suspend (P) -> R): Frame.Response =
-        try {
-            val params = ProtocolJson.decodeFromJsonElement(method.params, r.params)
-            Frame.Response(r.id, ok = true, payload = encode(method.result, block(params)))
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            Frame.Response(r.id, ok = false, error = if (method == Api.Connect && e is kotlinx.serialization.MissingFieldException && "protocolVersion" in e.missingFields) ProtocolVersion.Mismatch else e.message ?: e.toString())
-        }
-
-    private fun <R> encode(serializer: KSerializer<R>, value: R): JsonElement = ProtocolJson.encodeToJsonElement(serializer, value)
-
     companion object {
-        private const val MAX_PAGE = 200
         private const val OUTBOX_SIZE = 1024
     }
 }

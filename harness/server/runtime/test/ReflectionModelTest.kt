@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.plugin.*
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*

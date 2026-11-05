@@ -3,6 +3,7 @@ package kinuvo.app.connection
 import kinuvo.app.device.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
+import kinuvo.app.settings.*
 import kinuvo.app.board.*
 import kinuvo.app.knowledge.*
 import kinuvo.app.routine.*
@@ -11,6 +12,7 @@ import kinuvo.client.KinuvoClient
 import kotlinx.coroutines.*
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
+import kotlin.coroutines.EmptyCoroutineContext
 
 /** Owns one Server's work and caches. Transport reconnects keep this lifetime; switching ends it. */
 class ConnectedServer(notifications: Notifications, private val deviceAccess: DeviceAccess) {
@@ -24,7 +26,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
     internal var generation: Long = 0
         private set
     internal val client get() = lifetime?.client
-    internal val scope get() = CoroutineScope((lifetime?.job ?: Job().also { it.cancel() }) + Dispatchers.Main.immediate + (lifetime ?: kotlin.coroutines.EmptyCoroutineContext))
+    internal val scope get() = CoroutineScope((lifetime?.job ?: Job().also { it.cancel() }) + Dispatchers.Main.immediate + (lifetime ?: EmptyCoroutineContext))
     val sessions = SessionRepository(notifications, this)
     val routines = RoutineRepository(notifications, this)
     val config = ConfigRepository(this)

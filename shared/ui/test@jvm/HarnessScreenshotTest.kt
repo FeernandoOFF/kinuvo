@@ -1,9 +1,13 @@
 package kinuvo.ui
 
 import kinuvo.app.agent.*
+import kinuvo.app.settings.*
+import kinuvo.app.onboarding.*
+import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
+import kinuvo.ui.onboarding.*
 import kinuvo.app.navigation.*
 import kinuvo.app.session.*
-import kinuvo.ui.agent.*
 import kinuvo.ui.session.*
 
 import androidx.compose.runtime.Composable

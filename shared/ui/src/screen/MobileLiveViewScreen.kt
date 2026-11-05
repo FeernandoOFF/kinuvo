@@ -3,6 +3,7 @@ package kinuvo.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -311,7 +312,7 @@ private fun RowScope.KeyCap(key: String, enabled: Boolean, selected: Boolean? = 
     Box(Modifier.weight(1f).height(44.dp).clip(shape)
         .background(if (selected == true) color(accentColor).copy(alpha = 0.16f) else color(subtleColor))
         .then(if (selected == true) Modifier.border(1.dp, color(accentColor).copy(alpha = 0.5f), shape) else Modifier)
-        .clickable(enabled = enabled, onClick = onClick)
+        .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
         .semantics(mergeDescendants = true) {
             contentDescription = key
             role = Role.Button

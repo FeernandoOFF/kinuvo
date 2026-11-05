@@ -1,8 +1,8 @@
 package kinuvo.ui.connection
 
+import kinuvo.ui.onboarding.*
 import kinuvo.app.connection.*
 import kinuvo.ui.session.*
-import kinuvo.ui.agent.*
 import kinuvo.ui.board.*
 import kinuvo.ui.navigation.*
 

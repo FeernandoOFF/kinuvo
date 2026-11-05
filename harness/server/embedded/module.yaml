@@ -4,6 +4,16 @@ product:
 
 dependencies:
   - ../runtime: exported
+  - ../../providers/codex
+  - ../../providers/koog
+  - ../../plugins/mcp
+  - ../../plugins/firecrawl
+  - ../../plugins/ntfy
+  - ../../plugins/executor
+  - ../../plugins/anytype
+
+dependencies@android:
+  - ../../providers/litert
 
 test-dependencies:
   - ../../testing

@@ -3,13 +3,15 @@ package kinuvo.ui
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
+import kinuvo.app.settings.*
+import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.app.board.*
 import kinuvo.app.knowledge.*
 import kinuvo.app.navigation.*
 import kinuvo.app.artifacts.*
 import kinuvo.ui.connection.*
 import kinuvo.ui.session.*
-import kinuvo.ui.agent.*
 import kinuvo.ui.board.*
 import kinuvo.ui.knowledge.*
 import kinuvo.ui.artifacts.*
@@ -302,7 +304,7 @@ class ScreenshotTest {
             HarnessTheme(dark = true) { SettingsContent(ui.copy(management = false, state = ui.state.copy(tasks = null, errors = listOf("This action requires management access"))), SettingsActions(), sidebar = false) }
         }
         render("settings-voice-management", 420, 760) {
-            HarnessTheme(dark = true) { kinuvo.ui.agent.DetailPane(null, "Voice") { kinuvo.ui.design.LoadFailure("This action requires management access") {} } }
+            HarnessTheme(dark = true) { kinuvo.ui.settings.DetailPane(null, "Voice") { kinuvo.ui.design.LoadFailure("This action requires management access") {} } }
         }
         render("settings-medium-dark", 900, 760) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Routines)), SettingsActions()) } }
         render("settings-narrow-detail", 420, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Routines, "heartbeat")), SettingsActions()) } }

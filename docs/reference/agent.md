@@ -7,7 +7,7 @@ Each Agent has `agents/<id>/agent.yaml` under the Server home. These are the `Ag
 
 | Field | Type | Default | Example / meaning |
 | --- | --- | --- | --- |
-| `provider` | string | `codex` | `openai` or `apple` when offered by the Server |
+| `provider` | string | `codex` | `openai`, `apple` or `local` when offered by the Server, or `custom/<key>` for a configured endpoint |
 | `model` | string | `gpt-5.6-sol` | A model ID from the selected provider |
 | `reasoning` | string | `medium` | A supported effort from the model picker |
 | `reasoningSummary` | string | `auto` | `auto`, `concise`, `detailed` or `none` |

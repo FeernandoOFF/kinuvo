@@ -4,11 +4,13 @@ import kinuvo.client.userMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kinuvo.app.connection.ConnectedServer
+import kinuvo.app.navigation.Route
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.time.Clock
 
 data class LiveViewState(
     val screens: List<ScreenInfo> = emptyList(), val selected: ScreenRef? = null,
@@ -24,6 +26,13 @@ data class LiveViewState(
     val ownsControl get() = device != null && control.holder == device && !control.suspended && !control.draining && !control.closed
     val interactive get() = connected && ownsControl && !pending && displayed != null && screen?.status == ScreenStatus.Ready
     fun accepts(frame: ScreenFrame) = connected && frame.screen == selected && frame.subscription == subscription?.id && frame.epoch == subscription.epoch
+}
+
+/** The Live view [route] opens: an Agent's browser, or the Computers with [Route.Computers.computer] selected. */
+fun LiveViewModel(connection: ConnectedServer, route: Route) = when (route) {
+    is Route.Browser -> LiveViewModel(connection, BrowserOwner(route.agentId), route.screen, route.reason)
+    is Route.Computers -> LiveViewModel(connection, null, route.computer?.let { ScreenRef("computer", it) }, route.reason)
+    else -> LiveViewModel(connection, null, null, null)
 }
 
 class LiveViewModel(private val repository: ScreensRepository, private val owner: BrowserOwner? = null,
@@ -51,7 +60,7 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
 
     init {
         viewModelScope.launch { repository.frames.collect { frame ->
-            if (state.value.accepts(frame)) state.update { it.copy(frame = frame, frameReceivedAt = kotlin.time.Clock.System.now().toString()) }
+            if (state.value.accepts(frame)) state.update { it.copy(frame = frame, frameReceivedAt = Clock.System.now().toString()) }
             else if (previews[frame.screen]?.let { it.id == frame.subscription && it.epoch == frame.epoch } == true)
                 state.update { it.copy(thumbnails = it.thumbnails + (frame.screen to frame)) }
             else if (frame.screen == awaitingPreview) earlyPreview = frame
@@ -132,7 +141,7 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
             sequence = 0
             state.update { it.copy(subscription = sub) }
             earlyStatus?.takeIf { it.subscription == sub.id }?.let(::streamStatus)
-            early?.takeIf { state.value.accepts(it) }?.let { frame -> state.update { it.copy(frame = frame, frameReceivedAt = kotlin.time.Clock.System.now().toString()) } }
+            early?.takeIf { state.value.accepts(it) }?.let { frame -> state.update { it.copy(frame = frame, frameReceivedAt = Clock.System.now().toString()) } }
         } finally { starting = false; early = null }
         preview()
     }

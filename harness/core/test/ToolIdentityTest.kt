@@ -1,5 +1,6 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.core.plugin.*
 import kinuvo.harness.testing.*
 
 import ai.koog.agents.core.tools.ToolDescriptor

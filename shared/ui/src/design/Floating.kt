@@ -30,7 +30,7 @@ val FloatingClearance = 72.dp
 /** Phone header buttons sit in round bubbles, a pill when there are several. */
 @Composable
 fun Bubble(content: @Composable RowScope.() -> Unit) {
-    val shape = RoundedCornerShape(50)
+    val shape = PillShape
     Row(
         Modifier.height(44.dp).clip(shape).background(color(panelColor), shape).border(1.dp, color(borderColor), shape).padding(horizontal = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -51,7 +51,7 @@ fun FloatingBubble(icon: ImageVector, label: String, onClick: () -> Unit) = Bubb
 /** A bubble naming where the user is, e.g. the Agent and its open Session; [label] is read out for it. */
 @Composable
 fun RowScope.FloatingPill(onClick: () -> Unit, label: String, modifier: Modifier = Modifier, fill: Boolean = false, leading: @Composable () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    val shape = RoundedCornerShape(50)
+    val shape = PillShape
     Row(
         modifier.weight(1f, fill = fill).height(44.dp).clip(shape).background(color(panelColor), shape).border(1.dp, color(borderColor), shape)
             .clickable(onClick = onClick).clearAndSetSemantics {

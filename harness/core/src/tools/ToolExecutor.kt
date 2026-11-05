@@ -1,5 +1,6 @@
 package kinuvo.harness.core.tools
 
+import kinuvo.harness.core.plugin.*
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.harness.core.*
 import kinuvo.protocol.ProtocolJson

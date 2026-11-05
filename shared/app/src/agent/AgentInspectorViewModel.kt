@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 /** The inspector's levels: the Agent's settings, and the pickers and pages opened from them. */
 enum class InspectorPage { Agent, Instructions, Model, Approvals, UserNotes }
@@ -184,7 +185,7 @@ class AgentInspectorViewModel(private val config: ConfigRepository) : ViewModel(
                 }
                 state.update { it.copy(saving = false, saved = true, draft = it.details?.let(AgentDraft::of)) }
                 then()
-            } catch (e: kotlinx.coroutines.CancellationException) {
+            } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 state.update { it.copy(saving = false, errors = listOf(e.userMessage)) }

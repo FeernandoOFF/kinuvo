@@ -2,7 +2,6 @@ product: jvm/lib
 
 dependencies:
   - ../api
-  - ../../../shared/protocol
   - com.agentclientprotocol:acp:0.33.0
 
 settings:

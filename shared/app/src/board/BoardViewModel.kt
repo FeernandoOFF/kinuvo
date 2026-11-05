@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 /** [board] mirrors the [BoardRepository]; [showDone] adds the Done column, [adding] opens the new Task form. */
 data class BoardState(
@@ -46,7 +47,7 @@ class BoardViewModel(private val repo: BoardRepository) : ViewModel() {
         viewModelScope.launch {
             try {
                 repo.connection.run { block() }
-            } catch (e: kotlinx.coroutines.CancellationException) {
+            } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 state.update { it.copy(errors = it.errors + (e.userMessage)) }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 /**
  * One Session as held on this Device: a window of its entries starting at [firstSeq], the live turn and run notes.
@@ -125,7 +126,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
             val nextBefore = page.sessions.lastOrNull()?.id.takeIf { page.hasMore }
             state.update { it.copy(lists = it.lists + (agentId to SessionList(sessions, page.hasMore, nextBefore))) }
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            if (e is CancellationException) throw e
         } finally {
             if (connection.isCurrent()) {
                 listChanges -= agentId
@@ -249,7 +250,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         try {
             client.call(Api.CatchUp, CatchUpParams(data.agentId, sessionId, after = if (data.loaded) data.seen else null))
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
+            if (e is CancellationException) throw e
         } finally {
             if (connection.isCurrent()) catchingUp -= sessionId
         }

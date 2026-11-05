@@ -3,6 +3,7 @@ package kinuvo.harness.exec
 import java.io.File
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import java.util.Base64
 
 /** Runs commands on a remote machine with the system `ssh`, sharing one connection via ControlMaster. */
 class SshBackend(
@@ -42,7 +43,7 @@ class SshBackend(
 
     internal fun input(stdin: String?): String? = if (env.isEmpty()) stdin else {
         val exports = env.entries.joinToString("") { (k, v) -> "export $k=${shq(v)}; " }
-        java.util.Base64.getEncoder().encodeToString(exports.toByteArray()) + "\n" + stdin.orEmpty()
+        Base64.getEncoder().encodeToString(exports.toByteArray()) + "\n" + stdin.orEmpty()
     }
 
     override suspend fun execScript(script: String, cwd: String, stdin: String?, timeout: Duration, maxChars: Int): ExecResult {

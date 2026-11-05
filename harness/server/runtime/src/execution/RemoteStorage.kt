@@ -67,7 +67,7 @@ class ExecutionStorage(private val home: Path) : ExecutionRecoveryStore {
             errors += "Duplicate execution Session identity: $it"
         }
         loadErrors = errors.toList()
-        errors.forEach { KotlinLogging.logger("kinuvo.execution").error { "Execution recovery sidecar rejected: $it" } }
+        errors.forEach { KotlinLogging.logger("kinuvo.harness.execution").error { "Execution recovery sidecar rejected: $it" } }
         return records.filter { it.sessionId !in conflicts }
     }
     override fun save(record: ExecutionRecovery) = writeAtomically(path(record.agentId, record.sessionId), ProtocolJson.encodeToString(ExecutionRecovery.serializer(), record), private = true)

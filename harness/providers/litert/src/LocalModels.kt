@@ -1,6 +1,6 @@
 package kinuvo.harness.litert
 
-import kinuvo.models.ModelDownload
+import kinuvo.harness.models.ModelDownload
 import kinuvo.protocol.ModelFile
 
 /** A model the Server can download and run with LiteRT-LM; [memory] is the device RAM it needs, [tools] how many tools it's offered. */

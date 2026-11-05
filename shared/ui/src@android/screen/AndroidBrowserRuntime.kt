@@ -21,9 +21,9 @@ import kinuvo.harness.browser.browserDestination
 import kinuvo.harness.browser.browserNavigationAllowed
 import kinuvo.harness.browser.BrowserObservation
 import kinuvo.harness.browser.browserDeadline
-import kinuvo.harness.core.BrowserService
-import kinuvo.harness.core.ScreenGate
-import kinuvo.harness.core.ScreenSource
+import kinuvo.harness.core.plugin.BrowserService
+import kinuvo.harness.core.plugin.ScreenGate
+import kinuvo.harness.core.plugin.ScreenSource
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow

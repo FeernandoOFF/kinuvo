@@ -1,9 +1,12 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.server.devices.*
+import kinuvo.harness.server.reflection.*
+import kinuvo.harness.core.plugin.*
 import kinuvo.harness.testing.*
 import ai.koog.prompt.message.Message
 
-import kinuvo.harness.core.modelAlias
+import kinuvo.harness.core.plugin.modelAlias
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*

@@ -1,7 +1,7 @@
 package kinuvo.ui.session
 
 import kinuvo.app.connection.*
-import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.board.*
 
 import androidx.compose.foundation.layout.*

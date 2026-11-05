@@ -3,13 +3,14 @@ package kinuvo.ui
 import androidx.compose.runtime.*
 import androidx.compose.ui.semantics.*
 import kinuvo.app.agent.*
+import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.protocol.*
 import kinuvo.ui.design.*
 import com.composables.ui.components.Text
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
-import kinuvo.ui.agent.*
 import kotlin.test.*
 
 class SettingsDraftTest {

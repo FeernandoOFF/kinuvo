@@ -3,6 +3,9 @@ package kinuvo.harness.core
 import kotlinx.serialization.Serializable
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.protocol.SessionSettings
+import kinuvo.protocol.TrustRules
+import kinuvo.protocol.ContainerSettings
+import kinuvo.protocol.SshSettings
 
 object ExecModes {
     const val NONE = "none"
@@ -35,15 +38,15 @@ data class AgentConfig(
     val ssh: SshConfig? = null,
     val avatar: String? = null,
     /** Trust and Deny rules, owned by [TrustRulesRepository]: saving the rest of the config keeps the saved ones. */
-    val rules: kinuvo.protocol.TrustRules = kinuvo.protocol.TrustRules(),
+    val rules: TrustRules = TrustRules(),
 ) {
     init {
         require(exec in setOf(ExecModes.NONE, ExecModes.HOST, ExecModes.CONTAINER, ExecModes.SSH)) { "exec must be none, host, container or ssh, got '$exec'" }
     }
 }
 
-typealias ContainerConfig = kinuvo.protocol.ContainerSettings
-typealias SshConfig = kinuvo.protocol.SshSettings
+typealias ContainerConfig = ContainerSettings
+typealias SshConfig = SshSettings
 
 /** An Agent: its ID, display name (the Identity's first heading) and settings. Its documents live in [AgentDocs]. */
 data class Agent(val id: String, val name: String, val config: AgentConfig)

@@ -4,6 +4,7 @@ import kinuvo.app.session.*
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -31,7 +32,7 @@ internal fun CompletionList(query: CompletionQuery, highlighted: Int, onPick: (C
                     .clip(Theme[shapes][smallShape])
                     .background(if (i == highlighted) color(subtleColor) else color(panelColor))
                     .focusProperties { canFocus = false }
-                    .clickable { onPick(item) }
+                    .clickable(role = Role.Button) { onPick(item) }
                     .padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),

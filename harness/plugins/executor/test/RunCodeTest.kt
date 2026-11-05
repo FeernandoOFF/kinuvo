@@ -8,14 +8,14 @@ import kinuvo.harness.core.AgentRun
 import kinuvo.harness.core.ApprovalBroker
 import kinuvo.harness.core.ApprovalPolicy
 import kinuvo.harness.core.Approvals
-import kinuvo.harness.core.RunContext
+import kinuvo.harness.core.plugin.RunContext
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.FileStore
 import kinuvo.harness.core.store.FileTrustRules
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.ownedBy
-import kinuvo.harness.core.withModelNames
+import kinuvo.harness.core.plugin.ownedBy
+import kinuvo.harness.core.plugin.withModelNames
 import kinuvo.harness.core.tools.ToolRun
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision

@@ -1,5 +1,6 @@
 package kinuvo.harness.apple
 
+import kinuvo.harness.core.plugin.*
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.ToolNames
@@ -37,6 +38,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.uuid.Uuid
+import kinuvo.protocol.PluginDefinition
 
 /**
  * Swift owns Foundation Models; Kotlin owns the agent loop, tools and persistence. [model] is [SYSTEM] (on-device) or
@@ -60,7 +62,7 @@ const val PRIVATE_CLOUD = "private-cloud"
 
 class AppleProvider(private val native: AppleLanguageModel, private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val estimateTokens: (suspend (Prompt, List<ToolDescriptor>) -> Int)? = null) : ModelProvider, HarnessPlugin {
-    override val definition = kinuvo.protocol.PluginDefinition("kinuvo.apple", "Apple")
+    override val definition = PluginDefinition("kinuvo.apple", "Apple")
     override val id = "apple"
     override val name = "Apple"
     override val modelProviders get() = listOf(this)

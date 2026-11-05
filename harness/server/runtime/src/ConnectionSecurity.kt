@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.server.devices.*
 import kinuvo.protocol.Api
 import kinuvo.protocol.MAX_CONCURRENT_REQUESTS
 

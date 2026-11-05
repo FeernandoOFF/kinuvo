@@ -24,6 +24,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.TimeZone
+import kotlinx.coroutines.NonCancellable
 
 private val log by lazy { KotlinLogging.logger("kinuvo.cli") }
 
@@ -93,7 +94,7 @@ private suspend fun serve(host: String, port: Int, publicUrl: String? = null, tr
         runCatching { Runtime.getRuntime().removeShutdownHook(shutdown) }
         try { server.stop() } finally {
             try { desktop?.close() } finally {
-                if (!ready) kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                if (!ready) kotlinx.coroutines.withContext(NonCancellable) {
                     runCatching { route?.rollback() }.onFailure { log.warn(it) { "Could not remove the new Tailscale route; check `tailscale serve status`." } }
                 }
             }

@@ -1,5 +1,6 @@
 package kinuvo.harness.browser
 
+import kinuvo.harness.core.plugin.*
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType

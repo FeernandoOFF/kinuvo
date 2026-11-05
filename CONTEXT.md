@@ -14,6 +14,14 @@ _Avoid_: Profile, bot, assistant
 A reusable connection through which a Server runs Agents: Kinuvo's built-in harness, an installed external harness, or another Kinuvo Server.
 _Avoid_: Model provider, exec backend
 
+**Model provider**:
+Where an Agent's models come from: a built-in one (`codex`, `openai`, `apple`, `local`) or a Custom provider; chosen with the model in Agent and Session settings.
+_Avoid_: backend, LLM
+
+**Custom provider**:
+An OpenAI-compatible endpoint the owner lists under `providers:` in config.yaml; its ID is `custom/<key>`, so it never replaces a built-in Model provider.
+_Avoid_: compatible provider, custom model
+
 **External Agent**:
 An Agent registered in Kinuvo whose execution and configuration belong to another harness or Server; its local display identity can differ from its source identity.
 

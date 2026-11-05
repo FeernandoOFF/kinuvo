@@ -4,7 +4,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import kinuvo.app.connection.*
 import kinuvo.app.artifacts.*
 import kinuvo.ui.session.*
-import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.navigation.*
 
 import androidx.compose.foundation.background

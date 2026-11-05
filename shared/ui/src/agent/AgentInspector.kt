@@ -1,6 +1,7 @@
 package kinuvo.ui.agent
 
 import kinuvo.app.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.app.navigation.*
 import kinuvo.ui.session.*
 

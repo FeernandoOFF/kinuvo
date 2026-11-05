@@ -26,6 +26,7 @@ import kotlinx.serialization.json.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.uuid.Uuid
 import com.google.ai.edge.litertlm.Message as LiteRtMessage
+import kotlinx.coroutines.CancellationException
 
 private val log = KotlinLogging.logger {}
 
@@ -65,7 +66,7 @@ internal class LiteRtLLMClient(private val engines: Engines) : LLMClient() {
                             message.toolCalls.forEach { emit(StreamFrame.ToolCallComplete(Uuid.random().toString(), it.name, it.arguments.toJson().toString())) }
                         }
                         null
-                    } catch (e: kotlinx.coroutines.CancellationException) {
+                    } catch (e: CancellationException) {
                         conversation.cancelProcess()
                         throw e
                     } catch (e: Exception) {

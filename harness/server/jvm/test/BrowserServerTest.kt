@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.server.screens.*
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.browser.BrowserPlugin
 import kinuvo.harness.testing.scriptedModel

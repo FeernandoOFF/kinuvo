@@ -10,6 +10,7 @@ import ai.koog.prompt.llm.LLModel
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.message.ResponseMetaInfo
+import kinuvo.protocol.SessionEntry
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.AgentModel
 import kotlinx.coroutines.flow.catch
@@ -36,6 +37,6 @@ class ScriptedExecutor(private val respond: (Prompt, List<ToolDescriptor>) -> Fl
 val List<Message>.toolResults: List<MessagePart.Tool.Result> get() = flatMap { it.parts }.filterIsInstance<MessagePart.Tool.Result>()
 val List<Message>.toolCalls: List<MessagePart.Tool.Call> get() = flatMap { it.parts }.filterIsInstance<MessagePart.Tool.Call>()
 
-fun AgentModel.request(instructions: String, history: List<kinuvo.protocol.SessionEntry>, tools: List<ToolDescriptor>) =
+fun AgentModel.request(instructions: String, history: List<SessionEntry>, tools: List<ToolDescriptor>) =
     executor.executeStreaming(kinuvo.harness.core.SessionMessages(this).prompt(instructions, history), model, tools.sortedBy { it.name })
         .catch { throw failure(it) }

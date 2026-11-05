@@ -27,6 +27,10 @@ import io.ktor.websocket.readText
 import io.ktor.websocket.close
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flow
+import java.net.InetAddress
+import java.net.InetSocketAddress
+import java.net.ServerSocket
+import kotlinx.serialization.json.JsonObject
 
 /** Serves [runtime] over WebSockets to Devices on the network, which pair and authenticate through [auth]. */
 class NetworkListener(private val runtime: ServerRuntime, private val auth: DeviceAuth, val network: NetworkSecurity = NetworkSecurity()) {
@@ -39,7 +43,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
     suspend fun start(host: String, ports: List<Int>): Int {
         check(engine == null) { "Already listening" }
         if (network.publicUrl != null) {
-            require(java.net.InetAddress.getByName(host).isLoopbackAddress) { "Public hosting must listen on loopback behind a trusted HTTPS proxy" }
+            require(InetAddress.getByName(host).isLoopbackAddress) { "Public hosting must listen on loopback behind a trusted HTTPS proxy" }
             require(ports.size == 1 && ports.single() in 1..65535) { "Public hosting requires a single fixed port" }
         }
         auth.publicUrl = network.publicUrl
@@ -49,7 +53,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
         boundHost = host
         boundPort = server.engine.resolvedConnectors().first().port
         auth.port = boundPort
-        val address = java.net.InetAddress.getByName(host)
+        val address = InetAddress.getByName(host)
         auth.addresses = {
             when {
                 address.isAnyLocalAddress -> lanAddresses()
@@ -62,7 +66,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
 
     fun stop() { engine?.stop(1_000, 2_000); engine = null }
 
-    private fun free(host: String, port: Int) = runCatching { java.net.ServerSocket().use { it.bind(java.net.InetSocketAddress(host, port)) } }.isSuccess
+    private fun free(host: String, port: Int) = runCatching { ServerSocket().use { it.bind(InetSocketAddress(host, port)) } }.isSuccess
 
     private fun listen(host: String, port: Int): EmbeddedServer<*, *> {
         val server = embeddedServer(CIO, port = port, host = host) {
@@ -74,7 +78,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                     val forwarded = call.request.header("X-Forwarded-Proto")
                     val hosts = (lanAddresses() + listOf("127.0.0.1", "localhost", "::1", host)).toSet()
                     if (call.request.header("Origin") == null || !network.acceptsOrigin(call.request.header("Origin"), call.request.header("Host").orEmpty(), hosts) ||
-                        !(network.secureProxy(peer, forwarded) || network.publicUrl == null && java.net.InetAddress.getByName(peer).isLoopbackAddress)) {
+                        !(network.secureProxy(peer, forwarded) || network.publicUrl == null && InetAddress.getByName(peer).isLoopbackAddress)) {
                         limits.audit(peer, "browser_origin_or_transport")
                         call.respondText("Forbidden", status = HttpStatusCode.Forbidden); return@post
                     }
@@ -85,7 +89,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                         val bytes = withTimeoutOrNull(10_000) { call.receiveChannel().readBuffer(PREAUTH_FRAME_SIZE + 1).readByteArray() }
                         if (bytes == null || bytes.size > PREAUTH_FRAME_SIZE) { call.respondText("Invalid request", status = HttpStatusCode.BadRequest); return@post }
                         val raw = runCatching { ProtocolJson.parseToJsonElement(bytes.decodeToString()) }.getOrNull()
-                        val version = (raw as? kotlinx.serialization.json.JsonObject)?.get("protocolVersion")
+                        val version = (raw as? JsonObject)?.get("protocolVersion")
                         if (version?.toString() != ProtocolVersion.Current.toString()) {
                             call.respondText(ProtocolVersion.Mismatch, status = HttpStatusCode.Conflict); return@post
                         }
