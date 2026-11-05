@@ -1,6 +1,8 @@
 package kinuvo.ui.agent
 
 import kinuvo.app.agent.*
+import kinuvo.ui.settings.*
+import kinuvo.ui.onboarding.*
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

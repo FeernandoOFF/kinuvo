@@ -20,6 +20,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.time.Clock
 
 private val log = KotlinLogging.logger("kinuvo.scheduler")
 
@@ -35,7 +36,7 @@ class Scheduler(
     private val runs: Runs,
     private val scope: CoroutineScope,
     private val onRan: (RoutineRan) -> Unit = {},
-    private val clock: () -> Long = { kotlin.time.Clock.System.now().toEpochMilliseconds() },
+    private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private val firing = ConcurrentMutableMap<String, Job>()

@@ -1,5 +1,6 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.core.plugin.*
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.loadEnv
 import kinuvo.protocol.ProviderApiKeyStatus

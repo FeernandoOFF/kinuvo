@@ -20,10 +20,18 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.io.encoding.Base64
+import android.content.ActivityNotFoundException
+import android.graphics.Bitmap
+import android.graphics.Matrix
+import android.media.ExifInterface
+import android.net.Uri
+import java.io.ByteArrayOutputStream
+import java.io.InputStream
+import kotlinx.coroutines.CancellationException
 
 internal actual fun attachmentImage(bytes: ByteArray, fullSize: Boolean): ImageBitmap? = decodeImage(bytes, if (fullSize) Int.MAX_VALUE else 256)?.asImageBitmap()
 
-private fun decodeImage(bytes: ByteArray, maxSize: Int): android.graphics.Bitmap? {
+private fun decodeImage(bytes: ByteArray, maxSize: Int): Bitmap? {
     val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
     options.inSampleSize = (maxOf(options.outWidth, options.outHeight) / maxSize).coerceAtLeast(1)
@@ -43,7 +51,7 @@ internal actual fun rememberAttachmentPicker(onResult: (List<UploadAttachmentPar
     val resolver = context.contentResolver
     val scope = rememberCoroutineScope()
     val result by rememberUpdatedState(onResult)
-    fun read(uris: List<android.net.Uri>, photo: File? = null) = scope.launch {
+    fun read(uris: List<Uri>, photo: File? = null) = scope.launch {
         try {
             val files = withContext(Dispatchers.IO) {
                 require(uris.size <= MAX_ATTACHMENTS) { "Choose up to 4 files" }
@@ -54,9 +62,9 @@ internal actual fun rememberAttachmentPicker(onResult: (List<UploadAttachmentPar
                     if (photo != null || (resolver.getType(uri)?.startsWith("image/") == true && attachmentMimeType(name) == null)) {
                         val bitmap = requireNotNull(decodeImage(bytes, 2048)) { "Couldn't read photo" }
                         val scale = minOf(1f, 2048f / maxOf(bitmap.width, bitmap.height))
-                        val matrix = android.graphics.Matrix().apply { setScale(scale, scale); postRotate(exifRotation(bytes)) }
-                        val resized = android.graphics.Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-                        val encoded = java.io.ByteArrayOutputStream().also { resized.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) }.toByteArray()
+                        val matrix = Matrix().apply { setScale(scale, scale); postRotate(exifRotation(bytes)) }
+                        val resized = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+                        val encoded = ByteArrayOutputStream().also { resized.compress(Bitmap.CompressFormat.JPEG, 90, it) }.toByteArray()
                         if (resized !== bitmap) resized.recycle()
                         bitmap.recycle()
                         UploadAttachmentParams(name.substringBeforeLast('.', name) + ".jpg", Base64.encode(encoded))
@@ -64,7 +72,7 @@ internal actual fun rememberAttachmentPicker(onResult: (List<UploadAttachmentPar
                 }
             }
             result(files, null)
-        } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+        } catch (e: CancellationException) { throw e }
         catch (e: Exception) { result(emptyList(), e.message ?: "Couldn't read attachment") }
         finally { photo?.delete() }
     }
@@ -83,22 +91,22 @@ internal actual fun rememberAttachmentPicker(onResult: (List<UploadAttachmentPar
                 val file = File(File(context.cacheDir, "camera").apply { mkdirs() }, "Photo-${System.currentTimeMillis()}.jpg")
                 photo = file.path
                 camera.launch(FileProvider.getUriForFile(context, "${context.packageName}.attachments", file))
-            } catch (e: android.content.ActivityNotFoundException) { photo = null; result(emptyList(), "No camera app found") }
+            } catch (e: ActivityNotFoundException) { photo = null; result(emptyList(), "No camera app found") }
             AttachmentSource.Photos -> photos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
             AttachmentSource.Files -> files.launch("*/*")
         }
     }
 }
 
-private fun exifRotation(bytes: ByteArray): Float = when (android.media.ExifInterface(bytes.inputStream()).getAttributeInt(android.media.ExifInterface.TAG_ORIENTATION, 0)) {
-    android.media.ExifInterface.ORIENTATION_ROTATE_90 -> 90f
-    android.media.ExifInterface.ORIENTATION_ROTATE_180 -> 180f
-    android.media.ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+private fun exifRotation(bytes: ByteArray): Float = when (ExifInterface(bytes.inputStream()).getAttributeInt(ExifInterface.TAG_ORIENTATION, 0)) {
+    ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+    ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+    ExifInterface.ORIENTATION_ROTATE_270 -> 270f
     else -> 0f
 }
 
-private fun java.io.InputStream.readBytesBounded(): ByteArray {
-    val output = java.io.ByteArrayOutputStream()
+private fun InputStream.readBytesBounded(): ByteArray {
+    val output = ByteArrayOutputStream()
     val buffer = ByteArray(8192)
     while (true) {
         val n = read(buffer)
@@ -120,7 +128,7 @@ internal actual fun rememberAttachmentSaver(onError: (String) -> Unit): (Attachm
         pending = null
         if (uri != null && data != null) scope.launch {
             try { withContext(Dispatchers.IO) { requireNotNull(resolver.openOutputStream(uri)).use { it.write(Base64.decode(data.base64)) } } }
-            catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: CancellationException) { throw e }
             catch (e: Exception) { error(e.message ?: "Couldn't save attachment") }
         }
     }

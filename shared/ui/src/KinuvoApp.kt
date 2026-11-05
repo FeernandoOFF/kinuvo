@@ -3,6 +3,11 @@ package kinuvo.ui
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
+import kinuvo.app.settings.*
+import kinuvo.app.onboarding.*
+import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
+import kinuvo.ui.onboarding.*
 import kinuvo.app.board.*
 import kinuvo.app.knowledge.*
 import kinuvo.app.navigation.*
@@ -11,7 +16,6 @@ import kinuvo.app.home.*
 import kinuvo.ui.connection.*
 import kinuvo.ui.home.*
 import kinuvo.ui.session.*
-import kinuvo.ui.agent.*
 import kinuvo.ui.board.*
 import kinuvo.ui.knowledge.*
 import kinuvo.ui.artifacts.*
@@ -87,6 +91,10 @@ import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
 import com.composeunstyled.TooltipHost
 import kinuvo.ui.design.*
+import kinuvo.app.screen.LiveViewModel
+import kinuvo.ui.screen.BrowserDockHost
+import kinuvo.ui.screen.ComputersScreen
+import kinuvo.ui.screen.LiveViewScreen
 
 @Composable
 fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, manageActivity: Boolean = true) {
@@ -308,7 +316,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     update?.let(backStack::update)
                                 }
                                 val browser = route.agentId?.let { agent -> Route.Browser(agent, route.sessionId) }
-                                kinuvo.ui.screen.BrowserDockHost(browser.takeIf { !compact && sessionBrowserAvailable(appState.agents.firstOrNull { it.id == route.agentId }, resolved.capabilities?.server) }, browserDocks, onExpand = history::open) { dock ->
+                                BrowserDockHost(browser.takeIf { !compact && sessionBrowserAvailable(appState.agents.firstOrNull { it.id == route.agentId }, resolved.capabilities?.server) }, browserDocks, onExpand = history::open) { dock ->
                                     ChatScreen(app, session, !compact, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
                                         onBack = back.takeIf { backStack.getOrNull(backStack.lastIndex - 1)?.home == true }, dock = dock)
                                 }
@@ -361,7 +369,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     }
                                 }
                             } else {
-                                val live = koinViewModel<kinuvo.app.screen.LiveViewModel>(key = "live/${app.serverLifetime}/$route") { parametersOf(route) }
+                                val live = koinViewModel<LiveViewModel>(key = "live/${app.serverLifetime}/$route") { parametersOf(route) }
                                 val showChat = !compact && maxWidth >= 1200.dp
                                 val chat = Route.Chat(route.agentId, route.sessionId)
                                 val dock = PageAction(Lucide.Minimize2, "Dock beside chat") {
@@ -381,13 +389,13 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                         }
                                         VerticalSeparator()
                                     }
-                                    Box(Modifier.weight(1f)) { kinuvo.ui.screen.LiveViewScreen(live, back.takeIf { compact && history.canGoBack }, extra = if (compact) emptyList() else listOf(dock)) }
+                                    Box(Modifier.weight(1f)) { LiveViewScreen(live, back.takeIf { compact && history.canGoBack }, extra = if (compact) emptyList() else listOf(dock)) }
                                 }
                             }
                         }
                         entry<Route.Computers> { route ->
                             if (connection !is Connection.Ready) Loading(connection)
-                            else kinuvo.ui.screen.ComputersScreen(koinViewModel<kinuvo.app.screen.LiveViewModel>(key = "live/${app.serverLifetime}/$route") { parametersOf(route) },
+                            else ComputersScreen(koinViewModel<LiveViewModel>(key = "live/${app.serverLifetime}/$route") { parametersOf(route) },
                                 list = route.computer == null, onOpen = { history.open(Route.Computers(it.id)) }, back = back.takeIf { history.canGoBack }, server = connection.server.label)
                         }
                         entry<Route.Knowledge> { route ->

@@ -8,7 +8,7 @@ import androidx.compose.ui.window.ComposeUIViewController
 import androidx.lifecycle.ViewModelStoreOwner
 import androidx.lifecycle.viewmodel.compose.LocalViewModelStoreOwner
 import com.composeunstyled.TooltipHost
-import kinuvo.app.agent.OnboardingViewModel
+import kinuvo.app.onboarding.OnboardingViewModel
 import kinuvo.app.board.BoardDestination
 import kinuvo.app.connection.*
 import kinuvo.app.knowledge.KnowledgeViewModel
@@ -20,7 +20,7 @@ import kinuvo.app.session.SessionViewModel
 import kinuvo.ui.session.ChatScreen
 import kinuvo.ui.navigation.rememberShellChrome
 import kinuvo.ui.connection.ConnectScreen
-import kinuvo.ui.agent.OnboardingScreen
+import kinuvo.ui.onboarding.OnboardingScreen
 import kinuvo.ui.design.HarnessTheme
 import kinuvo.ui.design.LocalPopovers
 import kinuvo.ui.design.Popovers

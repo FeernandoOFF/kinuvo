@@ -1,8 +1,8 @@
 @file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
 
-package kinuvo.execution.acp
+package kinuvo.harness.execution.acp
 
-import kinuvo.execution.api.*
+import kinuvo.harness.execution.api.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*

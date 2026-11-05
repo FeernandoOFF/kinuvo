@@ -2,6 +2,7 @@ package kinuvo.app
 
 import kinuvo.app.connection.*
 import kinuvo.app.agent.*
+import kinuvo.app.onboarding.*
 
 import kinuvo.protocol.*
 import kotlin.test.Test

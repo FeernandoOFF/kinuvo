@@ -1,6 +1,7 @@
 package kinuvo.app
 
 import kinuvo.app.agent.*
+import kinuvo.app.onboarding.*
 import kinuvo.app.session.*
 
 import kinuvo.protocol.*

@@ -3,7 +3,7 @@ package kinuvo.harness.server
 import kinuvo.harness.testing.*
 import ai.koog.prompt.message.Message
 
-import kinuvo.harness.core.modelAlias
+import kinuvo.harness.core.plugin.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.knowledge.*
 import kinuvo.harness.core.routines.RoutineRun

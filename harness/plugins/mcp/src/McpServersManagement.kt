@@ -2,7 +2,7 @@ package kinuvo.harness.mcp
 
 import kinuvo.harness.core.Agent
 import kinuvo.harness.core.AgentConfig
-import kinuvo.harness.core.McpManagement
+import kinuvo.harness.core.plugin.McpManagement
 import kinuvo.harness.core.Secrets
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.exists

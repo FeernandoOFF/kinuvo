@@ -22,11 +22,11 @@ modules:
   - harness/providers/codex
   - harness/providers/koog
   - harness/providers/litert
+  - harness/providers/voice
   - harness/server/embedded
   - harness/server/jvm
   - harness/server/runtime
   - harness/testing
-  - harness/voice
   - shared/app
   - shared/client
   - shared/protocol

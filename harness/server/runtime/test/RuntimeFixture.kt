@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.plugin.*
 import kinuvo.harness.core.*
 import kinuvo.harness.core.artifacts.*
 import kinuvo.harness.core.knowledge.*
@@ -16,7 +17,7 @@ import kinuvo.protocol.*
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 
-internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), providers: List<ModelProvider> = emptyList(), closeNetwork: () -> Unit = {}) {
+internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), providers: List<ModelProvider> = emptyList(), closeNetwork: () -> Unit = {}, voice: VoiceProviders = VoiceProviders()) {
     val agent = Agent("test", "Test", AgentConfig(provider = "test", model = "tools", tools = emptyList()))
     val transcripts = InMemoryStore()
     val store = object : Store by transcripts {
@@ -99,7 +100,7 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
         }, "in-memory-server", resources, providers, {
             catalogReads++
             ModelsCatalog(providers.map { ProviderModels(it.id, it.name, it.models(), false) })
-        }, { fetch(it) })
-    fun runtime(model: AgentModel? = null, features: Set<ServerFeature> = BUILT_IN_FEATURES, voice: VoiceProviders = dependencies.voice) =
-        HarnessRuntime(dependencies, modelFactory = model?.let { { _: AgentConfig -> it } }, builtInFeatures = features, voice = voice)
+        }, { fetch(it) }, voice = voice)
+    fun runtime(model: AgentModel? = null, features: Set<ServerFeature> = BUILT_IN_FEATURES) =
+        HarnessRuntime(dependencies, modelFactory = model?.let { { _: AgentConfig -> it } }, builtInFeatures = features)
 }

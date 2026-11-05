@@ -51,6 +51,9 @@ import kinuvo.ui.session.*
 import kotlinx.coroutines.*
 import kotlin.io.encoding.Base64
 import kotlin.math.roundToInt
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.unit.IntOffset
 
 @Composable
 fun LiveViewScreen(model: LiveViewModel, back: (() -> Unit)?, docked: Boolean = false, extra: List<PageAction> = emptyList()) {
@@ -194,14 +197,14 @@ internal fun AddressBar(state: LiveViewState, actions: LiveActions) {
         HeaderButton(Lucide.ArrowLeft, "Go back", { actions.command(ScreenCommandKind.Back, null) }, enabled = state.interactive)
         HeaderButton(Lucide.ArrowRight, "Go forward", { actions.command(ScreenCommandKind.Forward, null) }, enabled = state.interactive)
         HeaderButton(Lucide.RotateCw, "Reload", { state.screen?.currentUrl?.let { actions.command(ScreenCommandKind.Navigate, it) } }, enabled = state.interactive)
-        Row(Modifier.weight(1f).clip(RoundedCornerShape100).background(color(panelColor)).padding(horizontal = 12.dp, vertical = 7.dp),
+        Row(Modifier.weight(1f).clip(PillShape).background(color(panelColor)).padding(horizontal = 12.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(if (address.startsWith("https://")) Lucide.Lock else Lucide.Globe, Modifier.size(13.dp), tint = color(mutedColor))
-            androidx.compose.foundation.text.BasicTextField(address, { address = it }, Modifier.weight(1f).semantics { contentDescription = "Address" },
+            BasicTextField(address, { address = it }, Modifier.weight(1f).semantics { contentDescription = "Address" },
                 enabled = state.interactive, singleLine = true,
-                textStyle = androidx.compose.ui.text.TextStyle(color = color(mutedColor), fontSize = TextStyles.secondary.fontSize),
-                keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Go),
-                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onGo = { actions.command(ScreenCommandKind.Navigate, address) }))
+                textStyle = TextStyle(color = color(mutedColor), fontSize = TextStyles.secondary.fontSize),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Go),
+                keyboardActions = KeyboardActions(onGo = { actions.command(ScreenCommandKind.Navigate, address) }))
         }
     }
 }
@@ -329,7 +332,7 @@ internal fun LiveCanvas(frame: ScreenFrame?, interactive: Boolean, input: (Scree
         val ratio = shown?.bitmap?.let { it.width.toFloat() / it.height } ?: 1.6f
         val imageWidth = minOf(maxWidth, maxHeight * ratio)
         val imageHeight = imageWidth / ratio
-        val density = androidx.compose.ui.platform.LocalDensity.current
+        val density = LocalDensity.current
         val imageWidthPx = with(density) { imageWidth.toPx() }
         val imageHeightPx = with(density) { imageHeight.toPx() }
         LaunchedEffect(recenter) { pointer = RemotePointer.centered(imageWidthPx, imageHeightPx, zoom, pan.x, pan.y) }
@@ -417,7 +420,7 @@ internal fun LiveCanvas(frame: ScreenFrame?, interactive: Boolean, input: (Scree
             if (trackpad && interactive && shown != null) Box(
                 Modifier.offset {
                     val tip = with(density) { (22.dp / zoom).toPx() } / 6f
-                    androidx.compose.ui.unit.IntOffset((pointer.x * imageWidthPx - tip).roundToInt(), (pointer.y * imageHeightPx - tip).roundToInt())
+                    IntOffset((pointer.x * imageWidthPx - tip).roundToInt(), (pointer.y * imageHeightPx - tip).roundToInt())
                 }
                     .size(22.dp / zoom).semantics { contentDescription = "Local pointer" }) {
                 Icon(Lucide.MousePointer2, Modifier.fillMaxSize().offset(1.dp / zoom, 1.dp / zoom), tint = Color.Black)
@@ -468,7 +471,7 @@ internal fun RemoteKeyboard(state: LiveViewState, actions: LiveActions, focus: F
             }.background(color(panelColor), RoundedCornerShape(8.dp)).padding(horizontal = 12.dp, vertical = if (expanded) 10.dp else 0.dp)
             .semantics { contentDescription = "Type into remote screen" },
             enabled = state.connected && state.ownsControl && (!compact || expanded), singleLine = true,
-            textStyle = androidx.compose.ui.text.TextStyle(color = color(mutedColor)),
+            textStyle = TextStyle(color = color(mutedColor)),
             keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Go, showKeyboardOnFocus = false),
             keyboardActions = KeyboardActions(onGo = { send(listOf(ScreenAction(ScreenActionKind.Key, key = "Enter"))) }),
             decorationBox = { field ->

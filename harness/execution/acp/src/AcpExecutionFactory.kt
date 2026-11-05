@@ -1,13 +1,14 @@
 @file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
-package kinuvo.execution.acp
+package kinuvo.harness.execution.acp
 
 import com.agentclientprotocol.client.v2.*
 import com.agentclientprotocol.model.v2.*
-import kinuvo.execution.api.*
+import kinuvo.harness.execution.api.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import kotlin.uuid.Uuid
+import java.io.IOException
 
 class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
     private val persistAttachment: suspend (ExecutionState, AttachmentData) -> Attachment = { _, _ -> error("Output attachment persistence is unavailable") },
@@ -28,7 +29,7 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
                 } finally { connection.close() }
             } ?: ExecutionProbe(ExecutionReadiness(true, false, "ACP negotiation timed out", "unavailable"))
         } catch (e: CancellationException) { throw e }
-        catch (e: java.io.IOException) { ExecutionProbe(ExecutionReadiness(true, false, "Command could not be started", "not_found")) }
+        catch (e: IOException) { ExecutionProbe(ExecutionReadiness(true, false, "Command could not be started", "not_found")) }
         catch (e: Exception) { ExecutionProbe(ExecutionReadiness(true, false, "ACP negotiation failed", "incompatible")) }
         finally { scope.cancel() }
     }

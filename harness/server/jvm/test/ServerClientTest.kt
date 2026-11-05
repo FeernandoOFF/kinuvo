@@ -4,7 +4,7 @@ import kotlin.test.assertNotNull
 
 import kinuvo.harness.testing.*
 
-import kinuvo.harness.core.modelAlias
+import kinuvo.harness.core.plugin.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.AuthException
 import kinuvo.client.KinuvoClient

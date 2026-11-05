@@ -1,12 +1,13 @@
 package kinuvo.harness.ntfy
 
+import kinuvo.harness.core.plugin.*
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
-import kinuvo.harness.core.Notification
+import kinuvo.harness.core.plugin.Notification
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 import kinuvo.harness.core.*

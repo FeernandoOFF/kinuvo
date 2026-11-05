@@ -13,7 +13,7 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kinuvo.harness.core.ProviderAuth
+import kinuvo.harness.core.plugin.ProviderAuth
 import kinuvo.protocol.DeviceCode
 import kinuvo.protocol.ProviderAccount
 import kotlinx.serialization.json.*

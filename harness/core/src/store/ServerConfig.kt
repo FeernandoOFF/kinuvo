@@ -11,6 +11,7 @@ import kinuvo.protocol.ServiceKind
 import kinuvo.protocol.ServiceSettings
 import kinuvo.protocol.TrustRules
 import kotlinx.serialization.Serializable
+import kinuvo.protocol.ModelInfo
 
 /** `config.yaml` in the home folder: everything set up for the whole Server. [rules] are its Trust and Deny rules, for every Agent. */
 @Serializable
@@ -34,7 +35,7 @@ data class ServerConfig(
 data class ModelProviderConfig(
     val name: String? = null,
     val baseUrl: String? = null,
-    val models: List<kinuvo.protocol.ModelInfo> = emptyList(),
+    val models: List<ModelInfo> = emptyList(),
     val apiKeyEnv: String? = null,
     val apiKeyRequired: Boolean = true,
 )

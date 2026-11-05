@@ -4,6 +4,7 @@ import kinuvo.app.connection.*
 import kinuvo.app.device.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
+import kinuvo.app.settings.*
 import kinuvo.app.board.*
 import kinuvo.app.navigation.*
 

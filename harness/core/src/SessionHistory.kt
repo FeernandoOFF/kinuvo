@@ -1,5 +1,6 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.core.plugin.*
 import kinuvo.protocol.SessionEntry
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.RawSchemaToolDescriptor
@@ -7,6 +8,8 @@ import ai.koog.agents.core.tools.ToolDescriptor
 
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kinuvo.protocol.Attachment
+import kotlinx.serialization.json.Json
 
 /** The latest compressed history followed by the Session's subsequent model entries. */
 fun List<SessionEntry>.activeHistory(): List<SessionEntry> {
@@ -59,7 +62,7 @@ fun List<SessionEntry>.estimatedTokens(instructions: String, tools: List<ToolDes
         }
     }) / 4
 
-private fun List<kinuvo.protocol.Attachment>.estimatedChars() = sumOf { a -> if (a.mimeType.startsWith("image/")) 6400 else a.size }
+private fun List<Attachment>.estimatedChars() = sumOf { a -> if (a.mimeType.startsWith("image/")) 6400 else a.size }
 
 /** Skills activated in [this] history (user activations, activate_skill results, earlier compactions), latest per name. */
 fun List<SessionEntry>.activations(): List<SessionEntry.Activation> {
@@ -70,7 +73,7 @@ fun List<SessionEntry>.activations(): List<SessionEntry.Activation> {
         is SessionEntry.Activation -> found[e.name] = e
         is SessionEntry.ToolResult -> if (!e.isError) calls[e.id]?.let { call ->
             val name = runCatching {
-                kotlinx.serialization.json.Json.parseToJsonElement(call.args).jsonObject["name"]?.jsonPrimitive?.content
+                Json.parseToJsonElement(call.args).jsonObject["name"]?.jsonPrimitive?.content
             }.getOrNull()
             if (name != null) found[name] = SessionEntry.Activation(name, e.output)
         }

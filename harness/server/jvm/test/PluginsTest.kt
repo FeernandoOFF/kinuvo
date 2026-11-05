@@ -4,14 +4,14 @@ import kinuvo.harness.testing.*
 
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.modelAlias
+import kinuvo.harness.core.plugin.modelAlias
 import kinuvo.harness.core.Agent
 import kinuvo.harness.core.AgentConfig
-import kinuvo.harness.core.HarnessPlugin
-import kinuvo.harness.core.InstructionSection
-import kinuvo.harness.core.ModelProvider
-import kinuvo.harness.core.PluginTools
-import kinuvo.harness.core.RunContext
+import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.harness.core.plugin.InstructionSection
+import kinuvo.harness.core.plugin.ModelProvider
+import kinuvo.harness.core.plugin.PluginTools
+import kinuvo.harness.core.plugin.RunContext
 import kinuvo.harness.core.tools.Tool
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.*

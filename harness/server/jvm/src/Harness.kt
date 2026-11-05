@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.plugin.*
 import kinuvo.harness.core.*
 import kinuvo.harness.core.store.*
 import kotlinx.coroutines.runBlocking

@@ -3,20 +3,22 @@ package kinuvo.harness.executor
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.HarnessPlugin
-import kinuvo.harness.core.PluginTools
-import kinuvo.harness.core.RunContext
+import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.harness.core.plugin.PluginTools
+import kinuvo.harness.core.plugin.RunContext
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.ToolRun
 import kinuvo.harness.core.tools.requireString
 import kinuvo.protocol.Risk
 import kotlinx.serialization.json.JsonObject
+import kinuvo.protocol.Integration
+import kinuvo.protocol.PluginDefinition
 
 /** Contributes [RunCodeTool] to Agents with the `run_code` tool group. */
 class ExecutorPlugin(private val limits: Limits = Limits()) : HarnessPlugin {
-    override val definition = kinuvo.protocol.PluginDefinition("kinuvo.executor", "Scripts")
-    override val integrations = mapOf(kinuvo.protocol.Integration.Tools to setOf(ToolNames.RUN_CODE))
+    override val definition = PluginDefinition("kinuvo.executor", "Scripts")
+    override val integrations = mapOf(Integration.Tools to setOf(ToolNames.RUN_CODE))
     override suspend fun prepare(run: RunContext, activate: Boolean) =
         if (ToolNames.RUN_CODE in run.agent.config.tools) PluginTools(listOf(RunCodeTool(limits))) else PluginTools()
 }

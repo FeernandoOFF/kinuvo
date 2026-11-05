@@ -1,7 +1,7 @@
-package kinuvo.execution.acp
+package kinuvo.harness.execution.acp
 
 import kinuvo.protocol.*
-import kinuvo.execution.api.*
+import kinuvo.harness.execution.api.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import kotlin.test.*

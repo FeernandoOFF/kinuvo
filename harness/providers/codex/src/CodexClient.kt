@@ -41,10 +41,11 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kinuvo.protocol.ModelInfo
 
 const val CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex/"
 
-fun codexModel(id: String) = kinuvo.protocol.ModelInfo(id).llModel(LLMProvider.OpenAI, listOf(LLMCapability.OpenAIEndpoint.Responses))
+fun codexModel(id: String) = ModelInfo(id).llModel(LLMProvider.OpenAI, listOf(LLMCapability.OpenAIEndpoint.Responses))
 
 private val debugLog = KotlinLogging.logger("codex")
 

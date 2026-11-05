@@ -12,6 +12,7 @@ import kinuvo.protocol.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 /** [all] is null until loaded; [open] is the [Route.Artifacts.artifact] being shown. */
 data class ArtifactsState(
@@ -63,7 +64,7 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
     private suspend fun attempt(block: suspend () -> Unit) {
         try {
             owner.run { block() }
-        } catch (e: kotlinx.coroutines.CancellationException) {
+        } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             state.update { it.copy(errors = it.errors + (e.userMessage)) }

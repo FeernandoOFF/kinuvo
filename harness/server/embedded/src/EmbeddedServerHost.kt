@@ -1,6 +1,9 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.server.devices.*
+import kinuvo.harness.core.plugin.*
 import kinuvo.harness.server.execution.ExecutionStorage
+import kinuvo.harness.server.execution.remoteLinks
 import kinuvo.harness.core.*
 import kinuvo.harness.core.store.*
 import kinuvo.harness.core.tools.ToolNames
@@ -60,7 +63,7 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
                 val auth = peers(EmbeddedPeers(token))
                 val executionStorage = ExecutionStorage(home)
                 val runtime = ServerRuntime(harness, auth, "On this device", foregroundOnly = !continuous,
-                    remoteLinks = kinuvo.harness.server.execution.remoteLinks(home), executionRegistry = executionStorage.registry,
+                    remoteLinks = remoteLinks(home), executionRegistry = executionStorage.registry,
                     executionStorage = executionStorage)
                 runtime.start(schedule = continuous)
                 return EmbeddedServerHost(runtime, token)

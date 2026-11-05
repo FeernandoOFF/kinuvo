@@ -19,6 +19,7 @@ import androidx.compose.ui.platform.LocalContext
 import kinuvo.protocol.*
 import kotlinx.serialization.json.*
 import java.util.concurrent.Executors
+import android.content.Intent
 
 internal class AndroidContactsReader(private val context: Context) : DeviceReader {
     override val kinds = listOf("Contacts")
@@ -100,7 +101,7 @@ internal actual fun rememberDeviceAuthorization(reader: DeviceReader): (DeviceTo
         when {
             kind == DeviceToolKind.Computer -> if (ComputerService.instance != null) callback(null) else {
                 computer = callback
-                context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }
             kind != DeviceToolKind.Contacts -> callback("This Device does not support that tool")
             context.checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED -> callback(null)

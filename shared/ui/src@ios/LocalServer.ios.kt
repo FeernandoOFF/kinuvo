@@ -5,18 +5,11 @@ import kinuvo.app.agent.*
 
 import kinuvo.harness.apple.AppleLanguageModel
 import kinuvo.harness.apple.AppleProvider
-import kinuvo.harness.codex.CodexProvider
-import kinuvo.harness.codex.OpenAIProvider
-import kinuvo.harness.koog.compatibleProviders
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.knowledgeConfig
 import kinuvo.harness.core.store.saveKnowledgeConfig
-import kinuvo.harness.firecrawl.FirecrawlPlugin
-import kinuvo.harness.ntfy.NtfyPlugin
-import kinuvo.harness.executor.ExecutorPlugin
-import kinuvo.harness.anytype.AnytypePlugin
-import kinuvo.harness.mcp.McpPlugin
 import kinuvo.harness.server.EmbeddedServerHost
+import kinuvo.harness.server.embeddedPlugins
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -60,8 +53,7 @@ internal class IosEmbeddedServer : EmbeddedServer {
                     val knowledge = files.knowledgeConfig()
                     knowledge.path?.let(moved::get)?.let { files.saveKnowledgeConfig(knowledge.copy(path = it)) }
                 }
-                EmbeddedServerHost.create(home, plugins = listOf(AppleProvider(model), CodexProvider(), OpenAIProvider(AgentFiles(home)), McpPlugin(AgentFiles(home)), FirecrawlPlugin(), NtfyPlugin(),
-                    ExecutorPlugin(), AnytypePlugin(AgentFiles(home))) + compatibleProviders(AgentFiles(home), attachments = kinuvo.harness.core.store.FileAttachments(Path(home, "attachments"))::bytes)).also { host ->
+                EmbeddedServerHost.create(home, plugins = embeddedPlugins(home, listOf(AppleProvider(model)))).also { host ->
                     server = host
                     localHost = host
                     MainScope().launch { host.runtime.runActivity.collect { backgroundRuns?.update(it.runs, it.steps) } }

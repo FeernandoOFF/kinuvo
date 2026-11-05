@@ -15,8 +15,9 @@ import com.composables.ui.theme.*
 import kinuvo.protocol.AgentInfo
 import kinuvo.ui.agent.AgentAvatar
 import kinuvo.ui.design.*
-import kinuvo.ui.session.HeaderButton
-import kinuvo.ui.session.TitleBarRow
+import kinuvo.ui.design.HeaderButton
+import kinuvo.ui.design.TitleBarRow
+import androidx.compose.ui.unit.Dp
 
 /** How Home's pages reach the shell: [onToggleShell] shows it, beside the screens when [wide], from under them otherwise. */
 class HomeChrome(val onToggleShell: () -> Unit, val wide: Boolean)
@@ -115,7 +116,7 @@ private fun AgentMenu(scope: AgentScope, modifier: Modifier, anchor: @Composable
 }
 
 @Composable
-private fun ScopeAvatar(scope: AgentScope, size: androidx.compose.ui.unit.Dp) {
+private fun ScopeAvatar(scope: AgentScope, size: Dp) {
     val agent = scope.agent
     if (agent != null) AgentAvatar(agent, size) else Icon(Lucide.Users, Modifier.size(size * 0.7f), tint = color(mutedColor))
 }

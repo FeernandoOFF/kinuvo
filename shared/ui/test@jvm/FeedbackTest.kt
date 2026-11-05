@@ -19,9 +19,9 @@ import androidx.compose.ui.use
 import com.composables.icons.lucide.CircleX
 import com.composables.icons.lucide.Lucide
 import com.composables.ui.theme.backgroundColor
-import kinuvo.app.agent.OnboardingState
+import kinuvo.app.onboarding.OnboardingState
 import kinuvo.protocol.DeviceCode
-import kinuvo.ui.agent.ModelStep
+import kinuvo.ui.onboarding.ModelStep
 import kinuvo.ui.design.*
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File

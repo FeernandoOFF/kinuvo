@@ -1,7 +1,7 @@
 package kinuvo.harness.server
 
 import co.touchlab.stately.collections.ConcurrentMutableMap
-import kinuvo.harness.core.ModelProvider
+import kinuvo.harness.core.plugin.ModelProvider
 import kinuvo.protocol.DeviceCode
 import kinuvo.protocol.ProviderInfo
 import kotlinx.coroutines.CancellationException

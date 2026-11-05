@@ -24,6 +24,7 @@ import java.util.logging.Formatter
 import java.util.logging.Level
 import java.util.logging.LogRecord
 import java.util.logging.Logger
+import java.util.logging.Filter
 
 actual fun localTracing(files: AgentFiles): AgentTracing = FileTracing(files)
 
@@ -48,7 +49,7 @@ internal class FileTracing(private val files: AgentFiles, private val limit: Int
                 formatter = object : Formatter() {
                     override fun format(record: LogRecord) = record.message + "\n"
                 }
-                filter = java.util.logging.Filter { it.level == Level.INFO && it.thrown == null }
+                filter = Filter { it.level == Level.INFO && it.thrown == null }
             }
             val logger = Logger.getAnonymousLogger().apply {
                 useParentHandlers = false

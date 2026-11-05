@@ -1,6 +1,6 @@
 package kinuvo.app
 
-import kinuvo.app.agent.*
+import kinuvo.app.settings.*
 import kotlin.test.*
 
 class McpCatalogTest {

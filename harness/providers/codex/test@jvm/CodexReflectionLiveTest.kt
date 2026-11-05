@@ -1,5 +1,6 @@
 package kinuvo.harness.codex
 
+import kinuvo.harness.core.plugin.*
 import kinuvo.harness.core.*
 import kinuvo.harness.core.knowledge.*
 import kinuvo.harness.core.skills.*

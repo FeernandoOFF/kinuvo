@@ -14,6 +14,9 @@ import android.os.Vibrator
 import org.koin.android.ext.koin.androidContext
 import org.koin.dsl.bind
 import org.koin.dsl.module
+import java.io.File
+import java.util.TimeZone
+import kinuvo.app.computer.ComputerDriver
 
 private class SharedPreferencesStore(context: Context) : Preferences {
     private val prefs = context.getSharedPreferences("kinuvo", Context.MODE_PRIVATE)
@@ -47,17 +50,17 @@ internal actual val platformModule = module {
     single { AndroidBrowserRuntime(androidContext()) }
     single<EmbeddedServer> { AndroidEmbeddedServer(androidContext(), get()) }
     single<DeviceReader> { AndroidContactsReader(androidContext()) }
-    single<kinuvo.app.computer.ComputerDriver> { AndroidComputer(androidContext()) }
+    single<ComputerDriver> { AndroidComputer(androidContext()) }
     single { HapticNotifier(androidContext()) } bind Notifier::class
     single { androidTestMode(androidContext()) }
     single<DeviceCredentials> { get<MobileTestMode>().takeIf { it.override != null }?.credentials ?: AndroidCredentials(androidContext()) }
     single<Preferences> { get<MobileTestMode>().takeIf { it.override != null }?.preferences ?: SharedPreferencesStore(androidContext()) }
-    single<ClientCache> { if (get<MobileTestMode>().override != null) ClientCache.None else deviceCache(java.io.File(androidContext().cacheDir, "client-cache").path) }
+    single<ClientCache> { if (get<MobileTestMode>().override != null) ClientCache.None else deviceCache(File(androidContext().cacheDir, "client-cache").path) }
     single<OAuthBrowser> {
         val context = androidContext()
         AppSchemeBrowser { url ->
             CustomTabsIntent.Builder().build().apply { intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }.launchUrl(context, Uri.parse(url))
         }
     }
-    single { Device("${Build.MANUFACTURER} ${Build.MODEL}", java.util.TimeZone.getDefault().id, get<MobileTestMode>().override?.websocketUrl.orEmpty()) }
+    single { Device("${Build.MANUFACTURER} ${Build.MODEL}", TimeZone.getDefault().id, get<MobileTestMode>().override?.websocketUrl.orEmpty()) }
 }

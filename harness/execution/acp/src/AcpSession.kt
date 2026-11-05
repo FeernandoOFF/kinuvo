@@ -1,12 +1,12 @@
 @file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
 
-package kinuvo.execution.acp
+package kinuvo.harness.execution.acp
 
 import com.agentclientprotocol.client.v2.ClientSession
 import com.agentclientprotocol.model.v2.*
 import com.agentclientprotocol.model.v2.SessionUpdate as AcpSessionUpdate
 import java.nio.ByteBuffer
-import kinuvo.execution.api.*
+import kinuvo.harness.execution.api.*
 import kinuvo.protocol.*
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.*

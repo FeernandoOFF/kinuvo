@@ -1,12 +1,13 @@
 package kinuvo.ui.session
 
+import kinuvo.ui.design.*
 import kinuvo.ui.design.TextStyles
 
 import kinuvo.app.session.*
 
 import kinuvo.app.connection.*
 import kinuvo.app.agent.*
-import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.board.*
 
 import androidx.compose.foundation.Canvas
@@ -191,7 +192,7 @@ internal fun RowScope.ComposerSettings(
     val modelPicker: @Composable (width: Modifier) -> Unit = { width ->
         if (!listing) Column(width.padding(8.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.fillMaxWidth()) { scope(closeModel) }
-            Row(Modifier.clickable { listing = true }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.clickable(role = Role.Button) { listing = true }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(selected?.name ?: settings.model ?: defaults.model, Modifier.weight(1f, fill = false), singleLine = true, overflow = TextOverflow.Ellipsis)
                 Spacer(Modifier.width(6.dp))
                 Text(effort.replaceFirstChar { it.uppercase() }, color = color(mutedColor), singleLine = true)
@@ -255,7 +256,7 @@ internal fun RowScope.ComposerSettings(
 private fun SourceTile(label: String, icon: ImageVector, enabled: Boolean, modifier: Modifier, reason: String? = null, onClick: () -> Unit) {
     val shape = Theme[shapes][largeShape]
     Column(
-        modifier.heightIn(min = 88.dp).clip(shape).background(color(borderColor).copy(alpha = 0.5f), shape).clickable(enabled = enabled, onClick = onClick)
+        modifier.heightIn(min = 88.dp).clip(shape).background(color(borderColor).copy(alpha = 0.5f), shape).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         horizontalAlignment = Alignment.CenterHorizontally,

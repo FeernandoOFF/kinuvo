@@ -18,6 +18,7 @@ import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Duration
 import kotlin.uuid.Uuid
+import kinuvo.protocol.DenyRules
 
 /** Which risk levels run without an Approval: strict asks for everything, full skips risk-based Approvals. Deny rules apply to all. */
 enum class Tolerance(val id: String, val autoUpTo: Risk?) {
@@ -46,7 +47,7 @@ interface TrustRulesRepository {
 suspend fun TrustRulesRepository.effective(agentId: String): TrustRules {
     val (a, s) = get(agentId) to server()
     fun join(x: List<String>, y: List<String>) = (x + y).distinct()
-    return TrustRules(join(a.trusted, s.trusted), join(a.shell, s.shell), kinuvo.protocol.DenyRules(join(a.deny.tools, s.deny.tools), join(a.deny.shell, s.deny.shell)))
+    return TrustRules(join(a.trusted, s.trusted), join(a.shell, s.shell), DenyRules(join(a.deny.tools, s.deny.tools), join(a.deny.shell, s.deny.shell)))
 }
 
 /** What happens to a tool call: it runs, waits for an Approval, or is refused by a Deny rule. */

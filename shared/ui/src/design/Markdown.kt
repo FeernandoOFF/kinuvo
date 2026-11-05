@@ -37,6 +37,7 @@ import ui.generated.resources.inter_semibold
 import ui.generated.resources.inter_bold
 import ui.generated.resources.inter_italic
 import ui.generated.resources.inter_bolditalic
+import androidx.compose.ui.text.style.TextDecoration
 
 /** Markdown text block, split so headings, code fences and tables get their own components. */
 internal sealed interface MdBlock {
@@ -141,7 +142,7 @@ fun RichMarkdown(markdown: String, style: TextStyle = markdownTextStyle(), modif
     val state = remember { RichTextState() }
     remember(markdown, link, code, border) {
         state.config.linkColor = link
-        state.config.linkTextDecoration = androidx.compose.ui.text.style.TextDecoration.None
+        state.config.linkTextDecoration = TextDecoration.None
         state.config.codeSpanColor = Color.Unspecified
         state.config.codeSpanBackgroundColor = code
         state.config.codeSpanStrokeColor = border

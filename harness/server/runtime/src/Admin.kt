@@ -37,14 +37,14 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
         val agent = agent(p.agentId)
         val before = agent.info()
         val old = agent.config
-        p.provider?.let { harness.requireModelProvider(it); require(!p.model.isNullOrBlank() || it == old.provider) { "Choose a model with its provider" } }
+        p.provider?.let { harness.requireModelProvider(it); require(!p.model.isNullOrBlank() || harness.providerId(it) == harness.providerId(old.provider)) { "Choose a model with its provider" } }
         p.approvals?.let { require(it in Tolerance.ids) { "approvals must be one of ${Tolerance.ids.joinToString()}" } }
         // A tool this Server no longer has may linger in the config; it doesn't block changes and is dropped on save.
         p.tools?.let { tools -> require(tools.all { it in TOOLS || it in old.tools }) { "tools must be among ${TOOLS.joinToString()}" } }
         p.exec?.takeIf { it != old.exec }?.let(::requireExec)
         val config = old.copy(
             avatar = p.avatar ?: old.avatar,
-            provider = p.provider ?: old.provider,
+            provider = harness.providerId(p.provider ?: old.provider),
             model = p.model?.trim()?.ifEmpty { null } ?: old.model,
             reasoning = p.reasoning ?: old.reasoning,
             approvals = p.approvals ?: old.approvals,
@@ -132,7 +132,7 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
 
     private fun Agent.info() = AgentInfo(id, name, config.exec, config.avatar)
 
-    private fun Agent.settings() = AgentSettings(config.model, config.reasoning, Tolerance.of(config.approvals).id, config.exec, config.workspace, config.tools, config.provider, config.container, config.ssh)
+    private fun Agent.settings() = AgentSettings(config.model, config.reasoning, Tolerance.of(config.approvals).id, config.exec, config.workspace, config.tools, harness.providerId(config.provider), config.container, config.ssh)
 
     private fun TrustRules.clean(): TrustRules {
         fun List<String>.tidy() = map { it.trim() }.filter { it.isNotEmpty() }.distinct()

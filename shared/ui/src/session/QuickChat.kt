@@ -2,6 +2,7 @@ package kinuvo.ui.session
 
 import kinuvo.app.connection.*
 import kinuvo.ui.agent.*
+import kinuvo.ui.settings.*
 import kinuvo.ui.board.*
 import kinuvo.ui.navigation.*
 
@@ -16,6 +17,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -56,8 +58,8 @@ import com.composables.ui.theme.*
 import kinuvo.protocol.AgentInfo
 import kinuvo.ui.design.*
 import kotlinx.coroutines.launch
+import kinuvo.app.agent.AvatarState
 
-private val PillShape = RoundedCornerShape(50)
 
 internal val QuickChatBarHeight = 80.dp
 
@@ -88,7 +90,7 @@ private fun QuickChatBarContent(agent: AgentInfo?, draft: TextFieldState, onOpen
         Row(
             // Styled like the input it opens: QuickChat's accent-bordered field.
             Modifier.padding(start = avatar / 2).fillMaxWidth().height(avatar - 8.dp).shadow(12.dp, card).clip(card).background(color(fieldColor))
-                .border(1.dp, color(accentColor).copy(alpha = 0.3f), card).clickable(enabled = agent != null, onClick = onOpen)
+                .border(1.dp, color(accentColor).copy(alpha = 0.3f), card).clickable(enabled = agent != null, role = Role.Button, onClick = onOpen)
                 .padding(start = avatar / 2 + 12.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -105,7 +107,7 @@ private fun QuickChatBarContent(agent: AgentInfo?, draft: TextFieldState, onOpen
         }
         Box(
             Modifier.size(avatar).shadow(8.dp, CircleShape).clip(CircleShape).background(color(selectedControlColor))
-                .border(2.dp, color(railColor), CircleShape).clickable(enabled = agent != null, onClick = onOpen),
+                .border(2.dp, color(railColor), CircleShape).clickable(enabled = agent != null, role = Role.Button, onClick = onOpen),
             contentAlignment = Alignment.Center,
         ) { AgentAvatar(agent, 42.dp) }
     }
@@ -156,7 +158,7 @@ internal fun QuickChat(
                     Row(
                         Modifier.clip(PillShape).background(if (selected) color(selectedControlColor) else color(panelColor))
                             .border(1.dp, if (selected) color(accentColor) else color(borderColor), PillShape)
-                            .clickable { onSelectAgent(a.id) }.padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+                            .clickable(role = Role.Button) { onSelectAgent(a.id) }.padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
@@ -170,7 +172,7 @@ internal fun QuickChat(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                AgentAvatar(agent, 36.dp, state = if (sending) kinuvo.app.agent.AvatarState.Working else kinuvo.app.agent.AvatarState.Idle)
+                AgentAvatar(agent, 36.dp, state = if (sending) AvatarState.Working else AvatarState.Idle)
                 BasicTextField(
                     draft,
                     Modifier.weight(1f).focusRequester(focus),

@@ -3,10 +3,10 @@ package kinuvo.harness.core.routines
 import kinuvo.harness.core.AgentDoc
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.ApprovalPolicy
-import kinuvo.harness.core.PluginTools
+import kinuvo.harness.core.plugin.PluginTools
 import kinuvo.harness.core.Tolerance
 import kinuvo.harness.core.Verdict
-import kinuvo.harness.core.ownedBy
+import kinuvo.harness.core.plugin.ownedBy
 import kinuvo.protocol.PluginInstanceId
 import kinuvo.harness.core.store.readText
 import kinuvo.protocol.RoutineApprovals

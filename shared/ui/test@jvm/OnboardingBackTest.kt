@@ -4,9 +4,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
-import kinuvo.app.agent.AgentSteps
-import kinuvo.app.agent.OnboardingState
-import kinuvo.ui.agent.OnboardingContent
+import kinuvo.app.onboarding.AgentSteps
+import kinuvo.app.onboarding.OnboardingState
+import kinuvo.ui.onboarding.OnboardingContent
 import kinuvo.ui.design.HarnessTheme
 import kinuvo.ui.design.rememberBackDispatch
 import kotlin.test.Test

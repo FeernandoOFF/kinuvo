@@ -12,11 +12,12 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 import kotlin.io.encoding.Base64
+import kinuvo.protocol.MAX_ATTACHMENT_BYTES
 
 internal fun prepareAttachment(p: UploadAttachmentParams): UploadAttachmentParams {
     val mime = attachmentMimeType(p.name) ?: return p
     if (!mime.startsWith("image/") || mime == "image/webp") return p
-    require(p.base64.length <= (kinuvo.protocol.MAX_ATTACHMENT_BYTES + 2) / 3 * 4) { "Files must be 10 MB or smaller" }
+    require(p.base64.length <= (MAX_ATTACHMENT_BYTES + 2) / 3 * 4) { "Files must be 10 MB or smaller" }
     val bytes = Base64.decode(p.base64)
     return ImageIO.createImageInputStream(ByteArrayInputStream(bytes)).use { source ->
         val reader = ImageIO.getImageReaders(source).asSequence().firstOrNull() ?: error("Couldn't read image")

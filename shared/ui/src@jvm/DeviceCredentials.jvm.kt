@@ -11,6 +11,7 @@ import java.nio.file.attribute.PosixFilePermissions
 import java.security.MessageDigest
 import java.util.Base64
 import java.util.concurrent.TimeUnit
+import java.io.IOException
 
 internal class DesktopCredentials(private val dir: File) : DeviceCredentials {
     private val platform = currentPlatform
@@ -68,7 +69,7 @@ internal class DesktopCredentials(private val dir: File) : DeviceCredentials {
     }
     private fun process(command: List<String>, input: String? = null, missing: Int? = null): String? {
         val process = try { ProcessBuilder(command).redirectError(ProcessBuilder.Redirect.DISCARD).start() }
-        catch (e: java.io.IOException) { error("Secure Device storage is unavailable; Linux requires secret-tool and an unlocked Secret Service") }
+        catch (e: IOException) { error("Secure Device storage is unavailable; Linux requires secret-tool and an unlocked Secret Service") }
         process.outputStream.use { if (input != null) it.write(input.toByteArray()) }
         if (!process.waitFor(30, TimeUnit.SECONDS)) { process.destroyForcibly(); error("Secure Device storage timed out") }
         if (process.exitValue() == missing) return null

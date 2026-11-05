@@ -1,7 +1,7 @@
 package kinuvo.app.connection
 
-import kinuvo.app.agent.*
 
+import kinuvo.app.agent.*
 import kinuvo.protocol.FrameConnection
 import kinuvo.protocol.Links
 import kinuvo.protocol.PairingCode
@@ -10,6 +10,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.KSerializer
 
 /** A Server this Device can connect to. */
 sealed interface Server {
@@ -173,7 +174,7 @@ class Servers(
         prefs[SERVERS] = Json.encodeToString(remotes, list)
     }
 
-    private fun <T> decode(serializer: kotlinx.serialization.KSerializer<T>, text: String): T? =
+    private fun <T> decode(serializer: KSerializer<T>, text: String): T? =
         runCatching { Json.decodeFromString(serializer, text) }.getOrNull()
 
     private companion object {

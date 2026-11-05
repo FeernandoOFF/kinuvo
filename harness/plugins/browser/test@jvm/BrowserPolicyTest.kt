@@ -1,5 +1,6 @@
 package kinuvo.harness.browser
 
+import kinuvo.harness.core.plugin.*
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.policyKey
 import kinuvo.protocol.*

@@ -1,5 +1,6 @@
 package kinuvo.harness.koog
 
+import kinuvo.harness.core.plugin.*
 import ai.koog.http.client.KoogHttpClient
 import ai.koog.http.client.ktor.fromKtorClient
 import ai.koog.prompt.Prompt
@@ -33,7 +34,9 @@ import kinuvo.harness.core.store.*
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.CapabilityState
 import kinuvo.protocol.ModelInfo
+import kotlinx.io.files.Path
 import kotlinx.serialization.json.*
+import kinuvo.protocol.PluginDefinition
 
 fun compatibleProviders(files: AgentFiles, secrets: Secrets = Secrets(), attachments: ((Attachment) -> ByteArray)? = null): List<HarnessPlugin> {
     val configured = files.config().providers
@@ -44,21 +47,42 @@ fun compatibleProviders(files: AgentFiles, secrets: Secrets = Secrets(), attachm
     return configured.map { (id, options) -> CompatibleProvider(id, options, files, secrets, attachments) }
 }
 
+/** A custom provider's key, apart from built-in providers' keys; one saved under its bare ID before is moved on first read. */
+private fun customKey(configId: String, options: ModelProviderConfig, files: AgentFiles, secrets: Secrets): StoredProviderKey {
+    fun store(account: String) = Keychain.system("kinuvo", account) ?: PrivateFile(Path(files.home, "credentials", "$account-key"))
+    fun reference(account: String) = PrivateFile(Path(files.home, "credentials", "$account-reference"))
+    val account = "custom-$configId"
+    // Other parts of Kinuvo keep their own secrets under these names; `openai`'s key is shared with the built-in provider, so it's copied.
+    val legacy = configId !in setOf("codex", "protonpass", "mcp-oauth")
+    val shared = configId == "openai"
+    return StoredProviderKey(account, options.name ?: configId, options.apiKeyEnv ?: "OPENAI_COMPATIBLE_API_KEY", files, secrets,
+        MovedKeychain(store(account), store(configId).takeIf { legacy }, shared), MovedKeychain(reference(account), reference(configId).takeIf { legacy }, shared))
+}
+
+private class MovedKeychain(private val current: Keychain, private val legacy: Keychain?, private val shared: Boolean) : Keychain {
+    override val name get() = current.name
+    override suspend fun read() = current.read()?.takeIf { it.isNotBlank() }
+        ?: legacy?.read()?.takeIf { it.isNotBlank() }?.also { if (current.read().isNullOrBlank()) current.write(it); if (!shared) legacy.delete() }
+    override suspend fun write(token: String) = current.write(token)
+    override suspend fun delete() { current.delete(); if (!shared) legacy?.delete() }
+}
+
 internal class CompatibleProvider(
-    override val id: String,
+    private val configId: String,
     private val options: ModelProviderConfig,
     files: AgentFiles,
     secrets: Secrets,
     private val attachments: ((Attachment) -> ByteArray)?,
     engine: HttpClientEngine = providerEngine(),
-    private val key: StoredProviderKey = StoredProviderKey(id, options.name ?: id, options.apiKeyEnv ?: "OPENAI_COMPATIBLE_API_KEY", files, secrets),
+    private val key: StoredProviderKey = customKey(configId, options, files, secrets),
 ) : ModelProvider, HarnessPlugin {
-    override val name = options.name ?: id
+    override val id = CUSTOM_PROVIDERS + configId
+    override val name = options.name ?: configId
     override val apiKey: ProviderApiKey? = if (options.apiKeyRequired) key else null
-    override val definition = kinuvo.protocol.PluginDefinition("kinuvo.provider.$id", name)
+    override val definition = PluginDefinition("kinuvo.provider.$configId", name)
     override val modelProviders get() = listOf(this)
     private val http = providerHttpClient(endpoint(options.baseUrl.orEmpty()), key::resolve, options.apiKeyRequired, engine)
-    private val client = CompatibleClient(KoogHttpClient.fromKtorClient(id, KotlinLogging.logger(id), http))
+    private val client = CompatibleClient(KoogHttpClient.fromKtorClient(configId, KotlinLogging.logger(configId), http))
     private val executor = koogExecutor(client)
 
     override suspend fun availability(model: String) = if (options.apiKeyRequired && !key.status().configured)
