@@ -33,7 +33,7 @@ class CompatibleProviderTest {
             assertEquals(1234, request.url.port)
             assertEquals("Bearer $token", request.headers[HttpHeaders.Authorization])
             when (request.url.encodedPath) {
-                "/custom/v1/models" -> respond("""{"data":[{"id":"vendor/local-model"},{"id":"another-model"}]}""", headers = headersOf(HttpHeaders.ContentType, "application/json"))
+                "/custom/v1/models" -> respond("""{"data":[{"id":"vendor/local-model","architecture":{"output_modalities":["image","text"]}},{"id":"another-model"}]}""", headers = headersOf(HttpHeaders.ContentType, "application/json"))
                 "/custom/v1/chat/completions" -> {
                     sent = Json.parseToJsonElement(request.body.text()).jsonObject
                     respond("""{"id":"test","object":"chat.completion","created":0,"model":"vendor/local-model","choices":[{"index":0,"message":{"role":"assistant","content":"hello"},"finish_reason":"stop"}],"usage":{"prompt_tokens":4,"completion_tokens":2,"total_tokens":6}}""", headers = headersOf(HttpHeaders.ContentType, "application/json"))
@@ -45,6 +45,7 @@ class CompatibleProviderTest {
         val provider = CompatibleProvider("local", ModelProviderConfig(baseUrl = "http://localhost:1234/custom/v1"), files, Secrets(), null, engine, key)
         try {
             assertEquals(listOf("another-model", "vendor/local-model"), provider.models().map { it.id })
+            assertEquals(listOf("image", "text"), provider.models().first { it.id == "vendor/local-model" }.output)
             token = "rotated-key"
             assertTrue(provider.availability("vendor/local-model").actionable)
             val model = provider.model(AgentConfig(provider = "local", model = "vendor/local-model"), ModelInfo("vendor/local-model", tools = true, reasoning = emptyList()))

@@ -167,17 +167,17 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
                         Picker((catalog.providers.map { it.id } + s.provider).distinct(), provider,
                             { id -> catalog.providers.firstOrNull { it.id == id }?.name ?: id }, { id ->
                                 provider = id
-                                catalog.providers.firstOrNull { it.id == id }?.models?.firstOrNull()?.let {
+                                catalog.providers.firstOrNull { it.id == id }?.chatModels?.firstOrNull()?.let {
                                     model.setTextAndPlaceCursorAtEnd(it.id)
                                     reasoning = it.reasoningFor(reasoning)
                                 }
                             })
                     }
-                    if (!group?.models.isNullOrEmpty()) DetailRow("Model") {
-                        Picker(group.models.map { it.id } + listOf(model.value()).filter { it.isNotEmpty() && it !in group.models.map { m -> m.id } }, model.value(),
-                            { id -> group.models.firstOrNull { it.id == id }?.name ?: id }, { id ->
+                    if (!group?.chatModels.isNullOrEmpty()) DetailRow("Model") {
+                        Picker(group.chatModels.map { it.id } + listOf(model.value()).filter { it.isNotEmpty() && it !in group.chatModels.map { m -> m.id } }, model.value(),
+                            { id -> group.chatModels.firstOrNull { it.id == id }?.name ?: id }, { id ->
                                 model.setTextAndPlaceCursorAtEnd(id)
-                                group.models.firstOrNull { it.id == id }?.let { reasoning = it.reasoningFor(reasoning) }
+                                group.chatModels.firstOrNull { it.id == id }?.let { reasoning = it.reasoningFor(reasoning) }
                             })
                     }
                     DetailRow("Model ID") { Input(model, "Custom model ID") }

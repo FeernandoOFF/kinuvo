@@ -20,3 +20,6 @@ fun SessionSettings.select(provider: String, model: ModelInfo, defaults: AgentSe
     model = model.id,
     reasoning = model.reasoningFor(reasoning ?: defaults.reasoning),
 )
+
+/** Models that can chat, without image-only ones such as `gpt-image-1`. */
+val ProviderModels.chatModels get() = models.filter { it.output?.contains("text") != false }

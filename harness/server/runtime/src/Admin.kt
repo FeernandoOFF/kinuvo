@@ -69,6 +69,17 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
         details(updated)
     }
 
+    fun imageModel() = harness.imageModel
+
+    suspend fun saveImageModel(model: ProviderModelRef?): ProviderModelRef? {
+        if (model != null) {
+            val provider = harness.modelProviders.firstOrNull { it.id == model.provider }
+            require(provider?.images != null && provider.models().any { it.id == model.model && "image" in it.output.orEmpty() }) { "Choose a model that generates images" }
+        }
+        harness.imageModel = model
+        return imageModel()
+    }
+
     suspend fun serverRules() = harness.trustRules.server()
 
     suspend fun saveServerRules(rules: TrustRules): TrustRules {

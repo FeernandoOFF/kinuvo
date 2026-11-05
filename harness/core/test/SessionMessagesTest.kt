@@ -52,6 +52,15 @@ class SessionMessagesTest {
     }
 
     @Test
+    fun imageIdsAreListedOnlyWithImageGeneration() {
+        val model = scriptedModel { _, _ -> emptyFlow() }.copy(attachments = { byteArrayOf(1) })
+        val history = listOf(SessionEntry.UserMessage("Edit", attachments = listOf(Attachment("f", "f.png", "image/png", 1))))
+        fun text(references: Boolean) = SessionMessages(model, references).prompt("", history).messages.single().parts.filterIsInstance<MessagePart.Text>().joinToString { it.text }
+        assertEquals("Edit", text(false))
+        assertEquals("Edit\n\n$IMAGE_REFERENCES\nf: f.png", text(true))
+    }
+
+    @Test
     fun textAttachmentsAreTextOnEveryReplay() {
         val model = scriptedModel { _, _ -> emptyFlow() }.copy(attachments = { "marker42".encodeToByteArray() })
         val converter = SessionMessages(model)

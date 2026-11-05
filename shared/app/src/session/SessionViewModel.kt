@@ -102,7 +102,8 @@ fun List<ChatItem>.requestMetrics(): List<RequestMetrics> = flatMap {
 
 private fun ChatItem.isStep() = when (this) {
     is ChatItem.Reasoning -> true
-    is ChatItem.ToolCall -> !waiting && !(name in setOf("ask_user", "artifact") && result != null && !isError)
+    is ChatItem.ToolCall -> if (name == "generate_image") waiting || isError
+        else !waiting && !(name in setOf("ask_user", "artifact") && result != null && !isError)
     else -> false
 }
 

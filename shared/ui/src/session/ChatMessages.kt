@@ -237,6 +237,13 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
                 Button(onClick = actions.onWatch, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Watch live", fontSize = TextStyles.caption.fontSize) }
             }
             item.name == "ask_user" && item.result != null && !item.isError -> Column { AnsweredQuestions(item); ToolAttachments(item.attachments, actions) }
+            item.name == "generate_image" && item.result == null && !item.waiting -> GeneratingImage()
+            item.name == "generate_image" && item.result != null && !item.isError -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+                item.attachments.forEach { a ->
+                    LaunchedEffect(a.id) { actions.onLoadAttachment(a.id) }
+                    GeneratedImage(a, actions.downloads[a.id]?.base64, { actions.onPreviewAttachment(a.id) }, { actions.onSaveAttachment(a.id) })
+                }
+            }
             item.name == "artifact" && item.result != null && !item.isError -> Column { ArtifactCard(item, actions.onOpenArtifact); ToolAttachments(item.attachments, actions) }
             else -> ToolCallView(item, actions = actions)
         }

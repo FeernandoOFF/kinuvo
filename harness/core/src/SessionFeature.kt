@@ -9,6 +9,7 @@ import ai.koog.prompt.Prompt
 import ai.koog.prompt.message.Message
 import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.tools.Tool
+import kinuvo.harness.core.tools.ToolNames
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.RequestKind
 import kinuvo.protocol.SessionEntry
@@ -55,7 +56,7 @@ internal class RunSession(
     private val contextTokens: Int?,
     val emit: suspend (AgentEvent) -> Unit,
 ) {
-    val messages = SessionMessages(model)
+    val messages = SessionMessages(model, tools.any { it.name == ToolNames.GENERATE_IMAGE })
     private val identities = callable.associate { it.descriptor.name to it.identity }
     fun toolName(name: String) = name.takeIf { it in identities } ?: "unknown"
     private var instructions = ""

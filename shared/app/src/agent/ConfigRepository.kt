@@ -82,6 +82,8 @@ class ConfigRepository(internal val connection: ConnectedServer) {
     suspend fun testExec(params: TestExecParams) = call { it.call(Api.TestExec, params) }
 
     suspend fun agents() = call { it.call(Api.Agents, Unit) }
+    suspend fun imageModel() = call { it.call(Api.ImageModel, Unit) }
+    suspend fun saveImageModel(model: ProviderModelRef?) = call { it.call(Api.SaveImageModel, model) }
     suspend fun serverRules() = call { it.call(Api.ServerRules, Unit) }
     suspend fun saveServerRules(rules: TrustRules) = call { it.call(Api.SaveServerRules, rules) }
 

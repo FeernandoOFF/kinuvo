@@ -17,6 +17,12 @@ class ChatRowsTest {
     private fun metrics(id: String, at: Long = 0) = RequestMetrics(id, at, RequestKind.Chat, "codex", "model", "medium", 100)
 
     @Test
+    fun generatedImagesStayOutsideCollapsedSteps() {
+        val rows = listOf(tool("before"), tool("image", "generate_image"), tool("after")).rows()
+        assertEquals(listOf("before", "image", "after"), rows.map { it.key })
+    }
+
+    @Test
     fun measurementsDoNotSplitToolGroups() {
         val items = listOf(tool("t1"), ChatItem.Measurement("m1", metrics("m1")), tool("t2"), ChatItem.Assistant("a1", "done"))
         val rows = items.rows()
