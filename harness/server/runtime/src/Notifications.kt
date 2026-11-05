@@ -38,12 +38,13 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
             val name = agent?.name ?: externalName(agentId) ?: return@launch
             if (harness.log.watched(sessionId)) return@launch
             val notification = when (event) {
-                is AgentEvent.ApprovalRequested ->
-                    Notification("${name} needs an Approval", "${event.toolCallName}: ${event.reason ?: event.args}".clip(), agentId, sessionId, urgent = true)
+                is AgentEvent.ApprovalRequested -> approvalText(name, event).let { (title, body) ->
+                    Notification(title, body.clip(), agentId, sessionId, urgent = true)
+                }
                 is AgentEvent.QuestionsAsked ->
                     Notification("${name} has questions", (event.title ?: event.questions.joinToString(" · ") { it.label }).clip(), agentId, sessionId, urgent = true)
                 // Routine runs are told by [routineRan], when they have something to report.
-                is AgentEvent.RunFinished -> if (routine != null) null else Notification(name, lastReply(agentId, sessionId).orEmpty().clip(), agentId, sessionId)
+                is AgentEvent.RunFinished -> if (routine != null) null else Notification(name, plainText(lastReply(agentId, sessionId).orEmpty()).clip(), agentId, sessionId)
                 is AgentEvent.RunError -> if (routine != null) null else Notification("${name} hit an error", event.message.clip(), agentId, sessionId)
                 is AgentEvent.ExecutionRequested -> Notification("$name needs a response", when(val prompt = event.request.prompt) {
                     is ExecutionPrompt.Approval -> prompt.title
@@ -61,7 +62,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         scope.launch {
             val agent = harness.store.agents().firstOrNull { it.id == ran.agentId } ?: return@launch
             if (ran.sessionId?.let { harness.log.watched(it) } == true) return@launch
-            val body = if (ran.status == RunStatus.Error) "Failed: ${ran.error}" else ran.summary.orEmpty()
+            val body = if (ran.status == RunStatus.Error) "Failed: ${ran.error}" else plainText(ran.summary.orEmpty())
             quietly(Notification(ran.routine.name, body.clip(), agent.id, ran.sessionId))
         }
     }
