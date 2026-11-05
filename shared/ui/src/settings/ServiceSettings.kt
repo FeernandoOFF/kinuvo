@@ -13,7 +13,9 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
-import kinuvo.app.settings.ServiceFormState
+import kinuvo.app.settings.ProviderSettingsForm
+import kinuvo.app.settings.saveParams
+import kinuvo.app.settings.testParams
 import kinuvo.protocol.*
 import kinuvo.ui.connection.ServerLoading
 import kinuvo.ui.design.*
@@ -29,12 +31,12 @@ internal fun ServiceSettingsPane(p: Pane, kind: ServiceKind) {
 
 @Composable
 private fun ServiceForm(setup: ServiceSetup, p: Pane) {
-    var form by remember { mutableStateOf(ServiceFormState(setup)) }
+    var form by remember { mutableStateOf(ProviderSettingsForm(setup)) }
     val kind = setup.kind
     val info = if (kind == ServiceKind.Search) "Lets Agents with the Web tools search the web, and read pages as clean text."
         else "Tells your phone when an Agent needs an Approval or an answer, replies, or a Routine has news, while the app isn't open."
     DetailPane(p.back, kind.title(), error = p.ui.error, info = info, trailing = {
-        FormActions("Save", form.editable, p.ui.state.saved, onSave = { p.actions.onSaveService(form.saveParams()) }, dirty = formChanged(form, p.ui.state.saved))
+        FormActions("Save", form.editable, p.ui.state.saved, onSave = { p.actions.onSaveService(form.saveParams(kind)) }, dirty = formChanged(form, p.ui.state.saved))
     }) {
         RowGroup {
             PickerRow("Provider", (listOf<String?>(null) + setup.providers.map { it.id } + listOfNotNull(form.provider)).distinct(), form.provider,
@@ -42,21 +44,27 @@ private fun ServiceForm(setup: ServiceSetup, p: Pane) {
                 if (kind == ServiceKind.Search) Lucide.Search else Lucide.Bell)
             if (!form.editable) GroupRow(if (form.definition == null) "This provider is not installed on the Server." else "Update this client to configure this provider.", tint = color(mutedColor))
         }
-        if (form.editable && form.fields.isNotEmpty()) RowGroup("Settings") {
-            key(form.provider) {
-                form.fields.forEach { field ->
-                    key(field.key) { ProviderField(field, form, p, { update -> form = update(form) }) }
-                }
-            }
-        }
+        ProviderSettingsFields("Settings", form, p) { update -> form = update(form) }
         if (form.provider != null) TestGroup(if (p.ui.state.testing) "Testing…" else if (kind == ServiceKind.Search) "Test search" else "Send test notification",
-            form.editable && !p.ui.state.testing, { p.actions.onTestService(form.testParams()) },
+            form.editable && !p.ui.state.testing, { p.actions.onTestService(form.testParams(kind)) },
             p.ui.state.serviceTest?.let { t -> t.error?.let { "Didn't work: $it" } to "Works: ${t.summary}" })
     }
 }
 
+/** The picked provider's settings in [form], once its schema is supported; [change] updates the form. */
 @Composable
-private fun ProviderField(field: SettingsField, form: ServiceFormState, p: Pane, change: ((ServiceFormState) -> ServiceFormState) -> Unit) {
+internal fun ProviderSettingsFields(title: String, form: ProviderSettingsForm, p: Pane, change: ((ProviderSettingsForm) -> ProviderSettingsForm) -> Unit) {
+    if (form.editable && form.fields.isNotEmpty()) RowGroup(title) {
+        key(form.provider) {
+            form.fields.forEach { field ->
+                key(field.key) { ProviderField(field, form, p, change) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProviderField(field: SettingsField, form: ProviderSettingsForm, p: Pane, change: ((ProviderSettingsForm) -> ProviderSettingsForm) -> Unit) {
     val value = form.value(field.key)
     val effective = form.effectiveValue(field.key)
     val placeholder = field.placeholder.ifEmpty { field.defaultValue.orEmpty() }

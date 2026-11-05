@@ -1,10 +1,8 @@
 package kinuvo.harness.protonpass
 
+import kinuvo.harness.core.CliSecretProvider
 import kinuvo.harness.core.Keychain
-import kinuvo.harness.core.SecretProvider
-import kinuvo.harness.core.runProcess
 import kinuvo.protocol.SecretEntry
-import kinuvo.protocol.SecretProviderStatus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
@@ -17,60 +15,41 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
-import java.io.IOException
 
 /**
- * Proton Pass through `pass-cli`, signed in with an AI agent access token (read-only, limited to the vaults it was
- * given, and every read logged with its reason). The token is kept in the OS keychain, else read from
- * `PROTON_PASS_PERSONAL_ACCESS_TOKEN` in [env] (Kinuvo's `.env` files, which aren't passed on to other processes). Kinuvo
- * keeps its own pass-cli session in [sessionDir], apart from the user's, and signs in again when the session (2 hours) expires.
+ * Proton Pass through `pass-cli`, signed in with an AI agent access token (read-only, limited to the vaults it was given,
+ * and every read logged with its reason). Kinuvo keeps its own pass-cli session in the Server home's `protonpass/`, apart
+ * from the user's, and signs in again when the session (2 hours) expires.
  */
-class ProtonPass internal constructor(
-    private val sessionDir: File,
-    private val env: () -> Map<String, String>,
-    private val keychain: Keychain?,
-    private val cli: String,
-) : SecretProvider {
-    constructor(sessionDir: File, env: () -> Map<String, String>) :
-        this(sessionDir, env, Keychain.system("kinuvo", "protonpass"), executable())
+class ProtonPass internal constructor(home: File, env: () -> Map<String, String>, keychain: Keychain?, cli: String) :
+    CliSecretProvider(home, cli, keychain, env) {
+    constructor(home: File, env: () -> Map<String, String>) :
+        this(home, env, Keychain.system("kinuvo", "protonpass"), executable("pass-cli",
+            "${System.getProperty("user.home")}/.local/bin/pass-cli", "/opt/homebrew/bin/pass-cli", "/usr/local/bin/pass-cli"))
 
     override val scheme = "pass"
     override val name = "Proton Pass"
+    override val tokenVariable = "PROTON_PASS_PERSONAL_ACCESS_TOKEN"
+    override val install = "brew install protonpass/tap/pass-cli"
+    override val tokenHelp = "Add an AI agent access token from Proton Pass → Settings → Access tokens"
+    private val sessionDir = File(home, "protonpass")
     private val lock = Mutex()
-    private val envFile = File(sessionDir.parentFile, ".env")
-    private val storage get() = keychain?.name ?: "$TOKEN in $envFile"
 
     override suspend fun resolve(uri: String, reason: String) = signedIn { pass("item", "view", uri, reason = reason) }.removeSuffix("\n")
 
-    override suspend fun status(): SecretProviderStatus {
-        val status = SecretProviderStatus(scheme, name, tokenStorage = storage)
-        if (!installed()) return status.copy(detail = "Install pass-cli on the Server: $INSTALL")
-        if (token() == null) return status.copy(installed = true, detail = "Add an AI agent access token from Proton Pass → Settings → Access tokens")
-        return runCatching { browse(emptyList()) }.fold(
-            { status.copy(installed = true, connected = true, detail = "Signed in; ${it.size} vaults shared with Kinuvo") },
-            { status.copy(installed = true, connected = true, detail = it.message.orEmpty()) },
-        )
-    }
-
     /** Takes the token itself, or the AI agent instructions Proton Pass gives with it. */
-    override suspend fun connect(token: String) {
-        val trimmed = (INSTRUCTIONS.find(token)?.groupValues?.get(1) ?: token).trim()
-        require(trimmed.isNotEmpty() && trimmed.none { it.isWhitespace() }) { "Paste the access token, or the AI agent instructions that include it" }
-        val keychain = checkNotNull(keychain) { "This Server has no keychain; set $TOKEN in $envFile instead" }
-        check(installed()) { "Install pass-cli on the Server first: $INSTALL" }
-        lock.withLock {
-            login(trimmed)
-            keychain.write(trimmed)
-        }
+    override fun parse(pasted: String) = (Regex("""$tokenVariable="([^"]+)"""").find(pasted)?.groupValues?.get(1) ?: pasted).trim().also {
+        require(it.isNotEmpty() && it.none(Char::isWhitespace)) { "Paste the access token, or the AI agent instructions that include it" }
     }
 
-    override suspend fun disconnect() {
-        lock.withLock {
-            keychain?.delete()
-            check(env()[TOKEN].isNullOrBlank()) { "Remove $TOKEN from $envFile to disconnect" }
-            pass("logout", check = false)
-        }
-    }
+    /** Signs in and keeps the token in one step, so a read signing in again meanwhile can't use the old token. */
+    override suspend fun connect(token: String) = lock.withLock { super.connect(token) }
+
+    override suspend fun verify(token: String) = login(token)
+
+    override fun found(entries: List<SecretEntry>) = "${entries.size} vaults shared with Kinuvo"
+
+    override suspend fun signOut() = lock.withLock { pass("logout", check = false); Unit }
 
     override suspend fun browse(path: List<String>): List<SecretEntry> = when (path.size) {
         0 -> json(signedIn { pass("vault", "list", "--output", "json") })["vaults"]!!.jsonArray.map { SecretEntry(it.text("name")) }
@@ -114,31 +93,23 @@ class ProtonPass internal constructor(
         if (first.isSuccess || pass("info", check = false).isNotEmpty()) return first.getOrThrow()
         return lock.withLock {
             // Another read may have signed in while this one waited.
-            if (pass("info", check = false).isEmpty()) login(token() ?: error("Proton Pass isn't connected; add an access token in Settings → Server → Secrets"))
+            if (pass("info", check = false).isEmpty()) login(token())
             block()
         }
     }
 
     private suspend fun login(token: String) {
         pass("logout", check = false)
-        runProcess(listOf(cli, "login"), base() + (TOKEN to token)).value("pass-cli login")
-    }
-
-    private suspend fun token() = keychain?.read() ?: env()[TOKEN]?.takeIf { it.isNotBlank() }
-
-    private suspend fun installed() = try {
-        runProcess(listOf(cli, "--version")).ok
-    } catch (_: IOException) {
-        false
+        exec(listOf("login"), base() + (tokenVariable to token)).value("pass-cli login")
     }
 
     /** stdout of pass-cli [args]; with [check] false, empty on failure. [reason] is required by agent tokens to read items. */
     private suspend fun pass(vararg args: String, reason: String? = null, check: Boolean = true): String {
         val output = try {
-            runProcess(listOf(cli) + args, base() + listOfNotNull(reason?.let { REASON to it.take(300) }))
-        } catch (e: IOException) {
+            exec(args.toList(), base() + listOfNotNull(reason?.let { REASON to it.take(300) }))
+        } catch (e: IllegalStateException) {
             if (!check) return ""
-            throw IllegalStateException("Install pass-cli on the Server: $INSTALL", e)
+            throw e
         }
         return if (check) output.value("pass-cli") else if (output.ok) output.out else ""
     }
@@ -150,12 +121,6 @@ class ProtonPass internal constructor(
     private fun JsonElement.text(key: String) = jsonObject[key]?.jsonPrimitive?.contentOrNull.orEmpty()
 
     private companion object {
-        const val TOKEN = "PROTON_PASS_PERSONAL_ACCESS_TOKEN"
         const val REASON = "PROTON_PASS_AGENT_REASON"
-        const val INSTALL = "brew install protonpass/tap/pass-cli"
-        val INSTRUCTIONS = Regex("""$TOKEN="([^"]+)"""")
-
-        fun executable() = listOf("${System.getProperty("user.home")}/.local/bin/pass-cli", "/opt/homebrew/bin/pass-cli", "/usr/local/bin/pass-cli")
-            .firstOrNull { File(it).canExecute() } ?: "pass-cli"
     }
 }

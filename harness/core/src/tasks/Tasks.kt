@@ -1,5 +1,7 @@
 package kinuvo.harness.core.tasks
 
+import kinuvo.harness.core.plugin.NoPluginHost
+import kinuvo.harness.core.plugin.PluginHost
 import kinuvo.harness.core.update
 import kinuvo.protocol.TaskInfo
 import kinuvo.protocol.TaskListInfo
@@ -14,8 +16,9 @@ import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 
 /**
- * `config.yaml`'s `tasks`: which [provider] holds the user's Tasks, which [lists] the Board shows and the Agent each is assigned to
- * (list name → Agent id), the [defaultList] new Tasks go to, and how many days before its due date an Agent starts one.
+ * `config.yaml`'s `tasks`: which [provider] holds the user's Tasks and its [options] (e.g. an API token, as a Secret reference),
+ * which [lists] the Board shows and the Agent each is assigned to (list name → Agent id), the [defaultList] new Tasks go to,
+ * and how many days before its due date an Agent starts one.
  */
 @Serializable
 data class TasksConfig(
@@ -24,6 +27,7 @@ data class TasksConfig(
     val defaultList: String? = null,
     val startBeforeDays: Int = 3,
     val pollMinutes: Int = 5,
+    val options: Map<String, String> = emptyMap(),
 )
 
 /** What Kinuvo keeps about a Task on top of the provider: status, an assignee set on the Board ("" = nobody), and its runs. */
@@ -44,11 +48,13 @@ interface BoardRepository {
  */
 @OptIn(ExperimentalAtomicApi::class)
 class Tasks(
-    private val providers: List<TaskProvider>,
+    private val available: List<TaskProvider>,
     private val board: BoardRepository,
     private val config: () -> TasksConfig,
     private val agentIds: suspend () -> Set<String>,
     private val today: () -> LocalDate,
+    /** The host [provider]'s task app reaches through, granted what [options] allow; built-in providers reach nothing. */
+    private val host: (provider: TaskProvider, options: Map<String, String>) -> PluginHost = { _, _ -> NoPluginHost },
 ) {
     private val lock = Mutex()
     private val listeners = AtomicReference(emptyList<(TaskInfo) -> Unit>())
@@ -147,27 +153,38 @@ class Tasks(
         all().filter { it.status == TaskStatus.InProgress && !running(it) }.forEach { finished(it.id) }
     }
 
-    val providerIds get() = providers.map { it.id }
+    /** The task providers this Server has. */
+    val providers: List<TaskProvider> get() = available
 
-    /** Every list of the provider [id], shown on the Board or not. */
-    suspend fun providerLists(id: String): List<TaskListInfo> =
-        (providers.firstOrNull { it.id == id } ?: error("No task provider '$id'")).lists().map { TaskListInfo(it.id, it.name) }
+    /**
+     * Every list of the provider [id], shown on the Board or not, with [options] (null: the saved ones), e.g. to check
+     * settings before they're saved.
+     */
+    suspend fun providerLists(id: String, options: Map<String, String>? = null): List<TaskListInfo> =
+        provider(id, options).lists().map { TaskListInfo(it.id, it.name) }
 
     suspend fun authorize(id: String): List<TaskListInfo> {
-        val p = providers.firstOrNull { it.id == id } ?: error("No task provider '$id'")
-        p.authorize()
+        provider(id).authorize()
         return providerLists(id)
     }
 
-    private fun provider(): TaskProvider = config().provider.let { id ->
-        providers.firstOrNull { it.id == id } ?: error("No task provider '$id'; available: ${providers.joinToString { it.id }}")
+    private fun provider(): Connected = provider(config().provider)
+
+    private fun provider(id: String, options: Map<String, String>? = null): Connected {
+        val p = available.firstOrNull { it.id == id } ?: error("No task provider '$id'; available: ${available.joinToString { it.id }}")
+        val o = options ?: config().takeIf { it.provider == id }?.options.orEmpty()
+        p.checkOptions(o)
+        return Connected(id, p.configured(p.effectiveOptions(o), host(p, o)))
     }
 
-    private suspend fun lists(p: TaskProvider, config: TasksConfig): List<TaskListInfo> =
+    /** A provider's task app, with the [id] the Board keys its Tasks by. */
+    private class Connected(val id: String, app: TaskApp) : TaskApp by app
+
+    private suspend fun lists(p: Connected, config: TasksConfig): List<TaskListInfo> =
         p.lists().filter { config.lists.isEmpty() || it.name in config.lists || it.id in config.lists }
             .map { TaskListInfo(it.id, it.name, (config.lists[it.name] ?: config.lists[it.id])?.ifBlank { null }) }
 
-    private suspend fun get(p: TaskProvider, id: String): TaskInfo {
+    private suspend fun get(p: Connected, id: String): TaskInfo {
         val task = p.task(id) ?: error("No task '$id'")
         val list = lists(p, config()).firstOrNull { it.id == task.listId } ?: TaskListInfo(task.listId, task.listId)
         return info(p, task, list, board.get()[key(p, id)], agentIds())
@@ -178,11 +195,11 @@ class Tasks(
 
     private suspend fun checkAgent(id: String) = require(id.isEmpty() || id in agentIds()) { "No agent '$id'" }
 
-    private suspend fun changed(p: TaskProvider, id: String): TaskInfo = get(p, id).also { t -> listeners.load().forEach { it(t) } }
+    private suspend fun changed(p: Connected, id: String): TaskInfo = get(p, id).also { t -> listeners.load().forEach { it(t) } }
 
-    private fun key(p: TaskProvider, id: String) = "${p.id}:$id"
+    private fun key(p: Connected, id: String) = "${p.id}:$id"
 
-    private fun info(p: TaskProvider, task: ProviderTask, list: TaskListInfo, state: TaskState?, agents: Set<String>): TaskInfo {
+    private fun info(p: Connected, task: ProviderTask, list: TaskListInfo, state: TaskState?, agents: Set<String>): TaskInfo {
         val mentioned = MENTION.findAll("${task.title} ${task.notes}").map { it.groupValues[1] }.firstOrNull { it in agents }
         val assignee = when (state?.assignee) {
             null -> mentioned ?: list.agentId

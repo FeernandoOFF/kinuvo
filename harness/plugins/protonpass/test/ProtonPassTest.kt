@@ -50,14 +50,14 @@ class ProtonPassTest {
     }
 
     private fun pass(env: Map<String, String> = emptyMap(), keychain: Keychain? = this.keychain, cli: String = this.cli.path) =
-        ProtonPass(File(dir, "pass-session"), { env }, keychain, cli)
+        ProtonPass(dir, { env }, keychain, cli)
 
     @Test
     fun signsInWhenNeededAndSendsTheReason() = runTest {
         keychain.token = "good"
         val pass = pass()
         assertEquals("hunter2", pass.resolve("pass://Kinuvo/GitHub/password", "Kinuvo: MCP server github (Agent default)"))
-        File(dir, "pass-session/session").delete()
+        File(dir, "protonpass/session").delete()
         assertEquals("hunter2", pass.resolve("pass://Kinuvo/GitHub/password", "again"))
         assertEquals(listOf("Kinuvo: MCP server github (Agent default)", "again"), reasons.readLines())
         val missing = assertFailsWith<IllegalStateException> { pass.resolve("pass://Kinuvo/GitHub/nope", "r") }

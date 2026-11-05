@@ -3,9 +3,10 @@ package kinuvo.harness.server
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.plugin.HarnessPlugin
 import kinuvo.harness.core.store.AgentFiles
-import kinuvo.harness.core.store.LocalTaskProvider
+import kinuvo.harness.core.store.LocalTaskApp
 import kinuvo.harness.core.store.deleteTree
 import kinuvo.harness.core.store.saveTasksConfig
+import kinuvo.harness.core.tasks.TaskApp
 import kinuvo.harness.core.tasks.TaskProvider
 import kinuvo.harness.core.tasks.TasksConfig
 import kinuvo.harness.testing.scriptedModel
@@ -39,12 +40,11 @@ class TaskDispatcherTimeoutTest {
     private fun recovery(timeoutAtStartup: Boolean = false, wakeByAssignment: Boolean = false, cancelDuringRead: Boolean = false) = runTest {
         val home = Path(SystemTemporaryDirectory, "dispatcher-timeout-${Uuid.random()}")
         val files = AgentFiles(home)
-        val local = LocalTaskProvider(files.localTasks)
+        val local = LocalTaskApp(files.localTasks)
         var timeoutNextRead = false
         var reads = 0
         var timeouts = 0
-        val provider = object : TaskProvider by local {
-            override val id = "test"
+        val provider = TaskProvider.of("test", "Test", object : TaskApp by local {
             override suspend fun lists() = local.lists().also {
                 reads++
                 if (timeoutNextRead) {
@@ -53,7 +53,7 @@ class TaskDispatcherTimeoutTest {
                     withTimeout(1) { awaitCancellation() }
                 }
             }
-        }
+        })
         val plugin = object : HarnessPlugin {
             override val definition = PluginDefinition("test.tasks", "Test tasks")
             override val taskProviders = listOf(provider)

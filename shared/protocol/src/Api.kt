@@ -262,7 +262,7 @@ object Api {
     val CreateTask = Method("task.create", CreateTaskParams.serializer(), TaskInfo.serializer())
     val UpdateTask = Method("task.update", UpdateTaskParams.serializer(), TaskInfo.serializer())
     val TasksSettings = Method("tasks.settings", Unit.serializer(), TasksSetup.serializer())
-    val SaveTasksSettings = Method("tasks.saveSettings", kinuvo.protocol.TasksSettings.serializer(), TasksSetup.serializer())
+    val SaveTasksSettings = Method("tasks.saveSettings", SaveTasksParams.serializer(), TasksSetup.serializer())
     /** Every list a task provider has, whether the Board shows it or not. */
     val ProviderLists = Method("tasks.providerLists", TaskProviderRef.serializer(), ListSerializer(TaskListInfo.serializer()))
     val AuthorizeTasks = Method("tasks.authorize", TaskProviderRef.serializer(), ListSerializer(TaskListInfo.serializer()))

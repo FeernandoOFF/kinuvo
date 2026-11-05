@@ -7,16 +7,19 @@ import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.createDirectories
 import kinuvo.harness.core.store.saveKnowledgeConfig
 import kinuvo.harness.core.store.saveTasksConfig
+import kinuvo.harness.core.tasks.TaskProvider
 import kinuvo.harness.core.tasks.TasksConfig
 import kinuvo.protocol.Integration
 import kinuvo.protocol.KnowledgeSettings
 import kinuvo.protocol.KnowledgeSetup
 import kinuvo.protocol.KnowledgeTestResult
 import kotlinx.coroutines.CancellationException
+import kinuvo.protocol.TaskListInfo
+import kinuvo.protocol.TaskProviderRef
 import kinuvo.protocol.TasksSettings
 import kinuvo.protocol.TasksSetup
 import kinuvo.harness.core.store.FileBoard
-import kinuvo.harness.core.store.LocalTaskProvider
+import kinuvo.harness.core.store.LocalTaskApp
 import kinuvo.harness.core.store.tasksConfig
 import kinuvo.harness.core.tasks.Tasks
 import kotlinx.datetime.todayIn
@@ -80,11 +83,12 @@ internal class FileServerSettings(
         clock = clock,
     )
     val tasks = Tasks(
-        listOf(LocalTaskProvider(files.localTasks)) + external.flatMap { it.taskProviders },
+        listOf(TaskProvider.of("local", "Kinuvo (built in)", LocalTaskApp(files.localTasks))) + external.flatMap { it.taskProviders },
         FileBoard(files.board),
         config = { files.tasksConfig() },
         agentIds = { store.agents().map { it.id }.toSet() },
         today = { Clock.System.todayIn(timeZone) },
+        host = { p, options -> external.firstOrNull { p in it.taskProviders }?.let { host(it, p, options) } ?: NoPluginHost },
     )
     private val searchProviders = external.flatMap { it.webSearch }.uniqueProviders()
     private val notificationProviders = external.flatMap { it.notifications }.uniqueProviders()
@@ -92,7 +96,7 @@ internal class FileServerSettings(
         val own = mapOf(
             Integration.Secrets to secrets.providers.map { it.scheme }.toSet(),
             Integration.Knowledge to knowledgeSources.map { it.id }.toSet(),
-            Integration.Tasks to tasks.providerIds.toSet(),
+            Integration.Tasks to tasks.providers.map { it.id }.toSet(),
             Integration.Search to searchProviders.keys,
             Integration.Notifications to notificationProviders.keys,
         )
@@ -101,18 +105,29 @@ internal class FileServerSettings(
 
     override fun tasksSetup(): TasksSetup {
         val c = files.tasksConfig()
-        return TasksSetup(TasksSettings(c.provider, c.lists, c.defaultList, c.startBeforeDays, c.pollMinutes), tasks.providerIds)
+        val provider = tasks.providers.firstOrNull { it.id == c.provider }
+        return TasksSetup(TasksSettings(c.provider, c.lists, c.defaultList, c.startBeforeDays, c.pollMinutes, maskedOptions(provider?.settings?.fields.orEmpty(), c.options)),
+            tasks.providers.map { p -> SettingsProvider(p.id, p.name, p.settings, external.firstOrNull { p in it.taskProviders }?.instance) },
+            provider?.configuredSecrets(c.options).orEmpty())
     }
 
-    override suspend fun saveTasksSettings(s: TasksSettings): TasksSetup {
-        require(s.provider in tasks.providerIds) { "No task provider '${s.provider}'; available: ${tasks.providerIds.joinToString()}" }
+    /** Saves [s] once its provider accepts its options; secret options change only through [secretUpdates]. */
+    override suspend fun saveTasksSettings(s: TasksSettings, secretUpdates: Map<String, SecretUpdate>): TasksSetup {
+        val options = taskProvider(s.provider).merged(savedTaskOptions(s.provider), s.options, secretUpdates)
         val agents = store.agents().map { it.id }.toSet()
         s.lists.values.filter { it.isNotEmpty() }.forEach { require(it in agents) { "No agent '$it'" } }
         require(s.startBeforeDays in 0..365) { "Start before must be 0 to 365 days" }
         require(s.pollMinutes in 1..1440) { "Check every must be 1 to 1440 minutes" }
-        files.saveTasksConfig(TasksConfig(s.provider, s.lists, s.defaultList?.ifBlank { null }, s.startBeforeDays, s.pollMinutes))
+        files.saveTasksConfig(TasksConfig(s.provider, s.lists, s.defaultList?.ifBlank { null }, s.startBeforeDays, s.pollMinutes, options))
         return tasksSetup()
     }
+
+    override suspend fun taskProviderLists(ref: TaskProviderRef): List<TaskListInfo> = tasks.providerLists(ref.provider,
+        ref.options?.let { taskProvider(ref.provider).merged(savedTaskOptions(ref.provider), it, ref.secretUpdates) })
+
+    private fun taskProvider(id: String) = tasks.providers.firstOrNull { it.id == id } ?: error("No task provider '$id'; available: ${tasks.providers.joinToString { it.id }}")
+
+    private fun savedTaskOptions(id: String) = files.tasksConfig().takeIf { it.provider == id }?.options.orEmpty()
 
     override fun knowledgeSetup(): KnowledgeSetup {
         val c = files.knowledgeConfig()
@@ -158,14 +173,10 @@ internal class FileServerSettings(
 
     override fun serviceSetup(kind: ServiceKind): ServiceSetup {
         val c = files.serviceConfig(kind)
-        val fields = serviceProviders(kind).firstOrNull { it.id == c.provider }?.settings?.fields.orEmpty().associateBy { it.key }
-        val options = c.options.mapValues { (key, value) ->
-            if (fields[key]?.sensitive != false && value.isNotEmpty() && !Secrets.isReference(value)) KnowledgeSettings.SECRET else value
-        }
-        return ServiceSetup(kind, c.copy(options = options),
-            serviceProviders(kind).map { provider -> SettingsProvider(provider.id, provider.name, provider.settings,
-                external.firstOrNull { plugin -> (if (kind == ServiceKind.Search) plugin.webSearch else plugin.notifications).any { it === provider } }?.instance) },
-            c.options.keys.filter { fields[it]?.sensitive == true && !c.options[it].isNullOrBlank() }.toSet())
+        val provider = serviceProviders(kind).firstOrNull { it.id == c.provider }
+        return ServiceSetup(kind, c.copy(options = maskedOptions(provider?.settings?.fields.orEmpty(), c.options)),
+            serviceProviders(kind).map { p -> SettingsProvider(p.id, p.name, p.settings, owner(kind, p).instance) },
+            provider?.configuredSecrets(c.options).orEmpty())
     }
 
     /** Saves [s] once its provider accepts its options; unchanged secret options are kept. */
@@ -215,17 +226,21 @@ internal class FileServerSettings(
 
     private fun configure(kind: ServiceKind, provider: String, options: Map<String, String>): Any {
         val definition = serviceProviders(kind).firstOrNull { it.id == provider } ?: error("No provider '$provider'")
-        val plugin = external.single { plugin -> (if (kind == ServiceKind.Search) plugin.webSearch else plugin.notifications).any { it === definition } }
         val effective = definition.effectiveOptions(options)
-        val access = definition.hostAccess
-        val grant = PluginGrants(plugin.instance,
-            network = effective.filterKeys { it in access.network },
-            secrets = effective.filterKeys { it in access.secrets })
-        val host = hosts.bind(plugin.manifest, plugin.instance) { grant }
+        val host = host(owner(kind, definition), definition, options)
         return when (kind) {
             ServiceKind.Search -> (definition as WebSearchProvider).configured(effective, host)
             ServiceKind.Notifications -> (definition as NotificationProvider).configured(effective, host)
         }
+    }
+
+    private fun owner(kind: ServiceKind, provider: ConfigurableProvider) =
+        external.single { plugin -> (if (kind == ServiceKind.Search) plugin.webSearch else plugin.notifications).any { it === provider } }
+
+    /** [plugin]'s host, granting what [options] for its [provider] let it reach. */
+    private fun host(plugin: HarnessPlugin, provider: ConfigurableProvider, options: Map<String, String>): PluginHost {
+        val grant = provider.grants(plugin.instance, options)
+        return hosts.bind(plugin.manifest, plugin.instance) { grant }
     }
 
     private fun serviceProviders(kind: ServiceKind): List<ConfigurableProvider> = when (kind) {
@@ -242,25 +257,8 @@ internal class FileServerSettings(
             return ServiceSettings()
         }
         val definition = serviceProviders(kind).firstOrNull { it.id == provider } ?: error("No provider '$provider'; available: ${providerIds(kind).joinToString()}")
-        val fields = definition.settings.fields.associateBy { it.key }
-        require(updates.keys.all { fields[it]?.sensitive == true }) { "Secret updates must name a sensitive setting" }
-        require(updates.keys.none { it in s.options }) { "Give a setting value or a secret update, not both" }
         val old = files.serviceConfig(kind).takeIf { it.provider == provider }?.options.orEmpty()
-        require(s.options.keys.none { fields[it]?.sensitive == true }) { "Use a secret update for sensitive settings" }
-        val options = s.options.mapValues { (_, value) -> value.trim() }.toMutableMap()
-        updates.forEach { (key, update) ->
-            when (update) {
-                SecretUpdate.Keep -> options[key] = old[key].orEmpty()
-                SecretUpdate.Remove -> options.remove(key)
-                is SecretUpdate.Replace -> {
-                    require(update.value.isNotBlank() && update.value != KnowledgeSettings.SECRET) { "Give a replacement for ${fields.getValue(key).label}" }
-                    options[key] = update.value.trim()
-                }
-            }
-        }
-        val values = options.filterValues { it.isNotEmpty() }
-        definition.checkOptions(values)
-        return ServiceSettings(provider, values)
+        return ServiceSettings(provider, definition.merged(old, s.options, updates))
     }
 
     private fun <T : ConfigurableProvider> List<T>.uniqueProviders(): Map<String, T> = associateBy { it.id }.also {

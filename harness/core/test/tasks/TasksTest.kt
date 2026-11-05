@@ -2,7 +2,7 @@ package kinuvo.harness.core.tasks
 
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.store.FileBoard
-import kinuvo.harness.core.store.LocalTaskProvider
+import kinuvo.harness.core.store.LocalTaskApp
 import kinuvo.protocol.TaskStatus
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
@@ -18,9 +18,9 @@ import kotlin.test.assertTrue
 
 class TasksTest {
     private val home = TestHome()
-    private val provider = LocalTaskProvider(Path(home.files.home, "tasks.json"))
+    private val provider = LocalTaskApp(Path(home.files.home, "tasks.json"))
     private var config = TasksConfig(lists = mapOf("Inbox" to "default"))
-    private val tasks = Tasks(listOf(provider), FileBoard(Path(home.files.home, "board.json")), { config }, { setOf("default", "travel") }, { LocalDate(2026, 10, 1) })
+    private val tasks = Tasks(listOf(TaskProvider.of("local", "Kinuvo", provider)), FileBoard(Path(home.files.home, "board.json")), { config }, { setOf("default", "travel") }, { LocalDate(2026, 10, 1) })
 
     @Test
     fun assigneeComesFromBoardThenMentionThenList() = runTest {
