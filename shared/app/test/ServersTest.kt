@@ -25,6 +25,7 @@ internal class MemoryPreferences : Preferences {
     override fun set(key: String, value: String?) {
         if (value == null) values.remove(key) else values[key] = value
     }
+    override fun clear() = values.clear()
 }
 
 private object FakeEmbedded : EmbeddedServer {

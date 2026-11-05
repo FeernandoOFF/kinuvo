@@ -6,7 +6,10 @@ import kinuvo.app.session.*
 
 import org.koin.dsl.bind
 import org.koin.dsl.module
+import platform.Foundation.NSCachesDirectory
+import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSTimeZone
+import platform.Foundation.NSUserDomainMask
 import platform.Foundation.NSUserDefaults
 import platform.Foundation.localTimeZone
 import platform.UIKit.UIDevice
@@ -22,6 +25,10 @@ private class UserDefaultsStore : Preferences {
 
     override fun set(key: String, value: String?) {
         if (value == null) defaults.removeObjectForKey("kinuvo.$key") else defaults.setObject(value, "kinuvo.$key")
+    }
+
+    override fun clear() {
+        defaults.dictionaryRepresentation().keys.filterIsInstance<String>().filter { it.startsWith("kinuvo.") }.forEach(defaults::removeObjectForKey)
     }
 }
 
@@ -41,6 +48,10 @@ internal actual val platformModule = module {
     single { HapticNotifier() } bind Notifier::class
     single<DeviceCredentials> { get<MobileTestMode>().takeIf { it.override != null }?.credentials ?: IosCredentials() }
     single<Preferences> { get<MobileTestMode>().takeIf { it.override != null }?.preferences ?: UserDefaultsStore() }
+    single<ClientCache> {
+        if (get<MobileTestMode>().override != null) ClientCache.None
+        else deviceCache(NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, true).first() as String + "/client-cache")
+    }
     single<OAuthBrowser> { WebAuthBrowser() }
     single { Device(UIDevice.currentDevice.name, NSTimeZone.localTimeZone.name, get<MobileTestMode>().override?.websocketUrl.orEmpty()) }
 }

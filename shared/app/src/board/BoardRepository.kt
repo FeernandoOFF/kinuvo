@@ -25,7 +25,7 @@ class BoardRepository(private val notifications: Notifications, internal val con
     private var attached: Job? = null
 
     internal fun attach(client: KinuvoClient) {
-        clear()
+        attached?.cancel()
         attached = scope.launch {
             launch {
                 client.events(Api.TaskChanged).collect { task ->
@@ -39,6 +39,8 @@ class BoardRepository(private val notifications: Notifications, internal val con
     }
 
     internal fun detach() { clear() }
+
+    internal fun restore(board: BoardData) { state.value = board }
 
     /** Loads every Task, done ones included, so the Board can show them on request. */
     fun load() = scope.launch {

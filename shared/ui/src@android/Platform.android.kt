@@ -23,6 +23,8 @@ private class SharedPreferencesStore(context: Context) : Preferences {
     override fun set(key: String, value: String?) {
         prefs.edit().apply { if (value == null) remove(key) else putString(key, value) }.commit().also { check(it) { "Couldn't save preferences" } }
     }
+
+    override fun clear() { prefs.edit().clear().commit().also { check(it) { "Couldn't clear preferences" } } }
 }
 
 /** A light tick. */
@@ -50,6 +52,7 @@ internal actual val platformModule = module {
     single { androidTestMode(androidContext()) }
     single<DeviceCredentials> { get<MobileTestMode>().takeIf { it.override != null }?.credentials ?: AndroidCredentials(androidContext()) }
     single<Preferences> { get<MobileTestMode>().takeIf { it.override != null }?.preferences ?: SharedPreferencesStore(androidContext()) }
+    single<ClientCache> { if (get<MobileTestMode>().override != null) ClientCache.None else deviceCache(java.io.File(androidContext().cacheDir, "client-cache").path) }
     single<OAuthBrowser> {
         val context = androidContext()
         AppSchemeBrowser { url ->
