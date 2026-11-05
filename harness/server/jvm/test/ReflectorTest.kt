@@ -36,13 +36,13 @@ class ReflectorTest {
         val history = prompt.messages
         val review = history.filterIsInstance<Message.User>().lastOrNull { it.textContent().startsWith("Background Reflection instructions:") }?.textContent()
         instructionsSeen += review?.removePrefix("Background Reflection instructions:\n") ?: instructions
-        tools.firstOrNull { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias() }?.let { toolDescriptions += it.description }
+        tools.firstOrNull { it.name == "knowledge" }?.let { toolDescriptions += it.description }
         when {
             review == null || "Perform only the Knowledge stage." !in review -> flowOf(StreamFrame.TextDelta("Nice!"), StreamFrame.End())
             history.dropWhile { it !is Message.User || it.textContent() != review }.toolResults.isNotEmpty() -> flowOf(StreamFrame.TextDelta("Saved."), StreamFrame.End())
             else -> {
                 reflections++
-                flowOf(StreamFrame.ToolCallComplete("c$reflections", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), """{"action":"create","type":"person","title":"Ana","set":"{\"relationship\":\"sister\"}","reason":"Family","evidence":"${Regex("\\[(user-\\d+)\\] User:").find(review)?.groupValues?.get(1)}"}"""), StreamFrame.End())
+                flowOf(StreamFrame.ToolCallComplete("c$reflections", "knowledge", """{"action":"create","type":"person","title":"Ana","set":"{\"relationship\":\"sister\"}","reason":"Family","evidence":"${Regex("\\[(user-\\d+)\\] User:").find(review)?.groupValues?.get(1)}"}"""), StreamFrame.End())
             }
         }
     }

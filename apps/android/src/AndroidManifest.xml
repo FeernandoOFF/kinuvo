@@ -24,6 +24,9 @@
         android:allowBackup="false"
         android:enableOnBackInvokedCallback="true"
         android:theme="@android:style/Theme.Material.NoActionBar">
+        <!-- LiteRT-LM runs on-device models on the GPU where the phone provides OpenCL. -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
         <activity android:name="dev.kinuvo.android.MainActivity"
                   android:exported="true"
                   android:launchMode="singleTop"

@@ -191,12 +191,14 @@ open class HarnessRuntime(
         val run = RunContext(e.agent, sessionId, routine?.routine, taskId)
         val contributed = plugins.map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
         val own = PluginTools(toolsFor(e, sessionId, routine)).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.core")).tools
-        val all = (own + contributed.flatMap { it.tools }).also { it.indexedTools() }
+        val aliased = own + contributed.flatMap { it.tools }
+        val all = aliased.withModelNames().also { it.indexedTools() }
+        val renamed = aliased.zip(all).filter { (a, b) -> a !== b }.associate { (a, b) -> a.descriptor.name to b.descriptor.name }
         val eligible = usable(e, all)
         val descriptors = all.map { it.descriptor.name }.toSet()
         val rules = trustRules.effective(agent.id)
-        val catalog = (own.map { ResolvedTool(it.descriptor.name, it.displayName, identity = it.identity) } +
-            contributed.flatMap { it.catalog }).distinctBy { (it.identity?.key ?: it.id) to it.target }.map { tool ->
+        val catalog = (own.map { ResolvedTool(renamed[it.descriptor.name] ?: it.descriptor.name, it.displayName, identity = it.identity) } +
+            contributed.flatMap { it.catalog }.map { it.copy(id = renamed[it.id] ?: it.id) }).distinctBy { (it.identity?.key ?: it.id) to it.target }.map { tool ->
             val state = when {
                 e.info?.tools == false || e.info?.toolIds?.let { tool.identity?.localId != "*" && tool.identity?.key !in it } == true ||
                     tool.id in descriptors && tool.id !in eligible -> CapabilityState.unsupported("This model cannot call ${tool.name}")
@@ -207,11 +209,11 @@ open class HarnessRuntime(
             tool.copy(state = state)
         }
         val usableTools = all.filter { it.descriptor.name in eligible }
-        val cataloguedNames = plugins.zip(contributed).filter { it.first.catalogued }.flatMap { it.second.tools }.map { it.descriptor.name }.toSet()
+        val cataloguedNames = plugins.zip(contributed).filter { it.first.catalogued }.flatMap { it.second.tools }.map { renamed[it.descriptor.name] ?: it.descriptor.name }.toSet()
         val candidates = if (usableTools.size > ToolCatalog.LIMIT) usableTools.filter { it.descriptor.name in cataloguedNames } else emptyList()
         // Only when the model can take the catalog's own tools; otherwise every tool stays direct.
         val finders = if (candidates.isEmpty()) emptyList() else PluginTools(ToolCatalog.tools(candidates)).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.core")).tools
-            .takeIf { f -> usable(e, f).size == f.size }.orEmpty()
+            .withModelNames(all.map { it.descriptor.name }.toSet()).takeIf { f -> usable(e, f).size == f.size }.orEmpty()
         val hidden = if (finders.isEmpty()) emptyList() else candidates
         val reported = catalog + finders.map { ResolvedTool(it.descriptor.name, it.displayName, identity = it.identity) }
         return PreparedRun(e, usableTools + finders, usableTools - hidden.toSet() + finders, reported, contributed.flatMap { it.warnings }, chat)

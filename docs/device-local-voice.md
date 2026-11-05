@@ -25,8 +25,9 @@ and licenses. Supertonic currently uses speaker 0. The language picker exposes
 
 Downloads use pinned revisions, exact byte counts and SHA256 checks. They stream
 to staging directories, validate archive entries and payload sizes, then rename
-atomically. Cancel removes staging after the active network read finishes
-(up to its timeout). Leaving settings does not cancel a Server download. Removal
+atomically. The verified store in `harness/models` is shared with on-device
+language models. An interrupted download resumes; Cancel removes staging after
+the active network read finishes (up to its timeout). Leaving settings does not cancel a Server download. Removal
 and replacement refuse models leased by active or queued inference. Removing a
 selected model clears that selection. A missing or damaged selected model raises
 an error rather than switching to system speech. Receipts check payload sizes and

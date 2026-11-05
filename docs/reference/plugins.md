@@ -28,6 +28,8 @@ Firecrawl and ntfy use this host interface. Selecting their service config binds
 
 Tool-call Approvals remain separate from host resource grants.
 
+Models see each tool by its own name, e.g. `memory`. When two tools in a run share a name, such as `search` from two MCP servers, each gets a stable alias that includes its plugin and instance. Calls, Approvals and Trust rules route by the tool's identity, so earlier Sessions that recorded aliases keep working.
+
 Sources: [ADR 0011](../adr/0011-plugin-manifests-and-host-access.md), [plugin modules](https://github.com/FeernandoOFF/kinuvo/tree/main/harness/plugins), [JVM assembly](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/server/jvm/src/Plugins.kt).
 
 <div class="k-future">

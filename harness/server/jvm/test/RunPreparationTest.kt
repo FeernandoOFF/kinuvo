@@ -133,7 +133,7 @@ class RunPreparationTest {
             assertEquals(Support.Unknown, inspect(harness, agent, session.id).tools.single().state.support)
             assertFalse(marker.exists())
             harness.runner(agent, session.id).run(session.id, "hi").toList()
-            assertEquals(listOf(McpTool.identity(McpServerConfig.Stdio("local", "", instanceId = "shared/local"), "echo").modelAlias()), seen.last())
+            assertEquals(listOf("echo"), seen.last())
             val cached = inspect(harness, agent, session.id).tools.single()
             assertEquals(seen.last().single(), cached.id)
             assertEquals(Support.Supported, cached.state.support)
@@ -210,6 +210,22 @@ class RunPreparationTest {
     }
 
     @Test
+    fun coreToolsAProviderLeavesOutAreReportedUnsupported() = runBlocking {
+        val narrow = object : ModelProvider {
+            override val id = "test"
+            override suspend fun models() = listOf(ModelInfo("tools", tools = true))
+            override fun usableTools(model: String, tools: List<ToolDescriptor>) = tools.filter { it.name != "memory" }
+            override fun model(config: AgentConfig) = scriptedModel { _, _ -> flowOf(StreamFrame.End()) }
+        }
+        val harness = harness(providers = listOf(narrow))
+        try {
+            val tools = inspect(harness, agent(harness, listOf("memory", "web_fetch"))).tools.associateBy { it.id }
+            assertFalse(tools.getValue("memory").state.actionable)
+            assertTrue(tools.getValue("web_fetch").state.actionable)
+        } finally { harness.close() }
+    }
+
+    @Test
     fun manyCataloguedToolsReachTheModelOnlyThroughTheCatalog() = runBlocking {
         val many = object : HarnessPlugin {
             override val definition = PluginDefinition("test.many", "Many")
@@ -227,7 +243,7 @@ class RunPreparationTest {
             val session = harness.newSession(agent)
             harness.runner(agent, session.id).run(session.id, "hi").toList()
             val sent = seen.last()
-            assertEquals(listOf("call_tool", "describe_tool", "find_tools", "memory"), sent.map { it.split("__")[2] }.sorted())
+            assertEquals(listOf("call_tool", "describe_tool", "find_tools", "memory"), sent.sorted())
             assertEquals(49, inspect(harness, agent, session.id).tools.size)
         } finally { harness.close() }
     }

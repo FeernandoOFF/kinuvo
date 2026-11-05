@@ -31,7 +31,7 @@ class TaskDispatcherTest {
     private var fail = false
     private val model = scriptedModel { prompt, tools ->
         val history = prompt.messages
-        assertTrue(tools.any { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.tasks"), "tasks").modelAlias() })
+        assertTrue(tools.any { it.name == "tasks" })
         val prompt = history.filterIsInstance<Message.User>().first().textContent()
         val id = Regex("""\[Task ([^\]]+)]""").find(prompt)!!.groupValues[1]
         if (fail) flow {
@@ -39,7 +39,7 @@ class TaskDispatcherTest {
             error("Model failed")
         } else if (finish && history.toolResults.isEmpty()) flowOf(
             StreamFrame.TextDelta("Working on it."),
-            StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.tasks"), "tasks").modelAlias(), """{"action":"update","id":"$id","status":"done"}"""), StreamFrame.End(),
+            StreamFrame.ToolCallComplete("c1", "tasks", """{"action":"update","id":"$id","status":"done"}"""), StreamFrame.End(),
         ) else flowOf(StreamFrame.TextDelta("On it."), StreamFrame.End())
     }
     private val harness = runBlocking { HarnessRuntime(ServerInstallation.assemble(AgentFiles(home)), modelFactory = { model }) }

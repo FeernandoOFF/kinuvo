@@ -21,7 +21,8 @@ class ToolExecutor(
     private val attach: ((String, ByteArray) -> Attachment)? = null,
     private val emit: suspend (AgentEvent) -> Unit = {},
 ) {
-    private val toolsByName = tools.indexedTools()
+    // Sessions recorded before a tool got its short name still call it by its alias.
+    private val toolsByName = tools.indexedTools().let { named -> named + tools.mapNotNull { t -> t.identity?.modelAlias()?.let { it to t } }.filter { it.first !in named } }
     private val callable = (advertisedTools + tools.map { it.descriptor }).distinctBy { it.name }
 
     fun repeatable(name: String) = toolsByName[name]?.repeatable ?: true

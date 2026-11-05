@@ -70,7 +70,7 @@ class PluginsTest {
         val events = harness.runner(agent, session.id).run(session.id, "hi").toList()
         assertTrue(harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Context>().any { "## Fake\n\nPlugin section" in it.content })
         assertTrue(events.any { it is kinuvo.protocol.AgentEvent.Warning && it.message == "half up" })
-        assertEquals(kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId(plugin.definition.id), "ping").modelAlias(), harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.AssistantMessage>().single().text)
+        assertEquals("ping", harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.AssistantMessage>().single().text)
 
         harness.release(agent)
         assertEquals(listOf(agent.id), released)

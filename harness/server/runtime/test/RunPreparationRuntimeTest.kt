@@ -28,7 +28,7 @@ class RunPreparationRuntimeTest {
         val harness = fixture.runtime(scriptedModel { prompt, _ ->
             val history = prompt.messages
             if (history.toolResults.isNotEmpty()) flowOf(StreamFrame.End())
-            else flowOf(StreamFrame.ToolCallComplete("schedule", identity.modelAlias(), args.toString()), StreamFrame.End())
+            else flowOf(StreamFrame.ToolCallComplete("schedule", identity.localId, args.toString()), StreamFrame.End())
         })
         try {
             val agent = fixture.agent.copy(config = fixture.agent.config.copy(tools = listOf("schedule"), approvals = "relaxed"))
@@ -148,7 +148,7 @@ class RunPreparationRuntimeTest {
             ModelInfo("limited", tools = true, toolIds = setOf(ToolIdentity(PluginInstanceId("test.runpreparationruntimetest.3"), "ping").key)),
         )
         override fun usableTools(model: String, tools: List<ToolDescriptor>) = tools.filter {
-            it.name != ToolIdentity(PluginInstanceId("test.runpreparationruntimetest.3"), "ping").modelAlias() || it.requiredParameters.any { p -> p.name == "message" }
+            it.name != "ping" || it.requiredParameters.any { p -> p.name == "message" }
         }
         override fun model(config: AgentConfig): AgentModel {
             modelsBuilt++
@@ -230,8 +230,8 @@ class RunPreparationRuntimeTest {
             assertTrue("memory" in offered && "knowledge" in offered && "tasks" in offered)
             assertTrue(offered.none { it in setOf("activate_skill", "artifact", "schedule") })
             harness.runner(agent, session.id).run(session.id, "hi").toList()
-            assertTrue(ToolIdentity(PluginInstanceId("kinuvo.core"), "memory").modelAlias() in seen.last())
-            assertFalse(ToolIdentity(PluginInstanceId("kinuvo.core"), "schedule").modelAlias() in seen.last())
+            assertTrue("memory" in seen.last())
+            assertFalse("schedule" in seen.last())
         } finally { harness.close() }
     }
 

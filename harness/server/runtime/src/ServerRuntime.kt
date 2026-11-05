@@ -161,6 +161,15 @@ class ServerRuntime(
             harness.artifacts.onChange { broadcast(Api.ArtifactChanged, it) }
             harness.browser?.onChange { broadcast(Api.BrowserChanged, it); broadcast(Api.ScreensChanged, it) }
             harness.computers.onChange = { broadcast(Api.ComputersChanged, it); broadcast(Api.ScreensChanged, null) }
+            harness.modelProviders.mapNotNull { it.downloads }.forEach { downloads -> scope.launch {
+                var installed: Set<String>? = null
+                downloads.changes.collect { state ->
+                    broadcast(Api.ProvidersChanged, logins.list())
+                    val now = state.models.filter { it.installed }.mapTo(mutableSetOf()) { it.id }
+                    if (installed != null && now != installed) changedCapabilities()
+                    installed = now
+                }
+            } }
             if (schedule) { scheduler.start(); dispatcher.start() }
             scheduling = schedule
             for (connection in executions.catalog().connections) {
@@ -598,6 +607,9 @@ class ServerRuntime(
         Api.SetProviderApiKey.name -> respond(r, Api.SetProviderApiKey) { logins.saveApiKey(it.provider, it.value) }
         Api.LoginProvider.name -> respond(r, Api.LoginProvider) { logins.login(it.provider) }
         Api.LogoutProvider.name -> respond(r, Api.LogoutProvider) { logins.logout(it.provider) }
+        Api.DownloadProviderModel.name -> respond(r, Api.DownloadProviderModel) { logins.download(it.provider, it.model) }
+        Api.CancelProviderDownload.name -> respond(r, Api.CancelProviderDownload) { logins.cancelDownload(it.provider) }
+        Api.RemoveProviderModel.name -> respond(r, Api.RemoveProviderModel) { logins.removeModel(it.provider, it.model) }
         Api.Service.name -> respond(r, Api.Service) { harness.serviceSetup(it.kind) }
         Api.SaveService.name -> respond(r, Api.SaveService) { harness.saveService(it.kind, it.settings, it.secretUpdates) }
         Api.TestService.name -> respond(r, Api.TestService) { harness.testService(it) }

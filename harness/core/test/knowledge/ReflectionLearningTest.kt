@@ -24,7 +24,7 @@ class ReflectionLearningTest {
     private fun args(value: String) = Json.parseToJsonElement(value).jsonObject
     private fun proposal() = ReflectionProposal("p", "knowledge", args("""{"action":"create","type":"place","title":"Dublin"}"""),
         "A place", "User mentioned Dublin", scope = knowledge.scope())
-    private fun alias(tool: String) = ToolIdentity(PluginInstanceId(if (tool in listOf("knowledge", "conventions")) "kinuvo.knowledge" else "kinuvo.core"), tool).modelAlias()
+    private fun alias(tool: String) = tool
     private fun model(calls: List<Pair<String, JsonObject>>) = scriptedModel { prompt, tools ->
         if (prompt.messages.toolResults.isNotEmpty()) flowOf(StreamFrame.End()) else {
             val text = prompt.messages.filterIsInstance<Message.User>().single().textContent()

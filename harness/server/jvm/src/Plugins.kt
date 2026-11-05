@@ -5,6 +5,7 @@ import kinuvo.harness.apple.fmProvider
 import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.codex.OpenAIProvider
 import kinuvo.harness.koog.compatibleProviders
+import kinuvo.harness.litert.LiteRtProvider
 import kinuvo.harness.core.HarnessPlugin
 import kinuvo.harness.core.SecretProvider
 import kinuvo.harness.core.Secrets
@@ -22,7 +23,7 @@ import kinuvo.harness.reminders.RemindersPlugin
 fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (HarnessPlugin) -> Unit = {}): List<HarnessPlugin> {
     val attachments = kinuvo.harness.core.store.FileAttachments(kotlinx.io.files.Path(files.home, "attachments"))::bytes
     return (listOf(CodexProvider(attachments = attachments), OpenAIProvider(files, secrets, attachments)) +
-        compatibleProviders(files, secrets, attachments) + listOfNotNull(fmProvider())).onEach(installed)
+        compatibleProviders(files, secrets, attachments) + listOfNotNull(fmProvider()) + LiteRtProvider(java.io.File(files.home.toString()))).onEach(installed)
 }
 
 /** What a JVM host (desktop, the `kinuvo` command) runs with. */
