@@ -88,9 +88,13 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         val pushed = try { push.send(Notification("Kinuvo", p.input?.ifBlank { null } ?: "Notifications from Kinuvo work.")) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { return ServiceTestResult(error = harness.secrets.redact(e.message ?: "Couldn't push")) }
-        val devices = "$pushed Device" + if (pushed == 1) "" else "s"
-        if (settings.provider == null) return if (pushed > 0) ServiceTestResult("Pushed to $devices") else ServiceTestResult(error = "No paired Device receives pushes yet")
-        return harness.testService(p).let { if (it.error == null && pushed > 0) it.copy(summary = "${it.summary}, and pushed to $devices") else it }
+        val devices = "${pushed.delivered} Device" + if (pushed.delivered == 1) "" else "s"
+        val failed = pushed.failures.takeIf { it.isNotEmpty() }?.let { "Couldn't push to ${it.joinToString("; ")}" }
+        if (settings.provider == null) return when {
+            pushed.delivered > 0 -> ServiceTestResult("Pushed to $devices" + (failed?.let { ". $it" } ?: ""))
+            else -> ServiceTestResult(error = failed ?: "No paired Device receives pushes yet")
+        }
+        return harness.testService(p).let { if (it.error == null && pushed.delivered > 0) it.copy(summary = "${it.summary}, and pushed to $devices") else it }
     }
 
     private suspend fun attempt(send: suspend () -> Unit) {

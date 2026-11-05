@@ -10,8 +10,9 @@ class PushNotificationsTest {
     private val fixture = RuntimeFixture()
     private val pushed = mutableListOf<Notification>()
     private var devices = 1
+    private var failures = emptyList<String>()
     private val push = object : DevicePush {
-        override suspend fun send(notification: Notification) = devices.also { pushed += notification }
+        override suspend fun send(notification: Notification) = Pushed(devices, failures).also { pushed += notification }
         override fun close() {}
     }
 
@@ -33,6 +34,8 @@ class PushNotificationsTest {
         devices = 0
         assertEquals("No paired Device receives pushes yet", notifications.test(TestServiceParams(ServiceKind.Notifications)).error)
         assertEquals("Pick a provider first", notifications.test(TestServiceParams(ServiceKind.Notifications, ServiceSettings(push = false))).error)
-        assertEquals(2, pushed.size)
+        failures = listOf("https://push.example: HTTP 530")
+        assertEquals("Couldn't push to https://push.example: HTTP 530", notifications.test(TestServiceParams(ServiceKind.Notifications)).error)
+        assertEquals(3, pushed.size)
     }
 }
