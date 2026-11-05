@@ -18,6 +18,7 @@ import kinuvo.app.connection.DeviceCredentials
 import kinuvo.app.connection.Preferences
 import kinuvo.app.connection.Servers
 import kinuvo.ui.KinuvoApp
+import kinuvo.ui.design.LocalBackdropBlur
 import kinuvo.ui.design.LocalForcedInteractionMode
 import kinuvo.ui.kinuvoApplication
 import kotlinx.coroutines.Dispatchers
@@ -67,6 +68,7 @@ internal fun appTest(flow: String, profile: String, block: suspend AppTest.() ->
                 LocalViewModelStoreOwner provides app.viewModels,
                 LocalLifecycleOwner provides app,
                 LocalForcedInteractionMode provides InteractionMode.Touch,
+                LocalBackdropBlur provides false,
             ) {
                 KoinIsolatedContext(koin) { KinuvoApp() }
             }

@@ -428,7 +428,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers, LocalHomeChrome provides homeChrome) {
                 // Phones show the Agent's settings as sheets over the screen; wider windows show them beside it, unblurred.
                 val sheet = compact && (inspecting?.open == true || settingsPages.isNotEmpty())
-                val blur by animateDpAsState(if (shell.quickChat || popovers.active || sheet) 16.dp else 0.dp)
+                val blur by animateDpAsState(if (LocalBackdropBlur.current && (shell.quickChat || popovers.active || sheet)) 16.dp else 0.dp)
                 val screenInsets = if (top == Route.NewAgent || top == Route.Connect) WindowInsets(0) else WindowInsets.safeDrawing
                 val guardSemantics = if (inspecting?.guard != null || inspectorEdits.pending != null || homeEdits.pending != null) Modifier.clearAndSetSemantics {} else Modifier
                 val sheetSemantics = if (inspecting?.open == true || settingsPages.isNotEmpty()) Modifier.clearAndSetSemantics {} else Modifier
