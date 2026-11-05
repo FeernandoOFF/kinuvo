@@ -203,14 +203,14 @@ class ExecutionCoordinator(
         val attachments = p.attachments.map(resolve)
         require(attachments.sumOf { it.attachment.size } <= MAX_ATTACHMENT_TOTAL_BYTES)
         val submission = p.submissionId ?: Uuid.random().toString()
-        val retry = lock.withLock { records.values.firstOrNull { it.agentId == p.agentId && submission in it.submissions }?.sessionId }
-        val id = p.sessionId ?: retry ?: create(p.agentId).id
-        session(p.agentId, id)
+        val retry = lock.withLock { records.values.firstOrNull { it.agentId == p.agentId.value && submission in it.submissions }?.sessionId }
+        val id = p.sessionId?.value ?: retry ?: create(p.agentId.value).id
+        session(p.agentId.value, id)
         val r = record(id)
         if (submission in r.submissions) {
-            val prior = log.entries(p.agentId, id).filterIsInstance<SessionEntry.UserMessage>().firstOrNull { it.submissionId == submission }
+            val prior = log.entries(p.agentId.value, id).filterIsInstance<SessionEntry.UserMessage>().firstOrNull { it.submissionId == submission }
             require(prior == null || prior == SessionEntry.UserMessage(p.text, attachments = attachments.map { it.attachment }, voice = p.voice, submissionId = submission)) { "Submission identity reused with different content" }
-            return SendResult(id, submission, p.text)
+            return SendResult(SessionId(id), submission, p.text)
         }
         check(!r.archived && !r.closed && !r.lost && r.failure == null)
         attachments.forEach { require(it.attachment.mimeType in r.support.supportedMimeTypes) { "Unsupported attachment type" } }
@@ -219,7 +219,7 @@ class ExecutionCoordinator(
         state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
         val input = SessionEntry.UserMessage(p.text, attachments = attachments.map { it.attachment }, voice = p.voice, submissionId = submission)
         mutate(id) { current -> current.copy(submissions = current.submissions + (submission to null), inputCheckpoint = input) }
-        log.appendAll(p.agentId, id, listOf(input))
+        log.appendAll(p.agentId.value, id, listOf(input))
         mutate(id) { it.copy(inputCheckpoint = null) }
         val job = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
@@ -230,7 +230,7 @@ class ExecutionCoordinator(
             }
         }
         lock.withLock { dispatch[id] = job }
-        return SendResult(id, submission, p.text)
+        return SendResult(SessionId(id), submission, p.text)
     }
     override suspend fun stop(id: String) { lock.withLock { live[id] }?.cancel() }
     suspend fun closeExecution(id: String) { discard(id); sealInterrupted(id); mutate(id) { it.copy(closed = true, lost = true) }; readinessChanged() }

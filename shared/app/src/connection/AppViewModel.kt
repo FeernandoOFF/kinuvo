@@ -337,7 +337,7 @@ class AppViewModel(
 
     /** Offline, the latest one this Device saw. */
     private suspend fun latestSession(agentId: String): String? =
-        catching { owner.call { it.call(Api.Sessions, SessionsParams(agentId, limit = 1)).sessions.firstOrNull()?.id } }
+        catching { owner.call { it.call(Api.Sessions, SessionsParams(AgentId(agentId), limit = 1)).sessions.firstOrNull()?.id } }
             .getOrElse { state.value.sessions.lists[agentId]?.sessions?.filter { it.routine == null }?.maxByOrNull { it.createdAt ?: 0 }?.id }
 
     private fun connect(server: Server, code: String? = null) {

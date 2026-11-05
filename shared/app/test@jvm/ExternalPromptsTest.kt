@@ -35,13 +35,13 @@ class ExternalPromptsTest {
                 assertIs<ExecutionPrompt.Approval>(vm.state.first { it.prompts.isNotEmpty() }.prompts.single())
                 val asked = AgentEvent.QuestionsAsked("q", "t", "Details", listOf(Question("when", "When?", QuestionKind.Text, default = listOf("Tomorrow"))))
                 val request = ExecutionRequest("q", ExecutionRequestKind.Question, JsonNull, prompt = ExecutionPrompt.Questions("q", asked))
-                script.event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Event(AgentEvent.ExecutionRequested(request))))
+                script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.ExecutionRequested(request))))
                 assertEquals(listOf("open", "q"), vm.state.first { it.prompts.size == 2 }.prompts.map { it.id })
                 script.acceptAnswer = false
                 vm.answerExternal(urlApproval.displayPrompt(), approvalAnswer("accept"))
                 assertTrue(vm.state.first { it.errors.isNotEmpty() }.errors.last().contains("Already answered"))
                 assertEquals(2, vm.state.value.prompts.size)
-                script.event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Event(AgentEvent.ExecutionResolved("open"))))
+                script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.ExecutionResolved("open"))))
                 assertEquals("q", vm.state.first { it.prompts.size == 1 }.prompts.single().id)
                 assertEquals(0, script.snapshotReads)
             } finally { clearAndJoin() }
@@ -80,7 +80,7 @@ class ExternalPromptsTest {
                 vm.state.first { !it.sending && script.sends.isNotEmpty() }
                 assertEquals(listOf(Api.ResumeExecution.name, Api.Send.name), script.dispatches)
                 assertEquals("Continue here", script.sends.single().text)
-                assertEquals("s1", script.sends.single().sessionId)
+                assertEquals(SessionId("s1"), script.sends.single().sessionId)
                 assertEquals(0, script.snapshotReads)
             } finally { clearAndJoin() }
         }
@@ -137,11 +137,11 @@ class ExternalPromptsTest {
         owner.sessions.view("wren", "s1").join()
         owner.sessions.state.first { it.sessions["s1"]?.loaded == true }
         script.event(Api.SessionChanged, SessionInfo("s1", "wren", "Test", SessionStatus.Running))
-        script.event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Event(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Lost))))
+        script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Lost))))
         script.event(Api.SessionChanged, SessionInfo("s1", "wren", "Test", SessionStatus.Idle))
         owner.sessions.state.first { it.sessions["s1"]?.live?.executionPhase == ExecutionPhase.Lost }
-        script.event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Event(AgentEvent.RunFinished("lost"))))
-        script.event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Event(AgentEvent.ExecutionRequested(urlApproval))))
+        script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.RunFinished("lost"))))
+        script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.ExecutionRequested(urlApproval))))
         owner.sessions.state.first { it.sessions["s1"]?.live?.pending?.isNotEmpty() == true }
         assertTrue(script.notices.none { it is Notice.RunFinished })
     }
@@ -200,7 +200,7 @@ class ExternalPromptsTest {
                     dispatches += request.method
                     sends += ProtocolJson.decodeFromJsonElement(Api.Send.params, request.params)
                     if (failSend) frames.send(Frame.Response(request.id, false, error = "Uncertain submission"))
-                    else reply(request, Api.Send, SendResult("s1", "run", ""))
+                    else reply(request, Api.Send, SendResult(SessionId("s1"), "run", ""))
                 }
                 Api.ExecutionAnswer.name -> reply(request, Api.ExecutionAnswer, acceptAnswer)
                 Api.ResumeExecution.name -> {
@@ -212,19 +212,19 @@ class ExternalPromptsTest {
                     }
                     snapshot = snapshot.copy(executionPhase = ExecutionPhase.Idle)
                     reply(request, Api.ResumeExecution, ExecutionSnapshot("s1"))
-                    event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Live(snapshot)))
+                    event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Live(snapshot)))
                 }
                 Api.CloseExecution.name -> {
                     actions += request.method
                     snapshot = snapshot.copy(executionPhase = ExecutionPhase.Lost)
                     reply(request, Api.CloseExecution, Unit)
-                    event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Live(snapshot)))
+                    event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Live(snapshot)))
                 }
                 Api.Session.name -> reply(request, Api.Session, SessionInfo("s1", "wren", "Slack"))
                 Api.Capabilities.name -> reply(request, Api.Capabilities, SessionCapabilities(0, ServerCapabilities("test", features = setOf(ServerFeature.Attachments)), attachments = mapOf("text/plain" to CapabilityState()), chat = if (snapshot.executionPhase == ExecutionPhase.Lost) CapabilityState.unavailable("Execution ended", "session_lost") else CapabilityState(), execution = ExecutionCapabilities(resume = true, supportedMimeTypes = setOf("text/plain"))))
                 Api.CatchUp.name -> {
                     reply(request, Api.CatchUp, Unit)
-                    event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Window(0, emptyList(), snapshot)))
+                    event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Window(0, emptyList(), snapshot)))
                 }
                 else -> frames.send(Frame.Response(request.id, false, error = "Unsupported in test: ${request.method}"))
             }

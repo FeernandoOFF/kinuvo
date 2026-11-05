@@ -94,11 +94,11 @@ class BrowserServerTest {
             val pairedToken = client.connect().token
             assertTrue(ServerFeature.Browser in client.lastConnect!!.capabilities.features)
             val agent = client.call(Api.Agents, Unit).first()
-            val session = client.call(Api.CreateSession, AgentRef(agent.id))
+            val session = client.call(Api.CreateSession, AgentRef(AgentId(agent.id)))
             val owner = BrowserOwner(agent.id)
             val opened = client.call(Api.ScreenOpen, ScreenOpen(owner))
             val ref = opened.ref
-            client.call(Api.CreateSession, AgentRef(agent.id))
+            client.call(Api.CreateSession, AgentRef(AgentId(agent.id)))
             assertEquals(listOf(ref.id), client.call(Api.BrowserTabs, BrowserOwner(agent.id)).map { it.id })
             val initial = client.call(Api.Screens, owner).single { it.ref == ref }
             assertNotNull(initial.control.holder)

@@ -77,7 +77,7 @@ class KinuvoAgentTest {
         val form = CompletableDeferred<Unit>()
         override suspend fun create(agentId: String) = kinuvo.protocol.SessionInfo("s", agentId, "ACP")
         override suspend fun snapshot(agentId: String, sessionId: String) = state
-        override suspend fun send(params: SendParams): SendResult { state = state.copy(phase = ExecutionPhase.Running); started.complete(Unit); return SendResult("s", "run", "accepted") }
+        override suspend fun send(params: SendParams): SendResult { state = state.copy(phase = ExecutionPhase.Running); started.complete(Unit); return SendResult(SessionId("s"), "run", "accepted") }
         override suspend fun stop(sessionId: String) { stopped.add(sessionId); state = state.copy(phase = ExecutionPhase.Idle) }
         override suspend fun answer(answer: ExecutionAnswer): Boolean {
             answers.add(answer); state = state.copy(phase = ExecutionPhase.Running, pending = emptyList())

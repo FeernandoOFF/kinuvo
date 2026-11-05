@@ -46,7 +46,7 @@ private fun KinuvoClient.approvals() =
 
 private fun KinuvoClient.statuses(sessionId: String) = events(Api.SessionChanged).filter { it.id == sessionId }.map { it.status }
 
-private suspend fun KinuvoClient.newSession() = call(Api.CreateSession, AgentRef("default")).id
+private suspend fun KinuvoClient.newSession() = call(Api.CreateSession, AgentRef(AgentId("default"))).id
 
 /** What a catch-up sent: the window start when it was reset, the entries and the live state. */
 private data class CaughtUp(val reset: Int?, val entries: List<SessionEntry>, val live: LiveState)
@@ -54,9 +54,9 @@ private data class CaughtUp(val reset: Int?, val entries: List<SessionEntry>, va
 /** Subscribes to [sessionId] from [after] and collects the catch-up. */
 private suspend fun KinuvoClient.catchUp(sessionId: String, after: Int? = 0, limit: Int = 100): CaughtUp = coroutineScope {
     val changes = async(start = CoroutineStart.UNDISPATCHED) {
-        events(Api.Update).filter { it.sessionId == sessionId }.map { it.change }.transformWhile { emit(it); it !is SessionChange.Live }.toList()
+        events(Api.Update).filter { it.sessionId.value == sessionId }.map { it.change }.transformWhile { emit(it); it !is SessionChange.Live }.toList()
     }
-    call(Api.CatchUp, CatchUpParams("default", sessionId, after, limit))
+    call(Api.CatchUp, CatchUpParams(AgentId("default"), SessionId(sessionId), after, limit))
     val all = changes.await()
     CaughtUp(
         all.filterIsInstance<SessionChange.Reset>().singleOrNull()?.firstSeq,
@@ -175,7 +175,7 @@ class ServerClientTest {
                 val client = KinuvoClient("ws://127.0.0.1:$port/ws", "desk", pairingCode = server.auth.currentPairingCode(), timeZone = "America/New_York")
                 client.connect()
                 assertEquals("America/New_York", server.harness.timeZone.id)
-                val heartbeat = client.call(Api.Routines, AgentRef("default")).single()
+                val heartbeat = client.call(Api.Routines, AgentRef(AgentId("default"))).single()
                 assertEquals("America/New_York", heartbeat.timeZone)
 
                 val changed = async(start = CoroutineStart.UNDISPATCHED) { client.events(Api.RoutinesChanged).first() }
@@ -188,13 +188,13 @@ class ServerClientTest {
                 client.call(Api.RunRoutine, RoutineParams("default", routine.id))
                 val result = ran.await()
                 assertEquals(RunStatus.Ok, result.status)
-                val session = client.call(Api.Session, SessionParams("default", result.sessionId!!))
+                val session = client.call(Api.Session, SessionParams(AgentId("default"), SessionId(result.sessionId!!)))
                 assertEquals(RoutineRef(routine.id, "Greet"), session.routine)
-                assertEquals(listOf(session.id), client.call(Api.Sessions, SessionsParams("default", routineId = routine.id)).sessions.map { it.id })
-                assertEquals(listOf(session.id), client.call(Api.Sessions, SessionsParams("default")).sessions.map { it.id })
+                assertEquals(listOf(session.id), client.call(Api.Sessions, SessionsParams(AgentId("default"), routineId = routine.id)).sessions.map { it.id })
+                assertEquals(listOf(session.id), client.call(Api.Sessions, SessionsParams(AgentId("default"))).sessions.map { it.id })
 
                 client.call(Api.RemoveRoutine, RoutineParams("default", routine.id))
-                assertEquals(listOf("heartbeat"), client.call(Api.Routines, AgentRef("default")).map { it.id })
+                assertEquals(listOf("heartbeat"), client.call(Api.Routines, AgentRef(AgentId("default"))).map { it.id })
                 client.close()
             }
         } finally {
@@ -251,10 +251,10 @@ class ServerClientTest {
                 assertEquals(listOf("default", "work"), agentsChanged.await().map { it.id })
                 val details = client.call(Api.UpdateAgent, UpdateAgentParams("work", model = "gpt-x", tools = listOf("memory"), soul = "Be brief.", avatar = "Lilac Cloud", userNotes = "Name: Alex\nOccupation: Designer"))
                 assertEquals(AgentSettings("gpt-x", "medium", "default", "none", tools = listOf("memory")), details.settings)
-                assertEquals("Be brief.", client.call(Api.Agent, AgentRef("work")).soul)
+                assertEquals("Be brief.", client.call(Api.Agent, AgentRef(AgentId("work"))).soul)
                 assertEquals("Lilac Cloud", client.call(Api.Agents, Unit).first { it.id == "work" }.avatar)
-                assertEquals("Name: Alex\nOccupation: Designer", client.call(Api.Agent, AgentRef("work")).userNotes)
-                assertTrue(client.call(Api.Agent, AgentRef("work")).identity.startsWith("# Work"))
+                assertEquals("Name: Alex\nOccupation: Designer", client.call(Api.Agent, AgentRef(AgentId("work"))).userNotes)
+                assertTrue(client.call(Api.Agent, AgentRef(AgentId("work"))).identity.startsWith("# Work"))
                 assertFailsWith<IllegalStateException> { client.call(Api.UpdateAgent, UpdateAgentParams("work", exec = "moon")) }
                 val renamed = async(start = CoroutineStart.UNDISPATCHED) { client.events(Api.AgentsChanged).first() }
                 client.call(Api.UpdateAgent, UpdateAgentParams("work", name = "Office"))
@@ -263,7 +263,7 @@ class ServerClientTest {
                 val skill = "---\nname: notes\ndescription: Take notes\n---\nWrite them down."
                 client.call(Api.SaveSkill, SaveSkillParams("work", "notes", skill, ConfigScope.Shared))
                 client.call(Api.SaveSkill, SaveSkillParams("work", "notes", skill, files = mapOf("ref/a.md" to "A")))
-                val skills = client.call(Api.Skills, AgentRef("work")).filter { it.name == "notes" }
+                val skills = client.call(Api.Skills, AgentRef(AgentId("work"))).filter { it.name == "notes" }
                 assertEquals(listOf(ConfigScope.Agent to true, ConfigScope.Shared to false), skills.map { it.scope to it.active })
                 assertEquals(listOf("ref/a.md"), client.call(Api.Skill, SkillParams("work", "notes")).files)
                 assertFailsWith<IllegalStateException> { client.call(Api.SaveSkill, SaveSkillParams("work", "notes", skill, files = mapOf("../x" to ""))) }
@@ -272,12 +272,12 @@ class ServerClientTest {
 
                 client.call(Api.SaveMcp, SaveMcpParams("work", McpServerInfo("docs", ConfigScope.Shared, url = "http://127.0.0.1:1/mcp")))
                 client.call(Api.SaveMcp, SaveMcpParams("work", McpServerInfo("docs", command = "definitely-not-a-command", args = listOf("--x"), env = mapOf("K" to "\${K}"))))
-                val mcp = client.call(Api.McpServers, AgentRef("work"))
+                val mcp = client.call(Api.McpServers, AgentRef(AgentId("work")))
                 assertEquals(listOf(ConfigScope.Agent to true, ConfigScope.Shared to false), mcp.map { it.scope to it.active })
                 assertEquals(mapOf("K" to "\${K}"), mcp.first().env)
                 assertTrue(client.call(Api.TestMcp, McpParams("work", "docs")).error != null)
                 client.call(Api.RemoveMcp, McpParams("work", "docs"))
-                assertEquals(listOf(ConfigScope.Shared to true), client.call(Api.McpServers, AgentRef("work")).map { it.scope to it.active })
+                assertEquals(listOf(ConfigScope.Shared to true), client.call(Api.McpServers, AgentRef(AgentId("work"))).map { it.scope to it.active })
 
                 val routine = client.call(Api.CreateRoutine, CreateRoutineParams("work", RoutineSpec(name = "Brief", prompt = "Summarize", cron = "0 9 * * *", activeHours = "08:00-20:00")))
                 assertEquals(Trigger.Cron("0 9 * * *"), routine.trigger)
@@ -290,9 +290,9 @@ class ServerClientTest {
                 // Without the Scheduler nothing would pick a "run now" up.
                 assertFailsWith<IllegalStateException> { client.call(Api.RunRoutine, RoutineParams("work", routine.id)) }
 
-                client.call(Api.DeleteAgent, AgentRef("work"))
+                client.call(Api.DeleteAgent, AgentRef(AgentId("work")))
                 assertEquals(listOf("default"), client.call(Api.Agents, Unit).map { it.id })
-                assertFailsWith<IllegalStateException> { client.call(Api.DeleteAgent, AgentRef("default")) }
+                assertFailsWith<IllegalStateException> { client.call(Api.DeleteAgent, AgentRef(AgentId("default"))) }
                 client.close()
             }
         } finally {
@@ -326,7 +326,7 @@ class ServerClientTest {
                     client.statuses(sessionId).transformWhile { emit(it); it != SessionStatus.Idle }.toList()
                 }
                 val approvalRequest = async(start = CoroutineStart.UNDISPATCHED) { client.approvals().first() }
-                val sent = client.call(Api.Send, SendParams("default", sessionId, "make a skill"))
+                val sent = client.call(Api.Send, SendParams(AgentId("default"), SessionId(sessionId), "make a skill"))
                 val approval = approvalRequest.await()
                 assertEquals("c1", approval.toolCallId)
                 assertTrue(client.call(Api.Approve, ApprovalParams(approval.approvalId, ApprovalDecision.AllowOnce)))
@@ -341,7 +341,7 @@ class ServerClientTest {
                 val caught = client.catchUp(sessionId)
                 assertEquals(live, caught.entries.takeLast(live.size))
                 assertEquals(LiveState(), caught.live)
-                val page = client.call(Api.Sessions, SessionsParams("default"))
+                val page = client.call(Api.Sessions, SessionsParams(AgentId("default")))
                 assertNotNull(page.sessions.single().createdAt)
                 assertEquals(SessionInfo(sessionId, "default", "make a skill", answered = true, createdAt = page.sessions.single().createdAt), page.sessions.single())
                 client.close()
@@ -349,7 +349,7 @@ class ServerClientTest {
                 // A paired device reconnects with its token, no code needed
                 val again = KinuvoClient(url, "test-phone", token = saved)
                 again.connect()
-                assertEquals(1, again.call(Api.Sessions, SessionsParams("default")).sessions.size)
+                assertEquals(1, again.call(Api.Sessions, SessionsParams(AgentId("default"))).sessions.size)
                 again.close()
             }
         } finally {
@@ -369,9 +369,9 @@ class ServerClientTest {
                 val first = original.newSession()
                 original.catchUp(first)
                 val firstRequest = async(start = CoroutineStart.UNDISPATCHED) { original.approvals().first() }
-                original.call(Api.Send, SendParams("default", first, "make skill"))
+                original.call(Api.Send, SendParams(AgentId("default"), SessionId(first), "make skill"))
                 val approval = firstRequest.await()
-                assertTrue(runCatching { original.call(Api.Send, SendParams("default", first, "again")) }.isFailure, "one run per Session")
+                assertTrue(runCatching { original.call(Api.Send, SendParams(AgentId("default"), SessionId(first), "again")) }.isFailure, "one run per Session")
                 original.close()
 
                 val reconnected = KinuvoClient(url, "phone", token = token).also { it.connect() }
@@ -380,7 +380,7 @@ class ServerClientTest {
                 assertTrue(SessionEntry.UserMessage("make skill") in entries)
                 assertEquals("c1", (entries.last() as SessionEntry.ToolCall).id)
                 assertEquals(listOf(entries.last()), reconnected.catchUp(first, after = entries.size - 1).entries)
-                assertEquals(SessionStatus.Waiting, reconnected.call(Api.Sessions, SessionsParams("default")).sessions.single { it.id == first }.status)
+                assertEquals(SessionStatus.Waiting, reconnected.call(Api.Sessions, SessionsParams(AgentId("default"))).sessions.single { it.id == first }.status)
                 val idle = async(start = CoroutineStart.UNDISPATCHED) { reconnected.statuses(first).first { it == SessionStatus.Idle } }
                 assertTrue(reconnected.call(Api.Approve, ApprovalParams(approval.approvalId, ApprovalDecision.AllowOnce)))
                 idle.await()
@@ -389,7 +389,7 @@ class ServerClientTest {
                 val second = reconnected.newSession()
                 reconnected.catchUp(second)
                 val secondRequest = async(start = CoroutineStart.UNDISPATCHED) { reconnected.approvals().first() }
-                reconnected.call(Api.Send, SendParams("default", second, "stop me"))
+                reconnected.call(Api.Send, SendParams(AgentId("default"), SessionId(second), "stop me"))
                 val secondApproval = secondRequest.await()
                 assertTrue(secondApproval.approvalId != approval.approvalId)
                 reconnected.close()
@@ -397,7 +397,7 @@ class ServerClientTest {
                 val afterStop = KinuvoClient(url, "phone", token = token).also { it.connect() }
                 assertEquals(secondApproval, afterStop.catchUp(second).live.approval)
                 val stopped = async(start = CoroutineStart.UNDISPATCHED) { afterStop.statuses(second).first { it == SessionStatus.Idle } }
-                afterStop.call(Api.Stop, StopParams(second))
+                afterStop.call(Api.Stop, StopParams(SessionId(second)))
                 stopped.await()
                 val (_, afterEntries, afterLive) = afterStop.catchUp(second)
                 assertEquals(LiveState(), afterLive)
@@ -421,7 +421,7 @@ class ServerClientTest {
                 val client = KinuvoClient("ws://127.0.0.1:$port/ws", "phone", token = server.auth.sessionToken()).also { it.connect() }
                 assertEquals(
                     listOf(SkillInfo("hidden", "model only", userInvocable = false, scope = ConfigScope.Shared), SkillInfo("review", "Reviews code", scope = ConfigScope.Shared)),
-                    client.call(Api.Skills, AgentRef("default")).take(2),
+                    client.call(Api.Skills, AgentRef(AgentId("default"))).take(2),
                 )
                 client.close()
             }
@@ -445,15 +445,15 @@ class ServerClientTest {
 
                 val phoneUpdates = async(start = CoroutineStart.UNDISPATCHED) { phone.events(Api.Update).first() }
                 phone.catchUp(sessionId)
-                phone.call(Api.Unsubscribe, UnsubscribeParams(sessionId))
+                phone.call(Api.Unsubscribe, UnsubscribeParams(SessionId(sessionId)))
                 val phoneUpdatesAfter = async(start = CoroutineStart.UNDISPATCHED) { withTimeoutOrNull(1_000) { phone.events(Api.Update).first() } }
                 desktop.catchUp(sessionId)
                 val seen = async(start = CoroutineStart.UNDISPATCHED) {
                     desktop.events(Api.Update).mapNotNull { (it.change as? SessionChange.Entry)?.entry as? SessionEntry.UserMessage }.first()
                 }
-                desktop.call(Api.Send, SendParams("default", sessionId, "hello"))
+                desktop.call(Api.Send, SendParams(AgentId("default"), SessionId(sessionId), "hello"))
                 assertEquals(SessionEntry.UserMessage("hello"), seen.await())
-                assertEquals(sessionId, phoneUpdates.await().sessionId)
+                assertEquals(SessionId(sessionId), phoneUpdates.await().sessionId)
                 assertEquals(null, phoneUpdatesAfter.await(), "unsubscribed")
                 phone.close()
                 desktop.close()
@@ -473,13 +473,13 @@ class ServerClientTest {
                 val client = KinuvoClient("ws://127.0.0.1:$port/ws", "phone", token = server.auth.sessionToken()).also { it.connect() }
                 val agent = harness.store.agents().single()
                 val ids = List(3) { harness.store.createSession(agent.id, "i").id.also { Thread.sleep(1_100) } }
-                val firstPage = client.call(Api.Sessions, SessionsParams("default", limit = 2))
+                val firstPage = client.call(Api.Sessions, SessionsParams(AgentId("default"), limit = 2))
                 assertEquals(ids.reversed().take(2) to true, firstPage.sessions.map { it.id } to firstPage.hasMore)
-                val secondPage = client.call(Api.Sessions, SessionsParams("default", before = firstPage.sessions.last().id, limit = 2))
+                val secondPage = client.call(Api.Sessions, SessionsParams(AgentId("default"), before = SessionId(firstPage.sessions.last().id), limit = 2))
                 assertEquals(listOf(ids.first()) to false, secondPage.sessions.map { it.id } to secondPage.hasMore)
 
                 assertFailsWith<IllegalStateException> {
-                    client.call(Api.Send, SendParams("default", "missing", "hello"))
+                    client.call(Api.Send, SendParams(AgentId("default"), SessionId("missing"), "hello"))
                 }
 
                 val sessionId = ids.last()
@@ -487,7 +487,7 @@ class ServerClientTest {
                 val window = client.catchUp(sessionId, after = null, limit = 2)
                 assertEquals(4, window.reset)
                 assertEquals(listOf("m3", "m4"), window.entries.map { (it as SessionEntry.UserMessage).text })
-                val older = client.call(Api.History, HistoryParams("default", sessionId, before = 4, limit = 2))
+                val older = client.call(Api.History, HistoryParams(AgentId("default"), SessionId(sessionId), before = 4, limit = 2))
                 assertEquals(listOf(2 to "m1", 3 to "m2"), older.map { it.seq to (it.entry as SessionEntry.UserMessage).text })
                 client.close()
             }

@@ -49,8 +49,8 @@ class RemoteServerTest {
             destination.call(Api.SaveRemoteLink, SaveRemoteLink("native-source", "ws://127.0.0.1:$sourcePort/ws", nativeToken))
             destination.call(Api.SaveHarnessConnection, HarnessConnection("native-remote", "Native source", ExecutionConnection.Remote("native-source")))
             destination.call(Api.RegisterExternalAgent, AgentRegistration("native-alias", "Native local alias", "native-remote", remoteAgentId = "default"))
-            val nativeId = destination.call(Api.CreateSession, AgentRef("native-alias")).id
-            destination.call(Api.Send, SendParams("native-alias", nativeId, "hello native"))
+            val nativeId = destination.call(Api.CreateSession, AgentRef(AgentId("native-alias"))).id
+            destination.call(Api.Send, SendParams(AgentId("native-alias"), SessionId(nativeId), "hello native"))
             withTimeout(10000) { while (destination.call(Api.ExecutionSnapshot, ExecutionRef(nativeId)).messages.none { it.text == "remote native reply" }) delay(25) }
             val token = origin.call(Api.GrantExecution, ExposureGrant("link", setOf("exposed")))
             destination.call(Api.SaveRemoteLink, SaveRemoteLink("source", "ws://127.0.0.1:$sourcePort/ws", token))
@@ -60,7 +60,7 @@ class RemoteServerTest {
             assertFails { scoped.call(Api.Agents, Unit) }
             assertFails { scoped.call(Api.RemoteExecution, RemoteExecutionCall("private", action = "create")) }
             destination.call(Api.RegisterExternalAgent, AgentRegistration("alias", "Local alias", "remote", remoteAgentId = "exposed"))
-            val id = destination.call(Api.CreateSession, AgentRef("alias")).id
+            val id = destination.call(Api.CreateSession, AgentRef(AgentId("alias"))).id
             val initial = destination.call(Api.ExecutionSnapshot, ExecutionRef(id))
             assertNotEquals(id, initial.externalSessionId)
             suspend fun snapshot() = destination.call(Api.ExecutionSnapshot, ExecutionRef(id))
@@ -72,11 +72,11 @@ class RemoteServerTest {
                     fail("Remote execution did not reach the expected state. Receiving: $receiving; source: $sourceSnapshot; requests: ${requests.takeIf { it.exists() }?.readText()}")
                 }
             }
-            destination.call(Api.Send, SendParams("alias", id, "wait"))
+            destination.call(Api.Send, SendParams(AgentId("alias"), SessionId(id), "wait"))
             waitFor { it.phase == ExecutionPhase.Running && it.messages.any { m -> m.text == "wait" } }
-            destination.call(Api.Stop, StopParams(id))
+            destination.call(Api.Stop, StopParams(SessionId(id)))
             waitFor { it.phase == ExecutionPhase.Idle }
-            destination.call(Api.Send, SendParams("alias", id, "permission"))
+            destination.call(Api.Send, SendParams(AgentId("alias"), SessionId(id), "permission"))
             waitFor { it.pending.isNotEmpty() }
             val reconnectToken = requireNotNull(destination.lastConnect).token
             destination.close()
@@ -96,13 +96,13 @@ class RemoteServerTest {
             assertTrue(destination.call(Api.ExecutionAnswer, answer))
             assertFalse(destination.call(Api.ExecutionAnswer, answer))
             waitFor { it.phase == ExecutionPhase.Idle }
-            destination.call(Api.Send, SendParams("alias", id, "question"))
+            destination.call(Api.Send, SendParams(AgentId("alias"), SessionId(id), "question"))
             waitFor { it.pending.isNotEmpty() }
             val question = snapshot().pending.single()
             assertTrue(destination.call(Api.ExecutionAnswer, ExecutionAnswer(id, question.id, kotlinx.serialization.json.JsonNull)))
             waitFor { it.phase == ExecutionPhase.Idle }
-            assertTrue(destination.call(Api.History, HistoryParams("alias", id, 100)).isNotEmpty())
-            val nativeHistory = destination.call(Api.History, HistoryParams("native-alias", nativeId, 100)).map { it.entry }
+            assertTrue(destination.call(Api.History, HistoryParams(AgentId("alias"), SessionId(id), 100)).isNotEmpty())
+            val nativeHistory = destination.call(Api.History, HistoryParams(AgentId("native-alias"), SessionId(nativeId), 100)).map { it.entry }
             assertEquals(listOf("remote native reply"), nativeHistory.filterIsInstance<SessionEntry.AssistantMessage>().map { it.text })
             assertEquals(listOf("hello native"), nativeHistory.filterIsInstance<SessionEntry.UserMessage>().map { it.text })
             origin.call(Api.RevokeExecution, ExecutionRef("link"))

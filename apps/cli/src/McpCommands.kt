@@ -25,7 +25,7 @@ internal class McpCommands : Group(
 
 private class ListMcp : ServerCommand("list", "List the MCP servers the Agent can use.") {
     override suspend fun run() {
-        val servers = session.call { client.call(Api.McpServers, AgentRef(agentId())) }
+        val servers = session.call { client.call(Api.McpServers, AgentRef(AgentId(agentId()))) }
         echo(table(listOf("NAME", "SCOPE", "TYPE", "AUTH", "TARGET"), servers.map { s ->
             listOf(
                 s.name, s.scope.name.lowercase() + if (s.active) "" else " (overridden)",

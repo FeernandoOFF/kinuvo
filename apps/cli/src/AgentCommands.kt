@@ -1,5 +1,7 @@
 package kinuvo.cli
 
+import kinuvo.protocol.AgentId
+
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.types.choice
@@ -26,7 +28,7 @@ private class ShowAgent : ServerCommand("show", "Show an Agent's settings, Ident
     private val id by argument("ID")
 
     override suspend fun run() {
-        val a = session.call { client.call(Api.Agent, AgentRef(id)) }
+        val a = session.call { client.call(Api.Agent, AgentRef(AgentId(id))) }
         val s = a.settings
         echo(table(listOf("ID", a.info.id), listOf(
             listOf("name", a.info.name),
@@ -83,7 +85,7 @@ private class DeleteAgent : ServerCommand("delete", "Delete an Agent with all it
 
     override suspend fun run() {
         if (!yes && !confirm("Delete agent '$id' and all its data?")) throw CliktError("Cancelled")
-        session.call { client.call(Api.DeleteAgent, AgentRef(id)) }
+        session.call { client.call(Api.DeleteAgent, AgentRef(AgentId(id))) }
         echo("Deleted agent '$id'.")
     }
 }

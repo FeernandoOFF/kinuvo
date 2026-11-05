@@ -31,9 +31,9 @@ class ExecutionCoordinatorTest {
         }
         val coordinator = ExecutionCoordinator(registry, factory, backgroundScope, log, recovery)
         val id = coordinator.create("a").id
-        coordinator.send(SendParams("a", id, "hello", submissionId = "submission"))
+        coordinator.send(SendParams(AgentId("a"), SessionId(id), "hello", submissionId = "submission"))
         runCurrent()
-        coordinator.send(SendParams("a", id, "hello", submissionId = "submission"))
+        coordinator.send(SendParams(AgentId("a"), SessionId(id), "hello", submissionId = "submission"))
         assertEquals(1, prompts)
         assertEquals("accepted", recovery.load().single().submissions["submission"])
         val sink = state.boundSink()
@@ -90,7 +90,7 @@ class ExecutionCoordinatorTest {
         }
         val coordinator = ExecutionCoordinator(registry, factory, backgroundScope, SessionLog(InMemoryStore()))
         val id = coordinator.create("a").id
-        coordinator.send(SendParams("a", id, "hello", submissionId = "one"))
+        coordinator.send(SendParams(AgentId("a"), SessionId(id), "hello", submissionId = "one"))
         coordinator.stop(id)
         assertEquals(1, cancellations)
         assertFalse(oldFailure.isCompleted)

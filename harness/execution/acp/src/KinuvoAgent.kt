@@ -2,6 +2,8 @@
 
 package kinuvo.harness.execution.acp
 
+import kinuvo.protocol.AgentId
+import kinuvo.protocol.SessionId as ProtocolSessionId
 import com.agentclientprotocol.agent.v2.*
 import com.agentclientprotocol.client.v2.ClientInfo
 import com.agentclientprotocol.model.ElicitationScope
@@ -49,7 +51,7 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
             return flow {
                 val previous = dispatch.snapshot(agentId, id).messages.associateBy { it.id }.toMutableMap()
                 commands.withLock {
-                    if (!cancelled) dispatch.send(SendParams(agentId, id, content.filterIsInstance<ContentBlock.Text>().joinToString("\n") { it.text }))
+                    if (!cancelled) dispatch.send(SendParams(AgentId(agentId), ProtocolSessionId(id), content.filterIsInstance<ContentBlock.Text>().joinToString("\n") { it.text }))
                 }
                 emit(SessionUpdate.StateUpdate(StateUpdate.Running()))
                 val answered = mutableSetOf<String>()

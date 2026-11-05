@@ -152,7 +152,7 @@ class AgentDefaultsTest {
                     sessionSettings = ProtocolJson.decodeFromJsonElement(Api.ConfigureSession.params, request.params).settings
                     reply(request, Api.ConfigureSession, SessionInfo("new", "agent", "New", settings = sessionSettings))
                 }
-                Api.Send.name -> { sent.send(sessionSettings); reply(request, Api.Send, SendResult("new", "run", "hello")) }
+                Api.Send.name -> { sent.send(sessionSettings); reply(request, Api.Send, SendResult(SessionId("new"), "run", "hello")) }
                 Api.Session.name -> reply(request, Api.Session, SessionInfo("session", "agent", "Review"))
                 Api.ReviewReflection.name -> {
                     reviews.send(ProtocolJson.decodeFromJsonElement(Api.ReviewReflection.params, request.params))

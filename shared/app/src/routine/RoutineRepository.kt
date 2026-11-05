@@ -50,7 +50,7 @@ class RoutineRepository(private val notifications: Notifications, internal val c
         loads[agentId] = scope.launch {
             errors.update { it - agentId }
             catching {
-                withTimeoutOrNull(15_000) { connection.call { it.call(Api.Routines, AgentRef(agentId)) } }
+                withTimeoutOrNull(15_000) { connection.call { it.call(Api.Routines, AgentRef(AgentId(agentId))) } }
                     ?: error("The Server took too long to respond. Try again.")
             }.onSuccess { routines ->
                 state.update { it + (agentId to routines) }
@@ -70,7 +70,7 @@ class RoutineRepository(private val notifications: Notifications, internal val c
 
     /** The newest Sessions [routineId] ran in. */
     suspend fun runs(agentId: String, routineId: String): List<SessionInfo> =
-        call { it.call(Api.Sessions, SessionsParams(agentId, limit = 20, routineId = routineId)).sessions }
+        call { it.call(Api.Sessions, SessionsParams(AgentId(agentId), limit = 20, routineId = routineId)).sessions }
 
     private suspend fun <T> call(block: suspend (KinuvoClient) -> T): T =
         connection.call(block)

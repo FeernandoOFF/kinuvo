@@ -288,7 +288,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
             agent == null -> null
             requestedAgent != null && requested.sessionId == null -> null
             requestedAgent != null && requested.sessionId != null && sessionExists(agent.id, requested.sessionId) -> requested.sessionId
-            else -> client.call(Api.Sessions, SessionsParams(agent.id, limit = 1)).sessions.firstOrNull()
+            else -> client.call(Api.Sessions, SessionsParams(AgentId(agent.id), limit = 1)).sessions.firstOrNull()
                 ?.also { info -> state.update { it.copy(info = info, settings = info.settings) } }?.id
         }
         state.update { it.copy(route = it.route.copy(agentId = agent?.id, sessionId = session), resolving = false) }
@@ -305,7 +305,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         if (agent !in repo.state.value.skills) repo.loadSkills(agent)
         loadCapabilities(agent, route.sessionId, state.value.settings)
         val sessionId = route.sessionId ?: return
-        val info = catching { client.call(Api.Session, SessionParams(agent, sessionId)) }.getOrNull() ?: return
+        val info = catching { client.call(Api.Session, SessionParams(AgentId(agent), SessionId(sessionId))) }.getOrNull() ?: return
         if (info.id == route.sessionId && !ordered.isLocked) state.update { it.copy(info = info, settings = info.settings) }
     }
 
@@ -331,7 +331,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     }
 
     private suspend fun apply(agentId: String, sessionId: String, settings: SessionSettings) {
-        val info = client.call(Api.ConfigureSession, ConfigureSessionParams(agentId, sessionId, settings))
+        val info = client.call(Api.ConfigureSession, ConfigureSessionParams(AgentId(agentId), SessionId(sessionId), settings))
         // A newer pick may be waiting; it wins.
         state.update { if (it.settings == settings) it.copy(settings = info.settings) else it }
     }
@@ -351,7 +351,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     }
 
     private suspend fun sessionExists(agentId: String, sessionId: String): Boolean =
-        catching { client.call(Api.Session, SessionParams(agentId, sessionId)) }
+        catching { client.call(Api.Session, SessionParams(AgentId(agentId), SessionId(sessionId))) }
             .onSuccess { info -> state.update { it.copy(info = info, settings = info.settings) } }.isSuccess
 
     /** [voice] marks [text] as transcribed from voice chat, so the reply suits being read aloud. */

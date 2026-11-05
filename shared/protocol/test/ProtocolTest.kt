@@ -1,5 +1,6 @@
 package kinuvo.protocol
 
+
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.SessionEntry
@@ -31,7 +32,7 @@ class ProtocolTest {
 
     @Test
     fun framesAndPayloadsRoundTrip() {
-        val event = SessionUpdate("default", "s1", SessionChange.Event(AgentEvent.ApprovalRequested("a1", "c1", "shell", "{}", "git status")))
+        val event = SessionUpdate(AgentId("default"), SessionId("s1"), SessionChange.Event(AgentEvent.ApprovalRequested("a1", "c1", "shell", "{}", "git status")))
         val frame = Frame.Event(Api.Update.name, ProtocolJson.encodeToJsonElement(Api.Update.payload, event), 7)
         val text = ProtocolJson.encodeToString(Frame.serializer(), frame)
         val decoded = ProtocolJson.decodeFromString(Frame.serializer(), text) as Frame.Event
@@ -40,7 +41,7 @@ class ProtocolTest {
 
         val params = ApprovalParams("c1", ApprovalDecision.Deny("no"))
         assertEquals(params, ProtocolJson.decodeFromString(ApprovalParams.serializer(), ProtocolJson.encodeToString(ApprovalParams.serializer(), params)))
-        val entry = SessionUpdate("default", "s1", SessionChange.Entry(3, SessionEntry.Activation("tdd", "x")))
+        val entry = SessionUpdate(AgentId("default"), SessionId("s1"), SessionChange.Entry(3, SessionEntry.Activation("tdd", "x")))
         assertEquals(entry, ProtocolJson.decodeFromJsonElement(Api.Update.payload, ProtocolJson.encodeToJsonElement(Api.Update.payload, entry)))
         val usage = Usage("codex", listOf(Usage.Window("primary", 42.0, 300)))
         assertEquals(usage, ProtocolJson.decodeFromJsonElement(Api.Usage.payload, ProtocolJson.encodeToJsonElement(Api.Usage.payload, usage)))

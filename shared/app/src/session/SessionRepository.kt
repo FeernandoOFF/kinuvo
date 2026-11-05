@@ -117,7 +117,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         if ((more && !list.hasMore) || !loadingLists.add(agentId)) return@launch
         listChanges[agentId] = mutableMapOf()
         try {
-            val page = client.call(Api.Sessions, SessionsParams(agentId, before = list.nextBefore.takeIf { more }))
+            val page = client.call(Api.Sessions, SessionsParams(AgentId(agentId), before = list.nextBefore.takeIf { more }?.let(::SessionId)))
             currentCoroutineContext().ensureActive()
             val changes = listChanges.remove(agentId).orEmpty()
             page.sessions.filterNot { it.id in changes }.forEach { statuses[it.id] = it.status }
@@ -136,7 +136,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
     }
 
     fun loadSkills(agentId: String) = scope.launch {
-        val skills = catching { client?.call(Api.Skills, AgentRef(agentId)) }.getOrNull() ?: return@launch
+        val skills = catching { client?.call(Api.Skills, AgentRef(AgentId(agentId))) }.getOrNull() ?: return@launch
         state.update { it.copy(skills = it.skills + (agentId to skills)) }
     }
 
@@ -145,19 +145,19 @@ class SessionRepository(private val notifications: Notifications, internal val c
         val client = client ?: return@launch
         val data = state.value.sessions[sessionId]?.takeIf { it.hasOlder && !it.loadingOlder } ?: return@launch
         put(sessionId, data.copy(loadingOlder = true))
-        val page = catching { client.call(Api.History, HistoryParams(data.agentId, sessionId, before = data.firstSeq)) }.getOrNull()
+        val page = catching { client.call(Api.History, HistoryParams(AgentId(data.agentId), SessionId(sessionId), before = data.firstSeq)) }.getOrNull()
         val now = state.value.sessions[sessionId] ?: return@launch
         put(sessionId, if (page.isNullOrEmpty() || now.firstSeq != data.firstSeq) now.copy(loadingOlder = false)
             else now.copy(firstSeq = page.first().seq, entries = page.map { it.entry } + now.entries, loadingOlder = false))
     }
 
-    suspend fun createSession(agentId: String): SessionInfo = call { it.call(Api.CreateSession, AgentRef(agentId)) }
+    suspend fun createSession(agentId: String): SessionInfo = call { it.call(Api.CreateSession, AgentRef(AgentId(agentId))) }
 
     suspend fun send(agentId: String, sessionId: String, text: String, attachments: List<String> = emptyList(), voice: Boolean = false, submissionId: String? = null) =
-        call { it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice, submissionId)) }
+        call { it.call(Api.Send, SendParams(AgentId(agentId), SessionId(sessionId), text, attachments, voice, submissionId)) }
 
     suspend fun update(agentId: String, sessionId: String, title: String? = null, favorite: Boolean? = null) =
-        call { it.call(Api.UpdateSession, UpdateSessionParams(agentId, sessionId, title, favorite)) }.also(::onChanged)
+        call { it.call(Api.UpdateSession, UpdateSessionParams(AgentId(agentId), SessionId(sessionId), title, favorite)) }.also(::onChanged)
 
     suspend fun resume(sessionId: String) = call { it.call(Api.ResumeExecution, ExecutionRef(sessionId)) }
 
@@ -166,7 +166,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
     suspend fun answer(sessionId: String, requestId: String, answer: JsonElement): Boolean =
         call { it.call(Api.ExecutionAnswer, ExecutionAnswer(sessionId, requestId, answer)) }
 
-    suspend fun stop(sessionId: String) = call { it.call(Api.Stop, StopParams(sessionId)) }
+    suspend fun stop(sessionId: String) = call { it.call(Api.Stop, StopParams(SessionId(sessionId))) }
 
     suspend fun approve(approvalId: String, decision: ApprovalDecision) = call { it.call(Api.Approve, ApprovalParams(approvalId, decision)) }
 
@@ -176,7 +176,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         connection.call(block)
 
     private fun onUpdate(update: SessionUpdate) {
-        val id = update.sessionId
+        val id = update.sessionId.value
         val data = state.value.sessions[id] ?: return
         val change = update.change
         val event = (change as? SessionChange.Event)?.event
@@ -187,7 +187,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
                 change is SessionChange.Entry && change.entry is SessionEntry.Notice -> replies -= id
                 event is AgentEvent.RunError || event is AgentEvent.ExecutionPhaseChanged && event.phase == ExecutionPhase.Lost -> replies -= id
                 event is AgentEvent.RunFinished && replies.remove(id) && data.live.executionPhase != ExecutionPhase.Lost && completions.add("$id:${event.runId}") -> {
-                    notifications.post(Notice.RunFinished(update.agentId, id))
+                    notifications.post(Notice.RunFinished(update.agentId.value, id))
                     if (id != viewing) state.update { it.copy(finished = it.finished + id) }
                 }
             }
@@ -248,7 +248,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         val data = state.value.sessions[sessionId] ?: return
         if (!catchingUp.add(sessionId)) return
         try {
-            client.call(Api.CatchUp, CatchUpParams(data.agentId, sessionId, after = if (data.loaded) data.seen else null))
+            client.call(Api.CatchUp, CatchUpParams(AgentId(data.agentId), SessionId(sessionId), after = if (data.loaded) data.seen else null))
         } catch (e: Exception) {
             if (e is CancellationException) throw e
         } finally {
@@ -267,7 +267,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         recent -= sessionId
         state.update { it.copy(sessions = it.sessions - sessionId) }
         val client = client ?: return
-        scope.launch { catching { client.call(Api.Unsubscribe, UnsubscribeParams(sessionId)) } }
+        scope.launch { catching { client.call(Api.Unsubscribe, UnsubscribeParams(SessionId(sessionId))) } }
     }
 
     private fun clear() {

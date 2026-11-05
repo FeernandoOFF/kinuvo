@@ -30,7 +30,7 @@ private class ScheduleOptions : OptionGroup("Schedule") {
 
 private class ListRoutines : ServerCommand("list", "List the Agent's Routines.") {
     override suspend fun run() {
-        val routines = session.call { client.call(Api.Routines, AgentRef(agentId())) }
+        val routines = session.call { client.call(Api.Routines, AgentRef(AgentId(agentId()))) }
         echo(table(listOf("ID", "NAME", "SCHEDULE", "NEXT RUN", "LAST RUN"), routines.map { r ->
             listOf(
                 r.id, r.name, r.trigger.describe(),
@@ -45,7 +45,7 @@ private class ShowRoutine : ServerCommand("show", "Show a Routine.") {
     private val id by argument("ID")
 
     override suspend fun run() {
-        val r = session.call { client.call(Api.Routines, AgentRef(agentId())).firstOrNull { it.id == id } ?: error("No routine '$id'") }
+        val r = session.call { client.call(Api.Routines, AgentRef(AgentId(agentId()))).firstOrNull { it.id == id } ?: error("No routine '$id'") }
         echo(describe(r))
     }
 }
@@ -107,7 +107,7 @@ private class RoutineRuns : ServerCommand("runs", "List the Sessions a Routine r
     private val id by argument("ID")
 
     override suspend fun run() {
-        val page = session.call { client.call(Api.Sessions, SessionsParams(agentId(), limit = 20, routineId = id)) }
+        val page = session.call { client.call(Api.Sessions, SessionsParams(AgentId(agentId()), limit = 20, routineId = id)) }
         echo(table(listOf("SESSION", "STATUS"), page.sessions.map { listOf(it.id, it.status.name.lowercase()) }))
     }
 }

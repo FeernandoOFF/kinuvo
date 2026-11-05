@@ -90,11 +90,11 @@ class NotificationsTest {
             phone.call(Api.SaveService, SaveServiceParams(ServiceKind.Notifications, ServiceSettings("test", mapOf("topic" to "t2")),
                 mapOf("token" to SecretUpdate.Remove)))
             assertNull(harness.files.serviceConfig(ServiceKind.Notifications).options["token"])
-            val sessionId = phone.call(Api.CreateSession, AgentRef("default")).id
-            phone.call(Api.CatchUp, CatchUpParams("default", sessionId))
+            val sessionId = phone.call(Api.CreateSession, AgentRef(AgentId("default"))).id
+            phone.call(Api.CatchUp, CatchUpParams(AgentId("default"), SessionId(sessionId)))
             suspend fun turn() = coroutineScope {
                 val idle = async(start = CoroutineStart.UNDISPATCHED) { phone.events(Api.SessionChanged).filter { it.id == sessionId && it.status == SessionStatus.Idle }.first() }
-                phone.call(Api.Send, SendParams("default", sessionId, "hi"))
+                phone.call(Api.Send, SendParams(AgentId("default"), SessionId(sessionId), "hi"))
                 withTimeout(10_000) { idle.await() }
             }
             turn()

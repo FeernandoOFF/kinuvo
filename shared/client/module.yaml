@@ -7,6 +7,7 @@ aliases:
   - jvmAndAndroid: [jvm, android]
 
 dependencies:
+  - io.github.oshai:kotlin-logging:8.0.4
   - ../protocol: exported
   - io.ktor:ktor-client-core:3.6.0
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0: exported

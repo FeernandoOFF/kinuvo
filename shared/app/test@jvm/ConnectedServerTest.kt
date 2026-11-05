@@ -40,7 +40,7 @@ class ConnectedServerTest {
         val history = List(2000) { SessionEntry.AssistantMessage("history $it", "m$it") }
         repeat(20) { token ->
             val entries = history + SessionEntry.AssistantMessage("token $token", "stream")
-            script.event(Api.Update, SessionUpdate("agent", "session", SessionChange.Window(0, entries, LiveState(running = token < 19))))
+            script.event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Window(0, entries, LiveState(running = token < 19))))
             owner.sessions.state.first { it.sessions["session"]?.entries == entries }
         }
         observer.cancelAndJoin()
@@ -420,8 +420,8 @@ class ConnectedServerTest {
             assertEquals("new", sending.await())
             val sent = script.requests.single { it.method == Api.Send.name }
             val params = ProtocolJson.decodeFromJsonElement(Api.Send.params, sent.params)
-            assertEquals("A", params.agentId)
-            assertEquals("new", params.sessionId)
+            assertEquals(AgentId("A"), params.agentId)
+            assertEquals(SessionId("new"), params.sessionId)
             assertEquals("B", app.state.value.agentId)
         } finally { store.clearAndJoin() }
     }
@@ -512,7 +512,7 @@ class ConnectedServerTest {
                 Api.CreateTask.name -> reply(request, Api.CreateTask, TaskInfo("new", "list", "List", name))
                 Api.UpdateTask.name -> reply(request, Api.UpdateTask, TaskInfo("task", "list", "List", name))
                 Api.Sessions.name -> reply(request, Api.Sessions, SessionPage(listOf(SessionInfo("session", "agent", name)), true))
-                Api.Send.name -> reply(request, Api.Send, SendResult("new", "run", "message"))
+                Api.Send.name -> reply(request, Api.Send, SendResult(SessionId("new"), "run", "message"))
                 Api.CreateSession.name -> reply(request, Api.CreateSession, SessionInfo("new", "agent", name))
                 Api.Agent.name -> reply(request, Api.Agent, details())
                 Api.UpdateAgent.name -> reply(request, Api.UpdateAgent, details())
@@ -524,10 +524,10 @@ class ConnectedServerTest {
                     val params = ProtocolJson.decodeFromJsonElement(Api.CatchUp.params, request.params)
                     after = params.after
                     if (params.after == null) {
-                        event(Api.Update, SessionUpdate("agent", "session", SessionChange.Reset(20)))
-                        event(Api.Update, SessionUpdate("agent", "session", SessionChange.Entry(20, SessionEntry.UserMessage(name))))
+                        event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Reset(20)))
+                        event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Entry(20, SessionEntry.UserMessage(name))))
                     }
-                    event(Api.Update, SessionUpdate("agent", "session", SessionChange.Live(LiveState())))
+                    event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Live(LiveState())))
                     reply(request, Api.CatchUp, Unit)
                     caughtUp.complete(Unit)
                 }

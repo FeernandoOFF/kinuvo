@@ -60,12 +60,12 @@ class ConfigRepository(internal val connection: ConnectedServer) {
     fun loadDetails(agentId: String) = scope.launch {
         edit(agentId) { it }
         val revision = revise(agentId)
-        catching { call { it.call(Api.Agent, AgentRef(agentId)) } }.onSuccess { details ->
+        catching { call { it.call(Api.Agent, AgentRef(AgentId(agentId))) } }.onSuccess { details ->
             if (revisions[agentId] == revision) edit(agentId) { it.copy(details = details) }
         }
     }
 
-    suspend fun details(agentId: String) = call { it.call(Api.Agent, AgentRef(agentId)) }
+    suspend fun details(agentId: String) = call { it.call(Api.Agent, AgentRef(AgentId(agentId))) }
 
     suspend fun providerAccounts() = call { it.call(Api.Providers, Unit) }
 
@@ -86,7 +86,7 @@ class ConfigRepository(internal val connection: ConnectedServer) {
     suspend fun saveServerRules(rules: TrustRules) = call { it.call(Api.SaveServerRules, rules) }
 
     suspend fun deleteAgent(agentId: String) = connection.run {
-        call { it.call(Api.DeleteAgent, AgentRef(agentId)) }
+        call { it.call(Api.DeleteAgent, AgentRef(AgentId(agentId))) }
         state.update { it - agentId }
     }
 
@@ -150,13 +150,13 @@ class ConfigRepository(internal val connection: ConnectedServer) {
     suspend fun refreshSecrets() = call { it.call(Api.RefreshSecrets, Unit) }
 
     private suspend fun loadSkills(agentId: String) {
-        catching { call { it.call(Api.Skills, AgentRef(agentId)) } }.onSuccess { s -> edit(agentId) { it.copy(skills = s) } }
+        catching { call { it.call(Api.Skills, AgentRef(AgentId(agentId))) } }.onSuccess { s -> edit(agentId) { it.copy(skills = s) } }
     }
 
-    suspend fun mcpServers(agentId: String) = call { it.call(Api.McpServers, AgentRef(agentId)) }
+    suspend fun mcpServers(agentId: String) = call { it.call(Api.McpServers, AgentRef(AgentId(agentId))) }
 
     private suspend fun loadMcp(agentId: String) {
-        catching { call { it.call(Api.McpServers, AgentRef(agentId)) } }.onSuccess { m -> edit(agentId) { it.copy(mcp = m) } }
+        catching { call { it.call(Api.McpServers, AgentRef(AgentId(agentId))) } }.onSuccess { m -> edit(agentId) { it.copy(mcp = m) } }
     }
 
     private fun revise(agentId: String): Long = ((revisions[agentId] ?: 0) + 1).also { revisions[agentId] = it }

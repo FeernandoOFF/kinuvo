@@ -18,7 +18,7 @@ internal class SkillCommands : Group(
 
 private class ListSkills : ServerCommand("list", "List the Skills the Agent can use.") {
     override suspend fun run() {
-        val skills = session.call { client.call(Api.Skills, AgentRef(agentId())) }
+        val skills = session.call { client.call(Api.Skills, AgentRef(AgentId(agentId()))) }
         echo(table(listOf("NAME", "SCOPE", "INVOKED BY", "DESCRIPTION"), skills.map { s ->
             val by = listOfNotNull("agent".takeIf { s.modelInvocable }, "/${s.name}".takeIf { s.userInvocable }).joinToString(", ")
             listOf(s.name, s.scope.name.lowercase() + if (s.active) "" else " (shadowed)", by, s.description.take(70))

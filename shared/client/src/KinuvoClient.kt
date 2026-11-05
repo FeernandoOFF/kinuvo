@@ -1,6 +1,8 @@
 package kinuvo.client
 
 import kinuvo.protocol.*
+import io.github.oshai.kotlinlogging.KotlinLogging
+import kotlinx.serialization.SerializationException
 import kotlin.concurrent.Volatile
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
@@ -14,6 +16,8 @@ import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.incrementAndFetch
 import kotlinx.serialization.json.JsonObject
+
+private val log = KotlinLogging.logger("kinuvo.client")
 
 sealed interface ConnectionState {
     data object Connecting : ConnectionState
@@ -143,7 +147,10 @@ class KinuvoClient(
         return first.await()
     }
 
-    suspend fun <P, R> call(method: Method<P, R>, params: P): R = request(method, params)
+    suspend fun <P, R> call(method: Method<P, R>, params: P): R {
+        method.requireDirection(MethodDirection.ToServer)
+        return request(method, params)
+    }
 
     suspend fun updateDeviceTools() = call(Api.DeviceTools, DeviceToolsParams(deviceTools()))
 
@@ -156,7 +163,7 @@ class KinuvoClient(
     }
 
     fun <T> events(type: EventType<T>): Flow<T> =
-        _events.filter { it.event == type.name }.map { ProtocolJson.decodeFromJsonElement(type.payload, it.payload) }
+        _events.decodeEvents(type)
 
     fun close() {
         loop?.cancel()
@@ -208,6 +215,8 @@ class KinuvoClient(
                     is Frame.Event -> _events.emit(f)
                     is Frame.Request -> launch {
                         val response = try {
+                            val method = Api.methods.firstOrNull { it.name == f.method } ?: error("Unsupported Device method")
+                            method.requireDirection(MethodDirection.ToDevice)
                             when (f.method) {
                                 Api.DeviceRead.name -> {
                                     val p = ProtocolJson.decodeFromJsonElement(Api.DeviceRead.params, f.params)
@@ -240,3 +249,10 @@ class KinuvoClient(
     private val lock = Mutex()
     private suspend fun <T> synchronizedPending(block: () -> T): T = lock.withLock { block() }
 }
+
+internal fun <T> Flow<Frame.Event>.decodeEvents(type: EventType<T>): Flow<T> =
+    filter { it.event == type.name }.transform { event ->
+        val decoded = try { ProtocolJson.decodeFromJsonElement(type.payload, event.payload) }
+        catch (e: SerializationException) { log.warn(e) { "Invalid event payload: ${type.name}" }; return@transform }
+        emit(decoded)
+    }

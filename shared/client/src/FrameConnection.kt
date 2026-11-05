@@ -1,5 +1,6 @@
 package kinuvo.client
 
+import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.protocol.FrameConnection
 import kinuvo.protocol.Frame
 import io.ktor.client.HttpClient
@@ -17,7 +18,7 @@ internal suspend fun HttpClient.connection(url: String): FrameConnection {
         override val incoming = flow {
             for (frame in socket.incoming) {
                 if (frame is WsFrame.Text) {
-                    val decoded = runCatching { ProtocolJson.decodeFromString(Frame.serializer(), frame.readText()) }.getOrNull()
+                    val decoded = runCatching { ProtocolJson.decodeFromString(Frame.serializer(), frame.readText()) }.onFailure { KotlinLogging.logger("kinuvo.client.transport").warn(it) { "Invalid WebSocket frame" } }.getOrNull()
                     if (decoded != null) emit(decoded)
                 }
             }

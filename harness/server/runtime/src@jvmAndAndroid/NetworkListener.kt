@@ -1,6 +1,7 @@
 package kinuvo.harness.server
 
 import kinuvo.protocol.*
+import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.server.application.install
 import io.ktor.server.application.call
 import io.ktor.server.request.receiveChannel
@@ -153,7 +154,7 @@ private fun WebSocketSession.connection(credential: String?, authenticate: (Fram
             if (frame !is WsFrame.Text) { this@connection.close(); break }
             val text = frame.readText()
             if (!authenticated && text.length > PREAUTH_FRAME_SIZE) { this@connection.close(); break }
-            val decoded = runCatching { ProtocolJson.decodeFromString(Frame.serializer(), text) }.getOrNull()
+            val decoded = runCatching { ProtocolJson.decodeFromString(Frame.serializer(), text) }.onFailure { KotlinLogging.logger("kinuvo.server.transport").warn(it) { "Invalid WebSocket frame" } }.getOrNull()
             if (decoded == null || !authenticated && !authenticate(decoded)) { this@connection.close(); break }
             emit(decoded)
         }

@@ -5,30 +5,29 @@ import kinuvo.protocol.*
 
 /** The Server's settings: Secret reference providers, services, model provider sign-ins and MCP servers. */
 internal class SettingsRequests(private val harness: HarnessRuntime, private val logins: ProviderLogins, private val agent: suspend (String) -> Agent) {
-    suspend fun handle(r: Frame.Request): Frame.Response? = when (r.method) {
-        Api.SecretProviders.name -> respond(r, Api.SecretProviders) { harness.secrets.providers.map { it.status() } }
-        Api.ConnectSecrets.name -> respond(r, Api.ConnectSecrets) { p -> harness.secrets.provider(p.scheme).run { connect(p.token); harness.secrets.refresh(); status() } }
-        Api.DisconnectSecrets.name -> respond(r, Api.DisconnectSecrets) { p -> harness.secrets.provider(p.scheme).run { disconnect(); harness.secrets.refresh(); status() } }
-        Api.BrowseSecrets.name -> respond(r, Api.BrowseSecrets) { harness.secrets.provider(it.scheme).browse(it.path) }
-        Api.RefreshSecrets.name -> respond(r, Api.RefreshSecrets) { harness.secrets.refresh() }
-        Api.Service.name -> respond(r, Api.Service) { harness.serviceSetup(it.kind) }
-        Api.SaveService.name -> respond(r, Api.SaveService) { harness.saveService(it.kind, it.settings, it.secretUpdates) }
-        Api.TestService.name -> respond(r, Api.TestService) { harness.testService(it) }
-        Api.Models.name -> respond(r, Api.Models) { harness.modelCatalog(it.refresh) }
-        Api.Providers.name -> respond(r, Api.Providers) { logins.list() }
-        Api.SetProviderApiKey.name -> respond(r, Api.SetProviderApiKey) { logins.saveApiKey(it.provider, it.value) }
-        Api.LoginProvider.name -> respond(r, Api.LoginProvider) { logins.login(it.provider) }
-        Api.LogoutProvider.name -> respond(r, Api.LogoutProvider) { logins.logout(it.provider) }
-        Api.DownloadProviderModel.name -> respond(r, Api.DownloadProviderModel) { logins.download(it.provider, it.model) }
-        Api.CancelProviderDownload.name -> respond(r, Api.CancelProviderDownload) { logins.cancelDownload(it.provider) }
-        Api.RemoveProviderModel.name -> respond(r, Api.RemoveProviderModel) { logins.removeModel(it.provider, it.model) }
-        Api.McpServers.name -> respond(r, Api.McpServers) { harness.mcp.mcpServers(agent(it.agentId)) }
-        Api.SaveMcp.name -> respond(r, Api.SaveMcp) { harness.mcp.saveMcp(it) }
-        Api.RemoveMcp.name -> respond(r, Api.RemoveMcp) { harness.mcp.removeMcp(it) }
-        Api.TestMcp.name -> respond(r, Api.TestMcp) { harness.mcp.testMcp(it) }
-        Api.LoginMcp.name -> respond(r, Api.LoginMcp) { harness.mcp.loginMcp(it) }
-        Api.CompleteMcpLogin.name -> respond(r, Api.CompleteMcpLogin) { harness.mcp.completeMcpLogin(it) }
-        Api.LogoutMcp.name -> respond(r, Api.LogoutMcp) { harness.mcp.logoutMcp(it) }
-        else -> null
+    fun <C> register(handlers: RequestHandlers<C>) = with(handlers) {
+        on(Api.SecretProviders) { harness.secrets.providers.map { it.status() } }
+        on(Api.ConnectSecrets) { p -> harness.secrets.provider(p.scheme).run { connect(p.token); harness.secrets.refresh(); status() } }
+        on(Api.DisconnectSecrets) { p -> harness.secrets.provider(p.scheme).run { disconnect(); harness.secrets.refresh(); status() } }
+        on(Api.BrowseSecrets) { harness.secrets.provider(it.scheme).browse(it.path) }
+        on(Api.RefreshSecrets) { harness.secrets.refresh() }
+        on(Api.Service) { harness.serviceSetup(it.kind) }
+        on(Api.SaveService) { harness.saveService(it.kind, it.settings, it.secretUpdates) }
+        on(Api.TestService) { harness.testService(it) }
+        on(Api.Models) { harness.modelCatalog(it.refresh) }
+        on(Api.Providers) { logins.list() }
+        on(Api.SetProviderApiKey) { logins.saveApiKey(it.provider, it.value) }
+        on(Api.LoginProvider) { logins.login(it.provider) }
+        on(Api.LogoutProvider) { logins.logout(it.provider) }
+        on(Api.DownloadProviderModel) { logins.download(it.provider, it.model) }
+        on(Api.CancelProviderDownload) { logins.cancelDownload(it.provider) }
+        on(Api.RemoveProviderModel) { logins.removeModel(it.provider, it.model) }
+        on(Api.McpServers) { harness.mcp.mcpServers(agent(it.agentId.value)) }
+        on(Api.SaveMcp) { harness.mcp.saveMcp(it) }
+        on(Api.RemoveMcp) { harness.mcp.removeMcp(it) }
+        on(Api.TestMcp) { harness.mcp.testMcp(it) }
+        on(Api.LoginMcp) { harness.mcp.loginMcp(it) }
+        on(Api.CompleteMcpLogin) { harness.mcp.completeMcpLogin(it) }
+        on(Api.LogoutMcp) { harness.mcp.logoutMcp(it) }
     }
 }

@@ -33,12 +33,12 @@ class ExternalServerTest {
             client = connected; connected.connect()
             connected.call(Api.SaveHarnessConnection, HarnessConnection("media", "Media", ExecutionConnection.Acp(listOf("python3", script.path))))
             connected.call(Api.RegisterExternalAgent, AgentRegistration("media", "Media", "media", cwd = dir.path))
-            val id = connected.call(Api.CreateSession, AgentRef("media")).id
-            connected.call(Api.Send, SendParams("media", id, "image", submissionId = "image"))
+            val id = connected.call(Api.CreateSession, AgentRef(AgentId("media"))).id
+            connected.call(Api.Send, SendParams(AgentId("media"), SessionId(id), "image", submissionId = "image"))
             val attachment = withTimeout(10_000) {
                 var found: Attachment? = null
                 while (found == null) {
-                    found = connected.call(Api.History, HistoryParams("media", id, 100)).map { it.entry }.filterIsInstance<SessionEntry.ToolResult>().flatMap { it.attachments }.singleOrNull()
+                    found = connected.call(Api.History, HistoryParams(AgentId("media"), SessionId(id), 100)).map { it.entry }.filterIsInstance<SessionEntry.ToolResult>().flatMap { it.attachments }.singleOrNull()
                     if (found == null) delay(10)
                 }
                 found
@@ -86,26 +86,26 @@ class ExternalServerTest {
             first.call(Api.RegisterExternalAgent, AgentRegistration("external", "External", "mock", cwd = dir.path))
             assertEquals(ExecutionKind.Acp, first.call(Api.Agents, Unit).first { it.id == "external" }.executionKind)
             assertTrue(first.call(Api.ProbeHarnessConnection, connection).readiness.online)
-            val id = first.call(Api.CreateSession, AgentRef("external")).id
+            val id = first.call(Api.CreateSession, AgentRef(AgentId("external"))).id
             val browserError = assertFails { first.call(Api.BrowserTabs, BrowserOwner("external")) }
             assertTrue(browserError.message.orEmpty().contains("managed by this Agent's harness"))
             val screensError = assertFails { first.call(Api.Screens, BrowserOwner("external")) }
             assertTrue(screensError.message.orEmpty().contains("managed by this Agent's harness"))
-            first.call(Api.Send, SendParams("external", id, "wait"))
+            first.call(Api.Send, SendParams(AgentId("external"), SessionId(id), "wait"))
             first.close()
             val second = KinuvoClient("ws://127.0.0.1:$port/ws", "manager", token = token)
             client = second
             second.connect()
             assertEquals(ExecutionPhase.Running, second.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase)
-            second.call(Api.CatchUp, CatchUpParams("external", id))
-            assertEquals("wait", second.call(Api.History, HistoryParams("external", id, 100)).map { it.entry }.filterIsInstance<SessionEntry.UserMessage>().single().text)
+            second.call(Api.CatchUp, CatchUpParams(AgentId("external"), SessionId(id)))
+            assertEquals("wait", second.call(Api.History, HistoryParams(AgentId("external"), SessionId(id), 100)).map { it.entry }.filterIsInstance<SessionEntry.UserMessage>().single().text)
             assertFails { second.call(Api.SaveHarnessConnection, connection) }
             second.call(Api.RegisterExternalAgent, AgentRegistration("unused", "Unused", "mock", cwd = dir.path))
             second.call(Api.UnregisterExternalAgent, ExecutionRef("unused"))
             assertFails { second.call(Api.UnregisterExternalAgent, ExecutionRef("external")) }
-            second.call(Api.Stop, StopParams(id))
+            second.call(Api.Stop, StopParams(SessionId(id)))
             withTimeout(5000) { while(second.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase != ExecutionPhase.Idle) delay(10) }
-            second.call(Api.Send, SendParams("external", id, "permission"))
+            second.call(Api.Send, SendParams(AgentId("external"), SessionId(id), "permission"))
             withTimeout(5000) { while(second.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.isEmpty()) delay(10) }
             second.close()
             val responder = KinuvoClient("ws://127.0.0.1:$port/ws", "chat-device", pairingCode = server.auth.pairing(false, false)!!.code)
@@ -119,7 +119,7 @@ class ExternalServerTest {
             assertTrue(responder.call(Api.ExecutionAnswer, answer))
             assertFalse(responder.call(Api.ExecutionAnswer, answer))
             withTimeout(5000) { while(responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase != ExecutionPhase.Idle) delay(10) }
-            responder.call(Api.Send, SendParams("external", id, "question"))
+            responder.call(Api.Send, SendParams(AgentId("external"), SessionId(id), "question"))
             withTimeout(5000) { while(responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.isEmpty()) delay(10) }
             val question = responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.single()
             assertEquals(ExecutionRequestKind.Question, question.kind)

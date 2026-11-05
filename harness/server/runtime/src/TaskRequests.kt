@@ -5,15 +5,14 @@ import kotlinx.datetime.LocalDate
 
 /** Tasks, their lists and their providers' settings. */
 internal class TaskRequests(private val harness: HarnessRuntime) {
-    suspend fun handle(r: Frame.Request): Frame.Response? = when (r.method) {
-        Api.TaskLists.name -> respond(r, Api.TaskLists) { harness.tasks.lists() }
-        Api.Tasks.name -> respond(r, Api.Tasks) { harness.tasks.all(it.includeDone) }
-        Api.CreateTask.name -> respond(r, Api.CreateTask) { p -> harness.tasks.create(p.title, p.list, p.notes, p.due?.let(LocalDate::parse), p.assignee) }
-        Api.UpdateTask.name -> respond(r, Api.UpdateTask) { p -> harness.tasks.update(p.taskId, p.title, p.status, p.assignee, p.due) }
-        Api.TasksSettings.name -> respond(r, Api.TasksSettings) { harness.tasksSetup() }
-        Api.SaveTasksSettings.name -> respond(r, Api.SaveTasksSettings) { harness.saveTasksSettings(it) }
-        Api.ProviderLists.name -> respond(r, Api.ProviderLists) { harness.tasks.providerLists(it.provider) }
-        Api.AuthorizeTasks.name -> respond(r, Api.AuthorizeTasks) { harness.tasks.authorize(it.provider) }
-        else -> null
+    fun <C> register(handlers: RequestHandlers<C>) = with(handlers) {
+        on(Api.TaskLists) { harness.tasks.lists() }
+        on(Api.Tasks) { harness.tasks.all(it.includeDone) }
+        on(Api.CreateTask) { p -> harness.tasks.create(p.title, p.list, p.notes, p.due?.let(LocalDate::parse), p.assignee) }
+        on(Api.UpdateTask) { p -> harness.tasks.update(p.taskId, p.title, p.status, p.assignee, p.due) }
+        on(Api.TasksSettings) { harness.tasksSetup() }
+        on(Api.SaveTasksSettings) { harness.saveTasksSettings(it) }
+        on(Api.ProviderLists) { harness.tasks.providerLists(it.provider) }
+        on(Api.AuthorizeTasks) { harness.tasks.authorize(it.provider) }
     }
 }

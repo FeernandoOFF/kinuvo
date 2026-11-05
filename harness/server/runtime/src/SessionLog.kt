@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kinuvo.protocol.AgentId
+import kinuvo.protocol.SessionId
 import kinuvo.harness.core.store.Store
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.LiveState
@@ -146,7 +148,7 @@ class SessionLog(private val store: Store) : Store by store {
             if (state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
         }
-        deliver(SessionUpdate(agentId, sessionId, SessionChange.Entry(seq, entry)))
+        deliver(SessionUpdate(AgentId(agentId), SessionId(sessionId), SessionChange.Entry(seq, entry)))
     }
 
     private suspend fun metadata(agentId: String, sessionId: String, entries: List<SessionEntry>) {
@@ -165,7 +167,7 @@ class SessionLog(private val store: Store) : Store by store {
         val state = (live[sessionId] ?: LiveState()).on(event)
         if (state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
-        if (event.isLive) deliver(SessionUpdate(agentId, sessionId, SessionChange.Event(event)))
+        if (event.isLive) deliver(SessionUpdate(AgentId(agentId), SessionId(sessionId), SessionChange.Event(event)))
         eventListeners.load().forEach { it(agentId, sessionId, event) }
         if (state.status != before) changed(store.session(agentId, sessionId).copy(status = state.status))
     }
@@ -189,7 +191,7 @@ class SessionLog(private val store: Store) : Store by store {
             entries.drop(from).forEachIndexed { i, entry -> add(SessionChange.Entry(from + i, entry)) }
             add(SessionChange.Live(live[sessionId] ?: LiveState()))
         }
-        for (change in changes) if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return removeEverywhere(subscriber)
+        for (change in changes) if (!subscriber.offer(SessionUpdate(AgentId(agentId), SessionId(sessionId), change))) return removeEverywhere(subscriber)
     }
 
     suspend fun unsubscribe(sessionId: String, subscriber: Subscriber) = lock.withLock {
@@ -218,7 +220,7 @@ class SessionLog(private val store: Store) : Store by store {
     }
 
     private fun deliver(update: SessionUpdate) {
-        subscribers[update.sessionId]?.toList()?.forEach { if (!it.offer(update)) removeEverywhere(it) }
+        subscribers[update.sessionId.value]?.toList()?.forEach { if (!it.offer(update)) removeEverywhere(it) }
     }
 
     private fun changed(info: SessionInfo) = changeListeners.load().forEach { it(info) }

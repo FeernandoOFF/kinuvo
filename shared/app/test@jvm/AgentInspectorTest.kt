@@ -212,7 +212,7 @@ class AgentInspectorTest {
                 Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", "inspector", capabilities = ServerCapabilities("test"), management = true))
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
                 Api.Agents.name -> reply(request, Api.Agents, details.values.map { it.info })
-                Api.Agent.name -> reply(request, Api.Agent, details.getValue(ProtocolJson.decodeFromJsonElement(Api.Agent.params, request.params).agentId))
+                Api.Agent.name -> reply(request, Api.Agent, details.getValue(ProtocolJson.decodeFromJsonElement(Api.Agent.params, request.params).agentId.value))
                 Api.UpdateAgent.name -> {
                     val p = ProtocolJson.decodeFromJsonElement(Api.UpdateAgent.params, request.params)
                     updates.send(p)
