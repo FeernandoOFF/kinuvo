@@ -97,7 +97,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         return harness.testService(p).let { result ->
             val summary = result.summary?.let { it + if (pushed.delivered > 0) ", and pushed to $devices" else "" }
             if (result.error == null && failed == null) result.copy(summary = summary)
-            else ServiceTestResult(error = listOfNotNull(result.error ?: summary, failed).joinToString(". "))
+            else ServiceTestResult(error = listOfNotNull(result.error ?: summary, if (result.error != null && pushed.delivered > 0) "Pushed to $devices" else null, failed).joinToString(". "))
         }
     }
 
