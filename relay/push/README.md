@@ -40,7 +40,7 @@ npm install
 npx wrangler deploy
 ```
 
-The route expects `push.kinuvo.dev` as a custom domain on the Cloudflare account.
+It deploys to `https://kinuvo-push.me-856.workers.dev`. Future work: a custom domain (`kinuvo.feernandooff.com`) through `routes` with `custom_domain = true`.
 
 ## Local testing
 
