@@ -10,7 +10,7 @@ permissions:
 env:
   VERSION: ${{ github.ref_name }}
 
-# Kotlin Toolchain caches are saved by CI on main; tag runs can only restore from there.
+# Kotlin Toolchain caches are saved by CI on main; tag runs can only restore from there (see .github/actions/restore-kotlin-cache).
 
 jobs:
   jar:
@@ -18,14 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: scripts/jbr.sh
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cache/JetBrains
-            ~/Library/Caches/JetBrains
-            ~/AppData/Local/JetBrains
-          key: kotlin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/module.yaml', 'project.yaml') }}
-          restore-keys: kotlin-${{ runner.os }}-${{ runner.arch }}-
+      - uses: ./.github/actions/restore-kotlin-cache
       - run: scripts/package.sh jar "$VERSION"
       - uses: actions/upload-artifact@v4
         with:
@@ -67,17 +60,7 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - run: scripts/jbr.sh
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cache/JetBrains
-            ~/Library/Caches/JetBrains
-            ~/AppData/Local/JetBrains
-          key: kotlin-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/module.yaml', 'project.yaml') }}
-          # CI saves only Linux X64; Linux ARM64 resolving from an empty cache fails on androidx.activity.
-          restore-keys: |
-            kotlin-${{ runner.os }}-${{ runner.arch }}-
-            kotlin-${{ runner.os }}-
+      - uses: ./.github/actions/restore-kotlin-cache
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y fakeroot
       - run: scripts/package.sh desktop "$VERSION"
@@ -96,17 +79,7 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.cache/JetBrains
-            ~/Library/Caches/JetBrains
-            ~/AppData/Local/JetBrains
-          key: kotlin-android-${{ hashFiles('**/module.yaml', 'project.yaml') }}
-          # Nothing saves kotlin-android-; resolving from an empty cache fails on androidx.activity.
-          restore-keys: |
-            kotlin-android-
-            kotlin-Linux-X64-
+      - uses: ./.github/actions/restore-kotlin-cache
       - name: Build a universal APK signed with the release key
         if: env.KEYSTORE != ''
         env:
