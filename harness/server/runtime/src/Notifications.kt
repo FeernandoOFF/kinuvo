@@ -91,10 +91,14 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         val devices = "${pushed.delivered} Device" + if (pushed.delivered == 1) "" else "s"
         val failed = pushed.failures.takeIf { it.isNotEmpty() }?.let { "Couldn't push to ${it.joinToString("; ")}" }
         if (settings.provider == null) return when {
-            pushed.delivered > 0 -> ServiceTestResult("Pushed to $devices" + (failed?.let { ". $it" } ?: ""))
+            pushed.delivered > 0 -> failed?.let { ServiceTestResult(error = "Pushed to $devices. $it") } ?: ServiceTestResult("Pushed to $devices")
             else -> ServiceTestResult(error = failed ?: "No paired Device receives pushes yet")
         }
-        return harness.testService(p).let { if (it.error == null && pushed.delivered > 0) it.copy(summary = "${it.summary}, and pushed to $devices") else it }
+        return harness.testService(p).let { result ->
+            val summary = result.summary?.let { it + if (pushed.delivered > 0) ", and pushed to $devices" else "" }
+            if (result.error == null && failed == null) result.copy(summary = summary)
+            else ServiceTestResult(error = listOfNotNull(result.error ?: summary, failed).joinToString(". "))
+        }
     }
 
     private suspend fun attempt(send: suspend () -> Unit) {

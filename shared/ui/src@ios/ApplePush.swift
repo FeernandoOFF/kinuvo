@@ -47,6 +47,10 @@ final class ApplePush: NSObject, NativePush, UNUserNotificationCenterDelegate {
         }
     }
 
+    func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification, withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .list, .sound])
+    }
+
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
         if let link = response.notification.request.content.userInfo["link"] as? String { DeepLinksKt.openLink(url: link) }
         completionHandler()
