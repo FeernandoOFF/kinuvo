@@ -42,11 +42,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - suite: ui
-            modules: -m ui
+          - suite: ui-settings
+            cache: ui
+            modules: -m ui --include-classes=kinuvo.ui.e2e.SettingsFlowTest --include-classes=kinuvo.ui.e2e.ExternalFlowTest
+          - suite: ui-sessions
+            cache: ui
+            modules: -m ui --include-classes=kinuvo.ui.e2e.SessionFlowTest --include-classes=kinuvo.ui.e2e.ShowcaseFlowTest
+          - suite: ui-rest
+            cache: ui
+            modules: -m ui --exclude-classes=kinuvo.ui.e2e.SettingsFlowTest --exclude-classes=kinuvo.ui.e2e.ExternalFlowTest --exclude-classes=kinuvo.ui.e2e.SessionFlowTest --exclude-classes=kinuvo.ui.e2e.ShowcaseFlowTest
           - suite: server
+            cache: server
             modules: -m jvm -m embedded -m runtime -m browser -m cli
           - suite: rest
+            cache: rest
             modules: --exclude-module ui --exclude-module jvm --exclude-module embedded --exclude-module runtime --exclude-module browser --exclude-module cli
     env:
       MODULES: ${{ matrix.modules }}
@@ -60,14 +69,14 @@ jobs:
             ~/.cache/JetBrains/Kotlin/.m2.cache
             ~/.cache/JetBrains/Kotlin/extract.cache/*jdk*
             ~/.cache/JetBrains/Kotlin/extract.cache/*jbr*
-          key: kotlin-jvm-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.suite }}-${{ hashFiles('kotlin', '**/*.yaml') }}
-          restore-keys: kotlin-jvm-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.suite }}-
+          key: kotlin-jvm-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.cache }}-${{ hashFiles('kotlin', '**/*.yaml') }}
+          restore-keys: kotlin-jvm-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.cache }}-
       - id: build
         uses: actions/cache/restore@v4
         with:
           path: build
-          key: build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.suite }}-${{ hashFiles('kotlin', '**/*.yaml') }}-${{ github.sha }}
-          restore-keys: build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.suite }}-${{ hashFiles('kotlin', '**/*.yaml') }}-
+          key: build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.cache }}-${{ hashFiles('kotlin', '**/*.yaml') }}-${{ github.sha }}
+          restore-keys: build-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.cache }}-${{ hashFiles('kotlin', '**/*.yaml') }}-
       # Chromium's sandbox needs unprivileged user namespaces on Ubuntu 24.04.
       - if: matrix.suite == 'server'
         run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
@@ -84,6 +93,12 @@ jobs:
             rm -rf build
             ./kotlin test -p jvm $MODULES
           fi
+      - if: always() && matrix.cache == 'ui'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-flow-screens-${{ matrix.suite }}
+          path: shared/ui/build/screens/flows
+          if-no-files-found: ignore
       - if: failure()
         uses: actions/upload-artifact@v4
         with:
