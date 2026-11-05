@@ -151,6 +151,9 @@ internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel
         s.step == 2 && account?.apiKey != null && s.apiKey.isNotBlank() -> OnboardingAction("Save key") { onboarding.saveKey(s.apiKey) }
         s.step == 2 && account?.account?.signedIn == false && s.deviceCode == null -> OnboardingAction("Sign in to ${account.name}") { onboarding.login() }
         s.step == 2 && account?.account?.signedIn == false -> OnboardingAction("I've signed in") { onboarding.refresh() }
+        s.step == 2 && account?.downloads?.downloading != null -> OnboardingAction("Downloading…", false) {}
+        s.step == 2 && account?.downloads?.models?.firstOrNull { it.id == s.model }?.let { !it.installed && it.supported } == true ->
+            OnboardingAction("Download (${gigabytes(account.downloads!!.models.first { it.id == s.model }.bytes)})") { onboarding.download() }
         s.step == 2 -> OnboardingAction("Continue", s.modelReady, next)
         s.step == 3 && s.userName.isBlank() && s.occupation.isBlank() -> OnboardingAction("Skip for now", run = next)
         s.step == 4 -> OnboardingAction("Continue", s.agentName.isNotBlank(), next)
@@ -181,7 +184,7 @@ internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel
                     busy = advancing || (a.connection as? Connection.Connecting)?.server != null,
                     error = scanError ?: (a.connection as? Connection.Unpaired)?.error,
                 ), featured, pokes, poke, tint, insets)
-            }, model = { ModelStep(s, onboarding::selectProvider, onboarding::refresh, onboarding::edit) },
+            }, model = { ModelStep(s, onboarding::selectProvider, onboarding::refresh, onboarding::edit, { onboarding.download() }, { onboarding.cancelDownload() }) },
             connect = {
                 ConnectList(s, a.capabilities::allows, onboarding::setUp)
                 kinuvo.ui.device.DeviceToolsGroup("On this device", "Agents read these from this app, so they can only use them while Kinuvo is open here.")
@@ -683,9 +686,11 @@ private fun DraftRow(label: String, value: String, placeholder: String, secret: 
 }
 
 @Composable
-internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefresh: () -> Unit, onEdit: ((OnboardingState) -> OnboardingState) -> Unit) {
+internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefresh: () -> Unit, onEdit: ((OnboardingState) -> OnboardingState) -> Unit,
+    onDownload: () -> Unit = {}, onCancel: () -> Unit = {}) {
     val tint = LocalTint.current
     val providers = (s.catalog.providers.map { it.id } + s.providers.map { it.id } + s.provider.takeIf { it.isNotBlank() }.let { listOfNotNull(it) }).distinct()
+        .filter { id -> id == s.provider || s.providers.firstOrNull { it.id == id }?.downloads?.models?.none { it.supported } != true }
     val group = s.catalog.providers.firstOrNull { it.id == s.provider }
     val account = s.providers.firstOrNull { it.id == s.provider }
     RowGroup("Provider") {
@@ -700,6 +705,11 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
         if (!group?.models.isNullOrEmpty()) PickerRow("Model", (group.models.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
             { id -> group.models.firstOrNull { it.id == id }?.name ?: id }, { value -> onEdit { it.copy(model = value) } }, Lucide.Cpu)
         else key(s.provider) { DraftRow("Model ID", s.model, "Enter a model ID") { value -> onEdit { it.copy(model = value) } } }
+        account?.downloads?.let { downloads ->
+            downloads.models.filter { it.id == s.model }.takeIf { it.isNotEmpty() }?.let { selected ->
+                ModelDownloadRows(downloads.copy(models = selected), { onDownload() }, onCancel, {})
+            }
+        }
         account?.apiKey?.let { key ->
             key(s.provider) { DraftRow(if (key.configured) "Replace API key" else "API key", s.apiKey, "API key or secret reference", secret = true) { value -> onEdit { it.copy(apiKey = value) } } }
         }
@@ -717,7 +727,7 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
     }
     if (s.provider == APPLE) Text("Apple's on-device model needs no setup and keeps everything on this device. It's small, so it's best for quick chats and remembering things about you. For browsing, files and longer tasks, pick a larger model; you can switch any time in the Agent's settings.",
         color = color(mutedColor), style = TextStyles.caption)
-    (s.catalog.model(s.provider, s.model)?.state?.reason ?: group?.warning ?: s.catalog.warning ?: account?.error)?.let { Text(it, color = color(mutedColor), style = TextStyles.caption) }
+    (account?.downloads?.error ?: s.catalog.model(s.provider, s.model)?.state?.reason ?: group?.warning ?: s.catalog.warning ?: account?.error)?.let { Text(it, color = color(mutedColor), style = TextStyles.caption) }
 }
 
 private const val APPLE = "apple"
@@ -727,6 +737,7 @@ private fun providerStatus(info: ProviderInfo?): String? = when {
     info?.account != null -> "Sign in to continue"
     info?.apiKey?.configured == true -> "API key saved"
     info?.apiKey != null -> "Needs an API key"
+    info?.downloads != null -> "Private · runs on this Server, downloads a model"
     else -> null
 }
 

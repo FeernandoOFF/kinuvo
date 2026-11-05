@@ -420,6 +420,10 @@ class SettingsViewModel(
 
     fun logoutProvider(id: String) = attempt { config.logoutProvider(id) }
 
+    fun downloadModel(provider: String, model: String) = attempt { config.downloadModel(provider, model) }
+    fun cancelModelDownload(provider: String) = attempt { config.cancelModelDownload(provider) }
+    fun removeModel(provider: String, model: String) = attempt { config.removeModel(provider, model) }
+
     fun loadSecrets() = attempt { config.secretProviders().let { s -> state.update { it.copy(secrets = s) } } }
 
     fun connectSecrets(scheme: String, token: String) = attempt {

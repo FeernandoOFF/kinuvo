@@ -44,9 +44,22 @@ data class ProviderAccount(val signedIn: Boolean, val label: String? = null)
 @Serializable
 data class DeviceCode(val url: String, val code: String, val expiresAt: Long)
 
-/** A model provider on the Server; [account] describes browser sign-in, [apiKey] API-key configuration. */
+/** A model provider on the Server; [account] describes browser sign-in, [apiKey] API-key configuration, [downloads] models it runs from downloaded files. */
 @Serializable
-data class ProviderInfo(val id: String, val name: String, val account: ProviderAccount? = null, val error: String? = null, val apiKey: ProviderApiKeyStatus? = null)
+data class ProviderInfo(val id: String, val name: String, val account: ProviderAccount? = null, val error: String? = null, val apiKey: ProviderApiKeyStatus? = null,
+    val downloads: ProviderDownloads? = null)
+
+/** A model a provider runs from files downloaded to the Server; [supported] is false when the Server's machine can't run it, saying why in [reason]. */
+@Serializable
+data class DownloadableModel(val id: String, val name: String, val bytes: Long, val memory: Long, val installed: Boolean = false,
+    val supported: Boolean = true, val reason: String? = null, val license: String? = null, val source: String? = null)
+
+/** The models a provider downloads, and the one [downloading] with its [downloaded] bytes. */
+@Serializable
+data class ProviderDownloads(val models: List<DownloadableModel> = emptyList(), val downloading: String? = null, val downloaded: Long = 0, val error: String? = null)
+
+@Serializable
+data class ProviderModelRef(val provider: String, val model: String)
 
 @Serializable
 data class ProviderRef(val provider: String)

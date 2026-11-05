@@ -133,7 +133,7 @@ internal class ReflectionRun(
         }.flatMap { tool ->
             val owner = if (tool.descriptor.name in listOf(ToolNames.KNOWLEDGE, "conventions")) "kinuvo.knowledge" else "kinuvo.core"
             PluginTools(listOf(tool)).ownedBy(PluginInstanceId(owner)).tools
-        }.filter { deny.blockedTool(it.identity) == null }
+        }.withModelNames().filter { deny.blockedTool(it.identity) == null }
         if (tools.isEmpty()) return null
         executor = ToolExecutor(tools)
         val context = when (stage) {

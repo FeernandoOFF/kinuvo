@@ -48,6 +48,24 @@ class ToolIdentityTest {
         assertFailsWith<IllegalArgumentException> { listOf(first, sameIdentity).indexedTools() }
     }
 
+    @Test fun modelsSeeOwnNamesUnlessTheyClash() {
+        val forecast = bound()
+        val work = bound(owner.copy(instanceId = "work"))
+        val memory = bound(PluginInstanceId("kinuvo.core"), "memory")
+        val named = listOf(forecast, work, memory).withModelNames()
+        assertEquals(listOf(forecast.descriptor.name, work.descriptor.name, "memory"), named.map { it.descriptor.name })
+        assertEquals(memory.identity, named.last().identity)
+        assertEquals(memory.descriptor.name, listOf(memory).withModelNames(taken = setOf("memory")).single().descriptor.name)
+    }
+
+    @Test fun callsRecordedUnderAnAliasStillReachTheRenamedTool() = runTest {
+        val forecast = listOf(bound()).withModelNames().single()
+        assertEquals("forecast", forecast.descriptor.name)
+        val result = ToolExecutor(listOf(forecast)).call(SessionEntry.ToolCall("c1", bound().descriptor.name, "{}"))
+        assertEquals("sunny", result.output)
+        assertFalse(result.isError)
+    }
+
     @Test fun bindingPreservesRawSchemasAndCatalogOwnership() {
         val schema = buildJsonObject { put("additionalProperties", false) }
         val raw = object : Tool {

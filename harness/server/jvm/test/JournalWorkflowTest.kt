@@ -24,18 +24,18 @@ class JournalWorkflowTest {
             val instructions = history.filterIsInstance<Message.System>().last().textContent()
             assertTrue("Preserve all writing outside it" in instructions)
             assertTrue("<!-- kinuvo-journal:start -->" in instructions)
-            assertTrue(tools.any { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "ask_user").modelAlias() })
+            assertTrue(tools.any { it.name == "ask_user" })
             val results = history.toolResults
             val call = when (results.size) {
-                0 -> StreamFrame.ToolCallComplete("ask", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "ask_user").modelAlias(), """{"questions":[{"id":"reflection","label":"How was today?","kind":"text"}]}""")
+                0 -> StreamFrame.ToolCallComplete("ask", "ask_user", """{"questions":[{"id":"reflection","label":"How was today?","kind":"text"}]}""")
                 1 -> {
                     check(results.last().output.contains("Rested"))
-                    check(tools.any { it.name == kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.devices"), "workouts_list").modelAlias() })
-                    StreamFrame.ToolCallComplete("workouts", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.devices"), "workouts_list").modelAlias(), """{"start_date":"2026-10-05","end_date":"2026-10-05"}""")
+                    check(tools.any { it.name == "workouts_list" })
+                    StreamFrame.ToolCallComplete("workouts", "workouts_list", """{"start_date":"2026-10-05","end_date":"2026-10-05"}""")
                 }
                 2 -> {
                     check(results.last().output.contains("Running"))
-                    StreamFrame.ToolCallComplete("journal", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.knowledge"), "knowledge").modelAlias(), buildJsonObject {
+                    StreamFrame.ToolCallComplete("journal", "knowledge", buildJsonObject {
                         put("action", "create"); put("type", "Journal"); put("title", "2026-10-05")
                         put("append", "## Kinuvo\n<!-- kinuvo-journal:start -->\nRested. Running, 35 min.\n<!-- kinuvo-journal:end -->")
                     }.toString())

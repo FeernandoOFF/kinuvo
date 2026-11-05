@@ -139,6 +139,9 @@ class ConfigRepository(internal val connection: ConnectedServer) {
     suspend fun loginProvider(id: String) = call { it.call(Api.LoginProvider, ProviderRef(id)) }
     suspend fun saveProviderApiKey(id: String, value: String) = call { it.call(Api.SetProviderApiKey, SetProviderApiKeyParams(id, value)) }
     suspend fun logoutProvider(id: String) = call { it.call(Api.LogoutProvider, ProviderRef(id)) }
+    suspend fun downloadModel(provider: String, model: String) = call { it.call(Api.DownloadProviderModel, ProviderModelRef(provider, model)) }
+    suspend fun cancelModelDownload(provider: String) = call { it.call(Api.CancelProviderDownload, ProviderRef(provider)) }
+    suspend fun removeModel(provider: String, model: String) = call { it.call(Api.RemoveProviderModel, ProviderModelRef(provider, model)) }
 
     suspend fun secretProviders() = call { it.call(Api.SecretProviders, Unit) }
     suspend fun connectSecrets(scheme: String, token: String) = call { it.call(Api.ConnectSecrets, ConnectSecretsParams(scheme, token)) }

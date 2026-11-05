@@ -46,7 +46,7 @@ class SchedulerTest {
         val history = prompt.messages
         val call = toolCall
         if (hang) return@scriptedModel flow<StreamFrame> { awaitCancellation() }
-        if (call != null && history.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), call.first).modelAlias(), call.second), StreamFrame.End())
+        if (call != null && history.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("c1", call.first, call.second), StreamFrame.End())
         else flow { during(); emit(StreamFrame.TextDelta(reply)); emit(StreamFrame.End()) }
     }
     private var now = 1_790_000_000_000L

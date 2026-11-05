@@ -72,7 +72,7 @@ class ServerClientTest {
     private val model = scriptedModel { prompt, _ ->
         val history = prompt.messages
         if (history.toolResults.isEmpty()) flowOf(
-            StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "skill_manage").modelAlias(), """{"action":"create","name":"x","content":"---\nname: x\ndescription: d\n---\nbody"}"""),
+            StreamFrame.ToolCallComplete("c1", "skill_manage", """{"action":"create","name":"x","content":"---\nname: x\ndescription: d\n---\nbody"}"""),
             StreamFrame.End(),
         ) else flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
     }

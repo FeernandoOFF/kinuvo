@@ -16,6 +16,28 @@ fun ToolIdentity.modelAlias(): String {
     return prefix.replace(Regex("[^A-Za-z0-9_-]"), "_").take(46) + "__" + suffix
 }
 
+/**
+ * A run's [tools] under the names models see: a Plugin tool's own name, e.g. `memory`, unless another tool in the run
+ * or [taken] has it; then its [modelAlias]. Identities still route calls and policy.
+ */
+fun List<Tool>.withModelNames(taken: Set<String> = emptySet()): List<Tool> {
+    val local = associateWith { it.identity?.localId?.takeIf { id -> MODEL_NAME.matches(id) } }
+    val counts = (map { local[it] ?: it.descriptor.name } + taken).groupingBy { it }.eachCount()
+    return map { tool ->
+        val name = local[tool]?.takeIf { counts[it] == 1 } ?: return@map tool
+        if (name == tool.descriptor.name) tool else tool.named(name)
+    }
+}
+
+private val MODEL_NAME = Regex("[A-Za-z0-9_-]{1,64}")
+
+private fun Tool.named(name: String): Tool = object : Tool by this@named {
+    override val descriptor = when (val d = this@named.descriptor) {
+        is RawSchemaToolDescriptor -> RawSchemaToolDescriptor(name, d.description, d.schema)
+        else -> d.copy(name = name)
+    }
+}
+
 fun PluginTools.ownedBy(owner: PluginInstanceId, manifest: kinuvo.protocol.PluginManifest? = null): PluginTools {
     manifest?.let {
         require(it.plugin.id == owner.pluginId) { "Manifest belongs to another plugin" }

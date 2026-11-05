@@ -52,6 +52,7 @@ dependencies@android:
   - ../../harness/server/embedded
   - ../../harness/providers/codex
   - ../../harness/providers/koog
+  - ../../harness/providers/litert
   - ../../harness/plugins/mcp
   - ../../harness/plugins/firecrawl
   - ../../harness/plugins/ntfy

@@ -15,7 +15,7 @@ import kinuvo.harness.core.store.FileTrustRules
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.ownedBy
-import kinuvo.harness.core.modelAlias
+import kinuvo.harness.core.withModelNames
 import kinuvo.harness.core.tools.ToolRun
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision
@@ -79,10 +79,10 @@ class RunCodeTest {
     @Test
     fun scriptCallsTwoToolsWithApprovals() = runBlocking {
         val agent = store.agents().single().let { it.copy(config = it.config.copy(tools = it.config.tools + ToolNames.RUN_CODE)) }
-        val tools = ExecutorPlugin().prepare(RunContext(agent, null), activate = true).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.executor")).tools + listOf(search, save)
+        val tools = ExecutorPlugin().prepare(RunContext(agent, null), activate = true).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.executor")).tools.plus(listOf(search, save)).withModelNames()
         val model = scriptedModel { prompt, _ ->
             val history = prompt.messages
-            if (history.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.executor"), "run_code").modelAlias(), args(code)), StreamFrame.End())
+            if (history.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("c1", "run_code", args(code)), StreamFrame.End())
             else flowOf(StreamFrame.TextDelta("Saved what mattered."), StreamFrame.End())
         }
         val broker = ApprovalBroker()
@@ -106,7 +106,7 @@ class RunCodeTest {
         assertTrue(result.isError)
         assertContains(result.output, "denied")
         assertContains(result.output, "Tool calls (3):")
-        assertEquals(listOf(kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.executor"), "run_code").modelAlias()), entries.filterIsInstance<SessionEntry.ToolCall>().map { it.name })
+        assertEquals(listOf("run_code"), entries.filterIsInstance<SessionEntry.ToolCall>().map { it.name })
         assertEquals(listOf("c1", "c1-1", "c1-2", "c1-3"), events.filterIsInstance<AgentEvent.ToolCallStart>().map { it.toolCallId })
         assertTrue(events.last() is AgentEvent.RunFinished)
     }
@@ -114,12 +114,12 @@ class RunCodeTest {
     @Test
     fun approvedScriptReturnsOnlyItsResult() = runBlocking {
         val agent = store.agents().single().let { it.copy(config = it.config.copy(tools = it.config.tools + ToolNames.RUN_CODE)) }
-        val tools = ExecutorPlugin().prepare(RunContext(agent, null), activate = true).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.executor")).tools + listOf(search, save)
+        val tools = ExecutorPlugin().prepare(RunContext(agent, null), activate = true).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.executor")).tools.plus(listOf(search, save)).withModelNames()
         var replied = ""
         val model = scriptedModel { prompt, _ ->
             val history = prompt.messages
             val result = history.toolResults.lastOrNull()
-            if (result == null) flowOf(StreamFrame.ToolCallComplete("c1", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.executor"), "run_code").modelAlias(), args(code)), StreamFrame.End())
+            if (result == null) flowOf(StreamFrame.ToolCallComplete("c1", "run_code", args(code)), StreamFrame.End())
             else { replied = result.output; flowOf(StreamFrame.TextDelta("Saved 2."), StreamFrame.End()) }
         }
         val broker = ApprovalBroker()

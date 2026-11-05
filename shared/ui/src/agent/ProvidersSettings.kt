@@ -5,8 +5,12 @@ import kinuvo.app.agent.*
 import kinuvo.ui.connection.*
 import kinuvo.ui.board.*
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.progressSemantics
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.*
@@ -18,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
+import kinuvo.protocol.ProviderDownloads
 import kinuvo.protocol.ProviderInfo
 import kinuvo.ui.design.*
 
@@ -45,6 +50,8 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                     if (apiKey.configured) Icon(Lucide.CircleCheck, Modifier.size(18.dp), tint = color(successColor))
                     else Pill("Needed", tone = Tone.Warning)
                 }
+                provider.downloads != null -> ModelDownloadRows(provider.downloads!!, { p.actions.onDownloadModel(provider.id, it) },
+                    { p.actions.onCancelModelDownload(provider.id) }, { p.actions.onRemoveModel(provider.id, it) })
                 account == null -> GroupRow(provider.name, subtitle = "No sign-in needed", icon = Lucide.CircleCheck) { Pill("Ready", tone = Tone.Success) }
                 account.signedIn -> GroupRow(account.label ?: "Your account", subtitle = "Signed in", icon = Lucide.CircleUserRound) { Pill("Ready", tone = Tone.Success) }
                 code != null -> GroupBox {
@@ -79,7 +86,9 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                 else -> ActionRow("Sign in", Lucide.LogIn, { p.actions.onLoginProvider(provider.id) })
             }
         }
-        provider.error?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = color(destructiveColor), style = TextStyles.caption) }
+        (provider.error ?: provider.downloads?.error)?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = color(destructiveColor), style = TextStyles.caption) }
+        if (provider.downloads != null) Text("Models run on the Server’s machine, without sending conversations anywhere. Downloads are large; use Wi‑Fi.",
+            Modifier.padding(horizontal = 16.dp), color = color(mutedColor), style = TextStyles.caption)
         if (apiKey != null) Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Column(Modifier.weight(1f)) {
                 Text("Saved keys stay on the Server. Refresh models after changing a key.", color = color(mutedColor), style = TextStyles.caption)
@@ -89,3 +98,40 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
         }
     }
 }
+
+/** A provider's downloadable models: download one at a time with its progress, or remove one; ones this machine can't run say why. */
+@Composable
+internal fun ModelDownloadRows(downloads: ProviderDownloads, onDownload: (String) -> Unit, onCancel: () -> Unit, onRemove: (String) -> Unit) {
+    downloads.models.forEach { model ->
+        val size = gigabytes(model.bytes)
+        when {
+            downloads.downloading == model.id -> GroupBox {
+                val progress = (downloads.downloaded.toFloat() / model.bytes.coerceAtLeast(1)).coerceIn(0f, 1f)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(model.name)
+                        Text("Downloading… ${gigabytes(downloads.downloaded)} of $size", color = color(mutedColor), style = TextStyles.secondary)
+                    }
+                    Button(onCancel, buttonSize = ButtonSize.Small, style = ButtonStyle.Outlined) { Text("Cancel") }
+                }
+                Box(Modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(color(borderColor)).progressSemantics(progress)) {
+                    Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(color(accentColor)))
+                }
+            }
+            !model.supported -> GroupRow(model.name, subtitle = model.reason, icon = Lucide.Cpu, enabled = false)
+            model.installed -> {
+                var asking by remember { mutableStateOf(false) }
+                GroupRow(model.name, subtitle = "Downloaded · $size", icon = Lucide.CircleCheck) {
+                    Button({ asking = true }, buttonSize = ButtonSize.Small, style = ButtonStyle.Outlined) { Text("Remove") }
+                }
+                ConfirmPopover(asking, "Remove ${model.name}?", "Agents using it stop working until you download it again ($size).", "Remove", true,
+                    { asking = false }) { asking = false; onRemove(model.id) }
+            }
+            else -> GroupRow(model.name, subtitle = "$size · needs ${gigabytes(model.memory)} of RAM", icon = Lucide.Cpu) {
+                Button({ onDownload(model.id) }, enabled = downloads.downloading == null, buttonSize = ButtonSize.Small, style = ButtonStyle.Outlined) { Text("Download") }
+            }
+        }
+    }
+}
+
+internal fun gigabytes(bytes: Long) = if (bytes >= 1_000_000_000) "${(bytes / 100_000_000) / 10.0} GB" else "${bytes / 1_000_000} MB"
