@@ -61,16 +61,22 @@ jobs:
       MODULES: ${{ matrix.modules }}
     steps:
       - uses: actions/checkout@v5
-      - id: dependencies
+      # The CLI and JDKs are the same for every suite, so one copy is shared; Maven artifacts differ per suite.
+      - id: toolchain
         uses: actions/cache/restore@v4
         with:
           path: |
             ~/.cache/JetBrains/Kotlin/cli
-            ~/.cache/JetBrains/Kotlin/.m2.cache
             ~/.cache/JetBrains/Kotlin/extract.cache/*jdk*
             ~/.cache/JetBrains/Kotlin/extract.cache/*jbr*
-          key: kotlin-jvm-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.cache }}-${{ hashFiles('kotlin', '**/*.yaml') }}
-          restore-keys: kotlin-jvm-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.cache }}-
+          key: kotlin-toolchain-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('kotlin', '**/*.yaml') }}
+          restore-keys: kotlin-toolchain-v1-${{ runner.os }}-${{ runner.arch }}-
+      - id: dependencies
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/JetBrains/Kotlin/.m2.cache
+          key: kotlin-m2-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.cache }}-${{ hashFiles('**/*.yaml') }}
+          restore-keys: kotlin-m2-v1-${{ runner.os }}-${{ runner.arch }}-${{ matrix.cache }}-
       - id: build
         uses: actions/cache/restore@v4
         with:
@@ -104,14 +110,18 @@ jobs:
         with:
           name: kotlin-logs-${{ matrix.suite }}
           path: build/logs
-      - if: github.ref == 'refs/heads/main' && steps.dependencies.outputs.cache-hit != 'true'
+      - if: github.ref == 'refs/heads/main' && matrix.suite == 'server' && steps.toolchain.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
         with:
           path: |
             ~/.cache/JetBrains/Kotlin/cli
-            ~/.cache/JetBrains/Kotlin/.m2.cache
             ~/.cache/JetBrains/Kotlin/extract.cache/*jdk*
             ~/.cache/JetBrains/Kotlin/extract.cache/*jbr*
+          key: ${{ steps.toolchain.outputs.cache-primary-key }}
+      - if: github.ref == 'refs/heads/main' && steps.dependencies.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/JetBrains/Kotlin/.m2.cache
           key: ${{ steps.dependencies.outputs.cache-primary-key }}
       - if: github.ref == 'refs/heads/main' && steps.build.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
