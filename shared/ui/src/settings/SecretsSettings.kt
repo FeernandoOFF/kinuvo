@@ -63,7 +63,7 @@ private fun ProviderGroup(s: SecretProviderStatus, p: Pane) {
             if (s.scheme == "pass") "In Proton Pass → Settings → Access tokens, create a token for an AI agent with only the vaults Kinuvo may read, " +
                 "then paste the instructions it shows (or just the token in them). It's read-only, and Proton Pass logs every read with what it was for." else null,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 Box(Modifier.weight(1f)) { Input(token, "Paste the token or instructions", secret = true) }
                 Button({ p.actions.onConnectSecrets(s.scheme, token.value()) }, enabled = token.value().isNotEmpty() && !p.ui.state.testing,
                     style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text(if (p.ui.state.testing) "Connecting…" else "Connect") }
@@ -84,7 +84,7 @@ internal fun SecretField(p: Pane, onPick: (String) -> Unit, field: @Composable (
     LaunchedEffect(providers == null) { if (providers == null) p.actions.onLoadSecrets() }
     val provider = providers?.firstOrNull { it.connected }
     var path by remember { mutableStateOf<List<String>?>(null) }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         field(provider?.let { { FieldButton(Lucide.KeyRound, "From ${it.name}", { path = if (path == null) listOf(it.scheme) else null }) } })
         val open = path
         if (provider != null && open != null) SecretBrowser(p, provider, open, { path = it }, { onPick(it); path = null })
@@ -95,19 +95,19 @@ internal fun SecretField(p: Pane, onPick: (String) -> Unit, field: @Composable (
 private fun SecretBrowser(p: Pane, provider: SecretProviderStatus, open: List<String>, onPath: (List<String>?) -> Unit, onPick: (String) -> Unit) {
     LaunchedEffect(open) { p.actions.onBrowseSecrets(open) }
     val entries = p.ui.state.secretEntries[open]
-    Panel(Modifier.fillMaxWidth(), contentPadding = PaddingValues(6.dp)) {
+    Panel(Modifier.fillMaxWidth(), contentPadding = PaddingValues(Spacing.space6)) {
         Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 HeaderButton(Lucide.ArrowLeft, "Back", { onPath(open.dropLast(1).takeIf { it.isNotEmpty() }) })
                 Text(
                     (listOf(provider.name) + open.drop(1)).joinToString(" / "),
-                    Modifier.weight(1f).padding(start = 4.dp), fontWeight = FontWeight.Normal, style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis,
+                    Modifier.weight(1f).padding(start = Spacing.space4), fontWeight = FontWeight.Normal, style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis,
                 )
                 HeaderButton(Lucide.X, "Close", { onPath(null) })
             }
             when {
-                entries == null -> Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Spinner() }
-                entries.isEmpty() -> Text("Nothing here", Modifier.padding(10.dp), color = color(mutedColor), style = TextStyles.secondary)
+                entries == null -> Box(Modifier.fillMaxWidth().padding(Spacing.space12), contentAlignment = Alignment.Center) { Spinner() }
+                entries.isEmpty() -> Text("Nothing here", Modifier.padding(Spacing.space10), color = color(mutedColor), style = TextStyles.secondary)
                 else -> Column(Modifier.heightIn(max = 280.dp).verticalScroll(rememberScrollState())) {
                     entries.forEach { e ->
                         val field = open.size == 3

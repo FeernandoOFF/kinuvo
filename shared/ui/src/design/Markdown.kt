@@ -119,12 +119,12 @@ fun Markdown(text: String, modifier: Modifier = Modifier, style: TextStyle = mar
     val blankLine = with(LocalDensity.current) { remember(style) { measurer.measure("", style).size.height }.toDp() }
     Column(modifier) {
         blocks.forEachIndexed { i, block ->
-            if (i > 0) Spacer(Modifier.height(if (block is MdBlock.Prose && blocks[i - 1] is MdBlock.Prose) blankLine else 10.dp))
+            if (i > 0) Spacer(Modifier.height(if (block is MdBlock.Prose && blocks[i - 1] is MdBlock.Prose) blankLine else Spacing.space10))
             when (block) {
                 is MdBlock.Prose -> RichMarkdown(block.text, style, Modifier.fillMaxWidth())
                 // Headings take the UI's serif titles rather than the library's oversized sans.
                 is MdBlock.Heading -> RichMarkdown(block.text, (if (block.level == 1) TextStyles.headline else if (block.level == 2) TextStyles.title else TextStyles.callout)
-                    .copy(fontWeight = FontWeight.Bold), Modifier.fillMaxWidth().padding(top = if (i > 0) 6.dp else 0.dp).semantics { heading() })
+                    .copy(fontWeight = FontWeight.Bold), Modifier.fillMaxWidth().padding(top = if (i > 0) Spacing.space6 else Spacing.none).semantics { heading() })
                 is MdBlock.Code -> CodeBlock(block.code, language = block.language)
                 is MdBlock.Table -> MarkdownTable(block.rows, style)
             }
@@ -174,7 +174,7 @@ private fun MarkdownTable(rows: List<List<String>>, style: TextStyle) {
                         RichMarkdown(
                             row.getOrElse(c) { "" },
                             if (r == 0) style.copy(fontWeight = FontWeight.SemiBold) else style,
-                            Modifier.width(widths[c]).padding(start = 10.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                            Modifier.width(widths[c]).padding(start = Spacing.space10, end = Spacing.space12, top = Spacing.space6, bottom = Spacing.space6),
                         )
                     }
                 }

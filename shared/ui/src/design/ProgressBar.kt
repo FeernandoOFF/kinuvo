@@ -16,7 +16,7 @@ import com.composables.ui.theme.*
 /** A thin bar filled to [progress], from 0 to 1, e.g. a download. */
 @Composable
 fun ProgressBar(progress: Float, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(2.dp)).background(color(borderColor)).progressSemantics(progress)) {
+    Box(modifier.fillMaxWidth().height(3.dp).clip(RoundedCornerShape(Radius.tiny)).background(color(borderColor)).progressSemantics(progress)) {
         Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(color(accentColor)))
     }
 }

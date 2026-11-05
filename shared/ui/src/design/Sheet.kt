@@ -59,7 +59,7 @@ fun BottomSheet(
             val drag = remember { Animatable(0f) }
             val scope = rememberCoroutineScope()
             val threshold = with(LocalDensity.current) { 80.dp.toPx() }
-            val shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
+            val shape = RoundedCornerShape(topStart = Radius.sheet, topEnd = Radius.sheet)
             Column(
                 // Clear of side insets, e.g. a status area at the edge of a foldable, which would take taps on the header.
                 Modifier.align(Alignment.BottomCenter).windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)).fillMaxWidth().height(height)
@@ -80,7 +80,7 @@ fun BottomSheet(
                 )
                 Column(Modifier.fillMaxWidth().then(dragModifier)) {
                     Box(
-                        Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp, bottom = 4.dp).size(48.dp, 20.dp),
+                        Modifier.align(Alignment.CenterHorizontally).padding(top = Spacing.space8, bottom = Spacing.space4).size(48.dp, 20.dp),
                         contentAlignment = Alignment.Center,
                     ) { Box(Modifier.size(36.dp, 4.dp).background(color(mutedColor).copy(alpha = 0.5f), CircleShape)) }
                     header()
@@ -88,7 +88,7 @@ fun BottomSheet(
                 CompositionLocalProvider(LocalSheetDrag provides dragModifier, LocalInSheet provides true) {
                     Column(Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)), content = content)
                 }
-                footer?.let { Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)).padding(bottom = 12.dp)) { it() } }
+                footer?.let { Box(Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)).padding(bottom = Spacing.space12)) { it() } }
             }
         }
     }

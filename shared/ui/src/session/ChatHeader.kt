@@ -64,7 +64,7 @@ internal val ComposerFade = 24.dp
 internal fun FloatingBar(state: ChatState, usage: Usage?, actions: ChatActions, onToggle: (() -> Unit)?, onBack: (() -> Unit)?, modifier: Modifier) {
     val background = color(backgroundColor)
     Box(modifier.fillMaxWidth().height(FloatingBarHeight).background(Brush.verticalGradient(0.75f to background, 1f to background.copy(alpha = 0f)))) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.space12, vertical = Spacing.space6), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             if (onBack != null) FloatingBubble(Lucide.ArrowLeft, "Back", onBack)
             else onToggle?.let { FloatingBubble(Lucide.Menu, "Agents and sessions", it) }
             val title = (state.sessions.firstOrNull { it.id == state.selected } ?: state.info)?.title
@@ -98,7 +98,7 @@ private fun PhoneActions(state: ChatState, usage: Usage?, actions: ChatActions) 
 }
 
 @Composable
-private fun MenuItem(icon: ImageVector, text: String) = Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+private fun MenuItem(icon: ImageVector, text: String) = Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
     Icon(icon, Modifier.size(16.dp))
     Text(text)
 }
@@ -107,15 +107,15 @@ private fun MenuItem(icon: ImageVector, text: String) = Row(verticalAlignment = 
 internal fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compact: Boolean, controls: @Composable () -> Unit) {
     TitleBarRow {
         controls()
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(Spacing.space6))
         val selected = state.sessions.firstOrNull { it.id == state.selected } ?: state.info
-        Row(Modifier.weight(1f).padding(start = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.weight(1f).padding(start = Spacing.space4), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             state.agent?.let { agent ->
                 Hint("${agent.name}'s settings", TooltipSide.Bottom) {
                     Row(Modifier.titleBarControl().clip(PillShape).clickable(onClickLabel = "${agent.name}'s settings", onClick = actions.onSettings)
                         .semantics(mergeDescendants = true) { contentDescription = "${agent.name}'s settings" }
-                        .background(color(panelColor)).padding(start = 4.dp, end = if (compact) 4.dp else 10.dp, top = 3.dp, bottom = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        .background(color(panelColor)).padding(start = Spacing.space4, end = if (compact) Spacing.space4 else Spacing.space10, top = 3.dp, bottom = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                         AgentAvatar(agent, 20.dp)
                         if (!compact) Text(agent.name, style = TextStyles.secondary, singleLine = true)
                     }
@@ -164,7 +164,7 @@ private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatS
         onExpandedChange = { menu = it },
         panel = {
             // Keeps a gutter where the window edge pushes the panel back in.
-            DropdownMenuPanel(Modifier.padding(end = 12.dp)) {
+            DropdownMenuPanel(Modifier.padding(end = Spacing.space12)) {
                 items.forEach { (icon, label, action) -> DropdownMenuItem(onClick = { menu = false; action() }) { MenuItem(icon, label) } }
             }
         },
@@ -174,7 +174,7 @@ private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatS
         val focus = remember { FocusRequester() }
         LaunchedEffect(Unit) { focus.requestFocus() }
         fun save() { actions.onRename(title.text.toString()); renaming = false }
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space16)) {
             Input(title, "Session name", trailing = { if (title.text.isNotEmpty()) FieldButton(Lucide.X, "Clear", { title.clearText() }) }, modifier = Modifier.focusRequester(focus).onPreviewKeyEvent { e -> (e.type == KeyEventType.KeyDown && e.key == Key.Enter).also { if (it) save() } }, capitalize = true)
             Button(::save, Modifier.fillMaxWidth(), enabled = title.text.toString().trim() != session.title, style = ButtonStyle.Primary) { Text("Save") }
         }
@@ -188,7 +188,7 @@ internal fun CloseSessionConfirm(chat: ChatState, onCancel: () -> Unit, onClose:
     val harness = chat.harness ?: "The harness"
     val host = chat.agent?.host
     val busy = chat.running || chat.phase == ExecutionPhase.Running || chat.phase == ExecutionPhase.RequiresAction
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
         Text(buildString {
             append(if (busy) "$harness is still working. Closing stops its current turn" else "Closing stops $harness's process for this Session")
             host?.let { append(" on $it") }
@@ -199,7 +199,7 @@ internal fun CloseSessionConfirm(chat: ChatState, onCancel: () -> Unit, onClose:
                 null -> ""
             })
         }, style = TextStyles.label)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space8, Alignment.End), modifier = Modifier.fillMaxWidth()) {
             Button(onCancel, style = ButtonStyle.Ghost) { Text("Keep open") }
             Button(onClose, style = ButtonStyle.Ghost, contentColor = color(destructiveColor)) { Text(if (busy) "Stop and close" else "Close Session") }
         }

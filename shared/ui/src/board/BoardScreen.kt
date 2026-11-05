@@ -85,8 +85,8 @@ fun BoardContent(ui: BoardUi, actions: BoardActions) {
             PageAction(Lucide.Settings, "Task settings", actions.onSettings),
             PageAction(Lucide.Plus, "New task") { actions.onAdding(true) },
         ))
-        ui.error?.let { Box(Modifier.padding(horizontal = 16.dp)) { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) } }
-        if (ui.state.adding) Box(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) { NewTaskForm(ui, actions) }
+        ui.error?.let { Box(Modifier.padding(horizontal = Spacing.space16)) { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) } }
+        if (ui.state.adding) Box(Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space8)) { NewTaskForm(ui, actions) }
         val tasks = ui.tasks
         if (tasks == null) Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Spinner(size = 24.dp) }
         else BoxWithConstraints(Modifier.weight(1f).fillMaxWidth()) {
@@ -96,10 +96,10 @@ fun BoardContent(ui: BoardUi, actions: BoardActions) {
             val list = rememberLazyListState()
             val scope = rememberCoroutineScope()
             Column(Modifier.fillMaxSize()) {
-            if (phone) Segmented(columns.map { it.tab() }, list.firstVisibleItemIndex, Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) { i ->
+            if (phone) Segmented(columns.map { it.tab() }, list.firstVisibleItemIndex, Modifier.fillMaxWidth().padding(horizontal = Spacing.space12, vertical = Spacing.space4)) { i ->
                 scope.launch { list.animateScrollToItem(i) }
             }
-            LazyRow(Modifier.weight(1f).fillMaxWidth(), list, PaddingValues(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+            LazyRow(Modifier.weight(1f).fillMaxWidth(), list, PaddingValues(horizontal = Spacing.space12, vertical = Spacing.space8), horizontalArrangement = Arrangement.spacedBy(Spacing.space12),
                 flingBehavior = if (phone) rememberSnapFlingBehavior(list) else ScrollableDefaults.flingBehavior()) {
                 items(columns, key = { it }) { status ->
                     BoardColumn(status, tasks.filter { it.status == status }, ui, actions, Modifier.width(columnWidth), header = !phone)
@@ -112,17 +112,17 @@ fun BoardContent(ui: BoardUi, actions: BoardActions) {
 
 @Composable
 private fun BoardColumn(status: TaskStatus, tasks: List<TaskInfo>, ui: BoardUi, actions: BoardActions, modifier: Modifier, header: Boolean) {
-    Column(modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (header) Row(Modifier.padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(modifier.fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+        if (header) Row(Modifier.padding(horizontal = Spacing.space4), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             Icon(status.icon(), Modifier.size(14.dp), tint = status.tone().color())
             Text(status.label(), fontWeight = FontWeight.Normal)
             Text("${tasks.size}", color = color(mutedColor), style = TextStyles.secondary)
         }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             // Soonest due first, undated last.
             items(tasks.sortedWith(compareBy(nullsLast()) { it.due }), key = { it.id }) { TaskCard(it, ui.agents, actions) }
             if (tasks.isEmpty()) item {
-                Text(status.empty(), Modifier.padding(horizontal = 4.dp), color = color(mutedColor), style = TextStyles.secondary)
+                Text(status.empty(), Modifier.padding(horizontal = Spacing.space4), color = color(mutedColor), style = TextStyles.secondary)
             }
         }
     }
@@ -131,8 +131,8 @@ private fun BoardColumn(status: TaskStatus, tasks: List<TaskInfo>, ui: BoardUi, 
 @Composable
 private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActions) {
     val assignee = agents.firstOrNull { it.id == task.assignee }
-    Panel(Modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(12.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Panel(Modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(Spacing.space12)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             // Its own target, so the card's pickers aren't buttons inside a button.
             Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(Theme[shapes][smallShape]).clickable(onClickLabel = "Open task", role = Role.Button) { actions.onOpenTask(task.id) },
                 verticalAlignment = Alignment.CenterVertically) {
@@ -140,7 +140,7 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                     // Done work stays readable: muted rather than struck through.
                     Text(task.title, fontWeight = FontWeight.Normal, maxLines = 3, overflow = TextOverflow.Ellipsis,
                         color = if (task.status == TaskStatus.Done) color(mutedColor) else Color.Unspecified)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                         Text(listOfNotNull(task.listName, task.due?.let { "due ${dueLabel(it)}" }).joinToString(" · "), Modifier.weight(1f, fill = false), style = TextStyles.secondary, color = color(mutedColor), singleLine = true)
                         if (task.status != TaskStatus.Done && task.due?.let(::overdue) == true) Pill("Overdue", tone = Tone.Danger)
                     }
@@ -151,7 +151,7 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                 Text(task.notes.trim(), color = color(mutedColor), style = TextStyles.secondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
             // One row: a long assignee shortens rather than pushing the run link onto a line of its own.
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space6), verticalAlignment = Alignment.CenterVertically) {
                 Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->
                     actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: ""))
                 }, icon = Lucide.User, modifier = Modifier.widthIn(max = 160.dp), style = if (task.assignee == null) ButtonStyle.Ghost else ButtonStyle.Outlined)
@@ -179,10 +179,10 @@ private fun NewTaskForm(ui: BoardUi, actions: BoardActions) {
     val lists = ui.state.board.lists
     var list by remember(lists) { mutableStateOf(lists.firstOrNull()) }
     var agent by remember { mutableStateOf<AgentInfo?>(null) }
-    Panel(Modifier.widthIn(max = 560.dp).fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(14.dp)) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+    Panel(Modifier.widthIn(max = 560.dp).fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(Spacing.space14)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
             FormField("Task", "Mention an agent with @id to assign it.") { Input(title, "Renew passport", capitalize = true) }
-            Row(horizontalArrangement = Arrangement.spacedBy(16.dp), verticalAlignment = Alignment.Top) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space16), verticalAlignment = Alignment.Top) {
                 FormField("List") { Picker(lists, list, { it?.name ?: "Default" }, { list = it }) }
                 FormField("Agent") { Picker(listOf<AgentInfo?>(null) + ui.agents, agent, { it?.name ?: "From the list" }, { agent = it }) }
                 Box(Modifier.weight(1f)) { FormField("Due") { Input(due, "2026-11-20") } }

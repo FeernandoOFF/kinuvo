@@ -13,7 +13,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
@@ -89,7 +88,7 @@ private fun RoutineDetail(r: Routine, p: Pane) {
             }
             DetailRow("Approvals") { Picker(RoutineApprovals.entries, r.approvals, { it.label() }, { actions.onApprovals(r.id, it) }, hint = { it.hint() }) }
             DetailRow("Last run") {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                     Text(r.lastRunAt?.let { relative(it, ui.now) } ?: "Never")
                     when {
                         r.lastStatus == RunStatus.Silent && r.heartbeat -> Pill("Skipped")
@@ -154,7 +153,7 @@ private fun RoutineForm(r: Routine?, p: Pane) {
             TextArea(prompt, "Summarize my unread email and list anything urgent.")
         }
         FormField("Schedule", kind.hint) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 Picker(ScheduleKind.entries, kind, { it.label }, { kind = it })
                 Box(Modifier.weight(1f)) { Input(schedule, kind.placeholder) }
             }

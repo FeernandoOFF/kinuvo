@@ -149,7 +149,7 @@ internal fun KnowledgeSettingsPane(p: Pane) {
                 NotesApp.BuiltIn -> "Kinuvo keeps them on the Server. Pick your own notes app to use the notes you already have."
                 NotesApp.Folder -> "A folder of Markdown files on the Server, e.g. in your Obsidian vault."
                 NotesApp.Anytype -> anytype
-            }, Modifier.padding(horizontal = 6.dp), color = color(mutedColor), style = TextStyles.secondary)
+            }, Modifier.padding(horizontal = Spacing.space6), color = color(mutedColor), style = TextStyles.secondary)
             if (notes == NotesApp.Anytype) RowGroup("Anytype") {
                 FieldRow("API URL") { Input(url, "http://127.0.0.1:31009") }
                 FieldRow("API key") {

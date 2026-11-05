@@ -99,14 +99,14 @@ private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions) {
     Column(Modifier.fillMaxSize()) {
         PageHeader(Lucide.BookOpen, "Knowledge", ui.server, scope = AgentScope(ui.agents, ui.state.agent, "All agents", actions.onFilter).takeIf { ui.agents.size > 1 },
             actions = listOf(PageAction(Lucide.Settings, "Knowledge settings", actions.onSettings)))
-        Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(horizontal = Spacing.space16).padding(top = Spacing.space8), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Input(query, "Search people, projects, places…", capitalize = true, leading = { Icon(Lucide.Search, Modifier.size(16.dp), tint = color(mutedColor)) },
                 trailing = if (query.text.isEmpty()) null else ({ FieldButton(Lucide.X, "Clear search", { query.clearText() }) }))
             ui.error?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         }
-        LazyColumn(Modifier.weight(1f).padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        LazyColumn(Modifier.weight(1f).padding(horizontal = Spacing.space16, vertical = Spacing.space8), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             if (ui.state.query.isNotBlank()) {
-                item { SectionLabel("Results", Modifier.padding(start = 6.dp)) }
+                item { SectionLabel("Results", Modifier.padding(start = Spacing.space6)) }
                 itemsIndexed(ui.state.results, key = { _, n -> "r/${n.ref}" }) { i, n ->
                     Box(Modifier.groupItem(i, ui.state.results.size)) {
                         GroupRow(n.title, { actions.onOpen(n.ref) }, n.type.replaceFirstChar { it.uppercase() }, n.type.icon(), selected = n.ref == ui.state.route.note)
@@ -116,8 +116,8 @@ private fun Overview(ui: KnowledgeUi, actions: KnowledgeActions) {
             }
             val changes = ui.state.shownChanges
             // While searching, an empty or loading history would only push the results' context away.
-            if (!changes.isNullOrEmpty() || ui.state.query.isBlank()) item { SectionLabel("Recent changes", Modifier.padding(start = 6.dp, top = 12.dp)) }
-            if (changes == null) { if (ui.state.query.isBlank()) item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Spinner() } } }
+            if (!changes.isNullOrEmpty() || ui.state.query.isBlank()) item { SectionLabel("Recent changes", Modifier.padding(start = Spacing.space6, top = Spacing.space12)) }
+            if (changes == null) { if (ui.state.query.isBlank()) item { Box(Modifier.fillMaxWidth().padding(Spacing.space12), contentAlignment = Alignment.Center) { Spinner() } } }
             else if (changes.isEmpty()) { if (ui.state.query.isBlank()) item { EmptyState(Lucide.Library, "No changes yet", if (ui.state.agent != null) "This Agent hasn't changed anything yet." else "Agents save what they learn as you talk.") } }
             else itemsIndexed(changes, key = { _, c -> "c/${c.id}" }) { i, c -> Box(Modifier.groupItem(i, changes.size)) { ChangeRow(c, ui, actions) } }
         }
@@ -143,12 +143,12 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
     }
     val links = WIKILINK.findAll(n.body).map { it.groupValues[1] to it.groupValues[2].ifEmpty { it.groupValues[1].substringAfterLast('/') } }.distinct().toList()
     DetailPane(back, n.title) {
-        Pill(n.type.replaceFirstChar { it.uppercase() }, Modifier.padding(start = 16.dp), icon = n.type.icon())
+        Pill(n.type.replaceFirstChar { it.uppercase() }, Modifier.padding(start = Spacing.space16), icon = n.type.icon())
         if (n.properties.isNotEmpty()) DetailGroup("Properties") {
             val uri = LocalUriHandler.current
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 n.properties.forEach { (k, v) ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
                         Text(k.replaceFirstChar { it.uppercase() }, Modifier.width(96.dp), style = TextStyles.secondary, color = color(mutedColor))
                         val link = v.takeIf { URL.matches(it) }
                         if (link != null) Text(v, Modifier.weight(1f).clickable(onClickLabel = "Open link", role = Role.Button) { uri.openUri(if (link.startsWith("http")) link else "https://$link") },
@@ -177,7 +177,7 @@ private fun NotePane(ui: KnowledgeUi, actions: KnowledgeActions, back: (() -> Un
 private val URL = Regex("""^(https?://)?[\w-]+(\.[\w-]+)*\.[a-z]{2,}(/\S*)?$""")
 
 @Composable
-private fun Muted(text: String) = Text(text, Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = color(mutedColor), style = TextStyles.secondary)
+private fun Muted(text: String) = Text(text, Modifier.padding(horizontal = Spacing.space10, vertical = Spacing.space6), color = color(mutedColor), style = TextStyles.secondary)
 
 private val WIKILINK = Regex("""\[\[([^\]|]+)(?:\|([^\]]*))?]]""")
 private const val NOTE_LINK = "kinuvo-note:"

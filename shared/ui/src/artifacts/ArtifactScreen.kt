@@ -91,18 +91,18 @@ private fun ArtifactList(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
     LaunchedEffect(query) { snapshotFlow { query.text.toString() }.collect { if (it != state.query) actions.onSearch(it) } }
     Column(Modifier.fillMaxSize()) {
         PageHeader(Lucide.Shapes, "Artifacts", scope = AgentScope(agents, state.agent, "All agents", actions.onFilter).takeIf { agents.size > 1 })
-        Column(Modifier.padding(horizontal = 12.dp).padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.padding(horizontal = Spacing.space12).padding(top = Spacing.space8), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Input(query, "Search by title…", capitalize = true)
             state.errors.lastOrNull()?.let { Pill(it, tone = Tone.Danger, icon = Lucide.CircleX) }
         }
         val all = state.all
-        LazyColumn(Modifier.weight(1f).padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(1.dp)) {
+        LazyColumn(Modifier.weight(1f).padding(horizontal = Spacing.space12, vertical = Spacing.space8), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             when {
-                all == null -> item { Box(Modifier.fillMaxWidth().padding(12.dp), contentAlignment = Alignment.Center) { Spinner() } }
+                all == null -> item { Box(Modifier.fillMaxWidth().padding(Spacing.space12), contentAlignment = Alignment.Center) { Spinner() } }
                 state.shown.isEmpty() -> item {
                     Text(
                         if (all.isEmpty()) "No artifacts yet. Ask an agent for a report, chart or page and it saves one here." else "No matches.",
-                        Modifier.padding(horizontal = 10.dp, vertical = 6.dp), color = color(mutedColor), style = TextStyles.secondary,
+                        Modifier.padding(horizontal = Spacing.space10, vertical = Spacing.space6), color = color(mutedColor), style = TextStyles.secondary,
                     )
                 }
                 else -> itemsIndexed(state.shown, key = { _, a -> a.id }) { i, a ->
@@ -122,7 +122,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
     Column(Modifier.fillMaxSize()) {
         TitleBarRow(leading = back != null || state.route.fullScreen) {
             back?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
-            Column(Modifier.weight(1f).padding(start = 4.dp)) {
+            Column(Modifier.weight(1f).padding(start = Spacing.space4)) {
                 Text(data?.info?.title ?: "Artifact", fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
                 data?.info?.let { Text("${it.type} · ${agents.name(it.agentId)} · ${relative(it.updated, now)}", style = TextStyles.caption, color = color(mutedColor), singleLine = true) }
             }
@@ -137,11 +137,11 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
                 data == null -> (if (state.missing) "This artifact was deleted." else state.errors.lastOrNull())
-                    ?.let { ErrorMessage(it, Modifier.align(Alignment.Center).padding(24.dp)) } ?: Spinner(Modifier.align(Alignment.Center))
+                    ?.let { ErrorMessage(it, Modifier.align(Alignment.Center).padding(Spacing.space24)) } ?: Spinner(Modifier.align(Alignment.Center))
                 data.info.type == "html" || data.info.type == "svg" -> key(data.info.updated) {
                     HtmlView(if (data.info.type == "svg") "<html><body style=\"margin:0\">${data.content}</body></html>" else data.content, Modifier.fillMaxSize())
                 }
-                else -> SelectionContainer(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp)) {
+                else -> SelectionContainer(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.space24)) {
                     if (data.info.type == "md") Markdown(data.content, Modifier.fillMaxWidth())
                     else CodeBlock(data.content, language = data.info.type)
                 }

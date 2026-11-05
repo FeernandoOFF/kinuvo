@@ -31,10 +31,10 @@ internal fun VoiceSettingsContent(
     onSelect: (VoiceModelKind, String?) -> Unit,
     onLanguage: (String) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(26.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space26)) {
         VoiceModelGroup("Dictation model", VoiceModelKind.Transcription, state, onDownload, onCancel, onRemove, onSelect)
         VoiceSection("Language") {
-            BoxWithConstraints(Modifier.padding(16.dp)) {
+            BoxWithConstraints(Modifier.padding(Spacing.space16)) {
                 val description: @Composable () -> Unit = {
                     Column(Modifier.widthIn(max = 390.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         VoiceText("Spoken language")
@@ -44,8 +44,8 @@ internal fun VoiceSettingsContent(
                 val picker: @Composable () -> Unit = {
                     VoiceLanguagePicker(state.language, onLanguage)
                 }
-                if (maxWidth < 420.dp) Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { description(); picker() }
-                else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                if (maxWidth < 420.dp) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space12)) { description(); picker() }
+                else Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space20)) {
                     Box(Modifier.weight(1f)) { description() }
                     picker()
                 }
@@ -70,7 +70,7 @@ private fun VoiceModelGroup(
             VoiceModelRow(model, state, selected == model.id, onDownload, onCancel, onRemove) { onSelect(kind, model.id) }
         }
         if (models.isNotEmpty()) VoiceDivider()
-        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(Modifier.fillMaxWidth().padding(Spacing.space16), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 VoiceText("Device speech")
                 VoiceText(if (kind == VoiceModelKind.Transcription) "Use each Device's speech recognition." else "Use each Device's built-in voice.", muted = true)
@@ -90,7 +90,7 @@ private fun VoiceModelRow(
     val installed = model.id in state.installed
     val available = state.downloading == null && state.removing == null
     val uri = LocalUriHandler.current
-    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(Modifier.fillMaxWidth().padding(Spacing.space16), verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
         BoxWithConstraints {
             val compact = maxWidth < 420.dp
             val details: @Composable () -> Unit = {
@@ -102,14 +102,14 @@ private fun VoiceModelRow(
                         "supertonic-3" -> "Reads replies aloud in 31 languages."
                         else -> model.languages
                     }, muted = true)
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
                         VoiceText("Download size: ${model.bytes / 1_000_000} MB", muted = true, size = 12)
                         VoiceText(model.license, Modifier.clickable(role = Role.Button, onClickLabel = "Open license") { uri.openUri(model.source) }, muted = true, size = 12)
                     }
                 }
             }
             val actions: @Composable () -> Unit = {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                     when {
                         downloading -> Button(onClick = onCancel, buttonSize = ButtonSize.Small, style = ButtonStyle.Outlined) { VoiceText("Cancel", size = 13) }
                         state.removing == model.id -> VoiceText("Removing…", muted = true, size = 12)
@@ -122,8 +122,8 @@ private fun VoiceModelRow(
                     }
                 }
             }
-            if (compact) Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { details(); actions() }
-            else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+            if (compact) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space12)) { details(); actions() }
+            else Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space20)) {
                 Box(Modifier.weight(1f)) { details() }
                 actions()
             }
@@ -143,12 +143,12 @@ private fun VoiceModelRow(
 private fun VoiceSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(9.dp)) {
         VoiceText(title, muted = true, size = 13)
-        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(color(panelColor)), content = content)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.menu)).background(color(panelColor)), content = content)
     }
 }
 
 @Composable
-private fun VoiceDivider() { Box(Modifier.padding(horizontal = 16.dp).fillMaxWidth().height(1.dp).background(color(borderColor).copy(alpha = 0.55f))) }
+private fun VoiceDivider() { Box(Modifier.padding(horizontal = Spacing.space16).fillMaxWidth().height(1.dp).background(color(borderColor).copy(alpha = 0.55f))) }
 
 @Composable
 internal fun VoiceText(text: String, modifier: Modifier = Modifier, muted: Boolean = false, size: Int = 14) {
@@ -168,7 +168,7 @@ private fun VoiceLanguagePicker(language: String, onSelect: (String) -> Unit) {
     }) {
         Button(onClick = { open = true }, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) {
             VoiceText(voiceLanguages[language] ?: language, size = 13)
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(Spacing.space12))
             VoiceText("⌄", muted = true, size = 13)
         }
     }

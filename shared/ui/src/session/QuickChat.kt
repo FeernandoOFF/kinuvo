@@ -74,8 +74,8 @@ internal fun QuickChatBar(agent: AgentInfo?, draft: TextFieldState, modifier: Mo
         modifier.fillMaxWidth().height(QuickChatBarHeight),
         contentKey = { it?.id },
         transitionSpec = {
-            ((slideInVertically(tween(240)) { -it / 3 } + fadeIn(tween(240))) togetherWith
-                (slideOutVertically(tween(160)) { it / 3 } + fadeOut(tween(160))))
+            ((slideInVertically(tween(Motion.transition)) { -it / 3 } + fadeIn(tween(Motion.transition))) togetherWith
+                (slideOutVertically(tween(Motion.exit)) { it / 3 } + fadeOut(tween(Motion.exit))))
                 .using(SizeTransform(clip = false))
         },
         label = "Quick chat agent",
@@ -85,15 +85,15 @@ internal fun QuickChatBar(agent: AgentInfo?, draft: TextFieldState, modifier: Mo
 @Composable
 private fun QuickChatBarContent(agent: AgentInfo?, draft: TextFieldState, onOpen: () -> Unit) {
     val avatar = 60.dp
-    val card = RoundedCornerShape(20.dp)
-    Box(Modifier.fillMaxWidth().height(QuickChatBarHeight).padding(start = (RailWidth - avatar) / 2, end = 12.dp, bottom = 10.dp), contentAlignment = Alignment.CenterStart) {
+    val card = RoundedCornerShape(Radius.sheet)
+    Box(Modifier.fillMaxWidth().height(QuickChatBarHeight).padding(start = (RailWidth - avatar) / 2, end = Spacing.space12, bottom = Spacing.space10), contentAlignment = Alignment.CenterStart) {
         Row(
             // Styled like the input it opens: QuickChat's accent-bordered field.
             Modifier.padding(start = avatar / 2).fillMaxWidth().height(avatar - 8.dp).shadow(12.dp, card).clip(card).background(color(fieldColor))
                 .border(1.dp, color(accentColor).copy(alpha = 0.3f), card).clickable(enabled = agent != null, role = Role.Button, onClick = onOpen)
-                .padding(start = avatar / 2 + 12.dp, end = 8.dp),
+                .padding(start = avatar / 2 + Spacing.space12, end = Spacing.space8),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.space8),
         ) {
             Column(Modifier.weight(1f)) {
                 Text(agent?.name ?: "…", style = TextStyles.caption, lineHeight = 16.sp, fontWeight = FontWeight.Bold, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
@@ -151,16 +151,16 @@ internal fun QuickChat(
     Box(Modifier.fillMaxSize()) {
         Box(Modifier.fillMaxSize().background(color(backgroundColor).copy(alpha = 0.6f))
             .clickable(remember { MutableInteractionSource() }, indication = null, onClick = onDismiss))
-        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing).padding(Spacing.space12), verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 agents.forEach { a ->
                     val selected = a.id == agent?.id
                     Row(
                         Modifier.clip(PillShape).background(if (selected) color(selectedControlColor) else color(panelColor))
                             .border(1.dp, if (selected) color(accentColor) else color(borderColor), PillShape)
-                            .clickable(role = Role.Button) { onSelectAgent(a.id) }.padding(start = 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
+                            .clickable(role = Role.Button) { onSelectAgent(a.id) }.padding(start = Spacing.space4, end = Spacing.space12, top = Spacing.space4, bottom = Spacing.space4),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.space6),
                     ) {
                         AgentAvatar(a, 28.dp)
                         Text(a.name, style = TextStyles.label, singleLine = true)
@@ -168,9 +168,9 @@ internal fun QuickChat(
                 }
             }
             Row(
-                Modifier.fillMaxWidth().clip(PillShape).background(color(panelColor)).border(1.dp, color(accentColor), PillShape).padding(6.dp),
+                Modifier.fillMaxWidth().clip(PillShape).background(color(panelColor)).border(1.dp, color(accentColor), PillShape).padding(Spacing.space6),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.space10),
             ) {
                 AgentAvatar(agent, 36.dp, state = if (sending) AvatarState.Working else AvatarState.Idle)
                 BasicTextField(

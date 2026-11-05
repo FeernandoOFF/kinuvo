@@ -24,7 +24,7 @@ fun findCompletion(text: String, selection: TextRange, sources: List<CompletionS
 
 @Composable
 internal fun CompletionList(query: CompletionQuery, highlighted: Int, onPick: (Completion) -> Unit, modifier: Modifier = Modifier) {
-    Panel(modifier.widthIn(max = 420.dp), shape = Theme[shapes][mediumShape], contentPadding = PaddingValues(4.dp)) {
+    Panel(modifier.widthIn(max = 420.dp), shape = Theme[shapes][mediumShape], contentPadding = PaddingValues(Spacing.space4)) {
         query.matches.take(MaxShown).forEachIndexed { i, item ->
             Row(
                 Modifier
@@ -33,9 +33,9 @@ internal fun CompletionList(query: CompletionQuery, highlighted: Int, onPick: (C
                     .background(if (i == highlighted) color(subtleColor) else color(panelColor))
                     .focusProperties { canFocus = false }
                     .clickable(role = Role.Button) { onPick(item) }
-                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                    .padding(horizontal = Spacing.space8, vertical = Spacing.space6),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.space10),
             ) {
                 Text("${query.source.trigger}${item.value}", style = TextStyles.secondary, fontWeight = FontWeight.Normal, singleLine = true)
                 if (item.description.isNotBlank()) {

@@ -41,12 +41,12 @@ class AgentScope(val agents: List<AgentInfo>, val agentId: String?, val everyone
 fun PageHeader(icon: ImageVector, title: String, subtitle: String? = null, scope: AgentScope? = null, actions: List<PageAction> = emptyList()) {
     val chrome = LocalHomeChrome.current
     val phone = chrome?.wide != true && LocalInteractionMode.current == InteractionMode.Touch
-    if (phone) Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    if (phone) Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.space12, vertical = Spacing.space6), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         chrome?.let { FloatingBubble(Lucide.Menu, "Home and agents", it.onToggleShell) }
         if (scope != null) AgentMenu(scope, Modifier.weight(1f)) { open ->
             Row { FloatingPill(open, "$title, ${scope.label}, change Agent", fill = true, leading = { ScopeAvatar(scope, 26.dp) }) {
                 Text(title, style = TextStyles.label, fontWeight = FontWeight.Medium, singleLine = true)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space2)) {
                     Text(scope.label, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                     Icon(Lucide.ChevronDown, Modifier.size(12.dp), tint = color(mutedColor))
                 }
@@ -60,15 +60,15 @@ fun PageHeader(icon: ImageVector, title: String, subtitle: String? = null, scope
     } else {
         TitleBarRow {
             chrome?.let { if (it.wide) HeaderButton(Lucide.PanelLeft, "Toggle sidebar ${shortcut(".")}", it.onToggleShell) else HeaderButton(Lucide.Menu, "Home and agents", it.onToggleShell) }
-            Text(title, Modifier.padding(start = 6.dp), fontWeight = FontWeight.Normal, singleLine = true)
-            subtitle?.let { Text(it, Modifier.weight(1f, fill = false).padding(start = 8.dp), color = color(mutedColor), style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis) }
+            Text(title, Modifier.padding(start = Spacing.space6), fontWeight = FontWeight.Normal, singleLine = true)
+            subtitle?.let { Text(it, Modifier.weight(1f, fill = false).padding(start = Spacing.space8), color = color(mutedColor), style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis) }
             scope?.let { s ->
-                AgentMenu(s, Modifier.padding(start = 6.dp)) { open ->
-                    Button(onClick = open, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = 6.dp), modifier = Modifier.titleBarControl()) {
+                AgentMenu(s, Modifier.padding(start = Spacing.space6)) { open ->
+                    Button(onClick = open, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = Spacing.space6), modifier = Modifier.titleBarControl()) {
                         ScopeAvatar(s, 18.dp)
-                        Spacer(Modifier.width(6.dp))
+                        Spacer(Modifier.width(Spacing.space6))
                         Text(s.label, singleLine = true)
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(Spacing.space4))
                         Icon(Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
                     }
                 }
@@ -92,7 +92,7 @@ private fun AgentMenu(scope: AgentScope, modifier: Modifier, anchor: @Composable
                 DropdownMenuPanel {
                     scope.everyone?.let { all ->
                         DropdownMenuItem(onClick = { open = false; scope.onSelect(null) }, trailing = if (scope.agentId == null) ({ Icon(Lucide.Check, Modifier.size(14.dp)) }) else null) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                                 Icon(Lucide.Users, Modifier.size(20.dp), tint = color(mutedColor))
                                 Text(all, singleLine = true)
                             }
@@ -103,7 +103,7 @@ private fun AgentMenu(scope: AgentScope, modifier: Modifier, anchor: @Composable
                             onClick = { open = false; scope.onSelect(agent.id) },
                             trailing = if (agent.id == scope.agentId) ({ Icon(Lucide.Check, Modifier.size(14.dp)) }) else null,
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                                 AgentAvatar(agent, 20.dp)
                                 Text(agent.name, singleLine = true)
                             }
