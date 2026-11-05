@@ -5,8 +5,9 @@ import kinuvo.harness.core.plugin.Notification
 
 /** Pushes Notifications to every paired Device that subscribed, through its Web Push endpoint. */
 interface DevicePush : AutoCloseable {
-    suspend fun send(notification: Notification)
+    /** Returns how many Devices took it. */
+    suspend fun send(notification: Notification): Int
 }
 
-/** Null where this Server can't encrypt Web Push messages. */
-internal expect fun devicePush(peers: PeerRegistry): DevicePush?
+/** Null where this Server can't encrypt Web Push messages; pushes say they're from [serverId]. */
+internal expect fun devicePush(peers: PeerRegistry, serverId: String): DevicePush?

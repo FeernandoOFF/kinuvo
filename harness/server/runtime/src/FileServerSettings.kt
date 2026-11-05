@@ -224,6 +224,8 @@ internal class FileServerSettings(
     /** The saved notifier, or null when none is set up. */
     override fun notifier(): Notifier? = configured(ServiceKind.Notifications) as Notifier?
 
+    override val pushNotifications get() = files.serviceConfig(ServiceKind.Notifications).push
+
     private fun configured(kind: ServiceKind): Any? {
         val c = files.serviceConfig(kind)
         return c.provider?.let { runCatching { configure(kind, it, c.options) }.getOrNull() }
@@ -259,11 +261,11 @@ internal class FileServerSettings(
         val provider = s.provider?.ifBlank { null }
         if (provider == null) {
             require(s.options.isEmpty() && updates.isEmpty()) { "Pick a provider before configuring settings" }
-            return ServiceSettings()
+            return ServiceSettings(push = s.push)
         }
         val definition = serviceProviders(kind).firstOrNull { it.id == provider } ?: error("No provider '$provider'; available: ${providerIds(kind).joinToString()}")
         val old = files.serviceConfig(kind).takeIf { it.provider == provider }?.options.orEmpty()
-        return ServiceSettings(provider, definition.merged(old, s.options, updates))
+        return ServiceSettings(provider, definition.merged(old, s.options, updates), s.push)
     }
 
     private fun <T : ConfigurableProvider> List<T>.uniqueProviders(): Map<String, T> = associateBy { it.id }.also {

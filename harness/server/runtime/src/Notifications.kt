@@ -8,7 +8,10 @@ import kinuvo.protocol.ExecutionPrompt
 import kinuvo.protocol.RoutineRan
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.RunStatus
+import kinuvo.protocol.ServiceKind
+import kinuvo.protocol.ServiceTestResult
 import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.TestServiceParams
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -72,10 +75,22 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         quietly(Notification("MCP server '$server' needs sign-in", "Sign in from Settings → MCP servers or run `kinuvo mcp login $server`.", agentId))
     }
 
-    /** Sends through the saved notifier, if any, and to subscribed Devices; failures are only logged, since a run doesn't care. */
+    /** Sends through the saved notifier, if any, and to subscribed Devices when pushes are on; failures are only logged, since a run doesn't care. */
     private suspend fun quietly(notification: Notification) {
         harness.notifier()?.let { notifier -> attempt { notifier.send(notification) } }
-        devices?.let { attempt { it.send(notification) } }
+        devices?.takeIf { harness.pushNotifications }?.let { attempt { it.send(notification) } }
+    }
+
+    /** Tries [p]'s settings (the saved ones when null): pushes to subscribed Devices when they're on, and sends through the provider when there is one. */
+    suspend fun test(p: TestServiceParams): ServiceTestResult {
+        val settings = p.settings ?: harness.serviceSetup(ServiceKind.Notifications).settings
+        val push = devices?.takeIf { settings.push } ?: return harness.testService(p)
+        val pushed = try { push.send(Notification("Kinuvo", p.input?.ifBlank { null } ?: "Notifications from Kinuvo work.")) }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { return ServiceTestResult(error = harness.secrets.redact(e.message ?: "Couldn't push")) }
+        val devices = "$pushed Device" + if (pushed == 1) "" else "s"
+        if (settings.provider == null) return if (pushed > 0) ServiceTestResult("Pushed to $devices") else ServiceTestResult(error = "No paired Device receives pushes yet")
+        return harness.testService(p).let { if (it.error == null && pushed > 0) it.copy(summary = "${it.summary}, and pushed to $devices") else it }
     }
 
     private suspend fun attempt(send: suspend () -> Unit) {

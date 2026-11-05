@@ -27,22 +27,22 @@ class DevicePushTest {
         auth.setPush(pair("phone"), subscription("https://relay.test/v1/fcm/a"))
         pair("laptop")
         val sent = mutableListOf<Pair<String, ByteArray>>()
-        val push = WebPushDevices(auth, HttpClient(MockEngine { request ->
+        val push = WebPushDevices(auth, "server-1", HttpClient(MockEngine { request ->
             sent += request.url.toString() to (request.body as OutgoingContent.ByteArrayContent).bytes()
             assertEquals("aes128gcm", request.headers["Content-Encoding"])
             assertEquals("high", request.headers["Urgency"])
             respond("", HttpStatusCode.Created)
         }))
-        push.send(Notification("Kinuvo needs an Approval", "shell: rm -rf build", "agent", "session", urgent = true))
+        assertEquals(1, push.send(Notification("Kinuvo needs an Approval", "shell: rm -rf build", "agent", "session", urgent = true)))
         val (url, body) = sent.single()
         assertEquals("https://relay.test/v1/fcm/a", url)
         val message = ProtocolJson.decodeFromString(PushMessage.serializer(), WebPush.decrypt(body, keys, secret).decodeToString())
-        assertEquals(PushMessage("Kinuvo needs an Approval", "shell: rm -rf build", "agent", "session", true), message)
+        assertEquals(PushMessage("Kinuvo needs an Approval", "shell: rm -rf build", "agent", "session", true, "server-1"), message)
     }
 
     @Test fun `a gone endpoint is forgotten`() = runTest {
         auth.setPush(pair("phone"), subscription("https://relay.test/v1/apns/production/b"))
-        WebPushDevices(auth, HttpClient(MockEngine { respond("", HttpStatusCode.Gone) })).send(Notification("t", "b"))
+        assertEquals(0, WebPushDevices(auth, "server-1", HttpClient(MockEngine { respond("", HttpStatusCode.Gone) })).send(Notification("t", "b")))
         assertEquals(emptyList(), auth.pushSubscriptions())
     }
 
@@ -52,6 +52,7 @@ class DevicePushTest {
         auth.setPush(phone, subscription("https://relay.test/x"))
         auth.setPush(pair("reinstalled"), subscription("https://relay.test/x"))
         assertEquals(listOf("reinstalled"), auth.devices().filter { it.push != null }.map { it.name })
+        assertEquals(listOf(false, true), auth.paired(phone).map { it.push })
         auth.setPush(phone, null)
         assertEquals(1, auth.pushSubscriptions().size)
     }

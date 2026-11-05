@@ -120,8 +120,12 @@ class Servers(
             all.filter { same(it) && it.url != saved.url }.forEach { credentials.delete(it.url) }
             saved
         }
-        Server.Embedded -> server
+        Server.Embedded -> server.also { serverId?.let { prefs[EMBEDDED_ID] = it } }
     }
+
+    /** The saved Server with [serverId], including this Device's own; null when it isn't one of them. */
+    fun find(serverId: String): Server? = runCatching { remotes() }.getOrDefault(emptyList()).firstOrNull { it.serverId == serverId }
+        ?: Server.Embedded.takeIf { embedded != null && prefs[EMBEDDED_ID] == serverId }
 
     /** Sets [server]'s alias; blank clears it. */
     fun rename(server: Server.Remote, name: String): Server.Remote {
@@ -182,6 +186,7 @@ class Servers(
         const val SERVERS = "servers"
         const val VIEW = "view"
         const val EMBEDDED = "embedded"
+        const val EMBEDDED_ID = "embedded.serverId"
         const val PAIRING_BASE = "pairingBase."
     }
 }

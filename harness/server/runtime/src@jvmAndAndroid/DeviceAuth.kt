@@ -84,7 +84,7 @@ class DeviceAuth(private val file: File, private val now: () -> Instant = { Cloc
     override fun paired(token: String): List<PairedDeviceInfo> {
         val current = device(token)?.id
         return devices().map { PairedDeviceInfo(it.id, it.name, it.pairedAt, it.lastSeen, current = it.id == current,
-            tools = it.tools, management = it.management, expiresAt = it.expiresAt) }
+            tools = it.tools, management = it.management, expiresAt = it.expiresAt, push = it.push != null) }
     }
 
     @Synchronized

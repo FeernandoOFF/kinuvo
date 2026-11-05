@@ -82,6 +82,7 @@ class AppViewModel(
     private val owner: ConnectedServer,
     private val deviceAccess: DeviceAccess,
     private val cache: ClientCache = ClientCache.None,
+    private val notificationPermission: NotificationPermission = NotificationPermission.None,
 ) : ViewModel() {
     private val repo get() = owner.sessions
     private val routines get() = owner.routines
@@ -124,6 +125,16 @@ class AppViewModel(
         viewModelScope.launch { pendingPairLink.collect { link ->
             if (link != null) { pendingPairLink.value = null; openPairLink(link) }
         } }
+        viewModelScope.launch { pendingServerLink.collect { link ->
+            if (link != null) { pendingServerLink.value = null; openChat(link) }
+        } }
+    }
+
+    /** Opens [link]'s Session, first switching to the saved Server it names when another one is selected. */
+    fun openChat(link: ChatLink) {
+        val server = link.serverId?.let(servers::find)
+        if (server != null && server.key != currentServer?.key) use(server)
+        pendingLink.value = Route.Chat(link.agentId, link.sessionId)
     }
 
     fun pair(url: String, code: String, name: String = "") {
@@ -285,6 +296,7 @@ class AppViewModel(
     fun showView(route: Route) {
         selecting?.cancel()
         selection++
+        if (route is Route.Chat && !state.value.onboarding) notificationPermission.request()
         if (route is Route.Chat) route.agentId?.let { id ->
             servers.lastView = LastView(id, route.sessionId)
             views[id] = route
