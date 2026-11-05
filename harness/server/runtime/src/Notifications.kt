@@ -3,6 +3,7 @@ package kinuvo.harness.server
 import io.github.oshai.kotlinlogging.KotlinLogging
 import co.touchlab.stately.collections.ConcurrentMutableSet
 import kinuvo.harness.core.plugin.Notification
+import kinuvo.protocol.PushKind
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ExecutionPrompt
 import kinuvo.protocol.RoutineRan
@@ -42,12 +43,12 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
             if (harness.log.watched(sessionId)) return@launch
             val notification = when (event) {
                 is AgentEvent.ApprovalRequested -> approvalText(name, event).let { (title, body) ->
-                    Notification(title, body.clip(), agentId, sessionId, urgent = true)
+                    Notification(title, body.clip(), agentId, sessionId, urgent = true, kind = PushKind.Approval, approvalId = event.approvalId)
                 }
                 is AgentEvent.QuestionsAsked ->
                     Notification("${name} has questions", (event.title ?: event.questions.joinToString(" · ") { it.label }).clip(), agentId, sessionId, urgent = true)
                 // Routine runs are told by [routineRan], when they have something to report.
-                is AgentEvent.RunFinished -> if (routine != null) null else Notification(name, plainText(lastReply(agentId, sessionId).orEmpty()).clip(), agentId, sessionId)
+                is AgentEvent.RunFinished -> if (routine != null) null else Notification(name, plainText(lastReply(agentId, sessionId).orEmpty()).clip(), agentId, sessionId, kind = PushKind.Reply)
                 is AgentEvent.RunError -> if (routine != null) null else Notification("${name} hit an error", event.message.clip(), agentId, sessionId)
                 is AgentEvent.ExecutionRequested -> Notification("$name needs a response", when(val prompt = event.request.prompt) {
                     is ExecutionPrompt.Approval -> prompt.title
@@ -66,7 +67,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
             val agent = harness.store.agents().firstOrNull { it.id == ran.agentId } ?: return@launch
             if (ran.sessionId?.let { harness.log.watched(it) } == true) return@launch
             val body = if (ran.status == RunStatus.Error) "Failed: ${ran.error}" else plainText(ran.summary.orEmpty())
-            quietly(Notification(ran.routine.name, body.clip(), agent.id, ran.sessionId))
+            quietly(Notification(ran.routine.name, body.clip(), agent.id, ran.sessionId, kind = if (ran.sessionId != null) PushKind.Reply else PushKind.Other))
         }
     }
 

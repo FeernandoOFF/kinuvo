@@ -3,6 +3,10 @@ package kinuvo.ui
 import kinuvo.app.connection.*
 
 import kinuvo.protocol.PushSubscription
+import kinuvo.protocol.PushMessage
+import kinuvo.protocol.PushKind
+import kotlinx.coroutines.*
+import org.koin.mp.KoinPlatform
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -32,5 +36,25 @@ internal class ApnsPushChannel(private val enabled: Boolean) : PushChannel, Noti
         if (!enabled || asked) return
         asked = true
         nativePush?.requestPermission()
+    }
+}
+
+
+fun notificationAction(serverId: String?, agentId: String?, sessionId: String?, approvalId: String?, action: String, text: String?, completion: (String?) -> Unit) {
+    if (KoinPlatform.getKoinOrNull() == null) startKinuvo()
+    val koin = KoinPlatform.getKoin()
+    val actions = koin.get<NotificationActions>()
+    CoroutineScope(Dispatchers.Main).launch {
+        try {
+            val selected = when (action) {
+                "reply" -> NotificationAction.Reply(text.orEmpty())
+                "allow" -> NotificationAction.Allow
+                "deny" -> NotificationAction.Deny
+                else -> return@launch completion(null)
+            }
+            val push = PushMessage("", "", agentId, sessionId, serverId = serverId,
+                kind = if (action == "reply") PushKind.Reply else PushKind.Approval, approvalId = approvalId)
+            completion(if (koin.getOrNull<MobileTestMode>()?.override == null && actions.perform(push, selected)) null else actions.failure(serverId))
+        } catch (_: Exception) { completion(actions.failure(serverId)) }
     }
 }

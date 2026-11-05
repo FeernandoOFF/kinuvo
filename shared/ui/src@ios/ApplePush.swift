@@ -11,6 +11,16 @@ final class ApplePush: NSObject, NativePush, UNUserNotificationCenterDelegate {
     private var update: ((PushSubscription?) -> Void)?
     private var token: String?
 
+    func registerCategories() {
+        let reply = UNTextInputNotificationAction(identifier: "reply", title: "Reply", options: [], textInputButtonTitle: "Send", textInputPlaceholder: "Message")
+        let allow = UNNotificationAction(identifier: "allow", title: "Allow", options: [.authenticationRequired])
+        let deny = UNNotificationAction(identifier: "deny", title: "Deny", options: [.authenticationRequired])
+        UNUserNotificationCenter.current().setNotificationCategories([
+            UNNotificationCategory(identifier: "kinuvo.reply", actions: [reply], intentIdentifiers: []),
+            UNNotificationCategory(identifier: "kinuvo.approval", actions: [allow, deny], intentIdentifiers: [])
+        ])
+    }
+
     func start(relay: String, update: @escaping (PushSubscription?) -> Void) {
         DispatchQueue.main.async {
             self.relay = relay
@@ -52,14 +62,31 @@ final class ApplePush: NSObject, NativePush, UNUserNotificationCenterDelegate {
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
-        if let link = response.notification.request.content.userInfo["link"] as? String { DeepLinksKt.openLink(url: link) }
-        completionHandler()
+        let info = response.notification.request.content.userInfo
+        if ["reply", "allow", "deny"].contains(response.actionIdentifier) {
+            Push_iosKt.notificationAction(serverId: info["serverId"] as? String, agentId: info["agentId"] as? String,
+                sessionId: info["sessionId"] as? String, approvalId: info["approvalId"] as? String,
+                action: response.actionIdentifier, text: (response as? UNTextInputNotificationResponse)?.userText) { failure in
+                if let failure {
+                    let content = UNMutableNotificationContent()
+                    content.title = "Kinuvo"
+                    content.body = failure
+                    content.userInfo = info
+                    center.add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
+                }
+                completionHandler()
+            }
+        } else {
+            if response.actionIdentifier == UNNotificationDefaultActionIdentifier, let link = info["link"] as? String { DeepLinksKt.openLink(url: link) }
+            completionHandler()
+        }
     }
 }
 
 /// Hands APNs device tokens to [ApplePush].
 final class PushAppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        ApplePush.shared.registerCategories()
         UNUserNotificationCenter.current().delegate = ApplePush.shared
         return true
     }

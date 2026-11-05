@@ -16,6 +16,23 @@ class PushNotificationsTest {
         override fun close() {}
     }
 
+    @Test fun actionKindsMatchTheEvent() = runTest {
+        val notifications = Notifications(fixture.runtime(), this, routineOf = { null }, devices = push)
+        val agent = fixture.agent.id
+        notifications.on(agent, "s1", AgentEvent.ApprovalRequested("approval", "tool", "shell", "{}"))
+        notifications.on(agent, "s1", AgentEvent.RunFinished("run"))
+        notifications.on(agent, "s1", AgentEvent.QuestionsAsked("q", "f", "Question", emptyList()))
+        advanceUntilIdle()
+        assertEquals(listOf(PushKind.Approval, PushKind.Reply, PushKind.Other), pushed.map { it.kind })
+        assertEquals("approval", pushed.first().approvalId)
+        val routine = RoutineRef("routine", "Morning")
+        notifications.routineRan(RoutineRan(agent, routine, RunStatus.Ok, "s1", summary = "Done"))
+        notifications.routineRan(RoutineRan(agent, routine, RunStatus.Ok, null, summary = "Done"))
+        notifications.routineRan(RoutineRan(agent, routine, RunStatus.Error, "s1", error = "Failed"))
+        advanceUntilIdle()
+        assertEquals(listOf(PushKind.Reply, PushKind.Other, PushKind.Reply), pushed.takeLast(3).map { it.kind })
+    }
+
     @Test fun pushesOnlyWhileTurnedOn() = runTest {
         val notifications = Notifications(fixture.runtime(), this, routineOf = { null }, devices = push)
         notifications.on(fixture.agent.id, "s1", AgentEvent.QuestionsAsked("q1", "f1", "Which flight?", emptyList()))

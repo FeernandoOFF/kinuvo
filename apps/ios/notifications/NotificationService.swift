@@ -11,6 +11,15 @@ final class NotificationService: UNNotificationServiceExtension {
               let plain = try? PushKeys.saved()?.open(record),
               let push = try? JSONDecoder().decode(PushMessage.self, from: plain),
               let content = request.content.mutableCopy() as? UNMutableNotificationContent else { return nil }
+        content.userInfo = [:]
+        content.categoryIdentifier = ""
+        for (key, value) in ["serverId": push.serverId, "agentId": push.agentId, "sessionId": push.sessionId, "approvalId": push.approvalId] {
+            if let value { content.userInfo[key] = value }
+        }
+        if push.serverId != nil {
+            if push.kind == "Reply", push.agentId != nil, push.sessionId != nil { content.categoryIdentifier = "kinuvo.reply" }
+            if push.kind == "Approval", push.approvalId != nil { content.categoryIdentifier = "kinuvo.approval" }
+        }
         content.title = push.title
         content.body = push.body
         if let session = push.sessionId { content.threadIdentifier = session }
@@ -30,4 +39,6 @@ private struct PushMessage: Decodable {
     let sessionId: String?
     let urgent: Bool?
     let serverId: String?
+    let kind: String?
+    let approvalId: String?
 }

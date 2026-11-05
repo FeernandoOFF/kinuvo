@@ -12,4 +12,7 @@ data class PushParams(val subscription: PushSubscription? = null)
 
 /** What a pushed Notification decrypts to on the Device; [serverId] is the Server that sent it. */
 @Serializable
-data class PushMessage(val title: String, val body: String, val agentId: String? = null, val sessionId: String? = null, val urgent: Boolean = false, val serverId: String? = null)
+data class PushMessage(val title: String, val body: String, val agentId: String? = null, val sessionId: String? = null, val urgent: Boolean = false, val serverId: String? = null, val kind: PushKind = PushKind.Other, val approvalId: String? = null)
+
+@Serializable
+enum class PushKind { Other, Reply, Approval }

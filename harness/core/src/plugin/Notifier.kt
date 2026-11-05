@@ -1,5 +1,7 @@
 package kinuvo.harness.core.plugin
 
+import kinuvo.protocol.PushKind
+
 /** A way to reach the user when no client is watching, e.g. ntfy now, APNs later; set up in `config.yaml`. */
 interface NotificationProvider : ConfigurableProvider {
     /** The provider with [options], whose values may hold `${…}` references; fails when a required one is missing. */
@@ -17,4 +19,6 @@ data class Notification(
     val agentId: String? = null,
     val sessionId: String? = null,
     val urgent: Boolean = false,
+    val kind: PushKind = PushKind.Other,
+    val approvalId: String? = null,
 )
