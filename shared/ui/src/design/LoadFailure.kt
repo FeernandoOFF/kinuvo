@@ -36,11 +36,11 @@ private fun ContentUnavailable(
     action: String? = null,
     onAction: () -> Unit = {},
 ) {
-    Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 40.dp), contentAlignment = Alignment.TopCenter) {
+    Box(Modifier.fillMaxWidth().padding(horizontal = Spacing.space16, vertical = Spacing.space40), contentAlignment = Alignment.TopCenter) {
         Column(
             Modifier.widthIn(max = 400.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(Spacing.space16),
         ) {
             Icon(icon, Modifier.size(48.dp), tint = color(mutedColor))
             Text(title, style = TextStyles.headline, lineHeight = 26.sp, textAlign = TextAlign.Center)

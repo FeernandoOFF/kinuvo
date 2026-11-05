@@ -23,7 +23,7 @@ class WindowChrome(val height: Dp, val leadingInset: Dp, val trailingInset: Dp, 
     val trailingOnly by lazy { WindowChrome(height, 0.dp, trailingInset, controls) }
 
     fun padding(leading: Boolean = true, trailing: Boolean = true) =
-        PaddingValues(start = if (leading) leadingInset else 0.dp, end = if (trailing) trailingInset else 0.dp)
+        PaddingValues(start = if (leading) leadingInset else Spacing.none, end = if (trailing) trailingInset else Spacing.none)
 }
 
 val LocalWindowChrome = staticCompositionLocalOf<WindowChrome?> { null }

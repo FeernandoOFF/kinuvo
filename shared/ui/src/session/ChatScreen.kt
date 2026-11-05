@@ -14,8 +14,6 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeIn
@@ -343,8 +341,8 @@ fun ChatContent(
                 state.voice?.let { VoiceGlow(it, Modifier.align(Alignment.BottomCenter)) }
                 androidx.compose.animation.AnimatedVisibility(dropping, Modifier.matchParentSize(), enter = fadeIn(), exit = fadeOut()) { DropOverlay() }
                 if (floating) FloatingBar(state, usage, actions, toggle, onBack, Modifier.align(Alignment.TopCenter))
-                androidx.compose.animation.AnimatedVisibility(voice != null, Modifier.align(Alignment.TopCenter).padding(top = if (floating) FloatingBarHeight + 8.dp else 12.dp),
-                    enter = fadeIn() + slideInVertically(spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMediumLow)) { -it },
+                androidx.compose.animation.AnimatedVisibility(voice != null, Modifier.align(Alignment.TopCenter).padding(top = if (floating) FloatingBarHeight + Spacing.space8 else Spacing.space12),
+                    enter = fadeIn() + slideInVertically(Motion.slideSpring()) { -it },
                     exit = fadeOut() + slideOutVertically { -it }) {
                     shownVoice?.let { VoiceStatus(it) }
                 }
@@ -353,7 +351,7 @@ fun ChatContent(
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { composerHeight = with(density) { it.height.toDp() } }
                     // Phones: messages fade out just above the composer and never show around it.
                     .then(if (floating) Modifier.background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background), endY = fade)).padding(top = ComposerFade) else Modifier)
-                    .onFocusChanged { composerFocused = it.hasFocus }.padding(horizontal = 16.dp).padding(bottom = if (wide) 10.dp else 16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    .onFocusChanged { composerFocused = it.hasFocus }.padding(horizontal = Spacing.space16).padding(bottom = if (wide) Spacing.space10 else Spacing.space16), horizontalAlignment = Alignment.CenterHorizontally) {
                     LaunchedEffect(state.unsent) { state.unsent?.let { if (draft.annotatedString.text.isBlank()) draft.setMarkdown(it) } }
                     var dictated by remember { mutableStateOf<DictationDraft?>(null) }
                     LaunchedEffect(state.dictation) {
@@ -373,19 +371,19 @@ fun ChatContent(
                         state.defaults?.takeIf { !state.external }?.let { ComposerSettings(state.settings, it, state.models, actions.onConfigure, actions.onAttach, !state.running, actions.onRefreshModels, state.photos, state.files,
                             agent = state.agent?.name, onAgentDefaults = actions.onSettings.takeIf { state.agent != null }) }
                     }
-                    val attachments: @Composable () -> Unit = { if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val attachments: @Composable () -> Unit = { if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.space6), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                         state.attachments.forEach { a -> key(a.id) { AttachmentChip(a.attachment, a.upload.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onRemove = if (state.running) null else ({ actions.onRemoveAttachment(a.id) })) } }
                     } }
                     val requestNotice: (@Composable () -> Unit)? = if (connectionNotice != null || state.dictation?.error != null) ({
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
                             state.dictation?.error?.let { Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
                             connectionNotice?.let { (tone, text) -> Text(text, style = TextStyles.secondary, color = tone.color()) }
                         }
                     }) else null
                     AnimatedContent(voice != null, contentAlignment = Alignment.BottomCenter, transitionSpec = {
-                        (fadeIn(tween(220, delayMillis = 80)) + slideInVertically(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow)) { it / 3 } +
-                            scaleIn(spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow), initialScale = 0.94f))
-                            .togetherWith(fadeOut(tween(120)) + slideOutVertically(tween(160)) { it / 4 })
+                        (fadeIn(tween(Motion.reveal, delayMillis = Motion.revealDelay)) + slideInVertically(Motion.cardSpring()) { it / 3 } +
+                            scaleIn(Motion.cardSpring(), initialScale = 0.94f))
+                            .togetherWith(fadeOut(tween(Motion.fast)) + slideOutVertically(tween(Motion.exit)) { it / 4 })
                             .using(SizeTransform(clip = false))
                     }) { inVoice ->
                     if (inVoice) shownVoice?.let { shown ->
@@ -393,14 +391,14 @@ fun ChatContent(
                             VoiceControls(shown, actions.onPauseVoice, actions.onHoldVoice, actions.onSpeaker, actions.onEndVoice, Modifier.widthIn(max = ContentWidth), settings, attachments)
                         }
                     }
-                    else Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    else Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8), horizontalAlignment = Alignment.CenterHorizontally) {
                     RequestComposer(state, actions, requestInputs, Modifier.widthIn(max = ContentWidth), notice = requestNotice) {
                         val over = state.ended?.takeIf { it.resume == false && !state.resumeOnSend }
                         if (over != null) EndedComposer(over.blocked, actions.onNew, Modifier.widthIn(max = ContentWidth))
                         // A harness's questions take the composer's place, like the Agent's own requests.
                         else if (state.external && state.ended == null && state.prompts.isNotEmpty() && state.prompts.all { it is ExecutionPrompt.Questions })
-                            Column(Modifier.widthIn(max = ContentWidth).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(color(fieldColor))
-                                .border(1.dp, color(accentColor).copy(alpha = 0.55f), RoundedCornerShape(28.dp)).padding(horizontal = 18.dp, vertical = 14.dp)) {
+                            Column(Modifier.widthIn(max = ContentWidth).fillMaxWidth().clip(RoundedCornerShape(Radius.composer)).background(color(fieldColor))
+                                .border(1.dp, color(accentColor).copy(alpha = 0.55f), RoundedCornerShape(Radius.composer)).padding(horizontal = Spacing.space18, vertical = Spacing.space14)) {
                                 ExternalPrompts(state, actions)
                             }
                         else Composer(
@@ -451,9 +449,9 @@ fun ChatContent(
 
 @Composable
 private fun EndedComposer(message: String, onNew: () -> Unit, modifier: Modifier) {
-    Panel(modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(16.dp)) {
+    Panel(modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(Spacing.space16)) {
         Text(message, style = TextStyles.label, color = color(mutedColor))
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(Spacing.space12))
         Button(onNew, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Primary) { Text("New Session") }
     }
 }

@@ -30,8 +30,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private val DockShape = RoundedCornerShape(24.dp)
-private val StageShape = RoundedCornerShape(20.dp)
+private val DockShape = RoundedCornerShape(Radius.card)
+private val StageShape = RoundedCornerShape(Radius.sheet)
 
 /** Phone layout: a themed stage framed by who controls it, with a floating dock for keyboard, keys, pointer, clipboard and screens. */
 @Composable
@@ -76,12 +76,12 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
     }
     val sendKey = { key: String -> state.displayed?.takeIf { state.interactive }?.let { actions.input(it, listOf(ScreenAction(ScreenActionKind.Key, key = key))) } }
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
-        Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(Modifier.fillMaxWidth().heightIn(min = 64.dp).padding(horizontal = Spacing.space12, vertical = Spacing.space8),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
             back?.let { RoundButton(Lucide.ArrowLeft, "Back", it) }
             Column(Modifier.weight(1f)) {
                 Text(screen?.title?.ifBlank { null } ?: if (state.owner != null) "Browser" else "Computer", singleLine = true, overflow = TextOverflow.Ellipsis)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                     Box(Modifier.size(7.dp).clip(CircleShape).background(if (tone == Tone.Neutral) color(mutedColor) else tone.color()))
                     Text(status, style = TextStyles.caption, color = if (tone == Tone.Neutral) color(mutedColor) else tone.color(), singleLine = true)
                     // Which site a Browser tab is on, before anyone takes it over.
@@ -90,17 +90,17 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
             }
             if (state.ownsControl) Row(Modifier.clip(CircleShape).background(color(subtleColor))
                 .clickable(enabled = state.connected && !state.pending && !state.control.draining, onClickLabel = "Hand back to Agent", role = Role.Button) { actions.takeover(false, false) }
-                .heightIn(min = 44.dp).padding(horizontal = 14.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                .heightIn(min = 44.dp).padding(horizontal = Spacing.space14, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                 Icon(Lucide.Hand, Modifier.size(15.dp), tint = Tone.Success.color())
                 Text("Hand back", style = TextStyles.label)
             }
             ScreenOptions(state, trackpad, fitPhone, { recenter++ }, { fitPhone = !fitPhone }, { restartTo = it }, actions) { controls = true }
         }
         Banner(state)
-        pasteError?.let { Text(it, Modifier.padding(horizontal = 16.dp, vertical = 4.dp), color = Tone.Warning.color(), style = TextStyles.caption) }
+        pasteError?.let { Text(it, Modifier.padding(horizontal = Spacing.space16, vertical = Spacing.space4), color = Tone.Warning.color(), style = TextStyles.caption) }
         if (screen == null) EmptyStage(state, actions, Modifier.weight(1f).fillMaxWidth())
         else {
-            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 12.dp)) {
+            BoxWithConstraints(Modifier.weight(1f).fillMaxWidth().padding(horizontal = Spacing.space12)) {
                 val w = if (fitPhone) maxWidth.value.roundToInt() else 1280
                 val h = if (fitPhone) maxHeight.value.roundToInt() else 800
                 LaunchedEffect(screen.ref, state.control.generation, state.ownsControl, state.pending, w, h) {
@@ -116,13 +116,13 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
             if (state.ownsControl && "type" in screen.capabilities.inputs) key(state.selected, state.control.generation) {
                 RemoteKeyboard(state, actions, focus, keyboard, compact = true)
             }
-            Column(Modifier.fillMaxWidth().padding(12.dp).shadow(12.dp, DockShape).clip(DockShape).background(color(panelColor))
-                .border(1.dp, color(borderColor), DockShape).padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(Modifier.fillMaxWidth().padding(Spacing.space12).shadow(12.dp, DockShape).clip(DockShape).background(color(panelColor))
+                .border(1.dp, color(borderColor), DockShape).padding(Spacing.space8), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 val capabilities = screen.capabilities
                 val screensLabel = if (state.owner != null) "Tabs & address" else "Computers"
                 val screensIcon = if (state.owner != null) Lucide.PanelsTopLeft else Lucide.MonitorSmartphone
                 val screensCaption = if (state.owner != null) "Tabs" else "Screens"
-                if (!state.ownsControl) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (!state.ownsControl) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                     DockButton(screensIcon, screensLabel, { controls = true }, caption = screensCaption)
                     Button(onClick = { actions.takeover(true, state.control.holder != null) }, enabled = state.connected && !state.pending && !state.control.draining,
                         modifier = Modifier.weight(1f), style = ButtonStyle.Primary) {
@@ -167,7 +167,7 @@ internal fun MobileLiveViewContent(state: LiveViewState, actions: LiveActions, b
     }
     BrowserRestartDialog(restartTo, state, actions) { restartTo = null }
     BottomSheet(controls, { controls = false }, header = {
-        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.fillMaxWidth().padding(Spacing.space12), verticalAlignment = Alignment.CenterVertically) {
             Text(if (state.owner != null) "Browser" else "Computers", Modifier.weight(1f))
             RoundButton(Lucide.X, "Close screen controls", { controls = false })
         }
@@ -257,7 +257,7 @@ private fun DockButton(icon: ImageVector, label: String, onClick: () -> Unit, en
 
 @Composable
 private fun MobileMenuItem(icon: ImageVector, label: String) {
-    Row(Modifier.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(Modifier.padding(vertical = Spacing.space6), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
         Icon(icon, Modifier.size(18.dp))
         Text(label)
     }
@@ -279,10 +279,10 @@ internal fun MobileKeyTray(state: LiveViewState, actions: LiveActions) {
     LaunchedEffect(state.interactive) { if (!state.interactive) modifiers = emptySet() }
     val primary = listOf("Back", "Home", "Recents", "Notifications", "Quick_settings", "Escape", "ArrowLeft", "Left", "ArrowUp", "Up",
         "ArrowDown", "Down", "ArrowRight", "Right", "Tab", "Backspace", "Enter")
-    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         val keys = primary.filter { it in capabilities.keys } + if (modifiers.isNotEmpty()) capabilities.keys.filter { it.length == 1 } else emptyList()
         keys.chunked(5).forEach { row ->
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                 row.forEach { key ->
                     KeyCap(key, enabled = state.interactive, icon = if (android && key == "Home") Lucide.Circle else KeyIcons[key]) {
                         state.displayed?.takeIf { state.interactive }?.let { frame ->
@@ -295,19 +295,19 @@ internal fun MobileKeyTray(state: LiveViewState, actions: LiveActions) {
                 if (keys.size > 5) repeat(5 - row.size) { Spacer(Modifier.weight(1f)) }
             }
         }
-        if (capabilities.modifiers.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (capabilities.modifiers.isNotEmpty()) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             capabilities.modifiers.forEach { key ->
                 KeyCap(key, enabled = state.interactive, selected = key in modifiers, icon = KeyIcons[key]) { modifiers = if (key in modifiers) modifiers - key else modifiers + key }
             }
             repeat((5 - capabilities.modifiers.size).coerceAtLeast(0)) { Spacer(Modifier.weight(1f)) }
         }
-        if (modifiers.isNotEmpty()) Text("Choose a key to send ${modifiers.joinToString("+")}+…", Modifier.padding(horizontal = 4.dp), style = TextStyles.overline, color = color(mutedColor))
+        if (modifiers.isNotEmpty()) Text("Choose a key to send ${modifiers.joinToString("+")}+…", Modifier.padding(horizontal = Spacing.space4), style = TextStyles.overline, color = color(mutedColor))
     }
 }
 
 @Composable
 private fun RowScope.KeyCap(key: String, enabled: Boolean, selected: Boolean? = null, icon: ImageVector? = null, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(12.dp)
+    val shape = RoundedCornerShape(Radius.menu)
     val tint = when { !enabled -> color(mutedColor).copy(alpha = 0.5f); selected == true -> color(accentColor); else -> color(onPanelColor) }
     Box(Modifier.weight(1f).height(44.dp).clip(shape)
         .background(if (selected == true) color(accentColor).copy(alpha = 0.16f) else color(subtleColor))

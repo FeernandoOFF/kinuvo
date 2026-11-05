@@ -42,7 +42,7 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
     val apiKey = provider.apiKey
     val code = p.ui.state.deviceCode?.takeIf { it.first == provider.id }?.second
     val uri = LocalUriHandler.current
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         RowGroup(provider.name) {
             when {
                 apiKey != null -> GroupRow("API key", icon = Lucide.KeyRound,
@@ -67,7 +67,7 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
             apiKey?.let { key ->
                 val value = rememberTextFieldState()
                 GroupBox {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                         Box(Modifier.weight(1f)) {
                             SecretField(p, { value.edit { replace(0, length, it) } }) { trailing ->
                                 Input(value, if (key.configured) "New key or \${…} reference" else "API key or \${…} reference", secret = !isReference(value.value()), trailing = trailing)
@@ -86,13 +86,13 @@ private fun ProviderGroup(provider: ProviderInfo, p: Pane) {
                 else -> ActionRow("Sign in", Lucide.LogIn, { p.actions.onLoginProvider(provider.id) })
             }
         }
-        (provider.error ?: provider.downloads?.error)?.let { Text(it, Modifier.padding(horizontal = 16.dp), color = color(destructiveColor), style = TextStyles.caption) }
+        (provider.error ?: provider.downloads?.error)?.let { Text(it, Modifier.padding(horizontal = Spacing.space16), color = color(destructiveColor), style = TextStyles.caption) }
         if (provider.downloads != null) Text("Models run on the Server’s machine, without sending conversations anywhere. Downloads are large; use Wi‑Fi.",
-            Modifier.padding(horizontal = 16.dp), color = color(mutedColor), style = TextStyles.caption)
-        if (apiKey != null) Row(Modifier.padding(horizontal = 16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Modifier.padding(horizontal = Spacing.space16), color = color(mutedColor), style = TextStyles.caption)
+        if (apiKey != null) Row(Modifier.padding(horizontal = Spacing.space16), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Column(Modifier.weight(1f)) {
                 Text("Saved keys stay on the Server. Refresh models after changing a key.", color = color(mutedColor), style = TextStyles.caption)
-                Text("Refresh models", Modifier.clickable(role = Role.Button, onClick = p.actions.onRefreshModels).padding(vertical = 12.dp), color = color(accentColor), style = TextStyles.secondary)
+                Text("Refresh models", Modifier.clickable(role = Role.Button, onClick = p.actions.onRefreshModels).padding(vertical = Spacing.space12), color = color(accentColor), style = TextStyles.secondary)
             }
             if (p.ui.state.saved) Pill("Saved", tone = Tone.Success, icon = Lucide.CircleCheck)
         }
@@ -107,8 +107,8 @@ internal fun ModelDownloadRows(downloads: ProviderDownloads, onDownload: (String
         when {
             downloads.downloading == model.id -> GroupBox {
                 val progress = (downloads.downloaded.toFloat() / model.bytes.coerceAtLeast(1)).coerceIn(0f, 1f)
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.space2)) {
                         Text(model.name)
                         Text("Downloading… ${gigabytes(downloads.downloaded)} of $size", color = color(mutedColor), style = TextStyles.secondary)
                     }

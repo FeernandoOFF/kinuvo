@@ -110,13 +110,13 @@ internal fun RowScope.ComposerSettings(
     val approvalsButton: @Composable () -> Unit = { ControlButton(Lucide.Hand, "Ask before acting in this Session: $approvals") { approvalsOpen = true } }
     // Says whose settings these are, and leads to the Agent's defaults that every other Session follows.
     val scope: @Composable (close: () -> Unit) -> Unit = { close ->
-        Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 4.dp, top = 2.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(Modifier.fillMaxWidth().padding(start = Spacing.space8, end = Spacing.space4, top = Spacing.space2, bottom = Spacing.space6), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Text("This Session only", Modifier.weight(1f), style = TextStyles.caption, color = color(mutedColor), singleLine = true)
             onAgentDefaults?.let { open ->
                 Row(Modifier.heightIn(min = 36.dp).clip(CircleShape).border(1.dp, color(borderColor), CircleShape)
-                    .clickable(onClickLabel = "Edit ${agent ?: "the Agent"}'s defaults", role = Role.Button) { close(); open() }.padding(start = 10.dp, end = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    .clickable(onClickLabel = "Edit ${agent ?: "the Agent"}'s defaults", role = Role.Button) { close(); open() }.padding(start = Spacing.space10, end = Spacing.space6),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                     Icon(Lucide.Settings2, Modifier.size(14.dp), tint = color(mutedColor))
                     Text("${agent ?: "Agent"}'s defaults", Modifier.widthIn(max = 180.dp), style = TextStyles.caption, singleLine = true, overflow = TextOverflow.Ellipsis)
                     Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
@@ -128,13 +128,13 @@ internal fun RowScope.ComposerSettings(
     if (sheets) {
         attachButton()
         Popover(attachOpen, { attachOpen = false }, "Add to chat") {
-            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max), horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 sources.forEach { (source, label, icon) ->
                     val reason = if (accepts(source)) null else (if (source == AttachmentSource.Files) files else photos)?.reason
                     SourceTile(label, icon, accepts(source), Modifier.weight(1f).fillMaxHeight(), reason) { attach(source) }
                 }
             }
-            Text(ATTACHMENT_LIMITS, Modifier.fillMaxWidth().padding(top = 12.dp), style = TextStyles.caption, color = color(mutedColor), textAlign = TextAlign.Center)
+            Text(ATTACHMENT_LIMITS, Modifier.fillMaxWidth().padding(top = Spacing.space12), style = TextStyles.caption, color = color(mutedColor), textAlign = TextAlign.Center)
         }
         if (!nativeSettings) return
         approvalsButton()
@@ -190,11 +190,11 @@ internal fun RowScope.ComposerSettings(
     // Rows rather than menu items, so the same picker fits the desktop menu and the phone popover.
     // The menu measures its content's intrinsic width, which the effort track can't give, so it gets a fixed one.
     val modelPicker: @Composable (width: Modifier) -> Unit = { width ->
-        if (!listing) Column(width.padding(8.dp), verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        if (!listing) Column(width.padding(Spacing.space8), verticalArrangement = Arrangement.spacedBy(Spacing.space12), horizontalAlignment = Alignment.CenterHorizontally) {
             Box(Modifier.fillMaxWidth()) { scope(closeModel) }
-            Row(Modifier.clickable(role = Role.Button) { listing = true }.padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.clickable(role = Role.Button) { listing = true }.padding(Spacing.space4), verticalAlignment = Alignment.CenterVertically) {
                 Text(selected?.name ?: settings.model ?: defaults.model, Modifier.weight(1f, fill = false), singleLine = true, overflow = TextOverflow.Ellipsis)
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(Spacing.space6))
                 Text(effort.replaceFirstChar { it.uppercase() }, color = color(mutedColor), singleLine = true)
                 Icon(Lucide.ChevronRight, Modifier.size(16.dp), tint = color(mutedColor))
             }
@@ -215,13 +215,13 @@ internal fun RowScope.ComposerSettings(
                         if (provider == group.id && settings.model == model.id) Icon(Lucide.Check, Modifier.size(14.dp))
                     }
                 }
-                group.warning?.let { Text(it, Modifier.padding(8.dp), style = TextStyles.caption, color = color(mutedColor)) }
+                group.warning?.let { Text(it, Modifier.padding(Spacing.space8), style = TextStyles.caption, color = color(mutedColor)) }
             }
             if (settings.model != null && selected == null) SectionLabel("Current: ${settings.model}")
-            HorizontalSeparator(Modifier.padding(vertical = 6.dp))
+            HorizontalSeparator(Modifier.padding(vertical = Spacing.space6))
             ListRow(false, { onRefreshModels() }) { Text("Refresh models", Modifier.weight(1f)) }
             ListRow(false, { customOpen = !customOpen }) { Text("Custom model…", Modifier.weight(1f)) }
-            if (customOpen) Column(Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (customOpen) Column(Modifier.padding(Spacing.space8), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 Picker((models.providers.map { it.id } + provider).distinct(), customProvider,
                     { id -> models.providers.firstOrNull { it.id == id }?.name ?: id }, { customProvider = it })
                 TextField(custom, placeholder = { Text("Model ID") })
@@ -233,7 +233,7 @@ internal fun RowScope.ComposerSettings(
                         else settings.copy(provider = customProvider, model = id, reasoning = null))
                 }, enabled = custom.text.isNotBlank(), buttonSize = ButtonSize.Small) { Text("Use model") }
             }
-            models.warning?.let { Text(it, Modifier.padding(8.dp), style = TextStyles.caption, color = color(mutedColor)) }
+            models.warning?.let { Text(it, Modifier.padding(Spacing.space8), style = TextStyles.caption, color = color(mutedColor)) }
         }
     }
     val gauge: @Composable () -> Unit = {
@@ -257,8 +257,8 @@ private fun SourceTile(label: String, icon: ImageVector, enabled: Boolean, modif
     val shape = Theme[shapes][largeShape]
     Column(
         modifier.heightIn(min = 88.dp).clip(shape).background(color(borderColor).copy(alpha = 0.5f), shape).clickable(enabled = enabled, role = Role.Button, onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = Spacing.space8, vertical = Spacing.space18),
+        verticalArrangement = Arrangement.spacedBy(Spacing.space8),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Icon(icon, Modifier.size(22.dp).alpha(if (enabled) 1f else 0.4f))
@@ -306,7 +306,7 @@ private fun EffortTrack(levels: List<String>, current: Int, onPick: (Int) -> Uni
     val accent = color(accentColor)
     val onAccent = color(onAccentColor)
     val muted = color(mutedColor)
-    BoxWithConstraints(Modifier.fillMaxWidth().height(56.dp).background(color(borderColor).copy(alpha = 0.5f), CircleShape).padding(8.dp)) {
+    BoxWithConstraints(Modifier.fillMaxWidth().height(56.dp).background(color(borderColor).copy(alpha = 0.5f), CircleShape).padding(Spacing.space8)) {
         val slot = constraints.maxWidth.toFloat() / levels.size
         fun centerOf(i: Int) = slot * (i.coerceIn(levels.indices) + 0.5f)
         fun indexAt(x: Float) = (x / slot).toInt().coerceIn(levels.indices)

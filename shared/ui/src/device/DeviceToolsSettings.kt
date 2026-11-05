@@ -9,7 +9,6 @@ import kinuvo.ui.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.composables.ui.theme.mutedColor
 import com.composables.ui.components.*
@@ -46,7 +45,7 @@ internal fun DeviceToolsGroup(title: String? = null, note: String? = null, empty
     val authorize = rememberDeviceAuthorization(access.reader)
     DisposableEffect(access) { onDispose { access.cancelAuthorization() } }
     if (access.supported.isEmpty()) { empty?.let { Text(it) }; return }
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         RowGroup(title) {
             access.supported.forEach { kind ->
                 val about = when (kind) {
@@ -68,7 +67,7 @@ internal fun DeviceToolsGroup(title: String? = null, note: String? = null, empty
                 }
             }
         }
-        note?.let { Text(it, Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(mutedColor)) }
+        note?.let { Text(it, Modifier.padding(horizontal = Spacing.space6), style = TextStyles.caption, color = color(mutedColor)) }
         state.error?.let { ErrorMessage(it) }
     }
 }

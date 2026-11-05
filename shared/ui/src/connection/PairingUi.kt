@@ -56,14 +56,14 @@ internal fun PairingPanel(info: PairingInfo, selected: String?, onSelect: (Strin
     val share = rememberShare()
     val link = base?.let { if (browser) info.webLink(it) else info.appLink(it) }
     val live = remaining > 0
-    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) { Column(Modifier.widthIn(max = 380.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) { Column(Modifier.widthIn(max = 380.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space14), horizontalAlignment = Alignment.CenterHorizontally) {
         Segmented(listOf("Kinuvo app", "Browser"), if (browser) 1 else 0) { browser = it == 1 }
-        val shape = RoundedCornerShape(20.dp)
+        val shape = RoundedCornerShape(Radius.sheet)
         Box(Modifier.size(212.dp).clip(shape).background(if (live && link != null) Color.White else color(subtleColor), shape), contentAlignment = Alignment.Center) {
             when {
-                link == null -> Text("No address the other device can reach. Use this server's IP or VPN address.", Modifier.padding(20.dp), color = color(mutedColor), style = TextStyles.secondary, textAlign = TextAlign.Center)
-                live -> Image(rememberQrCodePainter(link), "Pairing QR code for ${base.substringAfter("://")}", Modifier.fillMaxSize().padding(18.dp))
-                else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                link == null -> Text("No address the other device can reach. Use this server's IP or VPN address.", Modifier.padding(Spacing.space20), color = color(mutedColor), style = TextStyles.secondary, textAlign = TextAlign.Center)
+                live -> Image(rememberQrCodePainter(link), "Pairing QR code for ${base.substringAfter("://")}", Modifier.fillMaxSize().padding(Spacing.space18))
+                else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
                     Icon(Lucide.TimerOff, Modifier.size(28.dp), tint = color(mutedColor))
                     Text("This code expired", color = color(mutedColor))
                     Button(onRefresh, style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text("Get a new code") }
@@ -73,12 +73,12 @@ internal fun PairingPanel(info: PairingInfo, selected: String?, onSelect: (Strin
         if (link != null && live) {
             Text(if (browser) "Scan with the other device's camera, or open the link in its browser." else "Scan with the other device's camera, or open the link there.",
                 color = color(mutedColor), style = TextStyles.secondary, lineHeight = 18.sp, textAlign = TextAlign.Center)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 share?.let { send -> Button({ send(link) }, Modifier.weight(1f), style = ButtonStyle.Primary) { ActionLabel(Lucide.Share, "Share link") } }
                 CopyAction("Copy link", link, Modifier.weight(1f))
             }
         }
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             if (base != null && info.bases.size > 1) Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Reachable at", Modifier.weight(1f), color = color(mutedColor), style = TextStyles.secondary)
                 Picker(info.bases, base, { it.substringAfter("://") }, onSelect)
@@ -111,7 +111,7 @@ private fun CopyAction(label: String, text: String, modifier: Modifier) {
 @Composable
 private fun ActionLabel(icon: ImageVector, label: String) {
     Icon(icon, Modifier.size(15.dp))
-    Spacer(Modifier.width(6.dp))
+    Spacer(Modifier.width(Spacing.space6))
     Text(label, singleLine = true)
 }
 
@@ -136,7 +136,7 @@ internal fun ConnectionSettingsPane(p: Pane) {
             RowGroup(shown.label) {
                 GroupBox {
                     Text("Name on this Device", color = color(mutedColor), style = TextStyles.secondary)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                         Box(Modifier.weight(1f)) { Input(name, shown.address) }
                         Button({ p.actions.onRenameServer(shown, name.text.toString()) }, enabled = name.text.toString() != shown.name.orEmpty(),
                             style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text("Save") }
@@ -167,7 +167,7 @@ internal fun ConnectionSettingsPane(p: Pane) {
                         detail = "It will be able to change Server configuration, pair other devices and answer Approvals.")
                 }
             }
-            Text("Revoking takes effect right away; the device needs a new code to connect again.", Modifier.padding(horizontal = 6.dp), style = TextStyles.caption, color = color(mutedColor))
+            Text("Revoking takes effect right away; the device needs a new code to connect again.", Modifier.padding(horizontal = Spacing.space6), style = TextStyles.caption, color = color(mutedColor))
         }
         RowGroup("Data on this device") {
             ConfirmRow("Clear cached data", Lucide.Eraser, "Clear cached data?", p.actions.onClearCache, "Clear", destructive = false,

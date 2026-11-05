@@ -1,7 +1,6 @@
 package kinuvo.ui.design
 
 import androidx.compose.animation.core.animate
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -75,7 +74,7 @@ fun Reveal(
         settling?.cancel()
         destination = if (target) widthPx else 0f
         settling = scope.launch {
-            animate(x, destination, velocity, animationSpec = spring(dampingRatio = 1f, stiffness = 400f)) { v, _ ->
+            animate(x, destination, velocity, animationSpec = Motion.revealSpring()) { v, _ ->
                 x = v.coerceIn(0f, widthPx)
             }
         }

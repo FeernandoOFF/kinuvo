@@ -32,7 +32,7 @@ val FloatingClearance = 72.dp
 fun Bubble(content: @Composable RowScope.() -> Unit) {
     val shape = PillShape
     Row(
-        Modifier.height(44.dp).clip(shape).background(color(panelColor), shape).border(1.dp, color(borderColor), shape).padding(horizontal = 2.dp),
+        Modifier.height(44.dp).clip(shape).background(color(panelColor), shape).border(1.dp, color(borderColor), shape).padding(horizontal = Spacing.space2),
         verticalAlignment = Alignment.CenterVertically,
         content = content,
     )
@@ -59,9 +59,9 @@ fun RowScope.FloatingPill(onClick: () -> Unit, label: String, modifier: Modifier
                 role = Role.Button
                 onClick { onClick(); true }
             }
-            .padding(start = 6.dp, end = 14.dp),
+            .padding(start = Spacing.space6, end = Spacing.space14),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space8),
     ) {
         Box(Modifier.size(32.dp), contentAlignment = Alignment.Center) { leading() }
         Column(verticalArrangement = Arrangement.Center, content = content)

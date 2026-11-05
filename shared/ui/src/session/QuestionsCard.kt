@@ -33,16 +33,16 @@ internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String,
         color = color(panelColor),
         borderColor = color(accentColor).copy(alpha = if (attached) 0f else 0.5f),
         shape = Theme[shapes][largeShape],
-        contentPadding = PaddingValues(if (attached) 0.dp else 14.dp),
+        contentPadding = PaddingValues(if (attached) Spacing.none else Spacing.space14),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space14)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 Icon(Lucide.MessageCircleQuestionMark, Modifier.size(18.dp), tint = color(accentColor))
                 Text(asked.title ?: "Questions for you", fontWeight = FontWeight.Normal)
             }
             asked.questions.forEach { q -> key(q.id) { QuestionField(q, answers[q.id].orEmpty()) { onEdit(asked.questionsId, q.id, it) } } }
             // Laid out like the Agent's own requests: the two answers side by side.
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 Button(onClick = { onAnswer(answers) }, modifier = Modifier.weight(1f), enabled = ready, style = ButtonStyle.Primary) { Text(if (asked.questions.isEmpty()) "Check again" else "Submit") }
                 Button(onClick = { onAnswer(null) }, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined) { Text(skip) }
             }
@@ -52,15 +52,15 @@ internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String,
 
 @Composable
 internal fun QuestionField(q: Question, value: List<String>, onChange: (List<String>) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         Text(if (q.required) "${q.label} *" else q.label, style = TextStyles.secondary, fontWeight = FontWeight.Normal)
         when (q.kind) {
             QuestionKind.Single, QuestionKind.YesNo -> RadioGroup(value.firstOrNull(), { onChange(listOf(it)) }) {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
                     (if (q.kind == QuestionKind.YesNo) listOf("Yes", "No") else q.options).forEach { Radio(it) { Text(it) } }
                 }
             }
-            QuestionKind.Multi -> Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            QuestionKind.Multi -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
                 q.options.forEach { option ->
                     Checkbox(option in value, { on -> onChange(if (on) value + option else value - option) }) { Text(option) }
                 }

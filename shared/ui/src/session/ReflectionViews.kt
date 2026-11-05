@@ -56,12 +56,12 @@ internal fun ReflectionView(item: ChatItem.Reflection, initiallyExpanded: Boolea
             else -> Icon(Lucide.CircleCheck, Modifier.size(14.dp), tint = color(successColor), contentDescription = "Done")
         }
     }) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
             if (result == null) Text("Reviewing this conversation for Knowledge, Memory, User Notes and Skills.", style = TextStyles.secondary)
             else {
                 Text("Saved: Knowledge $knowledge · Memory ${result.memory} · User Notes ${result.userNotes} · Skills $skills" + if (conventions > 0) " · Conventions $conventions" else "", style = TextStyles.secondary)
                 result.memoryChanges.forEach { change ->
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                         Text(if (change.target == "memory") "Memory update" else "User Notes update", style = TextStyles.secondary)
                         ReflectionDiff(remember(change) { lineDiff(change.before, change.after) })
                     }
@@ -80,7 +80,7 @@ private fun ReflectionProposalView(proposal: ReflectionProposal, approved: Boole
     val skill = proposal.tool == "skill_manage"
     val conventions = proposal.tool == "conventions"
     val title = proposal.args[if (skill) "name" else "title"]?.jsonPrimitive?.content ?: proposal.note?.title.orEmpty()
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
         val kind = when {
             conventions -> "Conventions update"
             !skill -> "Knowledge proposal"
@@ -101,7 +101,7 @@ private fun ReflectionProposalView(proposal: ReflectionProposal, approved: Boole
         }
         val before = proposal.note?.body
         if (before != null) Expandable(Lucide.FileText, "Current content") {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                 proposal.note?.let { note ->
                     Text("${note.title} · ${note.type}", style = TextStyles.secondary)
                     note.properties.forEach { (key, value) -> Text("$key: $value", style = TextStyles.secondary) }
@@ -110,7 +110,7 @@ private fun ReflectionProposalView(proposal: ReflectionProposal, approved: Boole
             }
         }
         Expandable(Lucide.FileText, if (skill) "New skill" else "Proposed change", if (skill) "${content.lines().size} lines" else null, initiallyExpanded = !skill) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                 if (skill) Markdown(content)
                 else proposal.args.forEach { (key, value) ->
                     val text = value.jsonPrimitive.content
@@ -136,11 +136,11 @@ private fun ReflectionProposalView(proposal: ReflectionProposal, approved: Boole
 
 @Composable
 private fun ReviewButtons(id: String, approved: Boolean?, revised: Boolean, onReview: (String, Boolean, String?) -> Unit) {
-    if (approved == null) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    if (approved == null) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         val note = rememberTextFieldState()
         Input(note, "Note for the agent (optional)", capitalize = true)
         Text("Approving with a note asks for a revision.", style = TextStyles.caption, color = color(mutedColor))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Button(onClick = { onReview(id, true, note.text.toString()) }, style = ButtonStyle.Primary) { Text("Approve") }
             Button(onClick = { onReview(id, false, note.text.toString()) }, style = ButtonStyle.Ghost) { Text("Reject") }
         }
@@ -153,10 +153,10 @@ private fun ReflectionDiff(diff: List<Pair<Boolean, String>>) {
     val added = diff.count { it.first }
     val summary = listOfNotNull("+$added".takeIf { added > 0 }, "−${diff.size - added}".takeIf { diff.size > added }).joinToString(" ").ifEmpty { "no changes" }
     Expandable(Lucide.FileDiff, "Changes", summary, initiallyExpanded = true) {
-        Column(Modifier.fillMaxWidth().background(color(codeColor), Theme[shapes][smallShape]).padding(8.dp)) {
+        Column(Modifier.fillMaxWidth().background(color(codeColor), Theme[shapes][smallShape]).padding(Spacing.space8)) {
             diff.forEach { (add, line) ->
                 val tone = if (add) successColor else destructiveColor
-                Text((if (add) "+ " else "− ") + line, Modifier.fillMaxWidth().background(color(tone).copy(alpha = 0.1f)).padding(horizontal = 4.dp),
+                Text((if (add) "+ " else "− ") + line, Modifier.fillMaxWidth().background(color(tone).copy(alpha = 0.1f)).padding(horizontal = Spacing.space4),
                     style = MonoStyle, color = color(tone))
             }
         }

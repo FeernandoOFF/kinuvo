@@ -251,7 +251,7 @@ fun SettingsContent(ui: SettingsUi, actions: SettingsActions, sidebar: Boolean =
             }
             if (wide) Row(Modifier.fillMaxSize()) {
                 // Rounded into the rail like the shell's column it stands in for.
-                Box(Modifier.width(260.dp).fillMaxHeight().clip(RoundedCornerShape(topStart = 16.dp)).background(color(sidebarColor))) { sections() }
+                Box(Modifier.width(260.dp).fillMaxHeight().clip(RoundedCornerShape(topStart = Radius.large)).background(color(sidebarColor))) { sections() }
                 VerticalSeparator()
                 Box(Modifier.weight(1f)) { if (section != null) content(section) }
             } else if (section == null) sections()
@@ -271,9 +271,9 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
     val open = { section: SettingsSection -> go(ui.route.copy(section = section, item = null, editing = false)) }
     Column(Modifier.fillMaxSize()) {
         SettingsPageHeader("Settings")
-        if (wide) Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = 8.dp, end = 8.dp, bottom = 8.dp)) {
+        if (wide) Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = Spacing.space8, end = Spacing.space8, bottom = Spacing.space8)) {
             groups.forEachIndexed { i, (title, sections) ->
-                SectionLabel(title, Modifier.padding(top = if (i > 0) 12.dp else 0.dp))
+                SectionLabel(title, Modifier.padding(top = if (i > 0) Spacing.space12 else Spacing.none))
                 sections.forEach { section ->
                     ListRow(selected = section == selected, onClick = { open(section) }, enabled = ui.available(section), leading = { Icon(section.icon(), Modifier.size(16.dp)) }) {
                         Text(section.title, Modifier.weight(1f), singleLine = true)
@@ -281,7 +281,7 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
                     }
                 }
             }
-        } else Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        } else Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(Spacing.space16), verticalArrangement = Arrangement.spacedBy(Spacing.space20)) {
             groups.forEach { (title, sections) ->
                 RowGroup(title) {
                     sections.forEach { section ->

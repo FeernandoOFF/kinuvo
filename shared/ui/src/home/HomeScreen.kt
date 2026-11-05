@@ -100,8 +100,8 @@ fun HomeContent(ui: HomeUi, actions: HomeActions, wide: Boolean? = null) {
             PageHeader(Lucide.Inbox, "Today", listOfNotNull(ui.today.date.long().takeIf { isWide }, ui.server).joinToString(" · ").ifEmpty { null })
             Box(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), contentAlignment = Alignment.TopCenter) {
                 Column(
-                    Modifier.widthIn(max = 820.dp).fillMaxWidth().padding(horizontal = 16.dp).padding(top = 20.dp, bottom = 32.dp),
-                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                    Modifier.widthIn(max = 820.dp).fillMaxWidth().padding(horizontal = Spacing.space16).padding(top = Spacing.space20, bottom = Spacing.space32),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.space24),
                 ) {
                     // Empty sections are left out; the summary already says what isn't happening.
                     val t = ui.today
@@ -111,7 +111,7 @@ fun HomeContent(ui: HomeUi, actions: HomeActions, wide: Boolean? = null) {
                     else Text(ui.summary(), style = TextStyles.headline, lineHeight = 28.sp, modifier = Modifier.semantics { heading() })
                     if (t.needsYou.isNotEmpty()) NeedsYou(ui, actions)
                     if (t.running.isNotEmpty()) RunningNow(ui, actions)
-                    if (t.next.isNotEmpty() && !due && twoColumns) Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                    if (t.next.isNotEmpty() && !due && twoColumns) Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space24)) {
                         Box(Modifier.weight(1f)) { NextUp(ui, actions) }
                         Box(Modifier.weight(1f)) { DueThisWeek(ui, actions) }
                     } else {
@@ -146,11 +146,11 @@ private fun NeedsYou(ui: HomeUi, actions: HomeActions) {
 private fun AttentionCard(agent: AgentInfo?, title: String, kind: String, open: String, onOpen: () -> Unit) {
     val shape = Theme[shapes][largeShape]
     Column(
-        Modifier.padding(bottom = 10.dp).fillMaxWidth().clip(shape).background(color(panelColor), shape).border(1.dp, Tone.Warning.color().copy(alpha = 0.45f), shape)
-            .clickable(onClickLabel = open, role = Role.Button, onClick = onOpen).padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+        Modifier.padding(bottom = Spacing.space10).fillMaxWidth().clip(shape).background(color(panelColor), shape).border(1.dp, Tone.Warning.color().copy(alpha = 0.45f), shape)
+            .clickable(onClickLabel = open, role = Role.Button, onClick = onOpen).padding(Spacing.space14),
+        verticalArrangement = Arrangement.spacedBy(Spacing.space6),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             AgentAvatar(agent, 22.dp)
             MetaLine(agent?.name ?: "Unassigned", kind, Modifier.weight(1f), TextStyles.secondary)
         }
@@ -238,22 +238,22 @@ private fun Results(ui: HomeUi, actions: HomeActions) {
 
 @Composable
 private fun Section(icon: ImageVector, title: String, count: Int? = null, content: @Composable ColumnScope.() -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(Modifier.semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+        Row(Modifier.semantics(mergeDescendants = true) { heading() }, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             Icon(icon, Modifier.size(15.dp), tint = color(mutedColor))
             Text(title, fontWeight = FontWeight.Bold, style = TextStyles.label)
             count?.let { Text("$it", style = TextStyles.secondary, color = color(mutedColor)) }
         }
-        Column(verticalArrangement = Arrangement.spacedBy(2.dp), content = content)
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space2), content = content)
     }
 }
 
 @Composable
 private fun SubLabel(text: String) =
-    Text(text.uppercase(), Modifier.padding(start = 8.dp, top = 6.dp, bottom = 2.dp), style = TextStyles.overline, letterSpacing = 0.6.sp, color = color(mutedColor))
+    Text(text.uppercase(), Modifier.padding(start = Spacing.space8, top = Spacing.space6, bottom = Spacing.space2), style = TextStyles.overline, letterSpacing = 0.6.sp, color = color(mutedColor))
 
 @Composable
-private fun Empty(text: String) = Text(text, Modifier.padding(start = 23.dp, top = 2.dp), style = TextStyles.label, color = color(mutedColor))
+private fun Empty(text: String) = Text(text, Modifier.padding(start = 23.dp, top = Spacing.space2), style = TextStyles.label, color = color(mutedColor))
 
 /** A row opening one Session, Task or Routine: [agent]'s avatar (or [icon]), a title and a muted line. */
 @Composable
@@ -261,10 +261,10 @@ private fun HomeRow(agent: AgentInfo?, title: String, subtitle: String, onClick:
     trailing: @Composable RowScope.() -> Unit = {}) {
     // A fixed leading slot, so rows with an icon and rows with an avatar start their text together.
     ListRow(false, onClick, leading = { Box(Modifier.size(22.dp), contentAlignment = Alignment.Center) { if (icon != null) Icon(icon, Modifier.size(16.dp)) else AgentAvatar(agent, 22.dp) } }) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.space2)) {
             Text(title, maxLines = 2, overflow = TextOverflow.Ellipsis)
             // A flag leads the meta line, so it doesn't take width from the title.
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                 flag?.let { Text(it, style = TextStyles.caption, color = Tone.Danger.color(), fontWeight = FontWeight.Medium) }
                 if (lead != null) MetaLine(lead, subtitle, Modifier.weight(1f), TextStyles.caption)
                 else Text(subtitle, Modifier.weight(1f), style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis)

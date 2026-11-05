@@ -19,8 +19,8 @@ import kinuvo.protocol.*
 /** A labelled form control; its [hint] opens from a (?) by the label. */
 @Composable
 internal fun FormField(label: String, hint: String? = null, content: @Composable () -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space2)) {
             Text(label, style = TextStyles.secondary, color = color(mutedColor))
             hint?.let { InfoButton(it) }
         }
@@ -31,7 +31,7 @@ internal fun FormField(label: String, hint: String? = null, content: @Composable
 /** A labelled control as a row of a [RowGroup]; its [hint] opens from a (?) by the label. */
 @Composable
 internal fun FieldRow(label: String, hint: String? = null, content: @Composable () -> Unit) = GroupBox {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space2)) {
         Text(label, style = TextStyles.secondary, color = color(mutedColor))
         hint?.let { InfoButton(it) }
     }
@@ -88,7 +88,7 @@ internal fun InfoButton(text: String, header: Boolean = false) {
     } else DropdownMenu(
         expanded = open,
         onExpandedChange = { open = it },
-        panel = { DropdownMenuPanel { Text(text, Modifier.widthIn(max = 320.dp).padding(horizontal = 10.dp, vertical = 6.dp), style = TextStyles.secondary) } },
+        panel = { DropdownMenuPanel { Text(text, Modifier.widthIn(max = 320.dp).padding(horizontal = Spacing.space10, vertical = Spacing.space6), style = TextStyles.secondary) } },
     ) { trigger() }
 }
 
@@ -104,7 +104,7 @@ internal fun TextArea(state: TextFieldState, placeholder: String = "", lines: In
         borderColor = color(borderColor),
         placeholder = { Text(placeholder, style = style) },
         lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = lines, maxHeightInLines = 30),
-        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(horizontal = Spacing.space12, vertical = Spacing.space8),
         textStyle = style,
         keyboardOptions = inputKeyboard(capitalize),
     )
@@ -136,7 +136,7 @@ internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSe
         },
     ) {
         Button(onClick = { open = true }, modifier = if (stretch) Modifier.fillMaxWidth() else Modifier, style = style, buttonSize = ButtonSize.Small,
-            contentPadding = if (style == ButtonStyle.Ghost) PaddingValues(end = 10.dp) else PaddingValues(horizontal = 10.dp)) {
+            contentPadding = if (style == ButtonStyle.Ghost) PaddingValues(end = Spacing.space10) else PaddingValues(horizontal = Spacing.space10)) {
             icon?.let { Icon(it, Modifier.size(14.dp), tint = color(mutedColor)) }
             // Stretched to a given width, the label takes the room and the chevron keeps to the end.
             Text(label(current), if (stretch) Modifier.weight(1f) else Modifier.weight(1f, fill = false).widthIn(max = 180.dp), style = TextStyles.secondary, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
@@ -150,7 +150,7 @@ internal fun <T> Picker(options: List<T>, current: T, label: (T) -> String, onSe
 internal fun ActionButton(icon: ImageVector, label: String, onClick: () -> Unit, destructive: Boolean = false, enabled: Boolean = true) {
     val content: @Composable RowScope.() -> Unit = {
         Icon(icon, Modifier.size(14.dp))
-        Spacer(Modifier.width(6.dp))
+        Spacer(Modifier.width(Spacing.space6))
         Text(label, singleLine = true)
     }
     if (destructive) Button(onClick = onClick, enabled = enabled, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(destructiveColor), content = content)
