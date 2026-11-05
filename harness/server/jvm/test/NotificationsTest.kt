@@ -74,7 +74,8 @@ class NotificationsTest {
         val phone = KinuvoClient("ws://127.0.0.1:$port/ws", "phone", server.auth.sessionToken(), timeZone = "UTC")
         try {
             withTimeout(10_000) { phone.connect() }
-            assertEquals("Pick a provider first", phone.call(Api.TestService, TestServiceParams(ServiceKind.Notifications)).error)
+            assertEquals("No paired Device receives pushes yet", phone.call(Api.TestService, TestServiceParams(ServiceKind.Notifications)).error)
+            assertEquals("Pick a provider first", phone.call(Api.TestService, TestServiceParams(ServiceKind.Notifications, ServiceSettings(push = false))).error)
             phone.call(Api.SaveService, SaveServiceParams(ServiceKind.Notifications, ServiceSettings("test", mapOf("topic" to "t")), mapOf("token" to SecretUpdate.Replace("tk"))))
             assertEquals(mapOf("token" to KnowledgeSettings.SECRET, "topic" to "t"), phone.call(Api.Service, ServiceRef(ServiceKind.Notifications)).settings.options)
             phone.call(Api.SaveService, SaveServiceParams(ServiceKind.Notifications, ServiceSettings("test", mapOf("topic" to "t2")), mapOf("token" to SecretUpdate.Keep)))

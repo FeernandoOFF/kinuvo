@@ -15,27 +15,31 @@ import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.PushMessage
 import kinuvo.protocol.PushSubscription
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 
 private val log = KotlinLogging.logger("kinuvo.push")
 
-internal actual fun devicePush(peers: PeerRegistry): DevicePush? = if (peers.pushable) WebPushDevices(peers) else null
+internal actual fun devicePush(peers: PeerRegistry, serverId: String): DevicePush? = if (peers.pushable) WebPushDevices(peers, serverId) else null
 
-internal class WebPushDevices(private val peers: PeerRegistry, private val http: HttpClient = HttpClient(CIO) {
+internal class WebPushDevices(private val peers: PeerRegistry, private val serverId: String, private val http: HttpClient = HttpClient(CIO) {
     followRedirects = false
     install(HttpTimeout) { requestTimeoutMillis = 15_000 }
 }) : DevicePush {
     override suspend fun send(notification: Notification) = coroutineScope {
-        val message = notification.message()
-        for (subscription in peers.pushSubscriptions()) launch {
-            try { deliver(subscription, message, notification.urgent) }
-            catch (e: CancellationException) { throw e }
-            catch (e: Exception) { log.warn { "Push to ${subscription.endpoint.substringBefore("/v1/")} failed: ${e.message}" } }
-        }
+        val message = notification.message(serverId)
+        peers.pushSubscriptions().map { subscription ->
+            async {
+                try { deliver(subscription, message, notification.urgent) }
+                catch (e: CancellationException) { throw e }
+                catch (e: Exception) { log.warn { "Push to ${subscription.endpoint.substringBefore("/v1/")} failed: ${e.message}" }; false }
+            }
+        }.awaitAll().count { it }
     }
 
-    private suspend fun deliver(subscription: PushSubscription, message: ByteArray, urgent: Boolean) {
+    /** Whether the endpoint took [message]; one that's gone is forgotten. */
+    private suspend fun deliver(subscription: PushSubscription, message: ByteArray, urgent: Boolean): Boolean {
         val body = WebPush.encrypt(message, WebPush.base64(subscription.p256dh), WebPush.base64(subscription.auth))
         val response = http.post(subscription.endpoint) {
             header("Content-Encoding", "aes128gcm")
@@ -44,20 +48,22 @@ internal class WebPushDevices(private val peers: PeerRegistry, private val http:
             header("Urgency", if (urgent) "high" else "normal")
             setBody(body)
         }
-        when (response.status) {
-            HttpStatusCode.NotFound, HttpStatusCode.Gone -> peers.dropPush(subscription.endpoint)
-            else -> check(response.status.value in 200..299) { "HTTP ${response.status.value}" }
+        if (response.status == HttpStatusCode.NotFound || response.status == HttpStatusCode.Gone) {
+            peers.dropPush(subscription.endpoint)
+            return false
         }
+        check(response.status.value in 200..299) { "HTTP ${response.status.value}" }
+        return true
     }
 
     override fun close() = http.close()
 }
 
 /** Keeps the encrypted record within APNs' and FCM's 4 KiB payloads once base64-encoded. */
-internal fun Notification.message(): ByteArray {
+internal fun Notification.message(serverId: String? = null): ByteArray {
     var body = body
     while (true) {
-        val bytes = ProtocolJson.encodeToString(PushMessage.serializer(), PushMessage(title.take(200), body, agentId, sessionId, urgent)).encodeToByteArray()
+        val bytes = ProtocolJson.encodeToString(PushMessage.serializer(), PushMessage(title.take(200), body, agentId, sessionId, urgent, serverId)).encodeToByteArray()
         if (bytes.size <= MAX_PUSH_BYTES || body.isEmpty()) return bytes
         body = if (body.length < 8) "" else body.take(body.length * 3 / 4).trimEnd() + "…"
     }

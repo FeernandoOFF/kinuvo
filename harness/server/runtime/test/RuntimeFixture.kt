@@ -45,6 +45,7 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
         override suspend fun update(agentId: String, transform: (TrustRules) -> TrustRules) { rules = transform(rules) }
     }
     var reflectionConfig = kinuvo.harness.core.store.ReflectionConfig()
+    var push = true
     val settings = object : ServerSettings {
         override var timeZone: TimeZone = TimeZone.UTC
         override val reflectionModel get() = reflectionConfig
@@ -57,11 +58,12 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
         override fun knowledgeSetup() = KnowledgeSetup(KnowledgeSettings(), "", emptyList())
         override fun saveKnowledgeSettings(s: KnowledgeSettings): KnowledgeSetup = error("Not used")
         override suspend fun testKnowledge(s: KnowledgeSettings): KnowledgeTestResult = error("Not used")
-        override fun serviceSetup(kind: ServiceKind) = ServiceSetup(kind, ServiceSettings(), emptyList())
+        override fun serviceSetup(kind: ServiceKind) = ServiceSetup(kind, ServiceSettings(push = push), emptyList())
         override fun saveService(kind: ServiceKind, s: ServiceSettings, secretUpdates: Map<String, SecretUpdate>): ServiceSetup = error("Not used")
-        override suspend fun testService(p: TestServiceParams): ServiceTestResult = error("Not used")
+        override suspend fun testService(p: TestServiceParams) = ServiceTestResult(error = "Pick a provider first")
         override fun webSearch(): WebSearch? = null
         override fun notifier(): Notifier? = null
+        override val pushNotifications get() = push
     }
     private var savedRoutines = emptyList<Routine>()
     val routines = Routines(object : RoutineRepository {

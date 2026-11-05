@@ -38,17 +38,23 @@ private fun ServiceForm(setup: ServiceSetup, p: Pane) {
     DetailPane(p.back, kind.title(), error = p.ui.error, info = info, trailing = {
         FormActions("Save", form.editable, p.ui.state.saved, onSave = { p.actions.onSaveService(form.saveParams(kind)) }, dirty = formChanged(form, p.ui.state.saved))
     }) {
+        val push = kind == ServiceKind.Notifications && p.ui.capabilities.supports(ServerFeature.Push)
         RowGroup {
-            PickerRow("Provider", (listOf<String?>(null) + setup.providers.map { it.id } + listOfNotNull(form.provider)).distinct(), form.provider,
+            if (push) SwitchRow("Push to paired Devices", form.push, { form = form.copy(push = it) }, pushedTo(p.ui.devices.devices), Lucide.Smartphone)
+            PickerRow(if (push) "Also send through" else "Provider", (listOf<String?>(null) + setup.providers.map { it.id } + listOfNotNull(form.provider)).distinct(), form.provider,
                 { id -> setup.providers.firstOrNull { it.id == id }?.name ?: id ?: "Off" }, { form = form.select(it) },
                 if (kind == ServiceKind.Search) Lucide.Search else Lucide.Bell)
             if (!form.editable) GroupRow(if (form.definition == null) "This provider is not installed on the Server." else "Update this client to configure this provider.", tint = color(mutedColor))
         }
         ProviderSettingsFields("Settings", form, p) { update -> form = update(form) }
-        if (form.provider != null) TestGroup(if (p.ui.state.testing) "Testing…" else if (kind == ServiceKind.Search) "Test search" else "Send test notification",
+        if (form.provider != null || push && form.push) TestGroup(if (p.ui.state.testing) "Testing…" else if (kind == ServiceKind.Search) "Test search" else "Send test notification",
             form.editable && !p.ui.state.testing, { p.actions.onTestService(form.testParams(kind)) },
             p.ui.state.serviceTest?.let { t -> t.error?.let { "Didn't work: $it" } to "Works: ${t.summary}" })
     }
+}
+
+private fun pushedTo(devices: List<PairedDeviceInfo>?) = devices?.filter { it.push }?.map { it.name }?.let {
+    if (it.isEmpty()) "No paired phone has allowed Notifications yet" else "Reaches " + it.joinToString()
 }
 
 /** The picked provider's settings in [form], once its schema is supported; [change] updates the form. */

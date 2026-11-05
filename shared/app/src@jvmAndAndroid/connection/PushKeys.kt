@@ -37,5 +37,5 @@ class PushKeys(prefs: Preferences) {
     }
 }
 
-/** The Session a pushed Notification opens, or null for the app itself. */
-val PushMessage.link get() = agentId?.let { Links.chat(it, sessionId) }
+/** The Session a pushed Notification opens, on the Server that sent it, or null for the app itself. */
+val PushMessage.link get() = agentId?.let { Links.chat(it, sessionId, serverId) }

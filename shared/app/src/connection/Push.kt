@@ -22,6 +22,15 @@ interface PushChannel {
     val subscription: StateFlow<PushSubscription?>
 }
 
+/** Asks the OS to show this app's Notifications, at most once; a no-op where there's nothing to ask, e.g. on desktop or in test runs. */
+fun interface NotificationPermission {
+    fun request()
+
+    companion object {
+        val None = NotificationPermission {}
+    }
+}
+
 /** Tells each Server this Device connects to where to push its Notifications. */
 class PushRegistration(private val connection: ConnectedServer, private val channel: PushChannel?) {
     private var attached: Job? = null

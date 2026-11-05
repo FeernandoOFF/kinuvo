@@ -28,6 +28,7 @@ class PushKeysTest {
         val message = PushMessage("Ada needs an Approval", "shell: rm -rf build", "ada", "s1", urgent = true)
         assertEquals(message, keys.open(push(message)))
         assertEquals("kinuvo://chat/ada/s1", message.link)
+        assertEquals("kinuvo://chat/ada/s1?server=home", message.copy(serverId = "home").link)
     }
 
     @Test fun `keeps its keys across launches`() {

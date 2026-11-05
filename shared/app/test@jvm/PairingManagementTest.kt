@@ -3,6 +3,7 @@ package kinuvo.app
 import kinuvo.app.agent.*
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
+import kinuvo.app.navigation.Route
 
 import androidx.lifecycle.ViewModelStore
 import kinuvo.client.KinuvoClient
@@ -119,7 +120,44 @@ class PairingManagementTest {
         }
     }
 
-    private suspend fun withApp(embedded: EmbeddedServer? = null, block: suspend (AppViewModel, Servers, ConnectedServer) -> Unit) {
+    @Test
+    fun aNotificationsLinkSwitchesToTheServerThatSentIt() = runBlocking {
+        withTimeout(5_000) {
+            withApp { app, servers, _ ->
+                val home = servers.remember(Server.Remote("ws://127.0.0.1:1/ws"), "home-token", "home-id")
+                val office = servers.remember(Server.Remote("ws://127.0.0.1:2/ws"), "office-token", "office-id")
+                fun selected() = when (val c = app.state.value.connection) {
+                    is Connection.Ready -> c.server
+                    is Connection.Connecting -> c.server
+                    is Connection.Unpaired -> c.server
+                }
+                app.use(home)
+                openLink(Links.chat("kai", "s1", "office-id"))
+                assertEquals(office.key, selected()?.key)
+                assertEquals("kai" to "s1", pendingLink.value?.let { it.agentId to it.sessionId })
+                app.openChat(ChatLink("kai", "s2", "unknown"))
+                assertEquals(office.key, selected()?.key)
+                assertEquals("s2", pendingLink.value?.sessionId)
+                pendingLink.value = null
+            }
+        }
+    }
+
+    @Test
+    fun opensAChatBeforeAskingForNotifications() = runBlocking {
+        var asked = 0
+        withApp(permission = { asked++ }) { app, _, _ ->
+            app.showView(Route.Chat("kai"))
+            assertEquals(0, asked)
+            app.finishOnboarding()
+            app.showView(Route.Board)
+            assertEquals(0, asked)
+            app.showView(Route.Chat("kai"))
+            assertEquals(1, asked)
+        }
+    }
+
+    private suspend fun withApp(embedded: EmbeddedServer? = null, permission: NotificationPermission = NotificationPermission.None, block: suspend (AppViewModel, Servers, ConnectedServer) -> Unit) {
         Dispatchers.setMain(Dispatchers.Unconfined)
         val store = ViewModelStore()
         val prefs = MemoryPreferences()
@@ -132,7 +170,7 @@ class PairingManagementTest {
         }
         val access = DeviceAccess(prefs, reader)
         val owner = ConnectedServer(notifications, access)
-        val app = AppViewModel(servers, Device("test"), owner, access)
+        val app = AppViewModel(servers, Device("test"), owner, access, notificationPermission = permission)
         store.put("app", app)
         try { block(app, servers, owner) }
         finally { store.clear(); Dispatchers.resetMain() }

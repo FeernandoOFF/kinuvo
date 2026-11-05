@@ -54,6 +54,9 @@ const val PickStep = 8
 /** What the Connect step offers to set up, in order. */
 val ConnectSections = listOf(SettingsSection.Secrets, SettingsSection.Knowledge, SettingsSection.Tasks, SettingsSection.Notifications,
     SettingsSection.Search, SettingsSection.Workspace, SettingsSection.Mcp)
+/** Whether Notifications reach the user: through a provider, or pushed to paired Devices when the Server [pushes]. */
+fun ServiceSettings.notifies(pushes: Boolean) = provider != null || pushes && push
+
 val NameIdeas = listOf("Milo", "Juniper", "Pip", "Otto", "Nova", "Wren", "Biscuit", "Sol", "Mochi", "Atlas")
 
 data class OnboardingState(
@@ -114,7 +117,7 @@ data class OnboardingState(
     }
 }
 
-class OnboardingViewModel(private val config: ConfigRepository) : ViewModel() {
+class OnboardingViewModel(private val config: ConfigRepository, private val notificationPermission: NotificationPermission = NotificationPermission.None) : ViewModel() {
     val state: StateFlow<OnboardingState>
         field = MutableStateFlow(OnboardingState())
     private var loading: Job? = null
@@ -186,7 +189,8 @@ class OnboardingViewModel(private val config: ConfigRepository) : ViewModel() {
         check(SettingsSection.Secrets) { config.secretProviders().any { it.connected } }
         check(SettingsSection.Knowledge) { config.knowledgeSetup().settings.let { it.path != null || it.provider != KnowledgeSettings().provider } }
         check(SettingsSection.Tasks) { config.tasksSetup().settings.provider != TasksSettings().provider }
-        check(SettingsSection.Notifications) { config.service(ServiceKind.Notifications).settings.provider != null }
+        val pushes = config.connection.client?.lastConnect?.capabilities.supports(ServerFeature.Push)
+        check(SettingsSection.Notifications) { config.service(ServiceKind.Notifications).settings.notifies(pushes) }
         check(SettingsSection.Search) { config.service(ServiceKind.Search).settings.provider != null }
         check(SettingsSection.Workspace) { config.details(agentId).settings.exec != "none" }
         check(SettingsSection.Mcp) { config.mcpServers(agentId).any { it.active } }
@@ -234,6 +238,7 @@ class OnboardingViewModel(private val config: ConfigRepository) : ViewModel() {
             s.occupation.trim().takeIf { it.isNotEmpty() }?.let { "Occupation: $it" }).joinToString("\n")
         config.updateAgent(update(details.info.id, s).copy(
             userNotes = notes.takeIf { it.isNotEmpty() }?.let { listOf(details.userNotes.trim(), it).filter(String::isNotEmpty).joinToString("\n\n") }))
+        notificationPermission.request()
         onDone()
     }
 

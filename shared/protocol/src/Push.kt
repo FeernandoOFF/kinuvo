@@ -10,6 +10,6 @@ data class PushSubscription(val endpoint: String, val p256dh: String, val auth: 
 @Serializable
 data class PushParams(val subscription: PushSubscription? = null)
 
-/** What a pushed Notification decrypts to on the Device. */
+/** What a pushed Notification decrypts to on the Device; [serverId] is the Server that sent it. */
 @Serializable
-data class PushMessage(val title: String, val body: String, val agentId: String? = null, val sessionId: String? = null, val urgent: Boolean = false)
+data class PushMessage(val title: String, val body: String, val agentId: String? = null, val sessionId: String? = null, val urgent: Boolean = false, val serverId: String? = null)

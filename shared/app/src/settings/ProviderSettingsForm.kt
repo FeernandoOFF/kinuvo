@@ -10,13 +10,14 @@ import kotlin.uuid.Uuid
 /**
  * A provider being picked and its settings edited, e.g. for web search or Tasks, from the [providers] a Server has and the
  * [saved] ones (secret options masked). Provider drafts stay separate; credentials are changed explicitly and never copied
- * between providers.
+ * between providers. [push] is whether Notifications also go to paired Devices.
  */
 data class ProviderSettingsForm(
     val providers: List<SettingsProvider>,
     val saved: ServiceSettings,
     val configuredSecrets: Set<String> = emptySet(),
     val provider: String? = saved.provider,
+    val push: Boolean = saved.push,
     private val drafts: Map<String, Map<String, String>> = emptyMap(),
     private val changes: Map<String, Map<String, SecretUpdate>> = emptyMap(),
 ) {
@@ -67,7 +68,7 @@ data class ProviderSettingsForm(
     /** The provider and its options to save or try; secret ones are in [secretUpdates]. */
     fun settings(): ServiceSettings {
         check(editable) { "This client does not support these provider settings" }
-        return ServiceSettings(provider, fields.filterNot { it.sensitive }.associate { it.key to value(it.key) }.filterValues { it.isNotBlank() })
+        return ServiceSettings(provider, fields.filterNot { it.sensitive }.associate { it.key to value(it.key) }.filterValues { it.isNotBlank() }, push)
     }
 
     fun secretUpdates(): Map<String, SecretUpdate> = fields.filter { it.sensitive }.associate { it.key to secretUpdate(it.key) }
