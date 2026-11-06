@@ -1,7 +1,8 @@
 package kinuvo.ui.design
 
 import androidx.compose.foundation.text.input.TextFieldBuffer
-import androidx.compose.runtime.Composable
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
@@ -11,8 +12,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import com.composables.ui.theme.*
 import kinuvo.app.markdown.MarkdownBuffer
+import kinuvo.app.markdown.MarkdownHighlights
 import kinuvo.app.markdown.MarkdownSpan
 import kinuvo.app.markdown.isMarker
+import kinuvo.app.markdown.markdownHighlights
 import org.intellij.markdown.MarkdownElementTypes
 import org.intellij.markdown.MarkdownTokenTypes
 import org.intellij.markdown.flavours.gfm.GFMElementTypes
@@ -39,3 +42,12 @@ internal class MarkdownEditorStyles(private val muted: Color, private val accent
 
 @Composable
 internal fun markdownEditorStyles() = MarkdownEditorStyles(color(mutedColor), color(accentColor), color(subtleColor))
+
+@Composable
+internal fun rememberMarkdownHighlights(state: TextFieldState): State<MarkdownHighlights?> {
+    val highlights = remember(state) { mutableStateOf<MarkdownHighlights?>(null) }
+    LaunchedEffect(state) {
+        snapshotFlow { state.text.toString() }.markdownHighlights().collect { highlights.value = it }
+    }
+    return highlights
+}

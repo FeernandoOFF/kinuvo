@@ -10,7 +10,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
 import kinuvo.ui.design.Composer
 import kinuvo.ui.design.HarnessTheme
 import kinuvo.ui.design.StreamingMarkdown
@@ -21,6 +24,19 @@ import kotlin.test.assertEquals
 
 @OptIn(ExperimentalTestApi::class)
 class MarkdownComposerTest {
+    @Test fun appliesStylingAfterTyping() = runPhoneTest {
+        val state = TextFieldState()
+        setContent { HarnessTheme { Composer(false, {}, {}, state = state) } }
+        val input = onNodeWithContentDescription("Message")
+        input.performTextInput("**bold**")
+        waitUntil(timeoutMillis = 5_000) {
+            val results = mutableListOf<TextLayoutResult>()
+            input.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+            results.any { result -> result.layoutInput.text.spanStyles.any { it.item.fontWeight == FontWeight.Bold } }
+        }
+        runOnIdle { assertEquals("**bold**", state.text.toString()) }
+    }
+
     @Test fun sendsMarkdownSourceAndClears() = runPhoneTest {
         val state = TextFieldState()
         var sent = ""

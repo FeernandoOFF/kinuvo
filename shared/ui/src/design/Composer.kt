@@ -85,9 +85,10 @@ fun Composer(
     notice: (@Composable () -> Unit)? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val empty by remember(state) { derivedStateOf { state.text.toString().isBlank() } }
+    val empty by remember(state) { derivedStateOf { state.text.isBlank() } }
     val editorStyles = markdownEditorStyles()
-    val query by remember(state, completions) { derivedStateOf { findCompletion(state.text.toString(), state.selection, completions) } }
+    val highlights = rememberMarkdownHighlights(state)
+    val query by remember(state, completions) { derivedStateOf { if (completions.isEmpty()) null else findCompletion(state.text.toString(), state.selection, completions) } }
     var dismissedAt by remember { mutableIntStateOf(-1) }
     var highlighted by remember { mutableIntStateOf(0) }
     LaunchedEffect(query?.start, query?.query) {
@@ -171,7 +172,9 @@ fun Composer(
                                 }
                             },
                             outputTransformation = {
-                                markdownSpans(asCharSequence()).forEach { span -> addStyle(editorStyles.style(span), span.start, span.end) }
+                                highlights.value?.takeIf { it.text.contentEquals(asCharSequence()) }?.spans?.forEach { span ->
+                                    addStyle(editorStyles.style(span), span.start, span.end)
+                                }
                             },
                             modifier = Modifier.semantics { contentDescription = "Message" }
                                 .fillMaxWidth()
@@ -206,7 +209,7 @@ fun Composer(
                 open?.let { q ->
                     CompletionList(q, highlighted, onPick = { accept(q, it) }, Modifier.align(Alignment.TopStart).above(6.dp))
                 }
-                FormatBar(state, focused && !state.selection.collapsed, Modifier.align(Alignment.TopStart).offset(x = 8.dp, y = (-44).dp))
+                FormatBar(state, highlights.value, focused && !state.selection.collapsed, Modifier.align(Alignment.TopStart).offset(x = 8.dp, y = (-44).dp))
             }
         }
         hint?.takeIf { blocked == null }?.let { Text(it, Modifier.fillMaxWidth(), style = TextStyles.overline, color = color(mutedColor), textAlign = TextAlign.Center) }
@@ -260,9 +263,9 @@ private fun onKey(event: KeyEvent, state: TextFieldState, submit: () -> Unit): B
 }
 
 @Composable
-private fun FormatBar(state: TextFieldState, visible: Boolean, modifier: Modifier) = AnimatedVisibility(visible, modifier, enter = fadeIn(), exit = fadeOut()) {
+private fun FormatBar(state: TextFieldState, highlights: MarkdownHighlights?, visible: Boolean, modifier: Modifier) = AnimatedVisibility(visible, modifier, enter = fadeIn(), exit = fadeOut()) {
     Panel(shape = Theme[shapes][mediumShape], contentPadding = PaddingValues(Spacing.space4)) {
-        val active = remember(state.text.toString(), state.selection) { activeTypes(state.text, state.selection.min, state.selection.max) }
+        val active = if (highlights != null && highlights.text.contentEquals(state.text)) highlights.activeTypes(state.selection.min, state.selection.max) else emptySet()
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space2)) {
             FormatToggle(Lucide.Bold, "Bold ${shortcut("B")}", MarkdownElementTypes.STRONG in active) { state.edit { asBuffer().toggle(MarkdownElementTypes.STRONG) } }
             FormatToggle(Lucide.Italic, "Italic ${shortcut("I")}", MarkdownElementTypes.EMPH in active) { state.edit { asBuffer().toggle(MarkdownElementTypes.EMPH) } }
