@@ -3,6 +3,7 @@ package kinuvo.harness.core.store
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.activeHistory
 import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.withWrittenAt
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import kotlin.test.Test
@@ -10,6 +11,23 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
 class FileStoreTest {
+    @Test
+    fun writeTimesSurviveReloadAndReplayWhileLegacyEntriesStayUnknown() = runTest {
+        val home = TestHome()
+        var now = 100L
+        val store = FileStore(home.files) { now }
+        val session = store.createSession(home.agent.id, "instructions")
+        val reply = SessionEntry.AssistantMessage("reply", "reply")
+        now = 200L
+        assertEquals(200L, store.appendAll(home.agent.id, session.id, listOf(reply)).single().writtenAt)
+        now = 300L
+        assertEquals(emptyList(), store.appendAll(home.agent.id, session.id, listOf(reply.copy(writtenAt = 999L))))
+        val file = Path(home.files.sessions(home.agent.id), "${session.id}.jsonl")
+        file.appendText("""{"type":"assistant","text":"legacy"}""" + "\n")
+        val reloaded = FileStore(home.files).entries(home.agent.id, session.id)
+        assertEquals(listOf(100L, 200L, null), reloaded.map { it.writtenAt })
+    }
+
     @Test
     fun externalBatchIsAtomicIdempotentAndKeepsConcurrentDetails() = runTest {
         val home = TestHome()
@@ -25,17 +43,17 @@ class FileStoreTest {
         val details = SessionEntry.Details("Renamed", true)
         store.append("external", session.id, details)
         val batch = listOf(user, call, result, reply)
-        assertEquals(listOf(call, result, reply), store.appendAll("external", session.id, batch))
-        assertEquals(emptyList(), store.appendAll("external", session.id, batch))
+        assertEquals(listOf(call, result, reply), store.appendAll("external", session.id, batch).map { it.withWrittenAt(null) })
+        assertEquals(emptyList(), store.appendAll("external", session.id, batch).map { it.withWrittenAt(null) })
         val saved = store.entries("external", session.id)
-        assertEquals(listOf(SessionEntry.Started(""), user, details, call, result, reply), saved)
+        assertEquals(listOf(SessionEntry.Started(""), user, details, call, result, reply), saved.map { it.withWrittenAt(null) })
         assertFailsWith<SessionCommitConflict> {
             store.appendAll("external", session.id, listOf(SessionEntry.Notice("new", "gap", "gap"), reply.copy(text = "changed")))
         }
         assertEquals(saved, store.entries("external", session.id))
         val notice = SessionEntry.Notice("notice", "gap", "Missing history", draft = listOf(reply))
         store.appendAll("external", session.id, listOf(notice))
-        assertEquals(listOf(user, call, result, reply), store.entries("external", session.id).activeHistory())
+        assertEquals(listOf(user, call, result, reply), store.entries("external", session.id).activeHistory().map { it.withWrittenAt(null) })
         assertEquals("Renamed", store.session("external", session.id).title)
         assertFailsWith<IllegalArgumentException> { store.entries(home.agent.id, session.id) }
     }
@@ -85,7 +103,7 @@ class FileStoreTest {
         home.store.append(home.agent.id, session.id, SessionEntry.UserMessage("next"))
         val entries = home.store.entries(home.agent.id, session.id)
         assertEquals(4, entries.size)
-        assertEquals(listOf(SessionEntry.UserMessage("next")), entries.activeHistory())
+        assertEquals(listOf(SessionEntry.UserMessage("next")), entries.activeHistory().map { it.withWrittenAt(null) })
     }
 
     @Test
@@ -168,10 +186,10 @@ class FileStoreTest {
                 SessionEntry.UserMessage("hello there"),
                 SessionEntry.ToolCall("c1", "memory", """{"a":1}"""),
             ),
-            store.entries(agent.id, session.id),
+            store.entries(agent.id, session.id).map { it.withWrittenAt(null) },
         )
         assertEquals("hello there", store.sessions(agent.id).single().title)
         store.truncate(agent.id, session.id, 1)
-        assertEquals(listOf(SessionEntry.Started("be nice")), store.entries(agent.id, session.id))
+        assertEquals(listOf(SessionEntry.Started("be nice")), store.entries(agent.id, session.id).map { it.withWrittenAt(null) })
     }
 }

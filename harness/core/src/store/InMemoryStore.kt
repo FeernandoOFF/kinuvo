@@ -4,6 +4,7 @@ import kinuvo.harness.core.Agent
 import kinuvo.harness.core.AgentConfig
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.withWrittenAt
 import kinuvo.protocol.SessionOrder
 import kinuvo.protocol.SessionSettings
 import kinuvo.protocol.SessionInfo
@@ -13,7 +14,7 @@ import kotlin.uuid.Uuid
 import kotlin.time.Clock
 
 /** Sessions kept only in memory, e.g. for a run whose transcript isn't worth saving. Agents can't be managed here. */
-class InMemoryStore : Store {
+class InMemoryStore(private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() }) : Store {
     private val lock = Mutex()
     private val sessions = LinkedHashMap<String, MutableList<SessionEntry>>()
 
@@ -52,20 +53,20 @@ class InMemoryStore : Store {
     override suspend fun createSession(agentId: String, instructions: String, routine: RoutineRef?): SessionInfo = lock.withLock {
         validateOwnerId(agentId)
         val id = Uuid.random().toString()
-        created[id] = Clock.System.now().toEpochMilliseconds()
+        created[id] = clock()
         owners[id] = agentId
-        sessions[id] = mutableListOf(SessionEntry.Started(instructions, routine))
+        sessions[id] = mutableListOf(SessionEntry.Started(instructions, routine, writtenAt = clock()))
         info(agentId, id)
     }
 
     override suspend fun append(agentId: String, sessionId: String, entry: SessionEntry) = lock.withLock {
         validate(agentId, sessionId)
         owners[sessionId] = agentId
-        sessions.getOrPut(sessionId) { mutableListOf() } += entry
+        sessions.getOrPut(sessionId) { mutableListOf() } += entry.withWrittenAt(entry.writtenAt ?: clock())
     }
     override suspend fun appendAll(agentId: String, sessionId: String, entries: List<SessionEntry>): List<SessionEntry> = lock.withLock {
         validate(agentId, sessionId)
-        val added = missingEntries(sessions[sessionId].orEmpty(), entries)
+        val added = missingEntries(sessions[sessionId].orEmpty(), entries).map { it.withWrittenAt(it.writtenAt ?: clock()) }
         owners[sessionId] = agentId
         sessions.getOrPut(sessionId) { mutableListOf() }.addAll(added)
         added

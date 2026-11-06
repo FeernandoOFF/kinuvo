@@ -12,6 +12,7 @@ import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.WebSearch
 import kinuvo.harness.core.voice.VoiceProviders
 import kinuvo.protocol.*
+import kotlin.time.Clock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -48,6 +49,7 @@ class RuntimeDependencies(
     val webFetch: (WebSearch?) -> Tool,
     val tracing: AgentTracing? = null,
     var voice: VoiceProviders = VoiceProviders(),
+    val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {
     val plugins get() = resources.plugins
     val mcp = plugins.firstNotNullOfOrNull { it.mcp } ?: McpManagement.Unavailable

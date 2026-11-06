@@ -209,7 +209,7 @@ class ExecutionCoordinator(
         val r = record(id)
         if (submission in r.submissions) {
             val prior = log.entries(p.agentId, id).filterIsInstance<SessionEntry.UserMessage>().firstOrNull { it.submissionId == submission }
-            require(prior == null || prior == SessionEntry.UserMessage(p.text, attachments = attachments.map { it.attachment }, voice = p.voice, submissionId = submission)) { "Submission identity reused with different content" }
+            require(prior == null || prior.copy(writtenAt = null) == SessionEntry.UserMessage(p.text, attachments = attachments.map { it.attachment }, voice = p.voice, submissionId = submission)) { "Submission identity reused with different content" }
             return SendResult(id, submission, p.text)
         }
         check(!r.archived && !r.closed && !r.lost && r.failure == null)

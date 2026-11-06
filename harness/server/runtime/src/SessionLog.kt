@@ -6,6 +6,8 @@ import kinuvo.protocol.LiveState
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.SessionChange
 import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.withWrittenAt
+import kotlin.time.Clock
 import kinuvo.protocol.SessionInfo
 import kinuvo.protocol.SessionOrder
 import kinuvo.protocol.SessionPage
@@ -28,7 +30,7 @@ import kotlin.concurrent.atomics.update
  * table keyed by (session, seq) that holds both, and serve catch-ups and history with range queries.
  */
 @OptIn(ExperimentalAtomicApi::class)
-class SessionLog(private val store: Store) : Store by store {
+class SessionLog(private val store: Store, private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() }) : Store by store {
     /** Receives one client's updates; returns false when it can't keep up, which unsubscribes it everywhere. */
     fun interface Subscriber {
         fun offer(update: SessionUpdate): Boolean
@@ -117,7 +119,7 @@ class SessionLog(private val store: Store) : Store by store {
 
     suspend fun updateDetails(agentId: String, sessionId: String, title: String?, favorite: Boolean?): SessionInfo = lock.withLock {
         val previous = store.entries(agentId, sessionId).filterIsInstance<SessionEntry.Details>().lastOrNull() ?: SessionEntry.Details()
-        val next = previous.copy(title = if (title == null) previous.title else title.trim().take(MAX_SESSION_TITLE).ifEmpty { null }, favorite = favorite ?: previous.favorite)
+        val next = previous.copy(writtenAt = clock(), title = if (title == null) previous.title else title.trim().take(MAX_SESSION_TITLE).ifEmpty { null }, favorite = favorite ?: previous.favorite)
         val seq = count(agentId, sessionId)
         store.append(agentId, sessionId, next)
         saved(agentId, sessionId, seq, next)
@@ -126,14 +128,15 @@ class SessionLog(private val store: Store) : Store by store {
 
     override suspend fun append(agentId: String, sessionId: String, entry: SessionEntry) = lock.withLock {
         val seq = count(agentId, sessionId)
-        store.append(agentId, sessionId, entry)
-        saved(agentId, sessionId, seq, entry)
-        metadata(agentId, sessionId, listOf(entry))
+        val stamped = entry.withWrittenAt(entry.writtenAt ?: clock())
+        store.append(agentId, sessionId, stamped)
+        saved(agentId, sessionId, seq, stamped)
+        metadata(agentId, sessionId, listOf(stamped))
     }
 
     override suspend fun appendAll(agentId: String, sessionId: String, entries: List<SessionEntry>): List<SessionEntry> = lock.withLock {
         val seq = count(agentId, sessionId)
-        val added = store.appendAll(agentId, sessionId, entries)
+        val added = store.appendAll(agentId, sessionId, entries.map { it.withWrittenAt(it.writtenAt ?: clock()) })
         added.forEachIndexed { index, entry -> saved(agentId, sessionId, seq + index, entry) }
         metadata(agentId, sessionId, added)
         added

@@ -41,7 +41,7 @@ object ServerInstallation {
         try {
             plugins.checkPluginInstances()
             tracing = if (files.config().tracing) localTracing(files) else null
-            val installedStore = store ?: FileStore(files)
+            val installedStore = store ?: FileStore(files, clock)
             val docs = FileAgentDocs(files)
             val providers = (modelProviders + plugins.flatMap { it.modelProviders }).associateBy { it.id }.values.toList()
             if (store == null) claimShadowedProviders(files, installedStore, providers)
@@ -80,7 +80,7 @@ object ServerInstallation {
                     override fun get(id: String) = attachmentFiles.get(id)
                     override fun download(id: String) = attachmentFiles.download(id)
                     override fun bytes(attachment: Attachment) = attachmentFiles.bytes(attachment)
-                }, settings, secrets, progress, serverId, resources, providers, { catalog.list(it) }, { WebFetchTool(client, reader = it) }, tracing, voiceProviders)
+                }, settings, secrets, progress, serverId, resources, providers, { catalog.list(it) }, { WebFetchTool(client, reader = it) }, tracing, voiceProviders, clock)
         } catch (e: Throwable) {
             try { resources.close() } catch (cleanup: Throwable) { e.addSuppressed(cleanup) }
             throw e
