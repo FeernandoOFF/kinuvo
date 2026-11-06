@@ -10,11 +10,12 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemTemporaryDirectory
 import kotlin.random.Random
+import kotlin.time.Clock
 
 /** A fresh Kinuvo home in a temp folder with file-backed repositories. */
-class TestHome {
+class TestHome(clock: () -> Long = { Clock.System.now().toEpochMilliseconds() }) {
     val files = AgentFiles(Path(SystemTemporaryDirectory, "kinuvo-test-${Random.nextLong().toULong().toString(16)}"))
-    val store = FileStore(files)
+    val store = FileStore(files, clock)
     val docs = FileAgentDocs(files)
     val trustRules = FileTrustRules(files)
     val routineRepository = FileRoutineRepository(files)
