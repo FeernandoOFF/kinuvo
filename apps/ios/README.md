@@ -40,7 +40,14 @@ app and preserve its data; different branches are not separate installations.
 
 Xcode automatically manages distribution signing. The iPhone must already be
 registered in the selected Apple team. The export fails if the account cannot
-create the necessary distribution certificate or profile. The generated page
+create the necessary distribution certificate or profile.
+
+Prefer an App Store Connect API key with Admin access over the Xcode account:
+`xcodebuild` can remove an Xcode account whose sign-in it cannot read, which then
+fails every export with `No Accounts`. Save the key as
+`~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8` and set `KINUVO_ASC_KEY_ID`
+and `KINUVO_ASC_ISSUER_ID` (and `KINUVO_ASC_KEY_PATH` for another location) in
+your shell or global mise environment. Without them, the Xcode account is used. The generated page
 shows the build's minimum iOS version and signing expiration.
 
 Archives and logs live in `build/ios-ota/`; published files live in

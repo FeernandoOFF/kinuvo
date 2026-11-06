@@ -29,6 +29,21 @@ def output(*args):
     return subprocess.check_output(args, text=True).strip()
 
 
+def authentication():
+    # An App Store Connect API key replaces the Xcode account, which xcodebuild drops when it cannot read its token.
+    key_id, issuer = os.environ.get("KINUVO_ASC_KEY_ID"), os.environ.get("KINUVO_ASC_ISSUER_ID")
+    if not key_id:
+        return []
+    if not issuer:
+        raise RuntimeError("Set KINUVO_ASC_ISSUER_ID together with KINUVO_ASC_KEY_ID.")
+    key = Path(os.environ.get("KINUVO_ASC_KEY_PATH")
+               or Path.home() / f".appstoreconnect/private_keys/AuthKey_{key_id}.p8")
+    if not key.is_file():
+        raise RuntimeError(f"App Store Connect API key not found: {key}")
+    return ["-authenticationKeyPath", key, "-authenticationKeyID", key_id,
+            "-authenticationKeyIssuerID", issuer]
+
+
 def xcode(log_name, *args):
     log = WORK / log_name
     print(f"Running Xcode; log: {log}", flush=True)
@@ -38,7 +53,7 @@ def xcode(log_name, *args):
         heap = environment.get("KINUVO_IOS_BUILD_HEAP", "8g")
         environment["_JAVA_OPTIONS"] = environment.get("_JAVA_OPTIONS", "") + f" -Xmx{heap}"
     with log.open("w") as stream:
-        result = subprocess.run(["xcodebuild", *map(str, args)], cwd=ROOT,
+        result = subprocess.run(["xcodebuild", *map(str, args), *authentication()], cwd=ROOT,
                                 stdout=stream, stderr=subprocess.STDOUT, env=environment)
     if result.returncode:
         raise RuntimeError(f"Xcode failed. See {log}\n" + "\n".join(log.read_text().splitlines()[-35:]))
