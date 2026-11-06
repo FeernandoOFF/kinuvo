@@ -190,7 +190,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"rich\",\"change\":{\"type\":\"live\",\"state\":{}}},\"seq\":14}"
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"rich\",\"change\":{\"type\":\"entry\",\"seq\":12,\"entry\":{\"type\":\"assistant\",\"text\":\"# Markdown review\\n\\n## Text styles\\n\\n### Inline formatting\\n\\nA paragraph with **bold**, *italic*, ~~strike~~, `inline code` and [a link](https://kinuvo.dev).\\n\\n## Lists and code\\n\\n- Bullet one\\n- Bullet two\\n    - Nested bullet\\n    - Another nested item\\n\\n1. First numbered\\n2. Second numbered\\n    1. Nested number\\n\\n- [x] Completed task\\n- [ ] Pending task\\n\\n> A blockquote that wraps onto another line on a phone.\\n\\n```kotlin\\nfun greet(name: String) {\\n    println(\\\"Hello, $name!\\\")\\n}\\n```\\n\\n## Wide table\\n\\n| Feature | iOS | Android | Notes |\\n| --- | --- | --- | --- |\\n| Markdown | Yes | Yes | This intentionally long cell checks wrapping and horizontal overflow on small phone screens. |\\n| Composer | Source | Source | Dimmed markers |\\n\\n---\\n\\nEnd of Markdown review.\",\"messageId\":\"m-markdown-review\"}}},\"seq\":14}"
         }
       }
     },
@@ -201,7 +201,18 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"rich\",\"change\":{\"type\":\"event\",\"event\":{\"type\":\"RUN_STARTED\",\"runId\":\"run-post\"}}},\"seq\":15}"
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"rich\",\"change\":{\"type\":\"live\",\"state\":{}}},\"seq\":15}"
+        }
+      }
+    },
+    {
+      "type": "send",
+      "channelTarget": {
+        "type": "originating"
+      },
+      "message": {
+        "body": {
+          "data": "{\"type\":\"event\",\"event\":\"session.update\",\"payload\":{\"agentId\":\"e2e\",\"sessionId\":\"rich\",\"change\":{\"type\":\"event\",\"event\":{\"type\":\"RUN_STARTED\",\"runId\":\"run-post\"}}},\"seq\":16}"
         }
       }
     }
