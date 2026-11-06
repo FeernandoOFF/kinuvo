@@ -36,7 +36,7 @@ internal fun SurfaceCall(call: ChatItem.ToolCall, send: (String, SurfaceAction) 
             val messages = uiMessages(ProtocolJson.parseToJsonElement(call.args).jsonObject).map {
                 A2uiJson.strict.decodeFromJsonElement(AgentToRendererMessage.serializer(), it)
             }
-            A2uiRenderer(A2uiRendererConfig.Default.withCatalogs(listOf(kinuvoCatalogDefinition))
+            A2uiRenderer(A2uiRendererConfig.Default.withCatalogs(surfaceCatalogDefinitions)
                 .withUrlOpener { url -> openSurfaceUrl(url) { runCatching { opener.openUri(it) } } }).apply {
                 applyAll(messages)
             }

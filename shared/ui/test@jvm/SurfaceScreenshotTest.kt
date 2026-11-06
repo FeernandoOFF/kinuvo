@@ -35,6 +35,59 @@ import java.io.File
 import kotlin.test.*
 
 class SurfaceScreenshotTest {
+    @Test fun kinuvoComponents() = javax.swing.SwingUtilities.invokeAndWait {
+        val raw = A2uiJson.strict.parseToJsonElement("""
+            {"version":"v1.0","createSurface":{"surfaceId":"extras","catalogId":"${kinuvoCatalogDefinition.catalogId}","components":[
+            {"id":"root","component":"Column","children":["badge","space","item","table","transition","choice"]},
+            {"id":"badge","component":"Badge","label":"Ready"},
+            {"id":"space","component":"Spacer","minSize":16},
+            {"id":"item","component":"ListItem","title":"Review item","subtitle":"Details","leading":"icon","trailing":"badge","action":{"event":{"name":"review"}}},
+            {"id":"icon","component":"Icon","name":"check"},
+            {"id":"table","component":"Table","children":{"componentId":"row","path":"/rows"}},
+            {"id":"row","component":"TableRow","children":["cell","actionCell","inputCell"]},
+            {"id":"cell","component":"TableCell","children":["name"]},
+            {"id":"name","component":"Text","text":{"path":"name"}},
+            {"id":"actionCell","component":"TableCell","children":["button"]},
+            {"id":"button","component":"Button","child":"buttonLabel","action":{"event":{"name":"choose","context":{"name":{"path":"name"}}}}},
+            {"id":"buttonLabel","component":"Text","text":"Choose"},
+            {"id":"inputCell","component":"TableCell","children":["input"]},
+            {"id":"input","component":"TextField","label":"Name","value":{"path":"name"}},
+            {"id":"transition","component":"Transition","child":"badge"},
+            {"id":"choice","component":"ChoicePicker","label":"Status","displayStyle":"dropdown","options":[{"value":"ready","label":"Ready"},{"value":"waiting","label":"Waiting"}],"value":{"path":"/status"}}],"dataModel":{"status":["ready"],"rows":[{"name":"First"},{"name":"Second"}]}}}
+        """)
+        val checked = CatalogValidator.of(surfaceCatalogDefinitions).validateMessage(raw, catalogId = kinuvoCatalogDefinition.catalogId)
+        assertTrue(checked.isValid, checked.violations.joinToString())
+        assertEquals(kinuvoCatalogDefinition.components.keys, surfaceComponents.types)
+        val renderer = A2uiRenderer(A2uiRendererConfig.Default.withCatalogs(surfaceCatalogDefinitions))
+        renderer.apply(A2uiJson.strict.decodeFromJsonElement(AgentToRendererMessage.serializer(), raw))
+        val actions = mutableListOf<ActionMessage>()
+        for (dark in listOf(false, true)) ImageComposeScene(780, 1400, Density(2f), content = {
+            HarnessTheme(dark = dark) {
+                Box(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
+                    A2uiSurface(renderer, "extras", surfaceComponents, Modifier.fillMaxWidth(), onMessage = { if (it is ActionMessage) actions += it })
+                }
+            }
+        }).use { scene ->
+            repeat(8) { scene.render(it * 200_000_000L) }
+            File("build/screens").apply { mkdirs() }.resolve("surface-kinuvo-${if (dark) "dark" else "light"}.png")
+                .writeBytes(scene.render(2_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+            if (dark) {
+                fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
+                fun nodes() = scene.semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }
+                val buttons = nodes().filter { node -> node.config.getOrNull(SemanticsActions.OnClick) != null &&
+                    flatten(node).any { it.config.getOrNull(SemanticsProperties.Text)?.any { text -> text.text == "Choose" } == true } }
+                buttons.last().config[SemanticsActions.OnClick].action!!.invoke()
+                assertEquals(JsonPrimitive("Second"), actions.single().context["name"])
+                nodes().last { it.config.getOrNull(SemanticsActions.SetText) != null }
+                    .config[SemanticsActions.SetText].action!!.invoke(AnnotatedString("Edited"))
+                repeat(8) { scene.render(3_000_000_000L + it * 200_000_000L) }
+                val rows = renderer.state.surfaces.getValue("extras").dataModel.getValue("rows").jsonArray
+                assertEquals(JsonPrimitive("First"), rows[0].jsonObject["name"])
+                assertEquals(JsonPrimitive("Edited"), rows[1].jsonObject["name"])
+            }
+        }
+    }
+
     @Test fun allBasicComponents() = javax.swing.SwingUtilities.invokeAndWait {
         val message = A2uiJson.strict.decodeFromString(AgentToRendererMessage.serializer(), allSurface)
         val renderer = A2uiRenderer(A2uiRendererConfig.Default.withCatalogs(listOf(kinuvoCatalogDefinition)))
@@ -42,7 +95,7 @@ class SurfaceScreenshotTest {
             A2uiJson.strict.encodeToJsonElement(AgentToRendererMessage.serializer(), message), catalogId = kinuvoCatalogDefinition.catalogId)
         assertTrue(checked.isValid, checked.violations.joinToString())
         renderer.apply(message)
-        assertEquals(18, surfaceComponents.types.size)
+        assertEquals(kinuvoCatalogDefinition.components.keys, surfaceComponents.types)
         for (dark in listOf(false, true)) ImageComposeScene(1040, 2700, Density(2f), content = {
             HarnessTheme(dark = dark) {
                 Box(Modifier.fillMaxSize().background(color(backgroundColor)).padding(24.dp)) {

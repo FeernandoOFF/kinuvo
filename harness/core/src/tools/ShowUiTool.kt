@@ -29,8 +29,13 @@ class ShowUiTool(catalogs: List<UiCatalog>) : Tool {
     override val risk = Risk.Low
     override val descriptor = ToolDescriptor(
         name = ToolNames.SHOW_UI,
-        description = "Show the user native UI (A2UI v1.0) in the chat: a layout, a form or choices with buttons, when that " +
-            "helps more than text. Each call creates new surfaces: start with a createSurface (surfaceId, catalogId, components, " +
+        description = "Show the user native UI (A2UI v1.0) in the chat: a layout, a form or choices with buttons. " +
+            "The Kinuvo catalog https://kinuvo.com/a2ui/v1/catalog.json includes all basic components plus Badge(label), Spacer(minSize), " +
+            "ListItem(title, subtitle, leading/trailing child IDs, action), Table/TableRow/TableCell(children), and Transition(child). " +
+            "Table children can use A2UI templates bound to arrays; cells accept arbitrary components. " +
+            "Build forms with bound inputs and Button checks/actions. Compose card status from Badge and confirm/cancel from Buttons inside the Card child. " +
+            "Use Text variants h1-h5 for titles, caption for captions; TextField longText for textareas; ChoicePicker for selects/radios. " +
+            "Each call creates new surfaces: start with a createSurface (surfaceId, catalogId, components, " +
             "dataModel), then optional updateComponents/updateDataModel for it. Components are a flat list; one has id \"root\", " +
             "and the others are referenced by id from child/children; createSurface has no root key. Bind values with {\"path\": \"/json/pointer\"}; inputs write to " +
             "their bound path. Checks wrap the function in condition, e.g. \"checks\":[{\"condition\":{\"call\":\"required\",\"args\":{\"value\":{\"path\":\"/name\"}}},\"message\":\"Required\"}]. A Button's action is {\"event\": {\"name\": ..., \"context\": {key: literal or {\"path\": ...}}}}; when the " +
