@@ -88,7 +88,7 @@ internal fun VoiceControls(
 
 /**
  * Pauses the conversation, cutting any reply short, and resumes it; held, the user talks until they let go, pauses and
- * all. Its ring breathes while listening.
+ * all. In a live call it only mutes, since the model hears turns itself. Its ring breathes while listening.
  */
 @Composable
 private fun PauseButton(state: VoiceChatState, onPause: (Boolean) -> Unit, onHold: (Boolean) -> Unit) {
@@ -100,7 +100,7 @@ private fun PauseButton(state: VoiceChatState, onPause: (Boolean) -> Unit, onHol
     val scope = rememberCoroutineScope()
     val tap by rememberUpdatedState { onPause(!state.paused) }
     val hold by rememberUpdatedState(onHold)
-    val label = if (state.paused) "Resume" else "Pause"
+    val label = if (state.live) (if (state.paused) "Unmute" else "Mute") else if (state.paused) "Resume" else "Pause"
     var pressed by remember { mutableStateOf(false) }
     // Pops in with voice chat, gives under the finger and swells, springing, while held.
     val appear = remember { Animatable(0.6f) }
@@ -115,9 +115,15 @@ private fun PauseButton(state: VoiceChatState, onPause: (Boolean) -> Unit, onHol
         Box(
             Modifier.size(76.dp).clip(CircleShape).background(fill)
                 .semantics { role = Role.Button; contentDescription = label; onClick { tap(); true } }
-                .pointerInput(Unit) {
+                .pointerInput(state.live) {
                     detectTapGestures(onPress = {
                         pressed = true
+                        if (state.live) {
+                            val up = tryAwaitRelease()
+                            pressed = false
+                            if (up) tap()
+                            return@detectTapGestures
+                        }
                         val held = scope.launch {
                             delay(250)
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -147,7 +153,7 @@ private fun PauseButton(state: VoiceChatState, onPause: (Boolean) -> Unit, onHol
 @Composable
 internal fun VoiceStatus(state: VoiceChatState, modifier: Modifier = Modifier) {
     Box(modifier.widthIn(max = 560.dp).padding(horizontal = Spacing.space24)) {
-        val status = state.error ?: if (state.holding) "Listening · let go to send" else if (state.paused) "Paused · hold to talk" else when (state.phase) {
+        val status = state.error ?: if (state.holding) "Listening · let go to send" else if (state.paused) (if (state.live) "Muted" else "Paused · hold to talk") else when (state.phase) {
             VoicePhase.Off, VoicePhase.Starting -> "Starting…"
             VoicePhase.Listening -> "Listening"
             VoicePhase.Thinking -> "Thinking"

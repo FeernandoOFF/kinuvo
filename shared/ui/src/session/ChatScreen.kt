@@ -3,6 +3,7 @@ package kinuvo.ui.session
 import kinuvo.protocol.ScreenRef
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
+import org.koin.compose.koinInject
 import kinuvo.app.agent.*
 import kinuvo.app.settings.*
 import kinuvo.ui.settings.*
@@ -94,9 +95,11 @@ fun ChatScreen(
     val saveAttachment = rememberAttachmentSaver(session::attachmentError)
     val speech = getKoin().getOrNull<SpeechEngine>()
     val voice = speech?.let { koinViewModel<VoiceViewModel> { parametersOf(it, session) }.chat }
+    val liveCall by koinInject<LiveCalls>().state.collectAsState()
     val dictation = speech?.let { koinViewModel<DictationViewModel> { parametersOf(it) } }
     // The ViewModels outlive the screen, e.g. while Settings is open; the microphone doesn't.
-    DisposableEffect(voice, dictation) { onDispose { voice?.end(); dictation?.stop() } }
+    // A live call belongs to the app, not this screen, so it carries on after leaving.
+    DisposableEffect(voice, dictation) { onDispose { if (voice?.state?.value?.live != true) voice?.end(); dictation?.stop() } }
     // Picking a photo takes the app out of view too; voice chat waits for it instead of ending.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { voice?.background(); dictation?.stop() }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { voice?.foreground() }
@@ -126,7 +129,8 @@ fun ChatScreen(
         unsent = current.unsent,
         sending = current.sending,
         capabilities = current.capabilities,
-        voice = voice?.state?.collectAsState()?.value,
+        // While a live call runs, it owns the voice UI; this screen's regular voice chat stays out of the way.
+        voice = voice?.state?.collectAsState()?.value?.takeIf { liveCall == null || it.live },
         dictation = dictation?.state?.collectAsState()?.value,
         preview = current.preview?.let { id ->
             current.attachments.firstOrNull { it.id == id }?.let { AttachmentPreview(it.attachment, it.upload.base64) }
@@ -330,7 +334,7 @@ fun ChatContent(
             var dropping by remember { mutableStateOf(false) }
             val canDrop = !state.running && (state.files?.actionable != false || state.photos?.actionable != false)
             Box(Modifier.weight(1f).attachmentDrop(canDrop, actions.onDropAttachments) { dropping = it }) {
-                val voice = state.voice?.takeIf { it.active }
+                val voice = state.voice?.takeIf { it.active && !it.live }
                 // Keeps the last state while voice chat animates away.
                 var shownVoice by remember { mutableStateOf(voice) }
                 voice?.let { shownVoice = it }
@@ -338,7 +342,7 @@ fun ChatContent(
                     Messages(state, messages, follow, Modifier.fillMaxSize().hazeSource(haze), actions, composerHeight,
                         top = (if (floating) FloatingBarHeight else 0.dp) + (if (voice != null) VoiceStatusHeight else 0.dp))
                 }
-                state.voice?.let { VoiceGlow(it, Modifier.align(Alignment.BottomCenter)) }
+                state.voice?.takeIf { !it.live }?.let { VoiceGlow(it, Modifier.align(Alignment.BottomCenter)) }
                 androidx.compose.animation.AnimatedVisibility(dropping, Modifier.matchParentSize(), enter = fadeIn(), exit = fadeOut()) { DropOverlay() }
                 if (floating) FloatingBar(state, usage, actions, toggle, onBack, Modifier.align(Alignment.TopCenter))
                 androidx.compose.animation.AnimatedVisibility(voice != null, Modifier.align(Alignment.TopCenter).padding(top = if (floating) FloatingBarHeight + Spacing.space8 else Spacing.space12),
@@ -350,7 +354,9 @@ fun ChatContent(
                 val fade = with(density) { ComposerFade.toPx() }
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { composerHeight = with(density) { it.height.toDp() } }
                     // Phones: messages fade out just above the composer and never show around it.
-                    .then(if (floating) Modifier.background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background), endY = fade)).padding(top = ComposerFade) else Modifier)
+                    // Not in voice chat, whose glow behind the controls would otherwise be cut off at the fade.
+                    .then(if (floating && voice == null) Modifier.background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background), endY = fade)) else Modifier)
+                    .then(if (floating) Modifier.padding(top = ComposerFade) else Modifier)
                     .onFocusChanged { composerFocused = it.hasFocus }.padding(horizontal = Spacing.space16).padding(bottom = if (wide) Spacing.space10 else Spacing.space16), horizontalAlignment = Alignment.CenterHorizontally) {
                     LaunchedEffect(state.unsent) { state.unsent?.let { if (draft.annotatedString.text.isBlank()) draft.setMarkdown(it) } }
                     var dictated by remember { mutableStateOf<DictationDraft?>(null) }

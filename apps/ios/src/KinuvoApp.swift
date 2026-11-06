@@ -25,7 +25,7 @@ struct KinuvoApp: App {
                 if ProcessInfo.processInfo.arguments.contains("--native-shell") {
                     NativeShell()
                 } else { KinuvoView().ignoresSafeArea() }
-            }.onOpenURL { DeepLinksKt.openLink(url: $0.absoluteString) }
+            }.task { CallActivityController.shared.start() }.onOpenURL { DeepLinksKt.openLink(url: $0.absoluteString) }
         }
     }
 }
