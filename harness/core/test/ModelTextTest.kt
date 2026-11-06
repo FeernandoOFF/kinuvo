@@ -12,4 +12,12 @@ class ModelTextTest {
         assertTrue(text.startsWith("[Voice chat:") && text.endsWith("\n\nwhats on my calender"))
         assertEquals("hi", SessionEntry.UserMessage("hi").modelText)
     }
+
+    @Test
+    fun takeWholeNeverSplitsASurrogatePair() {
+        assertEquals("a", "a😀b".takeWhole(2))
+        assertEquals("a😀", "a😀b".takeWhole(3))
+        assertEquals("a😀b", "a😀b".takeWhole(10))
+        assertEquals("", "😀".takeWhole(1))
+    }
 }
