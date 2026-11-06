@@ -19,7 +19,10 @@ from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parent.parent
 WORK = ROOT / "build/ios-ota"
-SITE = ROOT / "dist/ios-install"
+# Shared by every checkout, so any worktree can publish to the same installer page.
+INSTALL = Path.home() / ".kinuvo-ios-install"
+SITE = INSTALL / "site"
+HOSTING_LOG = INSTALL / "hosting.log"
 MOUNT = "/install/ios/"
 PORT = 8795
 PROXY = f"http://127.0.0.1:{PORT}"
@@ -74,6 +77,11 @@ def route_check(config, host):
             raise RuntimeError(f"An existing handler owns {MOUNT}: {handler}")
 
 
+def port_open():
+    with socket.socket() as probe:
+        return probe.connect_ex(("127.0.0.1", PORT)) == 0
+
+
 def serve():
     label = "dev.kinuvo.ios-install"
     domain = f"gui/{os.getuid()}"
@@ -81,26 +89,37 @@ def serve():
     specification = {"Label": label, "ProgramArguments": ["/usr/bin/python3", "-m", "http.server",
                      str(PORT), "--bind", "127.0.0.1", "--directory", str(SITE)],
                      "RunAtLoad": True, "KeepAlive": True,
-                     "StandardOutPath": str(WORK / "hosting.log"),
-                     "StandardErrorPath": str(WORK / "hosting.log")}
-    if agent.exists() and plistlib.loads(agent.read_bytes()) != specification:
-        raise RuntimeError(f"An existing launch agent owns {agent}; refusing to replace it.")
+                     "StandardOutPath": str(HOSTING_LOG), "StandardErrorPath": str(HOSTING_LOG)}
+    existing = plistlib.loads(agent.read_bytes()) if agent.exists() else specification
+    if existing != specification:
+        arguments = existing.get("ProgramArguments", [])
+        if arguments[:-1] != specification["ProgramArguments"][:-1]:
+            raise RuntimeError(f"An existing launch agent owns {agent}; refusing to replace it.")
+        # An older agent served a checkout's dist/ios-install; keep its builds and move to the shared site.
+        if Path(arguments[-1]).is_dir():
+            shutil.copytree(arguments[-1], SITE, dirs_exist_ok=True,
+                            ignore=shutil.ignore_patterns("index.html"))
+        subprocess.run(["launchctl", "bootout", domain + "/" + label],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        agent.unlink()
+        for attempt in range(50):
+            if not port_open():
+                break
+            time.sleep(0.1)
     loaded = subprocess.run(["launchctl", "print", domain + "/" + label],
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
     if not loaded:
-        with socket.socket() as probe:
-            if probe.connect_ex(("127.0.0.1", PORT)) == 0:
-                raise RuntimeError(f"Port {PORT} is already in use.")
+        if port_open():
+            raise RuntimeError(f"Port {PORT} is already in use.")
         agent.parent.mkdir(parents=True, exist_ok=True)
         atomic_write(agent, plistlib.dumps(specification))
         subprocess.run(["launchctl", "bootstrap", domain, str(agent)], check=True)
     for attempt in range(30):
-        with socket.socket() as probe:
-            if probe.connect_ex(("127.0.0.1", PORT)) == 0:
-                break
+        if port_open():
+            break
         time.sleep(0.1)
     else:
-        raise RuntimeError(f"Installer host did not start; see {WORK / 'hosting.log'}")
+        raise RuntimeError(f"Installer host did not start; see {HOSTING_LOG}")
     subprocess.run(["tailscale", "serve", "--bg", "--https=443", "--set-path=" + MOUNT, PROXY], check=True)
 
 
@@ -110,11 +129,12 @@ def main():
     args = parser.parse_args()
     os.chdir(ROOT)
     WORK.mkdir(parents=True, exist_ok=True)
-    with (WORK / "publish.lock").open("w") as lock:
+    INSTALL.mkdir(exist_ok=True)
+    with (INSTALL / "publish.lock").open("w") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
-            raise RuntimeError("Another iOS publication is running in this checkout.") from None
+            raise RuntimeError("Another iOS publication is running.") from None
         publish(args.archive)
 
 
