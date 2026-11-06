@@ -5,6 +5,7 @@ import kinuvo.app.connection.*
 import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kotlin.time.Clock
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 import kotlinx.coroutines.currentCoroutineContext
@@ -28,6 +29,7 @@ data class SessionData(
     val notes: List<String> = emptyList(),
     val loaded: Boolean = false,
     val loadingOlder: Boolean = false,
+    val receivedAt: Map<String, Long> = emptyMap(),
 ) {
     val seen get() = firstSeq + entries.size
     val hasOlder get() = firstSeq > 0
@@ -87,13 +89,13 @@ class SessionRepository(private val notifications: Notifications, internal val c
     internal fun restore(lists: Map<String, SessionList>, sessions: Map<String, CachedSession>) {
         recent += sessions.keys
         state.value = RepositoryState(lists = lists,
-            sessions = sessions.mapValues { (_, s) -> SessionData(s.agentId, s.firstSeq, s.entries, loaded = true) })
+            sessions = sessions.mapValues { (_, s) -> SessionData(s.agentId, s.firstSeq, s.entries, loaded = true, receivedAt = s.receivedAt) })
     }
 
     /** The cached Sessions, each with up to its last [MAX_SAVED] entries. */
     internal fun saved(): Map<String, CachedSession> = state.value.sessions.filterValues { it.loaded }.mapValues { (_, d) ->
         val drop = (d.entries.size - MAX_SAVED).coerceAtLeast(0)
-        CachedSession(d.agentId, d.firstSeq + drop, d.entries.drop(drop))
+        CachedSession(d.agentId, d.firstSeq + drop, d.entries.drop(drop), d.receivedAt)
     }
 
     /** [sessionId] is on screen (null: a new Session): keeps it cached and subscribed, and clears its finished mark. */
@@ -198,9 +200,9 @@ class SessionRepository(private val notifications: Notifications, internal val c
             is SessionChange.Entry -> when {
                 change.seq < data.seen -> Unit
                 change.seq > data.seen -> scope.launch { catchUp(id) }
-                else -> put(id, data.copy(entries = data.entries + change.entry, live = data.live.on(change.entry)))
+                else -> put(id, data.copy(entries = data.entries + change.entry, live = data.live.on(change.entry)), received = true)
             }
-            is SessionChange.Event -> put(id, data.copy(live = data.live.on(change.event), notes = data.notes + listOfNotNull(note(change.event))))
+            is SessionChange.Event -> put(id, data.copy(live = data.live.on(change.event), notes = data.notes + listOfNotNull(note(change.event))), received = true)
             is SessionChange.Live -> put(id, data.copy(live = change.state, loaded = true))
         }
     }
@@ -283,7 +285,9 @@ class SessionRepository(private val notifications: Notifications, internal val c
         state.value = RepositoryState()
     }
 
-    private fun put(sessionId: String, data: SessionData) = state.update { it.copy(sessions = it.sessions + (sessionId to data)) }
+    /** [received]: [data] holds what just arrived live, so its new replies get this Device's receipt time; history keeps none. */
+    private fun put(sessionId: String, data: SessionData, received: Boolean = false) =
+        state.update { it.copy(sessions = it.sessions + (sessionId to if (received) data.withReceiptTimes(it.sessions[sessionId]) else data)) }
 
     private companion object {
         const val MAX_CACHED = 8
@@ -343,5 +347,13 @@ private fun SessionData.chatItems(): List<ChatItem> {
     if (live.text.isNotEmpty() && "text-${live.messageId}" !in keys) items += ChatItem.Assistant(key("text-${live.messageId}", -2), live.text)
     live.reflectionId?.takeIf { "reflection-$it" !in keys }?.let { items += ChatItem.Reflection(key("reflection-$it", -3)) }
     notes.forEachIndexed { i, note -> items += ChatItem.Error("note-$i", note) }
-    return items
+    return items.map { if (it is ChatItem.Assistant) it.copy(receivedAt = receivedAt[it.id]) else it }
+}
+
+private fun SessionData.withReceiptTimes(previous: SessionData?): SessionData {
+    val before = previous?.items.orEmpty().mapTo(mutableSetOf()) { it.id }
+    val fresh = items.filter { it is ChatItem.Assistant && it.id !in before && it.id !in receivedAt }
+    if (fresh.isEmpty()) return this
+    val now = Clock.System.now().toEpochMilliseconds()
+    return copy(receivedAt = receivedAt + fresh.associate { it.id to now })
 }

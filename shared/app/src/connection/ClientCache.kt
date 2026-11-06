@@ -8,7 +8,7 @@ import kotlinx.serialization.Serializable
 
 /** A Session's saved entries, from seq [firstSeq]; its live turn isn't kept. */
 @Serializable
-data class CachedSession(val agentId: String, val firstSeq: Int, val entries: List<SessionEntry>)
+data class CachedSession(val agentId: String, val firstSeq: Int, val entries: List<SessionEntry>, val receivedAt: Map<String, Long> = emptyMap())
 
 /** What this Device last saw of one Server, shown before it connects and while it can't. [syncedAt] is in epoch milliseconds. */
 @Serializable
