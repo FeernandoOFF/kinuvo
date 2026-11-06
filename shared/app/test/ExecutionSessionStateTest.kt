@@ -7,6 +7,21 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class ExecutionSessionStateTest {
+    @Test fun voiceCallIsOneItemAfterDelegatedMessages() {
+        val call = SessionEntry.VoiceCall("call", listOf(VoiceTurn(true, "hello"), VoiceTurn(false, "hi")), 1, 20)
+        val items = SessionData("agent", entries = listOf(SessionEntry.UserMessage("task", voice = true), SessionEntry.AssistantMessage("done"), call)).items
+        assertTrue(assertIs<ChatItem.User>(items.first()).voice)
+        assertEquals(3, items.size)
+        assertEquals(ChatItem.VoiceCall(call.id, call.turns, 1, 20), items.last())
+    }
+
+    @Test fun userMessagesKeepVoiceInLiveAndSavedItems() {
+        val entries = listOf(SessionEntry.UserMessage("typed"), SessionEntry.UserMessage("spoken", voice = true))
+        val live = SessionData("agent", live = LiveState(entries = entries))
+        assertEquals(listOf(false, true), live.items.map { assertIs<ChatItem.User>(it).voice })
+        assertEquals(live.items, SessionData("agent", entries = entries).items)
+    }
+
     @Test fun implicitResumeDoesNotBypassClosedArchivedOrUnsupportedSessions() {
         val caps = SessionCapabilities(0, ServerCapabilities("server"), chat = CapabilityState.unavailable("Ended", "session_lost"), execution = ExecutionCapabilities(resume = true))
         assertTrue(resumeOnSend(ExecutionPhase.Lost, caps))

@@ -21,6 +21,7 @@ import org.koin.dsl.module
 val appModule = module {
     single { getOrNull<MobileTestMode>()?.servers ?: Servers(get(), getOrNull(), get()) }
     single { Notifications(getAll()) }
+    single { LiveCalls() }
     single { DeviceAccess(get(), get(), getOrNull()) }
     single { ConnectedServer(get(), get(), getOrNull()) }
     single { get<ConnectedServer>().sessions }
@@ -34,7 +35,7 @@ val appModule = module {
     viewModel { OnboardingViewModel(get(), getOrNull() ?: NotificationPermission.None) }
     viewModel { AppViewModel(get(), get(), get(), get(), getOrNull() ?: ClientCache.None, getOrNull() ?: NotificationPermission.None) }
     viewModel { (client: KinuvoClient, route: Route.Chat) -> SessionViewModel(client, get(), route) }
-    viewModel { (engine: SpeechEngine, session: SessionViewModel) -> VoiceViewModel(engine, session, get()) }
+    viewModel { (engine: SpeechEngine, session: SessionViewModel) -> VoiceViewModel(engine, session, get(), get()) }
     viewModel { (transcriber: Transcriber) -> DictationViewModel(if (transcriber is SpeechEngine) ServerSpeech(transcriber, get()) else transcriber) }
     viewModel { (route: Route.Settings) -> SettingsViewModel(get(), get(), get(), route) }
     viewModel { BoardViewModel(get()) }

@@ -36,6 +36,8 @@ dependencies@web:
 
 dependencies@jvm:
   - ca.weblite:webview:1.0.10
+  - dev.onvoid.webrtc:webrtc-java:0.20.0
+  - dev.onvoid.webrtc:webrtc-java:0.20.0:macos-aarch64
 
 dependencies@android:
   - ../../harness/plugins/browser

@@ -1,0 +1,277 @@
+package kinuvo.app.session
+
+import kinuvo.app.connection.ConnectedServer
+import kinuvo.app.connection.catching
+import kinuvo.client.ConnectionState
+import kinuvo.client.KinuvoClient
+import kinuvo.client.userMessage
+import kinuvo.protocol.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.*
+import kotlin.io.encoding.Base64
+import kotlin.math.sqrt
+
+/** Streaming microphone and speaker for live calls, in mono PCM16. Callbacks may arrive on any thread. */
+interface LiveAudio {
+    fun onEndRequested(end: () -> Unit) {}
+    val liveAudioSupported: Boolean get() = true
+    /** Whether the microphone hears the speaker, so capture is muted while a reply plays. */
+    val echoes: Boolean
+    fun authorizeAudio(completion: (String?) -> Unit)
+    /** Captures the microphone at [sampleRate] in short chunks (100 ms or less) and readies playback at the same rate. */
+    fun startLive(sampleRate: Int, onAudio: (ByteArray) -> Unit, onError: (String) -> Unit)
+    /** Plays [pcm] after what is already queued. */
+    fun playLive(pcm: ByteArray)
+    /** Milliseconds queued but not yet heard. */
+    fun queuedMillis(): Int
+    /** Drops what is queued to play. */
+    fun flushLive()
+    fun stopLive()
+}
+
+/**
+ * Voice chat with the Server's speech-to-speech model: the Device streams its microphone and plays what the model says;
+ * the model hears pauses and interruptions itself. Agent work it hands off runs as the Session's messages.
+ */
+class LiveVoiceChat(
+    private val server: ConnectedServer,
+    private val audio: LiveAudio,
+    /** The Agent and Session the call joins, starting a new Session if needed. */
+    private val openSession: suspend () -> Pair<String, String>?,
+) : VoiceChat {
+    override val state: StateFlow<VoiceChatState>
+        field = MutableStateFlow(VoiceChatState())
+    private var generation = 0
+    private var call: Job? = null
+    private var callId: String? = null
+    private var connection: KinuvoClient? = null
+    private var ownsAudio = false
+    private var reply: String? = null
+    /** The reply whose text is done; its audio can still be arriving. */
+    private var finished: String? = null
+    private val interrupted = mutableSetOf<String>()
+    private var buffered = ByteArray(0)
+    private var prebuffer: Job? = null
+    private var queued = 0
+    private val levels = ArrayDeque<Pair<Int, Float>>()
+    private var bytesPerMilli = 48
+
+    override fun start() {
+        if (state.value.phase != VoicePhase.Off || !DeviceAudio.acquire(audio, this)) return
+        ownsAudio = true
+        state.value = VoiceChatState(VoicePhase.Starting, speaker = state.value.speaker, live = true)
+        val epoch = ++generation
+        call = server.scope.launch {
+            try { converse() }
+            catch (e: CancellationException) { if (generation == epoch) end(); throw e }
+            catch (e: Exception) { if (generation == epoch) fail(userMessage(e.message) ?: "Live voice failed") }
+        }
+    }
+
+    private suspend fun converse() {
+        audio.onEndRequested(::end)
+        val denied = suspendCancellableCoroutine { c -> audio.authorizeAudio { if (c.isActive) c.resumeWith(Result.success(it)) } }
+        if (denied != null) error(denied)
+        val (agentId, sessionId) = openSession() ?: error("Pick an Agent first")
+        val client = server.client ?: error("Not connected")
+        connection = client
+        coroutineScope {
+            launch(start = CoroutineStart.UNDISPATCHED) {
+                client.state.first { it !is ConnectionState.Connected }
+                error("The connection to the Server dropped.")
+            }
+            val outputs = Channel<LiveVoiceOutput>(Channel.UNLIMITED)
+            launch(start = CoroutineStart.UNDISPATCHED) { client.events(Api.LiveVoiceOutput).collect { outputs.send(it) } }
+            val started = client.call(Api.LiveVoiceStart, LiveVoiceParams(agentId, sessionId))
+            callId = started.callId
+            bytesPerMilli = started.sampleRate * 2 / 1000
+            val microphone = Channel<ByteArray>(Channel.UNLIMITED)
+            audio.startLive(started.sampleRate, { microphone.trySend(it) }, { microphone.close(IllegalStateException(it)) })
+            launch {
+                for (pcm in microphone) {
+                    state.update { it.copy(inputLevel = if (it.paused) 0f else pcmLevel(pcm)) }
+                    if (state.value.paused || (audio.echoes && audio.queuedMillis() > 0)) continue
+                    client.emit(Api.LiveVoiceInput, LiveVoiceInput.Audio(started.callId, Base64.encode(pcm)))
+                }
+            }
+            launch {
+                while (isActive) {
+                    delay(40)
+                    val played = queued - buffered.size - audio.queuedMillis() * bytesPerMilli
+                    while (levels.isNotEmpty() && levels.first().first <= played) levels.removeFirst()
+                    state.update { it.copy(outputLevel = if (audio.queuedMillis() == 0) 0f else levels.firstOrNull()?.second ?: 0f) }
+                    val item = reply ?: continue
+                    val waiting = audio.queuedMillis()
+                    client.emit(Api.LiveVoiceInput, LiveVoiceInput.Played(started.callId, item, ((queued - buffered.size) / bytesPerMilli - waiting).coerceAtLeast(0)))
+                    if (waiting == 0 && buffered.isEmpty() && item == finished) {
+                        reply = null
+                        state.update { if (it.phase == VoicePhase.Speaking) it.copy(phase = VoicePhase.Listening) else it }
+                    }
+                }
+            }
+            for (output in outputs) {
+                if (output.callId != started.callId) continue
+                when (output) {
+                    is LiveVoiceOutput.Ready, is LiveVoiceOutput.Listening -> state.update { if (it.phase == VoicePhase.Speaking && (audio.queuedMillis() > 0 || buffered.isNotEmpty())) it else it.copy(phase = VoicePhase.Listening) }
+                    is LiveVoiceOutput.Thinking -> state.update { it.copy(phase = VoicePhase.Thinking) }
+                    is LiveVoiceOutput.Audio -> if (state.value.speaker && output.item !in interrupted) {
+                        if (reply != output.item) { drainBuffer(); reply = output.item; queued = 0; levels.clear(); if (finished != output.item) finished = null }
+                        val pcm = Base64.decode(output.base64)
+                        queued += pcm.size
+                        levels.addLast(queued to pcmLevel(pcm))
+                        if (buffered.isNotEmpty() || audio.queuedMillis() == 0) {
+                            buffered += pcm
+                            if (buffered.size >= bytesPerMilli * 80 || finished == output.item) drainBuffer()
+                            else if (prebuffer == null) prebuffer = launch { delay(100); drainBuffer() }
+                        } else audio.playLive(pcm)
+                        state.update { it.copy(phase = VoicePhase.Speaking) }
+                    }
+                    is LiveVoiceOutput.Transcript -> state.update { if (output.user) it.copy(heard = output.text) else it.copy(caption = output.text) }
+                    is LiveVoiceOutput.Done -> { finished = output.item; if (reply == output.item) drainBuffer() }
+                    is LiveVoiceOutput.Interrupted -> { discardReply(); audio.flushLive(); state.update { it.copy(phase = VoicePhase.Listening) } }
+                    is LiveVoiceOutput.Ended -> { output.error?.let(::error); break }
+                }
+            }
+            coroutineContext.cancelChildren()
+        }
+        end()
+    }
+
+    override fun end() = stop(null)
+
+    /** A failed call stays live with its [error] until it is ended. */
+    private fun stop(error: String?) {
+        if (call == null && callId == null && !state.value.live) return
+        generation++
+        val id = callId
+        callId = null; discardReply(); interrupted.clear()
+        call?.cancel(); call = null
+        if (ownsAudio) {
+            audio.stopLive()
+            audio.onEndRequested {}
+            DeviceAudio.release(audio, this)
+            ownsAudio = false
+        }
+        val client = connection
+        connection = null
+        if (id != null && client?.state?.value is ConnectionState.Connected) server.scope.launch { catching { client.call(Api.LiveVoiceEnd, LiveVoiceRef(id)) } }
+        state.value = VoiceChatState(speaker = state.value.speaker, error = error, live = error != null)
+    }
+
+    /** Mutes the microphone only; the Agent's replies keep playing. */
+    override fun pause() {
+        if (state.value.phase == VoicePhase.Off) return
+        send { LiveVoiceInput.Pause(it) }
+        state.update { it.copy(paused = true) }
+    }
+
+    override fun resume() {
+        if (!state.value.paused) return
+        send { LiveVoiceInput.Resume(it) }
+        state.update { it.copy(paused = false) }
+    }
+
+    /** The model hears turns itself, so holding only cuts the reply short. */
+    override fun hold() {
+        if (state.value.phase in setOf(VoicePhase.Off, VoicePhase.Starting)) return
+        cutIn()
+        state.update { it.copy(phase = VoicePhase.Listening, holding = true) }
+    }
+
+    override fun letGo() = state.update { it.copy(holding = false) }
+
+    override fun background() {}
+    override fun foreground() {}
+
+    override fun speaker(on: Boolean) {
+        state.update { it.copy(speaker = on) }
+        if (!on && ownsAudio) { cutIn(); audio.flushLive() }
+    }
+
+    private fun cutIn() {
+        val item = reply ?: return
+        val heard = ((queued - buffered.size) / bytesPerMilli - audio.queuedMillis()).coerceAtLeast(0)
+        discardReply()
+        audio.flushLive()
+        send { LiveVoiceInput.Interrupt(it, item, heard) }
+    }
+
+    private fun drainBuffer() {
+        prebuffer?.cancel()
+        prebuffer = null
+        if (buffered.isNotEmpty()) audio.playLive(buffered)
+        buffered = ByteArray(0)
+    }
+
+    private fun discardReply() {
+        reply?.let { interrupted += it }
+        reply = null
+        levels.clear()
+        finished = null
+        prebuffer?.cancel()
+        prebuffer = null
+        buffered = ByteArray(0)
+    }
+
+    private fun send(input: (String) -> LiveVoiceInput) {
+        val id = callId ?: return
+        val client = connection ?: return
+        server.scope.launch { catching { client.emit(Api.LiveVoiceInput, input(id)) } }
+    }
+
+    private fun fail(error: String) = stop(error)
+}
+
+/** Live calls when the Server offers them and the Device can stream audio, else [speech]; decided at each start. */
+class PickedVoiceChat(
+    private val speech: VoiceChat,
+    private val live: VoiceChat?,
+    private val scope: CoroutineScope,
+    private val offered: suspend () -> Boolean,
+) : VoiceChat {
+    private var active = speech
+    private var picking: Job? = null
+    override val state: StateFlow<VoiceChatState>
+        field = MutableStateFlow(VoiceChatState())
+
+    init {
+        scope.launch {
+            merge(speech.state.map { speech to it }, live?.state?.map { live to it } ?: emptyFlow()).collect { (chat, s) ->
+                if (chat === live && s.live && active.state.value.phase == VoicePhase.Off) active = chat
+                if (chat === active && picking?.isActive != true) state.value = s
+            }
+        }
+    }
+
+    override fun start() {
+        if (state.value.phase != VoicePhase.Off) return
+        if (live == null) return speech.also { active = it }.start()
+        state.value = VoiceChatState(VoicePhase.Starting, speaker = state.value.speaker)
+        picking = scope.launch {
+            active = if (catching { offered() }.getOrDefault(false)) live else speech
+            active.speaker(state.value.speaker)
+            active.start()
+            state.value = active.state.value
+        }
+    }
+
+    override fun end() { picking?.cancel(); active.end(); state.value = active.state.value }
+    override fun pause() = active.pause()
+    override fun resume() = active.resume()
+    override fun hold() = active.hold()
+    override fun letGo() = active.letGo()
+    override fun speaker(on: Boolean) { speech.speaker(on); live?.speaker(on) }
+    override fun background() = active.background()
+    override fun foreground() = active.foreground()
+}
+
+internal fun pcmLevel(pcm: ByteArray): Float {
+    if (pcm.size < 2) return 0f
+    var sum = 0.0
+    for (i in 0 until pcm.size - 1 step 2) {
+        val sample = ((pcm[i].toInt() and 255) or (pcm[i + 1].toInt() shl 8)).toShort() / 32768.0
+        sum += sample * sample
+    }
+    return sqrt(sum / (pcm.size / 2)).toFloat().coerceIn(0f, 1f)
+}

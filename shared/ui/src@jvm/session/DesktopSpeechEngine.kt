@@ -1,5 +1,6 @@
 package kinuvo.ui.session
 
+import kinuvo.app.session.LiveAudio
 import kinuvo.app.session.SpeechEngine
 import kinuvo.app.session.VoiceAudio
 import kotlin.io.encoding.Base64
@@ -9,7 +10,10 @@ import kotlinx.serialization.json.*
 import javax.swing.SwingUtilities
 
 /** Native speech commands and events. Callbacks run on the UI thread. */
-internal class DesktopSpeechEngine(private val launch: () -> SpeechTransport = ::desktopSpeechTransport) : SpeechEngine, VoiceAudio {
+internal class DesktopSpeechEngine(
+    live: LiveAudio = JvmLiveAudio(),
+    private val launch: () -> SpeechTransport = ::desktopSpeechTransport,
+) : SpeechEngine, VoiceAudio, LiveAudio by live {
     override val halfDuplex = true
     override val audioSupported get() = currentPlatform == Platform.MacOS
     @Volatile private var transport: SpeechTransport? = null

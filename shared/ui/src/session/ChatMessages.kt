@@ -214,7 +214,7 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
         is ChatItem.User -> if (item.routine != null) Expandable(Lucide.AlarmClock, requireNotNull(item.routine), subtitle = "routine") { RichMarkdown(item.text) }
         else if (item.task != null) Expandable(Lucide.SquareKanban, requireNotNull(item.task), subtitle = "task") { RichMarkdown(item.text) }
         // Inset from the start, so long messages still read as the user's rather than as cards.
-        else Row(Modifier.fillMaxWidth().padding(start = Spacing.space48), horizontalArrangement = Arrangement.End) {
+        else Column(Modifier.fillMaxWidth().padding(start = Spacing.space48), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
             Panel(
                 Modifier.widthIn(max = 560.dp),
                 color = color(selectedControlColor),
@@ -228,6 +228,21 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
                     AttachmentChip(a, actions.downloads[a.id]?.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onOpen = { actions.onSaveAttachment(a.id) })
                 }
             } }
+            // Said aloud, or put into words by a live call's model, so not necessarily the user's own wording.
+            if (item.voice) Row(Modifier.padding(end = Spacing.space4), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space4)) {
+                Icon(Lucide.Mic, Modifier.size(12.dp), tint = color(mutedColor))
+                Text("By voice", style = TextStyles.caption, color = color(mutedColor))
+            }
+        }
+        is ChatItem.VoiceCall -> Expandable(Lucide.AudioLines, "Voice call", subtitle = callLength(item.durationMillis)) {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
+                item.turns.forEach { turn ->
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space2)) {
+                        Text(if (turn.user) "You" else "Agent", style = TextStyles.caption, color = color(mutedColor))
+                        Text(turn.text, style = TextStyles.secondary)
+                    }
+                }
+            }
         }
         is ChatItem.Assistant -> if (spoken != null) SpokenText(item.text, spoken, Modifier.fillMaxWidth()) else Markdown(item.text, Modifier.fillMaxWidth())
         is ChatItem.Reasoning -> StepView(item)
@@ -532,3 +547,5 @@ internal fun List<ChatItem>.attachment(id: String): Attachment? = firstNotNullOf
         else -> null
     }
 }
+
+private fun callLength(millis: Long) = (millis / 60_000).let { if (it < 1) "under a minute" else "$it min" }
