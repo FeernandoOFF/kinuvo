@@ -435,28 +435,25 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onCloseRequest = { if (inspecting?.dirty == true) inspector?.close() else inspectorEdits.leave { inspector?.close() } })
             val homeChrome = HomeChrome({ if (compact) shell.revealed = true else shell.open = !shell.open }, !compact)
             val strips = remember { Strips() }
-            val stripHeight by animateDpAsState(strips.height)
             CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers, LocalHomeChrome provides homeChrome, LocalStrips provides strips) {
                 // Phones show the Agent's settings as sheets over the screen; wider windows show them beside it, unblurred.
                 val sheet = compact && (inspecting?.open == true || settingsPages.isNotEmpty())
                 val blur by animateDpAsState(if (LocalBackdropBlur.current && (shell.quickChat || popovers.active || sheet)) 16.dp else 0.dp)
                 val edgeToEdge = top == Route.NewAgent || top == Route.Connect
-                // Edge-to-edge screens still clear the status bar the strip reaches behind.
-                val screenInsets = if (!edgeToEdge) WindowInsets.safeDrawing
-                    else if (strips.rows.isNotEmpty()) WindowInsets.safeDrawing.only(WindowInsetsSides.Top) else WindowInsets(0)
+                val screenInsets = if (!edgeToEdge) WindowInsets.safeDrawing else WindowInsets(0)
                 val guardSemantics = if (inspecting?.guard != null || inspectorEdits.pending != null || homeEdits.pending != null) Modifier.clearAndSetSemantics {} else Modifier
                 val sheetSemantics = if (inspecting?.open == true || settingsPages.isNotEmpty()) Modifier.clearAndSetSemantics {} else Modifier
                 if (compact) Box(Modifier.fillMaxSize().then(guardSemantics)) {
-                    Box(Modifier.blur(blur).then(sheetSemantics)) {
+                    StripFrame(strips, Modifier.blur(blur).then(sheetSemantics)) {
                         Reveal(shell.revealed, { shell.revealed = it }, behind = { Shell(shellState, shellActions, shell, Modifier.fillMaxSize(), fill = true) },
-                            enabled = withShell) { Box(Modifier.windowInsetsPadding(screenInsets).padding(top = stripHeight)) { screens() } }
+                            enabled = withShell) { Box(Modifier.windowInsetsPadding(screenInsets)) { screens() } }
                     }
                     AnimatedVisibility(shell.quickChat, modifier = sheetSemantics, enter = fadeIn(), exit = fadeOut()) {
                         QuickChat(appState.agents, agent, shell.draft, shellActions.onSelectAgent, shellActions.onQuickSend) { shell.quickChat = false }
                     }
                     inspector?.let { AgentInspector(it, inspectorHost, sheet = true, showGuard = false) }
                 }
-                else Row(Modifier.fillMaxSize().windowInsetsPadding(screenInsets).padding(top = stripHeight).blur(blur).then(guardSemantics)) {
+                else StripFrame(strips, Modifier.blur(blur).then(guardSemantics)) { Row(Modifier.fillMaxSize().windowInsetsPadding(screenInsets)) {
                     AnimatedVisibility(beside, enter = expandHorizontally(), exit = shrinkHorizontally()) {
                         Row { Shell(shellState, shellActions, shell, column = !foldColumn); VerticalSeparator() }
                     }
@@ -467,7 +464,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         // Clear of the window's leading edge, so its title bar keeps no room for the window buttons there.
                         Row { VerticalSeparator(); inspector?.let { CompositionLocalProvider(LocalWindowChrome provides windowChrome?.trailingOnly) { AgentInspector(it, inspectorHost, sheet = false, showGuard = false) } } }
                     }
-                }
+                } }
                 if (settingsPages.isNotEmpty()) SettingsSheet(app, settingsPages, history::open)
                 inspector?.let { AgentInspectorGuard(it, inspectorHost) }
                 SettingsDiscardDialog(homeEdits)
