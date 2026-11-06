@@ -8,6 +8,8 @@
     "mobile/connect-providers",
     "ws/create-session",
     "ws/device-tools",
+    "ws/surface-catalogs",
+    "ws/execution-catalog",
     "mobile/provider-models",
     "ws/presence",
     "ws/routines",

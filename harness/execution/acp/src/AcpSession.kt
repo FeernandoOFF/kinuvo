@@ -2,6 +2,8 @@
 
 package kinuvo.harness.execution.acp
 
+import kinuvo.protocol.modelText
+
 import com.agentclientprotocol.client.v2.ClientSession
 import com.agentclientprotocol.model.v2.*
 import com.agentclientprotocol.model.v2.SessionUpdate as AcpSessionUpdate
@@ -49,7 +51,7 @@ class AcpSession internal constructor(
 }
 
 internal fun ExecutionInput.content(capabilities: ExecutionCapabilities): List<ContentBlock> = buildList {
-    if (text.isNotEmpty()) add(ContentBlock.Text(text))
+    if (text.isNotEmpty()) add(ContentBlock.Text(action?.modelText(text) ?: text))
     require(attachments.size <= MAX_ATTACHMENTS)
     var total = 0
     attachments.forEach { data ->

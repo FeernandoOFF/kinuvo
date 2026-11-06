@@ -175,7 +175,13 @@ class PairingManagementTest {
         val app = AppViewModel(servers, Device("test"), owner, access, notificationPermission = permission)
         store.put("app", app)
         try { block(app, servers, owner) }
-        finally { store.clear(); Dispatchers.resetMain() }
+        finally {
+            val serverJob = owner.scope.coroutineContext.job
+            store.clearAndJoin()
+            owner.close()
+            serverJob.join()
+            Dispatchers.resetMain()
+        }
     }
 
     private class DeviceConnection(private val releaseList: CompletableDeferred<Unit>? = null, private val management: Boolean = true) : FrameConnection {

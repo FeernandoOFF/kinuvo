@@ -1,5 +1,6 @@
 package kinuvo.protocol
 
+import kinuvo.protocol.SurfaceImage as SurfaceImageResult
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.SessionEntry
@@ -50,9 +51,13 @@ object ProtocolVersion {
 /** Requests a Device may have unanswered on one connection; the Server drops a connection that sends more. */
 const val MAX_CONCURRENT_REQUESTS = 8
 
-/** Exactly one of [token] (a paired device) or [pairingCode] (first connection) is set. [timeZone] is the Device's IANA zone. */
 @Serializable
-data class ConnectParams(val device: String, val token: String? = null, val pairingCode: String? = null, val timeZone: String? = null, val deviceTools: Set<DeviceToolKind> = emptySet(), @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current)
+data class SurfaceCatalogsParams(val catalogs: List<UiCatalog>)
+
+/** Exactly one of [token] or [pairingCode] is set. [timeZone] is the Device's IANA zone. */
+@Serializable
+data class ConnectParams(val device: String, val token: String? = null, val pairingCode: String? = null, val timeZone: String? = null, val deviceTools: Set<DeviceToolKind> = emptySet(),
+    @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current)
 
 @Serializable
 data class ConnectResult(val token: String, val serverName: String, val usage: Usage? = null, val capabilities: ServerCapabilities, val management: Boolean, @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current, val deviceId: String? = null)
@@ -73,7 +78,7 @@ data class SkillInfo(
 
 /** [voice] marks [text] as transcribed from voice chat. */
 @Serializable
-data class SendParams(val agentId: String, val sessionId: String? = null, val text: String, val attachments: List<String> = emptyList(), val voice: Boolean = false, val submissionId: String? = null)
+data class SendParams(val agentId: String, val sessionId: String? = null, val text: String, val attachments: List<String> = emptyList(), val voice: Boolean = false, val submissionId: String? = null, val action: SurfaceAction? = null)
 
 /** [activation] is set when the text was a `/skill` command; [message] is what was sent to the model. */
 @Serializable
@@ -195,6 +200,7 @@ object Api {
     val CancelProviderDownload = Method("providers.cancelDownload", ProviderRef.serializer(), Unit.serializer())
     val RemoveProviderModel = Method("providers.removeModel", ProviderModelRef.serializer(), Unit.serializer())
     val UploadAttachment = Method("attachments.upload", UploadAttachmentParams.serializer(), kinuvo.protocol.Attachment.serializer())
+    val SurfaceImage = Method("surfaces.image", SurfaceImageParams.serializer(), SurfaceImageResult.serializer())
     val Attachment = Method("attachments.get", AttachmentRef.serializer(), AttachmentData.serializer())
     val DeviceTools = Method("device.tools", DeviceToolsParams.serializer(), Unit.serializer())
     /** Sets where the Server pushes this Device's Notifications. */
@@ -209,6 +215,7 @@ object Api {
     val ComputerInput = Method("computer.input", ComputerInputParams.serializer(), ComputerFrame.serializer())
     val Takeover = Method("computer.takeover", TakeoverParams.serializer(), ComputerFrame.serializer())
     val Connect = Method("connect", ConnectParams.serializer(), ConnectResult.serializer())
+    val SurfaceCatalogs = Method("surfaces.catalogs", SurfaceCatalogsParams.serializer(), Unit.serializer())
     val RotateToken = Method("device.rotateToken", Unit.serializer(), String.serializer())
     /** Opens pairing for another Device; requires management access. */
     val Pairing = Method("pairing.code", PairingParams.serializer(), PairingCode.serializer())

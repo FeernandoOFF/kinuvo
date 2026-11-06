@@ -74,7 +74,7 @@ class ServerRuntime(
         { admin.agents() + externalAgents() },
         { id -> createSession(id).let { sourceSnapshot(id, it.id) } },
         { agent, id -> sourceSnapshot(agent, id) },
-        { agent, id, text -> send(SendParams(agent, id, text)); Unit },
+        { agent, id, text, action -> send(SendParams(agent, id, text, action = action)); Unit },
         { _, id -> stop(id) },
         { agent, answer -> execution(agent).answer(answer) },
         { _, id -> if (external.owns(id)) external.discard(id) else stop(id) })
@@ -97,7 +97,7 @@ class ServerRuntime(
             if (snapshot.phase == ExecutionPhase.Idle && runs.isActive(id)) snapshot.copy(phase = ExecutionPhase.Running) else snapshot
         },
         { answer -> answerNative(answer) },
-        ::sendNative, runs::stop,
+        { sendNative(it) }, runs::stop,
     )
     private val devicePush = devicePush(auth, harness.serverId)
     private val notifications = Notifications(harness, scope, runs::routine, { external.registrationOrArchived(it)?.name }, devicePush)
@@ -293,6 +293,7 @@ class ServerRuntime(
             screenFrames.close()
             deviceId?.let { id -> scope.launch { screens.close(id) } }
             clients.remove(this)
+            harness.uiCatalogs.disconnect(this)
             detachTools()
             outbox.close()
             // Called while the log may hold its lock, so unsubscribing happens after.
@@ -401,7 +402,7 @@ class ServerRuntime(
                     client.outbox.send(Frame.Response(request.id, false, error = "Voice request is already active"))
                     return@collect
                 }
-                val stateful = request.method in setOf(Api.LiveVoiceStart.name, Api.LiveVoiceEnd.name, Api.CatchUp.name, Api.Unsubscribe.name, Api.Send.name, Api.Stop.name, Api.Presence.name, Api.DeviceTools.name, Api.RevokeDevice.name, Api.RotateToken.name)
+                val stateful = request.method in setOf(Api.LiveVoiceStart.name, Api.LiveVoiceEnd.name, Api.CatchUp.name, Api.Unsubscribe.name, Api.Send.name, Api.Stop.name, Api.Presence.name, Api.DeviceTools.name, Api.SurfaceCatalogs.name, Api.RevokeDevice.name, Api.RotateToken.name)
                 if (!outstanding.tryAcquire()) { log.warn { "Closing a connection: over ${security.concurrentRequests} requests at once (${request.method})" }; client.disconnect(); return@collect }
                 if (stateful) {
                     try { client.outbox.send(handle(request, client)) } finally { outstanding.release() }
@@ -535,8 +536,10 @@ class ServerRuntime(
             harness.log.updateDetails(p.agentId, p.sessionId, p.title, p.favorite)
         }
         Api.UploadAttachment.name -> respond(r, Api.UploadAttachment) { withContext(Dispatchers.Default) { harness.attachments.upload(prepareAttachment(it)) } }
+        Api.SurfaceCatalogs.name -> respond(r, Api.SurfaceCatalogs) { harness.uiCatalogs.connect(client, it.catalogs) }
+        Api.SurfaceImage.name -> respond(r, Api.SurfaceImage) { fetchSurfaceImage(it.url) }
         Api.Attachment.name -> respond(r, Api.Attachment) { withContext(Dispatchers.Default) { harness.attachments.download(it.id) } }
-        Api.Send.name -> respond(r, Api.Send) { send(it) }
+        Api.Send.name -> respond(r, Api.Send) { send(it, client) }
         Api.Stop.name -> respond(r, Api.Stop) { stop(it.sessionId) }
         Api.ReviewReflection.name -> respond(r, Api.ReviewReflection) { reflectionReview.respond(agent(it.agentId), it.sessionId, it.proposalId, it.approve, it.note) }
         Api.Approve.name -> respond(r, Api.Approve) { harness.approvals.respond(it.approvalId, it.decision) }
@@ -659,15 +662,15 @@ class ServerRuntime(
         agent(owner.agentId)
     }
 
-    private suspend fun send(p: SendParams): SendResult {
+    private suspend fun send(p: SendParams, client: Client? = null): SendResult {
         val isExternal = executions.registration(p.agentId) != null
         val execution = execution(p.agentId)
-        return if (isExternal) executionManagement.withLock { execution.send(p) } else execution.send(p)
+        return if (isExternal) executionManagement.withLock { execution.send(p) } else sendNative(p, harness.uiCatalogs.forRun(client))
     }
 
-    private suspend fun sendNative(p: SendParams): SendResult = sendNative(p) {}
+    private suspend fun sendNative(p: SendParams, catalogs: List<UiCatalog> = harness.uiCatalogs.forRun()): SendResult = sendNative(p, catalogs) {}
 
-    private suspend fun sendNative(p: SendParams, onEvent: (AgentEvent) -> Unit): SendResult {
+    private suspend fun sendNative(p: SendParams, catalogs: List<UiCatalog> = harness.uiCatalogs.forRun(), onEvent: (AgentEvent) -> Unit): SendResult {
         val agent = agent(p.agentId)
         require(p.text.isNotBlank() || p.attachments.isNotEmpty()) { "Add a message or attachment" }
         check(p.attachments.isEmpty() || ServerFeature.Attachments in capabilities.features) { "Attachments are not available on this Server" }
@@ -681,7 +684,7 @@ class ServerRuntime(
         effective.chat.requireReady()
         attachments.forEach { attachment -> effective.attachment(attachment.mimeType).requireReady() }
         val (activation, message) = (if (ServerFeature.Skills in capabilities.features) harness.slashActivation(agent, p.text) else null) ?: (null to p.text)
-        val run = runs.start(agent, sessionId, message, activation, attachments = attachments, voice = p.voice, onEvent = onEvent, onDone = { reflector.ran(agent, sessionId) }) { harness.runner(agent, sessionId) }
+        val run = runs.start(agent, sessionId, message, activation, attachments = attachments, voice = p.voice, action = p.action, onEvent = onEvent, onDone = { reflector.ran(agent, sessionId) }) { harness.runner(agent, sessionId, catalogs = catalogs) }
         return SendResult(sessionId, run.id, message, activation)
     }
 

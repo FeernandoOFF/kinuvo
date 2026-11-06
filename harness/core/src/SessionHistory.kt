@@ -54,7 +54,7 @@ fun List<SessionEntry>.estimatedTokens(instructions: String, tools: List<ToolDes
         when (it) {
             is SessionEntry.VoiceCall -> it.turns.sumOf { turn -> turn.text.length }
             is SessionEntry.Context -> it.content.length
-            is SessionEntry.UserMessage -> it.text.length + it.attachments.estimatedChars()
+            is SessionEntry.UserMessage -> it.modelText.length + it.attachments.estimatedChars()
             is SessionEntry.AssistantMessage -> it.text.length
             is SessionEntry.Reasoning -> it.text.length + (it.encrypted?.length ?: 0)
             is SessionEntry.ToolCall -> it.name.length + it.args.length

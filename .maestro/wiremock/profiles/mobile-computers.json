@@ -5,6 +5,8 @@
     "ws/capabilities",
     "ws/catch-up",
     "ws/device-tools",
+    "ws/surface-catalogs",
+    "ws/execution-catalog",
     "ws/models",
     "ws/presence",
     "ws/routines",

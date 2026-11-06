@@ -1,5 +1,7 @@
 package kinuvo.harness.server.execution
 
+import kinuvo.harness.core.modelText
+
 import kinuvo.harness.core.Agent
 import kinuvo.harness.server.SessionLog
 import kinuvo.protocol.*
@@ -17,7 +19,7 @@ suspend fun SessionLog.executionSnapshot(agent: String, id: String): ExecutionSn
         if (captured) return@Subscriber true
         when (val change = update.change) {
             is SessionChange.Entry -> when (val entry = change.entry) {
-                is SessionEntry.UserMessage -> messages.add(ExecutionMessage(entry.submissionId?.let { "user:$it" } ?: "user:entry:${change.seq}", "user", entry.text, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
+                is SessionEntry.UserMessage -> messages.add(ExecutionMessage(entry.submissionId?.let { "user:$it" } ?: "user:entry:${change.seq}", "user", entry.modelText, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
                 is SessionEntry.AssistantMessage -> messages.add(ExecutionMessage(entry.messageId?.let { "assistant:$it" } ?: "assistant:entry:${change.seq}", "assistant", entry.text, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
                 is SessionEntry.Reasoning -> messages.add(ExecutionMessage(entry.messageId?.let { "reasoning:$it" } ?: "entry:${change.seq}", "reasoning", entry.text))
                 is SessionEntry.VoiceCall -> messages.add(ExecutionMessage("voice_call:${entry.id}", "voice_call", "", ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
