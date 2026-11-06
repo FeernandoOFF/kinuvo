@@ -2,6 +2,9 @@ package kinuvo.ui.voice
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.animateBounds
+import androidx.compose.ui.layout.LookaheadScope
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.animateContentSize
@@ -71,6 +74,7 @@ import kotlinx.coroutines.launch
  * A live call, full screen: the Agent's orb, what it's doing, and the call's controls. [captions] shows the current
  * exchange in place of the space around the orb. [time] pins the orb's animation, e.g. for screenshots.
  */
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun LiveCallScreen(
     agentName: String,
@@ -100,16 +104,20 @@ fun LiveCallScreen(
                 if (error == null) RoundIcon(if (voice.speaker) Lucide.Volume2 else Lucide.VolumeX, if (voice.speaker) "Mute replies" else "Play replies", onClick = { onSpeaker(!voice.speaker) })
                 else Spacer(Modifier.size(44.dp))
             }
-            Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                if (captions && error == null) {
-                    Captions(voice, Modifier.weight(1f).fillMaxWidth().padding(top = Spacing.space32))
-                    AgentOrb(tint, mood(voice), level(voice), Modifier.size(132.dp), time)
-                } else {
-                    Spacer(Modifier.weight(1f))
-                    AgentOrb(tint, if (error != null) OrbMood.Idle else mood(voice), level(voice), Modifier.size(if (error != null) 200.dp else 280.dp), time)
-                    Spacer(Modifier.weight(1f))
+            // The orb glides between the middle and its place under the captions rather than jumping.
+            LookaheadScope {
+                val shown = captions && error == null
+                Column(Modifier.weight(1f).fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                        androidx.compose.animation.AnimatedVisibility(shown, enter = fadeIn(tween(Motion.enter)), exit = fadeOut(tween(Motion.fast))) {
+                            Captions(voice, Modifier.fillMaxSize().padding(top = Spacing.space32))
+                        }
+                    }
+                    val size = when { error != null -> 200.dp; shown -> 132.dp; else -> 280.dp }
+                    AgentOrb(tint, if (error != null) OrbMood.Idle else mood(voice), level(voice), Modifier.animateBounds(this@LookaheadScope, Modifier.size(size)), time)
+                    if (!shown) Spacer(Modifier.weight(1f))
+                    if (error != null) Failure(error, Modifier.padding(vertical = Spacing.space20)) else Status(voice, Modifier.padding(vertical = Spacing.space16))
                 }
-                if (error != null) Failure(error, Modifier.padding(vertical = Spacing.space20)) else Status(voice, Modifier.padding(vertical = Spacing.space16))
             }
             if (error != null) Box(Modifier.fillMaxWidth().padding(bottom = Spacing.space8), contentAlignment = Alignment.Center) {
                 Box(Modifier.widthIn(max = 320.dp).fillMaxWidth().height(56.dp).clip(PillShape).background(color(onBackgroundColor)).clickable(onClick = onEnd)
