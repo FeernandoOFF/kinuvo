@@ -172,8 +172,8 @@ fun Composer(
                                 }
                             },
                             outputTransformation = {
-                                highlights.value?.takeIf { it.text.contentEquals(asCharSequence()) }?.spans?.forEach { span ->
-                                    addStyle(editorStyles.style(span), span.start, span.end)
+                                highlights.value?.spans?.forEach { span ->
+                                    if (span.start < length) addStyle(editorStyles.style(span), span.start, minOf(span.end, length))
                                 }
                             },
                             modifier = Modifier.semantics { contentDescription = "Message" }
