@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,20 +41,22 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.LocalContentColor
 import com.composeunstyled.theme.Theme
-import com.mohamedrejeb.richeditor.model.RichTextState
-import com.mohamedrejeb.richeditor.model.rememberRichTextState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.input.*
+import kinuvo.app.markdown.*
+import org.intellij.markdown.MarkdownElementTypes
 import kotlin.math.PI
 import kotlin.math.sin
-import com.mohamedrejeb.richeditor.ui.BasicRichTextEditor
 import androidx.compose.ui.graphics.Color
 
 /**
- * Chat input on compose-rich-editor. Markdown typed inline (`**bold**`, `*italic*`, `` `code` ``, `- ` lists) turns into
- * formatting; selecting text shows formatting actions. Enter sends Markdown, Shift+Enter breaks the line.
+ * Chat input edits Markdown source with live formatting and dimmed markers; selecting text shows formatting actions.
+ * Enter sends Markdown, Shift+Enter breaks the line.
  * While [running], the send button becomes Stop; while empty, it starts voice chat. Voice buttons are disabled until
  * [onDictate] and [onVoice] are set; while [dictating], Dictate stops it. Typing a [completions] trigger lists matching values to insert. While [blocked] is
  * set, sending is disabled and the reason replaces [hint].
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Composer(
     running: Boolean,
@@ -62,7 +65,7 @@ fun Composer(
     modifier: Modifier = Modifier,
     placeholder: String = "Message",
     hint: String? = null,
-    state: RichTextState = rememberRichTextState(),
+    state: TextFieldState = rememberTextFieldState(),
     focus: FocusRequester = remember { FocusRequester() },
     completions: List<CompletionSource> = emptyList(),
     onCompletingChange: (Boolean) -> Unit = {},
@@ -82,15 +85,9 @@ fun Composer(
     notice: (@Composable () -> Unit)? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val empty by remember(state) { derivedStateOf { state.annotatedString.text.isBlank() } }
-    val code = color(subtleColor)
-    val border = color(borderColor)
-    LaunchedEffect(code, border) {
-        state.config.codeSpanBackgroundColor = code
-        state.config.codeSpanStrokeColor = border
-        state.config.codeSpanCornerRadius = 4.sp
-    }
-    val query by remember(state, completions) { derivedStateOf { findCompletion(state.annotatedString.text, state.selection, completions) } }
+    val empty by remember(state) { derivedStateOf { state.text.toString().isBlank() } }
+    val editorStyles = markdownEditorStyles()
+    val query by remember(state, completions) { derivedStateOf { findCompletion(state.text.toString(), state.selection, completions) } }
     var dismissedAt by remember { mutableIntStateOf(-1) }
     var highlighted by remember { mutableIntStateOf(0) }
     LaunchedEffect(query?.start, query?.query) {
@@ -102,8 +99,10 @@ fun Composer(
 
     fun accept(q: CompletionQuery, item: Completion) {
         val text = q.insertion(item)
-        state.replaceTextRange(TextRange(q.start, q.end), text)
-        state.selection = TextRange(q.start + text.length)
+        state.edit {
+            replace(q.start, q.end, text)
+            selection = TextRange(q.start + text.length)
+        }
     }
 
     fun onCompletionKey(event: KeyEvent): Boolean {
@@ -119,19 +118,11 @@ fun Composer(
         return true
     }
     LaunchedEffect(Unit) { if (!hasTouchKeyboard) focus.requestFocus() }
-    LaunchedEffect(state) {
-        var previous = state.annotatedString.text
-        snapshotFlow { state.annotatedString.text }.collect { text ->
-            val at = state.selection.start - 1
-            if (text.length == previous.length + 1 && at >= 0 && isInlineMarker(text[at])) state.applyInlineMarkdown()
-            previous = state.annotatedString.text
-        }
-    }
 
     fun submit() {
         if (running || blocked != null || (empty && !hasAttachments)) return
-        onSend(state.toMarkdown().trim())
-        state.clear()
+        onSend(state.text.toString().trim())
+        state.clearText()
     }
 
     val shape = RoundedCornerShape(Radius.composer)
@@ -163,12 +154,25 @@ fun Composer(
                     Box(Modifier.fillMaxWidth().padding(horizontal = Spacing.space8, vertical = Spacing.space6)) {
                         val style = inputTextStyle()
                         if (empty) Text(placeholder, color = color(mutedColor), style = style)
-                        BasicRichTextEditor(
+                        BasicTextField(
                             state = state,
                             textStyle = style.copy(color = color(onFieldColor)),
                             keyboardOptions = inputKeyboard(capitalize = true),
                             cursorBrush = SolidColor(color(accentColor)),
-                            maxLines = 12,
+                            lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 12),
+                            inputTransformation = {
+                                if (changes.changeCount == 1) {
+                                    val range = changes.getRange(0)
+                                    val original = changes.getOriginalRange(0)
+                                    if (original.collapsed && range.length == 1 && asCharSequence()[range.start] == '\n' &&
+                                        originalSelection.collapsed && original.start == originalSelection.start && selection.collapsed && selection.start == range.end) {
+                                        asBuffer().continueList()
+                                    }
+                                }
+                            },
+                            outputTransformation = {
+                                markdownSpans(asCharSequence()).forEach { span -> addStyle(editorStyles.style(span), span.start, span.end) }
+                            },
                             modifier = Modifier.semantics { contentDescription = "Message" }
                                 .fillMaxWidth()
                                 .heightIn(min = 36.dp)
@@ -240,30 +244,31 @@ private fun Modifier.above(gap: Dp) = layout { measurable, constraints ->
     layout(placeable.width, 0) { placeable.place(0, -placeable.height - gap.roundToPx()) }
 }
 
-private fun onKey(event: KeyEvent, state: RichTextState, submit: () -> Unit): Boolean {
+private fun onKey(event: KeyEvent, state: TextFieldState, submit: () -> Unit): Boolean {
     if (event.key == Key.Enter && !event.isShiftPressed) {
         submit()
         return true
     }
     if (!event.isShortcutPressed) return false
     when (event.key) {
-        Key.B -> state.toggleSpanStyle(Bold)
-        Key.I -> state.toggleSpanStyle(Italic)
-        Key.E -> state.toggleCodeSpan()
+        Key.B -> state.edit { asBuffer().toggle(MarkdownElementTypes.STRONG) }
+        Key.I -> state.edit { asBuffer().toggle(MarkdownElementTypes.EMPH) }
+        Key.E -> state.edit { asBuffer().toggle(MarkdownElementTypes.CODE_SPAN) }
         else -> return false
     }
     return true
 }
 
 @Composable
-private fun FormatBar(state: RichTextState, visible: Boolean, modifier: Modifier) = AnimatedVisibility(visible, modifier, enter = fadeIn(), exit = fadeOut()) {
+private fun FormatBar(state: TextFieldState, visible: Boolean, modifier: Modifier) = AnimatedVisibility(visible, modifier, enter = fadeIn(), exit = fadeOut()) {
     Panel(shape = Theme[shapes][mediumShape], contentPadding = PaddingValues(Spacing.space4)) {
+        val active = remember(state.text.toString(), state.selection) { activeTypes(state.text, state.selection.min, state.selection.max) }
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space2)) {
-            FormatToggle(Lucide.Bold, "Bold ${shortcut("B")}", state.currentSpanStyle.fontWeight == Bold.fontWeight) { state.toggleSpanStyle(Bold) }
-            FormatToggle(Lucide.Italic, "Italic ${shortcut("I")}", state.currentSpanStyle.fontStyle == Italic.fontStyle) { state.toggleSpanStyle(Italic) }
-            FormatToggle(Lucide.Code, "Code ${shortcut("E")}", state.isCodeSpan) { state.toggleCodeSpan() }
-            FormatToggle(Lucide.List, "Bulleted list", state.isUnorderedList) { state.toggleUnorderedList() }
-            FormatToggle(Lucide.ListOrdered, "Numbered list", state.isOrderedList) { state.toggleOrderedList() }
+            FormatToggle(Lucide.Bold, "Bold ${shortcut("B")}", MarkdownElementTypes.STRONG in active) { state.edit { asBuffer().toggle(MarkdownElementTypes.STRONG) } }
+            FormatToggle(Lucide.Italic, "Italic ${shortcut("I")}", MarkdownElementTypes.EMPH in active) { state.edit { asBuffer().toggle(MarkdownElementTypes.EMPH) } }
+            FormatToggle(Lucide.Code, "Code ${shortcut("E")}", MarkdownElementTypes.CODE_SPAN in active) { state.edit { asBuffer().toggle(MarkdownElementTypes.CODE_SPAN) } }
+            FormatToggle(Lucide.List, "Bulleted list", MarkdownElementTypes.UNORDERED_LIST in active) { state.edit { asBuffer().toggleList(false) } }
+            FormatToggle(Lucide.ListOrdered, "Numbered list", MarkdownElementTypes.ORDERED_LIST in active) { state.edit { asBuffer().toggleList(true) } }
         }
     }
 }

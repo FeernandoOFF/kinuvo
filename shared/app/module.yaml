@@ -8,6 +8,7 @@ aliases:
 
 dependencies:
   - ../client: exported
+  - org.jetbrains:markdown:0.7.17: exported
   - org.jetbrains.androidx.lifecycle:lifecycle-viewmodel:2.11.0: exported
   - org.jetbrains.kotlinx:kotlinx-datetime:0.8.0
   - io.ktor:ktor-http:3.6.0

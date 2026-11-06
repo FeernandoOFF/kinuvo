@@ -139,7 +139,7 @@ internal fun Messages(
                     Box(Modifier.animateItem(fadeInSpec = if (user) null else tween(Motion.item), fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth()) {
                         when (row) {
                             is ChatRow.Single -> if (row.key == "outgoing") Entering { ChatItemView(row.item, actions) }
-                                else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id))
+                                else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id), writing = writing && row.item.id == last?.id)
                             is ChatRow.Steps -> StepsView(row, active = state.running && row === rows.last(), actions = actions)
                         }
                     }
@@ -209,10 +209,10 @@ private fun JumpToBottom(unseen: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = null) {
+private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = null, writing: Boolean = false) {
     when (item) {
-        is ChatItem.User -> if (item.routine != null) Expandable(Lucide.AlarmClock, requireNotNull(item.routine), subtitle = "routine") { RichMarkdown(item.text) }
-        else if (item.task != null) Expandable(Lucide.SquareKanban, requireNotNull(item.task), subtitle = "task") { RichMarkdown(item.text) }
+        is ChatItem.User -> if (item.routine != null) Expandable(Lucide.AlarmClock, requireNotNull(item.routine), subtitle = "routine") { Markdown(item.text) }
+        else if (item.task != null) Expandable(Lucide.SquareKanban, requireNotNull(item.task), subtitle = "task") { Markdown(item.text) }
         // Inset from the start, so long messages still read as the user's rather than as cards.
         else Column(Modifier.fillMaxWidth().padding(start = Spacing.space48), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
             Panel(
@@ -222,7 +222,7 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
                 shape = Theme[shapes][largeShape],
                 contentPadding = PaddingValues(horizontal = Spacing.space14, vertical = Spacing.space10),
             ) { Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-                if (item.text.isNotBlank()) RichMarkdown(item.text)
+                if (item.text.isNotBlank()) Markdown(item.text)
                 item.attachments.forEach { a ->
                     LaunchedEffect(a.id) { if (a.mimeType.startsWith("image/")) actions.onLoadAttachment(a.id) }
                     AttachmentChip(a, actions.downloads[a.id]?.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onOpen = { actions.onSaveAttachment(a.id) })
@@ -244,7 +244,7 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
                 }
             }
         }
-        is ChatItem.Assistant -> if (spoken != null) SpokenText(item.text, spoken, Modifier.fillMaxWidth()) else Markdown(item.text, Modifier.fillMaxWidth())
+        is ChatItem.Assistant -> if (spoken != null) SpokenText(item.text, spoken, Modifier.fillMaxWidth()) else if (writing) StreamingMarkdown(item.text, Modifier.fillMaxWidth()) else Markdown(item.text, Modifier.fillMaxWidth())
         is ChatItem.Reasoning -> StepView(item)
         is ChatItem.ToolCall -> when {
             (item.identity?.instance?.pluginId == "kinuvo.computer" && item.identity?.localId in setOf("computer_capture", "computer_act")) && item.result == null -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.space2)) {
