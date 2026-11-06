@@ -1,5 +1,8 @@
 package kinuvo.ui.design
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -129,8 +132,13 @@ fun ChoiceSelect(options: List<Pair<String, String>>, selected: String?, enabled
             options.forEach { (value, label) -> DropdownMenuItem(onClick = { open = false; onSelect(value) }) { Text(label) } }
         }
     }) {
-        Button(onClick = { open = true }, modifier = Modifier.widthIn(min = width).then(if (compact) Modifier.height(36.dp) else Modifier), enabled = enabled, style = ButtonStyle.Outlined) {
-            Text(options.firstOrNull { it.first == selected }?.second ?: "Select an option", style = style, singleLine = true)
+        val shape = RoundedCornerShape(10.dp)
+        Row((if (compact) Modifier.fillMaxWidth().height(36.dp) else Modifier.widthIn(min = width).height(40.dp))
+            .clip(shape).background(color(backgroundColor)).border(1.dp, color(borderColor), shape)
+            .clickable(enabled = enabled) { open = true }.padding(horizontal = if (compact) 6.dp else 12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(options.firstOrNull { it.first == selected }?.second ?: "Select", Modifier.weight(1f), style = if (compact) TextStyles.caption else style, singleLine = true)
+            if (!compact) Icon(Lucide.ChevronDown, Modifier.size(12.dp), contentDescription = null)
         }
     }
 }

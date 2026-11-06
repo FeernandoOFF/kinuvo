@@ -107,7 +107,8 @@ fun surfaceCatalog(basic: CatalogDefinition): CatalogDefinition {
         "append" to function("append", "void", "Append a literal value to the array at path; relative paths use the template item.", listOf("path", "value")),
         "removeAt" to function("removeAt", "void", "Remove index from array path. Omit both arguments inside a template to remove its current item.", listOf("path", "index"), emptyList()),
         "count" to function("count", "number", "Count values, optionally matching every field in where (choice arrays match a contained value).", listOf("values", "where"), listOf("values")),
-        "sum" to function("sum", "number", "Sum numeric values; values may bind a wildcard path such as /days/*/tasks/*/minutes.", listOf("values")),
+        "multiply" to function("multiply", "number", "Multiply numeric values, including bound values.", listOf("values")),
+        "sum" to function("sum", "number", "Sum numeric values or, with fields, the product of those numeric fields per row. Wildcard paths select nested values.", listOf("values", "fields"), listOf("values")),
         "formatDuration" to function("formatDuration", "string", "Format minutes as 1h 00m.", listOf("minutes")),
     )
     defs["anyFunction"] = buildJsonObject {

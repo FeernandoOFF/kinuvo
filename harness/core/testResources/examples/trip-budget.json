@@ -1,0 +1,30 @@
+{
+  "version": "v1.0",
+  "createSurface": {
+    "surfaceId": "example-trip-budget",
+    "catalogId": "https://kinuvo.com/a2ui/v1/catalog.json",
+    "components": [
+      {"id":"root","component":"Card","child":"body"},
+      {"id":"body","component":"Column","children":["eyebrowRow","heading","divider","total","note","people","shareTrip"]},
+      {"id":"eyebrow","component":"Text","text":"TRIP BUDGET · 3 FRIENDS","variant":"caption"},
+      {"id":"heading","component":"Text","text":"Lisbon, together","variant":"h1"},
+      {"id":"divider","component":"Divider"},
+      {"id":"total","component":"Text","text":{"call":"formatString","args":{"value":"${formatCurrency(sum(/expenses), \"EUR\")} spent"}},"variant":"h2"},
+      {"id":"note","component":"Text","text":"Apartment, dinner & airport rides","variant":"caption"},
+      {"id":"people","component":"Column","children":{"componentId":"person","path":"/people"}},
+      {"id":"person","component":"Column","children":["personHead","expense","paid","settle"]},
+      {"id":"personHead","component":"Row","children":["name","gap","share"]},
+      {"id":"name","component":"Text","text":{"path":"name"},"variant":"h3"},
+      {"id":"gap","component":"Spacer","weight":1},
+      {"id":"share","component":"Badge","label":"€100 each","color":"info"},
+      {"id":"paid","component":"Text","text":{"call":"formatString","args":{"value":"Paid ${formatCurrency(sum(paid), \"EUR\")}"}}},
+      {"id":"settle","component":"Badge","label":{"path":"settle"},"color":"success"},
+      {"id":"shareTripLabel","component":"Text","text":"Share settlement"},
+      {"id":"shareTrip","component":"Button","variant":"primary","child":"shareTripLabel","action":{"event":{"name":"shareTrip","context":{"data":{"path":"/"}}}}},
+      {"id":"eyebrowRow","component":"Row","children":["exampleIcon","eyebrow"]},
+      {"id":"exampleIcon","component":"Icon","name":"locationOn"},
+      {"id":"expense","component":"Text","text":{"path":"expense"},"variant":"caption"}
+    ],
+    "dataModel": {"people":[{"name":"Alex","paid":[120,45],"settle":"Receives €65","expense":"Apartment & groceries"},{"name":"Sam","paid":[90],"settle":"Pays €10","expense":"Dinner for three"},{"name":"Jo","paid":[45],"settle":"Pays €55","expense":"Airport rides"}],"expenses":[120,45,90,45]}
+  }
+}

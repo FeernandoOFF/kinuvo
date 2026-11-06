@@ -51,6 +51,21 @@ class SurfaceCollectionsTest {
         assertNull(functions.edit("removeAt", mapOf("path" to JsonPrimitive("/rows"), "index" to JsonPrimitive("invalid"))))
     }
 
+    @Test fun interpolationAndArithmetic() {
+        val model = json.parseToJsonElement("""{"rows":[{"status":["Done"],"qty":2,"price":10},{"status":["Todo"],"qty":3,"price":5}]}""").jsonObject
+        val functions = SurfaceFunctions(model, EvaluationScope.Root)
+        fun format(template: String) = functions.evaluate(buildJsonObject { put("call", "formatString"); putJsonObject("args") { put("value", template) } })
+        assertEquals(JsonPrimitive("2 tasks · 1 completed"), format("${'$'}{count(/rows)} tasks · ${'$'}{count(values: /rows, where: {\"status\":\"Done\"})} completed"))
+        assertEquals(JsonPrimitive("1h 15m"), format("${'$'}{formatDuration(sum(values: [60,15]))}"))
+        assertEquals(JsonPrimitive("6"), format("${'$'}{formatNumber(multiply(values: [2,3]))}"))
+        assertEquals(JsonPrimitive(35.0), functions.evaluate(json.parseToJsonElement("""{"call":"sum","args":{"values":{"path":"/rows"},"fields":["qty","price"]}}""")))
+        val item = SurfaceFunctions(model, EvaluationScope.Collection(EvaluationScope.Root, JsonPointer.parse("/rows"), 1))
+        assertEquals(JsonPrimitive("15"), item.evaluate(buildJsonObject { put("call", "formatString"); putJsonObject("args") { put("value", "${'$'}{formatNumber(multiply(values: [{\"path\":\"qty\"},{\"path\":\"price\"}]))}") } }))
+        assertEquals(JsonPrimitive("2 tasks"), format("${'$'}{count(values: ${'$'}{/rows})} ${'$'}{'tasks'}"))
+        assertEquals(JsonPrimitive("2 rows"), format("${'$'}{formatNumber(value: 2)} rows"))
+        assertFails { format("${'$'}{count(/rows)") }
+    }
+
     @Test fun stepperClamps() {
         assertEquals(0.0, stepperValue(10.0, -15.0))
         assertEquals(60.0, stepperValue(50.0, 15.0, max = 60.0))

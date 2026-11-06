@@ -1,5 +1,6 @@
 package kinuvo.ui.surface
 
+import com.composables.icons.lucide.*
 import androidx.compose.animation.Crossfade
 import dev.ynagai.a2ui.core.protocol.Action
 import kinuvo.app.surface.stepperValue
@@ -45,8 +46,8 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
     "Progress" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
         val max = scope.surfaceNumber("max")?.takeIf { it.isFinite() && it > 0 } ?: 1.0
         val value = ((scope.surfaceNumber("value") ?: 0.0) / max).takeIf { it.isFinite() }?.coerceIn(0.0, 1.0) ?: 0.0
-        Box(modifier.width(56.dp).height(6.dp).background(color(subtleColor))) {
-            Box(Modifier.fillMaxWidth(value.toFloat()).fillMaxHeight().background(color(mutedColor)))
+        Box(modifier.widthIn(min = 48.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(color(mutedColor).copy(alpha = 0.22f))) {
+            Box(Modifier.fillMaxWidth(value.toFloat()).fillMaxHeight().background(color(accentColor)))
         }
     },
     "Stepper" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
@@ -55,10 +56,12 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
         val step = (scope.surfaceNumber("step") ?: 15.0).coerceAtLeast(0.0)
         val min = scope.surfaceNumber("min") ?: 0.0
         val max = (scope.surfaceNumber("max") ?: Double.MAX_VALUE).coerceAtLeast(min)
+        val compact = LocalTableWidths.current.isNotEmpty()
+        val buttonSize = if (compact) 24.dp else 32.dp
         Row(modifier, verticalAlignment = Alignment.CenterVertically) {
-            Button(onClick = { target?.let { scope.write(it, JsonPrimitive(stepperValue(value, -step, min, max))) } }, enabled = target != null) { Text("−") }
-            Text(if (scope.surfaceBoolean("duration") == true) formatSurfaceDuration(value) else value.toString(), Modifier.padding(horizontal = 8.dp))
-            Button(onClick = { target?.let { scope.write(it, JsonPrimitive(stepperValue(value, step, min, max))) } }, enabled = target != null) { Text("+") }
+            IconButton(onClick = { target?.let { scope.write(it, JsonPrimitive(stepperValue(value, -step, min, max))) } }, modifier = Modifier.size(buttonSize), enabled = target != null && value > min, style = ButtonStyle.Ghost) { Icon(Lucide.Minus, Modifier.size(16.dp), contentDescription = "Decrease") }
+            Text(if (scope.surfaceBoolean("duration") == true) formatSurfaceDuration(value) else if (value % 1.0 == 0.0) value.toLong().toString() else value.toString(), Modifier.padding(horizontal = 4.dp), style = if (compact) TextStyles.caption else markdownTextStyle())
+            IconButton(onClick = { target?.let { scope.write(it, JsonPrimitive(stepperValue(value, step, min, max))) } }, modifier = Modifier.size(buttonSize), enabled = target != null && value < max, style = ButtonStyle.Ghost) { Icon(Lucide.Plus, Modifier.size(16.dp), contentDescription = "Increase") }
         }
     },
     "Badge" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
@@ -112,9 +115,9 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
         val measured = (0 until (rows.maxOfOrNull { it.size } ?: 0)).map { column ->
             val pixels = rows.flatMap { it.getOrNull(column)?.let { id -> labels(id) }.orEmpty() }
                 .maxOfOrNull { measurer.measure(it, style, softWrap = false).size.width } ?: 0
-            with(density) { pixels.toDp() }.plus(72.dp).coerceIn(72.dp, 240.dp)
+            with(density) { pixels.toDp() }.plus(24.dp).coerceIn(40.dp, 240.dp)
         }
-        TableFrame(measured, modifier) { widths ->
+        TableFrame(measured, modifier, compact = true) { widths ->
             CompositionLocalProvider(LocalTableWidths provides widths) {
                 scope.rememberChildren("children").forEach { scope.RenderChild(it) }
             }
@@ -125,7 +128,7 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
         val children = scope.rememberChildren("children")
         CompositionLocalProvider(LocalTextStyle provides LocalTextStyle.current.let { if (header) it.copy(fontWeight = FontWeight.Bold) else it }) {
             Column(modifier.then(if (header) Modifier.semantics { heading() } else Modifier)) {
-                TableLine(LocalTableWidths.current.ifEmpty { List(children.size) { 160.dp } }, true) { column ->
+                TableLine(LocalTableWidths.current.ifEmpty { List(children.size) { 160.dp } }, true, compact = true) { column ->
                     children.getOrNull(column)?.let { scope.RenderChild(it) }
                 }
             }
@@ -145,7 +148,7 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
     },
     "Icon" to ComponentRenderer(LayoutTraits.Fixed) { scope, modifier ->
         val name = scope.surfaceString("name")
-        Icon(catalogIcon(name), modifier.size(24.dp), contentDescription = name)
+        Icon(catalogIcon(name), modifier.size(if (LocalSurfaceButton.current) 18.dp else 24.dp), contentDescription = name)
     },
     "Image" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
         RemoteImage(scope.surfaceString("url"), scope.surfaceString("description"), modifier, scope.surfaceString("fit"), scope.surfaceString("variant"))
@@ -195,7 +198,7 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
         val variant = scope.surfaceString("variant")
         val caption = variant == "caption"
         if (LocalSurfaceButton.current) Text(scope.surfaceString("text").orEmpty(), modifier, style = markdownTextStyle())
-        else Markdown(scope.surfaceString("text").orEmpty(), modifier.width(IntrinsicSize.Max),
+        else Markdown(scope.surfaceString("text").orEmpty(), modifier,
             style = if (caption) TextStyles.caption.copy(color = color(mutedColor)) else when (variant) {
                 "h1" -> TextStyles.headline
                 "h2", "h3", "h4", "h5" -> TextStyles.title
@@ -209,7 +212,7 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
         Layout(scope, if (horizontal) modifier.horizontalScroll(rememberScrollState()) else modifier, horizontal)
     },
     "Card" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
-        Panel(modifier) { scope.rememberChildren("child").forEach { scope.RenderChild(it) } }
+        Panel(modifier.fillMaxWidth()) { scope.rememberChildren("child").forEach { scope.RenderChild(it, Modifier.fillMaxWidth()) } }
     },
     "Divider" to ComponentRenderer(LayoutTraits.Fixed) { scope, modifier ->
         if (scope.surfaceString("axis") == "vertical") VerticalSeparator(modifier.heightIn(min = 24.dp))
@@ -223,7 +226,9 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
             "borderless" -> ButtonStyle.Ghost
             else -> ButtonStyle.Outlined
         }
-        Button(onClick = {
+        val children = scope.rememberChildren("child")
+        val iconOnly = children.singleOrNull()?.let { scope.surface?.components?.get(it.componentId)?.component == "Icon" } == true
+        val onClick: () -> Unit = {
             if (action is Action.Invoke && action.functionCall.call == "copy") {
                 val args = action.functionCall.args.orEmpty()
                 val functions = scope.surface?.let { SurfaceFunctions(it.dataModel, scope.evaluationScope) }
@@ -231,12 +236,13 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
                     ?: (args["path"] as? JsonPrimitive)?.content?.let { path -> functions?.evaluate(buildJsonObject { put("path", path) }) }?.let(::surfaceMarkdownTable)
                 text?.let { clipboard.setText(AnnotatedString(it)) }
             } else action?.let { scope.dispatchLocal(it) }
-        }, modifier = modifier, style = style,
-            enabled = !scope.rememberCheckFailures().hasError()) {
-            CompositionLocalProvider(LocalSurfaceButton provides true) {
-                scope.rememberChildren("child").forEach { scope.RenderChild(it) }
-            }
         }
+        val enabled = !scope.rememberCheckFailures().hasError()
+        val content: @Composable () -> Unit = {
+            CompositionLocalProvider(LocalSurfaceButton provides true) { children.forEach { scope.RenderChild(it) } }
+        }
+        if (iconOnly) IconButton(onClick = onClick, modifier = modifier, style = style, enabled = enabled, content = content)
+        else Button(onClick = onClick, modifier = modifier, style = style, enabled = enabled) { content() }
     },
     "TextField" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
         val value = scope.surfaceString("value").orEmpty()
@@ -258,7 +264,7 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
         Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             scope.surfaceString("label")?.let { Text(it, style = TextStyles.secondary) }
             if (variant == "longText") TextArea(state, placeholder)
-            else Input(state, placeholder, modifier = if (LocalTableWidths.current.isNotEmpty()) Modifier.height(36.dp) else Modifier, secret = variant == "obscured", error = failure != null)
+            else Input(state, placeholder, modifier = if (LocalTableWidths.current.isNotEmpty()) Modifier.height(36.dp) else Modifier, secret = variant == "obscured", error = failure != null, compact = LocalTableWidths.current.isNotEmpty())
             Failure(failure)
         }
     },
@@ -321,12 +327,12 @@ private fun Failure(message: String?) {
     if (message != null) Text(message, color = color(destructiveColor), style = TextStyles.caption)
 }
 
-private val FILL_COMPONENTS = setOf("TextField", "DateTimeInput", "Slider")
+private val FILL_COMPONENTS = setOf("TextField", "DateTimeInput", "Slider", "Spacer")
 
 @Composable
 private fun Layout(scope: A2uiComponentScope, modifier: Modifier, horizontal: Boolean) {
     val justify = scope.surfaceString("justify")
-    val align = scope.surfaceString("align")
+    val align = scope.surfaceString("align") ?: if (horizontal) "center" else "stretch"
     val children = scope.rememberAllChildren()
     fun weight(child: A2uiChild) = scope.surface?.components?.get(child.componentId)?.let { component ->
         (component.properties["weight"] as? JsonPrimitive)?.floatOrNull?.takeIf { it.isFinite() && it > 0 }
@@ -334,7 +340,7 @@ private fun Layout(scope: A2uiComponentScope, modifier: Modifier, horizontal: Bo
     }
     val layout = if (justify != null && justify != "start") {
         if (horizontal) modifier.fillMaxWidth() else modifier.fillMaxHeight()
-    } else modifier
+    } else modifier.fillMaxWidth()
     if (horizontal) Row(if (align == "stretch") layout.height(IntrinsicSize.Min) else layout, horizontalArrangement = when (justify) {
         "center" -> Arrangement.Center
         "end" -> Arrangement.End

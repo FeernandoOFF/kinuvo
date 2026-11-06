@@ -40,8 +40,9 @@ import kotlin.test.*
 
 class SurfaceScreenshotTest {
     @Test fun editableWidgets() = javax.swing.SwingUtilities.invokeAndWait {
-        for (name in listOf("editable-tasks", "weekly-timesheet")) {
-            val raw = A2uiJson.strict.parseToJsonElement(File("../../harness/core/testResources/$name.json").readText())
+        for (fixture in listOf("editable-tasks", "weekly-timesheet", "examples/trip-budget", "examples/habit-tracker", "examples/recipe-scaler", "examples/workout-log", "examples/dinner-poll", "examples/invoice-builder")) {
+            val name = if (fixture.startsWith("examples/")) "example-${fixture.substringAfter('/')}" else fixture
+            val raw = A2uiJson.strict.parseToJsonElement(File("../../harness/core/testResources/$fixture.json").readText())
             val checked = CatalogValidator.of(surfaceCatalogDefinitions).validateMessage(raw, catalogId = kinuvoCatalogDefinition.catalogId)
             assertTrue(checked.isValid, checked.violations.joinToString())
             for (dark in listOf(false, true)) {
@@ -53,7 +54,7 @@ class SurfaceScreenshotTest {
                     override fun setText(annotatedString: AnnotatedString) { copied = annotatedString }
                 }
                 val messages = mutableListOf<RendererToAgentMessage>()
-                ImageComposeScene(780, if (name == "weekly-timesheet") 3600 else 1800, Density(2f), content = {
+                ImageComposeScene(720, if (name in listOf("weekly-timesheet", "example-workout-log")) 3000 else 1800, Density(2f), content = {
                     HarnessTheme(dark = dark) {
                         Box(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                             CompositionLocalProvider(LocalClipboardManager provides clipboard) {
@@ -73,7 +74,7 @@ class SurfaceScreenshotTest {
                         fun click(label: String, index: Int = 0) {
                             val nodes = nodes()
                             val button = nodes.filter { node -> node.config.getOrNull(SemanticsActions.OnClick) != null &&
-                                flatten(node).any { it.config.getOrNull(SemanticsProperties.Text)?.any { text -> text.text == label } == true } }[index]
+                                flatten(node).any { it.config.getOrNull(SemanticsProperties.Text)?.any { text -> text.text == label } == true || it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains(label) == true } }[index]
                             assertTrue(button.config[SemanticsActions.OnClick].action!!.invoke())
                             repeat(4) { frame += 200_000_000L; scene.render(frame) }
                         }
@@ -81,32 +82,54 @@ class SurfaceScreenshotTest {
                         if (name == "editable-tasks") {
                             click("+ Add row")
                             assertEquals(5, model().getValue("rows").jsonArray.size)
-                            assertTrue(hasText("5"))
-                            click("×")
+                            assertTrue(hasText("5 tasks · 1 completed"))
+                            click("delete")
                             assertEquals(4, model().getValue("rows").jsonArray.size)
-                            assertTrue(hasText("0"))
+                            assertTrue(hasText("4 tasks · 0 completed"))
                             click("Copy table")
                             assertTrue(assertNotNull(copied).text.startsWith("| task | status | priority |"))
-                        } else {
-                            click("+")
+                            click("Medium")
+                            click("Low", 1)
+                            assertEquals(JsonPrimitive("Low"), model().getValue("rows").jsonArray[0].jsonObject.getValue("priority").jsonArray.single())
+                        } else if (name == "weekly-timesheet") {
+                            click("Increase")
                             assertEquals(75.0, model().getValue("days").jsonArray[0].jsonObject.getValue("tasks").jsonArray[0].jsonObject.getValue("minutes").jsonPrimitive.double)
                             assertTrue(hasText("5h 30m"))
                             click("30m")
-                            click("+")
+                            click("Increase")
                             assertTrue(hasText("6h 00m"))
-                            click("×")
+                            click("delete")
                             assertEquals(255.0, sumSurfaceValues(surfaceValues(model(), listOf("days", "*", "tasks", "*", "minutes"))))
                             assertTrue(hasText("4h 15m"))
                             click("+ Task", 1)
                             assertEquals(1, model().getValue("days").jsonArray[1].jsonObject.getValue("tasks").jsonArray.size)
-                            click("+", 2)
+                            click("Increase", 2)
                             assertEquals(30.0, model().getValue("days").jsonArray[1].jsonObject.getValue("tasks").jsonArray[0].jsonObject.getValue("minutes").jsonPrimitive.double)
-                            click("×", 2)
+                            click("delete", 2)
                             assertEquals(0, model().getValue("days").jsonArray[1].jsonObject.getValue("tasks").jsonArray.size)
                         }
+                        if (name.startsWith("example-")) {
+                            when (name) {
+                                "example-recipe-scaler" -> { click("Increase"); assertTrue(hasText("300 g")) }
+                                "example-workout-log" -> { click("Increase"); assertTrue(hasText("1,920 kg total volume")) }
+                                "example-invoice-builder" -> { click("Increase"); assertTrue(hasText("EUR 1,260")) }
+                                "example-habit-tracker" -> assertTrue(hasText("5 wins"))
+                                "example-trip-budget" -> assertTrue(hasText("Paid EUR 165.00"))
+                                "example-dinner-poll" -> click("Pizza")
+                            }
+                        }
                         assertTrue(messages.isEmpty(), "Local edits must not send an Agent message")
-                        click("Send")
+                        click(when (name) {
+                            "example-recipe-scaler" -> "Save grocery list"
+                            "example-workout-log" -> "Finish workout"
+                            "example-invoice-builder" -> "Send invoice"
+                            "example-habit-tracker" -> "Save week"
+                            "example-trip-budget" -> "Share settlement"
+                            "example-dinner-poll" -> "Submit vote"
+                            else -> "Send"
+                        })
                         assertEquals(1, messages.size)
+                        if (name == "example-invoice-builder") assertEquals(JsonPrimitive("EUR 1,260"), (messages.single() as ActionMessage).context["total"])
                     }
                 }
             }
