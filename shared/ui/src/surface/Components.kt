@@ -157,7 +157,7 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
     "AudioPlayer" to ComponentRenderer(LayoutTraits.Content) { scope, modifier -> Media(scope, modifier, false) },
     "Tabs" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
         val titles by remember(scope) { derivedStateOf {
-            (scope.property("tabs") as? JsonArray).orEmpty().take(100).map { (it as? JsonObject)?.get("title")?.let(scope::dynamicString).orEmpty() }
+            (scope.property("tabs") as? JsonArray).orEmpty().take(100).map { (it as? JsonObject)?.get("title")?.let(scope::surfaceText).orEmpty() }
         } }
         var selected by remember(scope) { mutableIntStateOf(0) }
         if (titles.isNotEmpty()) Tabs(titles, selected.coerceAtMost(titles.lastIndex), { selected = it }, modifier) {
@@ -286,7 +286,7 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
             (scope.property("options") as? JsonArray).orEmpty().mapNotNull { raw ->
                 val option = raw as? JsonObject ?: return@mapNotNull null
                 val value = (option["value"] as? JsonPrimitive)?.content ?: return@mapNotNull null
-                val label = option["label"]?.let(scope::dynamicString) ?: return@mapNotNull null
+                val label = option["label"]?.let(scope::surfaceText) ?: return@mapNotNull null
                 value to label
             }
         } }
