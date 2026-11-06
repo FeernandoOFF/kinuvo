@@ -74,6 +74,6 @@ data class SaveRemoteLink(val id: String, val url: String, val token: String)
 @Serializable
 data class ExposureGrant(val id: String, val agentIds: Set<String>)
 @Serializable
-data class RemoteExecutionCall(val agentId: String? = null, val sessionId: String? = null, val action: String = "list", val text: String? = null, val requestId: String? = null, val answer: JsonElement? = null)
+data class RemoteExecutionCall(val agentId: String? = null, val sessionId: String? = null, val action: String = "list", val text: String? = null, val requestId: String? = null, val answer: JsonElement? = null, val surfaceAction: SurfaceAction? = null)
 @Serializable
 data class RemoteExecutionResult(val agents: List<AgentInfo> = emptyList(), val snapshot: ExecutionSnapshot? = null, val accepted: Boolean = true)

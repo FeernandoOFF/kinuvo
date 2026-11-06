@@ -12,6 +12,7 @@ import kinuvo.app.knowledge.KnowledgeViewModel
 import kinuvo.app.navigation.Route
 import kinuvo.app.screen.LiveViewModel
 import kinuvo.app.session.*
+import kinuvo.app.surface.UiCatalogs
 import kinuvo.app.voice.ServerVoiceViewModel
 import kinuvo.client.KinuvoClient
 import org.koin.core.module.dsl.viewModel
@@ -24,6 +25,7 @@ val appModule = module {
     single { LiveCalls() }
     single { DeviceAccess(get(), get(), getOrNull()) }
     single { ConnectedServer(get(), get(), getOrNull()) }
+    single { get<ConnectedServer>().surfaceImages }
     single { get<ConnectedServer>().sessions }
     single { get<ConnectedServer>().routines }
     single { get<ConnectedServer>().config }
@@ -33,7 +35,7 @@ val appModule = module {
     single { get<ConnectedServer>().devices }
     viewModel { ServerVoiceViewModel(get()) }
     viewModel { OnboardingViewModel(get(), getOrNull() ?: NotificationPermission.None) }
-    viewModel { AppViewModel(get(), get(), get(), get(), getOrNull() ?: ClientCache.None, getOrNull() ?: NotificationPermission.None) }
+    viewModel { AppViewModel(get(), get(), get(), get(), getOrNull() ?: ClientCache.None, getOrNull() ?: NotificationPermission.None, getOrNull<UiCatalogs>()?.all.orEmpty()) }
     viewModel { (client: KinuvoClient, route: Route.Chat) -> SessionViewModel(client, get(), route) }
     viewModel { (engine: SpeechEngine, session: SessionViewModel) -> VoiceViewModel(engine, session, get(), get()) }
     viewModel { (transcriber: Transcriber) -> DictationViewModel(if (transcriber is SpeechEngine) ServerSpeech(transcriber, get()) else transcriber) }

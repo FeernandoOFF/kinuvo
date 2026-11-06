@@ -8,6 +8,7 @@
     "mobile/connect-settings",
     "ws/create-session",
     "ws/device-tools",
+    "ws/surface-catalogs",
     "ws/models",
     "ws/presence",
     "ws/routines",

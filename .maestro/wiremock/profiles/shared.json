@@ -1,1 +1,6 @@
-{"mappings":[]}
+{
+  "mappings": [
+    "ws/surface-catalogs",
+    "ws/execution-catalog"
+  ]
+}

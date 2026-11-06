@@ -115,6 +115,9 @@ _Avoid_: Sandbox, runtime, environment
 A page, chart or document (HTML, SVG, Markdown, CSV, JSON or text) an Agent makes for the user, kept in `~/.kinuvo/artifacts` and shared by all Agents; only its latest content is kept. Opened from the chat or the Artifacts screen.
 _Avoid_: Attachment, canvas
 
+**Surface**:
+An interactive layout or form an Agent shows in a Session, with controls the user can fill in and actions they can send back to the Agent.
+
 **Screen**:
 A surface an Agent can see and control, such as a Computer display or a Browser tab.
 

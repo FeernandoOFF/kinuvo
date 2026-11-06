@@ -43,6 +43,7 @@ class KinuvoClient(
     private val onToken: (String) -> Unit = {},
     private val timeZone: String? = null,
     private val deviceTools: () -> Set<DeviceToolKind> = { emptySet() },
+    private val uiCatalogs: List<UiCatalog> = emptyList(),
     private val deviceRead: suspend (DeviceToolRequest) -> DeviceToolResult = { DeviceToolResult(DeviceToolStatus.Unsupported) },
     /** Controls this Device's screen; unlike reads, it works while the app is in the background. */
     private val computer: suspend (ComputerRequest) -> ComputerResult = { ComputerResult(DeviceToolStatus.Unsupported) },
@@ -57,6 +58,7 @@ class KinuvoClient(
     private val ids = AtomicLong(0)
     private val _events = MutableSharedFlow<Frame.Event>(extraBufferCapacity = 1024)
     private val _state = MutableStateFlow<ConnectionState>(ConnectionState.Connecting)
+    @Volatile private var ready: CompletableDeferred<Unit>? = null
     private var session: FrameConnection? = null
     private var token: String? = token
     private var loop: Job? = null
@@ -92,6 +94,8 @@ class KinuvoClient(
             var delayMs = 500L
             while (isActive) {
                 _state.value = ConnectionState.Connecting
+                val connected = CompletableDeferred<Unit>()
+                ready = connected
                 var socket: FrameConnection? = null
                 var reader: Job? = null
                 try {
@@ -108,7 +112,9 @@ class KinuvoClient(
                     }
                     val result = request(Api.Connect, prepared)
                     token = result.token.also(onToken)
+                    if (uiCatalogs.isNotEmpty()) exchange(Api.SurfaceCatalogs, SurfaceCatalogsParams(uiCatalogs))
                     lastConnect = result
+                    connected.complete(Unit)
                     _state.value = ConnectionState.Connected(result.serverName)
                     presence.withLock { request(Api.Presence, PresenceParams(active)) }
                     first.complete(result)
@@ -130,6 +136,8 @@ class KinuvoClient(
                     if (!first.isCompleted && !retry) { first.completeExceptionally(e); return@launch }
                 } finally {
                     withContext(NonCancellable) {
+                        connected.completeExceptionally(DisconnectedException())
+                        if (ready === connected) ready = null
                         reader?.cancelAndJoin()
                         runCatching { socket?.close() }
                         if (session === socket) session = null
@@ -170,7 +178,14 @@ class KinuvoClient(
     }
 
     private suspend fun <P, R> request(method: Method<P, R>, params: P): R =
-        if (method == Api.Connect) exchange(method, params) else slots.withPermit { exchange(method, params) }
+        if (method == Api.Connect) exchange(method, params) else {
+            val connected = ready ?: throw DisconnectedException()
+            connected.await()
+            slots.withPermit {
+                if (ready !== connected) throw DisconnectedException()
+                exchange(method, params)
+            }
+        }
 
     private suspend fun <P, R> exchange(method: Method<P, R>, params: P): R {
         val ws = session ?: throw DisconnectedException("Not connected")

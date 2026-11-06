@@ -1,5 +1,7 @@
 package kinuvo.app.session
 
+import kinuvo.protocol.SurfaceAction
+
 import kinuvo.app.connection.*
 import kinuvo.app.agent.*
 import kinuvo.app.navigation.*
@@ -33,7 +35,7 @@ sealed interface ChatItem {
     val id: String
 
     /** [routine] names the Routine that sent [text] on its schedule. */
-    data class User(override val id: String, val text: String, val routine: String? = null, val attachments: List<Attachment> = emptyList(), val task: String? = null, val voice: Boolean = false) : ChatItem
+    data class User(override val id: String, val text: String, val routine: String? = null, val attachments: List<Attachment> = emptyList(), val task: String? = null, val voice: Boolean = false, val action: SurfaceAction? = null) : ChatItem
     data class Assistant(override val id: String, val text: String, val at: Long? = null) : ChatItem
     data class Reasoning(override val id: String, val text: String) : ChatItem
     /** [callId] is the model's tool-call ID; [approval] or [questions] is set while the call waits on the user. */
@@ -120,7 +122,7 @@ fun List<ChatItem>.requestMetrics(): List<RequestMetrics> = flatMap {
 private fun ChatItem.isStep() = when (this) {
     is ChatItem.Reasoning -> true
     is ChatItem.ToolCall -> if (name == "generate_image") waiting || isError
-        else !waiting && !(name in setOf("ask_user", "artifact") && result != null && !isError)
+        else !waiting && !(name in setOf("ask_user", "artifact", "show_ui") && result != null && !isError)
     else -> false
 }
 
@@ -373,24 +375,24 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
             .onSuccess { info -> state.update { it.copy(info = info, settings = info.settings) } }.isSuccess
 
     /** [voice] marks [text] as transcribed from voice chat, so the reply suits being read aloud. */
-    fun send(text: String, voice: Boolean = false) {
+    fun send(text: String, voice: Boolean = false, action: SurfaceAction? = null) {
         val agent = route.agentId ?: return
         val pending = state.value.attachments
         if ((text.isBlank() && pending.isEmpty()) || state.value.running || (state.value.capabilities?.chat?.actionable == false && !state.value.resumeOnSend)) return
-        val submission = pendingSubmission?.takeIf { it.text == text && it.attachments == pending.map { a -> a.id } && it.voice == voice }
-            ?: PendingSubmission(Uuid.random().toString(), text, pending.map { it.id }, voice)
+        val submission = pendingSubmission?.takeIf { it.text == text && it.attachments == pending.map { a -> a.id } && it.voice == voice && it.action == action }
+            ?: PendingSubmission(Uuid.random().toString(), text, pending.map { it.id }, voice, action)
         pendingSubmission = submission
         state.update { s ->
             s.copy(
                 sending = true, attachments = emptyList(), unsent = null,
-                outgoing = ChatItem.User("user-${submission.id}", text, attachments = pending.map { it.attachment.copy(id = it.id) }, voice = voice),
+                outgoing = ChatItem.User("user-${submission.id}", text, attachments = pending.map { it.attachment.copy(id = it.id) }, voice = voice, action = action),
                 outgoingAfter = s.data?.items?.lastOrNull { it is ChatItem.User }?.id,
                 downloads = s.downloads + pending.associate { it.id to AttachmentData(it.attachment, it.upload.base64) },
             )
         }
         val uploads = mutableMapOf<String, Attachment>()
         viewModelScope.launch {
-            try { repo.connection.run { ordered.withLock { sendNow(agent, text, pending, uploads, voice, submission.id) } } }
+            try { repo.connection.run { ordered.withLock { sendNow(agent, text, pending, uploads, voice, submission.id, action) } } }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 state.update { it.copy(errors = it.errors + listOfNotNull(e.report()), outgoing = null, unsent = text, attachments = pending.map { p -> p.copy(uploaded = uploads[p.id] ?: p.uploaded) } + it.attachments) }
@@ -414,7 +416,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         id
     }
 
-    private suspend fun sendNow(agent: String, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean, submissionId: String) {
+    private suspend fun sendNow(agent: String, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean, submissionId: String, action: SurfaceAction?) {
         val sessionId = sessionFor(agent)
         if (state.value.resumeOnSend) {
             state.update { it.copy(resuming = true) }
@@ -429,7 +431,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
                 state.update { it.copy(downloads = it.downloads + (a.id to AttachmentData(a, draft.upload.base64))) }
             })
         }
-        repo.send(agent, sessionId, text, uploaded.map { it.id }, voice, submissionId)
+        repo.send(agent, sessionId, text, uploaded.map { it.id }, voice, submissionId, action)
         pendingSubmission = null
     }
 
@@ -569,4 +571,4 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     private fun Exception.report() = takeUnless { it is DisconnectedException }?.let { message ?: toString() }
 }
 
-private data class PendingSubmission(val id: String, val text: String, val attachments: List<String>, val voice: Boolean)
+private data class PendingSubmission(val id: String, val text: String, val attachments: List<String>, val voice: Boolean, val action: SurfaceAction?)

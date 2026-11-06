@@ -23,6 +23,7 @@ dependencies:
   - com.charleskorn.kaml:kaml:0.104.0
   - co.touchlab:stately-concurrency:2.1.0
   - io.github.oshai:kotlin-logging:8.0.4: exported
+  - dev.ynagai.a2ui:a2ui-core:0.3.0
 
 dependencies@jvmAndAndroid:
   - ai.koog:agents-features-opentelemetry:1.3.0

@@ -83,6 +83,7 @@ class AppViewModel(
     private val deviceAccess: DeviceAccess,
     private val cache: ClientCache = ClientCache.None,
     private val notificationPermission: NotificationPermission = NotificationPermission.None,
+    private val uiCatalogs: List<UiCatalog> = emptyList(),
 ) : ViewModel() {
     private val repo get() = owner.sessions
     private val routines get() = owner.routines
@@ -367,7 +368,7 @@ class AppViewModel(
             val endpoint = servers.endpoint(server)
             currentCoroutineContext().ensureActive()
             client = KinuvoClient(endpoint.url, device.name, token = endpoint.token, pairingCode = code, timeZone = device.timeZone,
-                deviceTools = { deviceAccess.tools(endpoint.url) }, deviceRead = { deviceAccess.read(endpoint.url, it) },
+                deviceTools = { deviceAccess.tools(endpoint.url) }, uiCatalogs = uiCatalogs, deviceRead = { deviceAccess.read(endpoint.url, it) },
                 computer = { deviceAccess.act(endpoint.url, it) }, connection = endpoint.connection)
             owner.open(client, endpoint.url)
             snapshot = if (code == null) cacheFor(server).read(server.key) else null

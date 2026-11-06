@@ -5,9 +5,28 @@ import kinuvo.harness.server.execution.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlin.test.*
 
 class RemoteGatewayTest {
+    @Test fun surfaceActionSurvivesRemoteWireAndSend() = runTest {
+        val links = RemoteLinks()
+        val token = links.grant(ExposureGrant("friend", setOf("agent")))
+        links.claim(token, "agent", "session")
+        val context = buildJsonObject { put("name", "Alex") }
+        val action = SurfaceAction("call", "plan", "save", "submit", context, context)
+        var received: SurfaceAction? = null
+        val gateway = RemoteGateway(links, { listOf(AgentInfo("agent", "Agent", "")) },
+            { error("No create") }, { _, id -> ExecutionSnapshot(id) },
+            { _, _, text, value -> assertEquals("Save plan", text); received = value },
+            { _, _ -> }, { _, _ -> true })
+        val original = RemoteExecutionCall("agent", "session", "send", "Save plan", surfaceAction = action)
+        val decoded = ProtocolJson.decodeFromString(RemoteExecutionCall.serializer(), ProtocolJson.encodeToString(RemoteExecutionCall.serializer(), original))
+        gateway.call(token, decoded)
+        assertEquals(action, received)
+    }
+
     @Test fun cleartextRemoteLinksPersistAndStillValidateAddresses() {
         var stored = RemoteSecrets()
         val links = RemoteLinks(persist = { stored = it })
@@ -26,7 +45,7 @@ class RemoteGatewayTest {
             { listOf(AgentInfo("agent", "Agent", "")) },
             { links.revoke("friend"); ExecutionSnapshot("created") },
             { _, id -> ExecutionSnapshot(id) },
-            { _, _, _ -> }, { _, _ -> }, { _, _ -> true },
+            { _, _, _, _ -> }, { _, _ -> }, { _, _ -> true },
             { agent, id -> assertEquals("agent", agent); assertEquals("created", id); disposed = true })
         assertFailsWith<IllegalArgumentException> { gateway.call(token, RemoteExecutionCall("agent", action = "create")) }
         assertTrue(disposed)
@@ -43,7 +62,7 @@ class RemoteGatewayTest {
             { listOf(AgentInfo("allowed", "A", ""), AgentInfo("private", "B", ""), AgentInfo("cycle", "C", "", executionKind = ExecutionKind.Remote)) },
             { creates++; ExecutionSnapshot("source-session") },
             { agent, id -> require(agent == "allowed" && id == "source-session"); ExecutionSnapshot(id) },
-            { _, _, _ -> }, { _, _ -> }, { _, _ -> true })
+            { _, _, _, _ -> }, { _, _ -> }, { _, _ -> true })
         assertEquals(listOf("allowed"), gateway.call(token, RemoteExecutionCall()).agents.map { it.id })
         assertFailsWith<IllegalArgumentException> { gateway.call(token, RemoteExecutionCall("private", action = "create")) }
         assertFailsWith<IllegalArgumentException> { gateway.call(token, RemoteExecutionCall("cycle", action = "create")) }
@@ -65,7 +84,7 @@ class RemoteGatewayTest {
         links.claim(token, "agent", "session")
         var received: ExecutionAnswer? = null
         val gateway = RemoteGateway(links, { listOf(AgentInfo("agent", "Agent", "")) },
-            { error("No create") }, { _, id -> ExecutionSnapshot(id) }, { _, _, _ -> }, { _, _ -> },
+            { error("No create") }, { _, id -> ExecutionSnapshot(id) }, { _, _, _, _ -> }, { _, _ -> },
             { _, answer -> received = answer; true })
         val original = RemoteExecutionCall("agent", "session", "answer", requestId = "request", answer = JsonNull)
         val decoded = ProtocolJson.decodeFromString(RemoteExecutionCall.serializer(), ProtocolJson.encodeToString(RemoteExecutionCall.serializer(), original))

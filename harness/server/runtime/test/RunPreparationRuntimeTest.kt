@@ -11,6 +11,11 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.Tool
 import kinuvo.protocol.*
+import kinuvo.client.KinuvoClient
+import kinuvo.harness.server.devices.*
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -20,6 +25,97 @@ import kotlinx.serialization.json.put
 import kotlin.test.*
 
 class RunPreparationRuntimeTest {
+    @Test fun authenticatedCatalogsEnableShowUiAndDisconnectRemovesThem() = runBlocking {
+        val offered = mutableListOf<List<String>>()
+        val fixture = RuntimeFixture()
+        val harness = fixture.runtime(scriptedModel { _, tools ->
+            offered += tools.map { it.name }
+            flowOf(StreamFrame.End())
+        })
+        val requests = Channel<Frame>(Channel.UNLIMITED)
+        val responses = Channel<Frame>(Channel.UNLIMITED)
+        fun connection(incoming: Channel<Frame>, outgoing: Channel<Frame>) = object : FrameConnection {
+            override val incoming = incoming.receiveAsFlow()
+            override suspend fun send(frame: Frame) { outgoing.send(frame) }
+            override suspend fun close() { incoming.close(); outgoing.close() }
+        }
+        val peers = object : PeerRegistry {
+            override fun authenticate(device: String, token: String?, pairingCode: String?) = "token"
+            override fun management(token: String) = false
+            override fun toolDevices() = emptyList<ToolDevice>()
+            override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
+        }
+        val server = ServerRuntime(harness, peers)
+        val catalogs = listOf(UiCatalog("test", description = "x".repeat(30_000),
+            components = mapOf("Text" to buildJsonObject { put("type", "object") })))
+        val client = KinuvoClient("local:test", "Device", uiCatalogs = catalogs,
+            connection = { connection(responses, requests) })
+        server.start()
+        val serving = launch { server.serve(connection(requests, responses)) }
+        try {
+            withTimeout(5_000) { client.connect() }
+            assertEquals(catalogs, harness.uiCatalogs.forRun())
+            val session = harness.newSession(fixture.agent)
+            harness.runner(fixture.agent, session.id).run(session.id, "Show a form").toList()
+            assertTrue("show_ui" in offered.last())
+            client.close()
+            withTimeout(5_000) { serving.join() }
+            assertTrue(harness.uiCatalogs.forRun().isEmpty())
+        } finally { client.close(); serving.cancelAndJoin(); server.close() }
+    }
+
+    @Test fun surfaceActionsPersistAndReachModelOnLaterTurns() = runBlocking {
+        val fixture = RuntimeFixture()
+        val prompts = mutableListOf<String>()
+        val harness = fixture.runtime(scriptedModel { prompt, _ ->
+            prompts += prompt.messages.filterIsInstance<Message.User>().joinToString("\n") { it.textContent() }
+            flowOf(StreamFrame.End())
+        })
+        try {
+            val session = harness.newSession(fixture.agent)
+            val context = buildJsonObject { put("name", "Alex") }
+            val action = SurfaceAction("call", "plan", "save", "submit", context, context)
+            harness.runner(fixture.agent, session.id).run(session.id, "Save plan", action = action).toList()
+            harness.runner(fixture.agent, session.id).run(session.id, "Continue").toList()
+            assertEquals(action, harness.store.entries(fixture.agent.id, session.id).filterIsInstance<SessionEntry.UserMessage>().first().action)
+            assertEquals(2, prompts.size)
+            prompts.forEach {
+                assertTrue("Save plan" in it)
+                assertTrue("Surface action: save" in it)
+                assertTrue("surface: plan" in it)
+                assertTrue("Context: $context" in it)
+            }
+        } finally { harness.close() }
+    }
+
+    @Test fun surfaceToolsFollowRequestCatalogsAndActiveUnattachedFallback() = runBlocking {
+        val offered = mutableListOf<List<String>>()
+        val fixture = RuntimeFixture()
+        val harness = fixture.runtime(scriptedModel { _, tools ->
+            offered += tools.map { it.name }
+            flowOf(StreamFrame.End())
+        })
+        try {
+            val session = harness.newSession(fixture.agent)
+            val catalogs = listOf(UiCatalog("test", components = mapOf("Text" to buildJsonObject { put("type", "object") })))
+            harness.uiCatalogs.connect("app", catalogs)
+            harness.uiCatalogs.connect("cli", emptyList())
+            suspend fun run(connection: String?) {
+                harness.runner(fixture.agent, session.id, catalogs = harness.uiCatalogs.forRun(connection))
+                    .run(session.id, "Show a form").toList()
+            }
+            run("app")
+            assertTrue("show_ui" in offered.last())
+            run("cli")
+            assertFalse("show_ui" in offered.last())
+            harness.runner(fixture.agent, session.id).run(session.id, "Unattached run").toList()
+            assertTrue("show_ui" in offered.last())
+            harness.uiCatalogs.disconnect("app")
+            harness.runner(fixture.agent, session.id).run(session.id, "Unattached run after disconnect").toList()
+            assertFalse("show_ui" in offered.last())
+        } finally { harness.close() }
+    }
+
     @Test fun schedulingCannotBypassSessionApprovals() = runBlocking {
         val fixture = RuntimeFixture()
         val identity = ToolIdentity(PluginInstanceId("kinuvo.core"), "schedule")

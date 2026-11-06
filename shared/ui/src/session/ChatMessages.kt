@@ -1,5 +1,10 @@
 package kinuvo.ui.session
 
+import kinuvo.ui.surface.LocalSurfaceItems
+
+import kinuvo.ui.surface.LocalSurfaceRenderers
+import kinuvo.ui.surface.SurfaceCall
+import kinuvo.ui.surface.SurfaceRenderer
 import kinuvo.protocol.Attachment
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
@@ -120,56 +125,59 @@ internal fun Messages(
         if (state.loaded) EmptyState(state, modifier.padding(top = top, bottom = bottom)) else Box(modifier.fillMaxWidth())
         return
     }
-    Box(modifier.fillMaxWidth()) {
-        SelectionContainer {
-            LazyColumn(
-                Modifier.fillMaxSize(),
-                state = listState,
-                contentPadding = PaddingValues(start = Spacing.space16, top = Spacing.space20 + top, end = Spacing.space16, bottom = Spacing.space20 + bottom),
-                verticalArrangement = Arrangement.spacedBy(Spacing.space14),
-                horizontalAlignment = Alignment.CenterHorizontally,
-            ) {
-                items(rows, key = { it.key }, contentType = {
-                    when (it) {
-                        is ChatRow.Single -> it.item::class
-                        is ChatRow.Steps -> ChatRow.Steps::class
+    val surfaceRenderers = remember(state.selected) { mutableMapOf<String, SurfaceRenderer>() }
+    CompositionLocalProvider(LocalSurfaceRenderers provides surfaceRenderers, LocalSurfaceItems provides items) {
+        Box(modifier.fillMaxWidth()) {
+            SelectionContainer {
+                LazyColumn(
+                    Modifier.fillMaxSize(),
+                    state = listState,
+                    contentPadding = PaddingValues(start = Spacing.space16, top = Spacing.space20 + top, end = Spacing.space16, bottom = Spacing.space20 + bottom),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.space14),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    items(rows, key = { it.key }, contentType = {
+                        when (it) {
+                            is ChatRow.Single -> it.item::class
+                            is ChatRow.Steps -> ChatRow.Steps::class
+                        }
+                    }) { row ->
+                        // A sent message replaces its outgoing copy in place, so only the outgoing one animates in.
+                        val user = (row as? ChatRow.Single)?.item is ChatItem.User
+                        Box(Modifier.animateItem(fadeInSpec = if (user) null else tween(Motion.item), fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth()) {
+                            when (row) {
+                                is ChatRow.Single -> if (row.key == "outgoing") Entering { ChatItemView(row.item, actions) }
+                                    else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id), writing = writing && row.item.id == last?.id, finished = row.item.id in finished)
+                                is ChatRow.Steps -> StepsView(row, active = state.running && row === rows.last(), actions = actions)
+                            }
+                        }
                     }
-                }) { row ->
-                    // A sent message replaces its outgoing copy in place, so only the outgoing one animates in.
-                    val user = (row as? ChatRow.Single)?.item is ChatItem.User
-                    Box(Modifier.animateItem(fadeInSpec = if (user) null else tween(Motion.item), fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth()) {
-                        when (row) {
-                            is ChatRow.Single -> if (row.key == "outgoing") Entering { ChatItemView(row.item, actions) }
-                                else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id), writing = writing && row.item.id == last?.id, finished = row.item.id in finished)
-                            is ChatRow.Steps -> StepsView(row, active = state.running && row === rows.last(), actions = actions)
+                    state.voice?.heard?.takeIf { it.isNotBlank() }?.let { heard ->
+                        item(key = "heard") { Box(Modifier.animateItem(fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth().alpha(0.6f)) { Entering { ChatItemView(ChatItem.User("heard", heard), actions) } } }
+                    }
+                    if (thinking || writing) item(key = "thinking") {
+                        Row(Modifier.widthIn(max = ContentWidth).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+                            Spinner(tint = color(accentColor))
+                            Text(if (writing) "Writing…" else "Working…", color = color(mutedColor), style = TextStyles.secondary)
                         }
                     }
                 }
-                state.voice?.heard?.takeIf { it.isNotBlank() }?.let { heard ->
-                    item(key = "heard") { Box(Modifier.animateItem(fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth().alpha(0.6f)) { Entering { ChatItemView(ChatItem.User("heard", heard), actions) } } }
-                }
-                if (thinking || writing) item(key = "thinking") {
-                    Row(Modifier.widthIn(max = ContentWidth).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-                        Spinner(tint = color(accentColor))
-                        Text(if (writing) "Writing…" else "Working…", color = color(mutedColor), style = TextStyles.secondary)
-                    }
-                }
             }
-        }
-        // Touch screens scroll by swiping; estimating mixed-height rows there only made the bar jump.
-        if (LocalInteractionMode.current != InteractionMode.Touch)
-            VerticalScrollbar(rememberVerticalScrollbarState(listState), Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(bottom = bottom))
-        AnimatedVisibility(
-            !following && listState.canScrollForward,
-            // At the edge, over the margin rather than the text.
-            Modifier.align(Alignment.BottomEnd).padding(end = Spacing.space12, bottom = Spacing.space12 + bottom),
-            enter = fadeIn() + slideInVertically { it / 2 },
-            exit = fadeOut() + slideOutVertically { it / 2 },
-        ) {
-            JumpToBottom(unseen = content != seen) {
-                scope.launch {
-                    listState.animateScrollToItem((rows.size - if (thinking) 0 else 1).coerceAtLeast(0))
-                    following = true
+            // Touch screens scroll by swiping; estimating mixed-height rows there only made the bar jump.
+            if (LocalInteractionMode.current != InteractionMode.Touch)
+                VerticalScrollbar(rememberVerticalScrollbarState(listState), Modifier.align(Alignment.CenterEnd).fillMaxHeight().padding(bottom = bottom))
+            AnimatedVisibility(
+                !following && listState.canScrollForward,
+                // At the edge, over the margin rather than the text.
+                Modifier.align(Alignment.BottomEnd).padding(end = Spacing.space12, bottom = Spacing.space12 + bottom),
+                enter = fadeIn() + slideInVertically { it / 2 },
+                exit = fadeOut() + slideOutVertically { it / 2 },
+            ) {
+                JumpToBottom(unseen = content != seen) {
+                    scope.launch {
+                        listState.animateScrollToItem((rows.size - if (thinking) 0 else 1).coerceAtLeast(0))
+                        following = true
+                    }
                 }
             }
         }
@@ -210,9 +218,10 @@ private fun JumpToBottom(unseen: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = null, writing: Boolean = false, finished: Boolean = false) {
+internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = null, writing: Boolean = false, finished: Boolean = false) {
     when (item) {
         is ChatItem.User -> if (item.routine != null) Expandable(Lucide.AlarmClock, requireNotNull(item.routine), subtitle = "routine") { Markdown(item.text) }
+        else if (item.action != null) SurfaceActionLine(item.text)
         else if (item.task != null) Expandable(Lucide.SquareKanban, requireNotNull(item.task), subtitle = "task") { Markdown(item.text) }
         // Inset from the start, so long messages still read as the user's rather than as cards.
         else Column(Modifier.fillMaxWidth().padding(start = Spacing.space48), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
@@ -266,6 +275,7 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
                     GeneratedImage(a, actions.downloads[a.id]?.base64, { actions.onPreviewAttachment(a.id) }, { actions.onSaveAttachment(a.id) })
                 }
             }
+            item.name == "show_ui" && item.result != null && !item.isError -> SurfaceCall(item, actions.onSurfaceAction) { ToolCallView(item, actions = actions) }
             item.name == "artifact" && item.result != null && !item.isError -> Column { ArtifactCard(item, actions.onOpenArtifact); ToolAttachments(item.attachments, actions) }
             else -> ToolCallView(item, actions = actions)
         }
@@ -287,6 +297,19 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
         is ChatItem.Reflection -> ReflectionView(item, onReview = actions.onReviewReflection)
         is ChatItem.Compaction -> CompactionMarker(item)
         is ChatItem.Activation -> Expandable(Lucide.BookOpen, item.name, subtitle = "skill") { Markdown(item.content) }
+    }
+}
+
+@Composable
+internal fun SurfaceActionLine(text: String) {
+    Row(Modifier.fillMaxWidth().padding(start = Spacing.space48), horizontalArrangement = Arrangement.End) {
+        Panel(color = color(selectedControlColor), borderColor = Color.Transparent, shape = PillShape,
+            contentPadding = PaddingValues(horizontal = Spacing.space12, vertical = Spacing.space8)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+                Icon(Lucide.Send, Modifier.size(14.dp), contentDescription = "Your Surface action")
+                Text("Submitted · $text", style = TextStyles.secondary)
+            }
+        }
     }
 }
 

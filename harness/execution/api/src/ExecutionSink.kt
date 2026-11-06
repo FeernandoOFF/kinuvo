@@ -1,5 +1,7 @@
 package kinuvo.harness.execution.api
 
+import kinuvo.protocol.SurfaceAction
+
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.AttachmentData
 import kinuvo.protocol.SessionEntry
@@ -10,7 +12,7 @@ interface ExecutionSink {
     suspend fun commit(entries: List<SessionEntry>)
 }
 
-data class ExecutionInput(val text: String, val attachments: List<AttachmentData> = emptyList())
+data class ExecutionInput(val text: String, val attachments: List<AttachmentData> = emptyList(), val action: SurfaceAction? = null)
 
 /** Source insertion identity; null means unavailable, never rejection or foreground completion. */
 data class ExecutionAcceptance(val messageId: String? = null)
