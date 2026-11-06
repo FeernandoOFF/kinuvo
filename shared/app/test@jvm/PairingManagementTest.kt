@@ -132,7 +132,9 @@ class PairingManagementTest {
                     is Connection.Unpaired -> c.server
                 }
                 app.use(home)
+                pendingLink.value = null
                 openLink(Links.chat("kai", "s1", "office-id"))
+                pendingLink.first { it?.agentId == "kai" && it.sessionId == "s1" }
                 assertEquals(office.key, selected()?.key)
                 assertEquals("kai" to "s1", pendingLink.value?.let { it.agentId to it.sessionId })
                 app.openChat(ChatLink("kai", "s2", "unknown"))

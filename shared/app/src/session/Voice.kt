@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kinuvo.protocol.Api
 import kinuvo.protocol.VoiceSetup
 
 /** Turns what the user says into text as they talk. Callbacks arrive on the main thread. */
@@ -48,6 +49,21 @@ interface SpeechEngine : Transcriber, Synthesizer {
     override fun stop()
 }
 
+internal object DeviceAudio {
+    private val owners = mutableMapOf<Any, Any>()
+    private fun key(device: Any): Any = if (device is ServerSpeech) device.audioDevice else device
+    fun acquire(device: Any, owner: Any): Boolean {
+        val key = key(device)
+        if (owners[key]?.let { it !== owner } == true) return false
+        owners[key] = owner
+        return true
+    }
+    fun release(device: Any, owner: Any) {
+        val key = key(device)
+        if (owners[key] === owner) owners.remove(key)
+    }
+}
+
 enum class VoicePhase { Off, Starting, Listening, Thinking, Speaking }
 
 /**
@@ -63,6 +79,11 @@ data class VoiceChatState(
     val holding: Boolean = false,
     val speaker: Boolean = true,
     val error: String? = null,
+    /** A live call, where the model hears turns itself, so there is no holding to talk. */
+    val live: Boolean = false,
+    val caption: String = "",
+    val inputLevel: Float = 0f,
+    val outputLevel: Float = 0f,
 ) {
     val active get() = phase != VoicePhase.Off || error != null
 }
@@ -90,9 +111,23 @@ interface VoiceChat {
 }
 
 /** Resolves Server parts at each start; the Device owns capture, playback and unset system speech parts. */
-class VoiceViewModel(device: SpeechEngine, session: SessionViewModel, server: ConnectedServer? = null) : ViewModel() {
+class VoiceViewModel(device: SpeechEngine, session: SessionViewModel, server: ConnectedServer? = null, calls: LiveCalls? = null) : ViewModel() {
     private val engine = if (server != null) ServerSpeech(device, server) else device
-    val chat: VoiceChat = SpeechVoiceChat(engine, session, viewModelScope)
+    private val live = (device as? LiveAudio)?.takeIf { it.liveAudioSupported && server != null }
+    val chat: VoiceChat = PickedVoiceChat(
+        SpeechVoiceChat(engine, session, viewModelScope),
+        live?.let { audio ->
+            val route = session.state.value.route
+            if (calls != null)
+                calls.attach(route.agentId.orEmpty(), route.sessionId, viewModelScope, session::liveSession, name = { id ->
+                    catching { requireNotNull(server).call { it.call(Api.Agents, Unit) }.firstOrNull { it.id == id }?.name }.getOrNull() ?: id
+                }) { agent, id ->
+                    LiveVoiceChat(requireNotNull(server), audio) { agent to id }
+                }
+            else LiveVoiceChat(requireNotNull(server), audio, session::liveSession)
+        },
+        viewModelScope,
+    ) { server?.call { it.call(Api.VoiceSetup, Unit) }?.speechToSpeech == true }
 
     init {
         viewModelScope.launch {
@@ -100,7 +135,7 @@ class VoiceViewModel(device: SpeechEngine, session: SessionViewModel, server: Co
         }
     }
 
-    override fun onCleared() = chat.end()
+    override fun onCleared() { if (!chat.state.value.live) chat.end() }
 }
 
 /**
@@ -116,6 +151,7 @@ class SpeechVoiceChat(
 ) : VoiceChat {
     override val state: StateFlow<VoiceChatState>
         field = MutableStateFlow(VoiceChatState())
+    private var ownsAudio = false
     private var reply: Job? = null
     /** Words of the reply spoken so far, to tell the user talking from the reply's echo. */
     private val said = mutableSetOf<String>()
@@ -124,12 +160,13 @@ class SpeechVoiceChat(
     private var listenGeneration = 0
 
     override fun start() {
-        if (state.value.phase != VoicePhase.Off) return
+        if (state.value.phase != VoicePhase.Off || !DeviceAudio.acquire(device, this)) return
+        ownsAudio = true
         state.value = VoiceChatState(VoicePhase.Starting, speaker = state.value.speaker)
         val epoch = ++listenGeneration
         transcriber.authorize { error ->
             if (listenGeneration != epoch || state.value.phase != VoicePhase.Starting) return@authorize
-            if (error != null) state.value = VoiceChatState(error = error)
+            if (error != null) { end(); state.value = VoiceChatState(error = error) }
             else {
                 state.update { it.copy(phase = VoicePhase.Listening) }
                 hear()
@@ -141,6 +178,8 @@ class SpeechVoiceChat(
         resumeInView = false
         reply?.cancel()
         release()
+        DeviceAudio.release(device, this)
+        ownsAudio = false
         state.value = VoiceChatState(speaker = state.value.speaker)
     }
 
@@ -201,7 +240,7 @@ class SpeechVoiceChat(
 
     override fun speaker(on: Boolean) {
         state.update { it.copy(speaker = on, spoken = if (on) it.spoken else emptyMap()) }
-        if (!on) synthesizer.stopSpeaking()
+        if (!on && ownsAudio) synthesizer.stopSpeaking()
     }
 
     /**
@@ -248,6 +287,7 @@ class SpeechVoiceChat(
     }
 
     private fun release() {
+        if (!ownsAudio) return
         listenGeneration++
         speechGeneration++
         synthesizer.stopSpeaking()
