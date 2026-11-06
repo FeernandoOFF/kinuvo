@@ -20,18 +20,23 @@ import kotlin.test.*
 @OptIn(ExperimentalCoroutinesApi::class)
 class LiveVoiceChatTest {
     private class Audio : LiveAudio {
-        override val echoes = false
+        override var echoes = false
         var endRequested: () -> Unit = {}
         override fun onEndRequested(end: () -> Unit) { endRequested = end }
         var microphone: (ByteArray) -> Unit = {}
         val played = mutableListOf<ByteArray>()
+        val cues = mutableListOf<ByteArray>()
+        var cueActive = false
+        override fun playCue(pcm: ByteArray, sampleRate: Int) { cues += pcm; cueActive = true }
+        override fun stopCue() { cueActive = false }
         var flushes = 0
         var stops = 0
         var rate = 0
         var waiting = 0
         var failure: String? = null
         var fail: (String) -> Unit = {}
-        override fun authorizeAudio(completion: (String?) -> Unit) = completion(null)
+        var authorize: (((String?) -> Unit) -> Unit) = { it(null) }
+        override fun authorizeAudio(completion: (String?) -> Unit) = authorize(completion)
         override fun startLive(sampleRate: Int, onAudio: (ByteArray) -> Unit, onError: (String) -> Unit) { rate = sampleRate; microphone = onAudio; fail = onError; failure?.let(onError) }
         override fun playLive(pcm: ByteArray) { played += pcm }
         override fun queuedMillis() = waiting
@@ -44,6 +49,7 @@ class LiveVoiceChatTest {
         val frames = Channel<Frame>(Channel.UNLIMITED)
         val inputs = mutableListOf<LiveVoiceInput>()
         val calls = mutableListOf<String>()
+        var autoReady = false
         fun output(o: LiveVoiceOutput) = frames.trySend(Frame.Event(Api.LiveVoiceOutput.name, ProtocolJson.encodeToJsonElement(Api.LiveVoiceOutput.payload, o), 1))
         val connection = object : FrameConnection {
             override val incoming = frames.receiveAsFlow()
@@ -53,7 +59,7 @@ class LiveVoiceChatTest {
                 calls += r.method
                 val payload = when (r.method) {
                     "connect" -> ProtocolJson.encodeToJsonElement(ConnectResult("token", "Server", capabilities = ServerCapabilities("server"), management = true))
-                    Api.LiveVoiceStart.name -> ProtocolJson.encodeToJsonElement(LiveVoiceCall("call", 24_000)).also { output(LiveVoiceOutput.Ready("call")) }
+                    Api.LiveVoiceStart.name -> ProtocolJson.encodeToJsonElement(LiveVoiceCall("call", 24_000)).also { if (autoReady) output(LiveVoiceOutput.Ready("call")) }
                     else -> buildJsonObject {}
                 }
                 frames.send(Frame.Response(r.id, true, payload))
@@ -73,7 +79,29 @@ class LiveVoiceChatTest {
             val chat = LiveVoiceChat(server, audio) { "agent" to "session" }
             chat.start()
             advanceTimeBy(1_000); runCurrent()
+            assertEquals(VoicePhase.Starting, chat.state.value.phase)
+            assertEquals(2, audio.cues.size)
+            assertTrue(audio.cueActive)
+            audio.echoes = true
+            audio.waiting = 250
+            output(LiveVoiceOutput.Ready("call"))
+            runCurrent()
+            audio.microphone(byteArrayOf(41, 42))
+            runCurrent()
+            assertTrue(inputs.none { it is LiveVoiceInput.Audio })
+            audio.waiting = 0
             assertEquals(VoicePhase.Listening, chat.state.value.phase)
+            assertFalse(audio.cueActive)
+            assertContentEquals(VoiceCue.Ready.pcm(24_000), audio.played.single())
+            output(LiveVoiceOutput.Ready("call"))
+            output(LiveVoiceOutput.Listening("call"))
+            advanceTimeBy(300); runCurrent()
+            assertEquals(1, audio.played.size)
+            assertTrue(inputs.none { it is LiveVoiceInput.Played })
+            assertEquals(0f, chat.state.value.outputLevel)
+            assertEquals(VoicePhase.Listening, chat.state.value.phase)
+            audio.played.clear()
+            autoReady = true
             assertEquals(24_000, audio.rate)
 
             audio.microphone(byteArrayOf(1, 2))
@@ -182,6 +210,7 @@ class LiveVoiceChatTest {
                 assertEquals(VoicePhase.Listening, chat.state.value.phase)
                 val stops = audio.stops
                 chat.end()
+                assertContentEquals(VoiceCue.Ended.pcm(24_000), audio.cues.last())
                 chat.start()
                 runCurrent()
                 assertEquals(stops + 1, audio.stops, "Cancelled calls must not stop the next call's audio")
@@ -206,8 +235,16 @@ class LiveVoiceChatTest {
             runCurrent()
             assertEquals("The microphone could not start", chat.state.value.error)
             assertEquals(VoicePhase.Off, chat.state.value.phase)
+            assertFalse(audio.cueActive)
             chat.end()
             assertFalse(chat.state.value.live)
+            chat.speaker(false)
+            val cueCount = audio.cues.size
+            val liveCount = audio.played.size
+            chat.start(); runCurrent(); chat.end()
+            assertEquals(cueCount, audio.cues.size)
+            assertEquals(liveCount, audio.played.size)
+            chat.speaker(true)
             val owner = LiveCalls(backgroundScope)
             repeat(3) {
                 owner.start("agent", "session", chat)
@@ -226,6 +263,64 @@ class LiveVoiceChatTest {
             owner.end()
         } finally {
             server.close(); client.close(); Dispatchers.resetMain()
+        }
+    }
+
+    @Test fun connectingStopsOnFailureOrUserEnd() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        val reader = object : DeviceReader {
+            override val kinds = emptyList<String>()
+            override fun authorize(kind: String, completion: (String?) -> Unit) = completion(null)
+            override fun read(requestJson: String, completion: (String) -> Unit) {}
+        }
+        val server = ConnectedServer(Notifications(emptyList()), DeviceAccess(MemoryPreferences(), reader))
+        server.open(KinuvoClient("local:test", "test"), "local:test")
+        try {
+            val audio = Audio()
+            var permission: (String?) -> Unit = {}
+            audio.authorize = { permission = it }
+            val chat = LiveVoiceChat(server, audio) { null }
+            chat.start(); runCurrent()
+            assertTrue(audio.cueActive)
+            permission("Microphone denied"); runCurrent()
+            assertFalse(audio.cueActive)
+            assertEquals("Microphone denied", chat.state.value.error)
+            val failedCues = audio.cues.size
+            advanceTimeBy(2_000); runCurrent()
+            assertEquals(failedCues, audio.cues.size)
+            chat.end()
+            assertEquals(failedCues, audio.cues.size)
+            chat.start(); runCurrent()
+            chat.speaker(false)
+            assertFalse(audio.cueActive)
+            val mutedCues = audio.cues.size
+            advanceTimeBy(2_000); runCurrent()
+            assertEquals(mutedCues, audio.cues.size)
+            chat.speaker(true)
+            advanceTimeBy(1_000); runCurrent()
+            assertTrue(audio.cueActive)
+            chat.end()
+            assertContentEquals(VoiceCue.Ended.pcm(24_000), audio.cues.last())
+            val endedCues = audio.cues.size
+            advanceTimeBy(2_000); runCurrent()
+            assertEquals(endedCues, audio.cues.size)
+            assertEquals(VoicePhase.Off, chat.state.value.phase)
+        } finally {
+            server.close(); Dispatchers.resetMain()
+        }
+    }
+
+    @Test fun cueLengthsAndEnvelopes() {
+        for (rate in listOf(16_000, 24_000, 48_000)) {
+            for (cue in VoiceCue.entries) {
+                val pcm = cue.pcm(rate)
+                assertEquals(rate * (if (cue == VoiceCue.Connecting) 160 else 250) / 1000 * 2, pcm.size)
+                val samples = pcm.indices.step(2).map { ((pcm[it].toInt() and 255) or (pcm[it + 1].toInt() shl 8)).toShort().toInt() }
+                assertEquals(0, samples.first())
+                assertEquals(0, samples.last())
+                assertTrue(samples.all { it in -2622..2622 })
+                assertTrue(samples.any { it > 2000 })
+            }
         }
     }
 

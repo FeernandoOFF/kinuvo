@@ -80,6 +80,32 @@ internal class AndroidSpeech(private val context: Context) : SpeechEngine, LiveA
     fun end(epoch: Long) { if (synchronized(lock) { session != null && generation == epoch }) endCall?.invoke() }
     val active get() = synchronized(lock) { session != null }
 
+    private var cue: AudioTrack? = null
+    private var releaseCue: Runnable? = null
+
+    override fun playCue(pcm: ByteArray, sampleRate: Int) = synchronized(lock) {
+        stopCue()
+        runCatching {
+            val track = AudioTrack.Builder()
+                .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+                .setAudioFormat(AudioFormat.Builder().setSampleRate(sampleRate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).setEncoding(AudioFormat.ENCODING_PCM_16BIT).build())
+                .setTransferMode(AudioTrack.MODE_STATIC).setBufferSizeInBytes(pcm.size).build()
+            cue = track
+            check(track.write(pcm, 0, pcm.size) == pcm.size)
+            track.play()
+            val release = Runnable { synchronized(lock) { if (cue === track) stopCue() } }
+            releaseCue = release
+            main.postDelayed(release, pcm.size * 1000L / (sampleRate * 2) + 100)
+        }.onFailure { stopCue() }
+        Unit
+    }
+
+    override fun stopCue() = synchronized(lock) {
+        releaseCue?.let { main.removeCallbacks(it) }; releaseCue = null
+        cue?.let { runCatching { it.pause(); it.flush(); it.stop() }; it.release() }
+        cue = null
+    }
+
     override fun startLive(sampleRate: Int, onAudio: (ByteArray) -> Unit, onError: (String) -> Unit) {
         stopLive()
         synchronized(lock) {
