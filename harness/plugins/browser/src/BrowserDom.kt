@@ -49,7 +49,7 @@ object BrowserDom {
             s.properties=($properties)();s.refs={};s.rects={};
             const elements=[...document.querySelectorAll('a,button,input,textarea,select,[role],[contenteditable=true]')].filter(e=>e.getClientRects().length&&getComputedStyle(e).visibility!=='hidden').slice(0,300).map((e,i)=>{
               const ref='e'+(i+1);s.refs[ref]=e;const r=e.getBoundingClientRect();s.rects[ref]=JSON.stringify([r.x,r.y,r.width,r.height]);
-              return {ref,role:e.getAttribute('role')||e.tagName.toLowerCase(),label:(e.getAttribute('aria-label')||e.getAttribute('placeholder')||[...(e.labels||[])].map(l=>l.innerText).join(' ')||e.innerText||'').slice(0,180)};
+              return {ref,role:e.getAttribute('role')||e.tagName.toLowerCase(),label:(e.getAttribute('aria-label')||e.getAttribute('placeholder')||(e.labels instanceof NodeList?[...e.labels]:[]).map(l=>l.innerText).join(' ')||e.innerText||'').slice(0,180)};
             });
             return JSON.stringify({elements,text:(document.body?.innerText||'').slice(0,24000)});
         })()"""
