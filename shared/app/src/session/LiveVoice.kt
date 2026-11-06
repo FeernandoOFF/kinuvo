@@ -28,6 +28,9 @@ interface LiveAudio {
     /** Drops what is queued to play. */
     fun flushLive()
     fun stopLive()
+    /** Replaces a short standalone cue without capturing audio or waiting for playback. */
+    fun playCue(pcm: ByteArray, sampleRate: Int) {}
+    fun stopCue() {}
 }
 
 /**
@@ -55,16 +58,26 @@ class LiveVoiceChat(
     private var prebuffer: Job? = null
     private var queued = 0
     private val levels = ArrayDeque<Pair<Int, Float>>()
+    private var connecting: Job? = null
+    private var ready = false
     private var bytesPerMilli = 48
 
     override fun start() {
         if (state.value.phase != VoicePhase.Off || !DeviceAudio.acquire(audio, this)) return
         ownsAudio = true
         state.value = VoiceChatState(VoicePhase.Starting, speaker = state.value.speaker, live = true)
+        ready = false
+        audio.stopCue()
+        connecting = server.scope.launch(start = CoroutineStart.UNDISPATCHED) {
+            while (isActive) {
+                if (state.value.speaker) audio.playCue(VoiceCue.Connecting.pcm(24_000), 24_000)
+                delay(1_000)
+            }
+        }
         val epoch = ++generation
         call = server.scope.launch {
             try { converse() }
-            catch (e: CancellationException) { if (generation == epoch) end(); throw e }
+            catch (e: CancellationException) { if (generation == epoch) stop(null); throw e }
             catch (e: Exception) { if (generation == epoch) fail(userMessage(e.message) ?: "Live voice failed") }
         }
     }
@@ -91,7 +104,7 @@ class LiveVoiceChat(
             launch {
                 for (pcm in microphone) {
                     state.update { it.copy(inputLevel = if (it.paused) 0f else pcmLevel(pcm)) }
-                    if (state.value.paused || (audio.echoes && audio.queuedMillis() > 0)) continue
+                    if (!ready || state.value.paused || (audio.echoes && audio.queuedMillis() > 0)) continue
                     client.emit(Api.LiveVoiceInput, LiveVoiceInput.Audio(started.callId, Base64.encode(pcm)))
                 }
             }
@@ -100,7 +113,7 @@ class LiveVoiceChat(
                     delay(40)
                     val played = queued - buffered.size - audio.queuedMillis() * bytesPerMilli
                     while (levels.isNotEmpty() && levels.first().first <= played) levels.removeFirst()
-                    state.update { it.copy(outputLevel = if (audio.queuedMillis() == 0) 0f else levels.firstOrNull()?.second ?: 0f) }
+                    state.update { it.copy(outputLevel = if (played < 0 || audio.queuedMillis() == 0) 0f else levels.firstOrNull()?.second ?: 0f) }
                     val item = reply ?: continue
                     val waiting = audio.queuedMillis()
                     client.emit(Api.LiveVoiceInput, LiveVoiceInput.Played(started.callId, item, ((queued - buffered.size) / bytesPerMilli - waiting).coerceAtLeast(0)))
@@ -113,7 +126,15 @@ class LiveVoiceChat(
             for (output in outputs) {
                 if (output.callId != started.callId) continue
                 when (output) {
-                    is LiveVoiceOutput.Ready, is LiveVoiceOutput.Listening -> state.update { if (it.phase == VoicePhase.Speaking && (audio.queuedMillis() > 0 || buffered.isNotEmpty())) it else it.copy(phase = VoicePhase.Listening) }
+                    is LiveVoiceOutput.Ready -> {
+                        stopConnecting()
+                        if (!ready) {
+                            ready = true
+                            if (state.value.speaker) audio.playLive(VoiceCue.Ready.pcm(started.sampleRate))
+                        }
+                        state.update { if (it.phase == VoicePhase.Starting) it.copy(phase = VoicePhase.Listening) else it }
+                    }
+                    is LiveVoiceOutput.Listening -> state.update { if (it.phase == VoicePhase.Speaking && (audio.queuedMillis() > 0 || buffered.isNotEmpty())) it else it.copy(phase = VoicePhase.Listening) }
                     is LiveVoiceOutput.Thinking -> state.update { it.copy(phase = VoicePhase.Thinking) }
                     is LiveVoiceOutput.Audio -> if (state.value.speaker && output.item !in interrupted) {
                         if (reply != output.item) { drainBuffer(); reply = output.item; queued = 0; levels.clear(); if (finished != output.item) finished = null }
@@ -135,20 +156,23 @@ class LiveVoiceChat(
             }
             coroutineContext.cancelChildren()
         }
-        end()
+        stop(null)
     }
 
-    override fun end() = stop(null)
+    override fun end() = stop(null, userEnded = true)
 
     /** A failed call stays live with its [error] until it is ended. */
-    private fun stop(error: String?) {
+    private fun stop(error: String?, userEnded: Boolean = false) {
         if (call == null && callId == null && !state.value.live) return
+        val endedCue = userEnded && ownsAudio && state.value.speaker
+        stopConnecting()
         generation++
         val id = callId
         callId = null; discardReply(); interrupted.clear()
         call?.cancel(); call = null
         if (ownsAudio) {
             audio.stopLive()
+            if (endedCue) audio.playCue(VoiceCue.Ended.pcm(24_000), 24_000)
             audio.onEndRequested {}
             DeviceAudio.release(audio, this)
             ownsAudio = false
@@ -186,7 +210,12 @@ class LiveVoiceChat(
 
     override fun speaker(on: Boolean) {
         state.update { it.copy(speaker = on) }
-        if (!on && ownsAudio) { cutIn(); audio.flushLive() }
+        if (!on && ownsAudio) { audio.stopCue(); cutIn(); audio.flushLive() }
+    }
+
+    private fun stopConnecting() {
+        connecting?.cancel(); connecting = null
+        if (ownsAudio) audio.stopCue()
     }
 
     private fun cutIn() {

@@ -47,6 +47,39 @@ internal class JvmLiveAudio(
     override val echoes get() = session?.canceller == null
     override fun authorizeAudio(completion: (String?) -> Unit) = completion(null)
 
+    private val cueLock = Any()
+    private var cue: SourceDataLine? = null
+    private var cueGeneration = 0
+
+    override fun playCue(pcm: ByteArray, sampleRate: Int) {
+        stopCue()
+        val epoch = synchronized(cueLock) { cueGeneration }
+        Thread({
+            var line: SourceDataLine? = null
+            try {
+                synchronized(cueLock) {
+                    if (epoch != cueGeneration) return@Thread
+                    val format = AudioFormat(sampleRate.toFloat(), 16, 1, true, false)
+                    line = speaker(format).also { cue = it; it.open(format); it.start() }
+                }
+                line?.write(pcm, 0, pcm.size)
+                line?.drain()
+            } catch (_: Exception) {
+            } finally {
+                synchronized(cueLock) {
+                    line?.let { runCatching { it.close() } }
+                    if (cue === line) cue = null
+                }
+            }
+        }, "kinuvo-voice-cue").apply { isDaemon = true; start() }
+    }
+
+    override fun stopCue() = synchronized(cueLock) {
+        cueGeneration++
+        cue?.let { runCatching { it.stop(); it.flush(); it.close() } }
+        cue = null
+    }
+
     @Synchronized
     override fun startLive(sampleRate: Int, onAudio: (ByteArray) -> Unit, onError: (String) -> Unit) {
         stopLive()
