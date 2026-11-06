@@ -1,5 +1,8 @@
 package kinuvo.ui.session
 
+import kinuvo.app.surface.SurfaceImages
+import kinuvo.protocol.SurfaceAction
+
 import kinuvo.protocol.ScreenRef
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
@@ -146,64 +149,68 @@ fun ChatScreen(
         resume = current.capabilities?.execution?.resume,
         resuming = current.resuming,
     )
-    ChatContent(
-        state, connection, appState.usage,
-        syncedAt = appState.syncedAt,
-        actions = ChatActions(
-            onNew = { if (route.sessionId != null) onOpen(Route.Chat(route.agentId, compose = true)) },
-            onSelect = { id -> if (id != route.sessionId) onOpen(Route.Chat(route.agentId, id)) },
-            onSend = session::send,
-            onAttach = pickAttachment,
-            onDropAttachments = session::addAttachments,
-            onRemoveAttachment = session::removeAttachment,
-            onLoadAttachment = session::loadAttachment,
-            onSaveAttachment = { session.saveAttachment(it, saveAttachment) },
-            onPreviewAttachment = session::preview,
-            downloads = current.downloads,
-            onConfigure = session::configure,
-            onRefreshModels = { session.loadModels(true) },
-            onStop = session::stop,
-            onDecision = { _, decision -> session.respond(decision) },
-            onReviewReflection = session::reviewReflection,
-            onAnswer = session::answer,
-            onEditAnswer = session::editAnswer,
-            onOpenArtifact = { onNavigate(Route.Artifacts(it)) },
-            onWatch = { onNavigate(Route.Computers()) },
-            onScreen = { screen, reason ->
-                val owner = screen.owner
-                if (owner != null && dock != null) dock.show(screen, reason)
-                else onNavigate(if (owner == null) Route.Computers(screen.id, reason) else Route.Browser(owner.agentId, route.sessionId, screen, reason))
-            },
-            onBrowser = if (sessionBrowserAvailable(agent, current.capabilities?.server) && route.agentId != null)
-                ({ dock?.toggle?.invoke() ?: onNavigate(Route.Browser(requireNotNull(route.agentId), route.sessionId)) }) else null,
-            browserOpen = dock?.open == true,
-            onLoadOlder = session::loadOlder,
-            onSettings = { route.agentId?.let(onSettings) },
-            onRename = session::rename,
-            onFavorite = session::favorite,
-            onVoice = voice?.let { v -> { dictation?.stop(); v.start() } },
-            onPauseVoice = { if (it) voice?.pause() else voice?.resume() },
-            onHoldVoice = { if (it) voice?.hold() else voice?.letGo() },
-            onSpeaker = { voice?.speaker(it) },
-            onEndVoice = { voice?.end() },
-            onDictate = dictation?.let { it::toggle },
-            onDiscardDictation = { dictation?.discard() },
-            onExternal = session::answerExternal,
-            onCheckHarness = { appState.agents.firstOrNull { it.id == route.agentId }?.connectionId?.let(session::checkHarness) },
-            onCloseSession = session::closeExternal,
-        ),
-        wide = wide,
-        compose = route.compose && route.sessionId == null,
-        draft = draft,
-        onToggleShell = onToggleShell ?: { if (wide) shell.open = !shell.open else shell.revealed = true },
-        onBack = onBack,
-    )
+    CompositionLocalProvider(LocalSurfaceImages provides getKoin().getOrNull<SurfaceImages>()) {
+        ChatContent(
+            state, connection, appState.usage,
+            syncedAt = appState.syncedAt,
+            actions = ChatActions(
+                onNew = { if (route.sessionId != null) onOpen(Route.Chat(route.agentId, compose = true)) },
+                onSelect = { id -> if (id != route.sessionId) onOpen(Route.Chat(route.agentId, id)) },
+                onSend = session::send,
+                onSurfaceAction = { text, action -> session.send(text, action = action) },
+                onAttach = pickAttachment,
+                onDropAttachments = session::addAttachments,
+                onRemoveAttachment = session::removeAttachment,
+                onLoadAttachment = session::loadAttachment,
+                onSaveAttachment = { session.saveAttachment(it, saveAttachment) },
+                onPreviewAttachment = session::preview,
+                downloads = current.downloads,
+                onConfigure = session::configure,
+                onRefreshModels = { session.loadModels(true) },
+                onStop = session::stop,
+                onDecision = { _, decision -> session.respond(decision) },
+                onReviewReflection = session::reviewReflection,
+                onAnswer = session::answer,
+                onEditAnswer = session::editAnswer,
+                onOpenArtifact = { onNavigate(Route.Artifacts(it)) },
+                onWatch = { onNavigate(Route.Computers()) },
+                onScreen = { screen, reason ->
+                    val owner = screen.owner
+                    if (owner != null && dock != null) dock.show(screen, reason)
+                    else onNavigate(if (owner == null) Route.Computers(screen.id, reason) else Route.Browser(owner.agentId, route.sessionId, screen, reason))
+                },
+                onBrowser = if (sessionBrowserAvailable(agent, current.capabilities?.server) && route.agentId != null)
+                    ({ dock?.toggle?.invoke() ?: onNavigate(Route.Browser(requireNotNull(route.agentId), route.sessionId)) }) else null,
+                browserOpen = dock?.open == true,
+                onLoadOlder = session::loadOlder,
+                onSettings = { route.agentId?.let(onSettings) },
+                onRename = session::rename,
+                onFavorite = session::favorite,
+                onVoice = voice?.let { v -> { dictation?.stop(); v.start() } },
+                onPauseVoice = { if (it) voice?.pause() else voice?.resume() },
+                onHoldVoice = { if (it) voice?.hold() else voice?.letGo() },
+                onSpeaker = { voice?.speaker(it) },
+                onEndVoice = { voice?.end() },
+                onDictate = dictation?.let { it::toggle },
+                onDiscardDictation = { dictation?.discard() },
+                onExternal = session::answerExternal,
+                onCheckHarness = { appState.agents.firstOrNull { it.id == route.agentId }?.connectionId?.let(session::checkHarness) },
+                onCloseSession = session::closeExternal,
+            ),
+            wide = wide,
+            compose = route.compose && route.sessionId == null,
+            draft = draft,
+            onToggleShell = onToggleShell ?: { if (wide) shell.open = !shell.open else shell.revealed = true },
+            onBack = onBack,
+        )
+    }
 }
 
 class ChatActions(
     val onNew: () -> Unit = {},
     val onSelect: (String) -> Unit = {},
     val onSend: (String) -> Unit = {},
+    val onSurfaceAction: (String, SurfaceAction) -> Unit = { _, _ -> },
     val onAttach: (AttachmentSource) -> Unit = {},
     val onDropAttachments: (List<UploadAttachmentParams>, String?) -> Unit = { _, _ -> },
     val onRemoveAttachment: (String) -> Unit = {},

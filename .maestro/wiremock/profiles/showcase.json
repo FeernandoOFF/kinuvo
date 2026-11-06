@@ -20,6 +20,8 @@
     "ws/chat-send",
     "ws/create-session",
     "ws/device-tools",
+    "ws/surface-catalogs",
+    "ws/execution-catalog",
     "ws/models",
     "ws/presence",
     "ws/unsubscribe",
@@ -28,7 +30,6 @@
     "mobile/knowledge-empty",
     "mobile/knowledge-typing",
     "showcase/browser-watch",
-    "showcase/computer-watch",
-    "ws/execution-catalog"
+    "showcase/computer-watch"
   ]
 }

@@ -1,5 +1,7 @@
 package kinuvo.app.session
 
+import kinuvo.protocol.SurfaceAction
+
 import kinuvo.app.connection.*
 
 import kinuvo.client.ConnectionState
@@ -155,8 +157,8 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     suspend fun createSession(agentId: String): SessionInfo = call { it.call(Api.CreateSession, AgentRef(agentId)) }
 
-    suspend fun send(agentId: String, sessionId: String, text: String, attachments: List<String> = emptyList(), voice: Boolean = false, submissionId: String? = null) =
-        call { it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice, submissionId)) }
+    suspend fun send(agentId: String, sessionId: String, text: String, attachments: List<String> = emptyList(), voice: Boolean = false, submissionId: String? = null, action: SurfaceAction? = null) =
+        call { it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice, submissionId, action)) }
 
     suspend fun update(agentId: String, sessionId: String, title: String? = null, favorite: Boolean? = null) =
         call { it.call(Api.UpdateSession, UpdateSessionParams(agentId, sessionId, title, favorite)) }.also(::onChanged)
@@ -314,7 +316,7 @@ private fun SessionData.chatItems(): List<ChatItem> {
     projected.forEachIndexed { i, entry ->
         val seq = firstSeq + i
         when (entry) {
-            is SessionEntry.UserMessage -> items += ChatItem.User(key(entry.submissionId?.let { "user-$it" }, seq), entry.text, entry.routine?.name, entry.attachments, parseTaskPrompt(entry.text)?.second, voice = entry.voice)
+            is SessionEntry.UserMessage -> items += ChatItem.User(key(entry.submissionId?.let { "user-$it" }, seq), entry.text, entry.routine?.name, entry.attachments, parseTaskPrompt(entry.text)?.second, voice = entry.voice, action = entry.action)
             is SessionEntry.VoiceCall -> items += ChatItem.VoiceCall(entry.id, entry.turns, entry.startedAt, entry.durationMillis)
             is SessionEntry.AssistantMessage -> items += ChatItem.Assistant(key(entry.messageId?.let { "text-$it" }, seq), entry.text, at = entry.writtenAt)
             is SessionEntry.Reasoning -> items += ChatItem.Reasoning(key((entry.messageId ?: entry.id)?.let { "reasoning-$it" }, seq), entry.text)

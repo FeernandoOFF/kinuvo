@@ -11,7 +11,7 @@ class RemoteGateway(
     private val agents: suspend () -> List<AgentInfo>,
     private val create: suspend (String) -> ExecutionSnapshot,
     private val snapshot: suspend (String, String) -> ExecutionSnapshot,
-    private val send: suspend (String, String, String) -> Unit,
+    private val send: suspend (String, String, String, SurfaceAction?) -> Unit,
     private val cancel: suspend (String, String) -> Unit,
     private val answer: suspend (String, ExecutionAnswer) -> Boolean,
     private val discard: suspend (String, String) -> Unit = cancel,
@@ -37,7 +37,7 @@ class RemoteGateway(
         val current = snapshot(agentId, sessionId)
         return when (p.action) {
             "snapshot" -> RemoteExecutionResult(snapshot = current)
-            "send" -> { send(agentId, sessionId, requireNotNull(p.text)); RemoteExecutionResult() }
+            "send" -> { send(agentId, sessionId, requireNotNull(p.text), p.surfaceAction); RemoteExecutionResult() }
             "cancel" -> { cancel(agentId, sessionId); RemoteExecutionResult() }
             "answer" -> RemoteExecutionResult(accepted = answer(agentId, ExecutionAnswer(sessionId, requireNotNull(p.requestId), p.answer ?: JsonNull)))
             else -> error("Unsupported remote operation")

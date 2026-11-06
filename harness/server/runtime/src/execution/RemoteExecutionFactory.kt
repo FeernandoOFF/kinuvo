@@ -120,7 +120,7 @@ class RemoteExecutionFactory(private val links: RemoteLinks, private val serverI
                 override val capabilities = ExecutionCapabilities(cancel = true, questions = true, approvals = true)
                 override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance = commands.withLock {
                     require(input.attachments.isEmpty()) { "Remote attachments are unsupported" }
-                    client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "send", input.text))
+                    client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "send", input.text, surfaceAction = input.action))
                     ExecutionAcceptance()
                 }
                 override suspend fun cancel() { commands.withLock { client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "cancel")) } }
