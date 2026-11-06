@@ -16,19 +16,38 @@ final class AppleSpeech: NSObject, SpeechEngine, VoiceAudio, LiveAudio {
     func onEndRequested(end: @escaping () -> Void) {}
     var echoes: Bool { false }
     private var liveGeneration = 0
+    private var liveStarting = false
+    private var livePending = [KotlinByteArray]()
+    private var liveRate = 24000
     func startLive(sampleRate: Int32, onAudio: @escaping (KotlinByteArray) -> Void, onError: @escaping (String) -> Void) {
         releaseDeviceAudio()
         liveGeneration += 1
         let epoch = liveGeneration
+        liveStarting = true
+        livePending.removeAll()
+        liveRate = Int(sampleRate)
         serverAudio.release { [self] in
             guard liveGeneration == epoch else { return }
             liveAudio.start(Int(sampleRate), onAudio, onError)
+            livePending.forEach { liveAudio.play($0) }
+            livePending.removeAll()
+            liveStarting = false
         }
     }
-    func playLive(pcm: KotlinByteArray) { liveAudio.play(pcm) }
-    func queuedMillis() -> Int32 { liveAudio.queuedMillis() }
-    func flushLive() { liveAudio.flush() }
-    func stopLive() { liveGeneration += 1; liveAudio.stop() }
+    func playCue(pcm: KotlinByteArray, sampleRate: Int32) { liveAudio.playCue(pcm, Int(sampleRate)) }
+    func stopCue() { liveAudio.stopCue() }
+    func playLive(pcm: KotlinByteArray) {
+        if liveStarting { livePending.append(pcm) } else { liveAudio.play(pcm) }
+    }
+    func queuedMillis() -> Int32 {
+        let pending = livePending.reduce(0) { $0 + Int($1.size) }
+        return liveAudio.queuedMillis() + Int32(pending * 1000 / (liveRate * 2))
+    }
+    func flushLive() { livePending.removeAll(); liveAudio.flush() }
+    func stopLive() {
+        liveGeneration += 1; liveStarting = false; livePending.removeAll()
+        liveAudio.stop()
+    }
     var halfDuplex: Bool { true }
     func authorizeAudio(completion: @escaping (String?) -> Void) { serverAudio.authorize(completion) }
     func record(untilPause: Bool, onAudio: @escaping (KotlinByteArray) -> Void, onError: @escaping (String) -> Void) {
@@ -709,6 +728,48 @@ final class AppleLiveAudio {
     private var restart: DispatchWorkItem?
     private var source: AVAudioFormat?
     private let log = Logger(subsystem: "dev.kinuvo.app", category: "live")
+
+    private var cue: AVAudioPlayer?
+    private var cueGeneration = 0
+    private var cueSession = false
+
+    func playCue(_ pcm: KotlinByteArray, _ sampleRate: Int) {
+        let samples = AudioBytes.shared.toData(bytes: pcm)
+        queue.async { [self] in
+            stopCueOnQueue()
+            do {
+                let session = AVAudioSession.sharedInstance()
+                if engine == nil {
+                    try session.setCategory(.playAndRecord, mode: .default, options: [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP])
+                    try session.setActive(true)
+                    cueSession = true
+                }
+                var wav = Data()
+                func text(_ value: String) { wav.append(contentsOf: value.utf8) }
+                func word(_ value: UInt16) { var v = value.littleEndian; withUnsafeBytes(of: &v) { wav.append(contentsOf: $0) } }
+                func dword(_ value: UInt32) { var v = value.littleEndian; withUnsafeBytes(of: &v) { wav.append(contentsOf: $0) } }
+                text("RIFF"); dword(UInt32(36 + samples.count)); text("WAVEfmt "); dword(16)
+                word(1); word(1); dword(UInt32(sampleRate)); dword(UInt32(sampleRate * 2)); word(2); word(16)
+                text("data"); dword(UInt32(samples.count)); wav.append(samples)
+                cue = try AVAudioPlayer(data: wav)
+                cue?.play()
+                let epoch = cueGeneration
+                queue.asyncAfter(deadline: .now() + Double(samples.count) / Double(sampleRate * 2) + 0.1) { [self] in
+                    guard cueGeneration == epoch else { return }
+                    stopCueOnQueue()
+                }
+            } catch { stopCueOnQueue() }
+        }
+    }
+
+    func stopCue() { queue.async { self.stopCueOnQueue() } }
+
+    private func stopCueOnQueue() {
+        cueGeneration += 1
+        cue?.stop(); cue = nil
+        if cueSession, engine == nil { try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) }
+        cueSession = false
+    }
 
     func start(_ sampleRate: Int, _ onAudio: @escaping (KotlinByteArray) -> Void, _ onError: @escaping (String) -> Void) {
         queue.async { [self] in
