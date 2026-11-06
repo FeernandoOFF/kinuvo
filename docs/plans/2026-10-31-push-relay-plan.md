@@ -1,4 +1,6 @@
-# Push relay implementation plan
+---
+title: "Push relay implementation plan"
+---
 
 Implements [ADR 0020](../adr/0020-push-relay.md). FCM and APNs first; UnifiedPush later.
 
