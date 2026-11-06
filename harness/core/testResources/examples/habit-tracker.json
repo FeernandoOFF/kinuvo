@@ -1,0 +1,29 @@
+{
+  "version": "v1.0",
+  "createSurface": {
+    "surfaceId": "example-habit-tracker",
+    "catalogId": "https://kinuvo.com/a2ui/v1/catalog.json",
+    "components": [
+      {"id":"root","component":"Card","child":"body"},
+      {"id":"body","component":"Column","children":["eyebrowRow","heading","divider","hint","habits","saveHabits"]},
+      {"id":"eyebrow","component":"Text","text":"THIS WEEK · NOV 2–8","variant":"caption"},
+      {"id":"heading","component":"Text","text":"Small wins, daily","variant":"h1"},
+      {"id":"divider","component":"Divider"},
+      {"id":"hint","component":"Text","text":"Build a week you feel good about.","variant":"caption"},
+      {"id":"habits","component":"Column","children":{"componentId":"habit","path":"/habits"}},
+      {"id":"habit","component":"Column","children":["habitHeader","week"]},
+      {"id":"habitHeader","component":"Row","children":["name","streak"]},
+      {"id":"name","component":"Text","text":{"path":"name"},"weight":1},
+      {"id":"streak","component":"Badge","label":{"call":"formatString","args":{"value":"${count(week, {\"value\":true})} wins"}},"color":"success"},
+      {"id":"week","component":"Row","children":{"componentId":"day","path":"week"}},
+      {"id":"day","component":"Column","weight":1,"align":"center","children":["dayName","check"]},
+      {"id":"dayName","component":"Text","text":{"path":"day"},"variant":"caption"},
+      {"id":"check","component":"CheckBox","value":{"path":"value"},"label":""},
+      {"id":"saveHabitsLabel","component":"Text","text":"Save week"},
+      {"id":"saveHabits","component":"Button","variant":"primary","child":"saveHabitsLabel","action":{"event":{"name":"saveHabits","context":{"data":{"path":"/"}}}}},
+      {"id":"eyebrowRow","component":"Row","children":["exampleIcon","eyebrow"]},
+      {"id":"exampleIcon","component":"Icon","name":"check"}
+    ],
+    "dataModel": {"habits":[{"name":"Move for 30 minutes","week":[{"value":true,"day":"M"},{"value":true,"day":"T"},{"value":true,"day":"W"},{"value":false,"day":"T"},{"value":true,"day":"F"},{"value":false,"day":"S"},{"value":false,"day":"S"}]},{"name":"Read 10 pages","week":[{"value":true,"day":"M"},{"value":true,"day":"T"},{"value":false,"day":"W"},{"value":true,"day":"T"},{"value":true,"day":"F"},{"value":false,"day":"S"},{"value":false,"day":"S"}]},{"name":"No phone before breakfast","week":[{"value":true,"day":"M"},{"value":true,"day":"T"},{"value":true,"day":"W"},{"value":true,"day":"T"},{"value":true,"day":"F"},{"value":false,"day":"S"},{"value":false,"day":"S"}]}]}
+  }
+}

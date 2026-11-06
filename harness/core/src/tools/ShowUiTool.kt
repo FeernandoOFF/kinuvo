@@ -29,17 +29,19 @@ class ShowUiTool(catalogs: List<UiCatalog>) : Tool {
     override val risk = Risk.Low
     override val descriptor = ToolDescriptor(
         name = ToolNames.SHOW_UI,
-        description = "Show the user native UI (A2UI v1.0) in the chat: a layout, a form or choices with buttons. " +
-            "The Kinuvo catalog https://kinuvo.com/a2ui/v1/catalog.json includes all basic components plus Badge(label), Spacer(minSize), " +
-            "ListItem(title, subtitle, leading/trailing child IDs, action), Table/TableRow/TableCell(children), and Transition(child). " +
-            "Table children can use A2UI templates bound to arrays; cells accept arbitrary components. " +
-            "Build forms with bound inputs and Button checks/actions. Compose card status from Badge and confirm/cancel from Buttons inside the Card child. " +
-            "Use Text variants h1-h5 for titles, caption for captions; TextField longText for textareas; ChoicePicker for selects/radios. " +
-            "Each call creates new surfaces: start with a createSurface (surfaceId, catalogId, components, " +
-            "dataModel), then optional updateComponents/updateDataModel for it. Components are a flat list; one has id \"root\", " +
-            "and the others are referenced by id from child/children; createSurface has no root key. Bind values with {\"path\": \"/json/pointer\"}; inputs write to " +
-            "their bound path. Checks wrap the function in condition, e.g. \"checks\":[{\"condition\":{\"call\":\"required\",\"args\":{\"value\":{\"path\":\"/name\"}}},\"message\":\"Required\"}]. A Button's action is {\"event\": {\"name\": ..., \"context\": {key: literal or {\"path\": ...}}}}; when the " +
-            "user presses it you get the event's userMessage (or name), followed by a Surface action annotation identifying the action, surface, component and call, and its resolved Context JSON. The Session stores the action and data model separately from the displayed text.\n\nCatalogs:\n" +
+        description = "Show native interactive Surfaces using A2UI v1.0. Use the advertised catalog schemas. " +
+            "Start with createSurface(surfaceId,catalogId,components,dataModel); components are flat, with id root and child/children references. " +
+            "Bind inputs with {\"path\":\"/pointer\"}; templates use children={\"componentId\":\"row\",\"path\":\"/rows\"}. " +
+            "Kinuvo includes Badge, Spacer, ListItem, Table/TableRow/TableCell, Transition, Stepper, Progress and Show; " +
+            "ChoicePicker supports dropdown and segmented. Columns fill width; Row centres children; Spacer with weight:1 pushes trailing actions. " +
+            "Use h1-h5/caption Text, borderless icon actions, and primary submit buttons. " +
+            "Client functions append(path,value), removeAt(path?,index?), count(values,where?), sum(values,fields?), multiply(values), " +
+            "formatDuration(minutes), copy(text|path) edit and compute locally. sum fields multiplies those numeric fields per row before summing. " +
+            "Wildcard paths select nested arrays. formatString interpolation supports nested client functions, e.g. " +
+            "{\"call\":\"formatString\",\"args\":{\"value\":\"${'$'}{count(/rows)} tasks\"}}. " +
+            "Button.action.functionCall runs locally; omit removeAt arguments inside a template to delete its item. " +
+            "Button.action.event={name,userMessage?,context?} submits resolved values to the Agent. " +
+            "Checks use {condition:{call,args},message}. Each call creates independent Surfaces.\n\nCatalogs:\n" +
             catalogs.joinToString("\n\n") { catalogSummary(it) },
         requiredParameters = listOf(
             ToolParameterDescriptor("messages", "A2UI messages, e.g. [{\"createSurface\": {...}}]",
