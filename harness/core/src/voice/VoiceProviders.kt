@@ -35,8 +35,13 @@ interface SpeechToSpeech {
     /** What the model hears and speaks, e.g. 16 kHz in and 24 kHz out; Devices convert to it. */
     val input: AudioFormat.Pcm16
     val output: AudioFormat.Pcm16
-    suspend fun converse(context: String, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (task: String) -> String)
+    suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (task: String) -> String)
 }
+
+/** What a conversation starts from: who the model speaks for, and the Session so far, oldest first. */
+class VoiceContext(val instructions: String, val history: List<VoiceMessage> = emptyList())
+
+data class VoiceMessage(val user: Boolean, val text: String)
 
 sealed interface VoiceInput {
     class Audio(val pcm: ByteArray) : VoiceInput
@@ -53,7 +58,8 @@ sealed interface VoiceOutput {
     data object Listening : VoiceOutput
     data object Thinking : VoiceOutput
     class Audio(val item: String, val pcm: ByteArray) : VoiceOutput
-    data class Transcript(val item: String, val text: String, val user: Boolean) : VoiceOutput
+    /** What has been said so far in turn [item]; the [final] transcript replaces the partial ones. */
+    data class Transcript(val item: String, val text: String, val user: Boolean, val final: Boolean = true) : VoiceOutput
     data class Done(val item: String) : VoiceOutput
     /** The user started talking over a reply. */
     data object Interrupted : VoiceOutput

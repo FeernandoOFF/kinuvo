@@ -6,6 +6,9 @@ import kinuvo.harness.core.store.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import kinuvo.protocol.currentPlatform
+import kinuvo.harness.codex.CodexAuth
+import kinuvo.harness.codex.CodexRealtime
+import kinuvo.harness.core.voice.VoiceProviders
 
 class Harness private constructor(home: Path, dependencies: RuntimeDependencies, modelFactory: ((AgentConfig) -> AgentModel)?) : HarnessRuntime(
     dependencies, modelFactory,
@@ -29,7 +32,13 @@ class Harness private constructor(home: Path, dependencies: RuntimeDependencies,
                 throw e
             }
             ServerInstallation.assemble(files, store, selected,
-                secrets = secrets, userHome = Path(System.getProperty("user.home")), clock = clock)
+                secrets = secrets, userHome = Path(System.getProperty("user.home")), clock = clock).also { dependencies ->
+                    val auth = CodexAuth()
+                    if (auth.account().signedIn && CodexRealtime.available()) {
+                        val voice = dependencies.voice
+                        dependencies.voice = VoiceProviders(voice.transcriber, voice.processor, voice.synthesizer, CodexRealtime(auth))
+                    }
+                }
         }
     }
 }

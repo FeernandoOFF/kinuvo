@@ -286,6 +286,7 @@ internal fun transcript(snapshot: ExecutionSnapshot): List<SessionEntry> = snaps
         native is SessionEntry.UserMessage -> listOf(native)
         native is SessionEntry.AssistantMessage -> listOf(native.copy(messageId = native.messageId ?: m.id))
         native is SessionEntry.Reasoning -> listOf(native.copy(messageId = native.messageId ?: m.id))
+        native is SessionEntry.VoiceCall -> listOf(native)
         native is SessionEntry.Notice -> listOf(native)
         m.role == "user" -> listOf(SessionEntry.UserMessage(m.text))
         m.role == "tool" -> toolEntries(m)

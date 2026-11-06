@@ -26,7 +26,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"token\":\"e2e-token\",\"serverName\":\"Showcase Server\",\"management\":true,\"capabilities\":{\"serverId\":\"e2e-server\",\"features\":[\"Attachments\",\"Skills\",\"Knowledge\",\"Tasks\",\"Routines\",\"Screens\",\"Computer\",\"Browser\"]},\"protocolVersion\":5,\"deviceId\":\"e2e-device\"}}"
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"token\":\"e2e-token\",\"serverName\":\"Showcase Server\",\"management\":true,\"capabilities\":{\"serverId\":\"e2e-server\",\"features\":[\"Attachments\",\"Skills\",\"Knowledge\",\"Tasks\",\"Routines\",\"Screens\",\"Computer\",\"Browser\"]},\"protocolVersion\":6,\"deviceId\":\"e2e-device\"}}"
         }
       }
     }
