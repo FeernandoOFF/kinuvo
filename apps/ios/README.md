@@ -50,8 +50,9 @@ and `KINUVO_ASC_ISSUER_ID` (and `KINUVO_ASC_KEY_PATH` for another location) in
 your shell or global mise environment. Without them, the Xcode account is used. The generated page
 shows the build's minimum iOS version and signing expiration.
 
-Archives and logs live in `build/ios-ota/`; published files live in
-`dist/ios-install/`. Release compilation uses an 8 GB Java heap to accommodate
+Archives and Xcode logs live in the checkout's `build/ios-ota/`. Published files
+live in `~/.kinuvo-ios-install/site/`, shared by every checkout, so any worktree
+can publish to the same page. Release compilation uses an 8 GB Java heap to accommodate
 Kotlin/Native optimization; override it with `KINUVO_IOS_BUILD_HEAP` if needed.
 Keep that directory in place while serving builds. A user launch agent,
 `dev.kinuvo.ios-install`, serves only that directory on `127.0.0.1:8795` and starts
