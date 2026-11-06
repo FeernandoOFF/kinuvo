@@ -29,11 +29,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
 import com.composables.ui.components.VerticalSeparator
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -60,6 +62,19 @@ import kinuvo.protocol.Routine
 import kinuvo.protocol.RunStatus
 import kinuvo.protocol.*
 import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.voice.AgentOrb
+import kinuvo.ui.voice.CallStrip
+import kinuvo.ui.design.Strips
+import kinuvo.ui.design.Strip
+import kinuvo.ui.design.StripHost
+import kinuvo.ui.design.LocalStrips
+import kinuvo.ui.voice.CallApprovalSheet
+import kinuvo.ui.voice.CallExternalApprovalSheet
+import kinuvo.protocol.ExecutionPrompt
+import kinuvo.protocol.ExternalApprovalOption
+import kinuvo.ui.voice.LiveCallScreen
+import kinuvo.ui.voice.OrbMood
+import kinuvo.ui.onboarding.AvatarInk
 import kinuvo.ui.design.Markdown
 import kinuvo.ui.design.color
 import org.jetbrains.skia.EncodedImageFormat
@@ -941,6 +956,85 @@ I checked your knowledge base just now and didn't find a profile note for you.
 | Regular | Paragraph text |
 | Bold | Explicit emphasis |
 """)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun renderAgentOrb() {
+        val moods = listOf(OrbMood.Idle to 0f, OrbMood.Listening to 0.6f, OrbMood.Thinking to 0f, OrbMood.Speaking to 0.9f)
+        render("agent-orb-dark", 720, 760) {
+            HarnessTheme(dark = true) {
+                Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    for (ink in AvatarInk.take(4)) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        moods.forEachIndexed { i, (mood, level) -> AgentOrb(ink, mood, level, Modifier.size(170.dp), time = 3f + i) }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun renderLiveCall() {
+        val ink = AvatarInk[0]
+        val listening = VoiceChatState(VoicePhase.Listening, live = true, inputLevel = 0.5f)
+        val speaking = VoiceChatState(VoicePhase.Speaking, live = true, outputLevel = 0.8f, heard = "What's on my calendar tomorrow?", caption = "You have the dentist at ten, then lunch with Michelle at one. Want me to move the dentist?")
+        fun call(name: String, voice: VoiceChatState, captions: Boolean = false) = render(name, 390, 844) {
+            HarnessTheme(dark = true) { LiveCallScreen("Kinuvo", ink, voice, 134, captions, {}, {}, {}, {}, {}, time = 3f) }
+        }
+        call("live-call-listening-dark", listening)
+        call("live-call-captions-dark", speaking, captions = true)
+        call("live-call-thinking-dark", VoiceChatState(VoicePhase.Thinking, live = true))
+        call("live-call-long-caption-dark", speaking.copy(caption = List(12) { "Then at ${it + 1} there's another meeting about the roadmap, budgets and hiring." }.joinToString(" ") + " Last words."), captions = true)
+        call("live-call-muted-dark", listening.copy(paused = true))
+        render("live-call-light", 390, 844) { HarnessTheme(dark = false) { LiveCallScreen("Kinuvo", AvatarInk[2], listening, 75, false, {}, {}, {}, {}, {}, time = 3f) } }
+        val event = AgentEvent.ApprovalRequested("ap", "t", "calendar_update", """{"event":"Dentist","start":"2026-11-07T10:00"}""", reason = "Dentist → Friday, 10:00")
+        render("live-call-approval-dark", 390, 844) {
+            HarnessTheme(dark = true) { Box { LiveCallScreen("Kinuvo", ink, VoiceChatState(VoicePhase.Thinking, live = true), 182, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event, {}, {}) } }
+        }
+        render("live-call-approval-shell-light", 390, 844) {
+            HarnessTheme(dark = false) { Box { LiveCallScreen("Kinuvo", ink, listening, 40, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event.copy(toolCallName = "shell", args = """{"command":"rm -rf build"}""", risk = Risk.High, reason = null, identity = ToolIdentity(PluginInstanceId("kinuvo.exec", "default"), "shell")), {}, {}) } }
+        }
+        render("live-call-approval-long-small-dark", 375, 560) {
+            HarnessTheme(dark = true) { Box { LiveCallScreen("Kinuvo", ink, listening, 40, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event.copy(args = (1..30).joinToString(",", "{", "}") { "\"field$it\":\"value $it\"" }, reason = "Update the event with a long list of changed fields that wraps across several lines of the sheet."), {}, {}) } }
+        }
+        val external = ExecutionPrompt.Approval("x1", "Edit config.yaml", "Replace 3 lines in config.yaml", listOf(
+            ExternalApprovalOption("allow_always", "Always allow edits", "allow_always"), ExternalApprovalOption("allow_once", "Allow", "allow_once"), ExternalApprovalOption("reject_once", "Reject", "reject_once")))
+        render("live-call-approval-external-dark", 390, 844) {
+            HarnessTheme(dark = true) { Box { LiveCallScreen("Claude Code", AvatarInk[1], VoiceChatState(VoicePhase.Thinking, live = true), 95, false, {}, {}, {}, {}, {}, time = 3f); CallExternalApprovalSheet("Claude Code", external, {}, {}) } }
+        }
+        val afterCall = listOf(
+            ChatItem.User("u0", "Can you plan my week?"),
+            ChatItem.Assistant("a0", "Sure. Monday is clear in the morning, and Friday afternoon stays free for deep work."),
+            ChatItem.User("u1", "Move the Dentist appointment on Thursday to Friday at 10:00.", voice = true),
+            ChatItem.Assistant("a1", "Done: the dentist is now on Friday at 10:00."),
+            ChatItem.VoiceCall("c1", listOf(VoiceTurn(true, "What's on my calendar tomorrow?"), VoiceTurn(false, "The dentist at ten, then lunch with Michelle at one."), VoiceTurn(true, "Move the dentist to Friday."), VoiceTurn(false, "Done, it's Friday at ten.")), 0, 372_000),
+        )
+        render("chat-after-call-dark", 390, 844) {
+            HarnessTheme(dark = true) { ChatContent(state.copy(items = afterCall, running = false), ConnectionState.Connected("x"), null, ChatActions()) }
+        }
+        val failed = VoiceChatState(VoicePhase.Off, live = true, error = "ChatGPT's usage limit is reached. It resets in 49 minutes.")
+        call("live-call-error-dark", failed)
+        render("live-call-strip-dark", 390, 844) {
+            HarnessTheme(dark = true) {
+                val strips = remember { Strips() }
+                CompositionLocalProvider(LocalStrips provides strips) {
+                    Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
+                        StripHost(strips)
+                        ChatContent(state.copy(items = afterCall, running = false), ConnectionState.Connected("x"), null, ChatActions())
+                    }
+                    Strip("live-call", ink, {}) { CallStrip("Kinuvo", ink, speaking, 72, needsYou = false, onMute = {}, onEnd = {}) }
+                }
+            }
+        }
+        render("live-call-strip-states-dark", 390, 200) {
+            HarnessTheme(dark = true) {
+                val strips = remember { Strips() }
+                CompositionLocalProvider(LocalStrips provides strips) {
+                    Column(Modifier.fillMaxSize().background(color(backgroundColor))) { StripHost(strips) }
+                    Strip("a", AvatarInk[2], {}, priority = 2) { CallStrip("Claude", AvatarInk[2], listening.copy(paused = true), 431, needsYou = true, onMute = {}, onEnd = {}) }
+                    Strip("b", Color.Gray, {}, priority = 1) { CallStrip("Kinuvo", ink, failed, 0, needsYou = false, onMute = {}, onEnd = {}) }
                 }
             }
         }
