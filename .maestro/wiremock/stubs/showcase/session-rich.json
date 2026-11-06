@@ -36,7 +36,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"id\":\"rich\",\"agentId\":\"e2e\",\"title\":\"Release notes review for the 2.0 launch, with the changelog and migration guide\",\"status\":\"Waiting\",\"favorite\":true,\"createdAt\":{{now offset='-3 minutes' format='epoch'}}}}"
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"id\":\"rich\",\"agentId\":\"e2e\",\"title\":\"Release notes review for the 2.0 launch, with the changelog and migration guide\",\"status\":\"Waiting\",\"favorite\":true,\"createdAt\":{{now offset='-3 minutes' format='epoch'}} }}"
         }
       }
     }

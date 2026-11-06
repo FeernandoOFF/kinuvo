@@ -36,7 +36,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"sessions\":[{\"id\":\"r-papers\",\"agentId\":\"research\",\"title\":\"Survey of on-device speech models\",\"status\":\"Running\",\"favorite\":false,\"createdAt\":{{now offset='-15 minutes' format='epoch'}}},{\"id\":\"r-market\",\"agentId\":\"research\",\"title\":\"Competitor pricing comparison\",\"status\":\"Waiting\",\"favorite\":false,\"createdAt\":{{now offset='-60 minutes' format='epoch'}}},{\"id\":\"r-sources\",\"agentId\":\"research\",\"title\":\"Primary sources for the history essay\",\"status\":\"Idle\",\"favorite\":false,\"createdAt\":{{now offset='-400 minutes' format='epoch'}}}],\"hasMore\":false}}"
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"sessions\":[{\"id\":\"r-papers\",\"agentId\":\"research\",\"title\":\"Survey of on-device speech models\",\"status\":\"Running\",\"favorite\":false,\"createdAt\":{{now offset='-15 minutes' format='epoch'}} },{\"id\":\"r-market\",\"agentId\":\"research\",\"title\":\"Competitor pricing comparison\",\"status\":\"Waiting\",\"favorite\":false,\"createdAt\":{{now offset='-60 minutes' format='epoch'}} },{\"id\":\"r-sources\",\"agentId\":\"research\",\"title\":\"Primary sources for the history essay\",\"status\":\"Idle\",\"favorite\":false,\"createdAt\":{{now offset='-400 minutes' format='epoch'}} }],\"hasMore\":false}}"
         }
       }
     }

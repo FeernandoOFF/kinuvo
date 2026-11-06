@@ -36,7 +36,7 @@
       },
       "message": {
         "body": {
-          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"sessions\":[{\"id\":\"h-lights\",\"agentId\":\"home\",\"title\":\"Evening lights\",\"status\":\"Idle\",\"favorite\":false,\"createdAt\":{{now offset='-120 minutes' format='epoch'}}}],\"hasMore\":false}}"
+          "data": "{\"type\":\"res\",\"id\":\"{{jsonPath message.body '$.id'}}\",\"ok\":true,\"payload\":{\"sessions\":[{\"id\":\"h-lights\",\"agentId\":\"home\",\"title\":\"Evening lights\",\"status\":\"Idle\",\"favorite\":false,\"createdAt\":{{now offset='-120 minutes' format='epoch'}} }],\"hasMore\":false}}"
         }
       }
     }
