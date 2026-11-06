@@ -1,5 +1,7 @@
 package kinuvo.harness.execution.acp
 
+import java.util.Base64
+
 import kinuvo.harness.execution.api.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.runBlocking
@@ -60,16 +62,84 @@ class AcpReducerTest {
         assertEquals(1, state.live().entries.size)
         assertEquals(1, sink.batches.size)
     }
-    @Test fun unsupportedOrMismatchedMediaNeverReachesStorage() = runBlocking {
+    @Test fun unsupportedOrMismatchedMediaIsDroppedWithNotice() = runBlocking {
         var writes = 0
-        val reducer = AcpReducer(ExecutionState("s", sink = Recording())) { data -> writes++; data.attachment }
+        val sink = Recording()
+        val reducer = AcpReducer(ExecutionState("s", sink = sink)) { data -> writes++; data.attachment }
         reducer.submitted()
         for (mime in listOf("image/png", "application/octet-stream")) {
-            assertFailsWith<IllegalArgumentException> {
-                reducer.update(raw("""{"sessionUpdate":"agent_message_chunk","messageId":"m","content":{"type":"image","mimeType":"$mime","data":"AA=="}}"""))
-            }
+            reducer.update(raw("""{"sessionUpdate":"agent_message_chunk","messageId":"m","content":{"type":"image","mimeType":"$mime","data":"AA=="}}"""))
         }
         assertEquals(0, writes)
+        assertTrue(sink.events.filterIsInstance<AgentEvent.ExecutionEntryChanged>().any {
+            (it.entry as? SessionEntry.Notice)?.code == "invalid_output_media"
+        })
+    }
+
+    private fun mediaUpdate(index: Int, bytes: ByteArray = "output $index".toByteArray()) = buildJsonObject {
+        put("sessionUpdate", "tool_call_update")
+        put("toolCallId", "t$index")
+        put("status", "completed")
+        putJsonObject("content") {
+            put("type", "resource")
+            putJsonObject("resource") {
+                put("mimeType", "text/plain")
+                put("blob", Base64.getEncoder().encodeToString(bytes))
+            }
+        }
+    }
+
+    @Test fun mediaBudgetResetsAcrossRunsAndReplayDoesNotPersistAgain() = runBlocking {
+        val sink = Recording()
+        var writes = 0
+        val reducer = AcpReducer(ExecutionState("s", sink = sink)) { data -> writes++; data.attachment }
+        repeat(8) {
+            reducer.submitted()
+            repeat(MAX_ATTACHMENTS) { reducer.update(mediaUpdate(it)) }
+            reducer.update(raw("""{"sessionUpdate":"state_update","state":"idle"}"""))
+            reducer.update(mediaUpdate(MAX_ATTACHMENTS - 1))
+        }
+        assertEquals(8 * MAX_ATTACHMENTS, writes)
+        assertEquals(8, sink.batches.size)
+        assertEquals(8, sink.events.filterIsInstance<AgentEvent.RunFinished>().size)
+    }
+
+    @Test fun excessMediaIsDroppedAndLaterUpdatesAndRunsContinue() = runBlocking {
+        val sink = Recording()
+        var writes = 0
+        val reducer = AcpReducer(ExecutionState("s", sink = sink)) { data -> writes++; data.attachment }
+        reducer.submitted()
+        repeat(MAX_ATTACHMENTS + 2) { reducer.update(mediaUpdate(it)) }
+        reducer.update(raw("""{"sessionUpdate":"agent_message_chunk","messageId":"m","content":{"type":"text","text":"Still running"}}"""))
+        reducer.update(raw("""{"sessionUpdate":"state_update","state":"idle"}"""))
+        assertEquals(MAX_ATTACHMENTS, writes)
+        val batch = sink.batches.single()
+        assertEquals("Still running", batch.filterIsInstance<SessionEntry.AssistantMessage>().single().text)
+        assertEquals("invalid_output_media", batch.filterIsInstance<SessionEntry.Notice>().single().code)
+        assertEquals(MAX_ATTACHMENTS, batch.filterIsInstance<SessionEntry.ToolResult>().sumOf { it.attachments.size })
+        reducer.submitted()
+        reducer.update(mediaUpdate(99))
+        reducer.update(raw("""{"sessionUpdate":"state_update","state":"idle"}"""))
+        assertEquals(MAX_ATTACHMENTS + 1, writes)
+        assertEquals(2, sink.events.filterIsInstance<AgentEvent.RunFinished>().size)
+    }
+
+    @Test fun totalMediaBytesAreBoundedAndDuplicateToolUpdatesReuseStorage() = runBlocking {
+        val sink = Recording()
+        var writes = 0
+        val reducer = AcpReducer(ExecutionState("s", sink = sink)) { data -> writes++; data.attachment }
+        reducer.submitted()
+        repeat(3) { index ->
+            val update = mediaUpdate(index, ByteArray(MAX_ATTACHMENT_TOTAL_BYTES / 2) { index.toByte() })
+            reducer.update(update)
+            reducer.update(update)
+        }
+        reducer.update(raw("""{"sessionUpdate":"state_update","state":"idle"}"""))
+        assertEquals(2, writes)
+        val batch = sink.batches.single()
+        assertEquals("invalid_output_media", batch.filterIsInstance<SessionEntry.Notice>().single().code)
+        assertEquals(MAX_ATTACHMENT_TOTAL_BYTES, batch.filterIsInstance<SessionEntry.ToolResult>().sumOf { result -> result.attachments.sumOf { it.size } })
+        assertEquals(1, sink.events.filterIsInstance<AgentEvent.RunFinished>().size)
     }
 
     @Test fun messageMediaChunksRetainAllLiveAndCommittedReferences() = runBlocking {

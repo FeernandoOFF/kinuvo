@@ -155,6 +155,12 @@ class KinuvoClient(
         scope.launch { presence.withLock { runCatching { request(Api.Presence, PresenceParams(this@KinuvoClient.active)) } } }
     }
 
+    /** Sends an event the Server takes without replying, e.g. live call audio. */
+    suspend fun <T> emit(type: EventType<T>, payload: T) {
+        val ws = session ?: throw DisconnectedException("Not connected")
+        ws.send(Frame.Event(type.name, ProtocolJson.encodeToJsonElement(type.payload, payload), 0))
+    }
+
     fun <T> events(type: EventType<T>): Flow<T> =
         _events.filter { it.event == type.name }.map { ProtocolJson.decodeFromJsonElement(type.payload, it.payload) }
 

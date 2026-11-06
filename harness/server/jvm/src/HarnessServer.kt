@@ -11,8 +11,9 @@ import java.net.InetAddress
 
 class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File(harness.files.home.toString(), "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity()) {
     private val executionStorage = ExecutionStorage(harness.files.home)
+    private val activity = ProcessActivity("Serving a live voice call")
     val runtime: ServerRuntime = ServerRuntime(harness, auth, name,
-        remoteLinks = remoteLinks(harness.files.home), security = security, prepareAttachment = ::prepareAttachment,
+        remoteLinks = remoteLinks(harness.files.home), security = security, prepareAttachment = ::prepareAttachment, keepAwake = activity::hold,
         executionRegistry = executionStorage.registry, executionFactory = AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment), executionStorage = executionStorage)
     private suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData) = runtime.persistExecutionAttachment(state, data)
     private val listener = NetworkListener(runtime, auth, network)

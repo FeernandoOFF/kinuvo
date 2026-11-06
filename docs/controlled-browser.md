@@ -192,7 +192,7 @@ Kinuvo never changes host sysctls or disables Chromium's sandbox.
 
 ## Protocol compatibility
 
-The shared Screens interface requires explicit protocol version **5** on both sides of the
+The shared Screens interface requires explicit protocol version **6** on both sides of the
 connection. A missing or different version is incompatible: the Server rejects
 it before pairing/authentication, capabilities or cookie rotation. Browser HTTP
 authentication returns 409. Updated clients check the response version before

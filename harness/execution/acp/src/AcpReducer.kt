@@ -132,38 +132,44 @@ internal class AcpReducer(private val state: ExecutionState,
             val nested = block["content"] ?: block["resource"]
             if (nested != null) return@flatMap media(nested)
             if (block.string("type") == "image" || "blob" in block) {
-                val data = block.string("data") ?: block.string("blob") ?: error("Image bytes unavailable")
-                val mime = block.string("mimeType") ?: "application/octet-stream"
-                val extension = when (mime) {
-                    "image/png" -> "png"
-                    "image/jpeg" -> "jpg"
-                    "image/gif" -> "gif"
-                    "image/webp" -> "webp"
-                    "text/plain" -> "txt"
-                    "text/csv" -> "csv"
-                    "application/json" -> "json"
-                    else -> throw IllegalArgumentException("Unsupported output MIME: $mime")
-                }
-                require(data.length <= (MAX_ATTACHMENT_BYTES + 2) / 3 * 4) { "Output media is too large" }
-                val bytes = Base64.getDecoder().decode(data)
-                require(bytes.isNotEmpty() && bytes.size <= MAX_ATTACHMENT_BYTES) { "Invalid output media size" }
-                val signature = when (mime) {
-                    "image/png" -> bytes.take(8) == listOf(137, 80, 78, 71, 13, 10, 26, 10).map { it.toByte() }
-                    "image/jpeg" -> bytes.take(3) == listOf(255, 216, 255).map { it.toByte() }
-                    "image/gif" -> bytes.take(6).toByteArray().decodeToString() in setOf("GIF87a", "GIF89a")
-                    "image/webp" -> bytes.size >= 12 && bytes.copyOfRange(0, 4).decodeToString() == "RIFF" && bytes.copyOfRange(8, 12).decodeToString() == "WEBP"
-                    else -> true
-                }
-                require(signature) { "Output bytes do not match $mime" }
-                val attachment = Attachment(Uuid.random().toString(), "Harness-output.$extension", mime, bytes.size)
-                val key = mime to data
-                listOf(attachments[key] ?: run {
-                    require(attachments.size < MAX_ATTACHMENTS && attachments.values.sumOf { it.size } + bytes.size <= MAX_ATTACHMENT_TOTAL_BYTES) { "Too much output media" }
-                    persist(AttachmentData(attachment, data)).also {
-                        require(it.mimeType == mime) { "Stored output MIME does not match $mime" }
-                        attachments[key] = it
+                try {
+                    val data = block.string("data") ?: block.string("blob") ?: throw IllegalArgumentException("Image bytes unavailable")
+                    val mime = block.string("mimeType") ?: "application/octet-stream"
+                    val extension = when (mime) {
+                        "image/png" -> "png"
+                        "image/jpeg" -> "jpg"
+                        "image/gif" -> "gif"
+                        "image/webp" -> "webp"
+                        "text/plain" -> "txt"
+                        "text/csv" -> "csv"
+                        "application/json" -> "json"
+                        else -> throw IllegalArgumentException("Unsupported output MIME: $mime")
                     }
-                })
+                    require(data.length <= (MAX_ATTACHMENT_BYTES + 2) / 3 * 4) { "Output media is too large" }
+                    val bytes = Base64.getDecoder().decode(data)
+                    require(bytes.isNotEmpty() && bytes.size <= MAX_ATTACHMENT_BYTES) { "Invalid output media size" }
+                    val signature = when (mime) {
+                        "image/png" -> bytes.take(8) == listOf(137, 80, 78, 71, 13, 10, 26, 10).map { it.toByte() }
+                        "image/jpeg" -> bytes.take(3) == listOf(255, 216, 255).map { it.toByte() }
+                        "image/gif" -> bytes.take(6).toByteArray().decodeToString() in setOf("GIF87a", "GIF89a")
+                        "image/webp" -> bytes.size >= 12 && bytes.copyOfRange(0, 4).decodeToString() == "RIFF" && bytes.copyOfRange(8, 12).decodeToString() == "WEBP"
+                        else -> true
+                    }
+                    require(signature) { "Output bytes do not match $mime" }
+                    val attachment = Attachment(Uuid.random().toString(), "Harness-output.$extension", mime, bytes.size)
+                    val key = mime to data
+                    listOf(attachments[key] ?: run {
+                        require(attachments.size < MAX_ATTACHMENTS && attachments.values.sumOf { it.size } + bytes.size <= MAX_ATTACHMENT_TOTAL_BYTES) { "Too much output media" }
+                        persist(AttachmentData(attachment, data)).also {
+                            require(it.mimeType == mime) { "Stored output MIME does not match $mime" }
+                            attachments[key] = it
+                        }
+                    })
+                } catch (e: IllegalArgumentException) {
+                    put(SessionEntry.Notice("${runId()}:output_media", "invalid_output_media",
+                        "The harness returned media that was dropped: ${e.message}"))
+                    emptyList()
+                }
             } else if (block.string("type") in setOf("audio", "resource_link")) {
                 put(SessionEntry.Notice(Uuid.random().toString(), "unsupported_content", "The harness returned unsupported media."))
                 emptyList()

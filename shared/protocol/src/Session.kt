@@ -48,9 +48,15 @@ enum class SessionStatus { Idle, Running, Waiting }
 @Serializable
 data class SessionPage(val sessions: List<SessionInfo>, val hasMore: Boolean, val favorites: List<SessionInfo> = emptyList())
 
+@Serializable
+data class VoiceTurn(val user: Boolean, val text: String)
+
 /** One line of a Session transcript. */
 @Serializable
 sealed interface SessionEntry {
+    @Serializable @SerialName("voice_call")
+    data class VoiceCall(val id: String, val turns: List<VoiceTurn>, val startedAt: Long, val durationMillis: Long) : SessionEntry
+
     @Serializable @SerialName("notice")
     data class Notice(val id: String, val code: String, val message: String, val draft: List<SessionEntry> = emptyList()) : SessionEntry
 
@@ -122,6 +128,7 @@ val SessionOrder: Comparator<SessionInfo> = compareByDescending<SessionInfo> { i
 data class SessionEntryIdentity(val type: String, val id: String)
 
 fun SessionEntry.identity(): SessionEntryIdentity? = when (this) {
+    is SessionEntry.VoiceCall -> SessionEntryIdentity("voice_call", id)
     is SessionEntry.UserMessage -> submissionId?.let { SessionEntryIdentity("user", it) }
     is SessionEntry.AssistantMessage -> messageId?.let { SessionEntryIdentity("assistant", it) }
     is SessionEntry.Reasoning -> (messageId ?: id)?.let { SessionEntryIdentity("reasoning", it) }
