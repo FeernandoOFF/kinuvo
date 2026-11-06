@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.AnnotatedString
@@ -26,6 +28,8 @@ import dev.ynagai.a2ui.core.validation.CatalogValidator
 import kinuvo.ui.design.*
 import kinuvo.ui.session.ChatItemView
 import kinuvo.ui.session.ChatActions
+import kinuvo.app.surface.sumSurfaceValues
+import kinuvo.app.surface.surfaceValues
 import kinuvo.app.session.ChatItem
 import kinuvo.protocol.SurfaceAction
 import kotlinx.serialization.json.*
@@ -35,6 +39,80 @@ import java.io.File
 import kotlin.test.*
 
 class SurfaceScreenshotTest {
+    @Test fun editableWidgets() = javax.swing.SwingUtilities.invokeAndWait {
+        for (name in listOf("editable-tasks", "weekly-timesheet")) {
+            val raw = A2uiJson.strict.parseToJsonElement(File("../../harness/core/testResources/$name.json").readText())
+            val checked = CatalogValidator.of(surfaceCatalogDefinitions).validateMessage(raw, catalogId = kinuvoCatalogDefinition.catalogId)
+            assertTrue(checked.isValid, checked.violations.joinToString())
+            for (dark in listOf(false, true)) {
+                val renderer = A2uiRenderer(A2uiRendererConfig.Default.withCatalogs(surfaceCatalogDefinitions))
+                renderer.apply(A2uiJson.strict.decodeFromJsonElement(AgentToRendererMessage.serializer(), raw))
+                var copied: AnnotatedString? = null
+                val clipboard = object : ClipboardManager {
+                    override fun getText() = copied
+                    override fun setText(annotatedString: AnnotatedString) { copied = annotatedString }
+                }
+                val messages = mutableListOf<RendererToAgentMessage>()
+                ImageComposeScene(780, if (name == "weekly-timesheet") 3600 else 1800, Density(2f), content = {
+                    HarnessTheme(dark = dark) {
+                        Box(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
+                            CompositionLocalProvider(LocalClipboardManager provides clipboard) {
+                                A2uiSurface(renderer, name, surfaceComponents, Modifier.fillMaxWidth(), onMessage = { messages += it })
+                            }
+                        }
+                    }
+                }).use { scene ->
+                    repeat(8) { scene.render(it * 200_000_000L) }
+                    File("build/screens").apply { mkdirs() }.resolve("$name-${if (dark) "dark" else "light"}.png")
+                        .writeBytes(scene.render(2_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+                    if (dark) {
+                        fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
+                        fun nodes() = scene.semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }
+                        fun hasText(text: String) = nodes().any { it.config.getOrNull(SemanticsProperties.Text)?.any { value -> value.text == text } == true }
+                        var frame = 3_000_000_000L
+                        fun click(label: String, index: Int = 0) {
+                            val nodes = nodes()
+                            val button = nodes.filter { node -> node.config.getOrNull(SemanticsActions.OnClick) != null &&
+                                flatten(node).any { it.config.getOrNull(SemanticsProperties.Text)?.any { text -> text.text == label } == true } }[index]
+                            assertTrue(button.config[SemanticsActions.OnClick].action!!.invoke())
+                            repeat(4) { frame += 200_000_000L; scene.render(frame) }
+                        }
+                        fun model() = renderer.state.surfaces.getValue(name).dataModel
+                        if (name == "editable-tasks") {
+                            click("+ Add row")
+                            assertEquals(5, model().getValue("rows").jsonArray.size)
+                            assertTrue(hasText("5"))
+                            click("×")
+                            assertEquals(4, model().getValue("rows").jsonArray.size)
+                            assertTrue(hasText("0"))
+                            click("Copy table")
+                            assertTrue(assertNotNull(copied).text.startsWith("| task | status | priority |"))
+                        } else {
+                            click("+")
+                            assertEquals(75.0, model().getValue("days").jsonArray[0].jsonObject.getValue("tasks").jsonArray[0].jsonObject.getValue("minutes").jsonPrimitive.double)
+                            assertTrue(hasText("5h 30m"))
+                            click("30m")
+                            click("+")
+                            assertTrue(hasText("6h 00m"))
+                            click("×")
+                            assertEquals(255.0, sumSurfaceValues(surfaceValues(model(), listOf("days", "*", "tasks", "*", "minutes"))))
+                            assertTrue(hasText("4h 15m"))
+                            click("+ Task", 1)
+                            assertEquals(1, model().getValue("days").jsonArray[1].jsonObject.getValue("tasks").jsonArray.size)
+                            click("+", 2)
+                            assertEquals(30.0, model().getValue("days").jsonArray[1].jsonObject.getValue("tasks").jsonArray[0].jsonObject.getValue("minutes").jsonPrimitive.double)
+                            click("×", 2)
+                            assertEquals(0, model().getValue("days").jsonArray[1].jsonObject.getValue("tasks").jsonArray.size)
+                        }
+                        assertTrue(messages.isEmpty(), "Local edits must not send an Agent message")
+                        click("Send")
+                        assertEquals(1, messages.size)
+                    }
+                }
+            }
+        }
+    }
+
     @Test fun kinuvoComponents() = javax.swing.SwingUtilities.invokeAndWait {
         val raw = A2uiJson.strict.parseToJsonElement("""
             {"version":"v1.0","createSurface":{"surfaceId":"extras","catalogId":"${kinuvoCatalogDefinition.catalogId}","components":[

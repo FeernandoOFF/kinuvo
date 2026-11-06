@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.key.*
@@ -116,15 +118,19 @@ fun Tabs(titles: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier:
 }
 
 @Composable
-fun ChoiceSelect(options: List<Pair<String, String>>, selected: String?, enabled: Boolean, onSelect: (String) -> Unit) {
+fun ChoiceSelect(options: List<Pair<String, String>>, selected: String?, enabled: Boolean, compact: Boolean = false, onSelect: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
+    val style = markdownTextStyle()
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val width = with(density) { (options.maxOfOrNull { measurer.measure(it.second, style, softWrap = false).size.width } ?: 0).toDp() } + 32.dp
     DropdownMenu(expanded = open, onExpandedChange = { open = it }, panel = {
         DropdownMenuPanel {
             options.forEach { (value, label) -> DropdownMenuItem(onClick = { open = false; onSelect(value) }) { Text(label) } }
         }
     }) {
-        Button(onClick = { open = true }, enabled = enabled, style = ButtonStyle.Outlined) {
-            Text(options.firstOrNull { it.first == selected }?.second ?: "Select an option")
+        Button(onClick = { open = true }, modifier = Modifier.widthIn(min = width).then(if (compact) Modifier.height(36.dp) else Modifier), enabled = enabled, style = ButtonStyle.Outlined) {
+            Text(options.firstOrNull { it.first == selected }?.second ?: "Select an option", style = style, singleLine = true)
         }
     }
 }
