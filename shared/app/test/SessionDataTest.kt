@@ -16,6 +16,18 @@ class SessionDataTest {
     private val approval = AgentEvent.ApprovalRequested("a1", "c1", "model_alias", "{}", identity = identity)
 
     @Test
+    fun savedTimeWinsOverReceiptAndHistoryNeedsNoReceipt() {
+        val entry = SessionEntry.AssistantMessage("reply", "m1", writtenAt = 100L)
+        val data = SessionData("main", entries = listOf(entry), receivedAt = mapOf("text-m1" to 200L))
+        assertEquals(100L, (data.items.single() as ChatItem.Assistant).at)
+        assertEquals(100L, (data.copy(receivedAt = emptyMap()).items.single() as ChatItem.Assistant).at)
+        assertEquals(200L, (data.copy(entries = listOf(entry.copy(writtenAt = null))).items.single() as ChatItem.Assistant).at)
+        val live = SessionData("main", live = LiveState(messageId = "m1", text = "partial"), receivedAt = data.receivedAt)
+        assertEquals(200L, (live.items.single() as ChatItem.Assistant).at)
+        assertEquals(null, (data.copy(entries = listOf(entry.copy(writtenAt = null)), receivedAt = emptyMap()).items.single() as ChatItem.Assistant).at)
+    }
+
+    @Test
     fun messagesKeepTheirKeyFromLiveToSaved() {
         val live = SessionData("main", entries = listOf(SessionEntry.UserMessage("hi")), live = LiveState(running = true, messageId = "m1", text = "hel", reasoning = "hm"))
         val saved = live.copy(

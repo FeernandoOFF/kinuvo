@@ -34,7 +34,7 @@ sealed interface ChatItem {
 
     /** [routine] names the Routine that sent [text] on its schedule. */
     data class User(override val id: String, val text: String, val routine: String? = null, val attachments: List<Attachment> = emptyList(), val task: String? = null, val voice: Boolean = false) : ChatItem
-    data class Assistant(override val id: String, val text: String, val receivedAt: Long? = null) : ChatItem
+    data class Assistant(override val id: String, val text: String, val at: Long? = null) : ChatItem
     data class Reasoning(override val id: String, val text: String) : ChatItem
     /** [callId] is the model's tool-call ID; [approval] or [questions] is set while the call waits on the user. */
     data class ToolCall(

@@ -377,7 +377,9 @@ class ServerClientTest {
                 val reconnected = KinuvoClient(url, "phone", token = token).also { it.connect() }
                 val (_, entries, live) = reconnected.catchUp(first)
                 assertEquals(LiveState(running = true, approval = approval), live)
-                assertTrue(SessionEntry.UserMessage("make skill") in entries)
+                val message = entries.filterIsInstance<SessionEntry.UserMessage>().single()
+                assertTrue(message.writtenAt != null)
+                assertEquals(SessionEntry.UserMessage("make skill", writtenAt = message.writtenAt), message)
                 assertEquals("c1", (entries.last() as SessionEntry.ToolCall).id)
                 assertEquals(listOf(entries.last()), reconnected.catchUp(first, after = entries.size - 1).entries)
                 assertEquals(SessionStatus.Waiting, reconnected.call(Api.Sessions, SessionsParams("default")).sessions.single { it.id == first }.status)
@@ -452,7 +454,9 @@ class ServerClientTest {
                     desktop.events(Api.Update).mapNotNull { (it.change as? SessionChange.Entry)?.entry as? SessionEntry.UserMessage }.first()
                 }
                 desktop.call(Api.Send, SendParams("default", sessionId, "hello"))
-                assertEquals(SessionEntry.UserMessage("hello"), seen.await())
+                val message = seen.await()
+                assertTrue(message.writtenAt != null)
+                assertEquals(SessionEntry.UserMessage("hello", writtenAt = message.writtenAt), message)
                 assertEquals(sessionId, phoneUpdates.await().sessionId)
                 assertEquals(null, phoneUpdatesAfter.await(), "unsubscribed")
                 phone.close()

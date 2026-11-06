@@ -12,6 +12,7 @@ import kinuvo.protocol.RoutineApprovals
 import kinuvo.protocol.RoutineRan
 import kinuvo.protocol.RunStatus
 import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.withWrittenAt
 import kinuvo.protocol.SessionSettings
 import kinuvo.protocol.Trigger
 import kotlinx.coroutines.CoroutineScope
@@ -99,7 +100,7 @@ class SchedulerTest {
         assertTrue(harness.log.page(agent.id, null, 10).sessions.isEmpty())
         assertTrue(ran.isEmpty())
         assertNull(routine(r.id).lastReport)
-        assertEquals(SessionEntry.Outcome(false), harness.store.entries(agent.id, routine(r.id).lastSessionId!!).last())
+        assertEquals(SessionEntry.Outcome(false), harness.store.entries(agent.id, routine(r.id).lastSessionId!!).last().withWrittenAt(null))
     }
 
     @Test
@@ -130,7 +131,7 @@ class SchedulerTest {
         val entries = harness.store.entries(agent.id, beat.lastSessionId!!)
         val sent = entries.filterIsInstance<SessionEntry.UserMessage>().single().text
         assertTrue("## HEARTBEAT.md" in sent && "- anything overdue?" in sent && "routine_report" in sent, sent)
-        assertEquals(SessionEntry.Outcome(true, "The invoice is overdue"), entries.last())
+        assertEquals(SessionEntry.Outcome(true, "The invoice is overdue"), entries.last().withWrittenAt(null))
         assertEquals("The invoice is overdue", ran.single().summary)
     }
 
@@ -187,7 +188,7 @@ class SchedulerTest {
         now += 5 * 60_000
         tickAndWait()
 
-        assertEquals(before + SessionEntry.Settings(picked), harness.store.entries(agent.id, session))
+        assertEquals((before + SessionEntry.Settings(picked)).map { it.withWrittenAt(null) }, harness.store.entries(agent.id, session).map { it.withWrittenAt(null) })
         assertEquals(picked, harness.store.session(agent.id, session).settings)
     }
 

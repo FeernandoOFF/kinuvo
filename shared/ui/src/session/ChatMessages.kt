@@ -249,7 +249,7 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
             if (spoken != null) SpokenText(item.text, spoken, Modifier.fillMaxWidth()) else if (writing) StreamingMarkdown(item.text, Modifier.fillMaxWidth()) else Markdown(item.text, Modifier.fillMaxWidth())
             if (finished && item.text.isNotBlank()) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                 CopyButton(item.text)
-                item.receivedAt?.let { Text(shortTime(it), style = TextStyles.caption, color = color(mutedColor)) }
+                item.at?.let { Text(shortTime(it), style = TextStyles.caption, color = color(mutedColor)) }
             }
         }
         is ChatItem.Reasoning -> StepView(item)
