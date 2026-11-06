@@ -83,6 +83,7 @@ internal fun Messages(
     var following by follow
     val items = state.items
     val rows = remember(items) { items.rows() }
+    val finished = remember(items, state.running) { items.finishedReplies(state.running) }
     val last = items.lastOrNull()
     // A trailing group of steps shows the run's progress itself.
     val thinking = state.running && last !is ChatItem.Assistant && !(last is ChatItem.ToolCall && last.waiting) && rows.lastOrNull() !is ChatRow.Steps
@@ -139,7 +140,7 @@ internal fun Messages(
                     Box(Modifier.animateItem(fadeInSpec = if (user) null else tween(Motion.item), fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth()) {
                         when (row) {
                             is ChatRow.Single -> if (row.key == "outgoing") Entering { ChatItemView(row.item, actions) }
-                                else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id), writing = writing && row.item.id == last?.id)
+                                else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id), writing = writing && row.item.id == last?.id, finished = row.item.id in finished)
                             is ChatRow.Steps -> StepsView(row, active = state.running && row === rows.last(), actions = actions)
                         }
                     }
@@ -209,7 +210,7 @@ private fun JumpToBottom(unseen: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = null, writing: Boolean = false) {
+private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = null, writing: Boolean = false, finished: Boolean = false) {
     when (item) {
         is ChatItem.User -> if (item.routine != null) Expandable(Lucide.AlarmClock, requireNotNull(item.routine), subtitle = "routine") { Markdown(item.text) }
         else if (item.task != null) Expandable(Lucide.SquareKanban, requireNotNull(item.task), subtitle = "task") { Markdown(item.text) }
@@ -244,7 +245,13 @@ private fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = nu
                 }
             }
         }
-        is ChatItem.Assistant -> if (spoken != null) SpokenText(item.text, spoken, Modifier.fillMaxWidth()) else if (writing) StreamingMarkdown(item.text, Modifier.fillMaxWidth()) else Markdown(item.text, Modifier.fillMaxWidth())
+        is ChatItem.Assistant -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
+            if (spoken != null) SpokenText(item.text, spoken, Modifier.fillMaxWidth()) else if (writing) StreamingMarkdown(item.text, Modifier.fillMaxWidth()) else Markdown(item.text, Modifier.fillMaxWidth())
+            if (finished && item.text.isNotBlank()) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+                CopyButton(item.text)
+                item.receivedAt?.let { Text(shortTime(it), style = TextStyles.caption, color = color(mutedColor)) }
+            }
+        }
         is ChatItem.Reasoning -> StepView(item)
         is ChatItem.ToolCall -> when {
             (item.identity?.instance?.pluginId == "kinuvo.computer" && item.identity?.localId in setOf("computer_capture", "computer_act")) && item.result == null -> Column(verticalArrangement = Arrangement.spacedBy(Spacing.space2)) {

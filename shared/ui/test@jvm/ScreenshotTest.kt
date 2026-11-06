@@ -923,6 +923,19 @@ class ScreenshotTest {
     }
 
     @Test
+    fun renderAssistantFooter() {
+        val state = ChatState(loaded = true, items = listOf(
+            ChatItem.User("user", "Show me a quick example."),
+            ChatItem.Assistant("step", "I'll put one together."),
+            ChatItem.ToolCall("tool", "tool", "exec", "", "done"),
+            ChatItem.Assistant("reply", "Here is the **result**.\n\n```kotlin\nval greeting = \"Hello\"\n```", receivedAt = 1_790_000_000_000L),
+        ))
+        for (dark in listOf(false, true)) render("chat-footer-${if (dark) "dark" else "light"}", 420, 640) {
+            HarnessTheme(dark = dark) { ChatContent(state, ConnectionState.Connected("x"), null, ChatActions()) }
+        }
+    }
+
+    @Test
     fun renderMarkdownSource() {
         for (dark in listOf(false, true)) render("markdown-source-${if (dark) "dark" else "light"}", 620, 900) {
             HarnessTheme(dark = dark) {
