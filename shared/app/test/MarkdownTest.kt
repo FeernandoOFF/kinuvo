@@ -18,7 +18,7 @@ class MarkdownTest {
         override val text: CharSequence get() = chars
         override var selectionStart = marked.indexOf('|').takeIf { it >= 0 } ?: marked.indexOf('«')
         override var selectionEnd = marked.indexOf('|').takeIf { it >= 0 } ?: (marked.indexOf('»') - 1)
-        override fun replace(start: Int, end: Int, text: CharSequence) { chars.replace(start, end, text.toString()) }
+        override fun replace(start: Int, end: Int, text: CharSequence) { chars.deleteRange(start, end); chars.insert(start, text) }
         override fun select(start: Int, end: Int) { selectionStart = start; selectionEnd = end }
         override fun toString() = if (selectionStart == selectionEnd) chars.toString().let { it.substring(0, selectionStart) + "|" + it.substring(selectionStart) }
             else chars.toString().let { it.substring(0, selectionStart) + "«" + it.substring(selectionStart, selectionEnd) + "»" + it.substring(selectionEnd) }

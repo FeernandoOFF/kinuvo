@@ -54,4 +54,10 @@ internal fun ASTNode.markers(): List<ASTNode> = children.flatMap { child ->
     if (child.type == MarkdownElementTypes.LINK_TEXT) child.children.filter { it.type in Markers } else listOfNotNull(child.takeIf { it.type in Markers })
 }
 
+/** A `CODE_SPAN`'s code between its backticks, without one surrounding space, as CommonMark strips it. */
+fun ASTNode.codeSpanText(content: CharSequence): String {
+    val raw = content.substring(children.first().endOffset, children.last().startOffset).replace('\n', ' ')
+    return if (raw.startsWith(' ') && raw.endsWith(' ') && raw.any { it != ' ' }) raw.drop(1).dropLast(1) else raw
+}
+
 private fun ASTNode.span() = MarkdownSpan(type, startOffset, endOffset)

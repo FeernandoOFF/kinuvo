@@ -44,6 +44,7 @@ import com.mikepenz.markdown.compose.extendedspans.RoundedCornerSpanPainter
 import com.mikepenz.markdown.compose.extendedspans.RoundedCornerSpanPainter.TextPaddingValues
 import com.mikepenz.markdown.model.*
 import kinuvo.app.markdown.KinuvoMarkdown
+import kinuvo.app.markdown.codeSpanText
 import org.intellij.markdown.MarkdownElementTypes.CODE_SPAN
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.gfm.GFMElementTypes.HEADER
@@ -96,9 +97,7 @@ private fun MarkdownContent(text: String, modifier: Modifier, style: TextStyle, 
     )
     val annotator = markdownAnnotator { content, node ->
         if (node.type == CODE_SPAN) {
-            val raw = content.substring(node.children.first().endOffset, node.children.last().startOffset).replace('\n', ' ')
-            val code = if (raw.startsWith(' ') && raw.endsWith(' ') && raw.any { it != ' ' }) raw.drop(1).dropLast(1) else raw
-            withStyle(typography.inlineCode.copy(background = colors.inlineCodeBackground).toSpanStyle()) { append(code) }
+            withStyle(typography.inlineCode.copy(background = colors.inlineCodeBackground).toSpanStyle()) { append(node.codeSpanText(content)) }
             true
         } else false
     }
