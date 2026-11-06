@@ -85,9 +85,25 @@ fun Composer(
     notice: (@Composable () -> Unit)? = null,
 ) {
     var focused by remember { mutableStateOf(false) }
-    val empty by remember(state) { derivedStateOf { state.text.toString().isBlank() } }
-    val editorStyles = markdownEditorStyles()
-    val query by remember(state, completions) { derivedStateOf { findCompletion(state.text.toString(), state.selection, completions) } }
+    val empty by remember(state) { derivedStateOf { state.text.isBlank() } }
+    val editorStyles = rememberUpdatedState(markdownEditorStyles())
+    val highlights = rememberMarkdownHighlights(state)
+    val inputTransformation = remember { InputTransformation {
+        if (changes.changeCount == 1) {
+            val range = changes.getRange(0)
+            val original = changes.getOriginalRange(0)
+            if (original.collapsed && range.length == 1 && asCharSequence()[range.start] == '\n' &&
+                originalSelection.collapsed && original.start == originalSelection.start && selection.collapsed && selection.start == range.end) {
+                asBuffer().continueList()
+            }
+        }
+    } }
+    val outputTransformation = remember(highlights) { OutputTransformation {
+        highlights.value?.spans?.forEach { span ->
+            if (span.start < length) addStyle(editorStyles.value.style(span), span.start, minOf(span.end, length))
+        }
+    } }
+    val query by remember(state, completions) { derivedStateOf { if (completions.isEmpty()) null else findCompletion(state.text.toString(), state.selection, completions) } }
     var dismissedAt by remember { mutableIntStateOf(-1) }
     var highlighted by remember { mutableIntStateOf(0) }
     LaunchedEffect(query?.start, query?.query) {
@@ -160,19 +176,8 @@ fun Composer(
                             keyboardOptions = inputKeyboard(capitalize = true),
                             cursorBrush = SolidColor(color(accentColor)),
                             lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 12),
-                            inputTransformation = {
-                                if (changes.changeCount == 1) {
-                                    val range = changes.getRange(0)
-                                    val original = changes.getOriginalRange(0)
-                                    if (original.collapsed && range.length == 1 && asCharSequence()[range.start] == '\n' &&
-                                        originalSelection.collapsed && original.start == originalSelection.start && selection.collapsed && selection.start == range.end) {
-                                        asBuffer().continueList()
-                                    }
-                                }
-                            },
-                            outputTransformation = {
-                                markdownSpans(asCharSequence()).forEach { span -> addStyle(editorStyles.style(span), span.start, span.end) }
-                            },
+                            inputTransformation = inputTransformation,
+                            outputTransformation = outputTransformation,
                             modifier = Modifier.semantics { contentDescription = "Message" }
                                 .fillMaxWidth()
                                 .heightIn(min = 36.dp)
@@ -206,7 +211,7 @@ fun Composer(
                 open?.let { q ->
                     CompletionList(q, highlighted, onPick = { accept(q, it) }, Modifier.align(Alignment.TopStart).above(6.dp))
                 }
-                FormatBar(state, focused && !state.selection.collapsed, Modifier.align(Alignment.TopStart).offset(x = 8.dp, y = (-44).dp))
+                FormatBar(state, highlights, focused, Modifier.align(Alignment.TopStart).offset(x = 8.dp, y = (-44).dp))
             }
         }
         hint?.takeIf { blocked == null }?.let { Text(it, Modifier.fillMaxWidth(), style = TextStyles.overline, color = color(mutedColor), textAlign = TextAlign.Center) }
@@ -260,9 +265,10 @@ private fun onKey(event: KeyEvent, state: TextFieldState, submit: () -> Unit): B
 }
 
 @Composable
-private fun FormatBar(state: TextFieldState, visible: Boolean, modifier: Modifier) = AnimatedVisibility(visible, modifier, enter = fadeIn(), exit = fadeOut()) {
+private fun FormatBar(state: TextFieldState, highlights: State<MarkdownHighlights?>, focused: Boolean, modifier: Modifier) = AnimatedVisibility(focused && !state.selection.collapsed, modifier, enter = fadeIn(), exit = fadeOut()) {
+    val highlights = highlights.value
     Panel(shape = Theme[shapes][mediumShape], contentPadding = PaddingValues(Spacing.space4)) {
-        val active = remember(state.text.toString(), state.selection) { activeTypes(state.text, state.selection.min, state.selection.max) }
+        val active = if (highlights != null && highlights.text.contentEquals(state.text)) highlights.activeTypes(state.selection.min, state.selection.max) else emptySet()
         Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space2)) {
             FormatToggle(Lucide.Bold, "Bold ${shortcut("B")}", MarkdownElementTypes.STRONG in active) { state.edit { asBuffer().toggle(MarkdownElementTypes.STRONG) } }
             FormatToggle(Lucide.Italic, "Italic ${shortcut("I")}", MarkdownElementTypes.EMPH in active) { state.edit { asBuffer().toggle(MarkdownElementTypes.EMPH) } }

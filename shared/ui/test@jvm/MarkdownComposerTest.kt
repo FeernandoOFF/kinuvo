@@ -8,9 +8,16 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.InterceptPlatformTextInput
+import androidx.compose.ui.platform.PlatformTextInputInterceptor
+import kotlinx.coroutines.awaitCancellation
+import java.util.concurrent.atomic.AtomicInteger
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.font.FontWeight
 import kinuvo.ui.design.Composer
 import kinuvo.ui.design.HarnessTheme
 import kinuvo.ui.design.StreamingMarkdown
@@ -21,6 +28,61 @@ import kotlin.test.assertEquals
 
 @OptIn(ExperimentalTestApi::class)
 class MarkdownComposerTest {
+    @Test fun keepsInputSessionWhileTypingAndUpdatingHighlights() = runPhoneTest {
+        val state = TextFieldState()
+        val sessions = AtomicInteger()
+        var hint by mutableStateOf("Before")
+        val interceptor = PlatformTextInputInterceptor { _, _ ->
+            sessions.incrementAndGet()
+            awaitCancellation()
+        }
+        setContent {
+            InterceptPlatformTextInput(interceptor) {
+                HarnessTheme { Composer(false, {}, {}, state = state, hint = hint) }
+            }
+        }
+        val input = onNodeWithContentDescription("Message")
+        input.performClick()
+        waitUntil { sessions.get() > 0 }
+        val initialSessions = sessions.get()
+        for (character in "**bold**") {
+            input.performTextInput(character.toString())
+            waitForIdle()
+        }
+        waitUntil(timeoutMillis = 5_000) {
+            val results = mutableListOf<TextLayoutResult>()
+            input.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+            results.any { result -> result.layoutInput.text.spanStyles.any { it.item.fontWeight == FontWeight.Bold } }
+        }
+        runOnIdle { hint = "After" }
+        waitForIdle()
+        runOnIdle {
+            assertEquals("**bold**", state.text.toString())
+            assertEquals(initialSessions, sessions.get())
+        }
+        repeat(8) {
+            input.performKeyInput { pressKey(Key.Backspace) }
+            waitForIdle()
+        }
+        runOnIdle {
+            assertEquals("", state.text.toString())
+            assertEquals(initialSessions, sessions.get())
+        }
+    }
+
+    @Test fun appliesStylingAfterTyping() = runPhoneTest {
+        val state = TextFieldState()
+        setContent { HarnessTheme { Composer(false, {}, {}, state = state) } }
+        val input = onNodeWithContentDescription("Message")
+        input.performTextInput("**bold**")
+        waitUntil(timeoutMillis = 5_000) {
+            val results = mutableListOf<TextLayoutResult>()
+            input.performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(results) }
+            results.any { result -> result.layoutInput.text.spanStyles.any { it.item.fontWeight == FontWeight.Bold } }
+        }
+        runOnIdle { assertEquals("**bold**", state.text.toString()) }
+    }
+
     @Test fun sendsMarkdownSourceAndClears() = runPhoneTest {
         val state = TextFieldState()
         var sent = ""
