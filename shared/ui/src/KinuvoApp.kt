@@ -67,6 +67,7 @@ import androidx.compose.runtime.saveable.rememberSerializable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import org.koin.compose.viewmodel.koinViewModel
 import org.koin.compose.koinInject
+import kinuvo.ui.voice.LiveCallHost
 import org.koin.core.parameter.parametersOf
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -433,24 +434,29 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onSectionBack = if (inspectorPages.isEmpty()) null else ({ inspectorEdits.leave { inspectorPages.removeLastOrNull(); Unit } }),
                 onCloseRequest = { if (inspecting?.dirty == true) inspector?.close() else inspectorEdits.leave { inspector?.close() } })
             val homeChrome = HomeChrome({ if (compact) shell.revealed = true else shell.open = !shell.open }, !compact)
-            CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers, LocalHomeChrome provides homeChrome) {
+            val strips = remember { Strips() }
+            val stripHeight by animateDpAsState(strips.height)
+            CompositionLocalProvider(LocalHistory provides history, LocalPopovers provides popovers, LocalHomeChrome provides homeChrome, LocalStrips provides strips) {
                 // Phones show the Agent's settings as sheets over the screen; wider windows show them beside it, unblurred.
                 val sheet = compact && (inspecting?.open == true || settingsPages.isNotEmpty())
                 val blur by animateDpAsState(if (LocalBackdropBlur.current && (shell.quickChat || popovers.active || sheet)) 16.dp else 0.dp)
-                val screenInsets = if (top == Route.NewAgent || top == Route.Connect) WindowInsets(0) else WindowInsets.safeDrawing
+                val edgeToEdge = top == Route.NewAgent || top == Route.Connect
+                // Edge-to-edge screens still clear the status bar the strip reaches behind.
+                val screenInsets = if (!edgeToEdge) WindowInsets.safeDrawing
+                    else if (strips.rows.isNotEmpty()) WindowInsets.safeDrawing.only(WindowInsetsSides.Top) else WindowInsets(0)
                 val guardSemantics = if (inspecting?.guard != null || inspectorEdits.pending != null || homeEdits.pending != null) Modifier.clearAndSetSemantics {} else Modifier
                 val sheetSemantics = if (inspecting?.open == true || settingsPages.isNotEmpty()) Modifier.clearAndSetSemantics {} else Modifier
                 if (compact) Box(Modifier.fillMaxSize().then(guardSemantics)) {
                     Box(Modifier.blur(blur).then(sheetSemantics)) {
                         Reveal(shell.revealed, { shell.revealed = it }, behind = { Shell(shellState, shellActions, shell, Modifier.fillMaxSize(), fill = true) },
-                            enabled = withShell) { Box(Modifier.windowInsetsPadding(screenInsets)) { screens() } }
+                            enabled = withShell) { Box(Modifier.windowInsetsPadding(screenInsets).padding(top = stripHeight)) { screens() } }
                     }
                     AnimatedVisibility(shell.quickChat, modifier = sheetSemantics, enter = fadeIn(), exit = fadeOut()) {
                         QuickChat(appState.agents, agent, shell.draft, shellActions.onSelectAgent, shellActions.onQuickSend) { shell.quickChat = false }
                     }
                     inspector?.let { AgentInspector(it, inspectorHost, sheet = true, showGuard = false) }
                 }
-                else Row(Modifier.fillMaxSize().windowInsetsPadding(screenInsets).blur(blur).then(guardSemantics)) {
+                else Row(Modifier.fillMaxSize().windowInsetsPadding(screenInsets).padding(top = stripHeight).blur(blur).then(guardSemantics)) {
                     AnimatedVisibility(beside, enter = expandHorizontally(), exit = shrinkHorizontally()) {
                         Row { Shell(shellState, shellActions, shell, column = !foldColumn); VerticalSeparator() }
                     }
@@ -466,7 +472,9 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 inspector?.let { AgentInspectorGuard(it, inspectorHost) }
                 SettingsDiscardDialog(homeEdits)
                 SettingsDiscardDialog(inspectorEdits)
+                StripHost(strips)
                 popovers.Host()
+                LiveCallHost(appState.agents)
             }
             appState.notice?.let { notice ->
                 Row(Modifier.align(Alignment.BottomCenter).padding(Spacing.space16), verticalAlignment = Alignment.CenterVertically) {

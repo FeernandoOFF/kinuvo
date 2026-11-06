@@ -40,6 +40,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				C0DE70500000000000000011 /* KinuvoNotifications.appex in Embed Foundation Extensions */,
+                CA1150000000000000000011,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -153,6 +154,7 @@
 			);
 			dependencies = (
 				C0DE70500000000000000018 /* PBXTargetDependency */,
+                CA1150000000000000000018,
 			);
 			fileSystemSynchronizedGroups = (
 				29FA6339BB8DB2E19C54C879 /* src */,
@@ -201,6 +203,7 @@
 			targets = (
 				29FA6F9C1DFC6D0BA1D22105 /* app */,
 				C0DE70500000000000000013 /* notifications */,
+                CA1150000000000000000013,
 			);
 		};
 /* End PBXProject section */
@@ -449,6 +452,19 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+		CA1150000000000000000010 = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; path = KinuvoCalls.appex; sourceTree = BUILT_PRODUCTS_DIR;};
+		CA1150000000000000000007 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = liveactivity/CallWidget.swift; sourceTree = SOURCE_ROOT;};
+		CA1150000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = src/CallActivity.swift; sourceTree = SOURCE_ROOT;};
+		CA1150000000000000000006 = {isa = PBXBuildFile; fileRef = CA1150000000000000000007;};
+		CA1150000000000000000005 = {isa = PBXBuildFile; fileRef = CA1150000000000000000004;};
+		CA1150000000000000000011 = {isa = PBXBuildFile; fileRef = CA1150000000000000000010;};
+		CA1150000000000000000014 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (CA1150000000000000000006, CA1150000000000000000005,); runOnlyForDeploymentPostprocessing = 0;};
+		CA1150000000000000000013 = {isa = PBXNativeTarget; buildConfigurationList = CA1150000000000000000020; buildPhases = (CA1150000000000000000014,); buildRules = (); dependencies = (); name = liveactivity; productName = KinuvoCalls; productReference = CA1150000000000000000010; productType = "com.apple.product-type.app-extension";};
+		CA1150000000000000000018 = {isa = PBXTargetDependency; target = CA1150000000000000000013; targetProxy = CA1150000000000000000019;};
+		CA1150000000000000000019 = {isa = PBXContainerItemProxy; containerPortal = 29FA6EF1CBC93936EF95660C; proxyType = 1; remoteGlobalIDString = CA1150000000000000000013; remoteInfo = liveactivity;};
+		CA1150000000000000000021 = {isa = XCBuildConfiguration; name = Debug; buildSettings = {SWIFT_ACTIVE_COMPILATION_CONDITIONS = KINUVO_CALL_WIDGET; APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = R5MBZ7H925; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = 0.1.0; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = liveactivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 26.5; PRODUCT_BUNDLE_IDENTIFIER = dev.kinuvo.ios.calls; PRODUCT_NAME = KinuvoCalls; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; };};
+		CA1150000000000000000022 = {isa = XCBuildConfiguration; name = Release; buildSettings = {SWIFT_ACTIVE_COMPILATION_CONDITIONS = KINUVO_CALL_WIDGET; APPLICATION_EXTENSION_API_ONLY = YES; CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = R5MBZ7H925; CURRENT_PROJECT_VERSION = 1; MARKETING_VERSION = 0.1.0; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_FILE = liveactivity/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 26.5; PRODUCT_BUNDLE_IDENTIFIER = dev.kinuvo.ios.calls; PRODUCT_NAME = KinuvoCalls; SDKROOT = iphoneos; SKIP_INSTALL = YES; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; };};
+		CA1150000000000000000020 = {isa = XCConfigurationList; buildConfigurations = (CA1150000000000000000021, CA1150000000000000000022,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release;};
 	};
 	rootObject = 29FA6EF1CBC93936EF95660C /* Project object */;
 }
