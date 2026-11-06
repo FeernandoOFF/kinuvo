@@ -1,5 +1,6 @@
 package kinuvo.harness.core.tools
 
+import kinuvo.harness.core.takeWhole
 import kinuvo.protocol.Risk
 
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -38,7 +39,7 @@ class WebFetchTool(
         return "HTTP ${res.status.value}\n\n${clip(text)}"
     }
 
-    private fun clip(text: String) = if (text.length > maxChars) text.take(maxChars) + "\n…[truncated]" else text
+    private fun clip(text: String) = if (text.length > maxChars) text.takeWhole(maxChars) + "\n…[truncated]" else text
 
     private fun htmlToText(html: String): String = html
         .replace(Regex("(?is)<(script|style|noscript|svg)[^>]*>.*?</\\1>"), " ")

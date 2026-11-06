@@ -19,6 +19,7 @@ import com.google.ai.edge.litertlm.ThinkingConfig
 import com.google.ai.edge.litertlm.ToolCall
 import com.google.ai.edge.litertlm.tool
 import kinuvo.harness.core.TokenUsageCapture
+import kinuvo.harness.core.takeWhole
 import kinuvo.harness.core.tools.RawSchemaToolDescriptor
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.*
@@ -50,7 +51,7 @@ internal class LiteRtLLMClient(private val engines: Engines) : LLMClient() {
             var retry: LiteRtMessage? = null
             for (attempt in 0..RETRIES) {
                 val config = ConversationConfig(
-                    systemInstruction = prompt.messages.filterIsInstance<Message.System>().joinToString("\n\n") { it.textContent() }.takeIf { it.isNotBlank() }?.let(Contents::of),
+                    systemInstruction = prompt.messages.filterIsInstance<Message.System>().joinToString("\n\n") { it.textContent() }.takeIf { it.isNotBlank() }?.let { Contents.of(it.liteRtText()) },
                     initialMessages = if (retry == null) history.dropLast(1) else history,
                     tools = tools.map { tool(DescribedTool(it)) },
                     automaticToolCalling = false,
@@ -72,8 +73,8 @@ internal class LiteRtLLMClient(private val engines: Engines) : LLMClient() {
                     } catch (e: Exception) {
                         // Small models sometimes write a call LiteRT-LM can't parse, e.g. an invented tool name; they usually fix it when told.
                         if (attempt == RETRIES || e.message?.contains("Failed to parse tool calls") != true) throw e
-                        LiteRtMessage.user("Your tool call couldn't be read: ${e.message?.substringAfter("code block: ")?.substringBefore('\n')?.take(300)}. " +
-                            "Call one of these tools by its exact name with arguments that match its parameters: ${tools.joinToString { it.name }}. Or answer without a tool.")
+                        LiteRtMessage.user(("Your tool call couldn't be read: ${e.message?.substringAfter("code block: ")?.substringBefore('\n')?.takeWhole(300)}. " +
+                            "Call one of these tools by its exact name with arguments that match its parameters: ${tools.joinToString { it.name }}. Or answer without a tool.").liteRtText())
                     }.also { if (it == null && text.isNotEmpty()) emit(StreamFrame.TextComplete(text)) }
                 }
                 if (outcome == null) break
@@ -97,11 +98,11 @@ internal fun liteRtHistory(history: List<Message>): List<LiteRtMessage> = histor
             message.parts.filterIsInstance<MessagePart.Tool.Result>().takeIf { it.isNotEmpty() }?.let { results ->
                 LiteRtMessage.tool(Contents.of(results.map { Content.ToolResponse(it.tool, response(it.output, it.isError)) }))
             },
-            message.textContent().takeIf { it.isNotBlank() }?.let { LiteRtMessage.user(it) },
+            message.textContent().takeIf { it.isNotBlank() }?.let { LiteRtMessage.user(it.liteRtText()) },
         )
         is Message.Assistant -> {
             val calls = message.parts.filterIsInstance<MessagePart.Tool.Call>().map { ToolCall(it.tool, it.argsJson.toMap()) }
-            val text = message.textContent()
+            val text = message.textContent().liteRtText()
             if (calls.isEmpty() && text.isBlank()) emptyList()
             else listOf(LiteRtMessage.model(if (text.isBlank()) Contents.of(emptyList()) else Contents.of(text), calls, emptyMap()))
         }
@@ -109,7 +110,7 @@ internal fun liteRtHistory(history: List<Message>): List<LiteRtMessage> = histor
 }
 
 private fun response(output: String, error: Boolean): Any = runCatching { Json.parseToJsonElement(output).jsonObject.toMap() }.getOrNull()
-    ?.let { if (error) it + ("error" to true) else it } ?: if (error) mapOf("error" to output) else output
+    ?.let { if (error) it + ("error" to true) else it } ?: output.liteRtText().let { if (error) mapOf("error" to it) else it }
 
 /** A tool LiteRT-LM describes to the model but never runs: automatic tool calling is off. */
 private class DescribedTool(private val descriptor: ToolDescriptor) : OpenApiTool {
@@ -117,21 +118,29 @@ private class DescribedTool(private val descriptor: ToolDescriptor) : OpenApiToo
         put("name", descriptor.name)
         put("description", descriptor.description)
         put("parameters", if (descriptor is RawSchemaToolDescriptor) descriptor.schema else schemas.generate(descriptor))
-    }.toString()
+    }.toString().liteRtText()
 
     override fun execute(paramsJsonString: String) = error("${descriptor.name} runs in the agent loop")
 
     private companion object { val schemas = OpenAICompatibleToolDescriptorSchemaGenerator() }
 }
 
-private fun JsonObject.toMap(): Map<String, Any?> = mapValues { it.value.toValue() }
+private fun JsonObject.toMap(): Map<String, Any?> = entries.associate { it.key.liteRtText() to it.value.toValue() }
 
 private fun JsonElement.toValue(): Any? = when (this) {
     is JsonNull -> null
     is JsonObject -> toMap()
     is JsonArray -> map { it.toValue() }
-    is JsonPrimitive -> if (isString) content else booleanOrNull ?: longOrNull ?: doubleOrNull ?: content
+    is JsonPrimitive -> if (isString) content.liteRtText() else booleanOrNull ?: longOrNull ?: doubleOrNull ?: content
 }
+
+/**
+ * [this] with every surrogate, paired or lone, replaced by U+FFFD. LiteRT-LM's JNI passes text as modified UTF-8, which its JSON
+ * parser rejects outside the BMP (emoji, Gothic) by aborting the process, so nothing else may reach it.
+ */
+internal fun String.liteRtText(): String = if (none { it.isSurrogate() }) this else replace(SURROGATES, "\uFFFD")
+
+private val SURROGATES = Regex("[\\x{10000}-\\x{10FFFF}]|\\p{Cs}")
 
 internal fun Any?.toJson(): JsonElement = when (this) {
     null -> JsonNull

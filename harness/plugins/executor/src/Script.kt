@@ -5,6 +5,7 @@ import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.QuickJsInterruptedException
 import com.dokar.quickjs.binding.AsyncFunctionBinding
 import com.dokar.quickjs.binding.FunctionBinding
+import kinuvo.harness.core.takeWhole
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -123,17 +124,17 @@ private class CappedText(private val max: Int) {
     private var dropped = false
     fun append(s: String) {
         val room = (max - text.length).coerceAtLeast(0)
-        text.append(s, 0, minOf(s.length, room))
+        text.append(s.takeWhole(room))
         if (s.length > room) dropped = true
     }
     fun text(): String {
         val suffix = "\n… [more output cut]"
-        return if (dropped) text.take((max - suffix.length).coerceAtLeast(0)).toString() + suffix.take(max) else text.toString()
+        return if (dropped) text.toString().takeWhole((max - suffix.length).coerceAtLeast(0)) + suffix.take(max) else text.toString()
     }
 }
 
 internal fun capped(text: String, max: Int): String {
     if (text.length <= max) return text
     val suffix = "\n… [${text.length - max} more characters cut]"
-    return text.take((max - suffix.length).coerceAtLeast(0)) + suffix.take(max)
+    return text.takeWhole((max - suffix.length).coerceAtLeast(0)) + suffix.take(max)
 }
