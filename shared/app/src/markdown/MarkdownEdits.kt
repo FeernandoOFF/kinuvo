@@ -26,10 +26,12 @@ val InlineDelimiters: Map<IElementType, String> = mapOf(
 )
 
 /** Formatting at the selection: [InlineDelimiters] types around it, and `UNORDERED_LIST` or `ORDERED_LIST` for its list. */
-fun MarkdownBuffer.activeTypes(): Set<IElementType> {
+fun MarkdownBuffer.activeTypes(): Set<IElementType> = activeTypes(text, selectionStart, selectionEnd)
+
+fun activeTypes(text: CharSequence, start: Int, end: Int): Set<IElementType> {
     val tree = KinuvoMarkdown.parse(text)
-    val inline = InlineDelimiters.keys.filter { tree.enclosing(it, selectionStart, selectionEnd) != null }
-    val list = tree.enclosing(MarkdownElementTypes.LIST_ITEM, selectionStart, selectionStart)?.parent?.type
+    val inline = InlineDelimiters.keys.filter { tree.enclosing(it, start, end) != null }
+    val list = tree.enclosing(MarkdownElementTypes.LIST_ITEM, start, start)?.parent?.type
     return (inline + listOfNotNull(list)).toSet()
 }
 
