@@ -34,7 +34,7 @@ sealed interface ChatItem {
 
     /** [routine] names the Routine that sent [text] on its schedule. */
     data class User(override val id: String, val text: String, val routine: String? = null, val attachments: List<Attachment> = emptyList(), val task: String? = null, val voice: Boolean = false) : ChatItem
-    data class Assistant(override val id: String, val text: String) : ChatItem
+    data class Assistant(override val id: String, val text: String, val receivedAt: Long? = null) : ChatItem
     data class Reasoning(override val id: String, val text: String) : ChatItem
     /** [callId] is the model's tool-call ID; [approval] or [questions] is set while the call waits on the user. */
     data class ToolCall(
@@ -92,6 +92,21 @@ fun List<ChatItem>.rows(): List<ChatRow> {
     }
     if (steps.isNotEmpty()) rows += ChatRow.Steps(steps)
     return rows
+}
+
+fun List<ChatItem>.finishedReplies(running: Boolean): Set<String> {
+    val replies = mutableSetOf<String>()
+    var last: ChatItem? = null
+    for (item in this) when (item) {
+        is ChatItem.User -> {
+            (last as? ChatItem.Assistant)?.let { replies += it.id }
+            last = item
+        }
+        is ChatItem.Assistant, is ChatItem.Reasoning, is ChatItem.ToolCall, is ChatItem.Error, is ChatItem.Notice, is ChatItem.VoiceCall -> last = item
+        else -> Unit
+    }
+    if (!running) (last as? ChatItem.Assistant)?.let { replies += it.id }
+    return replies
 }
 
 fun List<ChatItem>.requestMetrics(): List<RequestMetrics> = flatMap {
