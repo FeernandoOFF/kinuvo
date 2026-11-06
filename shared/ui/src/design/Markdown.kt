@@ -1,13 +1,14 @@
 package kinuvo.ui.design
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -27,16 +28,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.composables.ui.theme.*
+import com.composables.ui.components.HorizontalSeparator
 import com.composeunstyled.LocalContentColor
 import com.composeunstyled.LocalTextStyle
 import com.mikepenz.markdown.compose.Markdown as RenderMarkdown
+import com.mikepenz.markdown.compose.MarkdownElement
+import com.mikepenz.markdown.compose.components.MarkdownComponents
+import org.intellij.markdown.MarkdownTokenTypes.Companion.EOL
 import com.mikepenz.markdown.compose.components.markdownComponents
 import com.mikepenz.markdown.annotator.annotatorSettings
 import com.mikepenz.markdown.annotator.buildMarkdownAnnotatedString
-import com.mikepenz.markdown.compose.LocalMarkdownColors
 import com.mikepenz.markdown.compose.elements.MarkdownCheckBox
 import com.mikepenz.markdown.compose.elements.MarkdownTableBasicText
-import com.mikepenz.markdown.compose.elements.MarkdownDivider
 import com.mikepenz.markdown.compose.elements.MarkdownCodeBlock
 import com.mikepenz.markdown.compose.elements.MarkdownCodeFence
 import com.mikepenz.markdown.compose.extendedspans.ExtendedSpans
@@ -115,10 +118,10 @@ private fun MarkdownContent(text: String, modifier: Modifier, style: TextStyle, 
                 }
             }
         },
-        codeFence = { MarkdownCodeFence(it.content, it.node) { code, language, _ -> CodeBlock(code, language = language.orEmpty()) } },
-        codeBlock = { MarkdownCodeBlock(it.content, it.node) { code, language, _ -> CodeBlock(code, language = language.orEmpty()) } },
+        codeFence = { MarkdownCodeFence(it.content, it.node) { code, language, _ -> CodeBlock(code, language = language.orEmpty(), markdown = true) } },
+        codeBlock = { MarkdownCodeBlock(it.content, it.node) { code, language, _ -> CodeBlock(code, language = language.orEmpty(), markdown = true) } },
     )
-    val padding = markdownPadding(block = 10.dp, list = 0.dp, listIndent = 20.dp, listItemTop = 2.dp, listItemBottom = 2.dp)
+    val padding = markdownPadding(block = 6.dp, list = 0.dp, listIndent = 20.dp, listItemTop = 2.dp, listItemBottom = 2.dp)
     val dimens = markdownDimens(tableCellPadding = 8.dp, tableCellWidth = 120.dp)
     val spans = markdownExtendedSpans {
         remember(border) { ExtendedSpans(RoundedCornerSpanPainter(cornerRadius = 4.sp,
@@ -132,11 +135,20 @@ private fun MarkdownContent(text: String, modifier: Modifier, style: TextStyle, 
             LaunchedEffect(text) {
                 if (text.startsWith(state.content)) state.append(text.substring(state.content.length)) else generation++
             }
-            RenderMarkdown(state, colors, typography, modifier, padding = padding, dimens = dimens, components = components, annotator = annotator, extendedSpans = spans)
+            RenderMarkdown(state, colors, typography, modifier, padding = padding, dimens = dimens, components = components, annotator = annotator, extendedSpans = spans,
+                success = { snapshot, components, modifier -> MarkdownBlocks(snapshot.stableAst + snapshot.unstableAstTail, state.content.toString(), components, modifier) })
         }
     } else {
         RenderMarkdown(text, colors, typography, modifier, flavour = KinuvoMarkdown.flavour, parser = KinuvoMarkdown.parser,
-            immediate = true, retainState = true, padding = padding, dimens = dimens, components = components, annotator = annotator, extendedSpans = spans)
+            immediate = true, retainState = true, padding = padding, dimens = dimens, components = components, annotator = annotator, extendedSpans = spans,
+            success = { state, components, modifier -> MarkdownBlocks(state.node.children, state.content, components, modifier) })
+    }
+}
+
+@Composable
+private fun MarkdownBlocks(nodes: List<ASTNode>, content: String, components: MarkdownComponents, modifier: Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+        nodes.filter { it.type != EOL }.forEach { MarkdownElement(it, components, content, includeSpacer = false) }
     }
 }
 
@@ -152,21 +164,22 @@ private fun MarkdownTable(content: String, node: ASTNode, style: TextStyle) {
             val text = buildAnnotatedString { buildMarkdownAnnotatedString(content, cell, settings) }
             measurer.measure(text, cellStyle, softWrap = false).size.width
         } }.maxOrNull() ?: 0
-        with(density) { pixels.toDp() }.plus(16.dp).coerceIn(72.dp, 240.dp)
+        with(density) { pixels.toDp() }.plus(32.dp).coerceIn(72.dp, 240.dp)
     } }
-    BoxWithConstraints(Modifier.fillMaxWidth().background(LocalMarkdownColors.current.tableBackground, RoundedCornerShape(4.dp))) {
+    val shape = RoundedCornerShape(12.dp)
+    BoxWithConstraints(Modifier.fillMaxWidth().clip(shape).border(1.dp, color(borderColor), shape)) {
         val extra = ((maxWidth - widths.fold(0.dp) { sum, width -> sum + width }) / widths.size.coerceAtLeast(1)).coerceAtLeast(0.dp)
-        Column(Modifier.horizontalScroll(rememberScrollState())) {
+        Column(Modifier.horizontalScroll(rememberScrollState()).width(IntrinsicSize.Max)) {
             rows.forEachIndexed { index, cells ->
                 Row {
                     cells.forEachIndexed { column, cell ->
-                        Box(Modifier.width(widths[column] + extra).padding(8.dp)) {
+                        Box(Modifier.width(widths[column] + extra).padding(horizontal = Spacing.space16, vertical = Spacing.space12)) {
                             MarkdownTableBasicText(content, cell, if (index == 0) style.copy(fontWeight = FontWeight.Bold) else style,
                                 maxLines = Int.MAX_VALUE, annotatorSettings = settings)
                         }
                     }
                 }
-                if (index == 0) MarkdownDivider()
+                if (index < rows.lastIndex) HorizontalSeparator()
             }
         }
     }
