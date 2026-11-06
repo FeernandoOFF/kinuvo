@@ -15,6 +15,8 @@ class BrowserDomTest {
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->
             val html = """<input aria-label="Message"><input aria-label="Readonly" readonly value="original">
+                <script>customElements.define('symbol-labels', class extends HTMLElement { get labels() { return Symbol() } })</script>
+                <symbol-labels role="search">Custom labels</symbol-labels>
                 <div aria-label="Editor" contenteditable="true">original</div>
                 <button onclick="setTimeout(()=>document.querySelector('input').value='changed',400)">Change value</button>
                 <button onclick="document.title=document.querySelector('input').value">Read value</button>""".toByteArray()
