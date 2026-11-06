@@ -8,8 +8,9 @@ import dev.ynagai.a2ui.core.protocol.Action
 import kinuvo.app.surface.SurfaceFunctions
 import kotlinx.serialization.json.*
 
-private fun A2uiComponentScope.localValue(name: String): JsonElement? {
-    val raw = property(name) ?: return null
+private fun A2uiComponentScope.localValue(name: String): JsonElement? = property(name)?.let(::localValue)
+
+private fun A2uiComponentScope.localValue(raw: JsonElement): JsonElement? {
     val model = surface?.dataModel ?: return null
     val context = EvaluationContext(model).inScope(evaluationScope).withLocale(renderer.locale).withLimits(renderer.evaluationLimits)
     return runCatching { SurfaceFunctions(model, evaluationScope, context).evaluate(raw) }.getOrNull()
@@ -18,6 +19,9 @@ private fun A2uiComponentScope.localValue(name: String): JsonElement? {
 @Composable
 internal fun A2uiComponentScope.surfaceString(name: String): String? =
     (localValue(name) as? JsonPrimitive)?.contentOrNull
+
+internal fun A2uiComponentScope.surfaceText(raw: JsonElement): String? =
+    (localValue(raw) as? JsonPrimitive)?.contentOrNull
 
 @Composable
 internal fun A2uiComponentScope.surfaceNumber(name: String): Double? =
