@@ -25,8 +25,23 @@ class SurfaceFunctions(val model: JsonObject, val scope: EvaluationScope,
             return if (value is JsonArray) value else emptyList()
         }
         return when (call) {
+            "formatString" -> {
+                val template = (arg("value") as? JsonPrimitive)?.content.orEmpty()
+                if (Regex("\\b(count|sum|multiply|formatDuration)\\s*\\(").containsMatchIn(template)) JsonPrimitive(interpolate(template))
+                else context.evaluate(A2uiJson.strict.decodeFromJsonElement(BoundValue.serializer(), buildJsonObject {
+                    put("call", "formatString"); putJsonObject("args") { put("value", template) }
+                }))
+            }
+            "multiply" -> JsonPrimitive(values().fold(1.0) { product, value -> product * ((value as? JsonPrimitive)?.doubleOrNull ?: 0.0) }.takeIf { it.isFinite() } ?: 0.0)
             "count" -> JsonPrimitive(countSurfaceValues(JsonArray(values()), args["where"] as? JsonObject))
-            "sum" -> JsonPrimitive(sumSurfaceValues(values()))
+            "sum" -> {
+                val fields = (args["fields"] as? JsonArray)?.map { it.jsonPrimitive.content }
+                JsonPrimitive(sumSurfaceValues(if (fields == null) values() else values().map { row ->
+                    JsonPrimitive(fields.fold(1.0) { product, field ->
+                        product * (((row as? JsonObject)?.get(field) as? JsonPrimitive)?.doubleOrNull ?: 0.0)
+                    }.takeIf { it.isFinite() } ?: 0.0)
+                }))
+            }
             "formatDuration" -> JsonPrimitive(formatSurfaceDuration((arg("minutes") as? JsonPrimitive)?.doubleOrNull ?: 0.0))
             else -> {
                 val pointer = (raw["path"] as? JsonPrimitive)?.content

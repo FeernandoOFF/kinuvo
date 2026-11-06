@@ -28,7 +28,7 @@ class ShowUiToolTest {
         val definition = surfaceCatalog(basic)
         val catalog = ProtocolJson.decodeFromJsonElement(UiCatalog.serializer(), A2uiJson.strict.encodeToJsonElement(CatalogDefinition.serializer(), definition))
         val tool = ShowUiTool(listOf(catalog))
-        for (name in listOf("editable-tasks", "weekly-timesheet")) {
+        for (name in listOf("editable-tasks", "weekly-timesheet", "examples/trip-budget", "examples/habit-tracker", "examples/recipe-scaler", "examples/workout-log", "examples/dinner-poll", "examples/invoice-builder")) {
             val raw = checkNotNull(javaClass.getResource("/$name.json")).readText()
             assertEquals("Shown to the user.", tool.execute(args(raw)))
         }

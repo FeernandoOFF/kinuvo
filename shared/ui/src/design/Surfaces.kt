@@ -253,8 +253,9 @@ fun Input(
     trailing: (@Composable () -> Unit)? = null,
     leading: (@Composable () -> Unit)? = null,
     error: Boolean = false,
+    compact: Boolean = false,
 ) {
-    val style = inputTextStyle()
+    val style = if (compact) TextStyles.caption else inputTextStyle()
     val focus = remember { FocusBorder() }
     com.composables.ui.components.TextField(
         state,
@@ -269,6 +270,7 @@ fun Input(
         },
         interactionSource = focus,
         placeholder = { Text(placeholder, style = style) },
+        contentPadding = PaddingValues(horizontal = if (compact) 6.dp else 12.dp),
         textStyle = style,
         outputTransformation = if (secret) OutputTransformation { replace(0, length, "•".repeat(length)) } else null,
         keyboardOptions = if (secret) KeyboardOptions(keyboardType = KeyboardType.Password) else inputKeyboard(capitalize),
