@@ -19,6 +19,7 @@ import kinuvo.protocol.ProviderModelRef
 data class ServerConfig(
     val timezone: String? = null,
     val tracing: Boolean = true,
+    val liveVoiceEnabled: Boolean = false,
     val imageModel: ProviderModelRef? = null,
     val knowledge: KnowledgeConfig = KnowledgeConfig(),
     val reflection: ReflectionConfig = ReflectionConfig(),

@@ -48,6 +48,7 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
     var push = true
     var providerTest = ServiceTestResult(error = "Pick a provider first")
     val settings = object : ServerSettings {
+        override var liveVoiceEnabled = false
         override var timeZone: TimeZone = TimeZone.UTC
         override val reflectionModel get() = reflectionConfig
         override val reflectionEnabled = true

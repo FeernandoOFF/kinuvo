@@ -13,10 +13,14 @@ internal class VoiceRequests(private val harness: HarnessRuntime, private val ch
 
     /** A selected downloaded model takes precedence over configured OpenAI-compatible providers. */
     val providers get() = downloaded?.providers.let { local ->
-        VoiceProviders(local?.transcriber ?: harness.voice.transcriber, harness.voice.processor, local?.synthesizer ?: harness.voice.synthesizer, harness.voice.speechToSpeech)
+        VoiceProviders(local?.transcriber ?: harness.voice.transcriber, harness.voice.processor, local?.synthesizer ?: harness.voice.synthesizer, harness.voice.speechToSpeech.takeIf { harness.liveVoiceEnabled })
     }
 
+    private fun liveSettings() = LiveVoiceSettings(harness.voice.speechToSpeech != null, harness.liveVoiceEnabled)
+
     suspend fun handle(r: Frame.Request): Frame.Response? = when (r.method) {
+        Api.LiveVoiceSettings.name -> respond(r, Api.LiveVoiceSettings) { liveSettings() }
+        Api.SaveLiveVoice.name -> respond(r, Api.SaveLiveVoice) { harness.liveVoiceEnabled = it; changed(); liveSettings() }
         Api.VoiceModels.name -> respond(r, Api.VoiceModels) { downloaded?.state() ?: VoiceModelsState() }
         Api.VoiceSetup.name -> respond(r, Api.VoiceSetup) { providers.setup }
         Api.VoiceDownload.name -> respond(r, Api.VoiceDownload) { requireNotNull(downloaded).download(it) }

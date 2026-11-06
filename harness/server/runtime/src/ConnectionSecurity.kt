@@ -9,10 +9,12 @@ data class ConnectionSecurity(
     val validationIntervalMillis: Long = 30_000,
     val concurrentRequests: Int = MAX_CONCURRENT_REQUESTS,
     val messagesPerMinute: Int = 600,
+    val liveVoiceInputsPerMinute: Int = 6000,
     val screenAcksPerMinute: Int = 15_000,
 )
 
 internal val DEVICE_METHODS = setOf(
+    Api.LiveVoiceStart.name, Api.LiveVoiceEnd.name, Api.LiveVoiceSettings.name,
     Api.VoiceSetup.name, Api.Transcribe.name, Api.Synthesize.name, Api.CancelVoice.name,
     Api.ExecutionSnapshot.name, Api.ExecutionAnswer.name, Api.ResumeExecution.name, Api.CloseExecution.name,
     Api.Capabilities.name, Api.Models.name, Api.Agents.name, Api.Agent.name, Api.Sessions.name, Api.Session.name,
