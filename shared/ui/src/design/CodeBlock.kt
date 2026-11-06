@@ -4,6 +4,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -28,21 +30,24 @@ import kotlinx.coroutines.delay
 
 /** Monospace block with an optional language label and a copy button, tinted as an [error]. */
 @Composable
-fun CodeBlock(code: String, modifier: Modifier = Modifier, language: String? = null, maxLines: Int = Int.MAX_VALUE, previewChars: Int? = null, error: Boolean = false) {
+fun CodeBlock(code: String, modifier: Modifier = Modifier, language: String? = null, maxLines: Int = Int.MAX_VALUE, previewChars: Int? = null, error: Boolean = false, markdown: Boolean = false) {
     var shown by remember(code, previewChars) { mutableIntStateOf(minOf(code.length, previewChars ?: code.length)) }
     val danger = color(destructiveColor)
-    Panel(modifier.fillMaxWidth(), color = color(codeColor), borderColor = if (error) danger.copy(alpha = 0.5f) else color(borderColor), contentPadding = PaddingValues(Spacing.none)) {
+    val shape = if (markdown) RoundedCornerShape(20.dp) else Theme[shapes][mediumShape]
+    Panel(modifier.fillMaxWidth(), shape = shape, color = color(codeColor), borderColor = if (error) danger.copy(alpha = 0.5f) else color(borderColor), contentPadding = PaddingValues(Spacing.none)) {
         Row(
-            Modifier.fillMaxWidth().background(color(subtleColor).copy(alpha = 0.6f)).padding(start = Spacing.space12, end = Spacing.space4),
+            Modifier.fillMaxWidth().then(if (markdown) Modifier else Modifier.background(color(subtleColor).copy(alpha = 0.6f)))
+                .padding(start = if (markdown) Spacing.space16 else Spacing.space12, end = Spacing.space4),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(language?.ifBlank { null } ?: "text", Modifier.weight(1f), style = TextStyles.overline, color = if (error) danger else color(mutedColor), singleLine = true)
+            Text(language?.ifBlank { null } ?: "text", Modifier.weight(1f), style = if (markdown) TextStyles.caption.copy(fontFamily = FontFamily.Monospace) else TextStyles.overline, color = if (error) danger else color(mutedColor), singleLine = true)
             CopyButton(code)
         }
+        if (markdown) HorizontalSeparator()
         SelectionContainer {
             Text(
                 code.take(shown).trimEnd('\n'),
-                Modifier.horizontalScroll(rememberScrollState()).padding(Spacing.space12),
+                Modifier.horizontalScroll(rememberScrollState()).padding(if (markdown) Spacing.space16 else Spacing.space12),
                 style = MonoStyle,
                 color = color(onCodeColor),
                 maxLines = maxLines,

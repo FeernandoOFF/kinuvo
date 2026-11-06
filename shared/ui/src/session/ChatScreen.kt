@@ -42,8 +42,9 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
-import com.mohamedrejeb.richeditor.model.rememberRichTextState
-import com.mohamedrejeb.richeditor.model.RichTextState
+import androidx.compose.foundation.text.input.TextFieldState
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import kinuvo.client.ConnectionState
 import kinuvo.protocol.ExecutionPrompt
 import kinuvo.protocol.ApprovalDecision
@@ -103,11 +104,11 @@ fun ChatScreen(
     // Picking a photo takes the app out of view too; voice chat waits for it instead of ending.
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { voice?.background(); dictation?.stop() }
     LifecycleEventEffect(Lifecycle.Event.ON_START) { voice?.foreground() }
-    val draft = rememberRichTextState()
-    remember(draft) { draft.setMarkdown(app.draft(route)) }
+    val initialDraft = remember { app.draft(route) }
+    val draft = rememberTextFieldState(initialDraft, TextRange(initialDraft.length))
     // Saved under the Session once it has an ID, so it comes back wherever the Session is reopened from.
     val drafted by rememberUpdatedState(route)
-    DisposableEffect(draft, route.slot) { onDispose { app.saveDraft(drafted, draft.toMarkdown()) } }
+    DisposableEffect(draft, route.slot) { onDispose { app.saveDraft(drafted, draft.text.toString()) } }
     LaunchedEffect(route.agentId, route.sessionId, current.resolving) { session.shown() }
     val harnesses by org.koin.compose.koinInject<HarnessRepository>().state.collectAsState()
     val agent = appState.agents.firstOrNull { it.id == route.agentId }
@@ -270,7 +271,7 @@ fun ChatContent(
     wide: Boolean? = null,
     compose: Boolean = false,
     onToggleShell: (() -> Unit)? = null,
-    draft: RichTextState = rememberRichTextState(),
+    draft: TextFieldState = rememberTextFieldState(),
     onBack: (() -> Unit)? = null,
 ) {
     // Hoisted above the layout so the draft and scroll survive rotation and process death.
@@ -358,16 +359,15 @@ fun ChatContent(
                     .then(if (floating && voice == null) Modifier.background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background), endY = fade)) else Modifier)
                     .then(if (floating) Modifier.padding(top = ComposerFade) else Modifier)
                     .onFocusChanged { composerFocused = it.hasFocus }.padding(horizontal = Spacing.space16).padding(bottom = if (wide) Spacing.space10 else Spacing.space16), horizontalAlignment = Alignment.CenterHorizontally) {
-                    LaunchedEffect(state.unsent) { state.unsent?.let { if (draft.annotatedString.text.isBlank()) draft.setMarkdown(it) } }
+                    LaunchedEffect(state.unsent) { state.unsent?.let { if (draft.text.isBlank()) draft.setTextAndPlaceCursorAtEnd(it) } }
                     var dictated by remember { mutableStateOf<DictationDraft?>(null) }
                     LaunchedEffect(state.dictation) {
                         val dictation = state.dictation ?: return@LaunchedEffect
-                        val current = dictated ?: if (dictation.dictating) DictationDraft(draft.toMarkdown().trim()) else return@LaunchedEffect
+                        val current = dictated ?: if (dictation.dictating) DictationDraft(draft.text.toString().trim()) else return@LaunchedEffect
                         if (dictation.text.isNotBlank()) {
-                            val next = current.next(draft.toMarkdown().trim(), dictation.text)
-                            draft.setMarkdown(next.shown)
-                            draft.selection = TextRange(draft.annotatedString.text.length)
-                            dictated = next.copy(shown = draft.toMarkdown().trim())
+                            val next = current.next(draft.text.toString().trim(), dictation.text)
+                            draft.setTextAndPlaceCursorAtEnd(next.shown)
+                            dictated = next.copy(shown = draft.text.toString().trim())
                         } else dictated = current
                         if (!dictation.dictating) dictated = null
                     }

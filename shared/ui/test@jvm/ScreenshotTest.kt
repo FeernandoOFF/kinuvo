@@ -76,6 +76,8 @@ import kinuvo.protocol.ExternalApprovalOption
 import kinuvo.ui.voice.LiveCallScreen
 import kinuvo.ui.voice.OrbMood
 import kinuvo.ui.onboarding.AvatarInk
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import kinuvo.ui.design.Composer
 import kinuvo.ui.design.Markdown
 import kinuvo.ui.design.color
 import org.jetbrains.skia.EncodedImageFormat
@@ -295,7 +297,7 @@ class ScreenshotTest {
         render("composer-dark", 390, 152) {
             HarnessTheme(dark = true) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(12.dp)) {
-                    kinuvo.ui.design.Composer(false, {}, {}, placeholder = "Chat with Kinuvo",
+                    Composer(false, {}, {}, placeholder = "Chat with Kinuvo",
                         controls = { ComposerSettings(SessionSettings(), defaults, ModelsCatalog(listOf(ProviderModels("codex", "ChatGPT / Codex", listOf(ModelInfo(defaults.model))))), {}) })
                 }
             }
@@ -314,7 +316,7 @@ class ScreenshotTest {
         render("composer-light", 390, 152) {
             HarnessTheme(dark = false) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(12.dp)) {
-                    kinuvo.ui.design.Composer(false, {}, {}, placeholder = "Chat with Kinuvo",
+                    Composer(false, {}, {}, placeholder = "Chat with Kinuvo",
                         controls = { ComposerSettings(SessionSettings(), defaults, ModelsCatalog(listOf(ProviderModels("codex", "ChatGPT / Codex", listOf(ModelInfo(defaults.model))))), {}) })
                 }
             }
@@ -921,6 +923,67 @@ class ScreenshotTest {
     }
 
     @Test
+    fun renderMarkdownSource() {
+        for (dark in listOf(false, true)) render("markdown-source-${if (dark) "dark" else "light"}", 620, 900) {
+            HarnessTheme(dark = dark) {
+                Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Markdown("""
+                        # Heading one
+                        ## Heading two
+                        ### Heading three
+
+                        A paragraph with **bold**, *italic*, ~~struck~~, `inline code` and [a link](https://example.com).
+
+                        Another paragraph.
+
+                        - First item
+                        - Second item
+
+                        1. Ordered item
+                        2. Next item
+
+                        ```kotlin
+                        val message = "Hello"
+                        println(message)
+                        ```
+
+                        | Name | Value |
+                        | --- | --- |
+                        | Parser | GFM |
+                    """.trimIndent())
+                    val draft = rememberTextFieldState("**Bold** and *italic* with `code`\n- List item")
+                    Composer(false, {}, {}, state = draft)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun renderMarkdownRegressions() {
+        for (dark in listOf(false, true)) render("markdown-regressions-${if (dark) "dark" else "light"}", 330, 600) {
+            HarnessTheme(dark = dark) {
+                Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
+                    Markdown("""
+                        A paragraph with **bold**, *italic*, ~~strike~~, `inline code` and more text.
+
+                        - [x] Completed task
+                        - [ ] Pending task
+
+                        1. Ordered item
+                        2. Next item
+
+                        After the lists.
+
+                        | Feature | iOS | Android | Notes |
+                        | --- | --- | --- | --- |
+                        | Markdown | Yes | Yes | All four columns remain reachable with horizontal scrolling. |
+                    """.trimIndent())
+                }
+            }
+        }
+    }
+
+    @Test
     fun renderWideTable() {
         render("markdown-wide-table", 390, 260) {
             HarnessTheme(dark = true) {
@@ -938,7 +1001,7 @@ class ScreenshotTest {
 
     @Test
     fun renderMarkdownTypography() {
-        for (dark in listOf(false, true)) render("markdown-inter-${if (dark) "dark" else "light"}", 620, 440) {
+        for (dark in listOf(false, true)) render("markdown-inter-${if (dark) "dark" else "light"}", 620, 520) {
             HarnessTheme(dark = dark) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("Markdown typography", fontSize = 14.sp)
