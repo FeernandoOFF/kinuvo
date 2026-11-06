@@ -130,7 +130,7 @@ class CompactionTest {
 
     @Test
     fun dailyContextsDoNotAccumulateAcrossCompactions() = runTest {
-        val home = TestHome()
+        val home = TestHome { 1234L }
         val agent = home.agent.copy(config = home.agent.config.copy(compactAtTokens = 400))
         val session = home.store.createSession(agent.id, "stable")
         repeat(20) { home.store.append(agent.id, session.id, Context("Day $it: " + "x".repeat(1000))) }
@@ -146,7 +146,7 @@ class CompactionTest {
         }
         val events = AgentRun(agent, home.store, model, emptyList(), context = "Today", contextTokens = 4096).run(session.id, "next").toList()
         assertIs<AgentEvent.RunFinished>(events.last())
-        assertEquals(listOf(Context("Today")), home.store.entries(agent.id, session.id).filterIsInstance<Compaction>().single().history.filterIsInstance<Context>())
+        assertEquals(listOf(Context("Today", writtenAt = 1234L)), home.store.entries(agent.id, session.id).filterIsInstance<Compaction>().single().history.filterIsInstance<Context>())
     }
 
     @Test

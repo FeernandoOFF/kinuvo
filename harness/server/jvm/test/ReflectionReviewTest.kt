@@ -111,7 +111,9 @@ class ReflectionReviewTest {
         review.respond(agent, session, proposal.id, false)
         review.respond(agent, session, proposal.id, false)
         assertFailsWith<IllegalStateException> { review.respond(agent, session, proposal.id, true) }
-        assertEquals(listOf(SessionEntry.ReflectionReview("p1", false)), FileStore(restarted.files).entries(agent.id, session).filterIsInstance<SessionEntry.ReflectionReview>())
+        val saved = FileStore(restarted.files).entries(agent.id, session).filterIsInstance<SessionEntry.ReflectionReview>().single()
+        assertTrue(saved.writtenAt != null)
+        assertEquals(SessionEntry.ReflectionReview("p1", false, writtenAt = saved.writtenAt), saved)
 
         val create = proposal.copy(id = "p2", note = null, args = Json.parseToJsonElement("""{"action":"create","type":"person","title":"Ana"}""").jsonObject)
         restarted.log.append(agent.id, session, SessionEntry.Reflection("r2", 0, ReflectionResult(proposals = listOf(create))))
