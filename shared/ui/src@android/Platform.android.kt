@@ -17,6 +17,8 @@ import org.koin.dsl.binds
 import org.koin.dsl.module
 import java.io.File
 import java.util.TimeZone
+import kinuvo.app.session.SpeechEngine
+import kinuvo.ui.session.AndroidSpeech
 import kinuvo.app.computer.ComputerDriver
 
 private class SharedPreferencesStore(context: Context) : Preferences {
@@ -48,6 +50,7 @@ private class HapticNotifier(context: Context) : Notifier {
 internal actual val platformModule = module {
     System.setProperty("kotlin-logging-to-android-native", "true")
     System.setProperty("kotlin-logging.logStartupMessage", "false")
+    single { AndroidSpeech(androidContext()) } bind SpeechEngine::class
     single { AndroidBrowserRuntime(androidContext()) }
     single<EmbeddedServer> { AndroidEmbeddedServer(androidContext(), get()) }
     single<DeviceReader> { AndroidContactsReader(androidContext()) }
