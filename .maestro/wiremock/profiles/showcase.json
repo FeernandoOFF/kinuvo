@@ -17,23 +17,18 @@
     "showcase/knowledge-changes",
     "showcase/screens",
     "ws/agent",
-    "ws/capabilities",
-    "ws/catch-up",
     "ws/chat-send",
     "ws/create-session",
     "ws/device-tools",
     "ws/models",
     "ws/presence",
-    "ws/routines",
-    "ws/session",
-    "ws/sessions",
-    "ws/skills",
     "ws/unsubscribe",
     "ws/upgrade",
     "ws/providers",
     "mobile/knowledge-empty",
     "mobile/knowledge-typing",
     "showcase/browser-watch",
-    "showcase/computer-watch"
+    "showcase/computer-watch",
+    "ws/execution-catalog"
   ]
 }

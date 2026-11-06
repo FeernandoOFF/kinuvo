@@ -1,0 +1,215 @@
+appId: ${APP_ID}
+tags:
+  - android
+  - ios
+  - smoke
+  - regression
+properties:
+  apiProfile: showcase
+---
+- runFlow:
+    file: ../../shared/review-pair.yaml
+    env:
+      PAIRING_CODE: "123456"
+- extendedWaitUntil:
+    visible: "Agents and sessions"
+    timeout: 30000
+- tapOn: "Agents and sessions"
+- extendedWaitUntil:
+    visible: "Release notes review for the 2.0 launch.*"
+    timeout: 60000
+- tapOn: "Release notes review for the 2.0 launch.*"
+- extendedWaitUntil:
+    visible: "Message"
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      text: "Markdown review"
+    direction: UP
+    timeout: 30000
+    centerElement: true
+- swipe:
+    start: 50%,75%
+    end: 50%,30%
+    duration: 500
+- takeScreenshot: 00-heading
+- takeScreenshot: 01-chat-top
+- swipe:
+    start: 50%,75%
+    end: 50%,35%
+    duration: 500
+- takeScreenshot: 02-lists-code
+- swipe:
+    start: 50%,75%
+    end: 50%,35%
+    duration: 500
+- takeScreenshot: 02b-tasks-code
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - swipe:
+          start: 50%,72%
+          end: 50%,30%
+          duration: 500
+- scrollUntilVisible:
+    element:
+      text: "Wide table"
+    direction: DOWN
+    timeout: 90000
+    waitToSettleTimeoutMs: 500
+    centerElement: false
+- scrollUntilVisible:
+    element:
+      text: "End of Markdown review.*"
+    direction: DOWN
+    timeout: 30000
+    waitToSettleTimeoutMs: 500
+    centerElement: true
+- takeScreenshot: 03-table
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - swipe:
+          start: 85%,45%
+          end: 15%,45%
+          duration: 500
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: 75%,45%
+          end: 5%,45%
+          duration: 500
+- assertVisible: "Notes.*"
+- assertVisible: "This intentionally long cell.*"
+- assertVisible: "Dimmed markers.*"
+- takeScreenshot: 03b-table-swipe
+- tapOn: "Message"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - inputText: "T"
+      - inputText: "r"
+      - inputText: "y"
+      - inputText: " "
+      - inputText: "*"
+      - inputText: "*"
+      - inputText: "b"
+      - inputText: "o"
+      - inputText: "l"
+      - inputText: "d"
+      - inputText: "*"
+      - inputText: "*"
+      - inputText: ","
+      - inputText: " "
+      - inputText: "*"
+      - inputText: "i"
+      - inputText: "t"
+      - inputText: "a"
+      - inputText: "l"
+      - inputText: "i"
+      - inputText: "c"
+      - inputText: "*"
+      - inputText: ","
+      - inputText: " "
+      - inputText: "~"
+      - inputText: "~"
+      - inputText: "s"
+      - inputText: "t"
+      - inputText: "r"
+      - inputText: "i"
+      - inputText: "k"
+      - inputText: "e"
+      - inputText: "~"
+      - inputText: "~"
+      - inputText: ","
+      - inputText: " "
+      - inputText: "`"
+      - inputText: "c"
+      - inputText: "o"
+      - inputText: "d"
+      - inputText: "e"
+      - inputText: "`"
+      - inputText: " "
+      - inputText: "a"
+      - inputText: "n"
+      - inputText: "d"
+      - inputText: " "
+      - inputText: "["
+      - inputText: "a"
+      - inputText: " "
+      - inputText: "l"
+      - inputText: "i"
+      - inputText: "n"
+      - inputText: "k"
+      - inputText: "]"
+      - inputText: "("
+      - inputText: "h"
+      - inputText: "t"
+      - inputText: "t"
+      - inputText: "p"
+      - inputText: "s"
+      - inputText: ":"
+      - inputText: "/"
+      - inputText: "/"
+      - inputText: "k"
+      - inputText: "i"
+      - inputText: "n"
+      - inputText: "u"
+      - inputText: "v"
+      - inputText: "o"
+      - inputText: "."
+      - inputText: "d"
+      - inputText: "e"
+      - inputText: "v"
+      - inputText: ")"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - inputText: "Try **bold**, *italic*, ~~strike~~, `code` and [a link](https://kinuvo.dev)"
+- tapOn:
+    point: 90%,90%
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - inputText: "-"
+      - inputText: " "
+      - inputText: "f"
+      - inputText: "i"
+      - inputText: "r"
+      - inputText: "s"
+      - inputText: "t"
+      - inputText: " "
+      - inputText: "i"
+      - inputText: "t"
+      - inputText: "e"
+      - inputText: "m"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - inputText: "- first item"
+- tapOn:
+    point: 90%,90%
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - inputText: "s"
+      - inputText: "e"
+      - inputText: "c"
+      - inputText: "o"
+      - inputText: "n"
+      - inputText: "d"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - inputText: "second"
+- takeScreenshot: 04-composer
