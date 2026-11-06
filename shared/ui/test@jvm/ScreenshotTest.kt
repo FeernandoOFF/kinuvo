@@ -67,6 +67,7 @@ import kinuvo.ui.voice.CallStrip
 import kinuvo.ui.design.Strips
 import kinuvo.ui.design.Strip
 import kinuvo.ui.design.StripHost
+import kinuvo.ui.design.StripFrame
 import kinuvo.ui.design.LocalStrips
 import kinuvo.ui.voice.CallApprovalSheet
 import kinuvo.ui.voice.CallExternalApprovalSheet
@@ -1020,10 +1021,8 @@ I checked your knowledge base just now and didn't find a profile note for you.
             HarnessTheme(dark = true) {
                 val strips = remember { Strips() }
                 CompositionLocalProvider(LocalStrips provides strips) {
-                    Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
-                        StripHost(strips)
-                        ChatContent(state.copy(items = afterCall, running = false), ConnectionState.Connected("x"), null, ChatActions())
-                    }
+                    StripFrame(strips) { ChatContent(state.copy(items = afterCall, running = false), ConnectionState.Connected("x"), null, ChatActions()) }
+                    StripHost(strips)
                     Strip("live-call", ink, {}) { CallStrip("Kinuvo", ink, speaking, 72, needsYou = false, onMute = {}, onEnd = {}) }
                 }
             }

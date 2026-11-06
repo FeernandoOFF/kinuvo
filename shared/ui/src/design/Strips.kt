@@ -5,11 +5,14 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -22,6 +25,7 @@ import com.composables.ui.theme.*
 class Strips {
     internal val rows: SnapshotStateList<StripRow> = mutableStateListOf()
     val height: Dp get() = StripHeight * rows.size
+    internal val tint: Color get() = rows.lastOrNull()?.tint ?: Color.Unspecified
 }
 
 internal class StripRow(val key: String, val priority: Int) {
@@ -64,6 +68,26 @@ fun StripHost(strips: Strips, modifier: Modifier = Modifier) {
                 )
             }
         }
+    }
+}
+
+/**
+ * Sits the app below the strip as a card with rounded top corners, the strip's tint showing behind them, like a
+ * phone call banner. The status bar it covers is consumed, so screens inside don't clear it again.
+ */
+@Composable
+fun StripFrame(strips: Strips, modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+    val shown = strips.rows.isNotEmpty()
+    val status = WindowInsets.safeDrawing.only(WindowInsetsSides.Top).asPaddingValues().calculateTopPadding()
+    val top by animateDpAsState(if (shown) status + strips.height else 0.dp)
+    val corner by animateDpAsState(if (shown) Radius.sheet else 0.dp)
+    // Keeps the last row's tint while the strip closes.
+    var tint by remember { mutableStateOf(Color.Unspecified) }
+    if (shown) tint = strips.tint
+    Box(modifier.fillMaxSize()) {
+        if (top > 0.dp) Box(Modifier.fillMaxWidth().height(top + corner).background(color(backgroundColor)).background(tint.copy(alpha = 0.22f)))
+        Box(Modifier.fillMaxSize().padding(top = top).consumeWindowInsets(PaddingValues(top = top))
+            .clip(RoundedCornerShape(topStart = corner, topEnd = corner)).background(color(backgroundColor)), content = content)
     }
 }
 
