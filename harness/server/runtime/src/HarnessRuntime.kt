@@ -8,6 +8,8 @@ import kinuvo.protocol.attachmentInput
 
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.GenerateImageTool
+import kinuvo.harness.core.tools.ShowUiTool
+import kinuvo.protocol.UiCatalog
 import kinuvo.harness.core.routines.RoutineReportTool
 import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.harness.core.routines.ScheduleTool
@@ -168,6 +170,7 @@ open class HarnessRuntime(
     private val sessionTrust = SessionTrust()
     /** Pending `ask_user` forms; null answers mean skipped. */
     val questions = Broker<Map<String, List<String>>?>()
+    val uiCatalogs = SurfaceCatalogs()
 
     /**
      * The Agent as a Session runs it: its settings applied, tool groups this Server lacks dropped, and compaction and
@@ -196,14 +199,14 @@ open class HarnessRuntime(
     private class PreparedRun(val effective: Effective, val tools: List<Tool>, val advertised: List<Tool>, val catalog: List<ResolvedTool>, val warnings: List<String>, val chat: CapabilityState)
 
     private suspend fun prepare(agent: Agent, sessionId: String?, settings: SessionSettings? = null,
-        routine: RoutineRun? = null, taskId: String? = null, activate: Boolean = false): PreparedRun {
+        routine: RoutineRun? = null, taskId: String? = null, activate: Boolean = false, catalogs: List<UiCatalog> = uiCatalogs.forRun()): PreparedRun {
         val e = effective(agent, sessionId, settings)
         val chat = if (modelFactoryOverride) CapabilityState() else e.provider?.availability(e.agent.config.model)
             ?: CapabilityState.unsupported("No model provider '${e.agent.config.provider}'; this model provider is not installed")
         if (activate) chat.requireReady()
         val run = RunContext(e.agent, sessionId, routine?.routine, taskId)
         val contributed = plugins.map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
-        val own = PluginTools(toolsFor(e, sessionId, routine)).ownedBy(PluginInstanceId("kinuvo.core")).tools
+        val own = PluginTools(toolsFor(e, sessionId, routine, catalogs)).ownedBy(PluginInstanceId("kinuvo.core")).tools
         val aliased = own + contributed.flatMap { it.tools }
         val all = aliased.withModelNames().also { it.indexedTools() }
         val renamed = aliased.zip(all).filter { (a, b) -> a !== b }.associate { (a, b) -> a.descriptor.name to b.descriptor.name }
@@ -259,8 +262,8 @@ open class HarnessRuntime(
      * Builds a runner with the Agent's current tools, starting what its plugins need on first use. [sessionId] is the
      * Session it runs in; [routine] is set for a Routine's run, which follows the Routine's approval mode.
      */
-    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null): AgentRun {
-        val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true)
+    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun()): AgentRun {
+        val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs)
         val e = prepared.effective
         val agent = e.agent
         val tools = prepared.tools.map(secrets::redacting)
@@ -308,7 +311,7 @@ open class HarnessRuntime(
     /** Stops what the plugins run for the Agent, e.g. after its exec settings changed. */
     suspend fun release(agent: Agent) = dependencies.resources.release(agent.id)
 
-    private suspend fun toolsFor(e: Effective, sessionId: String?, routine: RoutineRun?): List<Tool> {
+    private suspend fun toolsFor(e: Effective, sessionId: String?, routine: RoutineRun?, catalogs: List<UiCatalog>): List<Tool> {
         val agent = e.agent
         val search = if (ToolNames.WEB_FETCH in agent.config.tools) webSearch() else null
         val selected = imageModel
@@ -321,7 +324,8 @@ open class HarnessRuntime(
                     else -> emptyList()
                 } }
             }, attachments::bytes) else null
-        return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool), imageTool)
+        val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() && e.provider?.basicPrompt(agent.config.model) != true }?.let(::ShowUiTool)
+        return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool), imageTool, uiTool)
     }
 
     private suspend fun builtInTools(e: Effective, sessionId: String?, routine: RoutineRun?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {

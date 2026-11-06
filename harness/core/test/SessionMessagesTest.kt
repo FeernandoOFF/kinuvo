@@ -4,10 +4,28 @@ import ai.koog.prompt.message.MessagePart
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.SurfaceAction
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.*
 
 class SessionMessagesTest {
+    @Test fun surfaceActionContextReplaysIntoModelInput() {
+        val context = JsonObject(mapOf("name" to JsonPrimitive("Alex")))
+        val action = SurfaceAction("call", "plan", "save", "submit", context, context)
+        val entry = SessionEntry.UserMessage("Save plan", action = action)
+        for (history in listOf(listOf(entry), listOf(entry, SessionEntry.AssistantMessage("Saved"), SessionEntry.UserMessage("Continue")))) {
+            val prompt = messages.prompt("", history)
+            val text = prompt.messages.first().parts.filterIsInstance<MessagePart.Text>().joinToString { it.text }
+            assertTrue(text.startsWith("Save plan"))
+            assertTrue("Surface action: save" in text)
+            assertTrue("surface: plan" in text)
+            assertTrue("Context: $context" in text)
+            assertEquals(entry, messages.entries(prompt.messages).first())
+        }
+    }
+
     @Test
     fun toolScreenshotsDoNotRequireAnAttachmentReaderForTextOnlyModels() {
         val model = scriptedModel { _, _ -> emptyFlow() }.copy(attachments = null)

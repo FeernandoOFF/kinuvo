@@ -1,5 +1,6 @@
 package kinuvo.harness.server.execution
 
+
 import kinuvo.harness.execution.api.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.harness.core.store.SessionCommitConflict
@@ -209,7 +210,7 @@ class ExecutionCoordinator(
         val r = record(id)
         if (submission in r.submissions) {
             val prior = log.entries(p.agentId, id).filterIsInstance<SessionEntry.UserMessage>().firstOrNull { it.submissionId == submission }
-            require(prior == null || prior.copy(writtenAt = null) == SessionEntry.UserMessage(p.text, attachments = attachments.map { it.attachment }, voice = p.voice, submissionId = submission)) { "Submission identity reused with different content" }
+            require(prior == null || prior.copy(writtenAt = null) == SessionEntry.UserMessage(p.text, attachments = attachments.map { it.attachment }, voice = p.voice, submissionId = submission, action = p.action)) { "Submission identity reused with different content" }
             return SendResult(id, submission, p.text)
         }
         check(!r.archived && !r.closed && !r.lost && r.failure == null)
@@ -217,13 +218,13 @@ class ExecutionCoordinator(
         val (session, state) = lock.withLock { requireNotNull(live[id]) to states.getValue(id) }
         state.begin()
         state.boundSink().publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
-        val input = SessionEntry.UserMessage(p.text, attachments = attachments.map { it.attachment }, voice = p.voice, submissionId = submission)
+        val input = SessionEntry.UserMessage(p.text, attachments = attachments.map { it.attachment }, voice = p.voice, submissionId = submission, action = p.action)
         mutate(id) { current -> current.copy(submissions = current.submissions + (submission to null), inputCheckpoint = input) }
         log.appendAll(p.agentId, id, listOf(input))
         mutate(id) { it.copy(inputCheckpoint = null) }
         val job = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
-                val accepted = session.prompt(ExecutionInput(p.text, attachments))
+                val accepted = session.prompt(ExecutionInput(p.text, attachments, p.action))
                 if (lock.withLock { states[id] === state }) mutate(id) { current -> current.copy(submissions = current.submissions + (submission to accepted.messageId), acceptedSubmissions = current.acceptedSubmissions + submission) }
             } catch (e: Exception) {
                 withContext(NonCancellable) { if (lock.withLock { states[id] === state }) lock.withLock { brokers[id] }?.lost() }

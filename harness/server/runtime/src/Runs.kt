@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kinuvo.protocol.SurfaceAction
+
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import kinuvo.harness.core.Agent
 import kinuvo.harness.core.AgentRun
@@ -66,6 +68,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
         routine: RoutineRef? = null,
         attachments: List<Attachment> = emptyList(),
         voice: Boolean = false,
+        action: SurfaceAction? = null,
         onEvent: (AgentEvent) -> Unit = {},
         onDone: suspend (stopped: Boolean) -> Unit = {},
         runner: suspend () -> AgentRun,
@@ -87,7 +90,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
             val job = scope.launch(start = CoroutineStart.LAZY) {
                 var stopped = false
                 try {
-                    r.run(sessionId, message, activation, runId, attachments, voice).collect {
+                    r.run(sessionId, message, activation, runId, attachments, voice, action).collect {
                         onEvent(it); log.publish(agent.id, sessionId, it); activity.update { a -> a.copy(steps = a.steps + 1) }
                     }
                 } catch (e: CancellationException) {

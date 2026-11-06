@@ -12,6 +12,14 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class SessionDataTest {
+    @Test fun surfacesStayOutsideStepsOnlyAfterSuccess() {
+        val pending = ChatItem.ToolCall("ui", "call", "show_ui", "{}")
+        val shown = pending.copy(result = "Shown to the user.")
+        assertEquals(listOf(ChatRow.Single(shown)), listOf(shown).rows())
+        assertEquals(true, listOf(pending).rows().single() is ChatRow.Steps)
+        assertEquals(true, listOf(shown.copy(isError = true)).rows().single() is ChatRow.Steps)
+    }
+
     private val identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell")
     private val approval = AgentEvent.ApprovalRequested("a1", "c1", "model_alias", "{}", identity = identity)
 
