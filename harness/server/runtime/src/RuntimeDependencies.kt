@@ -47,7 +47,7 @@ class RuntimeDependencies(
     val modelCatalog: suspend (Boolean) -> ModelsCatalog,
     val webFetch: (WebSearch?) -> Tool,
     val tracing: AgentTracing? = null,
-    val voice: VoiceProviders = VoiceProviders(),
+    var voice: VoiceProviders = VoiceProviders(),
 ) {
     val plugins get() = resources.plugins
     val mcp = plugins.firstNotNullOfOrNull { it.mcp } ?: McpManagement.Unavailable

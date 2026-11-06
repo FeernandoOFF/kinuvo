@@ -7,6 +7,9 @@ import kotlinx.datetime.TimeZone
 import kinuvo.harness.core.store.ReflectionConfig
 
 interface ServerSettings {
+    var liveVoiceEnabled: Boolean
+        get() = false
+        set(value) { error("Live voice settings are unavailable") }
     var imageModel: ProviderModelRef?
         get() = null
         set(value) { error("Image model settings are unavailable") }

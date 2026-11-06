@@ -20,6 +20,7 @@ suspend fun SessionLog.executionSnapshot(agent: String, id: String): ExecutionSn
                 is SessionEntry.UserMessage -> messages.add(ExecutionMessage(entry.submissionId?.let { "user:$it" } ?: "user:entry:${change.seq}", "user", entry.text, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
                 is SessionEntry.AssistantMessage -> messages.add(ExecutionMessage(entry.messageId?.let { "assistant:$it" } ?: "assistant:entry:${change.seq}", "assistant", entry.text, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
                 is SessionEntry.Reasoning -> messages.add(ExecutionMessage(entry.messageId?.let { "reasoning:$it" } ?: "entry:${change.seq}", "reasoning", entry.text))
+                is SessionEntry.VoiceCall -> messages.add(ExecutionMessage("voice_call:${entry.id}", "voice_call", "", ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
                 is SessionEntry.Notice -> messages.add(ExecutionMessage("notice:${entry.id}", "notice", entry.message, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
                 is SessionEntry.ToolCall -> messages.add(ExecutionMessage("tool_call:${entry.id}", "tool", entry.name, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))
                 is SessionEntry.ToolResult -> messages.add(ExecutionMessage("tool_result:${entry.id}", "tool", entry.output, ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), entry)))

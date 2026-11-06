@@ -183,8 +183,15 @@ The Agent's built-in Routine that periodically works through its checklist (HEAR
 _Avoid_: Ping, keepalive
 
 **Voice chat**:
-Talking with an Agent in a Session by voice: what the user says is sent as messages and the replies are read aloud; the transcript stays in the Session.
-_Avoid_: Voice mode, call
+Talking with an Agent in a Session by voice, through Live voice or transcription and synthesis; the transcript stays in the Session.
+_Avoid_: Voice mode, call (use Voice call for one Live voice conversation)
+
+**Live voice**:
+Voice chat through a speech-to-speech model that hands tasks to the Session's Agent.
+_Avoid_: Realtime mode
+
+**Voice call**:
+One Live voice conversation, recorded in the Session as a single collapsible transcript block when it ends; delegated tasks remain separate messages.
 
 **Dictation**:
 Speaking into the composer instead of typing; nothing is sent until the user sends it.

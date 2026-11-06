@@ -42,7 +42,7 @@ class EventType<T>(val name: String, val payload: KSerializer<T>)
 data class AgentInfo(val id: String, val name: String, val exec: String, val avatar: String? = null, val executionKind: ExecutionKind = ExecutionKind.Native, val connectionId: String? = null, val host: String? = null, val readiness: ExecutionReadiness = ExecutionReadiness(true, true))
 
 object ProtocolVersion {
-    const val Current = 5
+    const val Current = 6
     const val Mismatch = "protocol_mismatch: Update the Server and Device to matching versions"
     fun requireCompatible(version: Int) { require(version == Current) { Mismatch } }
 }
@@ -175,6 +175,13 @@ object Api {
     val Transcribe = Method("voice.transcribe", TranscribeParams.serializer(), String.serializer())
     val Synthesize = Method("voice.synthesize", SynthesizeParams.serializer(), SpeechAudio.serializer())
     val CancelVoice = Method("voice.cancel", CancelVoiceParams.serializer(), Unit.serializer())
+    val LiveVoiceStart = Method("voice.live.start", LiveVoiceParams.serializer(), LiveVoiceCall.serializer())
+    val LiveVoiceSettings = Method("voice.live.settings", Unit.serializer(), kinuvo.protocol.LiveVoiceSettings.serializer())
+    val SaveLiveVoice = Method("voice.live.save", Boolean.serializer(), kinuvo.protocol.LiveVoiceSettings.serializer())
+    val LiveVoiceEnd = Method("voice.live.end", LiveVoiceRef.serializer(), Unit.serializer())
+    /** Sent by the Device, unlike other events. */
+    val LiveVoiceInput = EventType("voice.live.input", kinuvo.protocol.LiveVoiceInput.serializer())
+    val LiveVoiceOutput = EventType("voice.live.output", kinuvo.protocol.LiveVoiceOutput.serializer())
     val Capabilities = Method("session.capabilities", CapabilitiesParams.serializer(), SessionCapabilities.serializer())
     val CapabilitiesChanged = EventType("capabilities.changed", Unit.serializer())
     val Models = Method("models.list", ModelsParams.serializer(), ModelsCatalog.serializer())

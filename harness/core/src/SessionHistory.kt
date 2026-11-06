@@ -14,7 +14,9 @@ import kotlinx.serialization.json.Json
 /** The latest compressed history followed by the Session's subsequent model entries. */
 fun List<SessionEntry>.activeHistory(): List<SessionEntry> {
     val at = indexOfLast { it is SessionEntry.Compaction && it.history.isNotEmpty() }
-    val history = if (at < 0) this else (this[at] as SessionEntry.Compaction).history + drop(at + 1)
+    val history = (if (at < 0) this else (this[at] as SessionEntry.Compaction).history + drop(at + 1)).flatMap { entry ->
+        if (entry is SessionEntry.VoiceCall) entry.turns.map { if (it.user) SessionEntry.UserMessage(it.text, voice = true) else SessionEntry.AssistantMessage(it.text) } else listOf(entry)
+    }
     val contextAt = history.indexOfLast { it is SessionEntry.Context }
     val activations = history.filterIsInstance<SessionEntry.Activation>().associateBy { it.name }
     return history.filterIndexed { index, entry -> (entry !is SessionEntry.Context || index == contextAt) &&
@@ -50,6 +52,7 @@ fun List<SessionEntry>.recentScreens(keep: Int = 3): List<SessionEntry> {
 fun List<SessionEntry>.estimatedTokens(instructions: String, tools: List<ToolDescriptor> = emptyList()): Int =
     (instructions.length + tools.sumOf { it.toString().length + if (it is RawSchemaToolDescriptor) it.schema.toString().length else 0 } + sumOf {
         when (it) {
+            is SessionEntry.VoiceCall -> it.turns.sumOf { turn -> turn.text.length }
             is SessionEntry.Context -> it.content.length
             is SessionEntry.UserMessage -> it.text.length + it.attachments.estimatedChars()
             is SessionEntry.AssistantMessage -> it.text.length

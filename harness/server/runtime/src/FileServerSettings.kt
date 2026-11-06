@@ -60,6 +60,10 @@ internal class FileServerSettings(
     private val hosts: PluginHosts,
     clock: () -> Long,
 ) : ServerSettings {
+    override var liveVoiceEnabled: Boolean
+        get() = files.config().liveVoiceEnabled
+        set(value) { files.updateConfig { it.copy(liveVoiceEnabled = value) } }
+
     override var imageModel: ProviderModelRef?
         get() = files.config().imageModel
         set(value) { files.updateConfig { it.copy(imageModel = value) } }
