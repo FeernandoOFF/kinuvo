@@ -1,5 +1,8 @@
 package kinuvo.ui.design
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,6 +14,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.key.*
@@ -116,15 +121,24 @@ fun Tabs(titles: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier:
 }
 
 @Composable
-fun ChoiceSelect(options: List<Pair<String, String>>, selected: String?, enabled: Boolean, onSelect: (String) -> Unit) {
+fun ChoiceSelect(options: List<Pair<String, String>>, selected: String?, enabled: Boolean, compact: Boolean = false, onSelect: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
+    val style = markdownTextStyle()
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val width = with(density) { (options.maxOfOrNull { measurer.measure(it.second, style, softWrap = false).size.width } ?: 0).toDp() } + 32.dp
     DropdownMenu(expanded = open, onExpandedChange = { open = it }, panel = {
         DropdownMenuPanel {
             options.forEach { (value, label) -> DropdownMenuItem(onClick = { open = false; onSelect(value) }) { Text(label) } }
         }
     }) {
-        Button(onClick = { open = true }, enabled = enabled, style = ButtonStyle.Outlined) {
-            Text(options.firstOrNull { it.first == selected }?.second ?: "Select an option")
+        val shape = RoundedCornerShape(10.dp)
+        Row((if (compact) Modifier.fillMaxWidth().height(36.dp) else Modifier.widthIn(min = width).height(40.dp))
+            .clip(shape).background(color(backgroundColor)).border(1.dp, color(borderColor), shape)
+            .clickable(enabled = enabled) { open = true }.padding(horizontal = if (compact) 6.dp else 12.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(options.firstOrNull { it.first == selected }?.second ?: "Select", Modifier.weight(1f), style = if (compact) TextStyles.caption else style, singleLine = true)
+            if (!compact) Icon(Lucide.ChevronDown, Modifier.size(12.dp), contentDescription = null)
         }
     }
 }

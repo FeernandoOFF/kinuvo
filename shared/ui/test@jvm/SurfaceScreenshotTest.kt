@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
 import androidx.compose.ui.text.AnnotatedString
@@ -26,6 +28,8 @@ import dev.ynagai.a2ui.core.validation.CatalogValidator
 import kinuvo.ui.design.*
 import kinuvo.ui.session.ChatItemView
 import kinuvo.ui.session.ChatActions
+import kinuvo.app.surface.sumSurfaceValues
+import kinuvo.app.surface.surfaceValues
 import kinuvo.app.session.ChatItem
 import kinuvo.protocol.SurfaceAction
 import kotlinx.serialization.json.*
@@ -35,6 +39,103 @@ import java.io.File
 import kotlin.test.*
 
 class SurfaceScreenshotTest {
+    @Test fun editableWidgets() = javax.swing.SwingUtilities.invokeAndWait {
+        for (fixture in listOf("editable-tasks", "weekly-timesheet", "examples/trip-budget", "examples/habit-tracker", "examples/recipe-scaler", "examples/workout-log", "examples/dinner-poll", "examples/invoice-builder")) {
+            val name = if (fixture.startsWith("examples/")) "example-${fixture.substringAfter('/')}" else fixture
+            val raw = A2uiJson.strict.parseToJsonElement(File("../../harness/core/testResources/$fixture.json").readText())
+            val checked = CatalogValidator.of(surfaceCatalogDefinitions).validateMessage(raw, catalogId = kinuvoCatalogDefinition.catalogId)
+            assertTrue(checked.isValid, checked.violations.joinToString())
+            for (dark in listOf(false, true)) {
+                val renderer = A2uiRenderer(A2uiRendererConfig.Default.withCatalogs(surfaceCatalogDefinitions))
+                renderer.apply(A2uiJson.strict.decodeFromJsonElement(AgentToRendererMessage.serializer(), raw))
+                var copied: AnnotatedString? = null
+                val clipboard = object : ClipboardManager {
+                    override fun getText() = copied
+                    override fun setText(annotatedString: AnnotatedString) { copied = annotatedString }
+                }
+                val messages = mutableListOf<RendererToAgentMessage>()
+                ImageComposeScene(720, if (name in listOf("weekly-timesheet", "example-workout-log")) 3000 else 1800, Density(2f), content = {
+                    HarnessTheme(dark = dark) {
+                        Box(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
+                            CompositionLocalProvider(LocalClipboardManager provides clipboard) {
+                                A2uiSurface(renderer, name, surfaceComponents, Modifier.fillMaxWidth(), onMessage = { messages += it })
+                            }
+                        }
+                    }
+                }).use { scene ->
+                    repeat(8) { scene.render(it * 200_000_000L) }
+                    File("build/screens").apply { mkdirs() }.resolve("$name-${if (dark) "dark" else "light"}.png")
+                        .writeBytes(scene.render(2_000_000_000L).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+                    if (dark) {
+                        fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
+                        fun nodes() = scene.semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }
+                        fun hasText(text: String) = nodes().any { it.config.getOrNull(SemanticsProperties.Text)?.any { value -> value.text == text } == true }
+                        var frame = 3_000_000_000L
+                        fun click(label: String, index: Int = 0) {
+                            val nodes = nodes()
+                            val button = nodes.filter { node -> node.config.getOrNull(SemanticsActions.OnClick) != null &&
+                                flatten(node).any { it.config.getOrNull(SemanticsProperties.Text)?.any { text -> text.text == label } == true || it.config.getOrNull(SemanticsProperties.ContentDescription)?.contains(label) == true } }[index]
+                            assertTrue(button.config[SemanticsActions.OnClick].action!!.invoke())
+                            repeat(4) { frame += 200_000_000L; scene.render(frame) }
+                        }
+                        fun model() = renderer.state.surfaces.getValue(name).dataModel
+                        if (name == "editable-tasks") {
+                            click("+ Add row")
+                            assertEquals(5, model().getValue("rows").jsonArray.size)
+                            assertTrue(hasText("5 tasks · 1 completed"))
+                            click("delete")
+                            assertEquals(4, model().getValue("rows").jsonArray.size)
+                            assertTrue(hasText("4 tasks · 0 completed"))
+                            click("Copy table")
+                            assertTrue(assertNotNull(copied).text.startsWith("| task | status | priority |"))
+                            click("Medium")
+                            click("Low", 1)
+                            assertEquals(JsonPrimitive("Low"), model().getValue("rows").jsonArray[0].jsonObject.getValue("priority").jsonArray.single())
+                        } else if (name == "weekly-timesheet") {
+                            click("Increase")
+                            assertEquals(75.0, model().getValue("days").jsonArray[0].jsonObject.getValue("tasks").jsonArray[0].jsonObject.getValue("minutes").jsonPrimitive.double)
+                            assertTrue(hasText("5h 30m"))
+                            click("30m")
+                            click("Increase")
+                            assertTrue(hasText("6h 00m"))
+                            click("delete")
+                            assertEquals(255.0, sumSurfaceValues(surfaceValues(model(), listOf("days", "*", "tasks", "*", "minutes"))))
+                            assertTrue(hasText("4h 15m"))
+                            click("+ Task", 1)
+                            assertEquals(1, model().getValue("days").jsonArray[1].jsonObject.getValue("tasks").jsonArray.size)
+                            click("Increase", 2)
+                            assertEquals(30.0, model().getValue("days").jsonArray[1].jsonObject.getValue("tasks").jsonArray[0].jsonObject.getValue("minutes").jsonPrimitive.double)
+                            click("delete", 2)
+                            assertEquals(0, model().getValue("days").jsonArray[1].jsonObject.getValue("tasks").jsonArray.size)
+                        }
+                        if (name.startsWith("example-")) {
+                            when (name) {
+                                "example-recipe-scaler" -> { click("Increase"); assertTrue(hasText("300 g")) }
+                                "example-workout-log" -> { click("Increase"); assertTrue(hasText("1,920 kg total volume")) }
+                                "example-invoice-builder" -> { click("Increase"); assertTrue(hasText("EUR 1,260")) }
+                                "example-habit-tracker" -> assertTrue(hasText("5 wins"))
+                                "example-trip-budget" -> assertTrue(hasText("Paid EUR 165.00"))
+                                "example-dinner-poll" -> click("Pizza")
+                            }
+                        }
+                        assertTrue(messages.isEmpty(), "Local edits must not send an Agent message")
+                        click(when (name) {
+                            "example-recipe-scaler" -> "Save grocery list"
+                            "example-workout-log" -> "Finish workout"
+                            "example-invoice-builder" -> "Send invoice"
+                            "example-habit-tracker" -> "Save week"
+                            "example-trip-budget" -> "Share settlement"
+                            "example-dinner-poll" -> "Submit vote"
+                            else -> "Send"
+                        })
+                        assertEquals(1, messages.size)
+                        if (name == "example-invoice-builder") assertEquals(JsonPrimitive("EUR 1,260"), (messages.single() as ActionMessage).context["total"])
+                    }
+                }
+            }
+        }
+    }
+
     @Test fun kinuvoComponents() = javax.swing.SwingUtilities.invokeAndWait {
         val raw = A2uiJson.strict.parseToJsonElement("""
             {"version":"v1.0","createSurface":{"surfaceId":"extras","catalogId":"${kinuvoCatalogDefinition.catalogId}","components":[

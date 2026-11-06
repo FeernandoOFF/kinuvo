@@ -1,0 +1,29 @@
+{
+  "version": "v1.0",
+  "createSurface": {
+    "surfaceId": "example-recipe-scaler",
+    "catalogId": "https://kinuvo.com/a2ui/v1/catalog.json",
+    "components": [
+      {"id":"root","component":"Card","child":"body"},
+      {"id":"body","component":"Column","children":["eyebrowRow","heading","divider","servingRow","grocery","ingredients","tip","saveRecipe"]},
+      {"id":"eyebrow","component":"Text","text":"RECIPE · 20 MINUTES","variant":"caption"},
+      {"id":"heading","component":"Text","text":"Sunday pancakes","variant":"h1"},
+      {"id":"divider","component":"Divider"},
+      {"id":"servingRow","component":"Row","children":["servingLabel","gap","servings"]},
+      {"id":"servingLabel","component":"Text","text":"Servings","variant":"h3"},
+      {"id":"gap","component":"Spacer","weight":1},
+      {"id":"servings","component":"Stepper","value":{"path":"/servings"},"step":1,"min":1,"max":12},
+      {"id":"grocery","component":"Text","text":"Grocery checklist","variant":"h3"},
+      {"id":"ingredients","component":"Column","children":{"componentId":"ingredient","path":"/ingredients"}},
+      {"id":"ingredient","component":"Row","children":["check","quantity"]},
+      {"id":"check","component":"CheckBox","label":{"path":"name"},"value":{"path":"checked"},"weight":1},
+      {"id":"quantity","component":"Text","text":{"call":"formatString","args":{"value":"${formatNumber(multiply(values: [{\"path\":\"amount\"},{\"path\":\"/servings\"}]))} ${unit}"}}},
+      {"id":"tip","component":"Text","text":"Whisk gently. Rest the batter for 5 minutes.","variant":"caption"},
+      {"id":"saveRecipeLabel","component":"Text","text":"Save grocery list"},
+      {"id":"saveRecipe","component":"Button","variant":"primary","child":"saveRecipeLabel","action":{"event":{"name":"saveRecipe","context":{"data":{"path":"/"}}}}},
+      {"id":"eyebrowRow","component":"Row","children":["exampleIcon","eyebrow"]},
+      {"id":"exampleIcon","component":"Icon","name":"shoppingCart"}
+    ],
+    "dataModel": {"servings":4,"ingredients":[{"name":"Flour","amount":60,"unit":"g","checked":false},{"name":"Milk","amount":90,"unit":"ml","checked":true},{"name":"Eggs","amount":0.5,"unit":"","checked":false},{"name":"Butter","amount":10,"unit":"g","checked":false}]}
+  }
+}

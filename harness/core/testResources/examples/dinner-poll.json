@@ -1,0 +1,28 @@
+{
+  "version": "v1.0",
+  "createSurface": {
+    "surfaceId": "example-dinner-poll",
+    "catalogId": "https://kinuvo.com/a2ui/v1/catalog.json",
+    "components": [
+      {"id":"root","component":"Card","child":"body"},
+      {"id":"body","component":"Column","children":["eyebrowRow","heading","divider","status","options","choice","submitVote"]},
+      {"id":"eyebrow","component":"Text","text":"YOU’RE INVITED · 19:30","variant":"caption"},
+      {"id":"heading","component":"Text","text":"Dinner on Friday?","variant":"h1"},
+      {"id":"divider","component":"Divider"},
+      {"id":"status","component":"Badge","label":"13 votes · closes tomorrow","color":"success"},
+      {"id":"options","component":"Column","children":{"componentId":"option","path":"/options"}},
+      {"id":"option","component":"Column","children":["optionHead","detail","progress"]},
+      {"id":"optionHead","component":"Row","children":["name","votes"]},
+      {"id":"name","component":"Text","text":{"path":"name"},"variant":"h3","weight":1},
+      {"id":"votes","component":"Text","text":{"call":"formatString","args":{"value":"${votes} votes"}},"variant":"caption"},
+      {"id":"detail","component":"Text","text":{"path":"detail"},"variant":"caption"},
+      {"id":"progress","component":"Progress","value":{"path":"votes"},"max":13},
+      {"id":"choice","component":"ChoicePicker","label":"Your vote","displayStyle":"segmented","value":{"path":"/choice"},"options":[{"value":"thai","label":"Thai"},{"value":"pizza","label":"Pizza"},{"value":"green","label":"Veggie"}]},
+      {"id":"submitVoteLabel","component":"Text","text":"Submit vote"},
+      {"id":"submitVote","component":"Button","variant":"primary","child":"submitVoteLabel","action":{"event":{"name":"submitVote","context":{"data":{"path":"/"}}}}},
+      {"id":"eyebrowRow","component":"Row","children":["exampleIcon","eyebrow"]},
+      {"id":"exampleIcon","component":"Icon","name":"event"}
+    ],
+    "dataModel": {"choice":["thai"],"options":[{"name":"Thai garden","votes":7,"detail":"Curries, noodles & a sunny terrace"},{"name":"Pizza social","votes":4,"detail":"Wood-fired pizza to share"},{"name":"Green table","votes":2,"detail":"Seasonal plates, all plant-based"}]}
+  }
+}

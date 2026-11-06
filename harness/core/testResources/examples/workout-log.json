@@ -1,0 +1,35 @@
+{
+  "version": "v1.0",
+  "createSurface": {
+    "surfaceId": "example-workout-log",
+    "catalogId": "https://kinuvo.com/a2ui/v1/catalog.json",
+    "components": [
+      {"id":"root","component":"Card","child":"body"},
+      {"id":"body","component":"Column","children":["eyebrowRow","heading","divider","totalVolume","badge","exercises","saveWorkout"]},
+      {"id":"eyebrow","component":"Text","text":"WORKOUT · FRIDAY","variant":"caption"},
+      {"id":"heading","component":"Text","text":"Upper body","variant":"h1"},
+      {"id":"divider","component":"Divider"},
+      {"id":"badge","component":"Badge","label":"3 exercises · strength","color":"info"},
+      {"id":"exercises","component":"Column","children":{"componentId":"exercise","path":"/exercises"}},
+      {"id":"exercise","component":"Column","children":["name","setsRow","repsRow","weightRow","volume","line"]},
+      {"id":"name","component":"Text","text":{"path":"name"},"variant":"h3"},
+      {"id":"setsRow","component":"Row","children":["setsLabel","sets"]},
+      {"id":"setsLabel","component":"Text","text":"Sets","weight":1},
+      {"id":"sets","component":"Stepper","value":{"path":"sets"},"step":1,"min":0,"max":200},
+      {"id":"repsRow","component":"Row","children":["repsLabel","reps"]},
+      {"id":"repsLabel","component":"Text","text":"Reps","weight":1},
+      {"id":"reps","component":"Stepper","value":{"path":"reps"},"step":1,"min":0,"max":200},
+      {"id":"weightRow","component":"Row","children":["weightLabel","weight"]},
+      {"id":"weightLabel","component":"Text","text":"Weight · kg","weight":1},
+      {"id":"weight","component":"Stepper","value":{"path":"weight"},"step":5,"min":0,"max":200},
+      {"id":"volume","component":"Text","text":{"call":"formatString","args":{"value":"${formatNumber(multiply(values: [{\"path\":\"sets\"},{\"path\":\"reps\"},{\"path\":\"weight\"}]))} kg total volume"}},"variant":"caption"},
+      {"id":"line","component":"Divider"},
+      {"id":"saveWorkoutLabel","component":"Text","text":"Finish workout"},
+      {"id":"saveWorkout","component":"Button","variant":"primary","child":"saveWorkoutLabel","action":{"event":{"name":"saveWorkout","context":{"data":{"path":"/"}}}}},
+      {"id":"eyebrowRow","component":"Row","children":["exampleIcon","eyebrow"]},
+      {"id":"exampleIcon","component":"Icon","name":"favorite"},
+      {"id":"totalVolume","component":"Text","variant":"h2","text":{"call":"formatString","args":{"value":"${formatNumber(sum(values: /exercises, fields: [\"sets\",\"reps\",\"weight\"]))} kg lifted"}}}
+    ],
+    "dataModel": {"exercises":[{"name":"Bench press","sets":3,"reps":8,"weight":60},{"name":"Cable row","sets":3,"reps":12,"weight":40},{"name":"Shoulder press","sets":3,"reps":10,"weight":20}]}
+  }
+}
