@@ -1,5 +1,8 @@
 package kinuvo.ui.surface
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
@@ -10,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.unit.dp
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
@@ -18,6 +22,51 @@ import kinuvo.ui.design.*
 import kotlinx.serialization.json.*
 
 internal val surfaceComponents = ComponentRegistry(mapOf(
+    "Badge" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
+        val tone = when (scope.rememberString("color")) {
+            "success" -> Tone.Success
+            "danger" -> Tone.Danger
+            "warning" -> Tone.Warning
+            "info", "discovery" -> Tone.Accent
+            else -> Tone.Neutral
+        }
+        SurfaceBadge(scope.rememberString("label").orEmpty(), tone, scope.rememberString("variant"), scope.rememberString("size"), scope.rememberBoolean("pill") == true, modifier)
+    },
+    "Spacer" to ComponentRenderer(LayoutTraits.Fixed) { scope, modifier -> Spacer(modifier.size((scope.rememberNumber("minSize") ?: 8.0).coerceIn(0.0, 1000.0).dp)) },
+    "ListItem" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
+        val action = scope.rememberAction("action")
+        Row(modifier.then(if (action != null) Modifier.clickable { scope.dispatch(action) } else Modifier).padding(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            scope.rememberChildren("leading").forEach { scope.RenderChild(it) }
+            Column(Modifier.weight(1f)) {
+                Text(scope.rememberString("title").orEmpty())
+                scope.rememberString("subtitle")?.let { Text(it, style = TextStyles.caption) }
+            }
+            scope.rememberChildren("trailing").forEach { scope.RenderChild(it) }
+        }
+    },
+    "Table" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
+        Column(modifier.horizontalScroll(rememberScrollState())) { scope.rememberChildren("children").forEach { scope.RenderChild(it) } }
+    },
+    "TableRow" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
+        val header = scope.rememberBoolean("header") == true
+        Column(modifier.then(if (header) Modifier.background(color(subtleColor)).semantics { heading() } else Modifier)) {
+            Row { scope.rememberChildren("children").forEach { scope.RenderChild(it, Modifier.width(160.dp)) } }
+            HorizontalSeparator()
+        }
+    },
+    "TableCell" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
+        Column(modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = when (scope.rememberString("align")) {
+            "center" -> Alignment.CenterHorizontally
+            "end" -> Alignment.End
+            else -> Alignment.Start
+        }) { scope.rememberChildren("children").forEach { scope.RenderChild(it) } }
+    },
+    "Transition" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
+        val children = scope.rememberChildren("child")
+        val target = children to children.map { scope.surface?.components?.get(it.componentId) }
+        Crossfade(target, modifier) { (items, _) -> items.forEach { scope.RenderChild(it) } }
+    },
     "Icon" to ComponentRenderer(LayoutTraits.Fixed) { scope, modifier ->
         val name = scope.rememberString("name")
         Icon(catalogIcon(name), modifier.size(24.dp), contentDescription = name)
@@ -66,9 +115,14 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
         }
     },
     "Text" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
-        val caption = scope.rememberString("variant") == "caption"
+        val variant = scope.rememberString("variant")
+        val caption = variant == "caption"
         Markdown(scope.rememberString("text").orEmpty(), modifier.width(IntrinsicSize.Max),
-            style = if (caption) TextStyles.caption.copy(color = color(mutedColor)) else markdownTextStyle())
+            style = if (caption) TextStyles.caption.copy(color = color(mutedColor)) else when (variant) {
+                "h1" -> TextStyles.headline
+                "h2", "h3", "h4", "h5" -> TextStyles.title
+                else -> markdownTextStyle()
+            })
     },
     "Row" to ComponentRenderer(LayoutTraits.Content) { scope, modifier -> Layout(scope, modifier, true) },
     "Column" to ComponentRenderer(LayoutTraits.Content) { scope, modifier -> Layout(scope, modifier, false) },
@@ -154,6 +208,8 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
                     Button(onClick = { change(if (exclusive) listOf(value) else if (value in selected) selected - value else selected + value) },
                         modifier = Modifier.semantics { this.selected = value in selected }, enabled = target != null, style = if (value in selected) ButtonStyle.Primary else ButtonStyle.Outlined) { Text(label) }
                 }
+            } else if (exclusive && scope.rememberString("displayStyle") == "dropdown") {
+                ChoiceSelect(visible, selected.firstOrNull(), target != null) { change(listOf(it)) }
             } else if (exclusive) RadioGroup(selected.firstOrNull(), { change(listOf(it)) }) {
                 Column { visible.forEach { (value, label) -> Radio(value, enabled = target != null) { Text(label) } } }
             } else visible.forEach { (value, label) ->

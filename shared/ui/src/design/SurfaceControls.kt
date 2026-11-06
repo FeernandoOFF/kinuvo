@@ -1,5 +1,8 @@
 package kinuvo.ui.design
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -109,5 +112,31 @@ fun Tabs(titles: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier:
     Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
         Segmented(titles, selected, onSelect = onSelect)
         content()
+    }
+}
+
+@Composable
+fun ChoiceSelect(options: List<Pair<String, String>>, selected: String?, enabled: Boolean, onSelect: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    DropdownMenu(expanded = open, onExpandedChange = { open = it }, panel = {
+        DropdownMenuPanel {
+            options.forEach { (value, label) -> DropdownMenuItem(onClick = { open = false; onSelect(value) }) { Text(label) } }
+        }
+    }) {
+        Button(onClick = { open = true }, enabled = enabled, style = ButtonStyle.Outlined) {
+            Text(options.firstOrNull { it.first == selected }?.second ?: "Select an option")
+        }
+    }
+}
+
+@Composable
+fun SurfaceBadge(label: String, tone: Tone, variant: String?, size: String?, pill: Boolean, modifier: Modifier = Modifier) {
+    val tint = tone.color()
+    val shape = RoundedCornerShape(if (pill) 100.dp else 4.dp)
+    val padding = when (size) { "lg" -> 10.dp; "sm" -> 4.dp; else -> 6.dp }
+    Box(modifier.background(if (variant == "solid") tint else tint.copy(alpha = if (variant == "outline") 0f else 0.12f), shape)
+        .then(if (variant == "outline") Modifier.border(1.dp, tint, shape) else Modifier).padding(horizontal = padding, vertical = 3.dp)) {
+        Text(label, style = if (size == "lg") TextStyles.secondary else TextStyles.caption,
+            color = if (variant == "solid") color(backgroundColor) else tint)
     }
 }
