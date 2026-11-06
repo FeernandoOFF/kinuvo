@@ -14,7 +14,7 @@ dependencies:
   - com.composables:composeunstyled-tooltip:2.7.0
   - com.composables:compose-interaction-capabilities:1.1.0
   - com.composables:ripple-indication:1.1.0
-  - com.mohamedrejeb.richeditor:richeditor-compose:1.2.1
+  - com.mikepenz:multiplatform-markdown-renderer:0.46.0
   - dev.chrisbanes.haze:haze:2.0.1
   - dev.chrisbanes.haze:haze-blur:2.0.1
   - org.jetbrains.androidx.navigation3:navigation3-ui:1.1.2
