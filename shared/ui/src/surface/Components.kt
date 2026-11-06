@@ -105,12 +105,13 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
     "DateTimeInput" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
         val target = scope.binding("value")
         val drafts = LocalSurfaceDrafts.current
-        DisposableEffect(drafts, scope.component.id) { onDispose { drafts?.validate(scope.component.id, true) } }
+        val input = remember { Any() }
+        DisposableEffect(drafts) { onDispose { drafts?.validate(input, true) } }
         Column(modifier) {
             DateTimeInput(scope.rememberString("value").orEmpty(), { next -> target?.let { scope.write(it, JsonPrimitive(next)) } },
                 scope.rememberBoolean("enableDate") ?: false, scope.rememberBoolean("enableTime") ?: false,
                 scope.rememberString("min"), scope.rememberString("max"), scope.rememberString("label"), target != null,
-                onValidityChange = { drafts?.validate(scope.component.id, it) })
+                onValidityChange = { drafts?.validate(input, it) })
             Failure(scope.rememberCheckFailures().firstMessage()?.message)
         }
     },

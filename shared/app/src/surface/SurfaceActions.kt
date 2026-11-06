@@ -13,11 +13,11 @@ fun List<ChatItem>.surfaceDataModels(callId: String): Map<String, JsonObject> =
         .associate { it.surfaceId to it.dataModel }
 
 class SurfaceDrafts {
-    private val invalid = mutableSetOf<String>()
+    private val invalid = mutableSetOf<Any>()
     val canSubmit: Boolean get() = invalid.isEmpty()
 
-    fun validate(componentId: String, valid: Boolean) {
-        if (valid) invalid.remove(componentId) else invalid.add(componentId)
+    fun validate(input: Any, valid: Boolean) {
+        if (valid) invalid.remove(input) else invalid.add(input)
     }
 }
 
