@@ -1,0 +1,39 @@
+{
+  "version": "v1.0",
+  "createSurface": {
+    "surfaceId": "weekly-timesheet",
+    "catalogId": "https://kinuvo.com/a2ui/v1/catalog.json",
+    "components": [
+      {"id":"root","component":"Column","children":["caption","total","increment","summary","days","submit"]},
+      {"id":"caption","component":"Text","text":"WEEKLY TIMESHEET","variant":"caption"},
+      {"id":"total","component":"Text","text":{"call":"formatDuration","args":{"minutes":{"call":"sum","args":{"values":{"path":"/days/*/tasks/*/minutes"}}}}},"variant":"h1"},
+      {"id":"increment","component":"ChoicePicker","label":"Time increment","displayStyle":"segmented","value":{"path":"/increment"},"options":[{"value":"15","label":"15m"},{"value":"30","label":"30m"},{"value":"60","label":"1h"}]},
+      {"id":"summary","component":"List","direction":"horizontal","children":{"componentId":"summaryDay","path":"/days"}},
+      {"id":"summaryDay","component":"Column","children":["summaryTitle","summaryTotal","summaryProgress"]},
+      {"id":"summaryTitle","component":"Text","text":{"path":"short"}},
+      {"id":"summaryTotal","component":"Text","text":{"call":"formatDuration","args":{"minutes":{"call":"sum","args":{"values":{"path":"tasks/*/minutes"}}}}}},
+      {"id":"summaryProgress","component":"Progress","value":{"call":"sum","args":{"values":{"path":"tasks/*/minutes"}}},"max":480},
+      {"id":"days","component":"Column","children":{"componentId":"day","path":"/days"}},
+      {"id":"day","component":"Card","child":"dayBody"},
+      {"id":"dayBody","component":"Column","children":["dayTitle","dayTotal","dayCount","addTask","taskList","empty"]},
+      {"id":"dayTitle","component":"Text","text":{"path":"title"},"variant":"h3"},
+      {"id":"dayTotal","component":"Text","text":{"call":"formatDuration","args":{"minutes":{"call":"sum","args":{"values":{"path":"tasks/*/minutes"}}}}}},
+      {"id":"taskCount","component":"Text","text":{"call":"formatNumber","args":{"value":{"call":"count","args":{"values":{"path":"tasks"}}}}}},
+      {"id":"tasksLabel","component":"Text","text":"tasks"},
+      {"id":"dayCount","component":"Row","children":["taskCount","tasksLabel"]},
+      {"id":"addTaskLabel","component":"Text","text":"+ Task"},
+      {"id":"addTask","component":"Button","child":"addTaskLabel","action":{"functionCall":{"call":"append","args":{"path":"tasks","value":{"name":"","minutes":0}}}}},
+      {"id":"taskList","component":"Column","children":{"componentId":"taskRow","path":"tasks"}},
+      {"id":"taskRow","component":"Row","align":"center","children":["taskName","minutes","delete"]},
+      {"id":"taskName","component":"TextField","value":{"path":"name"},"placeholder":"Task name"},
+      {"id":"minutes","component":"Stepper","value":{"path":"minutes"},"step":{"path":"/increment"},"min":0,"duration":true},
+      {"id":"deleteLabel","component":"Text","text":"×"},
+      {"id":"delete","component":"Button","child":"deleteLabel","action":{"functionCall":{"call":"removeAt","args":{}}}},
+      {"id":"emptyLabel","component":"Text","text":"No tasks logged — add one to get started"},
+      {"id":"empty","component":"Show","when":{"call":"count","args":{"values":{"path":"tasks"}}},"empty":true,"child":"emptyLabel"},
+      {"id":"submitLabel","component":"Text","text":"Send"},
+      {"id":"submit","component":"Button","child":"submitLabel","action":{"event":{"name":"submitTimesheet","context":{"days":{"path":"/days"}}}}}
+    ],
+    "dataModel": {"increment":["15"],"days":[{"title":"Monday","short":"Mon","tasks":[{"name":"Planning","minutes":60},{"name":"Implementation","minutes":240},{"name":"Review","minutes":15}]},{"title":"Tuesday","short":"Tue","tasks":[]},{"title":"Wednesday","short":"Wed","tasks":[]},{"title":"Thursday","short":"Thu","tasks":[]},{"title":"Friday","short":"Fri","tasks":[]}]}
+  }
+}

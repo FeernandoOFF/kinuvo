@@ -33,6 +33,11 @@ class ShowUiTool(catalogs: List<UiCatalog>) : Tool {
             "The Kinuvo catalog https://kinuvo.com/a2ui/v1/catalog.json includes all basic components plus Badge(label), Spacer(minSize), " +
             "ListItem(title, subtitle, leading/trailing child IDs, action), Table/TableRow/TableCell(children), and Transition(child). " +
             "Table children can use A2UI templates bound to arrays; cells accept arbitrary components. " +
+            "Editable table: bind TextField.value to task and ChoicePicker.value to status in a /rows template. " +
+            "Add row Button.action={\"functionCall\":{\"call\":\"append\",\"args\":{\"path\":\"/rows\",\"value\":{\"task\":\"\",\"status\":[\"Todo\"]}}}}; " +
+            "delete inside the row uses {\"functionCall\":{\"call\":\"removeAt\",\"args\":{}}}. Submit uses an event with context.rows={\"path\":\"/rows\"}. " +
+            "Client functions count(values,where?), sum(values), formatDuration(minutes), copy(text|path) run locally; wildcard paths sum nested arrays. " +
+            "Stepper(value,step,min,max,duration), Progress(value,max=1), Show(when,empty=false,child), and segmented ChoicePicker support local editing. " +
             "Build forms with bound inputs and Button checks/actions. Compose card status from Badge and confirm/cancel from Buttons inside the Card child. " +
             "Use Text variants h1-h5 for titles, caption for captions; TextField longText for textareas; ChoicePicker for selects/radios. " +
             "Each call creates new surfaces: start with a createSurface (surfaceId, catalogId, components, " +
