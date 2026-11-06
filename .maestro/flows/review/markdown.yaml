@@ -59,20 +59,33 @@ properties:
     timeout: 90000
     waitToSettleTimeoutMs: 500
     centerElement: false
+- scrollUntilVisible:
+    element:
+      text: "End of Markdown review.*"
+    direction: DOWN
+    timeout: 30000
+    waitToSettleTimeoutMs: 500
+    centerElement: true
+- takeScreenshot: 03-table
 - runFlow:
     when:
       platform: Android
     commands:
       - swipe:
-          start: 50%,72%
-          end: 50%,40%
+          start: 85%,45%
+          end: 15%,45%
           duration: 500
-- takeScreenshot: 03-table
-- swipe:
-    from:
-      text: "Android.*"
-    direction: LEFT
-    duration: 500
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - swipe:
+          start: 75%,45%
+          end: 5%,45%
+          duration: 500
+- assertVisible: "Notes.*"
+- assertVisible: "This intentionally long cell.*"
+- assertVisible: "Dimmed markers.*"
 - takeScreenshot: 03b-table-swipe
 - tapOn: "Message"
 - runFlow:
