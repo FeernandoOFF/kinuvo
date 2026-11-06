@@ -61,7 +61,7 @@ class ExecutionCoordinatorTest {
         storage.save(ExecutionRecovery("a", incomplete, config, registration, "two", draft = listOf(SessionEntry.AssistantMessage("partial", "draft"))))
         val coordinator = ExecutionCoordinator(registry, null, backgroundScope, log, storage)
         repeat(2) { coordinator.recover() }
-        assertEquals(listOf(reply), log.entries("a", complete).filterIsInstance<SessionEntry.AssistantMessage>())
+        assertEquals(listOf(reply), log.entries("a", complete).filterIsInstance<SessionEntry.AssistantMessage>().map { it.copy(writtenAt = null) })
         assertTrue(log.entries("a", incomplete).filterIsInstance<SessionEntry.AssistantMessage>().isEmpty())
         assertEquals("partial", (log.entries("a", incomplete).filterIsInstance<SessionEntry.Notice>().single().draft.single() as SessionEntry.AssistantMessage).text)
         assertEquals(ExecutionPhase.Lost, coordinator.snapshot(complete).phase)

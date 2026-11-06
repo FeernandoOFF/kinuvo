@@ -316,7 +316,7 @@ private fun SessionData.chatItems(): List<ChatItem> {
         when (entry) {
             is SessionEntry.UserMessage -> items += ChatItem.User(key(entry.submissionId?.let { "user-$it" }, seq), entry.text, entry.routine?.name, entry.attachments, parseTaskPrompt(entry.text)?.second, voice = entry.voice)
             is SessionEntry.VoiceCall -> items += ChatItem.VoiceCall(entry.id, entry.turns, entry.startedAt, entry.durationMillis)
-            is SessionEntry.AssistantMessage -> items += ChatItem.Assistant(key(entry.messageId?.let { "text-$it" }, seq), entry.text)
+            is SessionEntry.AssistantMessage -> items += ChatItem.Assistant(key(entry.messageId?.let { "text-$it" }, seq), entry.text, at = entry.writtenAt)
             is SessionEntry.Reasoning -> items += ChatItem.Reasoning(key((entry.messageId ?: entry.id)?.let { "reasoning-$it" }, seq), entry.text)
             is SessionEntry.ToolCall -> items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id, entry.name, entry.args, identity = entry.identity)
             is SessionEntry.ToolResult -> {
@@ -347,12 +347,12 @@ private fun SessionData.chatItems(): List<ChatItem> {
     if (live.text.isNotEmpty() && "text-${live.messageId}" !in keys) items += ChatItem.Assistant(key("text-${live.messageId}", -2), live.text)
     live.reflectionId?.takeIf { "reflection-$it" !in keys }?.let { items += ChatItem.Reflection(key("reflection-$it", -3)) }
     notes.forEachIndexed { i, note -> items += ChatItem.Error("note-$i", note) }
-    return items.map { if (it is ChatItem.Assistant) it.copy(receivedAt = receivedAt[it.id]) else it }
+    return items.map { if (it is ChatItem.Assistant) it.copy(at = it.at ?: receivedAt[it.id]) else it }
 }
 
 private fun SessionData.withReceiptTimes(previous: SessionData?): SessionData {
     val before = previous?.items.orEmpty().mapTo(mutableSetOf()) { it.id }
-    val fresh = items.filter { it is ChatItem.Assistant && it.id !in before && it.id !in receivedAt }
+    val fresh = items.filter { it is ChatItem.Assistant && it.at == null && it.id !in before && it.id !in receivedAt }
     if (fresh.isEmpty()) return this
     val now = Clock.System.now().toEpochMilliseconds()
     return copy(receivedAt = receivedAt + fresh.associate { it.id to now })

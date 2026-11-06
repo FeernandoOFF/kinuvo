@@ -19,6 +19,7 @@ import kinuvo.protocol.Risk
 import kinuvo.protocol.Routine
 import kinuvo.protocol.RunStatus
 import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.withWrittenAt
 import kinuvo.protocol.ToolIdentity
 import kinuvo.protocol.Trigger
 import kotlinx.coroutines.flow.first
@@ -79,7 +80,7 @@ class RoutineRunTest {
         assertIs<AgentEvent.RunFinished>(events.last())
         assertEquals(listOf(SessionEntry.Outcome(true, "Rent is due tomorrow")), notified)
         val entries = entries()
-        assertEquals(SessionEntry.Outcome(true, "Rent is due tomorrow"), entries.last())
+        assertEquals(SessionEntry.Outcome(true, "Rent is due tomorrow"), entries.last().withWrittenAt(null))
         assertEquals("Flagged the rent bill.", entries.filterIsInstance<SessionEntry.AssistantMessage>().last().text)
         val sent = entries.filterIsInstance<SessionEntry.UserMessage>().single()
         assertEquals(run.ref, sent.routine)
@@ -95,7 +96,7 @@ class RoutineRunTest {
         assertIs<AgentEvent.RunFinished>(events.last())
         assertTrue(notified.isEmpty())
         val entries = entries()
-        assertEquals(SessionEntry.Outcome(false), entries.last())
+        assertEquals(SessionEntry.Outcome(false), entries.last().withWrittenAt(null))
         assertEquals("Nothing changed.", entries.filterIsInstance<SessionEntry.AssistantMessage>().last().text)
         assertEquals(false, store.session(agent.id, sessionId).inChats)
     }
@@ -174,7 +175,7 @@ class RoutineRunTest {
         val stuck = scriptedModel { _, _ -> flowOf(StreamFrame.ToolCallComplete("c1", "slow", "{}"), StreamFrame.End()) }
         AgentRun(agent, store, stuck, listOf(slow, RoutineReportTool(run)), routine = run).run(session.id, "go").first { it is AgentEvent.ToolCallStart }
 
-        assertEquals(SessionEntry.ToolResult("c1", "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last())
+        assertEquals(SessionEntry.ToolResult("c1", "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last().withWrittenAt(null))
         assertTrue(store.entries(agent.id, session.id).none { it is SessionEntry.Outcome })
         assertTrue(notified.isEmpty())
         assertNull(run.outcome)

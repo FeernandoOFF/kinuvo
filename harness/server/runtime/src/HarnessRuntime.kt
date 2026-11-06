@@ -77,7 +77,7 @@ open class HarnessRuntime(
     /** How long an unattended Routine run waits for an Approval before skipping the call. */
     private val routineApprovalWait: Duration = 30.minutes,
 ) : ServerSettings by dependencies.settings {
-    val log = SessionLog(dependencies.store)
+    val log = SessionLog(dependencies.store, dependencies.clock)
     val store: Store = log
     val docs = dependencies.docs
     val skills = dependencies.skills
