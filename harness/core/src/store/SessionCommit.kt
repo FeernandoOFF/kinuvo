@@ -2,6 +2,7 @@ package kinuvo.harness.core.store
 
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.SessionEntryIdentity
+import kinuvo.protocol.withWrittenAt
 import kinuvo.protocol.identity
 
 class SessionCommitConflict(val identity: String) : IllegalStateException("Conflicting saved Session entry '$identity'")
@@ -16,7 +17,7 @@ internal fun missingEntries(saved: List<SessionEntry>, incoming: List<SessionEnt
         val key = entry.identity()?.takeUnless { entry is SessionEntry.Reasoning && entry.messageId == null } ?: return true
         val previous = identities[key]
         if (previous == null) identities[key] = entry
-        if (previous != null && previous != entry) throw SessionCommitConflict("${key.type}:${key.id}")
+        if (previous != null && previous.withWrittenAt(null) != entry.withWrittenAt(null)) throw SessionCommitConflict("${key.type}:${key.id}")
         return previous == null
     }
     saved.forEach { remember(it) }

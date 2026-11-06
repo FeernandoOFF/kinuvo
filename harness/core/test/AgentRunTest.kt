@@ -7,6 +7,7 @@ import ai.koog.prompt.message.MessagePart
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.RequestKind
 import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.withWrittenAt
 
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.tools.MemoryTool
@@ -181,7 +182,7 @@ class AgentRunTest {
         assertEquals("Noted!", (entries.last() as SessionEntry.AssistantMessage).text)
         assertIs<SessionEntry.ToolResult>(entries[entries.size - 2]).also { assertEquals(false, it.isError) }
         val reasoning = SessionEntry.Reasoning("should remember", "rs1", "enc")
-        assertEquals(reasoning, entries.filterIsInstance<SessionEntry.Reasoning>().single().copy(messageId = null))
+        assertEquals(reasoning, entries.filterIsInstance<SessionEntry.Reasoning>().single().copy(messageId = null, writtenAt = null))
         assertEquals("enc", seenHistories[1].flatMap { it.parts }.filterIsInstance<MessagePart.Reasoning>().single().encrypted)
     }
 
@@ -221,6 +222,6 @@ class AgentRunTest {
         val session = store.createSession(agent.id, "")
         AgentRun(agent, store, model, listOf(slowTool)).run(session.id, "go").first { it is AgentEvent.ToolCallStart }
 
-        assertEquals(SessionEntry.ToolResult("c1", "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last())
+        assertEquals(SessionEntry.ToolResult("c1", "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last().withWrittenAt(null))
     }
 }

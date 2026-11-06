@@ -54,67 +54,70 @@ data class VoiceTurn(val user: Boolean, val text: String)
 /** One line of a Session transcript. */
 @Serializable
 sealed interface SessionEntry {
+    /** Epoch milliseconds when written; absent in legacy transcripts. */
+    val writtenAt: Long?
+
     @Serializable @SerialName("voice_call")
-    data class VoiceCall(val id: String, val turns: List<VoiceTurn>, val startedAt: Long, val durationMillis: Long) : SessionEntry
+    data class VoiceCall(val id: String, val turns: List<VoiceTurn>, val startedAt: Long, val durationMillis: Long, override val writtenAt: Long? = null) : SessionEntry
 
     @Serializable @SerialName("notice")
-    data class Notice(val id: String, val code: String, val message: String, val draft: List<SessionEntry> = emptyList()) : SessionEntry
+    data class Notice(val id: String, val code: String, val message: String, val draft: List<SessionEntry> = emptyList(), override val writtenAt: Long? = null) : SessionEntry
 
     /** Instructions frozen at Session start (Identity, Soul, Memory, User Notes). */
     @Serializable @SerialName("started")
-    data class Started(val instructions: String, val routine: RoutineRef? = null) : SessionEntry
+    data class Started(val instructions: String, val routine: RoutineRef? = null, override val writtenAt: Long? = null) : SessionEntry
 
     @Serializable @SerialName("context")
-    data class Context(val content: String) : SessionEntry
+    data class Context(val content: String, override val writtenAt: Long? = null) : SessionEntry
 
     @Serializable @SerialName("measurement")
-    data class Measurement(val metrics: RequestMetrics) : SessionEntry
+    data class Measurement(val metrics: RequestMetrics, override val writtenAt: Long? = null) : SessionEntry
 
     /** [routine] is set when a Routine sent [text] on its schedule; [voice] when [text] was transcribed from voice chat. */
     @Serializable @SerialName("user")
-    data class UserMessage(val text: String, val routine: RoutineRef? = null, val attachments: List<Attachment> = emptyList(), val voice: Boolean = false, val submissionId: String? = null) : SessionEntry
+    data class UserMessage(val text: String, val routine: RoutineRef? = null, val attachments: List<Attachment> = emptyList(), val voice: Boolean = false, val submissionId: String? = null, override val writtenAt: Long? = null) : SessionEntry
 
     /** [messageId] matches the run's streamed events, so clients keep one item from live text to saved message. */
     @Serializable @SerialName("assistant")
-    data class AssistantMessage(val text: String, val messageId: String? = null) : SessionEntry
+    data class AssistantMessage(val text: String, val messageId: String? = null, override val writtenAt: Long? = null) : SessionEntry
 
     /** Reasoning summary; [encrypted] is replayed to the model so it keeps its reasoning across turns. */
     @Serializable @SerialName("reasoning")
-    data class Reasoning(val text: String, val id: String? = null, val encrypted: String? = null, val messageId: String? = null) : SessionEntry
+    data class Reasoning(val text: String, val id: String? = null, val encrypted: String? = null, val messageId: String? = null, override val writtenAt: Long? = null) : SessionEntry
 
     @Serializable @SerialName("tool_call")
-    data class ToolCall(val id: String, val name: String, val args: String, val identity: ToolIdentity? = null) : SessionEntry
+    data class ToolCall(val id: String, val name: String, val args: String, val identity: ToolIdentity? = null, override val writtenAt: Long? = null) : SessionEntry
 
     /** The compressed model history; earlier transcript entries remain available to clients. */
     @Serializable @SerialName("compaction")
-    data class Compaction(val summary: String = "", val history: List<SessionEntry> = emptyList()) : SessionEntry
+    data class Compaction(val summary: String = "", val history: List<SessionEntry> = emptyList(), override val writtenAt: Long? = null) : SessionEntry
 
     /** A background Reflection's result; it isn't part of the model's conversation. */
     @Serializable @SerialName("reflection")
-    data class Reflection(val id: String, val at: Long, val result: ReflectionResult) : SessionEntry
+    data class Reflection(val id: String, val at: Long, val result: ReflectionResult, override val writtenAt: Long? = null) : SessionEntry
 
     @Serializable @SerialName("reflection_review")
-    data class ReflectionReview(val proposalId: String, val approved: Boolean, val note: String? = null, val result: ReflectionResult? = null) : SessionEntry
+    data class ReflectionReview(val proposalId: String, val approved: Boolean, val note: String? = null, val result: ReflectionResult? = null, override val writtenAt: Long? = null) : SessionEntry
 
     /** A Skill loaded into the Session by the user (`/name`) or carried over by Compaction. */
     @Serializable @SerialName("activation")
-    data class Activation(val name: String, val content: String) : SessionEntry
+    data class Activation(val name: String, val content: String, override val writtenAt: Long? = null) : SessionEntry
 
     /** The Session's settings from here on; the model doesn't see it. */
     @Serializable @SerialName("settings")
-    data class Settings(val settings: SessionSettings) : SessionEntry
+    data class Settings(val settings: SessionSettings, override val writtenAt: Long? = null) : SessionEntry
 
     /** The user's name for the Session (null: from its first message) and whether it's a favorite, from here on; the model doesn't see it. */
     @Serializable @SerialName("details")
-    data class Details(val title: String? = null, val favorite: Boolean = false) : SessionEntry
+    data class Details(val title: String? = null, val favorite: Boolean = false, override val writtenAt: Long? = null) : SessionEntry
 
     /** How a Routine's run ended: [report] when it has [summary] for the user, else nothing was new; the model doesn't see it. */
     @Serializable @SerialName("outcome")
-    data class Outcome(val report: Boolean, val summary: String = "") : SessionEntry
+    data class Outcome(val report: Boolean, val summary: String = "", override val writtenAt: Long? = null) : SessionEntry
 
     /** [attachments] are files the tool shows the model, e.g. an image from a note. */
     @Serializable @SerialName("tool_result")
-    data class ToolResult(val id: String, val name: String, val output: String, val isError: Boolean = false, val attachments: List<Attachment> = emptyList(), val identity: ToolIdentity? = null) : SessionEntry
+    data class ToolResult(val id: String, val name: String, val output: String, val isError: Boolean = false, val attachments: List<Attachment> = emptyList(), val identity: ToolIdentity? = null, override val writtenAt: Long? = null) : SessionEntry
 }
 
 /** Shared by persisted listings and clients; legacy UUIDs carry no creation time. */
@@ -136,4 +139,24 @@ fun SessionEntry.identity(): SessionEntryIdentity? = when (this) {
     is SessionEntry.ToolResult -> SessionEntryIdentity("tool_result", id)
     is SessionEntry.Notice -> SessionEntryIdentity("notice", id)
     else -> null
+}
+
+fun SessionEntry.withWrittenAt(at: Long?): SessionEntry = when (this) {
+    is SessionEntry.VoiceCall -> copy(writtenAt = at)
+    is SessionEntry.Notice -> copy(writtenAt = at)
+    is SessionEntry.Started -> copy(writtenAt = at)
+    is SessionEntry.Context -> copy(writtenAt = at)
+    is SessionEntry.Measurement -> copy(writtenAt = at)
+    is SessionEntry.UserMessage -> copy(writtenAt = at)
+    is SessionEntry.AssistantMessage -> copy(writtenAt = at)
+    is SessionEntry.Reasoning -> copy(writtenAt = at)
+    is SessionEntry.ToolCall -> copy(writtenAt = at)
+    is SessionEntry.Compaction -> copy(writtenAt = at)
+    is SessionEntry.Reflection -> copy(writtenAt = at)
+    is SessionEntry.ReflectionReview -> copy(writtenAt = at)
+    is SessionEntry.Activation -> copy(writtenAt = at)
+    is SessionEntry.Settings -> copy(writtenAt = at)
+    is SessionEntry.Details -> copy(writtenAt = at)
+    is SessionEntry.Outcome -> copy(writtenAt = at)
+    is SessionEntry.ToolResult -> copy(writtenAt = at)
 }

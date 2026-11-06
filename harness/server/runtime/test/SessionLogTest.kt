@@ -5,6 +5,7 @@ import kinuvo.harness.core.AgentConfig
 import kinuvo.harness.core.store.Store
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.SessionChange
+import kinuvo.protocol.withWrittenAt
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.SessionUpdate
 import kinuvo.harness.core.store.SessionCommitConflict
@@ -38,7 +39,7 @@ class SessionLogTest {
 
     @Test
     fun batchPublishesOnceBeforeTerminalAndBrowserCleanupPrecedesRemoval() = runBlocking {
-        val log = SessionLog(RuntimeFixture().store)
+        val log = SessionLog(RuntimeFixture().store) { 123L }
         val session = log.createSession("external", "").id
         val updates = mutableListOf<SessionUpdate>()
         log.subscribe("external", session, null, 100, object : SessionLog.Subscriber {
@@ -47,10 +48,14 @@ class SessionLogTest {
         updates.clear()
         log.publish("external", session, AgentEvent.RunStarted("run"))
         val reply = SessionEntry.AssistantMessage("reply", "reply")
-        assertEquals(listOf(reply), log.appendAll("external", session, listOf(reply)))
-        assertEquals(emptyList(), log.appendAll("external", session, listOf(reply)))
+        assertEquals(listOf(reply), log.appendAll("external", session, listOf(reply)).map { it.withWrittenAt(null) })
+        assertEquals(emptyList(), log.appendAll("external", session, listOf(reply)).map { it.withWrittenAt(null) })
         log.publish("external", session, AgentEvent.RunFinished("run"))
         assertEquals(1, updates.count { it.change is SessionChange.Entry })
+        val committed = (updates.single { it.change is SessionChange.Entry }.change as SessionChange.Entry).entry
+        assertEquals(123L, committed.writtenAt)
+        assertEquals(committed, log.history("external", session, 100, 100).last().entry)
+        assertEquals(committed, log.entries("external", session).last())
         val entryIndex = updates.indexOfFirst { it.change is SessionChange.Entry }
         val finishedIndex = updates.indexOfFirst { (it.change as? SessionChange.Event)?.event is AgentEvent.RunFinished }
         assertTrue(entryIndex in 0 until finishedIndex)
@@ -95,7 +100,7 @@ class SessionLogTest {
             resume.complete(Unit)
             cleanup.await()
             change.await()
-            assertEquals(before + first + latest, log.entries(agent.id, session))
+            assertEquals((before + first + latest).map { it.withWrittenAt(null) }, log.entries(agent.id, session).map { it.withWrittenAt(null) })
             assertEquals(latest.settings, log.session(agent.id, session).settings)
         }
     }

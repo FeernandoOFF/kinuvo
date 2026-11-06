@@ -6,6 +6,7 @@ import kinuvo.harness.core.AgentDoc
 import kinuvo.harness.core.identityName
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.withWrittenAt
 import kinuvo.protocol.SessionOrder
 import kinuvo.protocol.SessionInfo
 import kinuvo.protocol.SessionSettings
@@ -22,10 +23,11 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlin.random.Random
+import kotlin.time.Instant
 import kotlin.time.Clock
 
 /** `<home>/agents/<id>/` directories, Sessions as `sessions/<id>.jsonl`. */
-class FileStore(private val files: AgentFiles) : Store {
+class FileStore(private val files: AgentFiles, private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() }) : Store {
     /** Session writes go one at a time, so a truncate can't drop an append and JSONL lines don't interleave. */
     private val lock = Mutex()
     private val json = Json { ignoreUnknownKeys = true }
@@ -100,24 +102,24 @@ class FileStore(private val files: AgentFiles) : Store {
     }
 
     override suspend fun createSession(agentId: String, instructions: String, routine: RoutineRef?): SessionInfo {
-        val now = Clock.System.now().toLocalDateTime(TimeZone.currentSystemDefault())
+        val now = Instant.fromEpochMilliseconds(clock()).toLocalDateTime(TimeZone.currentSystemDefault())
         val id = ID_FORMAT.format(now) + "-" + Random.nextInt(0x1000, 0xffff).toString(16)
         lock.withLock {
             require(!file(agentId, id).exists()) { "Session already exists" }
             sessionDirectory(agentId).createDirectories()
-            writeAtomically(file(agentId, id), encode(listOf(SessionEntry.Started(instructions, routine))))
+            writeAtomically(file(agentId, id), encode(listOf(SessionEntry.Started(instructions, routine, writtenAt = clock()))))
         }
         return SessionInfo(id, agentId, routine?.name ?: NEW_TITLE, routine = routine, createdAt = createdAt(id))
     }
 
     override suspend fun append(agentId: String, sessionId: String, entry: SessionEntry) = lock.withLock {
         entries(agentId, sessionId) // Refuse to append after a corrupt or torn record.
-        write(agentId, sessionId, entry)
+        write(agentId, sessionId, entry.withWrittenAt(entry.writtenAt ?: clock()))
     }
 
     override suspend fun appendAll(agentId: String, sessionId: String, entries: List<SessionEntry>): List<SessionEntry> = lock.withLock {
         val saved = this.entries(agentId, sessionId)
-        val added = missingEntries(saved, entries)
+        val added = missingEntries(saved, entries).map { it.withWrittenAt(it.writtenAt ?: clock()) }
         if (added.isNotEmpty()) writeAtomically(file(agentId, sessionId), encode(saved + added))
         added
     }
