@@ -39,6 +39,7 @@ class DictationViewModel(private val transcriber: Transcriber) : ViewModel() {
             }, { if (generation == epoch) fail(it) })
             return
         }
+        if (!DeviceAudio.acquire(transcriber, this)) return
         val epoch = ++generation
         state.value = DictationState(dictating = true)
         transcriber.authorize { error ->
@@ -57,6 +58,7 @@ class DictationViewModel(private val transcriber: Transcriber) : ViewModel() {
         if (!state.value.dictating) return
         generation++
         transcriber.stop()
+        DeviceAudio.release(transcriber, this)
         state.update { it.copy(dictating = false, finishing = false) }
     }
 
@@ -69,6 +71,7 @@ class DictationViewModel(private val transcriber: Transcriber) : ViewModel() {
     private fun fail(error: String) {
         generation++
         transcriber.stop()
+        DeviceAudio.release(transcriber, this)
         state.value = DictationState(error = error)
     }
 

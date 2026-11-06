@@ -28,10 +28,12 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonElement
 
 sealed interface ChatItem {
+    data class VoiceCall(override val id: String, val turns: List<VoiceTurn>, val startedAt: Long, val durationMillis: Long) : ChatItem
+
     val id: String
 
     /** [routine] names the Routine that sent [text] on its schedule. */
-    data class User(override val id: String, val text: String, val routine: String? = null, val attachments: List<Attachment> = emptyList(), val task: String? = null) : ChatItem
+    data class User(override val id: String, val text: String, val routine: String? = null, val attachments: List<Attachment> = emptyList(), val task: String? = null, val voice: Boolean = false) : ChatItem
     data class Assistant(override val id: String, val text: String) : ChatItem
     data class Reasoning(override val id: String, val text: String) : ChatItem
     /** [callId] is the model's tool-call ID; [approval] or [questions] is set while the call waits on the user. */
@@ -366,7 +368,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         state.update { s ->
             s.copy(
                 sending = true, attachments = emptyList(), unsent = null,
-                outgoing = ChatItem.User("user-${submission.id}", text, attachments = pending.map { it.attachment.copy(id = it.id) }),
+                outgoing = ChatItem.User("user-${submission.id}", text, attachments = pending.map { it.attachment.copy(id = it.id) }, voice = voice),
                 outgoingAfter = s.data?.items?.lastOrNull { it is ChatItem.User }?.id,
                 downloads = s.downloads + pending.associate { it.id to AttachmentData(it.attachment, it.upload.base64) },
             )
@@ -382,15 +384,23 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         }
     }
 
+    /** The open Session's Agent and ID, starting the Session if it's new; null with no Agent. */
+    suspend fun liveSession(): Pair<String, String>? {
+        val agent = route.agentId ?: return null
+        return repo.connection.run { ordered.withLock { agent to sessionFor(agent) } }
+    }
+
+    private suspend fun sessionFor(agent: String): String = route.sessionId ?: repo.createSession(agent).let { info ->
+        val id = info.id
+        // Set first, so a pick made while these settings save queues up behind this send instead of being dropped.
+        state.update { it.copy(route = it.route.copy(sessionId = id), info = it.info?.takeIf { i -> i.id == id } ?: info) }
+        state.value.settings.takeIf { it != SessionSettings() }?.let { apply(agent, id, it) }
+        repo.view(agent, id)
+        id
+    }
+
     private suspend fun sendNow(agent: String, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean, submissionId: String) {
-        val sessionId = route.sessionId ?: repo.createSession(agent).let { info ->
-            val id = info.id
-            // Set first, so a pick made while these settings save queues up behind this send instead of being dropped.
-            state.update { it.copy(route = it.route.copy(sessionId = id), info = it.info?.takeIf { i -> i.id == id } ?: info) }
-            state.value.settings.takeIf { it != SessionSettings() }?.let { apply(agent, id, it) }
-            repo.view(agent, id)
-            id
-        }
+        val sessionId = sessionFor(agent)
         if (state.value.resumeOnSend) {
             state.update { it.copy(resuming = true) }
             try {

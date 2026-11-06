@@ -7,9 +7,28 @@ import KotlinModules
  * Voice chat on-device. SpeechAnalyzer listens and AVSpeechSynthesizer speaks, both through one AVAudioEngine with
  * voice processing, so the microphone hears the user but not the reply (echo cancellation). Runs on the main thread.
  */
-final class AppleSpeech: NSObject, SpeechEngine, VoiceAudio {
+final class AppleSpeech: NSObject, SpeechEngine, VoiceAudio, LiveAudio {
     var audioSupported: Bool { true }
     private let serverAudio = AppleServerAudio()
+    private let liveAudio = AppleLiveAudio()
+    var liveAudioSupported: Bool { true }
+    // iOS ends calls through LiveCalls, from the Live Activity or the app.
+    func onEndRequested(end: @escaping () -> Void) {}
+    var echoes: Bool { false }
+    private var liveGeneration = 0
+    func startLive(sampleRate: Int32, onAudio: @escaping (KotlinByteArray) -> Void, onError: @escaping (String) -> Void) {
+        releaseDeviceAudio()
+        liveGeneration += 1
+        let epoch = liveGeneration
+        serverAudio.release { [self] in
+            guard liveGeneration == epoch else { return }
+            liveAudio.start(Int(sampleRate), onAudio, onError)
+        }
+    }
+    func playLive(pcm: KotlinByteArray) { liveAudio.play(pcm) }
+    func queuedMillis() -> Int32 { liveAudio.queuedMillis() }
+    func flushLive() { liveAudio.flush() }
+    func stopLive() { liveGeneration += 1; liveAudio.stop() }
     var halfDuplex: Bool { true }
     func authorizeAudio(completion: @escaping (String?) -> Void) { serverAudio.authorize(completion) }
     func record(untilPause: Bool, onAudio: @escaping (KotlinByteArray) -> Void, onError: @escaping (String) -> Void) {
@@ -670,4 +689,230 @@ private final class AppleServerAudio: NSObject, AVAudioPlayerDelegate {
             failure?(error?.localizedDescription ?? "Voice playback failed")
         }
     }
+}
+
+final class AppleLiveAudio {
+    private let queue = DispatchQueue(label: "dev.kinuvo.live.audio", qos: .userInteractive)
+    private let lock = NSLock()
+    private var engine: AVAudioEngine?
+    private var player: AVAudioPlayerNode?
+    private var format: AVAudioFormat?
+    private var pending = [Int16]()
+    private var scheduled = 0
+    private var generation = 0
+    private var playback = 0
+    private var observer: NSObjectProtocol?
+    private var sessionObservers = [NSObjectProtocol]()
+    private var rate = 24000.0
+    private var interrupted = false
+    private var tapInstalled = false
+    private var restart: DispatchWorkItem?
+    private var source: AVAudioFormat?
+    private let log = Logger(subsystem: "dev.kinuvo.app", category: "live")
+
+    func start(_ sampleRate: Int, _ onAudio: @escaping (KotlinByteArray) -> Void, _ onError: @escaping (String) -> Void) {
+        queue.async { [self] in
+            stopOnQueue()
+            do {
+                guard AVAudioApplication.shared.recordPermission == .granted else { throw LiveFailure("Allow microphone access for Kinuvo in Settings") }
+                let session = AVAudioSession.sharedInstance()
+                // As for Device speech: the engine's voice processing cancels echo; the .voiceChat mode on top of it leaves playback silent.
+                let options: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
+                if session.category != .playAndRecord || session.mode != .default || session.categoryOptions != options {
+                    try session.setCategory(.playAndRecord, mode: .default, options: options)
+                }
+                try session.setActive(true)
+                let engine = AVAudioEngine()
+                try engine.inputNode.setVoiceProcessingEnabled(true)
+                rate = Double(sampleRate)
+                self.engine = engine
+                let player = AVAudioPlayerNode()
+                engine.attach(player)
+                self.player = player
+                try configureEngine(onAudio)
+                observer = NotificationCenter.default.addObserver(forName: .AVAudioEngineConfigurationChange, object: engine, queue: nil) { [weak self] _ in
+                    self?.queue.async {
+                        guard let self, self.engine === engine, !engine.isRunning else { return }
+                        self.log.notice("Call audio configuration changed")
+                        self.scheduleRestart(onAudio, onError)
+                    }
+                }
+                for name in [AVAudioSession.interruptionNotification, AVAudioSession.routeChangeNotification, AVAudioSession.mediaServicesWereResetNotification] {
+                    sessionObservers.append(NotificationCenter.default.addObserver(forName: name, object: session, queue: nil) { [weak self] notification in
+                        let type = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+                        let options = notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+                        self?.queue.async {
+                            guard let self, self.engine === engine else { return }
+                            self.log.notice("Call audio: \(name.rawValue, privacy: .public) \(type ?? 0) \(options)")
+                            if name == AVAudioSession.mediaServicesWereResetNotification {
+                                self.fail("Audio services were reset. Start voice chat again.", onError)
+                            } else if name == AVAudioSession.interruptionNotification {
+                                if type == AVAudioSession.InterruptionType.began.rawValue {
+                                    self.interrupted = true
+                                    self.restart?.cancel(); self.restart = nil
+                                    self.suspendEngine()
+                                } else if type == AVAudioSession.InterruptionType.ended.rawValue,
+                                          AVAudioSession.InterruptionOptions(rawValue: options).contains(.shouldResume) {
+                                    self.interrupted = false
+                                    self.scheduleRestart(onAudio, onError)
+                                }
+                            } else if !self.interrupted {
+                                // Our own session setup and speaker override post route changes too; rebuild only when capture actually broke.
+                                if engine.isRunning, engine.inputNode.outputFormat(forBus: 0) == self.source {
+                                    self.routeToSpeaker()
+                                } else {
+                                    self.scheduleRestart(onAudio, onError)
+                                }
+                            }
+                        }
+                    })
+                }
+                log.info("Call audio started on \(session.currentRoute.outputs.map(\.portType.rawValue), privacy: .public)")
+            } catch {
+                log.error("Couldn't start call audio: \(String(describing: error), privacy: .public)")
+                stopOnQueue()
+                let message = (error as? LiveFailure)?.message ?? "Couldn't start call audio: " + error.localizedDescription
+                DispatchQueue.main.async { onError(message) }
+            }
+        }
+    }
+
+    private func suspendEngine() {
+        generation += 1
+        pending.removeAll()
+        lock.withLock { playback += 1; scheduled = 0 }
+        player?.stop()
+        engine?.stop()
+        if tapInstalled { engine?.inputNode.removeTap(onBus: 0); tapInstalled = false }
+    }
+
+    private func configureEngine(_ onAudio: @escaping (KotlinByteArray) -> Void) throws {
+        guard let engine, let player else { return }
+        suspendEngine()
+        let session = AVAudioSession.sharedInstance()
+        let options: AVAudioSession.CategoryOptions = [.defaultToSpeaker, .allowBluetooth, .allowBluetoothA2DP]
+        if session.category != .playAndRecord || session.mode != .default || session.categoryOptions != options {
+            try session.setCategory(.playAndRecord, mode: .default, options: options)
+        }
+        try session.setActive(true)
+        let source = engine.inputNode.outputFormat(forBus: 0)
+        self.source = source
+        guard ServerAudioPCM.valid(source),
+              let target = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate, channels: 1, interleaved: false),
+              let converter = AVAudioConverter(from: source, to: target) else { throw LiveFailure("The microphone has no usable audio format") }
+        // Configuration changes can drop the output path even when the engine restarts.
+        engine.connect(engine.mainMixerNode, to: engine.outputNode, format: nil)
+        engine.connect(player, to: engine.mainMixerNode, format: target)
+        format = target
+        let chunk = Int(rate / 30)
+        let epoch = generation
+        engine.inputNode.installTap(onBus: 0, bufferSize: 2048, format: source) { buffer, _ in
+            guard buffer.frameLength > 0,
+                  let output = AVAudioPCMBuffer(pcmFormat: target, frameCapacity: AVAudioFrameCount(Double(buffer.frameLength) * target.sampleRate / source.sampleRate) + 32) else { return }
+            var supplied = false
+            let status = converter.convert(to: output, error: nil) { _, status in
+                if supplied { status.pointee = .noDataNow; return nil }
+                supplied = true; status.pointee = .haveData; return buffer
+            }
+            guard status != .error, let (pcm, _) = ServerAudioPCM.samples(output) else { return }
+            self.queue.async {
+                guard self.generation == epoch, !self.interrupted else { return }
+                self.pending.append(contentsOf: pcm)
+                while self.pending.count >= chunk {
+                    let data = self.pending.prefix(chunk).withUnsafeBytes { Data($0) }
+                    self.pending.removeFirst(chunk)
+                    let bytes = AudioBytes.shared.fromData(data: data)
+                    DispatchQueue.main.async { onAudio(bytes) }
+                }
+            }
+        }
+        tapInstalled = true
+        // Enabling voice processing stops the engine; start only after reconnecting its I/O.
+        engine.prepare()
+        try engine.start()
+        if !engine.isRunning { try engine.start() }
+        routeToSpeaker()
+        player.play()
+    }
+
+    private func routeToSpeaker() {
+        let session = AVAudioSession.sharedInstance()
+        guard session.currentRoute.outputs.contains(where: { $0.portType == .builtInReceiver }) else { return }
+        do { try session.overrideOutputAudioPort(.speaker) } catch { log.error("Couldn't route call audio to the speaker: \(String(describing: error), privacy: .public)") }
+    }
+
+    private func scheduleRestart(_ onAudio: @escaping (KotlinByteArray) -> Void, _ onError: @escaping (String) -> Void) {
+        guard !interrupted else { return }
+        restart?.cancel()
+        let epoch = generation
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.engine != nil, self.generation == epoch, !self.interrupted else { return }
+            self.restart = nil
+            do { try self.configureEngine(onAudio) }
+            catch { self.fail("Couldn't resume call audio: " + error.localizedDescription, onError) }
+        }
+        restart = work
+        queue.asyncAfter(deadline: .now() + .milliseconds(250), execute: work)
+    }
+
+    private func fail(_ message: String, _ onError: @escaping (String) -> Void) {
+        log.error("Call audio failed: \(message, privacy: .public)")
+        stopOnQueue()
+        DispatchQueue.main.async { onError(message) }
+    }
+
+    func play(_ pcm: KotlinByteArray) {
+        let data = AudioBytes.shared.toData(bytes: pcm)
+        queue.async { [self] in
+            guard !interrupted, engine?.isRunning == true, let player, let format else { return }
+            let frames = data.count / 2
+            guard frames > 0, let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)), let out = buffer.floatChannelData?[0] else { return }
+            data.withUnsafeBytes { raw in
+                let samples = raw.bindMemory(to: Int16.self)
+                for i in 0..<frames { out[i] = Float(Int16(littleEndian: samples[i])) / 32768 }
+            }
+            buffer.frameLength = AVAudioFrameCount(frames)
+            let epoch = lock.withLock { scheduled += frames; return playback }
+            player.scheduleBuffer(buffer, completionCallbackType: .dataPlayedBack) { [weak self] _ in
+                guard let self else { return }
+                self.lock.withLock { if self.playback == epoch { self.scheduled -= frames } }
+            }
+        }
+    }
+
+    func queuedMillis() -> Int32 { lock.withLock { Int32(Double(max(0, scheduled)) * 1000 / rate) } }
+
+    func flush() {
+        queue.async { [self] in
+            lock.withLock { playback += 1; scheduled = 0 }
+            player?.stop()
+            if !interrupted, engine?.isRunning == true { player?.play() }
+        }
+    }
+
+    func stop() { queue.async { self.stopOnQueue() } }
+
+    private func stopOnQueue() {
+        restart?.cancel(); restart = nil
+        interrupted = false
+        suspendEngine()
+        if let observer { NotificationCenter.default.removeObserver(observer) }
+        observer = nil
+        sessionObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        sessionObservers.removeAll()
+        pending.removeAll()
+        player?.stop()
+        // A voice-processing I/O unit left behind breaks the next call's; leave audio as it was before the call.
+        if let engine {
+            do { try engine.inputNode.setVoiceProcessingEnabled(false) } catch { log.error("Couldn't release echo cancellation: \(String(describing: error), privacy: .public)") }
+            do { try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation) } catch { log.error("Couldn't release the audio session: \(String(describing: error), privacy: .public)") }
+        }
+        engine = nil; player = nil; format = nil; source = nil
+    }
+}
+
+private struct LiveFailure: LocalizedError {
+    let message: String
+    init(_ message: String) { self.message = message }
+    var errorDescription: String? { message }
 }

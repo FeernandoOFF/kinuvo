@@ -22,6 +22,7 @@ interface VoiceAudio {
 class ServerSpeech(private val device: SpeechEngine, private val server: ConnectedServer,
     private val audioDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : SpeechEngine {
+    internal val audioDevice get() = device
     override val halfDuplex = true
     private val audio get() = (device as? VoiceAudio)?.takeIf { it.audioSupported }
     private var final: (String) -> Unit = {}
