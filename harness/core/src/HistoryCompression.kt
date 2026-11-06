@@ -27,7 +27,7 @@ internal class HistoryCompression(private val inputTokens: () -> Int) : HistoryC
             val previous = summary.sumOf { it.textContent().length }
             val available = chars - previous
             check(available > 0) { "Compaction summary exceeds the model's context budget" }
-            val chunk = remaining.take(available)
+            val chunk = remaining.takeWhole(available)
             remaining = remaining.drop(chunk.length)
             llmSession.prompt = original.withMessages { summary + Message.User(chunk, RequestMetaInfo.Empty) }
             summary = compressPromptIntoTLDR(llmSession)

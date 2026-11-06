@@ -11,6 +11,7 @@ import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
 import kotlinx.serialization.json.JsonObject
 import kinuvo.harness.core.Agent
+import kinuvo.harness.core.takeWhole
 import kinuvo.protocol.ConfigScope
 
 /** Renders a Skill for the model, per the agentskills activation format. */
@@ -60,7 +61,7 @@ class ReadSkillFileTool(private val agent: Agent, private val repo: SkillReposit
         val name = args.requireString("name")
         val skill = repo.load(agent).firstOrNull { it.name == name } ?: error("No skill named '$name'")
         val text = repo.readFile(skill, args.requireString("path"))
-        return if (text.length > maxChars) text.take(maxChars) + "\n…[truncated]" else text
+        return if (text.length > maxChars) text.takeWhole(maxChars) + "\n…[truncated]" else text
     }
 }
 
