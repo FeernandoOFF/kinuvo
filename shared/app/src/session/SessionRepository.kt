@@ -323,8 +323,8 @@ private fun SessionData.chatItems(): List<ChatItem> {
             is SessionEntry.ToolCall -> items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id, entry.name, entry.args, identity = entry.identity)
             is SessionEntry.ToolResult -> {
                 val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == entry.id && it.result == null }
-                if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(result = entry.output, isError = entry.isError, attachments = entry.attachments)
-                else items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id, entry.name, "", entry.output, entry.isError, identity = entry.identity, attachments = entry.attachments)
+                if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(result = entry.output, isError = entry.isError, attachments = entry.attachments, app = entry.app, appResult = entry.appResult)
+                else items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id, entry.name, "", entry.output, entry.isError, identity = entry.identity, attachments = entry.attachments, app = entry.app, appResult = entry.appResult)
             }
             is SessionEntry.Measurement -> items += ChatItem.Measurement(key("metrics-${entry.metrics.id}", seq), entry.metrics)
             is SessionEntry.Reflection -> items += ChatItem.Reflection(key("reflection-${entry.id}", seq), entry.result, reviews, revised)
@@ -340,6 +340,8 @@ private fun SessionData.chatItems(): List<ChatItem> {
     live.approval?.let { approval ->
         val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == approval.toolCallId && it.result == null }
         if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(approval = approval)
+        // An MCP App's own tool call asks outside a run, with no call in the list yet.
+        else items += ChatItem.ToolCall(key("approval-${approval.approvalId}", -4), approval.toolCallId, approval.toolCallName, approval.args, approval = approval, identity = approval.identity)
     }
     live.questions?.let { questions ->
         val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == questions.toolCallId && it.result == null }
