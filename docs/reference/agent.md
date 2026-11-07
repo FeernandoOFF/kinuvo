@@ -32,6 +32,8 @@ tools: [memory, web_fetch, skills, schedule, knowledge, tasks, ask_user, artifac
 
 A group is offered only when its provider and required capabilities are available. Shell and file tools come from the configured Exec backend; `exec: none` disables them.
 
+`ask_user` also gives the Agent `request_secret` (Low): it names a credential it needs (`label`, optional `reason`) and gets back only a Secret reference to what the user picked in a password manager or typed. A typed value stays in the Server's memory for that Session (24 hours at most). Pass the reference in the `shell` tool's `secrets` (`{"GITHUB_TOKEN": "${secret://…}"}`, set as environment variables), or as the exact text of a Browser `type`; `mcp_add` takes password manager references only. See [ADR 0024](../adr/0024-agents-ask-for-secrets.md).
+
 `agent_tools` lets an Agent list its Agents, read its own past Sessions and delegate work. `agent_manage` lets it configure itself from chat:
 
 | Tool | Risk | What it does |
