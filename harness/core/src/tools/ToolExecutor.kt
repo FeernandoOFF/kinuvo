@@ -137,8 +137,8 @@ class ToolExecutor(
         val attached = mutableListOf<Attachment>()
         return try {
             val args = Json.parseToJsonElement(call.args.ifBlank { "{}" }).jsonObject
-            val output = tool.execute(args, call.id, toolRun(call, approvalId, stopped, attached))
-            SessionEntry.ToolResult(call.id, call.name, output, attachments = attached)
+            val result = tool.executeResult(args, call.id, toolRun(call, approvalId, stopped, attached))
+            result.copy(name = call.name, attachments = attached + result.attachments)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

@@ -7,7 +7,10 @@ import kinuvo.protocol.SecretProviderStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeMark
@@ -87,13 +90,24 @@ class Secrets(val providers: List<SecretProvider> = emptyList(), private val ttl
         override suspend fun execute(args: JsonObject) = redacted { tool.execute(args) }
         override suspend fun execute(args: JsonObject, callId: String) = redacted { tool.execute(args, callId) }
         override suspend fun execute(args: JsonObject, callId: String, run: ToolRun) = redacted { tool.execute(args, callId, run) }
-        private suspend fun redacted(block: suspend () -> String) = try {
-            redact(block())
+        override suspend fun executeResult(args: JsonObject, callId: String, run: ToolRun) = failing { tool.executeResult(args, callId, run) }.let {
+            it.copy(output = redact(it.output), appResult = it.appResult?.let { value -> redact(value) as JsonObject })
+        }
+        private suspend fun redacted(block: suspend () -> String) = redact(failing(block))
+        private suspend fun <T> failing(block: suspend () -> T) = try {
+            block()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             throw IllegalStateException(redact(e.message ?: e.toString()))
         }
+    }
+
+    /** [value] with the secrets masked in its keys and strings, which JSON escaping would hide from [redact]. */
+    private suspend fun redact(value: JsonElement): JsonElement = when (value) {
+        is JsonObject -> JsonObject(value.entries.associate { (k, v) -> redact(k) to redact(v) })
+        is JsonArray -> JsonArray(value.map { redact(it) })
+        is JsonPrimitive -> if (value.isString) JsonPrimitive(redact(value.content)) else value
     }
 
     /** [text] with the secrets still in memory masked, e.g. in a tool's output. */

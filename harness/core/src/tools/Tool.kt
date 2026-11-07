@@ -48,6 +48,7 @@ object ToolNames {
     const val ASK_USER = "ask_user"
     /** Offered when a Device has said which A2UI catalogs it renders. */
     const val SHOW_UI = "show_ui"
+    const val SHOW_HTML = "show_html"
     /** Only in Routine runs. */
     const val ROUTINE_REPORT = "routine_report"
     const val ARTIFACT = "artifact"
@@ -80,6 +81,8 @@ interface Tool {
     /** What a call with [args] would do; by default the whole tool at its [risk]. */
     fun assess(args: JsonObject): Assessment = Assessment(listOf(Action(risk, listOf(descriptor.name))))
     suspend fun bind(args: JsonObject): suspend () -> Unit = {}
+    suspend fun executeResult(args: JsonObject, callId: String, run: ToolRun): SessionEntry.ToolResult =
+        SessionEntry.ToolResult(callId, descriptor.name, execute(args, callId, run))
     suspend fun execute(args: JsonObject): String
     suspend fun execute(args: JsonObject, callId: String): String = execute(args)
     /** Lets a tool call the [run]'s other tools, e.g. from a Script. */
