@@ -10,13 +10,14 @@ import ca.weblite.webview.swing.WebViewComponent
 import kotlin.io.encoding.Base64
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 
 internal actual val visualEditing = true
 
-/** The callback's arguments arrive as a JSON array of what the page passed. */
+/** The callback gets `{"name","seq","args":[…]}`, with what the page passed in `args`. */
 internal fun editedHtml(args: String): String =
-    runCatching { Json.parseToJsonElement(args).jsonArray.first().jsonPrimitive.content }.getOrDefault(args)
+    runCatching { Json.parseToJsonElement(args).jsonObject.getValue("args").jsonArray.first().jsonPrimitive.content }.getOrDefault(args)
 
 /** The OS web view (WKWebView, WebView2, WebKitGTK) through swingwebview; it draws above Compose content. */
 @Composable
