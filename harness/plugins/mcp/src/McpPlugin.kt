@@ -2,6 +2,8 @@ package kinuvo.harness.mcp
 
 import kinuvo.harness.core.plugin.modelAlias
 import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.harness.core.plugin.McpApps
+import kinuvo.protocol.McpAppRef
 import kinuvo.harness.core.plugin.McpManagement
 import kinuvo.harness.core.plugin.PluginTools
 import kinuvo.harness.core.plugin.RunContext
@@ -35,6 +37,21 @@ class McpPlugin(
         setOfNotNull(IntegrationOptions.MCP_HTTP, IntegrationOptions.MCP_STDIO.takeIf { stdioSupported }))
     private val lock = Mutex()
     private val managers = mutableMapOf<String, McpManager>()
+
+    override val apps = object : McpApps {
+        override suspend fun resource(agentId: String, ref: McpAppRef) = manager(agentId).resource(ref)
+        override suspend fun tool(agentId: String, ref: McpAppRef, name: String) = manager(agentId).appTool(ref, name)
+    }
+
+    private suspend fun manager(id: String) = lock.withLock {
+        managers.getOrPut(id) {
+            McpManager(
+                listOf(files.sharedMcp, files.mcp(id)),
+                { server, value -> secrets.expand(value, files.loadEnv(id), "Kinuvo: MCP server $server (Agent $id)") },
+                auth, signInScopes(id), id,
+            )
+        }
+    }
 
     private data class Inspection(val configs: List<McpServerConfig>, val generations: List<Int>, val result: PluginTools)
     private val inspections = mutableMapOf<String, Inspection>()
@@ -70,16 +87,7 @@ class McpPlugin(
         })
 
     private suspend fun activate(run: RunContext): PluginTools {
-        val manager = lock.withLock {
-            val id = run.agent.id
-            managers.getOrPut(id) {
-                McpManager(
-                    listOf(files.sharedMcp, files.mcp(id)),
-                    { server, value -> secrets.expand(value, files.loadEnv(id), "Kinuvo: MCP server $server (Agent $id)") },
-                    auth, signInScopes(id), id,
-                )
-            }
-        }
+        val manager = manager(run.agent.id)
         val (tools, warnings) = manager.tools()
         if (run.routine != null) manager.needingSignIn().forEach { auth.signInNeeded(run.agent.id, it) }
         return PluginTools(tools, warnings, tools.map { ResolvedTool(it.descriptor.name,

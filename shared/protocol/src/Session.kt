@@ -1,6 +1,7 @@
 package kinuvo.protocol
 
 import kotlinx.serialization.SerialName
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -117,7 +118,7 @@ sealed interface SessionEntry {
 
     /** [attachments] are files the tool shows the model, e.g. an image from a note. */
     @Serializable @SerialName("tool_result")
-    data class ToolResult(val id: String, val name: String, val output: String, val isError: Boolean = false, val attachments: List<Attachment> = emptyList(), val identity: ToolIdentity? = null, override val writtenAt: Long? = null) : SessionEntry
+    data class ToolResult(val id: String, val name: String, val output: String, val isError: Boolean = false, val attachments: List<Attachment> = emptyList(), val identity: ToolIdentity? = null, override val writtenAt: Long? = null, val app: McpAppRef? = null, val appResult: JsonObject? = null) : SessionEntry
 }
 
 /** Shared by persisted listings and clients; legacy UUIDs carry no creation time. */
