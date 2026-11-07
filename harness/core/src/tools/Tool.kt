@@ -53,6 +53,8 @@ object ToolNames {
     const val ROUTINE_REPORT = "routine_report"
     const val ARTIFACT = "artifact"
     const val DEVICE_TOOLS = "device_tools"
+    /** Read-only tools for the Agent's own Sessions and the Agents it can work with. */
+    const val AGENT_TOOLS = "agent_tools"
     const val RUN_CODE = "run_code"
     const val COMPUTER = "computer"
     /** Its Trust rules are scoped to the app acted in. */
@@ -62,7 +64,7 @@ object ToolNames {
     const val CALL_TOOL = "call_tool"
 
     /** The built-in tools an Agent's `tools:` can turn on. */
-    val OPTIONAL = listOf(MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, RUN_CODE, COMPUTER, "browser")
+    val OPTIONAL = listOf(MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, AGENT_TOOLS, RUN_CODE, COMPUTER, "browser")
     val DEFAULT = OPTIONAL
     /** Groups a plugin provides, offered only where one is installed. */
     val FROM_PLUGINS = setOf(RUN_CODE, "browser")

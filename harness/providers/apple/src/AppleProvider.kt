@@ -66,6 +66,7 @@ class AppleProvider(private val native: AppleLanguageModel, private val dispatch
     override val id = "apple"
     override val name = "Apple"
     override val modelProviders get() = listOf(this)
+    override fun onDevice(model: String) = model == SYSTEM
     override suspend fun models() = withContext(dispatcher) {
         listOf(SYSTEM to "Apple on-device model", PRIVATE_CLOUD to "Apple Private Cloud Compute").mapNotNull { (id, name) ->
             suspendCoroutine { c -> native.contextSize(id) { c.resume(it) } }.takeIf { it > 0 }

@@ -19,6 +19,8 @@ data class SessionInfo(
     val task: String? = null,
     /** Listed under Favorites in the sidebar. */
     val favorite: Boolean = false,
+    /** A Hidden Session: its transcript is invisible to every Agent tool; only the user sees it. */
+    val hidden: Boolean = false,
     /** Epoch milliseconds, absent for legacy Sessions with no known creation time. */
     val createdAt: Long? = null,
     /** Frozen migration ordinal, in the original newest-first order. */
@@ -108,9 +110,9 @@ sealed interface SessionEntry {
     @Serializable @SerialName("settings")
     data class Settings(val settings: SessionSettings, override val writtenAt: Long? = null) : SessionEntry
 
-    /** The user's name for the Session (null: from its first message) and whether it's a favorite, from here on; the model doesn't see it. */
+    /** The user's name for the Session (null: from its first message), whether it's a favorite and whether it's [hidden] from Agent tools, from here on; the model doesn't see it. */
     @Serializable @SerialName("details")
-    data class Details(val title: String? = null, val favorite: Boolean = false, override val writtenAt: Long? = null) : SessionEntry
+    data class Details(val title: String? = null, val favorite: Boolean = false, override val writtenAt: Long? = null, val hidden: Boolean = false) : SessionEntry
 
     /** How a Routine's run ended: [report] when it has [summary] for the user, else nothing was new; the model doesn't see it. */
     @Serializable @SerialName("outcome")
