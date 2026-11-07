@@ -89,6 +89,7 @@ class ArtifactsViewModelTest {
             assertNull(vm.state.value.draft)
 
             vm.saveDesign("""{"artboards":[]}""")
+            assertEquals("""{"artboards":[]}""", vm.state.value.open?.content)
             runCurrent()
             assertEquals("""{"artboards":[]}""", content)
             assertEquals(content, vm.state.value.open?.content)

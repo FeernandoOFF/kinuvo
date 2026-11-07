@@ -111,4 +111,13 @@ class ArtifactTest {
         assertTrue(!page.contains("allow-same-origin"))
         assertTrue(page.contains("Content-Security-Policy"))
     }
+
+    @Test
+    fun focusAndFillAreBakedIntoTheCanvas() {
+        val inner = frame(designDocument(sample, nonce = "abc", focus = "b", fill = true))
+        assertTrue(inner.contains("F=\"b\",FL=true;"))
+        assertTrue(frame(designDocument(sample, nonce = "abc")).contains("F=null,FL=false;"))
+        assertTrue(inner.contains("script-src 'nonce-abc'"))
+        assertTrue(frame(designDocument(sample, focus = "x\"</script>")).contains("F=\"x\\\"\\u003c/script>\""))
+    }
 }
