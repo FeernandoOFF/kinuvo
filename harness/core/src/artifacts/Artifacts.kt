@@ -89,6 +89,7 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
             require(design.artboards.map { it.id }.toSet().size == design.artboards.size) { "Artboard ids must be unique" }
             design.artboards.forEach {
                 require(it.width in 1..MAX_SIDE && it.height in 1..MAX_SIDE) { "Artboard '${it.id}' width and height must be 1..$MAX_SIDE" }
+                require(listOfNotNull(it.x, it.y).all { c -> c in -MAX_SIDE * 100..MAX_SIDE * 100 }) { "Artboard '${it.id}' x and y are out of range" }
             }
         }
 
