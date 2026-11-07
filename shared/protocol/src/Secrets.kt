@@ -46,3 +46,13 @@ fun isReference(value: String) = REFERENCE.matchEntire(value.trim()) != null
 fun secretPath(uri: String): List<String> = uri.substringAfter("://").split("/").map { part ->
     Regex("%([0-9A-Fa-f]{2})").replace(part) { it.groupValues[1].toInt(16).toChar().toString() }
 }
+
+/**
+ * The user's answer to a `request_secret`: a Secret reference they picked in a password manager, or a [value] they typed,
+ * which the Server keeps in memory for the Session and hands the Agent a `${secret://…}` reference to. Neither set declines.
+ */
+@Serializable
+data class SecretAnswer(val requestId: String, val reference: String? = null, val value: String? = null)
+
+/** The scheme of references to values the user typed for one Session; the Server holds them in memory only. */
+const val SESSION_SECRET_SCHEME = "secret"

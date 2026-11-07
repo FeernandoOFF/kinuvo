@@ -65,6 +65,13 @@ sealed interface AgentEvent {
     @Serializable @SerialName("QUESTIONS_ANSWERED")
     data class QuestionsAnswered(val toolCallId: String) : AgentEvent
 
+    /** `request_secret` waits for the user to pick a password manager item or type a value via `secret.respond`; the Agent only gets a reference to it. */
+    @Serializable @SerialName("SECRET_REQUESTED")
+    data class SecretRequested(val requestId: String, val toolCallId: String, val label: String, val reason: String? = null) : AgentEvent
+
+    @Serializable @SerialName("SECRET_RESOLVED")
+    data class SecretResolved(val toolCallId: String) : AgentEvent
+
     @Serializable @SerialName("TOOL_CALL_RESULT")
     data class ToolCallResult(val toolCallId: String, val content: String, val isError: Boolean, val identity: ToolIdentity? = null) : AgentEvent
 

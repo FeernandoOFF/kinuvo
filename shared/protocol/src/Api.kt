@@ -265,6 +265,8 @@ object Api {
     val ReviewReflection = Method("reflection.review", ReviewReflectionParams.serializer(), Unit.serializer())
     val Approve = Method("approval.respond", ApprovalParams.serializer(), Boolean.serializer())
     val Answer = Method("questions.respond", QuestionsParams.serializer(), Boolean.serializer())
+    /** Answers a `request_secret`; the value, if typed, is never stored in the transcript or sent to other clients. */
+    val RespondSecret = Method("secret.respond", SecretAnswer.serializer(), Boolean.serializer())
     /** Every Artifact, newest first. */
     val Artifacts = Method("artifacts.list", Unit.serializer(), ListSerializer(ArtifactInfo.serializer()))
     val Artifact = Method("artifact.get", ArtifactRef.serializer(), ArtifactData.serializer())

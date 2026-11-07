@@ -16,6 +16,7 @@ data class LiveState(
     val reasoning: String = "",
     val approval: AgentEvent.ApprovalRequested? = null,
     val questions: AgentEvent.QuestionsAsked? = null,
+    val secret: AgentEvent.SecretRequested? = null,
     val pending: List<ExecutionRequest> = emptyList(),
     val executionPhase: ExecutionPhase? = null,
     val entries: List<SessionEntry> = emptyList(),
@@ -49,14 +50,16 @@ data class LiveState(
         is AgentEvent.ApprovalResolved -> copy(approval = null)
         is AgentEvent.QuestionsAsked -> copy(questions = event)
         is AgentEvent.QuestionsAnswered -> copy(questions = null)
-        is AgentEvent.RunFinished, is AgentEvent.RunError -> copy(running = false, approval = null, questions = null, pending = emptyList())
+        is AgentEvent.SecretRequested -> copy(secret = event)
+        is AgentEvent.SecretResolved -> copy(secret = null)
+        is AgentEvent.RunFinished, is AgentEvent.RunError -> copy(running = false, approval = null, questions = null, secret = null, pending = emptyList())
         else -> this
     }
 
     val status: SessionStatus
         get() = when {
             !running -> SessionStatus.Idle
-            approval != null || questions != null || pending.isNotEmpty() -> SessionStatus.Waiting
+            approval != null || questions != null || secret != null || pending.isNotEmpty() -> SessionStatus.Waiting
             else -> SessionStatus.Running
         }
 
