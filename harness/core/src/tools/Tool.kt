@@ -53,7 +53,7 @@ object ToolNames {
     const val ROUTINE_REPORT = "routine_report"
     const val ARTIFACT = "artifact"
     const val DEVICE_TOOLS = "device_tools"
-    /** Read-only tools for the Agent's own Sessions and the Agents it can work with. */
+    /** Tools to read the Agent's own Sessions, see the Agents it can work with and delegate work to them. */
     const val AGENT_TOOLS = "agent_tools"
     const val RUN_CODE = "run_code"
     const val COMPUTER = "computer"

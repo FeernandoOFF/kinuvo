@@ -23,9 +23,10 @@ class AgentToolsTest {
         AgentSummary("bob", "Bob", "", ExecutionKind.Acp, null, null, false),
         AgentSummary("far", "Far", "Elsewhere", ExecutionKind.Remote, null, null, false),
     )
-    private val source = object : AgentToolsSource {
+    private val source = object : AgentToolsSource, AgentDelegation by FakeDelegation(store) {
         override suspend fun agents() = agents
         override suspend fun sessions(agentId: String) = store.sessions(agentId)
+        override suspend fun delegated(agentId: String) = agents.flatMap { store.sessions(it.id) }.filter { it.parent?.agentId == agentId }
         override suspend fun entries(agentId: String, sessionId: String) = store.entries(agentId, sessionId)
         override suspend fun live(sessionId: String) = LiveState()
     }
@@ -45,10 +46,10 @@ class AgentToolsTest {
 
     private fun args(vararg pairs: Pair<String, String>) = buildJsonObject { pairs.forEach { (k, v) -> put(k, v) } }
 
-    @Test fun everyToolIsLowRisk() {
+    @Test fun readToolsAreLowRisk() {
         val tools: List<Tool> = service.tools(CallerScope("ada", "s"))
-        assertEquals(setOf("agents_list", "sessions_list", "sessions_search", "sessions_read", "session_status"), tools.map { it.descriptor.name }.toSet())
-        assertTrue(tools.all { it.risk == kinuvo.protocol.Risk.Low })
+        assertEquals(setOf("agents_list", "sessions_list", "sessions_search", "sessions_read", "session_status", "delegate", "delegate_wait", "subagents"), tools.map { it.descriptor.name }.toSet())
+        assertEquals(setOf("delegate"), tools.filter { it.risk != kinuvo.protocol.Risk.Low }.map { it.descriptor.name }.toSet())
     }
 
     @Test fun agentsListSkipsRemoteAgents() = runTest {

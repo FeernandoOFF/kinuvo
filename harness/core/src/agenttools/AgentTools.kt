@@ -12,6 +12,9 @@ import kinuvo.protocol.Risk
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.SessionInfo
 import kinuvo.protocol.SessionStatus
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.atStartOfDayIn
@@ -35,36 +38,46 @@ data class AgentSummary(
     val onDevice: Boolean,
 )
 
-/** What the tools read; the Server supplies it. */
-interface AgentToolsSource {
+/** What the tools read and do; the Server supplies it. */
+interface AgentToolsSource : AgentDelegation {
     /** Agents the caller may work with: native and External, never ones reached through an execution grant. */
     suspend fun agents(): List<AgentSummary>
     suspend fun sessions(agentId: String): List<SessionInfo>
+    /** Sessions on any Agent that [agentId] delegated, hidden ones included. */
+    suspend fun delegated(agentId: String): List<SessionInfo>
     suspend fun entries(agentId: String, sessionId: String): List<SessionEntry>
     suspend fun live(sessionId: String): LiveState
 }
 
 /**
  * One tools service for every transport: native Agents get these as built-in tools, External Agents reach them over
- * MCP. Each call carries its [CallerScope]. Hidden Sessions never show up, for any caller.
+ * MCP. Each call carries its [CallerScope]. Hidden Sessions never show up, for any caller. [scope] runs background
+ * delegations, which outlive the call that started them.
  */
-class AgentTools(private val source: AgentToolsSource) {
-    fun tools(scope: CallerScope): List<Tool> = listOf(
+class AgentTools(private val source: AgentToolsSource, scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)) {
+    private val delegations = Delegations(source, scope)
+
+    /** A Session at [maxDepth] delegations deep, or deeper, gets no delegation tools. */
+    fun tools(scope: CallerScope, maxDepth: Int = DEFAULT_DELEGATION_DEPTH): List<Tool> = listOf(
         AgentsList(source, scope), SessionsList(source, scope), SessionsSearch(source, scope), SessionsRead(source, scope), SessionStatusTool(source, scope),
-    )
+    ) + if (scope.depth < maxDepth) delegations.tools(scope) else emptyList()
+
+    /** Stops the delegations still running under [sessionId], and theirs in turn. */
+    suspend fun stopChildren(sessionId: String) = delegations.stopChildren(sessionId)
 }
 
-private abstract class ReadTool(protected val source: AgentToolsSource, protected val scope: CallerScope) : Tool {
+internal abstract class ReadTool(protected val source: AgentToolsSource, protected val scope: CallerScope) : Tool {
     override val risk = Risk.Low
 
-    /** The caller's own visible Session [id]; any other is as good as missing. */
+    /** The caller's own visible Session or one it delegated, [id]; any other is as good as missing. */
     protected suspend fun own(id: String): SessionInfo =
-        requireNotNull(source.sessions(scope.agentId).firstOrNull { it.id == id && !it.hidden }) { "No Session '$id'" }
+        requireNotNull(visible().firstOrNull { it.id == id }) { "No Session '$id'" }
 
-    protected suspend fun visible() = source.sessions(scope.agentId).filter { !it.hidden }
+    protected suspend fun visible() = (source.sessions(scope.agentId) + source.delegated(scope.agentId)).distinctBy { it.id }.filter { !it.hidden }
 
     // Some providers send every optional parameter, blank when unused.
     protected fun JsonObject.clean() = JsonObject(filterValues { (it as? JsonPrimitive)?.content?.isNotBlank() != false })
+    protected fun JsonObject.bool(key: String) = string(key)?.let { it.toBooleanStrictOrNull() ?: throw IllegalArgumentException("'$key' must be true or false") } ?: false
     protected fun JsonObject.int(key: String) = string(key)?.let { requireNotNull(it.toIntOrNull()) { "'$key' must be a number" } }
     protected fun JsonObject.limit(default: Int, max: Int) = (int("limit") ?: default).coerceIn(1, max)
     protected fun JsonObject.since() = string("since")?.let { parseTime(it) }
@@ -131,7 +144,7 @@ private class SessionsSearch(source: AgentToolsSource, scope: CallerScope) : Rea
             ?: visible().filter { since == null || (it.createdAt ?: 0) >= since }.take(MAX_SCANNED)
         val hits = mutableListOf<String>()
         for (session in sessions) {
-            for ((ref, message) in source.entries(scope.agentId, session.id).messages().filter { it.second.role != "tool" }) {
+            for ((ref, message) in source.entries(session.agentId, session.id).messages().filter { it.second.role != "tool" }) {
                 val text = message.text
                 if (words.all { it in text.lowercase() }) hits += "${session.id} \"${session.title}\" #$ref ${message.role}: ${excerpt(text, words.first())}"
                 if (hits.size == limit) return hits.joinToString("\n")
@@ -159,7 +172,7 @@ private class SessionsRead(source: AgentToolsSource, scope: CallerScope) : ReadT
         val a = args.clean()
         val session = own(a.requireString("session_id"))
         val limit = a.limit(DEFAULT_READ, MAX_READ)
-        val all = source.entries(scope.agentId, session.id).messages()
+        val all = source.entries(session.agentId, session.id).messages()
         fun ref(key: String) = a.string(key)?.removePrefix("#")?.let { requireNotNull(it.toIntOrNull()) { "'$key' must be a message ref like #12" } }
         val page = when {
             ref("around") != null -> { val i = all.indexOfFirst { it.first >= ref("around")!! }.let { if (it < 0) all.size else it }; all.drop(maxOf(0, i - limit / 2)).take(limit) }
@@ -188,7 +201,7 @@ private class SessionStatusTool(source: AgentToolsSource, scope: CallerScope) : 
     override suspend fun execute(args: JsonObject): String {
         val session = own(args.clean().string("session_id") ?: requireNotNull(scope.sessionId) { "Missing 'session_id'" })
         val live = source.live(session.id)
-        val entries = source.entries(scope.agentId, session.id)
+        val entries = source.entries(session.agentId, session.id)
         val metrics = entries.filterIsInstance<SessionEntry.Measurement>().map { it.metrics }
         val waiting = listOfNotNull(
             live.approval?.let { "approval for ${it.toolCallName}" },

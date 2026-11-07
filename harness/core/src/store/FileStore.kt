@@ -98,7 +98,7 @@ class FileStore(private val files: AgentFiles, private val clock: () -> Long = {
             else -> Unit
         }
         return SessionInfo(sessionId, agentId, details.title ?: routine?.name ?: title ?: NEW_TITLE, routine = routine, settings = settings,
-            answered = answered, task = task, favorite = details.favorite, hidden = details.hidden, createdAt = createdAt(sessionId))
+            answered = answered, task = task, favorite = details.favorite, hidden = details.hidden, parent = details.parent, createdAt = createdAt(sessionId))
     }
 
     override suspend fun createSession(agentId: String, instructions: String, routine: RoutineRef?): SessionInfo {

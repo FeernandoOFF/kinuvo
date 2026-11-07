@@ -21,6 +21,8 @@ data class SessionInfo(
     val favorite: Boolean = false,
     /** A Hidden Session: its transcript is invisible to every Agent tool; only the user sees it. */
     val hidden: Boolean = false,
+    /** The Session that delegated this one; null for Sessions an Agent didn't delegate. */
+    val parent: SessionParent? = null,
     /** Epoch milliseconds, absent for legacy Sessions with no known creation time. */
     val createdAt: Long? = null,
     /** Frozen migration ordinal, in the original newest-first order. */
@@ -29,6 +31,10 @@ data class SessionInfo(
     /** The user's own Sessions, and a Routine's once it has something for the user or waits on them. */
     val inChats: Boolean get() = routine == null || answered || status == SessionStatus.Waiting
 }
+
+/** Where a delegated Session came from: [depth] counts the delegations from the Session the user started, so a child of that one is 1. */
+@Serializable
+data class SessionParent(val agentId: String, val sessionId: String, val depth: Int)
 
 /** A Task run's prompt: this first line, then the Task's details. */
 fun taskPrompt(id: String, title: String) = "[Task $id] $title"
@@ -110,9 +116,9 @@ sealed interface SessionEntry {
     @Serializable @SerialName("settings")
     data class Settings(val settings: SessionSettings, override val writtenAt: Long? = null) : SessionEntry
 
-    /** The user's name for the Session (null: from its first message), whether it's a favorite and whether it's [hidden] from Agent tools, from here on; the model doesn't see it. */
+    /** The user's name for the Session (null: from its first message), whether it's a favorite, whether it's [hidden] from Agent tools and which Session [parent] delegated it, from here on; the model doesn't see it. */
     @Serializable @SerialName("details")
-    data class Details(val title: String? = null, val favorite: Boolean = false, override val writtenAt: Long? = null, val hidden: Boolean = false) : SessionEntry
+    data class Details(val title: String? = null, val favorite: Boolean = false, override val writtenAt: Long? = null, val hidden: Boolean = false, val parent: SessionParent? = null) : SessionEntry
 
     /** How a Routine's run ended: [report] when it has [summary] for the user, else nothing was new; the model doesn't see it. */
     @Serializable @SerialName("outcome")
