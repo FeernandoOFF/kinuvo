@@ -58,4 +58,22 @@ class AgentToolsServerTest {
             assertEquals(401, withContext(Dispatchers.IO) { post(bearer, list) }.statusCode())
         } finally { client?.close(); server.stop(); dir.deleteRecursively() }
     }
+
+    @Test fun mcpIsReachableOnlyFromLoopbackWithoutForwarding() = runBlocking<Unit> {
+        val dir = Files.createTempDirectory("kinuvo-mcp-loopback").toFile()
+        val server = HarnessServer(Harness(home = Path(dir.path)))
+        val http = HttpClient.newHttpClient()
+        try {
+            val port = server.start("0.0.0.0", 0, schedule = false)
+            fun post(host: String, vararg headers: Pair<String, String>) = http.send(HttpRequest.newBuilder(URI("http://$host:$port/mcp")).apply {
+                header("Content-Type", "application/json"); headers.forEach { (k, v) -> header(k, v) }
+            }.POST(HttpRequest.BodyPublishers.ofString("""{"jsonrpc":"2.0","id":1,"method":"ping"}""")).build(), HttpResponse.BodyHandlers.ofString()).statusCode()
+            withContext(Dispatchers.IO) {
+                assertEquals(401, post("127.0.0.1"))
+                assertEquals(403, post("127.0.0.1", "X-Forwarded-For" to "203.0.113.9"))
+                assertEquals(403, post("127.0.0.1", "Origin" to "https://example.com"))
+                lanAddresses().firstOrNull()?.let { assertEquals(403, post(it)) }
+            }
+        } finally { server.stop(); dir.deleteRecursively() }
+    }
 }

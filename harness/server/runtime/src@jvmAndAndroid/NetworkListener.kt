@@ -116,8 +116,9 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                 post("/mcp") {
                     val peer = call.request.local.remoteAddress
                     val source = runCatching { network.source(peer, call.request.header("X-Forwarded-For")) }.getOrNull()
-                    // Only harnesses on the machine call it; a browser never does.
-                    if (call.request.header("Origin") != null) { limits.audit(peer, "mcp_origin"); call.respondText("Forbidden", status = HttpStatusCode.Forbidden); return@post }
+                    // Only harnesses on this machine call it: not a browser, not another host, and not a client a proxy forwards.
+                    val direct = InetAddress.getByName(peer).isLoopbackAddress && FORWARDING_HEADERS.none { call.request.header(it) != null }
+                    if (call.request.header("Origin") != null || !direct) { limits.audit(peer, "mcp_remote"); call.respondText("Forbidden", status = HttpStatusCode.Forbidden); return@post }
                     if (source == null || !limits.open(source)) { limits.audit(peer, "connection_limit"); call.respondText("Try again later", status = HttpStatusCode.TooManyRequests); return@post }
                     try {
                         val bytes = withTimeoutOrNull(10_000) { call.receiveChannel().readBuffer(MCP_BODY_LIMIT + 1).readByteArray() }
@@ -190,6 +191,7 @@ private fun WebSocketSession.connection(credential: String?, authenticate: (Fram
 
 private const val PREAUTH_FRAME_SIZE = 4096L
 private const val MCP_BODY_LIMIT = 1_000_000
+private val FORWARDING_HEADERS = listOf("X-Forwarded-For", "X-Forwarded-Proto", "Forwarded")
 private const val SESSION_COOKIE = "__Host-kinuvo-session"
 
 
