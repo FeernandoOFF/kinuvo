@@ -10,6 +10,8 @@ import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -96,7 +98,8 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
             designSaves.withLock {
                 val failed = state.value.errors.size
                 attempt {
-                    val info = client.call(Api.SaveArtifact, ArtifactSave(id, json))
+                    // Finishes even if the screen closes, so the last edit is never dropped.
+                    val info = withContext(NonCancellable) { client.call(Api.SaveArtifact, ArtifactSave(id, json)) }
                     state.update { if (it.open?.info?.id == id) it.copy(open = ArtifactData(info, json), errors = emptyList()) else it }
                 }
                 if (state.value.errors.size > failed) load()
