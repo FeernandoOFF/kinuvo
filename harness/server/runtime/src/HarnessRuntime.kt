@@ -62,6 +62,7 @@ import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.artifacts.ArtifactTool
 import kinuvo.harness.core.tools.AskUserTool
 import kinuvo.harness.core.tools.MemoryTool
+import kinuvo.harness.core.tools.RequestSecretTool
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.indexedTools
 import kinuvo.harness.core.tools.ToolNames
@@ -69,6 +70,7 @@ import kinuvo.harness.core.tools.ToolCatalog
 import kinuvo.harness.core.effective
 import kinuvo.harness.core.tools.WebSearch
 import kinuvo.harness.core.tools.WebSearchTool
+import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.RoutineApprovals
 import kinuvo.protocol.RoutineRef
@@ -256,7 +258,21 @@ open class HarnessRuntime(
         val agent = store.agents().firstOrNull { it.id == scope.agentId }
         val limit = agent?.config?.delegationDepth ?: DEFAULT_DELEGATION_DEPTH
         val manage = if (agent != null && ToolNames.AGENT_MANAGE in agent.config.tools) manageTools(scope, session?.hidden == true) else emptyList()
-        return PluginTools(agentTools.tools(scope.copy(depth = session?.parent?.depth ?: 0), limit) + manage).ownedBy(PluginInstanceId("kinuvo.core")).tools.withModelNames()
+        val secret = if ((agent == null || ToolNames.ASK_USER in agent.config.tools) && scope.sessionId != null) listOf(RequestSecretTool { label, reason -> askSecret(scope, label, reason) }) else emptyList()
+        return PluginTools(agentTools.tools(scope.copy(depth = session?.parent?.depth ?: 0), limit) + manage + secret).ownedBy(PluginInstanceId("kinuvo.core")).tools.withModelNames()
+    }
+
+    /** Shows the user a `request_secret` in [scope]'s Session; the reference they share, or null when they decline. */
+    private suspend fun askSecret(scope: CallerScope, label: String, reason: String?): String? {
+        val sessionId = requireNotNull(scope.sessionId) { "This needs a Session" }
+        val pending = secretRequests.register(SecretScope(scope.agentId, sessionId))
+        try {
+            log.publish(scope.agentId, sessionId, AgentEvent.SecretRequested(pending.id, pending.id, label, reason))
+            return pending.await()
+        } finally {
+            pending.close()
+            log.publish(scope.agentId, sessionId, AgentEvent.SecretResolved(pending.id))
+        }
     }
 
     private fun manageTools(scope: CallerScope, hidden: Boolean) = management?.let { AgentManageTools(it).tools(scope, hidden) }.orEmpty()
@@ -269,6 +285,8 @@ open class HarnessRuntime(
     }
     /** Pending `ask_user` forms; null answers mean skipped. */
     val questions = Broker<Map<String, List<String>>?>()
+    /** Pending `request_secret`s; the Agent only ever gets a reference to what the user answers. */
+    val secretRequests = SecretRequests(secrets)
     val uiCatalogs = SurfaceCatalogs()
 
     /**
@@ -399,6 +417,7 @@ open class HarnessRuntime(
             },
             routine = routine,
             questions = questions,
+            secretRequests = secretRequests,
             attach = { name, bytes -> attachments.upload(UploadAttachmentParams(name, Base64.encode(bytes))) },
         )
     }
@@ -502,6 +521,7 @@ open class HarnessRuntime(
             else -> null
         }
     } + if (ToolNames.SKILLS in agent.config.tools) skillTools(agent) else emptyList() } +
+        (if (ToolNames.ASK_USER in e.agent.config.tools && routine?.routine?.approvals != RoutineApprovals.Deny) listOf(RequestSecretTool()) else emptyList()) +
         (if (ToolNames.AGENT_TOOLS in e.agent.config.tools) agentTools.tools(CallerScope(e.agent.id, sessionId, e.depth), e.agent.config.delegationDepth) else emptyList()) +
         (if (ToolNames.AGENT_MANAGE in e.agent.config.tools) manageTools(CallerScope(e.agent.id, sessionId, e.depth), e.hidden) else emptyList()) + listOfNotNull(routine?.let(::RoutineReportTool))
 

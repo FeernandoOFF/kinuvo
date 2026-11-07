@@ -570,6 +570,7 @@ class ServerRuntime(
         Api.ReviewReflection.name -> respond(r, Api.ReviewReflection) { reflectionReview.respond(agent(it.agentId), it.sessionId, it.proposalId, it.approve, it.note) }
         Api.Approve.name -> respond(r, Api.Approve) { harness.approvals.respond(it.approvalId, it.decision) }
         Api.Answer.name -> respond(r, Api.Answer) { harness.questions.respond(it.questionsId, it.answers) }
+        Api.RespondSecret.name -> respond(r, Api.RespondSecret) { harness.secretRequests.respond(it) }
         Api.Artifacts.name -> respond(r, Api.Artifacts) { harness.artifacts.list() }
         Api.Artifact.name -> respond(r, Api.Artifact) { harness.artifacts.get(it.id) }
         Api.SaveArtifact.name -> respond(r, Api.SaveArtifact) { harness.artifacts.replace(it.id, it.content) }
