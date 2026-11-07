@@ -11,7 +11,7 @@ As a Session grows, Compaction replaces older context with a summary so it can c
 
 Routines can create a fresh Session for each run or continue a selected Session. Task runs are linked from the Board. [Reflection](reflection.md) reviews finished conversations to curate durable information.
 
-Each Session belongs to one Agent.
+Each Session belongs to one Agent. An Agent can list, search and read its own past Sessions and check their status with the `agent_tools` group; it never sees another Agent's Sessions or a Hidden Session. External Agents get the same tools over MCP, subject to the same Approvals.
 
 See [Agent configuration](../reference/agent.md) and [Routines and Tasks](routines-and-tasks.md).
 
@@ -19,6 +19,7 @@ See [Agent configuration](../reference/agent.md) and [Routines and Tasks](routin
 
 **Future enhancements**
 
-- **Rooms**: a lasting conversation space defined by its members, you and one or more Agents.
+- **Teams**: a named group of Agents that share Artifacts; a Session can include several Team members through @mention.
+- **Delegation**: an Agent hands work to another in a child Session, optionally a Hidden Session whose transcript no Agent tool can see ([plan](../plans/2026-11-07-agent-collaboration-design.md)).
 
 </div>
