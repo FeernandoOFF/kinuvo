@@ -541,6 +541,7 @@ class ServerRuntime(
         Api.DeleteAgent.name -> respond(r, Api.DeleteAgent) { admin.delete(it.agentId) }
         Api.Sessions.name -> respond(r, Api.Sessions) { harness.log.page(it.agentId, it.before, it.limit.coerceIn(1, MAX_PAGE), it.routineId) }
         Api.Session.name -> respond(r, Api.Session) { harness.log.session(it.agentId, it.sessionId) }
+        Api.SessionChildren.name -> respond(r, Api.SessionChildren) { harness.children(it.sessionId) }
         Api.Skills.name -> respond(r, Api.Skills) { admin.skills(agent(it.agentId)) }
         Api.Skill.name -> respond(r, Api.Skill) { admin.skill(agent(it.agentId), it.name, it.scope) }
         Api.SaveSkill.name -> respond(r, Api.SaveSkill) { admin.saveSkill(it) }

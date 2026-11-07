@@ -14,6 +14,7 @@ import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
 import kinuvo.app.session.CompletionSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -121,7 +122,9 @@ fun List<ChatItem>.requestMetrics(): List<RequestMetrics> = flatMap {
 
 private fun ChatItem.isStep() = when (this) {
     is ChatItem.Reasoning -> true
-    is ChatItem.ToolCall -> if (name == "generate_image") waiting || isError
+    // Delegations stay on their own row, so the Sessions they run are never folded away.
+    is ChatItem.ToolCall -> if (name == "delegate") false
+        else if (name == "generate_image") waiting || isError
         else !waiting && !(name in setOf("ask_user", "artifact", "show_ui") && result != null && !isError)
     else -> false
 }
@@ -221,6 +224,8 @@ data class SessionState(
     val voiceRequested: Boolean = false,
     /** An external Agent's Session as its harness runs it, with what it waits on. */
     val resuming: Boolean = false,
+    /** The Sessions this one delegated to, oldest first, kept current from the Server's events. */
+    val children: List<SessionInfo> = emptyList(),
 ) {
     val prompts get() = data?.live?.pending.orEmpty().map { it.displayPrompt() }
     val phase get() = data?.live?.executionPhase
@@ -285,6 +290,13 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         viewModelScope.launch {
             client.events(Api.SessionChanged).collect { info ->
                 if (info.id == route.sessionId && !ordered.isLocked) state.update { it.copy(info = info, settings = info.settings) }
+            }
+        }
+        viewModelScope.launch {
+            state.map { it.route.agentId to it.route.sessionId }.distinctUntilChanged().collectLatest { (agent, session) ->
+                if (agent == null || session == null) return@collectLatest state.update { it.copy(children = emptyList()) }
+                repo.loadChildren(agent, session)
+                repo.state.map { it.children[session].orEmpty() }.distinctUntilChanged().collect { children -> state.update { it.copy(children = children) } }
             }
         }
     }

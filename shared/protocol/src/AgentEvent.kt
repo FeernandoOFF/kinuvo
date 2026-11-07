@@ -51,6 +51,8 @@ sealed interface AgentEvent {
         /** False when "Always allow" can't be offered, e.g. for a command that can't be checked. */
         val trustable: Boolean = true,
         val identity: ToolIdentity? = null,
+        /** What the call would change, shown field by field; [reason] carries it as text too. */
+        val preview: ChangePreview? = null,
     ) : AgentEvent
 
     @Serializable @SerialName("APPROVAL_RESOLVED")

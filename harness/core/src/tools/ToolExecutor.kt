@@ -3,6 +3,7 @@ package kinuvo.harness.core.tools
 import kinuvo.harness.core.plugin.*
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.harness.core.*
+import kinuvo.protocol.ChangePreview
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision
@@ -46,9 +47,13 @@ class ToolExecutor(
         val tool = toolsByName[call.name]
         val verdict = tool?.let { approvals.policy?.decide(it, call.args) } ?: Verdict.Run
         var change: String? = null
+        var preview: ChangePreview? = null
         val binding = try {
             if (verdict is Verdict.Block || tool == null) null else ProtocolJson.parseToJsonElement(call.args).jsonObject.let { args ->
-                if (verdict is Verdict.Ask) change = tool.describe(args)
+                if (verdict is Verdict.Ask) {
+                    preview = tool.preview(args)
+                    change = preview?.text() ?: tool.describe(args)
+                }
                 tool.bind(args)
             }
         }
@@ -68,7 +73,7 @@ class ToolExecutor(
                         ToolKind.ComputerAction -> verdict.trustKeys.joinToString(", ") { it.removePrefix("${tool.policyKey} ") }
                         else -> ""
                     }.ifEmpty { null }
-                    emit(AgentEvent.ApprovalRequested(pending.id, approvalId, call.name, call.args, hint, a.risk, listOfNotNull(a.reason, change).joinToString("\n").ifEmpty { null }, verdict.trustKeys.isNotEmpty(), tool?.identity))
+                    emit(AgentEvent.ApprovalRequested(pending.id, approvalId, call.name, call.args, hint, a.risk, listOfNotNull(a.reason, change).joinToString("\n").ifEmpty { null }, verdict.trustKeys.isNotEmpty(), tool?.identity, preview))
                     val wait = approvals.wait
                     val answer = if (wait == null) pending.await() else withTimeoutOrNull(wait) { pending.await() }
                     stopped("Cancelled by user")

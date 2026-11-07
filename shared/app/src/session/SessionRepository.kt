@@ -52,6 +52,8 @@ data class RepositoryState(
     val lists: Map<String, SessionList> = emptyMap(),
     val skills: Map<String, List<SkillInfo>> = emptyMap(),
     val finished: Set<String> = emptySet(),
+    /** The Sessions each Session delegated to, oldest first, by parent Session ID. */
+    val children: Map<String, List<SessionInfo>> = emptyMap(),
 )
 
 /**
@@ -139,6 +141,13 @@ class SessionRepository(private val notifications: Notifications, internal val c
         }
     }
 
+    /** Loads the Sessions [sessionId] delegated to; events keep them current from then on. */
+    fun loadChildren(agentId: String, sessionId: String) = scope.launch {
+        val children = catching { client?.call(Api.SessionChildren, SessionParams(agentId, sessionId)) }.getOrNull() ?: return@launch
+        // Events that arrived meanwhile are newer than this listing.
+        state.update { it.copy(children = it.children + (sessionId to children.merged(it.children[sessionId].orEmpty()))) }
+    }
+
     fun loadSkills(agentId: String) = scope.launch {
         val skills = catching { client?.call(Api.Skills, AgentRef(agentId)) }.getOrNull() ?: return@launch
         state.update { it.copy(skills = it.skills + (agentId to skills)) }
@@ -210,6 +219,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
     }
 
     private fun onChanged(info: SessionInfo) {
+        info.parent?.let { parent -> state.update { it.copy(children = it.children + (parent.sessionId to it.children[parent.sessionId].orEmpty().merged(listOf(info)))) } }
         // A Routine's Sessions join the chats once they have something for the user; its finished runs are announced as Routine runs.
         listChanges[info.agentId]?.set(info.id, info)
         state.update { s ->
@@ -359,3 +369,6 @@ private fun SessionData.withReceiptTimes(previous: SessionData?): SessionData {
     val now = Clock.System.now().toEpochMilliseconds()
     return copy(receivedAt = receivedAt + fresh.associate { it.id to now })
 }
+
+/** These Sessions with [newer]'s versions in place of theirs, oldest first. */
+private fun List<SessionInfo>.merged(newer: List<SessionInfo>) = (filter { s -> newer.none { it.id == s.id } } + newer).sortedBy { it.createdAt ?: 0 }

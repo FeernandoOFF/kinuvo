@@ -13,8 +13,10 @@ import kinuvo.harness.core.tools.requireString
 import kinuvo.harness.core.tools.string
 import kinuvo.protocol.AgentDetails
 import kinuvo.protocol.AgentInfo
+import kinuvo.protocol.ChangePreview
 import kinuvo.protocol.ConfigScope
 import kinuvo.protocol.CreateAgentParams
+import kinuvo.protocol.FieldChange
 import kinuvo.protocol.McpAuthStatus
 import kinuvo.protocol.McpLoginCompleteParams
 import kinuvo.protocol.McpLoginParams
@@ -88,28 +90,15 @@ private abstract class ManageTool(protected val management: AgentManagement, pro
 }
 
 private class Changes {
-    private val lines = mutableListOf<String>()
-    val isEmpty get() = lines.isEmpty()
+    private val fields = mutableListOf<FieldChange>()
+    val isEmpty get() = fields.isEmpty()
 
     fun field(label: String, old: String?, new: String?) {
-        if (new != null && new != old) lines += "$label: ${show(old)} → ${show(new)}"
+        if (new != null && new != old) fields += FieldChange(label, old?.takeIf { it.isNotBlank() }, new)
     }
 
-    fun text(heading: String) = if (isEmpty) "$heading: no changes." else "$heading:\n" + lines.joinToString("\n") { "- $it" }
-
-    private fun show(value: String?): String {
-        val text = value?.trim().orEmpty()
-        return when {
-            text.isEmpty() -> "(none)"
-            '\n' !in text && text.length <= SHORT -> text
-            else -> "\"" + text.take(EXCERPT).replace('\n', ' ') + (if (text.length > EXCERPT) "…" else "") + "\" (${text.length} characters)"
-        }
-    }
-
-    private companion object {
-        const val SHORT = 120
-        const val EXCERPT = 400
-    }
+    fun preview(title: String, note: String? = null) = ChangePreview(title, fields.toList(), note = note)
+    fun text(title: String) = preview(title).text()
 }
 
 private fun model(provider: String, model: String) = "$provider/$model"
@@ -158,7 +147,7 @@ private class AgentUpdate(management: AgentManagement, scope: CallerScope) : Man
 
     override fun assess(args: JsonObject) = asks("Changes this Agent's own settings")
 
-    override suspend fun describe(args: JsonObject) = plan(args).second.text("Changes to ${scope.agentId}")
+    override suspend fun preview(args: JsonObject) = plan(args).second.preview("Changes to ${scope.agentId}")
 
     override suspend fun execute(args: JsonObject): String {
         val (params, changes) = plan(args)
@@ -226,7 +215,7 @@ private class AgentCreate(management: AgentManagement, scope: CallerScope) : Man
 
     override fun assess(args: JsonObject) = asks("Creates a new Agent")
 
-    override suspend fun describe(args: JsonObject): String {
+    override suspend fun preview(args: JsonObject): ChangePreview {
         val a = args.clean()
         val name = a.requireString("name")
         return Changes().apply {
@@ -234,7 +223,7 @@ private class AgentCreate(management: AgentManagement, scope: CallerScope) : Man
             field("Identity", null, a.string("identity"))
             field("Soul", null, a.string("soul"))
             field("Model", null, a.string("model")?.let { model(a.string("provider") ?: "default provider", it) })
-        }.text("New Agent")
+        }.preview("New Agent")
     }
 
     override suspend fun execute(args: JsonObject): String {
@@ -290,14 +279,14 @@ private class McpAdd(management: AgentManagement, scope: CallerScope) : ManageTo
 
     override fun assess(args: JsonObject) = asks("Adds an MCP server, which can run code on the Server or send data to a service")
 
-    override suspend fun describe(args: JsonObject): String {
+    override suspend fun preview(args: JsonObject): ChangePreview {
         val s = server(args)
         val old = management.mcpServers(scope.agentId).firstOrNull { it.name == s.name && it.scope == ConfigScope.Agent }
         return Changes().apply {
             field("MCP server", old?.let { "${it.name} [${connection(it)}]" }, "${s.name} [${connection(s)}]")
             field("Environment", old?.env?.keys?.joinToString(), s.env.keys.joinToString().takeIf { s.env.isNotEmpty() })
             field("Headers", old?.headers?.keys?.joinToString(), s.headers.keys.joinToString().takeIf { s.headers.isNotEmpty() })
-        }.text(if (old == null) "Adds an MCP server to ${scope.agentId}" else "Replaces an MCP server of ${scope.agentId}") + "\nValues are not shown."
+        }.preview(if (old == null) "Adds an MCP server to ${scope.agentId}" else "Replaces an MCP server of ${scope.agentId}", note = "Values are not shown.")
     }
 
     override suspend fun execute(args: JsonObject): String {
@@ -325,9 +314,9 @@ private class McpRemove(management: AgentManagement, scope: CallerScope) : Manag
 
     override fun assess(args: JsonObject) = asks("Removes an MCP server and its sign-in")
 
-    override suspend fun describe(args: JsonObject): String {
+    override suspend fun preview(args: JsonObject): ChangePreview {
         val s = own(args.requireString("name"))
-        return Changes().apply { field("MCP server", "${s.name} [${s.url ?: s.command}]", "(removed)") }.text("Removes an MCP server from ${scope.agentId}")
+        return Changes().apply { field("MCP server", "${s.name} [${s.url ?: s.command}]", "(removed)") }.preview("Removes an MCP server from ${scope.agentId}")
     }
 
     override suspend fun execute(args: JsonObject): String {
@@ -401,10 +390,10 @@ private class SessionConfigure(management: AgentManagement, scope: CallerScope) 
 
     override fun assess(args: JsonObject) = asks("Changes this Session's model", Risk.Medium)
 
-    override suspend fun describe(args: JsonObject): String {
+    override suspend fun preview(args: JsonObject): ChangePreview {
         val (session, settings, changes) = plan(args)
         management.check(session.agentId, session.id, settings)
-        return changes.text("Changes to this Session")
+        return changes.preview("Changes to this Session")
     }
 
     override suspend fun execute(args: JsonObject): String {
