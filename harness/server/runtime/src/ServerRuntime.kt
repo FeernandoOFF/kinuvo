@@ -548,7 +548,7 @@ class ServerRuntime(
         Api.Answer.name -> respond(r, Api.Answer) { harness.questions.respond(it.questionsId, it.answers) }
         Api.Artifacts.name -> respond(r, Api.Artifacts) { harness.artifacts.list() }
         Api.Artifact.name -> respond(r, Api.Artifact) { harness.artifacts.get(it.id) }
-        Api.SaveArtifact.name -> respond(r, Api.SaveArtifact) { harness.artifacts.edit(it.id, it.content) }
+        Api.SaveArtifact.name -> respond(r, Api.SaveArtifact) { harness.artifacts.replace(it.id, it.content) }
         Api.DeleteArtifact.name -> respond(r, Api.DeleteArtifact) { harness.artifacts.delete(it.id) }
         Api.Routines.name -> respond(r, Api.Routines) { harness.routines.list(agent(it.agentId)) }
         Api.CreateRoutine.name -> respond(r, Api.CreateRoutine) { p ->

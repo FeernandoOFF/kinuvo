@@ -447,9 +447,9 @@ class ScreenshotTest {
         )
         val team = listOf(agent, AgentInfo("research", "Researcher", "container"))
         render("artifacts-wide", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(artifacts, team, 1_790_000_600_000L, ArtifactsActions()) } }
-        val editing = artifacts.copy(draft = "# Lisbon\n\n- Flights under €250\n- Hotel near Alfama", base = 1_790_000_300_000L)
+        val editing = artifacts.copy(draft = ArtifactDraft("# Lisbon\n\n- Flights under €250\n- Hotel near Alfama", 1_790_000_300_000L))
         render("artifacts-editing", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(editing, team, 1_790_000_600_000L, ArtifactsActions()) } }
-        render("artifacts-editing-stale", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(editing.copy(base = 1L), team, 1_790_000_600_000L, ArtifactsActions()) } }
+        render("artifacts-editing-stale", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(editing.copy(draft = editing.draft?.copy(base = 1L)), team, 1_790_000_600_000L, ArtifactsActions()) } }
         render("artifacts-full-screen", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(artifacts.copy(route = Route.Artifacts("plan-1", fullScreen = true)), team, 1_790_000_600_000L, ArtifactsActions()) } }
         render("nav-phone-artifacts", 390, 844) {
             HarnessTheme(dark = true) { CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch, LocalHomeChrome provides HomeChrome({}, wide = false)) {

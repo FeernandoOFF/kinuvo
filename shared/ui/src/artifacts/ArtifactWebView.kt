@@ -19,14 +19,14 @@ private fun csp(script: String) = "<meta data-kinuvo-editor http-equiv=\"Content
     "script-src $script; style-src 'unsafe-inline' https:; img-src data: blob: https:; " +
     "font-src data: https:; media-src data: blob:; form-action 'none'; base-uri 'none'\">"
 
-private const val RUN = "'unsafe-inline' 'unsafe-eval' https:"
+private const val ARTIFACT_SCRIPTS = "'unsafe-inline' 'unsafe-eval' https:"
 
 /**
  * A trusted head with the policy, then the artifact as is: browsers fold its own `<html>`/`<head>` into this document, so
  * nothing in it (comments, attributes) can move the policy, and it can only add stricter ones. Visual editing drops these
  * marked tags when it saves.
  */
-internal fun sandboxed(html: String, script: String = RUN) =
+internal fun sandboxed(html: String, script: String = ARTIFACT_SCRIPTS) =
     "<!doctype html><html><head><meta data-kinuvo-editor charset=\"utf-8\">${csp(script)}</head>${html.replace(EDITOR_POLICY, "")}"
 
 /** The visual editor's policy without its marker, as some saved Artifacts carry it; left in, it blocks every script. */

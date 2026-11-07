@@ -68,14 +68,14 @@ class ArtifactsViewModelTest {
             info = info.copy(updated = 2); content = "<p>agent</p>"
             frames.send(Frame.Event(Api.ArtifactChanged.name, ProtocolJson.encodeToJsonElement(ArtifactChange("a1", info)), 1))
             runCurrent()
-            assertEquals("<p>mine</p>", vm.state.value.draft)
+            assertEquals("<p>mine</p>", vm.state.value.draft?.text)
             assertTrue(vm.state.value.stale)
             vm.keepMine()
             assertFalse(vm.state.value.stale)
 
             failSave = true
             vm.save(); runCurrent()
-            assertEquals("<p>mine</p>", vm.state.value.draft)
+            assertEquals("<p>mine</p>", vm.state.value.draft?.text)
             assertTrue(vm.state.value.errors.isNotEmpty())
             assertFalse(vm.state.value.saving)
 
