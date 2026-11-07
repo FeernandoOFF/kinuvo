@@ -70,6 +70,7 @@ class ArtifactsActions(
     val onSave: () -> Unit = {},
     val onCancel: () -> Unit = {},
     val onKeepMine: () -> Unit = {},
+    val onSaveDesign: (String) -> Unit = {},
 )
 
 @Composable
@@ -152,10 +153,15 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
             data == null -> (if (state.missing) "This artifact was deleted." else state.errors.lastOrNull())
                 ?.let { ErrorMessage(it, Modifier.align(Alignment.Center).padding(Spacing.space24)) } ?: Spinner(Modifier.align(Alignment.Center))
             editing -> ArtifactEditor(data, state, actions, tab, wide, Modifier.padding(top = controls))
-            data.info.isDesign -> key(data.info.updated) {
-                DesignCanvas(data.content, background, Modifier.fillMaxSize().padding(top = controls), if (visualEditing) { id ->
-                    design?.artboards?.indexOfFirst { it.id == id }?.takeIf { it >= 0 }?.let { viewing = Viewing(it, false) }
-                } else null)
+            data.info.isDesign -> key(data.info.id) {
+                val sent = remember { mutableSetOf<String>() }
+                var shown by remember { mutableStateOf(data.content) }
+                LaunchedEffect(data.content) { if (data.content !in sent) shown = data.content }
+                DesignCanvas(
+                    shown, background, Modifier.fillMaxSize().padding(top = controls),
+                    if (visualEditing) { id -> design?.artboards?.indexOfFirst { it.id == id }?.takeIf { it >= 0 }?.let { viewing = Viewing(it, false) } } else null,
+                    if (visualEditing) { json -> sent += json; if (sent.size > 16) sent.remove(sent.first()); actions.onSaveDesign(json) } else null,
+                )
             }
             data.info.web -> key(data.info.updated) {
                 HtmlView(data.info.page(data.content), Modifier.fillMaxSize().padding(top = controls), fade = color(backgroundColor))
@@ -165,6 +171,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                 else CodeBlock(data.content, language = data.info.type)
             }
         }
+        if (data?.info?.isDesign == true && !editing) state.errors.lastOrNull()?.let { Pill(it, Modifier.align(Alignment.BottomCenter).padding(Spacing.space16), tone = Tone.Danger, icon = Lucide.CircleX) }
         val chrome = LocalWindowChrome.current
         val leading = back != null || state.route.fullScreen
         Row(

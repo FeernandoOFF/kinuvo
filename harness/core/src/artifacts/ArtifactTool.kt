@@ -80,7 +80,7 @@ class ArtifactTool(
                 val design = Artifacts.parseDesign(current)
                 val old = design.artboards.firstOrNull { it.id == board }
                 require(old != null || html != null) { "A new artboard needs html" }
-                val next = Artboard(board, name ?: old?.name ?: board, width ?: old?.width ?: 390, height ?: old?.height ?: 844, html ?: old?.html.orEmpty())
+                val next = Artboard(board, name ?: old?.name ?: board, width ?: old?.width ?: 390, height ?: old?.height ?: 844, old?.x, old?.y, html ?: old?.html.orEmpty())
                 Artifacts.encodeDesign(design.copy(artboards = if (old == null) design.artboards + next else design.artboards.map { if (it.id == board) next else it }))
             })
         }

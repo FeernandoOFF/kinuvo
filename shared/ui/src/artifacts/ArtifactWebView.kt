@@ -41,9 +41,9 @@ internal fun topFade(c: Color): String {
 
 internal fun attr(text: String) = text.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;")
 
-internal fun framed(inner: String, extra: String = ""): String {
+internal fun framed(inner: String, extra: String = "", viewport: String = "width=device-width,initial-scale=1"): String {
     val content = attr(inner)
-    return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>" +
+    return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"$viewport\"></head>" +
         "<body style=\"margin:0\"><iframe id=\"f\" title=\"Artifact\" sandbox=\"allow-scripts\" referrerpolicy=\"no-referrer\" " +
         "style=\"border:0;width:100%;height:100vh\" srcdoc=\"$content\"></iframe>$extra</body></html>"
 }

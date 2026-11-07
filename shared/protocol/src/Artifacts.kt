@@ -34,12 +34,14 @@ data class ArtifactChange(val id: String, val info: ArtifactInfo? = null)
 @Serializable
 data class Design(val artboards: List<Artboard> = emptyList())
 
-/** One page of a [Design]: a self-contained [html] document shown at [width] x [height]. */
+/** One page of a [Design]: a self-contained [html] document shown at [width] x [height]; [x] and [y] place it on the canvas, null in a row. */
 @Serializable
 data class Artboard(
     val id: String,
     val name: String = id,
     val width: Int = 390,
     val height: Int = 844,
+    val x: Int? = null,
+    val y: Int? = null,
     val html: String,
 )
