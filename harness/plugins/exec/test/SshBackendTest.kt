@@ -30,6 +30,17 @@ class SshBackendTest {
         assertEquals("it's \"q\"\nline|piped", p.inputStream.bufferedReader().readText())
     }
 
+    @Test
+    fun perCallEnvironmentArrivesOnStdinToo() {
+        val b = SshBackend("box", null, null, null, listOf("/tmp"), emptyMap(), control)
+        val extra = mapOf("TOKEN" to "s3cret")
+        val command = b.remoteCommand("printf '%s' \"\$TOKEN\"", "/tmp", extra)
+        assertTrue("s3cret" !in command)
+        val p = ProcessBuilder("sh", "-c", command).start()
+        p.outputStream.use { it.write(b.input(null, extra)!!.toByteArray()) }
+        assertEquals("s3cret", p.inputStream.bufferedReader().readText())
+    }
+
     /** KINUVO_SSH_TARGET=user@host KINUVO_SSH_DIR=/abs/remote/dir to run against a real machine. */
     @Test
     fun runsOnRealHost() {
