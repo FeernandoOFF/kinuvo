@@ -52,12 +52,12 @@ class ArtifactsTest {
     @Test
     fun userEditKeepsTheAgentAndSession() = runTest {
         val created = artifacts.create("main", "s1", "Page", "html", "<p>a</p>")
-        val edited = artifacts.edit(created.id, "<p>b</p>")
+        val edited = artifacts.replace(created.id, "<p>b</p>")
         assertEquals("<p>b</p>", artifacts.get(created.id).content)
         assertEquals(created.copy(updated = edited.updated), edited)
         assertTrue(edited.updated > created.updated)
-        assertFailsWith<IllegalArgumentException> { artifacts.edit(created.id, "x".repeat(Artifacts.MAX_CHARS + 1)) }
-        assertFailsWith<IllegalStateException> { artifacts.edit("nope", "x") }
+        assertFailsWith<IllegalArgumentException> { artifacts.replace(created.id, "x".repeat(Artifacts.MAX_CHARS + 1)) }
+        assertFailsWith<IllegalStateException> { artifacts.replace("nope", "x") }
     }
 
     @Test

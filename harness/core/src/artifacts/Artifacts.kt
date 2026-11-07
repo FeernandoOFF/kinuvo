@@ -50,7 +50,7 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
     }
 
     /** Replaces [id]'s content by the user, keeping the Agent and Session it was last saved from. */
-    suspend fun edit(id: String, content: String): ArtifactInfo = lock.withLock {
+    suspend fun replace(id: String, content: String): ArtifactInfo = lock.withLock {
         find(id).info.copy(updated = clock()).also { save(it, content) }
     }
 

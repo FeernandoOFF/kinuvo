@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 
+/** The open Artifact's source being edited; [base] is its [ArtifactInfo.updated] when editing began. */
+data class ArtifactDraft(val text: String, val base: Long)
+
 /** [all] is null until loaded; [open] is the [Route.Artifacts.artifact] being shown. */
 data class ArtifactsState(
     val route: Route.Artifacts,
@@ -25,15 +28,13 @@ data class ArtifactsState(
     /** The open Artifact was deleted, or never existed. */
     val missing: Boolean = false,
     val errors: List<String> = emptyList(),
-    /** The open Artifact's source being edited; null when not editing. */
-    val draft: String? = null,
-    /** [ArtifactInfo.updated] of the open Artifact when editing began. */
-    val base: Long = 0,
+    /** Null when not editing. */
+    val draft: ArtifactDraft? = null,
     val saving: Boolean = false,
 ) {
     /** The open Artifact changed since editing began. */
-    val stale get() = draft != null && open != null && open.info.updated != base
-    val dirty get() = draft != null && draft != open?.content
+    val stale get() = draft != null && open != null && open.info.updated != draft.base
+    val dirty get() = draft != null && draft.text != open?.content
 
     val shown get() = all.orEmpty().filter { (agent == null || it.agentId == agent) && (query.isBlank() || it.title.contains(query, ignoreCase = true)) }
 }
@@ -58,12 +59,12 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
         viewModelScope.launch { attempt { client.call(Api.DeleteArtifact, ArtifactRef(id)) } }
     }
 
-    fun edit() = state.update { s -> s.open?.let { s.copy(draft = it.content, base = it.info.updated, errors = emptyList()) } ?: s }
+    fun edit() = state.update { s -> s.open?.let { s.copy(draft = ArtifactDraft(it.content, it.info.updated), errors = emptyList()) } ?: s }
 
-    fun change(text: String) = state.update { if (it.draft != null) it.copy(draft = text) else it }
+    fun change(text: String) = state.update { if (it.draft != null) it.copy(draft = it.draft.copy(text = text)) else it }
 
     /** Keeps the draft over the newer version. */
-    fun keepMine() = state.update { s -> s.copy(base = s.open?.info?.updated ?: s.base) }
+    fun keepMine() = state.update { s -> s.copy(draft = s.draft?.copy(base = s.open?.info?.updated ?: s.draft.base)) }
 
     fun cancel() {
         state.update { it.copy(draft = null) }
@@ -77,8 +78,8 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
         state.update { it.copy(saving = true) }
         viewModelScope.launch {
             attempt {
-                val info = client.call(Api.SaveArtifact, ArtifactSave(id, draft))
-                state.update { it.copy(open = ArtifactData(info, draft), draft = null, errors = emptyList()) }
+                val info = client.call(Api.SaveArtifact, ArtifactSave(id, draft.text))
+                state.update { it.copy(open = ArtifactData(info, draft.text), draft = null, errors = emptyList()) }
             }
             state.update { it.copy(saving = false) }
         }
