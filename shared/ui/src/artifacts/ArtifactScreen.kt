@@ -133,8 +133,6 @@ private fun ArtifactList(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
     }
 }
 
-private val Float32 = 32.dp
-
 /** Content fills the pane; the back button, the actions or the editing controls float over it. HTML and SVG render in a web view, Markdown as text, anything else as code. */
 @Composable
 private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions, back: (() -> Unit)?) {
@@ -142,7 +140,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
     val editing = state.draft != null
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val wide = maxWidth >= 700.dp
-        val tabs = data?.let { editorTabs(it.info.type, wide) }.orEmpty()
+        val tabs = data?.info?.editorTabs(wide, visualEditing).orEmpty()
         var chosen by remember(editing) { mutableStateOf(tabs.firstOrNull()) }
         val tab = chosen?.takeIf { it in tabs } ?: tabs.firstOrNull()
         val density = LocalDensity.current
@@ -151,8 +149,8 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
             data == null -> (if (state.missing) "This artifact was deleted." else state.errors.lastOrNull())
                 ?.let { ErrorMessage(it, Modifier.align(Alignment.Center).padding(Spacing.space24)) } ?: Spinner(Modifier.align(Alignment.Center))
             editing -> ArtifactEditor(data, state, actions, tab, wide, Modifier.padding(top = controls))
-            data.info.type == "html" || data.info.type == "svg" -> key(data.info.updated) {
-                HtmlView(if (data.info.type == "svg") "<html><body style=\"margin:0\">${data.content}</body></html>" else data.content, Modifier.fillMaxSize().padding(top = controls), fade = color(backgroundColor))
+            data.info.web -> key(data.info.updated) {
+                HtmlView(data.info.page(data.content), Modifier.fillMaxSize().padding(top = controls), fade = color(backgroundColor))
             }
             else -> SelectionContainer(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = Spacing.space24, end = Spacing.space24, top = controls + Spacing.space8, bottom = Spacing.space24)) {
                 if (data.info.type == "md") Markdown(data.content, Modifier.fillMaxWidth())
@@ -171,7 +169,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
             if (data != null) {
                 if (editing) FloatingBar {
                     Text("Cancel", Modifier.clip(CircleShape).clickable(onClick = actions.onCancel).padding(horizontal = Spacing.space10, vertical = Spacing.space8), style = TextStyles.secondary)
-                    if (tabs.size > 1 && tab != null) Segmented(tabs, tabs.indexOf(tab), Modifier, small = true) { chosen = tabs[it] }
+                    if (tabs.size > 1 && tab != null) Segmented(tabs.map { it.label() }, tabs.indexOf(tab), Modifier, small = true) { chosen = tabs[it] }
                     val on = state.dirty && !state.saving && !state.stale
                     Text(
                         if (state.saving) "Saving…" else "Save",
@@ -189,6 +187,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
 }
 
 private val ControlsHeight = 56.dp
+private val PointerButtonSize = 32.dp
 
 @Composable
 private fun FloatingBar(content: @Composable RowScope.() -> Unit) {
@@ -203,7 +202,7 @@ private fun FloatingBar(content: @Composable RowScope.() -> Unit) {
 @Composable
 private fun FloatingButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     val touch = LocalInteractionMode.current == InteractionMode.Touch
-    IconButton(onClick, Modifier.size(if (touch) 40.dp else Float32), style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(if (touch) onBackgroundColor else mutedColor)) {
+    IconButton(onClick, Modifier.size(if (touch) 40.dp else PointerButtonSize), style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(if (touch) onBackgroundColor else mutedColor)) {
         Icon(icon, Modifier.size(17.dp), contentDescription = label)
     }
 }
@@ -246,26 +245,25 @@ private fun DropdownMenuPanelContentScope.MenuAction(icon: ImageVector, label: S
     }
 }
 
-/** What the Segmented control offers while editing; html's Source also shows its live preview ≥700dp. */
-private fun editorTabs(type: String, wide: Boolean) = buildList {
-    if (visualEditing && type == "html") add("Visual")
-    add("Source")
-    if ((type == "html" || type == "svg" || type == "md") && !wide) add("Preview")
+private fun EditorTab.label() = when (this) {
+    EditorTab.Visual -> "Visual"
+    EditorTab.Source -> "Source"
+    EditorTab.Preview -> "Preview"
 }
 
 /** The source beside a live preview when [wide], else one of the [tab]s at a time. */
 @Composable
-private fun ArtifactEditor(data: ArtifactData, state: ArtifactsState, actions: ArtifactsActions, tab: String?, wide: Boolean, modifier: Modifier = Modifier) {
-    val draft = state.draft.orEmpty()
-    val type = data.info.type
-    val previewable = type == "html" || type == "svg" || type == "md"
-    var preview by remember { mutableStateOf(draft) }
-    LaunchedEffect(draft) { delay(300); preview = draft }
-    val seed = remember(state.base, tab) { draft }
-    val editor = @Composable { key(state.base) { SourceEditor(draft, actions.onChange, Modifier.fillMaxSize()) } }
+private fun ArtifactEditor(data: ArtifactData, state: ArtifactsState, actions: ArtifactsActions, tab: EditorTab?, wide: Boolean, modifier: Modifier = Modifier) {
+    val info = data.info
+    val text = state.draft?.text.orEmpty()
+    val base = state.draft?.base
+    var preview by remember { mutableStateOf(text) }
+    LaunchedEffect(text) { delay(300); preview = text }
+    val visualSource = remember(base, tab) { text }
+    val editor = @Composable { key(base) { SourceEditor(text, actions.onChange, Modifier.fillMaxSize()) } }
     val view = @Composable {
-        if (type == "md") Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.space24)) { Markdown(preview, Modifier.fillMaxWidth()) }
-        else HtmlView(if (type == "svg") "<html><body style=\"margin:0\">$preview</body></html>" else preview, Modifier.fillMaxSize())
+        if (info.web) HtmlView(info.page(preview), Modifier.fillMaxSize())
+        else Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.space24)) { Markdown(preview, Modifier.fillMaxWidth()) }
     }
     Column(modifier.fillMaxSize()) {
         if (state.stale) Row(
@@ -280,9 +278,9 @@ private fun ArtifactEditor(data: ArtifactData, state: ArtifactsState, actions: A
         state.errors.lastOrNull()?.let { Pill(it, Modifier.padding(Spacing.space8), tone = Tone.Danger, icon = Lucide.CircleX) }
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
-                tab == "Visual" -> key(seed, state.base) { VisualEditor(seed, Modifier.fillMaxSize(), actions.onChange) }
-                tab == "Preview" -> view()
-                previewable && wide -> Row(Modifier.fillMaxSize()) {
+                tab == EditorTab.Visual -> key(visualSource, base) { VisualEditor(visualSource, Modifier.fillMaxSize(), actions.onChange) }
+                tab == EditorTab.Preview -> view()
+                info.previewable && wide -> Row(Modifier.fillMaxSize()) {
                     Box(Modifier.weight(1f)) { editor() }
                     VerticalSeparator()
                     Box(Modifier.weight(1f)) { view() }
