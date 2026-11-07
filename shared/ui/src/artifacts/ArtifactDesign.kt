@@ -37,13 +37,13 @@ internal fun designMessage(text: String): DesignMessage? = runCatching {
     }
 }.getOrNull()
 
-/** The [json] design's artboards on a pan and zoom canvas: a tap on an artboard's expand button reports [onOpen], and canvas edits come back as the whole design through [onEdit]. */
+/** The [json] design's artboards on a pan and zoom canvas, or only the artboard [focus] filling the page ([fill]) or fitted: a tap on an artboard's expand button reports [onOpen], and canvas edits come back as the whole design through [onEdit]. */
 @Composable
-internal fun DesignCanvas(json: String, background: Color, modifier: Modifier = Modifier, onOpen: ((String) -> Unit)? = null, onEdit: ((String) -> Unit)? = null) {
+internal fun DesignCanvas(json: String, background: Color, modifier: Modifier = Modifier, onOpen: ((String) -> Unit)? = null, onEdit: ((String) -> Unit)? = null, focus: String? = null, fill: Boolean = false) {
     val open by rememberUpdatedState(onOpen)
     val edit by rememberUpdatedState(onEdit)
     WebView(
-        remember(json, background) { designDocument(json, background = background) },
+        remember(json, background, focus, fill) { designDocument(json, background = background, focus = focus, fill = fill) },
         modifier,
         if (onOpen == null && onEdit == null) null else { text ->
             when (val m = designMessage(text)) {
@@ -58,9 +58,9 @@ internal fun DesignCanvas(json: String, background: Color, modifier: Modifier = 
 private fun Color.css() = "rgb(${(red * 255).toInt()},${(green * 255).toInt()},${(blue * 255).toInt()})"
 
 /** One trusted page: the canvas script is the only script allowed, and the artboards are script-less same-origin frames it edits. */
-internal fun designDocument(json: String, nonce: String = newNonce(), background: Color = Color(0xFF1E1E1E)): String {
+internal fun designDocument(json: String, nonce: String = newNonce(), background: Color = Color(0xFF1E1E1E), focus: String? = null, fill: Boolean = false): String {
     val inner = sandboxed(
-        "<body><div id=\"s\"><div id=\"w\"></div></div><div id=\"o\"></div><style>${designCss(background.css(), background.luminance() <= 0.5f)}</style><script nonce=\"$nonce\">${designScript(json)}</script></body>",
+        "<body><div id=\"s\"><div id=\"w\"></div></div><div id=\"o\"></div><style>${designCss(background.css(), background.luminance() <= 0.5f)}</style><script nonce=\"$nonce\">${designScript(json, focus, fill)}</script></body>",
         "'nonce-$nonce'",
     )
     return framed(inner, "<script>$BRIDGE</script>" + topFade(background), "width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no", "allow-scripts allow-same-origin")
@@ -75,9 +75,37 @@ internal fun artboardDocument(board: Artboard, background: Color): String =
         "<iframe sandbox=\"allow-scripts\" referrerpolicy=\"no-referrer\" style=\"border:0;width:100%;height:100%;display:block\" srcdoc=\"${attr(sandboxed(board.html))}\"></iframe></div></div>" +
         "<script>var c=document.getElementById('c'),o=document.getElementById('o');function r(){var s=Math.min(1,innerWidth/${board.width});c.style.transform='scale('+s+')';o.style.width=${board.width}*s+'px';o.style.height=${board.height}*s+'px'}addEventListener('resize',r);r()</script></body></html>"
 
-/** One artboard of [boards] full screen; [present] adds previous and next. */
+/** The artboard [id] alone on the same canvas, editable; its edits save like the canvas's own and don't reload it. */
 @Composable
-internal fun ArtboardViewer(boards: List<Artboard>, index: Int, present: Boolean, background: Color, onIndex: (Int) -> Unit, onClose: () -> Unit) {
+internal fun DesignFocus(content: String, id: String, name: String, background: Color, onEdit: (String) -> Unit, onClose: () -> Unit) {
+    val density = LocalDensity.current
+    var controls by remember { mutableStateOf(ControlsHeight) }
+    var fill by remember { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize().background(background)) {
+        key(fill) {
+            val sent = remember { mutableSetOf<String>() }
+            var shown by remember { mutableStateOf(content) }
+            LaunchedEffect(content) { if (content !in sent) shown = content }
+            DesignCanvas(shown, background, Modifier.fillMaxSize().padding(top = controls), onEdit = { json -> sent += json; if (sent.size > 16) sent.remove(sent.first()); onEdit(json) }, focus = id, fill = fill)
+        }
+        val chrome = LocalWindowChrome.current
+        Row(
+            Modifier.fillMaxWidth().onSizeChanged { controls = with(density) { it.height.toDp() } }
+                .padding(chrome?.padding(true, true) ?: PaddingValues()).padding(horizontal = Spacing.space10, vertical = Spacing.space8),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.space8),
+        ) {
+            FloatingBar { FloatingButton(Lucide.ArrowLeft, "Back", onClose) }
+            FloatingBar { Text(name, Modifier.padding(horizontal = Spacing.space10).widthIn(max = 200.dp), fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis) }
+            Spacer(Modifier.weight(1f))
+            FloatingBar { Segmented(listOf("Fill", "Fit"), if (fill) 0 else 1, Modifier, small = true) { fill = it == 0 } }
+        }
+    }
+}
+
+/** The artboards one at a time, full screen with their scripts running, with previous and next. */
+@Composable
+internal fun ArtboardViewer(boards: List<Artboard>, index: Int, background: Color, onIndex: (Int) -> Unit, onClose: () -> Unit) {
     val board = boards.getOrNull(index) ?: return
     val density = LocalDensity.current
     var controls by remember { mutableStateOf(ControlsHeight) }
@@ -90,12 +118,12 @@ internal fun ArtboardViewer(boards: List<Artboard>, index: Int, present: Boolean
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.space8),
         ) {
-            FloatingBar { FloatingButton(Lucide.X, if (present) "Exit" else "Close", onClose) }
+            FloatingBar { FloatingButton(Lucide.X, "Exit", onClose) }
             FloatingBar {
                 Text(board.label, Modifier.padding(horizontal = Spacing.space10).widthIn(max = 220.dp), fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis)
             }
             Spacer(Modifier.weight(1f))
-            if (present) FloatingBar {
+            FloatingBar {
                 FloatingButton(Lucide.ChevronLeft, "Previous") { if (index > 0) onIndex(index - 1) }
                 Text("${index + 1} / ${boards.size}", Modifier.padding(horizontal = Spacing.space4), style = TextStyles.secondary, color = color(mutedColor))
                 FloatingButton(Lucide.ChevronRight, "Next") { if (index < boards.lastIndex) onIndex(index + 1) }

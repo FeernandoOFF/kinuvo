@@ -88,15 +88,18 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
         }
     }
 
-    /** A canvas edit: saved at once, in order, without a draft. */
+    /** A canvas edit: shown in [ArtifactsState.open] at once, saved in order without a draft; a failed save reloads the Server's version. */
     fun saveDesign(json: String) {
         val id = state.value.open?.info?.id ?: return
+        state.update { s -> s.open?.let { s.copy(open = it.copy(content = json)) } ?: s }
         viewModelScope.launch {
             designSaves.withLock {
+                val failed = state.value.errors.size
                 attempt {
                     val info = client.call(Api.SaveArtifact, ArtifactSave(id, json))
                     state.update { if (it.open?.info?.id == id) it.copy(open = ArtifactData(info, json), errors = emptyList()) else it }
                 }
+                if (state.value.errors.size > failed) load()
             }
         }
     }
