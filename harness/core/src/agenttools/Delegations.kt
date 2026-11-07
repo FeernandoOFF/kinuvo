@@ -11,6 +11,7 @@ import kinuvo.harness.core.tools.requireString
 import kinuvo.harness.core.tools.string
 import kinuvo.harness.core.update
 import kinuvo.protocol.Risk
+import kinuvo.protocol.SessionStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -18,6 +19,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -30,8 +32,14 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 const val DEFAULT_DELEGATION_DEPTH = 2
+
+/** How long a child may wait on an unanswered question or Approval before its parent stops waiting, as for a Routine. */
+val CHILD_ANSWER_WAIT = 30.minutes
 
 /** A Session [agentId] was given to run [goal] in; [hidden] ones keep their transcript from every Agent tool. */
 data class DelegateTask(val agentId: String, val goal: String, val context: String? = null, val model: String? = null, val hidden: Boolean = false) {
@@ -61,7 +69,7 @@ interface AgentDelegation {
 
 /** The delegation tools: children running in the Sessions of the Agents they were handed to, and the ones started in the background. */
 @OptIn(ExperimentalAtomicApi::class)
-internal class Delegations(private val source: AgentToolsSource, private val scope: CoroutineScope) {
+internal class Delegations(private val source: AgentToolsSource, private val scope: CoroutineScope, private val answerWait: Duration = CHILD_ANSWER_WAIT) {
     /** The children whose run hasn't ended, by parent Session. */
     private val running = AtomicReference(emptyMap<String, Set<Child>>())
 
@@ -78,11 +86,25 @@ internal class Delegations(private val source: AgentToolsSource, private val sco
         return child
     }
 
-    private suspend fun finish(parent: CallerScope, callId: String?, child: Child, task: DelegateTask, review: Boolean): ChildResult = try {
-        val result = source.outcome(child)
-        if (review && task.hidden && !result.failed && !source.review(parent, callId, child, result.text)) ChildResult(WITHHELD) else result
-    } finally {
-        running.update { it + (parent.sessionId!! to it[parent.sessionId].orEmpty() - child) }
+    private suspend fun finish(parent: CallerScope, callId: String?, child: Child, task: DelegateTask, review: Boolean): ChildResult {
+        val result = awaited(child)
+        // A child that waits on the user is still running, so stopping the parent stops it.
+        if (result !== UNANSWERED) running.update { it + (parent.sessionId!! to it[parent.sessionId].orEmpty() - child) }
+        return if (review && task.hidden && !result.failed && !source.review(parent, callId, child, result.text)) ChildResult(WITHHELD) else result
+    }
+
+    /** [child]'s outcome, or a failure once it has waited [answerWait] on the user; its Session stays open for the user to answer. */
+    private suspend fun awaited(child: Child): ChildResult = coroutineScope {
+        val outcome = async { source.outcome(child) }
+        val stalled = async {
+            var waited = Duration.ZERO
+            while (waited < answerWait) {
+                delay(POLL)
+                waited = if (source.live(child.sessionId).status == SessionStatus.Waiting) waited + POLL else Duration.ZERO
+            }
+            UNANSWERED
+        }
+        select<ChildResult> { outcome.onAwait { it }; stalled.onAwait { it } }.also { outcome.cancel(); stalled.cancel() }
     }
 
     private suspend fun foreground(parent: CallerScope, callId: String?, task: DelegateTask, review: Boolean): Pair<Child, ChildResult> {
@@ -262,5 +284,7 @@ internal class Delegations(private val source: AgentToolsSource, private val sco
         const val MAX_WAIT = 3600
         const val GOAL_EXCERPT = 80
         const val WITHHELD = "The user withheld the result."
+        val POLL = 30.seconds
+        val UNANSWERED = ChildResult("Waiting on the user: the child's question or Approval went unanswered for 30 minutes, so I stopped waiting. Its Session stays open for the user to answer.", true)
     }
 }

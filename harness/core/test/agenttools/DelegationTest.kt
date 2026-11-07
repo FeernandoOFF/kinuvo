@@ -2,12 +2,14 @@ package kinuvo.harness.core.agenttools
 
 import kinuvo.harness.core.store.InMemoryStore
 import kinuvo.protocol.ExecutionKind
+import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.LiveState
 import kinuvo.protocol.Risk
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonArray
@@ -20,6 +22,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.minutes
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DelegationTest {
@@ -31,12 +34,14 @@ class DelegationTest {
         AgentSummary("loc", "Local", "", ExecutionKind.Native, "local", "small", true),
     )
     private val running = mutableSetOf<String>()
+    private val waiting = mutableSetOf<String>()
     private val source = object : AgentToolsSource, AgentDelegation by fake {
         override suspend fun agents() = agents
         override suspend fun sessions(agentId: String) = store.sessions(agentId)
         override suspend fun delegated(agentId: String) = agents.flatMap { store.sessions(it.id) }.filter { it.parent?.agentId == agentId }
         override suspend fun entries(agentId: String, sessionId: String) = store.entries(agentId, sessionId)
-        override suspend fun live(sessionId: String) = LiveState(running = sessionId in running)
+        override suspend fun live(sessionId: String) = LiveState(running = sessionId in running || sessionId in waiting,
+            questions = AgentEvent.QuestionsAsked("q", "c", null, emptyList()).takeIf { sessionId in waiting })
     }
 
     private suspend fun parent(agent: String = "ada") = CallerScope(agent, store.createSession(agent, "").id)
@@ -257,5 +262,51 @@ class DelegationTest {
         fake.answer(store.sessions("bob").single().id, "plain")
         assertTrue(call.await().startsWith("plain"))
         assertTrue(fake.reviewed.isEmpty())
+    }
+
+    @Test fun aForegroundCallFailsOnceTheChildWaitedThirtyMinutesOnTheUserAndLeavesItOpen() = runTest {
+        val service = service(backgroundScope)
+        val call = async { runCatching { service.tools(parent()).first { it.descriptor.name == "delegate" }.execute(args("agent" to "bob", "goal" to "needs input")) } }
+        runCurrent()
+        val child = store.sessions("bob").single().id
+        waiting += child
+        advanceTimeBy(29.minutes)
+        runCurrent()
+        assertFalse(call.isCompleted)
+        advanceTimeBy(2.minutes)
+        runCurrent()
+        assertTrue("Waiting on the user" in call.await().exceptionOrNull()!!.message!!)
+        assertTrue(fake.stopped.isEmpty())
+    }
+
+    @Test fun delegateWaitReportsAChildThatWaitedThirtyMinutesAsFailed() = runTest {
+        val service = service(backgroundScope)
+        val parent = parent()
+        service.tools(parent).first { it.descriptor.name == "delegate" }.execute(args("agent" to "bob", "goal" to "needs input", "background" to true))
+        val child = store.sessions("bob").single().id
+        waiting += child
+        val wait = async { service.tools(parent).first { it.descriptor.name == "delegate_wait" }.execute(args("timeout_seconds" to 3600)) }
+        advanceTimeBy(31.minutes)
+        runCurrent()
+        val text = wait.await()
+        assertTrue("Session $child failed:\nWaiting on the user" in text, text)
+        assertTrue(fake.stopped.isEmpty())
+    }
+
+    @Test fun answeringTheChildRestartsTheThirtyMinutes() = runTest {
+        val service = service(backgroundScope)
+        val call = async { runCatching { service.tools(parent()).first { it.descriptor.name == "delegate" }.execute(args("agent" to "bob", "goal" to "needs input")) } }
+        runCurrent()
+        val child = store.sessions("bob").single().id
+        waiting += child
+        advanceTimeBy(20.minutes)
+        waiting -= child
+        advanceTimeBy(1.minutes)
+        waiting += child
+        advanceTimeBy(20.minutes)
+        runCurrent()
+        assertFalse(call.isCompleted)
+        fake.answer(child, "done")
+        assertEquals("done", call.await().getOrThrow().substringBefore("\n"))
     }
 }
