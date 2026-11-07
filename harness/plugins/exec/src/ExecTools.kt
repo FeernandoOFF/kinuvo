@@ -3,6 +3,8 @@ package kinuvo.harness.exec
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
+import kinuvo.harness.core.SecretScope
+import kinuvo.harness.core.Secrets
 import kinuvo.harness.core.ShellCommand
 import kinuvo.protocol.Risk
 import kinuvo.harness.core.tools.Tool
@@ -10,14 +12,15 @@ import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
 import kinuvo.harness.core.tools.string
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Duration.Companion.seconds
 import kinuvo.harness.core.tools.ToolKind
 
-fun execTools(backend: ExecBackend): List<Tool> = listOf(
-    ShellTool(backend),
+fun execTools(backend: ExecBackend, secrets: Secrets = Secrets(), scope: SecretScope? = null, agentId: String = ""): List<Tool> = listOf(
+    ShellTool(backend, secrets, scope, agentId),
     ReadFileTool(backend),
     WriteFileTool(backend),
     EditFileTool(backend),
@@ -26,9 +29,17 @@ fun execTools(backend: ExecBackend): List<Tool> = listOf(
     ProcessKillTool(backend),
 )
 
+private val ENV_NAME = Regex("[A-Za-z_][A-Za-z0-9_]*")
+
 private fun JsonObject.int(key: String) = get(key)?.jsonPrimitive?.intOrNull
 
-class ShellTool(private val backend: ExecBackend) : Tool {
+/** [scope] is the Session whose `secret://` references the tool resolves, null outside one. */
+class ShellTool(
+    private val backend: ExecBackend,
+    private val secrets: Secrets = Secrets(),
+    private val scope: SecretScope? = null,
+    private val agentId: String = "",
+) : Tool {
     override val kind = ToolKind.Shell
     override fun assess(args: JsonObject) = args.string("command")?.let { ShellCommand.parse(it).assess(backend.roots) } ?: super.assess(args)
 
@@ -45,16 +56,38 @@ class ShellTool(private val backend: ExecBackend) : Tool {
                 "Start a long-running process (server, emulator) and return immediately; check it with the process output tool",
                 ToolParameterType.Boolean,
             ),
+            ToolParameterDescriptor(
+                "secrets",
+                "Environment variables for the command, as ENV_NAME to Secret reference like \"\${secret://…}\" or \"\${pass://Vault/Item/field}\"; " +
+                    "use \$ENV_NAME in the command. References never go in the command itself.",
+                ToolParameterType.Object(emptyList(), additionalProperties = true),
+            ),
         ),
     )
 
+    private fun checked(args: JsonObject): Map<String, String> {
+        require(!Secrets.hasSecret(args.requireString("command"))) { "Secret references can't go in the command; pass them in `secrets` (ENV_NAME to reference) and use \$ENV_NAME" }
+        return (args["secrets"] as? JsonObject).orEmpty().mapValues { (name, value) ->
+            require(ENV_NAME.matches(name)) { "'$name' is not an environment variable name" }
+            val reference = (value as? JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty()
+            require(Secrets.isReference(reference) && Secrets.hasSecret(reference)) { "'$name' must be a Secret reference like \"\${secret://…}\"" }
+            reference
+        }
+    }
+
+    override suspend fun bind(args: JsonObject): suspend () -> Unit {
+        checked(args)
+        return {}
+    }
+
     override suspend fun execute(args: JsonObject): String {
+        val env = checked(args).mapValues { secrets.expand(it.value, emptyMap(), "Kinuvo: shell (Agent $agentId), \$${it.key}", scope) }
         if (args["background"]?.jsonPrimitive?.booleanOrNull == true) {
-            val p = backend.startBackground(args.requireString("command"), args.string("cwd"))
+            val p = backend.startBackground(args.requireString("command"), args.string("cwd"), env)
             return "Started background process ${p.id} (pid ${p.pid}), log ${p.log}. Use the process output or process kill tool with id ${p.id}."
         }
         val timeout = (args.int("timeout") ?: 120).coerceIn(1, 600).seconds
-        val r = backend.run(args.requireString("command"), args.string("cwd"), timeout)
+        val r = backend.run(args.requireString("command"), args.string("cwd"), timeout, env)
         val status = if (r.timedOut) "timed out after $timeout" else "exit code ${r.exitCode}"
         return "[$status]\n${r.output}"
     }

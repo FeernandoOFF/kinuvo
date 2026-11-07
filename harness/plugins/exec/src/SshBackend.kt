@@ -37,18 +37,18 @@ class SshBackend(
     }
 
     /** With [env], the exports come first on stdin (one base64 line, see [input]) so values stay out of the process list. */
-    internal fun remoteCommand(script: String, cwd: String): String =
-        if (env.isEmpty()) "cd ${shq(cwd)} && bash -lc ${shq(script)}"
+    internal fun remoteCommand(script: String, cwd: String, extra: Map<String, String> = emptyMap()): String =
+        if (env.isEmpty() && extra.isEmpty()) "cd ${shq(cwd)} && bash -lc ${shq(script)}"
         else "cd ${shq(cwd)} && bash -c ${shq(READ_EXPORTS)} ${shq(script)}"
 
-    internal fun input(stdin: String?): String? = if (env.isEmpty()) stdin else {
-        val exports = env.entries.joinToString("") { (k, v) -> "export $k=${shq(v)}; " }
+    internal fun input(stdin: String?, extra: Map<String, String> = emptyMap()): String? = if (env.isEmpty() && extra.isEmpty()) stdin else {
+        val exports = (env + extra).entries.joinToString("") { (k, v) -> "export $k=${shq(v)}; " }
         Base64.getEncoder().encodeToString(exports.toByteArray()) + "\n" + stdin.orEmpty()
     }
 
-    override suspend fun execScript(script: String, cwd: String, stdin: String?, timeout: Duration, maxChars: Int): ExecResult {
+    override suspend fun execScript(script: String, cwd: String, stdin: String?, timeout: Duration, maxChars: Int, env: Map<String, String>): ExecResult {
         controlDir?.mkdirs()
-        val r = runProcess(argv(remoteCommand(script, cwd)), stdin = input(stdin), timeout = timeout, maxChars = maxChars)
+        val r = runProcess(argv(remoteCommand(script, cwd, env)), stdin = input(stdin, env), timeout = timeout, maxChars = maxChars)
         // ssh itself exits with 255 when it can't connect
         check(r.exitCode != 255) { "SSH to $target failed: ${r.output.lines().lastOrNull { it.isNotBlank() } ?: "unknown error"}" }
         return r
