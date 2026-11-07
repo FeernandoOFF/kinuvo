@@ -40,11 +40,14 @@ internal actual fun HtmlWebView(document: String, bridge: HtmlBridge, modifier: 
         }
         current.value.post = { evaluateJavascript(htmlSurfaceDelivery(it), null) }
         loadDataWithBaseURL("https://html.kinuvo.invalid/", document, "text/html", "utf-8", null)
-    } }, modifier = modifier, onRelease = {
-        current.value.post = {}
-        it.stopLoading()
-        it.destroy()
-    })
+    } }, modifier = modifier,
+        // A recycled row drops focus first: removing a focused view makes Android refocus mid-layout, which Compose rejects.
+        onReset = { it.clearFocus() },
+        onRelease = {
+            current.value.post = {}
+            it.stopLoading()
+            it.destroy()
+        })
 }
 
 internal actual val htmlSurfacePlatform = "mobile"

@@ -4,13 +4,12 @@ import android.app.Application
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import kinuvo.ui.KinuvoApp
 import kinuvo.ui.session.attachVoice
 import kinuvo.ui.attachNotifications
 import kinuvo.app.connection.openLink
 import kinuvo.app.connection.openNewChat
+import kinuvo.ui.setKinuvoContent
 import kinuvo.ui.startKinuvo
 import org.koin.android.ext.koin.androidContext
 
@@ -28,7 +27,7 @@ class MainActivity : ComponentActivity() {
         intent?.let(::open)
         attachNotifications(this)
         attachVoice(this)
-        setContent { KinuvoApp() }
+        setKinuvoContent(this)
     }
 
     override fun onNewIntent(intent: Intent) {
