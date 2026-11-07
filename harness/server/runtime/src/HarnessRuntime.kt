@@ -31,6 +31,9 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.Uuid
 import kinuvo.protocol.AgentEvent
 import kotlinx.coroutines.NonCancellable
+import kinuvo.protocol.SessionStatus
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kinuvo.protocol.ReflectionResult
@@ -328,22 +331,24 @@ open class HarnessRuntime(
 
     suspend fun appResource(request: McpAppRequest): McpAppResource = app(request).let { (apps, ref) -> apps.resource(request.agentId, ref) }
 
-    /** Runs a tool of the app's own MCP server for the app, under the Agent's Approvals, asked in its Session. */
+    /** Runs a tool of the app's own MCP server for the app, under the Session's Approvals, asked in its Session. */
     suspend fun appCallTool(agent: Agent, request: McpAppToolRequest): JsonObject {
         val (apps, ref) = app(request.app)
-        val tool = secrets.redacting(apps.tool(agent.id, ref, request.name))
         val sessionId = request.app.sessionId
-        val policy = ApprovalPolicy(agent, trustRules, session = sessionTrust.scope(sessionId))
+        val asked = secrets.redacting(apps.tool(agent.id, ref, request.name))
+        val policy = ApprovalPolicy(agent.with(store.session(agent.id, sessionId).settings), trustRules, session = sessionTrust.scope(sessionId))
         val args = request.arguments.toString()
-        when (val verdict = policy.decide(tool, args)) {
+        when (val verdict = policy.decide(asked, args)) {
             is Verdict.Block -> error(verdict.reason)
-            is Verdict.Ask -> {
+            // One Approval card at a time: a Session shows a single pending Approval.
+            is Verdict.Ask -> appApprovalLock(sessionId).withLock {
+                check(log.status(sessionId) == SessionStatus.Idle) { "The Agent is busy; try '${request.name}' again when it finishes" }
                 val callId = "app-${request.app.callId}-${Uuid.random()}"
                 val pending = approvals.register()
                 var decision: ApprovalDecision? = null
                 try {
                     log.publish(agent.id, sessionId, AgentEvent.ApprovalRequested(pending.id, callId, request.name, args, null,
-                        verdict.assessment.risk, verdict.assessment.reason, verdict.trustKeys.isNotEmpty(), tool.identity))
+                        verdict.assessment.risk, verdict.assessment.reason, verdict.trustKeys.isNotEmpty(), asked.identity))
                     decision = withTimeoutOrNull(APP_APPROVAL_WAIT) { pending.await() }
                 } finally {
                     pending.close()
@@ -353,13 +358,15 @@ open class HarnessRuntime(
                 when (decision) {
                     null -> error("No answer to the Approval for '${request.name}'")
                     is ApprovalDecision.Deny -> error("The user denied '${request.name}'")
-                    ApprovalDecision.AlwaysAllow -> policy.trust(tool, verdict.trustKeys)
-                    ApprovalDecision.AllowForSession -> policy.trustForSession(tool, verdict.trustKeys)
+                    ApprovalDecision.AlwaysAllow -> policy.trust(asked, verdict.trustKeys)
+                    ApprovalDecision.AllowForSession -> policy.trustForSession(asked, verdict.trustKeys)
                     else -> Unit
                 }
             }
             Verdict.Run -> Unit
         }
+        // Checked again: the server or tool may have been removed while the Approval waited.
+        val tool = secrets.redacting(apps.tool(agent.id, ref, request.name))
         val result = tool.executeResult(request.arguments, "app-${request.app.callId}", object : ToolRun {
             override val tools = emptyList<ToolDescriptor>()
             override suspend fun call(name: String, args: String) = SessionEntry.ToolResult(name, name, "Unavailable to MCP Apps", isError = true)
@@ -369,6 +376,10 @@ open class HarnessRuntime(
             put("isError", result.isError)
         }
     }
+
+    private val appApprovals = Mutex()
+    private val appApprovalLocks = mutableMapOf<String, Mutex>()
+    private suspend fun appApprovalLock(sessionId: String) = appApprovals.withLock { appApprovalLocks.getOrPut(sessionId) { Mutex() } }
 
     /** Stops everything the plugins run, e.g. before the process exits. */
     suspend fun close() { computers.close(); dependencies.resources.close() }

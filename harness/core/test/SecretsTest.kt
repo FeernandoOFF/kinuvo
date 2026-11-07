@@ -82,6 +82,29 @@ class SecretsTest {
     }
 
     @Test
+    fun redactsAppResultsAndTheirFailures() = runTest {
+        provider.values = mapOf("pass://Kinuvo/GitHub/token" to "gh\"p_2")
+        secrets.resolve("pass://Kinuvo/GitHub/token", "r")
+        var fail = false
+        val app = object : kinuvo.harness.core.tools.Tool {
+            override val descriptor = ai.koog.agents.core.tools.ToolDescriptor("app", "")
+            override suspend fun execute(args: kotlinx.serialization.json.JsonObject) = ""
+            override suspend fun executeResult(args: kotlinx.serialization.json.JsonObject, callId: String, run: kinuvo.harness.core.tools.ToolRun) =
+                if (fail) error("bad gh\"p_2") else kinuvo.protocol.SessionEntry.ToolResult(callId, "app", "gh\"p_2",
+                    appResult = kotlinx.serialization.json.buildJsonObject { put("text", kotlinx.serialization.json.JsonPrimitive("key gh\"p_2")) })
+        }
+        val run = object : kinuvo.harness.core.tools.ToolRun {
+            override val tools = emptyList<ai.koog.agents.core.tools.ToolDescriptor>()
+            override suspend fun call(name: String, args: String) = error("unused")
+        }
+        val result = secrets.redacting(app).executeResult(kotlinx.serialization.json.JsonObject(emptyMap()), "call", run)
+        assertEquals("••••", result.output)
+        assertEquals("\"key ••••\"", result.appResult!!["text"].toString())
+        fail = true
+        assertEquals("bad ••••", assertFailsWith<IllegalStateException> { secrets.redacting(app).executeResult(kotlinx.serialization.json.JsonObject(emptyMap()), "call", run) }.message)
+    }
+
+    @Test
     fun errorsNameTheReference() = runTest {
         val missing = assertFailsWith<IllegalStateException> { secrets.expand("\${pass://Kinuvo/None/token}", emptyMap(), "r") }
         assertEquals("Can't read pass://Kinuvo/None/token: Field does not exist", missing.message)
