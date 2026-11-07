@@ -1,10 +1,22 @@
 ---
 title: "Secret references resolved by the Server, Proton Pass first"
-description: "Kinuvo secret references resolved by the Server, Proton Pass first."
+description: "Resolve password-manager references on the Server without persisting their values."
 ---
+
+Status: Accepted
+
+## Context
+
+Server integrations need credentials without distributing values to Devices or Agents.
+
+## Decision
 
 Keys used to live in plain text in config (`knowledge.yaml`'s Anytype key) or in `.env` files read for `${VAR}`. Now any config value can hold a Secret reference in the password manager's own URI syntax, inside the same `${…}` as variables: `${pass://Vault/Item/field}`. The Server resolves it when the value is used (an MCP server or exec backend starts, Anytype is called), keeps the value in memory for five minutes (refreshable), and never writes it or sends it to clients; settings show the reference instead. Each read carries a reason naming its consumer (`Kinuvo: MCP server github (Agent default)`). Agents never see values and have no tool to read secrets.
 
 `SecretProvider` is the seam, keyed by URI scheme. Proton Pass is the first: through `pass-cli`, signed in with an AI agent access token, which is read-only, limited to the vaults it's given, expires, and makes Proton Pass log every read with its reason. Kinuvo keeps the token in the OS keychain (macOS Keychain, or the Secret Service via `secret-tool`) and falls back to `PROTON_PASS_PERSONAL_ACCESS_TOKEN` in `~/.kinuvo/.env` where there is none (not the process environment, which child processes inherit). It uses its own `pass-cli` session folder and signs in again when the two-hour session ends. 1Password (`op://`, through `op` with a service account token) and Bitwarden Secrets Manager (`bws://Project/KEY`, through `bws` with a machine account token) are providers of the same kind, each with its own token in the keychain or `.env`.
 
 Values never go in process arguments: MCP `command`/`args` refuse references, and exec passes them through the environment or stdin. Accepted cost: what a consumer does with a value is its own (an Agent can print its exec environment), so tool output is masked only for values still in memory; `pass-cli` must be installed on the Server, a failed read fails only the setting that uses it (e.g. that MCP server doesn't start), and a value changed in the manager is seen only after five minutes or a refresh. OAuth tokens that providers refresh themselves (Codex's `auth.json`) stay out of scope.
+
+## Consequences
+
+Platform availability and the selected provider constrain the features offered.

@@ -1,4 +1,15 @@
-# Client cache as per-Server snapshots
+---
+title: "Client cache as per-Server snapshots"
+description: "Cache remote Server snapshots on Devices for startup and offline reading."
+---
+
+Status: Accepted
+
+## Context
+
+Remote Server data should stay readable during startup and disconnection.
+
+## Decision
 
 Apps keep what they last saw of each remote Server so they open with it before connecting and stay readable while they can't reach it. The cache lives in `shared/app` (`ClientCache`), so every UI, including future native ones, gets it from the shared Repositories rather than doing its own caching.
 
@@ -7,3 +18,7 @@ A Server's cache is one `Snapshot`: Agents, capabilities, Session lists, the cac
 Opening a cached Server shows it right away as `Connection.Ready` with `online = false` and `syncedAt`, and the client keeps retrying until it connects. Only bad credentials or a protocol mismatch stop it, and either one also drops that Server's snapshot. Reconnecting catches the cached Sessions up from their last seq instead of reloading them. Offline, the chat says when it last synced; writes fail as they do during any disconnect.
 
 Settings can clear every snapshot, or reset the Device: forget all Servers, their credentials, preferences and cached data, as on a fresh install. Servers aren't told about a reset.
+
+## Consequences
+
+Offline data can be stale and cannot be edited; cache encryption relies on platform protection.

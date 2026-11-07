@@ -1,6 +1,18 @@
 ---
 title: "Kotlin Toolchain (Amper) instead of Gradle"
-description: "Kinuvo kotlin Toolchain (Amper) instead of Gradle."
+description: "Use the Kotlin Toolchain for multiplatform builds and desktop Hot Reload."
 ---
 
-Build uses JetBrains' Kotlin Toolchain (alpha, `project.yaml`/`module.yaml`, `./kotlin` CLI) rather than Gradle, to experiment with it and get built-in Compose Hot Reload on desktop. Accepted cost: no Gradle plugins (e.g. SQLDelight is unavailable). If a module hits a hard blocker, fall back to Gradle for that module only.
+Status: Accepted
+
+## Context
+
+The project needs multiplatform builds and fast desktop UI iteration.
+
+## Decision
+
+Build uses JetBrains' Kotlin Toolchain (alpha, `project.yaml`/`module.yaml`, `./kotlin` CLI) rather than Gradle, for built-in Compose Hot Reload on desktop.
+
+## Consequences
+
+Gradle plugins are unavailable; a module with a hard blocker may fall back to Gradle.

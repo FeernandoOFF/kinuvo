@@ -1,5 +1,18 @@
-# Shared Screens for Computer and Browser use
+---
+title: "Shared Screens for Computer and Browser use"
+description: "Share Live view and Takeover rules across Computer displays and Browser tabs."
+---
 
-Computer displays and owned Browser tabs use one Screen contract from protocol through Live view. Sources advertise capabilities and continuous capture or refresh delivery; shared subscriptions bind input to a displayed frame and control generation, avoiding separate authorization and gesture rules for each source.
+Status: Accepted
 
-Takeover is per Screen, remains suspended after disconnect, and ends only on explicit handback. Frames use bounded ephemeral delivery with draw acknowledgements, separate from durable responses and Approvals; validated acknowledgements have their own bounded rate allowance. Browser input follows ordinary Agent Risk and Approval policy. Browser streams CDP frames; Computers retain capture refresh until native producers are separately implemented and verified. Protocol version 3 intentionally requires matching clients and Server.
+## Context
+
+Computer displays and Browser tabs need the same authorization and Live view controls.
+
+## Decision
+
+Use one Screen contract with frame-bound input, control generations and bounded ephemeral delivery separate from durable responses and Approvals. Takeover is per Screen, remains suspended on disconnect and ends only on explicit handback. Browser uses continuous CDP capture; Computers expose capture refresh until native producers are implemented and verified. Restore JVM Browser tabs from saved safe URLs without replaying input or claiming to restore unsaved page state; held tabs restore suspended.
+
+## Consequences
+
+Semantic Agent captures remain independent of viewer frames. Browser uses ordinary Agent Risk, Trust and Deny rules without additional sensitive-field refusals; private HTTP(S) sites remain accessible. Breaking contract changes require matching Server and Device protocol versions.

@@ -1,11 +1,17 @@
 ---
 title: "On-device models with LiteRT-LM"
-description: "Server-owned downloads of open models, run on Android and JVM Servers with LiteRT-LM."
+description: "Download verified Server-owned models and run them with LiteRT-LM."
 ---
 
-Agents can run on open models on the Server's own machine, without an account or network access once downloaded. Android and desktop come first; iOS keeps Apple's Foundation Models.
+Status: Accepted
+
+## Context
+
+Owners need verified local models managed on the Server rather than each Device.
 
 ## Decision
+
+Agents can run on open models on the Server's own machine, without an account or network access once downloaded. Android and desktop come first; iOS keeps Apple's Foundation Models.
 
 Use [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM) for inference. One Kotlin implementation (`harness/providers/litert`) runs on Android (`litertlm-android`) and JVM Servers (`litertlm-jvm`) with the same `.litertlm` files, on the GPU where available. llama.cpp was the alternative: more models and a mature iOS path, at the cost of native builds on every platform.
 
