@@ -89,6 +89,7 @@ package_cli() {
   local app=$work/kinuvo
   mkdir -p "$app/bin" "$app/lib"
   cp "$jar" "$app/lib/kinuvo.jar"
+  python3 scripts/package-natives.py "$app/lib/kinuvo.jar" "$os" "$arch"
   runtime "$app/runtime" --include-locales en
   rm -rf "$app/runtime/lib/fonts"
   if [ "$os" = windows ]; then
@@ -110,11 +111,12 @@ EOF
 }
 
 package_desktop() {
-  ./kotlin package -m desktop -f executable-jar
+  mise run kotlin -- package -m desktop -p jvm -f executable-jar
   mkdir -p "$work/input"
   cp build/tasks/_desktop_executableJarJvm/desktop-jvm-executable.jar "$work/input/kinuvo-desktop.jar"
   restore_collisions desktop "$work/input/kinuvo-desktop.jar"
   allow_native_access "$work/input/kinuvo-desktop.jar"
+  python3 scripts/package-natives.py "$work/input/kinuvo-desktop.jar" "$os" "$arch"
   modules=$modules,jdk.accessibility runtime "$work/runtime"
   local args=(--name Kinuvo --input "$work/input" --main-jar kinuvo-desktop.jar --runtime-image "$work/runtime" --dest "$work/out"
     --java-options --enable-native-access=ALL-UNNAMED)
