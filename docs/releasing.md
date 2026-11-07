@@ -45,6 +45,36 @@ The desktop apps are not code-signed yet. On macOS, open the app once, then allo
 Desktop and bundled-runtime CLI packages filter nested jars to the target OS and
 architecture, including LiteRT-LM, zstd and WebRTC. The universal `kinuvo.jar`
 retains all platforms. Nested jars remain uncompressed for the executable jar
-loader; upstream license notices remain intact. Skiko and Rive already resolve
-platform-specific artifacts. Run `python3 scripts/test-package-natives.py` to
+loader; upstream license notices remain intact. Skiko and Rive resolve host
+artifacts; filtering also removes extra architectures inside those artifacts. Run `python3 scripts/test-package-natives.py` to
 check the packaging filter.
+
+## Downloaded desktop engines
+
+Desktop packages omit the LiteRT-LM JNI payload and the voice worker's ONNX Runtime
+and sherpa libraries. First model setup downloads pinned upstream artifacts through
+`harness/models`, checking exact size and SHA-256 before extraction. Engines live
+under `<Server home>/engines/<engine-version-platform>` (`KINUVO_HOME` is respected
+through the Server's home). Setup needs internet access and adds download latency;
+subsequent uses work offline. Android and iOS packaging are unchanged. Building the
+voice worker still fetches the pinned SDK for its C header, but ships no SDK dylibs.
+
+The macOS worker uses `dlopen` with an absolute verified-store path, checks every
+required inference symbol, and does not depend on `DYLD_*` environment variables.
+Upstream's arm64 libraries are ad hoc signed without a Team ID. The worker is
+signed with hardened runtime and its own `disable-library-validation` entitlement.
+The desktop launcher also declares that entitlement because downloaded LiteRT JNI
+runs in the JVM. Parent signing preserves the worker's separate entitlements.
+[Apple's library-validation rules](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.security.cs.disable-library-validation)
+require an exception for libraries without the executable's Team ID. SHA-256 pins
+establish download integrity; receipts detect later size/mtime changes, not hostile
+local tampering. Do not replace pins with runtime-fetched checksums.
+
+When invoking packaging through `mise run exec`, set `JAVA_HOME` with `env` after
+the task name so machine-level mise settings cannot replace the selected JBR.
+Packaging rejects a runtime SDK older than Java 25.
+
+Release signing remains ad hoc. Developer ID signing, Gatekeeper quarantine and
+notarization are not proven by local engine-load checks; a future notarized release
+must preserve the worker exception and the JVM's native-loading entitlements and
+verify installation on a clean Mac.

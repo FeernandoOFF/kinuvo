@@ -23,7 +23,8 @@ class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
     override val name = "On this device"
     override val modelProviders get() = listOf(this)
     private val files = ModelFiles(File(home, "local-models"))
-    private val engines = Engines(files, File(home, "cache/litert"))
+    private val native = nativeEngine(home)
+    private val engines = Engines(files, File(home, "cache/litert"), native)
     private val executor = koogExecutor(LiteRtLLMClient(engines))
     private val memory = deviceMemory()
     private val unsupported = unsupportedReason()
@@ -36,7 +37,7 @@ class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
     override suspend fun availability(model: String): CapabilityState {
         val local = localModels.firstOrNull { it.id == model } ?: return CapabilityState.unsupported("No on-device model '$model'")
         reason(local)?.let { return CapabilityState.unsupported(it) }
-        return if (files.installed(local.download)) CapabilityState()
+        return if (native.installed && files.installed(local.download)) CapabilityState()
         else CapabilityState.unavailable("Download ${local.name} in Settings → Model providers", "not-downloaded")
     }
 
@@ -63,7 +64,7 @@ class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
         override val changes = MutableStateFlow(state())
 
         override fun state() = progress.value.copy(models = localModels.map {
-            DownloadableModel(it.id, it.name, it.download.bytes, it.memory, files.installed(it.download), reason(it) == null, reason(it), it.license, it.source)
+            DownloadableModel(it.id, it.name, it.download.bytes + native.bytes, it.memory, native.installed && files.installed(it.download), reason(it) == null, reason(it), it.license, it.source)
         })
 
         private fun publish(change: (ProviderDownloads) -> ProviderDownloads) { progress.update(change); changes.value = state() }
@@ -77,8 +78,12 @@ class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
             job = downloadScope.launch(start = CoroutineStart.ATOMIC) {
                 var reported = 0L
                 try {
-                    files.download(local.download) { bytes ->
-                        if (bytes - reported >= REPORT || bytes == local.download.bytes) { reported = bytes; publish { it.copy(downloaded = bytes) } }
+                    native.ensure { bytes ->
+                        if (bytes - reported >= REPORT || bytes == native.bytes) { reported = bytes; publish { it.copy(downloaded = bytes) } }
+                    }
+                    if (!files.installed(local.download)) files.download(local.download) { modelBytes ->
+                        val bytes = native.bytes + modelBytes
+                        if (bytes - reported >= REPORT || bytes == native.bytes + local.download.bytes) { reported = bytes; publish { it.copy(downloaded = bytes) } }
                     }
                     publish { ProviderDownloads() }
                 } catch (e: CancellationException) {

@@ -1,6 +1,63 @@
 #include "c-api.h"
-#include <stdint.h>
 #include <stdio.h>
+#include <dlfcn.h>
+static __typeof__(&SherpaOnnxAcceptWaveformOffline) p_SherpaOnnxAcceptWaveformOffline;
+static __typeof__(&SherpaOnnxCreateOfflineRecognizer) p_SherpaOnnxCreateOfflineRecognizer;
+static __typeof__(&SherpaOnnxCreateOfflineStream) p_SherpaOnnxCreateOfflineStream;
+static __typeof__(&SherpaOnnxCreateOfflineTts) p_SherpaOnnxCreateOfflineTts;
+static __typeof__(&SherpaOnnxDecodeOfflineStream) p_SherpaOnnxDecodeOfflineStream;
+static __typeof__(&SherpaOnnxDestroyOfflineRecognizer) p_SherpaOnnxDestroyOfflineRecognizer;
+static __typeof__(&SherpaOnnxDestroyOfflineRecognizerResult) p_SherpaOnnxDestroyOfflineRecognizerResult;
+static __typeof__(&SherpaOnnxDestroyOfflineStream) p_SherpaOnnxDestroyOfflineStream;
+static __typeof__(&SherpaOnnxDestroyOfflineTts) p_SherpaOnnxDestroyOfflineTts;
+static __typeof__(&SherpaOnnxDestroyOfflineTtsGeneratedAudio) p_SherpaOnnxDestroyOfflineTtsGeneratedAudio;
+static __typeof__(&SherpaOnnxGetOfflineStreamResult) p_SherpaOnnxGetOfflineStreamResult;
+static __typeof__(&SherpaOnnxOfflineTtsGenerateWithConfig) p_SherpaOnnxOfflineTtsGenerateWithConfig;
+static int load_engine(const char *root) {
+  char library[4096];
+  if (snprintf(library, sizeof(library), "%s/libsherpa-onnx-c-api.dylib", root) >= sizeof(library)) return 0;
+  void *handle = dlopen(library, RTLD_NOW | RTLD_LOCAL);
+  if (!handle) { fprintf(stderr, "Cannot load voice engine: %s\n", dlerror()); return 0; }
+  p_SherpaOnnxAcceptWaveformOffline = dlsym(handle, "SherpaOnnxAcceptWaveformOffline");
+  if (!p_SherpaOnnxAcceptWaveformOffline) return 0;
+  p_SherpaOnnxCreateOfflineRecognizer = dlsym(handle, "SherpaOnnxCreateOfflineRecognizer");
+  if (!p_SherpaOnnxCreateOfflineRecognizer) return 0;
+  p_SherpaOnnxCreateOfflineStream = dlsym(handle, "SherpaOnnxCreateOfflineStream");
+  if (!p_SherpaOnnxCreateOfflineStream) return 0;
+  p_SherpaOnnxCreateOfflineTts = dlsym(handle, "SherpaOnnxCreateOfflineTts");
+  if (!p_SherpaOnnxCreateOfflineTts) return 0;
+  p_SherpaOnnxDecodeOfflineStream = dlsym(handle, "SherpaOnnxDecodeOfflineStream");
+  if (!p_SherpaOnnxDecodeOfflineStream) return 0;
+  p_SherpaOnnxDestroyOfflineRecognizer = dlsym(handle, "SherpaOnnxDestroyOfflineRecognizer");
+  if (!p_SherpaOnnxDestroyOfflineRecognizer) return 0;
+  p_SherpaOnnxDestroyOfflineRecognizerResult = dlsym(handle, "SherpaOnnxDestroyOfflineRecognizerResult");
+  if (!p_SherpaOnnxDestroyOfflineRecognizerResult) return 0;
+  p_SherpaOnnxDestroyOfflineStream = dlsym(handle, "SherpaOnnxDestroyOfflineStream");
+  if (!p_SherpaOnnxDestroyOfflineStream) return 0;
+  p_SherpaOnnxDestroyOfflineTts = dlsym(handle, "SherpaOnnxDestroyOfflineTts");
+  if (!p_SherpaOnnxDestroyOfflineTts) return 0;
+  p_SherpaOnnxDestroyOfflineTtsGeneratedAudio = dlsym(handle, "SherpaOnnxDestroyOfflineTtsGeneratedAudio");
+  if (!p_SherpaOnnxDestroyOfflineTtsGeneratedAudio) return 0;
+  p_SherpaOnnxGetOfflineStreamResult = dlsym(handle, "SherpaOnnxGetOfflineStreamResult");
+  if (!p_SherpaOnnxGetOfflineStreamResult) return 0;
+  p_SherpaOnnxOfflineTtsGenerateWithConfig = dlsym(handle, "SherpaOnnxOfflineTtsGenerateWithConfig");
+  if (!p_SherpaOnnxOfflineTtsGenerateWithConfig) return 0;
+  return 1;
+}
+#define SherpaOnnxAcceptWaveformOffline (*p_SherpaOnnxAcceptWaveformOffline)
+#define SherpaOnnxCreateOfflineRecognizer (*p_SherpaOnnxCreateOfflineRecognizer)
+#define SherpaOnnxCreateOfflineStream (*p_SherpaOnnxCreateOfflineStream)
+#define SherpaOnnxCreateOfflineTts (*p_SherpaOnnxCreateOfflineTts)
+#define SherpaOnnxDecodeOfflineStream (*p_SherpaOnnxDecodeOfflineStream)
+#define SherpaOnnxDestroyOfflineRecognizer (*p_SherpaOnnxDestroyOfflineRecognizer)
+#define SherpaOnnxDestroyOfflineRecognizerResult (*p_SherpaOnnxDestroyOfflineRecognizerResult)
+#define SherpaOnnxDestroyOfflineStream (*p_SherpaOnnxDestroyOfflineStream)
+#define SherpaOnnxDestroyOfflineTts (*p_SherpaOnnxDestroyOfflineTts)
+#define SherpaOnnxDestroyOfflineTtsGeneratedAudio (*p_SherpaOnnxDestroyOfflineTtsGeneratedAudio)
+#define SherpaOnnxGetOfflineStreamResult (*p_SherpaOnnxGetOfflineStreamResult)
+#define SherpaOnnxOfflineTtsGenerateWithConfig (*p_SherpaOnnxOfflineTtsGenerateWithConfig)
+
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #ifndef _WIN32
@@ -30,6 +87,9 @@ static char *path(const char *root, const char *name) {
 static void le32(uint32_t x) { for (int i = 0; i < 4; ++i) putchar((x >> (i * 8)) & 255); }
 static void le16(uint16_t x) { putchar(x & 255); putchar(x >> 8); }
 int main(int argc, char **argv) {
+  if (argc < 3 || !load_engine(argv[1])) return 2;
+  --argc; ++argv;
+  if (!strcmp(argv[1], "probe")) return 0;
   if (argc < 4) return 2;
 #ifndef _WIN32
   owner = getppid();

@@ -21,12 +21,12 @@ def target_native(name, os, arch):
     return True
 
 
-def prune(data, os, arch):
+def prune(data, os, arch, on_demand=False):
     result = io.BytesIO()
     with zipfile.ZipFile(io.BytesIO(data)) as source, zipfile.ZipFile(result, 'w') as out:
         removed = False
         for entry in source.infolist():
-            if re.search(r'\.(so(\.\d+)*|dylib|dll|jnilib)$', entry.filename) and not target_native(entry.filename, os, arch):
+            if re.search(r'\.(so(\.\d+)*|dylib|dll|jnilib)$', entry.filename) and (not target_native(entry.filename, os, arch) or on_demand):
                 removed = True
                 continue
             out.writestr(entry, source.read(entry))
@@ -47,7 +47,7 @@ def package(path, os, arch):
         for entry in source.infolist():
             data = source.read(entry)
             if entry.filename.startswith('BOOT-INF/lib/') and entry.filename.endswith('.jar'):
-                data = prune(data, os, arch)
+                data = prune(data, os, arch, on_demand="/litertlm-jvm-" in entry.filename)
                 if len(data) != entry.file_size:
                     print(f'{entry.filename}: {entry.file_size} -> {len(data)} bytes')
                 entry.compress_type = zipfile.ZIP_STORED

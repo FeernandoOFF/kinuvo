@@ -9,3 +9,10 @@ internal actual fun deviceMemory(): Long? = runCatching {
 
 internal actual fun unsupportedReason(): String? =
     if ("arm64-v8a" in Build.SUPPORTED_ABIS || "x86_64" in Build.SUPPORTED_ABIS) null else "On-device models need a 64-bit phone"
+
+internal actual fun nativeEngine(home: File): NativeEngine = object : NativeEngine {
+    override val bytes = 0L
+    override val installed = true
+    override suspend fun ensure(progress: (Long) -> Unit) = Unit
+    override fun load() = Unit
+}

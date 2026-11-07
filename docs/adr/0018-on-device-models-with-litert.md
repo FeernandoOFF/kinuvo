@@ -17,7 +17,8 @@ The catalog pins three models with a minimum device RAM each. The provider hides
 
 ## Consequences
 
-- The JVM package bundles LiteRT-LM's native libraries for macOS arm64, Linux and Windows (about 130 MB); Android adds about 22 MB per 64-bit ABI and has no 32-bit build.
+- Desktop and bundled-runtime CLI packages keep only the LiteRT-LM Kotlin classes. The first model download also downloads the pinned 0.19.0 jar from Google Maven, verifies its SHA-256, and extracts only this machine's engine into `<Server home>/engines/litertlm-0.19.0-<platform>`. Engine bytes appear in the existing model download progress. A pre-existing model also needs this engine before it is available. Android still bundles its native engine and adds about 22 MB per 64-bit ABI; iOS is unchanged.
+- The universal Server jar retains its multi-platform libraries for portability, but the JVM provider uses the verified engine store too. Engines are shared by models and retained when a model is removed. First setup requires internet access; cached models and engines work offline.
 - Each request replays history into a new conversation, so long Sessions pay prefill on every step. Reusing a conversation's KV cache across steps is future work.
 - Small models need a small, simple tool set: screen control, Scripts and the tool catalog are excluded, and unparseable calls are retried with a correction.
 - Small models can't repeat hashed tool aliases, so every run now offers tools by their own names and keeps aliases only for clashes (see [Plugins](../reference/plugins.md)).
