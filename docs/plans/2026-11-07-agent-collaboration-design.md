@@ -21,13 +21,27 @@ Lets Agents work with one another through Kinuvo's own tools. Decision: [ADR 002
 - **Depth.** `delegationDepth` in `agent.yaml` (default 2). A Session whose depth has reached it is not offered `delegate`, `delegate_wait` or `subagents`.
 - **Stopping.** Stopping a Session stops its running descendants, recursively. Cancelling a parent's foreground call stops its child.
 - **Scope.** `sessions_list`, `sessions_search`, `sessions_read` and `session_status` cover the caller Agent's Sessions and the children it delegated, never a hidden one.
-- **Hidden delegation.** The target must be a native Agent on a provider whose `onDevice(model)` is true (the `model` override counts); otherwise the call fails with the provider and model named. External Agents are refused. The child is skipped by Reflection, its Agent's Memory, Knowledge and Skills tools are withheld for that Session, and Notifications about it carry no content (a delegated Session's finish or error is never notified). A Hidden Session can only delegate hidden. With `review`, an Approval in the parent's Session shows the answer; deny returns "The user withheld the result." The user still sees Hidden Sessions in the app.
+- **Hidden delegation.** The target must be a native Agent on a provider whose `onDevice(model)` is true (the `model` override counts); otherwise the call fails with the provider and model named. External Agents are refused. The child starts with that provider and model pinned in its Session settings, so a later change of its Agent's default doesn't move it. The child is skipped by Reflection, its Agent's Memory, Knowledge and Skills tools are withheld for that Session, as are the network-egress tools (`web_fetch`, `web_search`, Browser, Computer, image generation and MCP servers), and Notifications about it carry no content (a delegated Session's finish or error is never notified). A Hidden Session can only delegate hidden. With `review`, an Approval in the parent's Session shows the answer; deny returns "The user withheld the result." The user still sees Hidden Sessions in the app.
 - **On-device parent, cloud child.** The child gets only the goal and context the parent wrote.
-- **Not yet.** An unanswered child question or Approval blocks the parent without a timeout. Reviewing an External parent's hidden result uses an Approval in its execution, as for other Kinuvo Approvals. Sessions are found by scanning each Agent's Sessions, which is fine at today's sizes.
+- **Waiting on the user.** A child whose question or Approval stays unanswered for 30 minutes fails the parent's foreground `delegate` or `delegate_wait` for that child ("waiting on the user"); its Session stays open and keeps counting as running, so stopping the parent still stops it.
+- **Not yet.** Reviewing an External parent's hidden result uses an Approval in its execution, as for other Kinuvo Approvals. Sessions are found by scanning each Agent's Sessions, which is fine at today's sizes.
 
 ## Roadmap
 
 1. **PR 1, read tools (done).** `agent_tools` group: `agents_list`, `sessions_list`, `sessions_search`, `sessions_read`, `session_status`, all Low risk. Native tools and the MCP endpoint with ACP injection. The `hidden` flag on Sessions lands, with exclusion enforced in the tools.
 2. **PR 2, delegation (done).** As above.
-3. **PR 3, management tools.** `agent_update`, `agent_create` (blank), `mcp_add`, `mcp_remove`, `mcp_test`, `mcp_login`, `session_configure`. All High risk, with a diff shown in the Approval. An Agent can never raise its own Risk tolerance or add Trust rules.
-4. **Later.** Board handoffs between Agents (undecided) and Teams.
+3. **PR 3, management tools (done).** The `agent_manage` group, below.
+4. **Later.** Board handoffs between Agents (undecided), Teams, a richer diff card for these Approvals (UI), Kinuvo-side identity tools for External Agents, and letting the Server catch the loopback OAuth callback so `mcp_login` doesn't need the pasted address.
+
+## Management tools (PR 3)
+
+- **Group.** `agent_manage`, on by default for new Agents (an Agent with an explicit `tools:` list opts in), native and over `/mcp` for native callers. External callers get none of it: their Kinuvo display identity lives in the registration, which nothing in the Agent store owns, so offering an identity-only subset would need a second path; left for later.
+- **Tools** act on the caller's own Agent and Session.
+  - `agent_get` (Low). Name, Identity, Soul, avatar, model and provider, reasoning, Risk tolerance (read-only), tool groups, MCP servers.
+  - `agent_update` (High). Name, Identity, Soul, avatar, provider and model, reasoning, `enable_tools` and `disable_tools`. Runs through `Admin.update`.
+  - `agent_create` (High). Name, optional Identity, Soul, provider and model. A blank Agent from the template, never a clone, so no Memory, Skills, Trust rules or own MCP servers carry over.
+  - `mcp_list` and `mcp_test` (Low), `mcp_add` and `mcp_remove` (High), `mcp_login` (Medium). Agent-scoped servers only; `mcp_remove` is for servers the user named. `mcp_login` puts the link in an `ask_user` form and completes with the pasted address.
+  - `session_configure` (Medium). The current Session's model and provider, reasoning, and a stricter Risk tolerance. Runs through `HarnessRuntime.configure`, which the user's `session.configure` also uses.
+- **Never from chat.** Raising Risk tolerance (Agent or Session), adding Trust rules, removing Deny rules, changing `exec` or `workspace`, and enabling a tool group the Server doesn't offer. Passing such a parameter fails with a pointer to Settings; each has a test.
+- **Approvals.** `Tool.describe` builds the before → after text on the Server from the current state; the Approval shows it in its reason, and over MCP it is part of the ACP permission description. The four High tools are `alwaysAsk`, so they ask at every tolerance. A richer diff card is UI work for later.
+- **Hidden Sessions** get only `session_configure`, and its model change must stay on-device (see the hidden rules above).

@@ -170,7 +170,7 @@ An Agent handing a goal to an Agent (itself or another, native or External) in a
 _Avoid_: Sub-agent run, handoff
 
 **Hidden Session**:
-A child Session started with `hidden`: it runs on an on-device model, its transcript is invisible to every Agent tool whoever calls, it is never reflected on, and only its final result crosses to the parent. The user still sees it in the app.
+A child Session started with `hidden`: it runs on an on-device model that no one can change to a cloud one, its transcript is invisible to every Agent tool whoever calls, it is never reflected on, it has no web, Browser, Computer or MCP tools, and only its final result crosses to the parent. The user still sees it in the app.
 _Avoid_: Private Session, secret chat
 
 **Session settings**:

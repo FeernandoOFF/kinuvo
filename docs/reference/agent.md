@@ -27,10 +27,25 @@ Each Agent has `agents/<id>/agent.yaml` under the Server home. These are the `Ag
 Default optional tool groups:
 
 ```yaml
-tools: [memory, web_fetch, skills, schedule, knowledge, tasks, ask_user, artifact, device_tools, agent_tools, run_code, computer]
+tools: [memory, web_fetch, skills, schedule, knowledge, tasks, ask_user, artifact, device_tools, agent_tools, agent_manage, run_code, computer]
 ```
 
 A group is offered only when its provider and required capabilities are available. Shell and file tools come from the configured Exec backend; `exec: none` disables them.
+
+`agent_tools` lets an Agent list its Agents, read its own past Sessions and delegate work. `agent_manage` lets it configure itself from chat:
+
+| Tool | Risk | What it does |
+| --- | --- | --- |
+| `agent_get` | Low | Shows its name, Identity, Soul, avatar, model, reasoning effort, Risk tolerance, tool groups and MCP servers |
+| `agent_update` | High | Changes its name, Identity, Soul, avatar, default model and provider, reasoning effort or tool groups |
+| `agent_create` | High | Creates a blank Agent (name, optional Identity, Soul, model); nothing is copied from the caller |
+| `mcp_list`, `mcp_test` | Low | Lists its MCP servers; connects to one and lists its tools |
+| `mcp_add` | High | Adds an HTTP or local MCP server to this Agent only |
+| `mcp_remove` | High | Removes one of its own MCP servers, only when the user named it |
+| `mcp_login` | Medium | Starts an OAuth sign-in: the user gets the link in a form, opens it and pastes back the address the browser ends on |
+| `session_configure` | Medium | Changes the current Session's model or reasoning effort, or makes its Risk tolerance stricter |
+
+Every High change, and every Medium one that asks, shows an Approval with the exact change (`field: old → new`). These tools always ask, whatever the Risk tolerance, and "Always allow" isn't offered for them. An Agent can never raise its own Risk tolerance, add Trust rules, remove Deny rules, change where its shell runs, or turn on a group this Server doesn't offer; those are the user's to change in Settings. A Hidden Session only gets `session_configure`, which keeps it on an on-device model. External Agents don't get `agent_manage`.
 
 ## Container and SSH
 
