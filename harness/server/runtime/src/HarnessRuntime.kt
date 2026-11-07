@@ -155,7 +155,7 @@ open class HarnessRuntime(
     /** Renames [sessionId] (blank: back to its first message) or marks it a favorite. */
     suspend fun update(agent: Agent, sessionId: String, title: String?, favorite: Boolean?): SessionInfo {
         val before = store.entries(agent.id, sessionId).filterIsInstance<SessionEntry.Details>().lastOrNull() ?: SessionEntry.Details()
-        val details = SessionEntry.Details(
+        val details = before.copy(
             title = if (title == null) before.title else title.trim().take(MAX_SESSION_TITLE).ifEmpty { null },
             favorite = favorite ?: before.favorite,
         )

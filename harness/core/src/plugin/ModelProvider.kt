@@ -22,6 +22,8 @@ interface ModelProvider {
         ATTACHMENT_MIME_TYPES.filter { attachmentInput(it) == "file" }.toSet() else emptySet()
     fun model(config: AgentConfig): AgentModel
     fun model(config: AgentConfig, info: ModelInfo?): AgentModel = model(config)
+    /** Whether [model] runs on the Server's own device, so its prompts never leave it. */
+    fun onDevice(model: String) = false
     /** Plan usage, for providers that report it. */
     val usage: StateFlow<Usage?>? get() = null
     /** The [tools] [model] can take, e.g. fewer and simpler ones for a small model; the rest aren't offered. */

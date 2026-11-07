@@ -22,6 +22,7 @@ class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
     override val id = "local"
     override val name = "On this device"
     override val modelProviders get() = listOf(this)
+    override fun onDevice(model: String) = true
     private val files = ModelFiles(File(home, "local-models"))
     private val engines = Engines(files, File(home, "cache/litert"))
     private val executor = koogExecutor(LiteRtLLMClient(engines))
