@@ -21,6 +21,8 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.Animatable
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -348,13 +350,20 @@ fun ChatContent(
             // The composer floats over the messages, which scroll on under its blur.
             var dropping by remember { mutableStateOf(false) }
             val canDrop = !state.running && (state.files?.actionable != false || state.photos?.actionable != false)
+            // Like the keyboard covering it: typing into a Surface or web page leaves the composer behind the keyboard.
+            val composerHidden = floating && !composerFocused && WindowInsets.ime.getBottom(density) > 0
+            // Hides at once, under the rising keyboard; slides back up when it closes.
+            val composerShift = remember { Animatable(0f) }
+            LaunchedEffect(composerHidden) { if (composerHidden) composerShift.snapTo(1f) else composerShift.animateTo(0f, Motion.appearSpring()) }
+            // Its blur would draw HTML Surface web views into an empty layer while it moves, crashing Android's WebView.
+            val composerBlurred by remember { derivedStateOf { composerShift.value == 0f } }
             Box(Modifier.weight(1f).attachmentDrop(canDrop, actions.onDropAttachments) { dropping = it }) {
                 val voice = state.voice?.takeIf { it.active && !it.live }
                 // Keeps the last state while voice chat animates away.
                 var shownVoice by remember { mutableStateOf(voice) }
                 voice?.let { shownVoice = it }
                 CompositionLocalProvider(LocalRiveGaze provides gaze) {
-                    Messages(state, messages, follow, Modifier.fillMaxSize().hazeSource(haze), actions, composerHeight,
+                    Messages(state, messages, follow, Modifier.fillMaxSize().hazeSource(haze), actions, if (composerHidden) 0.dp else composerHeight,
                         top = (if (floating) FloatingBarHeight else 0.dp) + (if (voice != null) VoiceStatusHeight else 0.dp))
                 }
                 state.voice?.takeIf { !it.live }?.let { VoiceGlow(it, Modifier.align(Alignment.BottomCenter)) }
@@ -368,6 +377,7 @@ fun ChatContent(
                 val background = color(backgroundColor)
                 val fade = with(density) { ComposerFade.toPx() }
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { composerHeight = with(density) { it.height.toDp() } }
+                    .graphicsLayer { translationY = size.height * composerShift.value }
                     // Phones: messages fade out just above the composer and never show around it.
                     // Not in voice chat, whose glow behind the controls would otherwise be cut off at the fade.
                     .then(if (floating && voice == null) Modifier.background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background), endY = fade)) else Modifier)
@@ -440,7 +450,7 @@ fun ChatContent(
                             attachments = attachments,
                             controls = settings,
                             containerColor = color(fieldColor).copy(alpha = 0.7f),
-                            backdrop = Modifier.hazeBlur(HazeInput.Sources(haze), blur),
+                            backdrop = if (composerBlurred) Modifier.hazeBlur(HazeInput.Sources(haze), blur) else Modifier,
                             onVoice = actions.onVoice?.let { start -> { follow.value = true; start() } },
                             notice = if ((state.external && (state.prompts.isNotEmpty() || (state.chatBlocked != null && state.ended == null))) || connectionNotice != null || state.dictation?.error != null) ({
                                 state.dictation?.error?.let { Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
