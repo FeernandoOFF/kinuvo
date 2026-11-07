@@ -126,6 +126,7 @@ def serve():
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--archive", type=Path, help="Export an existing .xcarchive instead of rebuilding")
+    parser.add_argument("--debug", action="store_true", help="Archive the Debug configuration, which builds faster")
     args = parser.parse_args()
     os.chdir(ROOT)
     WORK.mkdir(parents=True, exist_ok=True)
@@ -135,10 +136,10 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             raise RuntimeError("Another iOS publication is running.") from None
-        publish(args.archive)
+        publish(args.archive, "Debug" if args.debug else "Release")
 
 
-def publish(existing_archive):
+def publish(existing_archive, configuration):
     status = json.loads(output("tailscale", "status", "--json"))
     if status.get("BackendState") != "Running":
         raise RuntimeError("Connect Tailscale before publishing.")
@@ -156,7 +157,7 @@ def publish(existing_archive):
     archive = existing_archive.resolve() if existing_archive else WORK / "Kinuvo.xcarchive"
     if not existing_archive:
         xcode("archive.log", "-project", "apps/ios/module.xcodeproj", "-scheme", "ios",
-              "-configuration", "Release", "-destination", "generic/platform=iOS",
+              "-configuration", configuration, "-destination", "generic/platform=iOS",
               "-derivedDataPath", WORK / "DerivedData", "-archivePath", archive,
               "-allowProvisioningUpdates", "archive")
     archive_info = plistlib.loads((archive / "Info.plist").read_bytes())
