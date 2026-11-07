@@ -63,7 +63,7 @@ internal fun designDocument(json: String, nonce: String = newNonce(), background
         "<body><div id=\"s\"><div id=\"w\"></div></div><div id=\"o\"></div><style>${designCss(background.css(), background.luminance() <= 0.5f)}</style><script nonce=\"$nonce\">${designScript(json)}</script></body>",
         "'nonce-$nonce'",
     )
-    return framed(inner, "<script>$BRIDGE</script>" + topFade(background), "width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no")
+    return framed(inner, "<script>$BRIDGE</script>" + topFade(background), "width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no", "allow-scripts allow-same-origin")
 }
 
 private val Artboard.label get() = name.ifBlank { id }
