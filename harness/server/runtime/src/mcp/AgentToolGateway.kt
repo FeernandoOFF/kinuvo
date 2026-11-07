@@ -18,7 +18,7 @@ class AgentToolGateway(
     private val harness: HarnessRuntime,
     private val ask: suspend (CallerScope, Tool, JsonObject, Verdict.Ask) -> ApprovalDecision,
 ) {
-    fun tools(scope: CallerScope): List<Tool> = harness.agentTools(scope)
+    suspend fun tools(scope: CallerScope): List<Tool> = harness.agentTools(scope)
 
     suspend fun call(scope: CallerScope, name: String, args: JsonObject): ToolReply {
         val tool = tools(scope).firstOrNull { it.descriptor.name == name } ?: return ToolReply("Unknown tool '$name'", true)

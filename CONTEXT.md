@@ -165,8 +165,12 @@ _Avoid_: Room, crew
 One bounded conversation with an Agent; its transcript does not carry into the next Session, only Memory does.
 _Avoid_: Conversation, context
 
+**Delegation**:
+An Agent handing a goal to an Agent (itself or another, native or External) in a new child Session. The child's first message is the goal and context only, never the parent's transcript; the parent gets the child's final answer. Chains are limited in depth.
+_Avoid_: Sub-agent run, handoff
+
 **Hidden Session**:
-A Session whose transcript no Agent tool can see, whoever calls; only its final result is handed back. The user still sees it in the app.
+A child Session started with `hidden`: it runs on an on-device model, its transcript is invisible to every Agent tool whoever calls, it is never reflected on, and only its final result crosses to the parent. The user still sees it in the app.
 _Avoid_: Private Session, secret chat
 
 **Session settings**:

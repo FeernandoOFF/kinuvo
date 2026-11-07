@@ -3,7 +3,11 @@ package kinuvo.harness.server
 import kinuvo.harness.server.devices.*
 import kinuvo.harness.server.screens.*
 import kinuvo.harness.core.plugin.*
+import kinuvo.harness.core.agenttools.AgentDelegation
 import kinuvo.harness.core.agenttools.AgentSummary
+import kinuvo.harness.core.agenttools.Child
+import kinuvo.harness.core.agenttools.DEFAULT_DELEGATION_DEPTH
+import kinuvo.harness.core.agenttools.DelegateTask
 import kinuvo.harness.core.agenttools.AgentTools
 import kinuvo.harness.core.agenttools.AgentToolsSource
 import kinuvo.harness.core.agenttools.CallerScope
@@ -178,20 +182,42 @@ open class HarnessRuntime(
     /** The External Agents the Server runs, which Agent tools list next to the native ones. */
     var externalAgents: suspend () -> List<AgentSummary> = { emptyList() }
 
+    /** Runs delegations; the Server that owns the Sessions' runs sets it. */
+    var delegation: AgentDelegation = object : AgentDelegation {
+        override suspend fun delegate(parent: CallerScope, task: DelegateTask) = error("Delegation is unavailable")
+        override suspend fun outcome(child: Child) = error("Delegation is unavailable")
+        override suspend fun stop(sessionId: String) {}
+        override suspend fun review(parent: CallerScope, callId: String?, child: Child, result: String) = error("Delegation is unavailable")
+    }
+
     private val agentTools = AgentTools(object : AgentToolsSource {
         override suspend fun agents() = store.agents().map { agent ->
             val config = agent.config
             val identity = docs.read(agent.id, AgentDoc.Identity).lineSequence().map(String::trim).firstOrNull { it.isNotEmpty() && !it.startsWith("#") }.orEmpty().take(MAX_DESCRIPTION)
-            AgentSummary(agent.id, agent.name, identity, ExecutionKind.Native, config.provider, config.model, providers[providerId(config.provider)]?.onDevice(config.model) == true)
+            AgentSummary(agent.id, agent.name, identity, ExecutionKind.Native, config.provider, config.model, onDevice(config.provider, config.model))
         } + externalAgents()
         override suspend fun sessions(agentId: String) = store.sessions(agentId).map { it.copy(status = log.status(it.id)) }
+        override suspend fun delegated(agentId: String) = agents().flatMap { a -> store.sessions(a.id).filter { it.parent?.agentId == agentId } }
         override suspend fun entries(agentId: String, sessionId: String) = store.entries(agentId, sessionId)
         override suspend fun live(sessionId: String): LiveState = log.live(sessionId)
+        override suspend fun delegate(parent: CallerScope, task: DelegateTask) = delegation.delegate(parent, task)
+        override suspend fun outcome(child: Child) = delegation.outcome(child)
+        override suspend fun stop(sessionId: String) = delegation.stop(sessionId)
+        override suspend fun review(parent: CallerScope, callId: String?, child: Child, result: String) = delegation.review(parent, callId, child, result)
     })
 
-    /** [scope]'s Kinuvo tools bound to this Server, for callers outside a run, such as an MCP endpoint. */
-    fun agentTools(scope: CallerScope): List<Tool> =
-        PluginTools(agentTools.tools(scope)).ownedBy(PluginInstanceId("kinuvo.core")).tools.withModelNames()
+    /** Whether [model] of [provider] runs on this Server's own device, so its prompts never leave it. */
+    fun onDevice(provider: String, model: String) = providers[providerId(provider)]?.onDevice(model) == true
+
+    /** Stops the delegations still running under [sessionId]. */
+    suspend fun stopChildren(sessionId: String) = agentTools.stopChildren(sessionId)
+
+    /** [scope]'s Kinuvo tools bound to this Server, for callers outside a run, such as an MCP endpoint; the delegation depth comes from its Session. */
+    suspend fun agentTools(scope: CallerScope): List<Tool> {
+        val depth = scope.sessionId?.let { id -> runCatching { store.session(scope.agentId, id).parent?.depth }.getOrNull() } ?: 0
+        val limit = store.agents().firstOrNull { it.id == scope.agentId }?.config?.delegationDepth ?: DEFAULT_DELEGATION_DEPTH
+        return PluginTools(agentTools.tools(scope.copy(depth = depth), limit)).ownedBy(PluginInstanceId("kinuvo.core")).tools.withModelNames()
+    }
 
     /** The Risk, Trust and Deny rules for [scope]'s calls: the Agent's own, the Server's and the Session's. */
     suspend fun approvalPolicy(scope: CallerScope): ApprovalPolicy {
@@ -207,16 +233,20 @@ open class HarnessRuntime(
      * The Agent as a Session runs it: its settings applied, tool groups this Server lacks dropped, and compaction and
      * Memory limits fitted to the model's context window. Capabilities, instructions and runs all start from this.
      */
-    private class Effective(val agent: Agent, val info: ModelInfo?, val provider: ModelProvider?, val memoryCap: Int, val userCap: Int)
+    private class Effective(val agent: Agent, val info: ModelInfo?, val provider: ModelProvider?, val memoryCap: Int, val userCap: Int, val depth: Int = 0)
 
     private suspend fun effective(agent: Agent, sessionId: String?, settings: SessionSettings? = null): Effective {
-        val configured = supported(agent.with(settings ?: sessionId?.let { store.session(agent.id, it).settings } ?: SessionSettings()))
-            .let { it.copy(config = it.config.copy(provider = providerId(it.config.provider))) }
+        val session = sessionId?.let { store.session(agent.id, it) }
+        // A hidden Session never writes to the Agent's Memory, Knowledge or Skills, which its other Sessions read.
+        val kept = supported(agent.with(settings ?: session?.settings ?: SessionSettings())).let { a ->
+            if (session?.hidden == true) a.copy(config = a.config.copy(tools = a.config.tools - HIDDEN_TOOLS)) else a
+        }
+        val configured = kept.let { it.copy(config = it.config.copy(provider = providerId(it.config.provider))) }
         val info = modelCatalog().providers.firstOrNull { it.id == configured.config.provider }?.models?.firstOrNull { it.id == configured.config.model }
         val context = info?.context
         val fitted = if (context == null) configured else configured.copy(config = configured.config.copy(compactAtTokens = minOf(configured.config.compactAtTokens, context * 55 / 100)))
         fun cap(limit: Int) = context?.let { minOf(limit, it * 3 / 10) } ?: limit
-        return Effective(fitted, info, providers[configured.config.provider], cap(memoryCap), cap(userCap))
+        return Effective(fitted, info, providers[configured.config.provider], cap(memoryCap), cap(userCap), session?.parent?.depth ?: 0)
     }
 
     /** Which of [tools] the model takes: none when it can't call tools, else what its catalog entry and provider allow. */
@@ -369,7 +399,7 @@ open class HarnessRuntime(
             else -> null
         }
     } + if (ToolNames.SKILLS in agent.config.tools) skillTools(agent) else emptyList() } +
-        (if (ToolNames.AGENT_TOOLS in e.agent.config.tools) agentTools.tools(CallerScope(e.agent.id, sessionId)) else emptyList()) + listOfNotNull(routine?.let(::RoutineReportTool))
+        (if (ToolNames.AGENT_TOOLS in e.agent.config.tools) agentTools.tools(CallerScope(e.agent.id, sessionId, e.depth), e.agent.config.delegationDepth) else emptyList()) + listOfNotNull(routine?.let(::RoutineReportTool))
 
     /** [agent] without the tool groups this Server lacks the feature for, so neither its tools nor their instructions show. */
     private fun supported(agent: Agent) = agent.copy(config = agent.config.copy(tools = agent.config.tools.filter { it in toolGroups }))
@@ -389,6 +419,7 @@ open class HarnessRuntime(
             ToolNames.KNOWLEDGE to ServerFeature.Knowledge, ToolNames.TASKS to ServerFeature.Tasks, ToolNames.DEVICE_TOOLS to ServerFeature.DeviceTools,
             ToolNames.COMPUTER to ServerFeature.Computer)
         const val MAX_DESCRIPTION = 160
+        val HIDDEN_TOOLS = setOf(ToolNames.MEMORY, ToolNames.KNOWLEDGE, ToolNames.SKILLS)
         const val UNATTENDED_DENIAL = "This is an unattended Routine run, so tool calls that need an Approval are denied."
     }
 }

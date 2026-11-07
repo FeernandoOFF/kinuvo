@@ -14,6 +14,7 @@ Each Agent has `agents/<id>/agent.yaml` under the Server home. These are the `Ag
 | `tools` | list of strings | All optional groups below | `[memory, web_fetch, skills]` |
 | `skillDirs` | list of strings | `[]` | `["/home/me/shared-skills"]`; extra read-only Skill folders |
 | `compactAtTokens` | integer | `200000` | `100000`; estimated context threshold for Compaction |
+| `delegationDepth` | integer | `2` | how many delegations deep a chain may go: with `2`, a Session you start can delegate, so can its child, but a grandchild gets no `delegate`. `0` never delegates |
 | `approvals` | string | `default` | `strict`, `default`, `relaxed` or `full` Risk tolerance |
 | `exec` | string | `none` | `none`, `host`, `container` or `ssh` |
 | `workspace` | list of strings | `[]` | `["/home/me/work"]`; commands start in the first folder |

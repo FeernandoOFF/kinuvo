@@ -40,7 +40,10 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
             val agent = harness.store.agents().firstOrNull { it.id == agentId }
             val name = agent?.name ?: externalName(agentId) ?: return@launch
             if (harness.log.watched(sessionId)) return@launch
-            val notification = when (event) {
+            val session = runCatching { harness.store.session(agentId, sessionId) }.getOrNull()
+            // A delegated Session's end is its parent's business, and a hidden one's words never leave the Server.
+            if (session?.parent != null && (event is AgentEvent.RunFinished || event is AgentEvent.RunError)) return@launch
+            val notification = if (session?.hidden == true) hiddenNotification(name, agentId, sessionId, event) else when (event) {
                 is AgentEvent.ApprovalRequested -> approvalText(name, event).let { (title, body) ->
                     Notification(title, body.clip(), agentId, sessionId, urgent = true)
                 }
@@ -59,6 +62,11 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
             }
             notification?.let { quietly(it) }
         }
+    }
+
+    private fun hiddenNotification(name: String, agentId: String, sessionId: String, event: AgentEvent) = when (event) {
+        is AgentEvent.ApprovalRequested, is AgentEvent.QuestionsAsked, is AgentEvent.ExecutionRequested -> Notification(name, "A hidden Session needs your attention", agentId, sessionId, urgent = true)
+        else -> null
     }
 
     fun routineRan(ran: RoutineRan) {
