@@ -83,8 +83,9 @@ class McpManager(
     private var appTools = emptyMap<Pair<String, String>, Tool>()
 
     suspend fun resource(ref: McpAppRef): McpAppResource {
+        // Picks up removed servers and excluded tools before serving an app, not only on the next run.
+        if (servers.isEmpty() || stale()) tools()
         apps.cached(ref)?.let { return it }
-        if (servers.isEmpty()) tools()
         val server = servers.values.firstOrNull { it.config.instanceId == ref.serverId } ?: error("The MCP server for this app is no longer configured")
         val current = apps.load(server, ref.resourceUri)
         check(current == ref) { "MCP App resource changed; run the tool again" }
@@ -100,7 +101,7 @@ class McpManager(
 
     /** Current tools of every server; failing servers are reported instead of thrown. */
     suspend fun tools(): Pair<List<Tool>, List<String>> {
-        val (configs, errors) = expand?.let { McpConfig.load(configFiles, signInScopes, agentId, it) } ?: McpConfig.load(configFiles, signInScopes, agentId)
+        val (configs, errors) = configs()
         val warnings = errors.toMutableList()
         val old = servers
         servers = configs.associate { cfg -> cfg.name to (old[cfg.name]?.takeIf { it.config == cfg && it.authGeneration == generation(cfg) } ?: McpServer(cfg, auth)) }
@@ -140,6 +141,11 @@ class McpManager(
     /** HTTP servers that refused Kinuvo until the user signs in. */
     fun needingSignIn(): List<McpServerConfig.Http> =
         servers.values.mapNotNull { it.config as? McpServerConfig.Http }.filter { auth?.isRequired(it.signInId) == true }
+
+    private suspend fun configs() = expand?.let { McpConfig.load(configFiles, signInScopes, agentId, it) } ?: McpConfig.load(configFiles, signInScopes, agentId)
+
+    private suspend fun stale() = configs().first.toSet() != servers.values.map { it.config }.toSet() ||
+        servers.values.any { it.authGeneration != generation(it.config) }
 
     private fun generation(cfg: McpServerConfig) = (cfg as? McpServerConfig.Http)?.let { auth?.generation(it.signInId) } ?: 0
 

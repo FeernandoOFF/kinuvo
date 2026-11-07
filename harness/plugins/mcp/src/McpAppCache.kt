@@ -16,12 +16,12 @@ internal fun JsonObject?.visibleTo(audience: String): Boolean {
 
 internal class McpAppCache {
     private val lock = Mutex()
-    private val refs = mutableMapOf<Pair<String, String>, McpAppRef>()
+    private val refs = mutableMapOf<Triple<String, String, Int>, McpAppRef>()
     private val content = mutableMapOf<McpAppRef, McpAppResource>()
 
     suspend fun load(server: McpServer, uri: String): McpAppRef = lock.withLock {
         require(uri.startsWith("ui://")) { "MCP App resources must use ui://" }
-        val key = server.config.instanceId to uri
+        val key = Triple(server.config.instanceId, uri, server.connections)
         refs[key]?.let { return@withLock it }
         val result = ProtocolJson.encodeToJsonElement(server.readResource(uri)).jsonObject
         val item = result["contents"]!!.jsonArray.single().jsonObject

@@ -49,6 +49,9 @@ class McpAppTest {
             val refresh = manager.appTool(ref, "refresh").executeResult(JsonObject(emptyMap()), "app", run)
             assertTrue(refresh.output.startsWith("refreshed"))
             assertFailsWith<IllegalStateException> { manager.appTool(ref, "missing") }
+
+            cfg.writeText("""{"mcpServers": {}}""")
+            assertFailsWith<IllegalStateException> { manager.appTool(ref, "refresh") }
         } finally {
             manager.close()
         }

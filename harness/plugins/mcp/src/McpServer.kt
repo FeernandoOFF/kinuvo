@@ -60,9 +60,14 @@ class McpServer(val config: McpServerConfig, private val auth: McpAuth? = null) 
     /** Last stderr lines and exit code of a stdio server, to explain a failure. */
     private fun processDetail(): String? = process?.detail()
 
+    /** Counts connections, so what was read from an earlier one is read again after a reconnect. */
+    var connections = 0
+        private set
+
     private suspend fun connect(): Client {
         val c = Client(Implementation("kinuvo", "0.1"), ClientOptions(capabilities = appCapabilities))
         c.connect(transport())
+        connections++
         return c
     }
 
