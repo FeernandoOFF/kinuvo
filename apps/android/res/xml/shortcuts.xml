@@ -9,7 +9,7 @@
         android:shortcutLongLabel="@string/shortcut_new_chat_long">
         <intent
             android:action="dev.kinuvo.android.NEW_CHAT"
-            android:targetPackage="dev.kinuvo.android"
+            android:targetPackage="com.feernandooff.kinuvo.full"
             android:targetClass="dev.kinuvo.android.MainActivity" />
     </shortcut>
 </shortcuts>

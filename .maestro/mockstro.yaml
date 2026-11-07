@@ -2,7 +2,7 @@
 platforms:
   android:
     project: .
-    appId: dev.kinuvo.android
+    appId: com.feernandooff.kinuvo.full
     integration: full
     wiremockVersion: 4.0.0-beta.40
     websocketPath: /ws
@@ -14,7 +14,7 @@ platforms:
       variant: debug
   ios:
     project: .
-    appId: dev.kinuvo.ios
+    appId: com.feernandooff.kinuvo
     integration: full
     wiremockVersion: 4.0.0-beta.40
     websocketPath: /ws

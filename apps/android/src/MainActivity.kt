@@ -1,6 +1,5 @@
 package dev.kinuvo.android
 
-import android.app.Application
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -10,15 +9,6 @@ import kinuvo.ui.attachNotifications
 import kinuvo.app.connection.openLink
 import kinuvo.app.connection.openNewChat
 import kinuvo.ui.setKinuvoContent
-import kinuvo.ui.startKinuvo
-import org.koin.android.ext.koin.androidContext
-
-class KinuvoApplication : Application() {
-    override fun onCreate() {
-        super.onCreate()
-        startKinuvo { androidContext(this@KinuvoApplication) }
-    }
-}
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

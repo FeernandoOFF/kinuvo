@@ -2,16 +2,16 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
     <key>CFBundleDisplayName</key>
     <string>$(PRODUCT_NAME)</string>
     <key>KinuvoKeychainGroup</key>
-    <string>$(AppIdentifierPrefix)dev.kinuvo.shared</string>
+    <string>$(AppIdentifierPrefix)com.feernandooff.kinuvo.shared</string>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Kinuvo connects to your Server on the local network to reach your Agents.</string>
     <key>NSContactsUsageDescription</key>
     <string>Enabled Agents can look up contact names, phone numbers and emails for you.</string>
-    <key>NSHealthShareUsageDescription</key>
-    <string>Enabled Agents can read your workouts and sleep to help with your journal and questions.</string>
     <key>NSCameraUsageDescription</key>
     <string>Take photos to attach to your messages.</string>
     <key>NSMicrophoneUsageDescription</key>
@@ -28,13 +28,6 @@
     <key>UISupportedInterfaceOrientations</key>
     <array>
         <string>UIInterfaceOrientationPortrait</string>
-        <string>UIInterfaceOrientationLandscapeLeft</string>
-        <string>UIInterfaceOrientationLandscapeRight</string>
-    </array>
-    <key>UISupportedInterfaceOrientations~ipad</key>
-    <array>
-        <string>UIInterfaceOrientationPortrait</string>
-        <string>UIInterfaceOrientationPortraitUpsideDown</string>
         <string>UIInterfaceOrientationLandscapeLeft</string>
         <string>UIInterfaceOrientationLandscapeRight</string>
     </array>

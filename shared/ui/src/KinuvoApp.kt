@@ -59,6 +59,7 @@ import androidx.compose.animation.togetherWith
 import androidx.navigation3.scene.Scene
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -223,6 +224,9 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             val inspect = { id: String -> if (inspector == null) openSettings(Route.Settings(id), true) else { inspector.inspect(id); Unit } }
             // Phones slide the screens aside to reveal the shell; anything picked there covers it again.
             fun cover(action: () -> Unit) = { homeEdits.leave { action(); shell.revealed = false } }
+            val consent = koinInject<AiConsent>()
+            var asking by remember { mutableStateOf<Pair<String, CompletableDeferred<Boolean>>?>(null) }
+            AiConsentPrompt(asking != null, asking?.first?.let(::providerName)) { allow -> asking?.second?.complete(allow); asking = null }
             val shellActions = ShellActions(
                 onSelectAgent = { id -> homeEdits.leave { app.selectAgent(id, backStack.lastOrNull(), compact, history::switchTo) } },
                 onAddAgent = cover { guardLeave { history.open(Route.NewAgent) } },
@@ -246,7 +250,12 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onServerSettings = { server -> cover { guardLeave { agent?.let { openSettings(Route.Settings(it.id, SettingsSection.Connection, item = server.key), true) } } }() },
                 onRenameServer = app::rename,
                 onForgetServer = { app.forget(it) },
-                onQuickSend = { agentId, text, open ->
+                onQuickSend = send@{ agentId, text, open ->
+                    val provider = app.provider(agentId)
+                    if (consent.needed(provider)) {
+                        if (!CompletableDeferred<Boolean>().also { asking = provider to it }.await()) return@send false
+                        consent.grant(provider)
+                    }
                     val id = app.quickSend(agentId, text)
                     if (id != null && open) cover { history.switchTo(Route.Chat(agentId, id)) }()
                     id != null

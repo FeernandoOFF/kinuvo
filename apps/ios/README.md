@@ -1,6 +1,6 @@
 # Kinuvo for iOS
 
-Thin SwiftUI shell for the shared Compose UI, with an opt-in native navigation integration. Runs a foreground Server on-device or connects to a remote Server. The app requires iOS 18.5 or later; on-device inference requires iOS 26+ and an Apple Intelligence-capable device.
+Thin SwiftUI shell for the shared Compose UI, with an opt-in native navigation integration. Runs a foreground Server on-device or connects to a remote Server. The app requires iOS 26 or later (on-device speech, background runs and the Apple model use iOS 26 APIs) and runs on iPhone only; on-device inference also needs an Apple Intelligence-capable device.
 
 Agent avatars are Rive animations on Android and desktop; iOS shows their still PNG instead, so it needs no Rive framework.
 
@@ -70,11 +70,23 @@ installation and launch still need verification on a registered iPhone.
 
 Debug builds keep `ENABLE_DEBUG_DYLIB=NO` in the Xcode target. This works around unsigned debug dylibs observed with Kotlin Toolchain 0.12.2 during CLI device installs, which iOS refuses to load. Keep this setting when regenerating the Xcode project. The Debug target also defines `DEBUG` in `SWIFT_ACTIVE_COMPILATION_CONDITIONS` for the simulator test override; preserve it when regenerating.
 
+## TestFlight builds
+
+Bump `CURRENT_PROJECT_VERSION` for each upload, then archive and upload from the repository root:
+
+```sh
+_JAVA_OPTIONS=-Xmx10g xcodebuild -project apps/ios/module.xcodeproj -scheme ios -configuration Release \
+  -destination generic/platform=iOS -archivePath build/Kinuvo.xcarchive -allowProvisioningUpdates _JAVA_OPTIONS=-Xmx10g archive
+xcodebuild -exportArchive -archivePath build/Kinuvo.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/export -allowProvisioningUpdates
+```
+
+`ExportOptions.plist` sets `method` to `app-store-connect`, `destination` to `upload` and `teamID`. The release framework's link needs more than the 3 GB heap the Kotlin Toolchain gives the native compiler; `_JAVA_OPTIONS` is the one JVM option that overrides it, passed as a build setting so the Build Kotlin phase sees it. Xcode must be signed in to the team's Apple account.
+
 ## On-device demo
 
 The embedded Server is selected on a fresh install. If this app already remembers a remote Server, select **Embedded** in the Server menu. No pairing code, cloud login or API key is needed. The model picker shows **Apple on-device model**, and **Apple Private Cloud Compute** when the build includes it (below).
 
-Use a physical Apple Intelligence-capable device (iPhone 15 Pro/Pro Max or a supported newer iPhone, or a supported iPad). Enable Apple Intelligence in Settings and wait for its model download to finish. The simulator can verify the UI and unavailable-model messages; it does not prove local inference works.
+Use a physical Apple Intelligence-capable device (iPhone 15 Pro/Pro Max or a supported newer iPhone). Enable Apple Intelligence in Settings and wait for its model download to finish. The simulator can verify the UI and unavailable-model messages; it does not prove local inference works.
 
 1. Install and launch on the device using Xcode or the device command above.
 2. Enable airplane mode and keep Kinuvo in the foreground.
@@ -113,9 +125,9 @@ Pairing is remembered across app launches. The shared client reconnects while th
 
 ## Push notifications
 
-Notifications from a remote Server arrive through APNs and the Push relay ([ADR 0020](../../docs/adr/0020-push-relay.md)). The app registers for remote notifications on launch and asks for Notifications when onboarding finishes or a chat first opens; once they're allowed, it subscribes on each connected Server with `…/apns/sandbox/<token>` (Debug) or `…/apns/production/<token>` (Release). Its Web Push keys stay in the Keychain group `<team>.dev.kinuvo.shared`. The **notifications** target, a Notification Service Extension (`dev.kinuvo.ios.notifications`), decrypts each push in Swift with CryptoKit (`notifications/PushKeys.swift`) and shows its title and body; it links no Kotlin, to stay within the extension's memory limit. Tapping one opens its Session on the Server that sent it, switching Servers when another one is selected. Approvals and questions are time-sensitive. Mobile test runs don't ask or subscribe.
+Notifications from a remote Server arrive through APNs and the Push relay ([ADR 0020](../../docs/adr/0020-push-relay.md)). The app registers for remote notifications on launch and asks for Notifications when onboarding finishes or a chat first opens; once they're allowed, it subscribes on each connected Server with `…/apns/sandbox/<token>` (Debug) or `…/apns/production/<token>` (Release). Its Web Push keys stay in the Keychain group `<team>.com.feernandooff.kinuvo.shared`. The **notifications** target, a Notification Service Extension (`com.feernandooff.kinuvo.notifications`), decrypts each push in Swift with CryptoKit (`notifications/PushKeys.swift`) and shows its title and body; it links no Kotlin, to stay within the extension's memory limit. Tapping one opens its Session on the Server that sent it, switching Servers when another one is selected. Approvals and questions are time-sensitive. Mobile test runs don't ask or subscribe.
 
-The Apple Developer portal needs Push Notifications and Time Sensitive Notifications on `dev.kinuvo.ios`, and an App ID for `dev.kinuvo.ios.notifications`; automatic signing creates these and the Keychain group. `aps-environment` is `development`; archives for TestFlight or the App Store are signed with `production`.
+The Apple Developer portal needs Push Notifications and Time Sensitive Notifications on `com.feernandooff.kinuvo`, and an App ID for `com.feernandooff.kinuvo.notifications`; automatic signing creates these and the Keychain group. `aps-environment` is `development`; archives for TestFlight or the App Store are signed with `production`.
 
 Check the decryption against RFC 8291's test vector on the Mac:
 
@@ -137,7 +149,7 @@ This opt-in integration test uses normal certificate verification and does not s
 The default launch still opens the complete Compose app. Add `--native-shell` to the Xcode scheme's **Arguments Passed On Launch** to run the integration proof, or launch the installed simulator build:
 
 ```sh
-xcrun simctl launch <simulator-id> dev.kinuvo.ios --native-shell
+xcrun simctl launch <simulator-id> com.feernandooff.kinuvo --native-shell
 ```
 
 SwiftUI owns the `NavigationStack` and native back navigation. **Board** renders in SwiftUI using `BoardDestination.viewModel` (the same `BoardViewModel` and `BoardRepository` used by Compose): load/refresh, create Tasks, change status, show Done, and open a Task's Session. **Knowledge** and **Session** each host one selected Compose screen; their callbacks push native destinations. Setup and pairing reuse the existing Compose flow. Server selection shares `AppViewModel`; switching clears native destinations. App links open native Sessions, pairing links use the shared pairing flow, and OAuth callbacks retain the shared browser handling.

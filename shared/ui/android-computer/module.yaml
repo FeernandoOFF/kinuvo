@@ -1,0 +1,11 @@
+product:
+  type: lib
+  platforms: [android]
+
+dependencies:
+  - ../../app: exported
+  - io.insert-koin:koin-android:4.2.2
+
+settings:
+  kotlin:
+    compileIncrementally: true

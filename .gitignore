@@ -23,3 +23,9 @@ shared/ui/avatars/
 
 # Personal mise task overrides
 /mise.local.toml
+
+# Local Google Play upload key and password
+/signing/
+
+# Wrangler local deployment state
+.wrangler/

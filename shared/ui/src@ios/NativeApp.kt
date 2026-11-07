@@ -74,7 +74,7 @@ class NativeApp {
         val client = requireNotNull((viewModel.state.value.connection as? Connection.Ready)?.client)
         val session = remember {
             val route = agentId?.let(viewModel::lastView)?.takeIf { it.sessionId == sessionId } ?: Route.Chat(agentId, sessionId)
-            life.own(SessionViewModel(client, koin.get(), route))
+            life.own(SessionViewModel(client, koin.get(), route, koin.get()))
         }
         val state by session.state.collectAsState()
         LaunchedEffect(state.route) { onResolved(state.route) }

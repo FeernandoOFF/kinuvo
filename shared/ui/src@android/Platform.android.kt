@@ -19,7 +19,6 @@ import java.io.File
 import java.util.TimeZone
 import kinuvo.app.session.SpeechEngine
 import kinuvo.ui.session.AndroidSpeech
-import kinuvo.app.computer.ComputerDriver
 
 private class SharedPreferencesStore(context: Context) : Preferences {
     private val prefs = context.getSharedPreferences("kinuvo", Context.MODE_PRIVATE)
@@ -54,7 +53,6 @@ internal actual val platformModule = module {
     single { AndroidBrowserRuntime(androidContext()) }
     single<EmbeddedServer> { AndroidEmbeddedServer(androidContext(), get()) }
     single<DeviceReader> { AndroidContactsReader(androidContext()) }
-    single<ComputerDriver> { AndroidComputer(androidContext()) }
     single { HapticNotifier(androidContext()) } bind Notifier::class
     single { androidTestMode(androidContext()) }
     single<DeviceCredentials> { get<MobileTestMode>().takeIf { it.override != null }?.credentials ?: AndroidCredentials(androidContext()) }

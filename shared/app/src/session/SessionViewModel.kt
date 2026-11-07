@@ -225,6 +225,8 @@ data class SessionState(
     val voiceRequested: Boolean = false,
     /** An external Agent's Session as its harness runs it, with what it waits on. */
     val resuming: Boolean = false,
+    /** A message waiting for permission to reach its third-party model provider. */
+    val aiConsent: AiConsentRequest? = null,
 ) {
     val prompts get() = data?.live?.pending.orEmpty().map { it.displayPrompt() }
     val phase get() = data?.live?.executionPhase
@@ -237,7 +239,7 @@ data class SessionState(
 
 /** One Session screen: a view of the Session in the [SessionRepository], plus sending, stopping, Approvals and answers. */
 @OptIn(ExperimentalCoroutinesApi::class)
-class SessionViewModel(private val client: KinuvoClient, private val repo: SessionRepository, route: Route.Chat) : ViewModel() {
+class SessionViewModel(private val client: KinuvoClient, private val repo: SessionRepository, route: Route.Chat, private val consent: AiConsent? = null) : ViewModel() {
     val state: StateFlow<SessionState>
         field = MutableStateFlow(SessionState(route))
     val connection: StateFlow<ConnectionState> = client.state
@@ -383,6 +385,8 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         val agent = route.agentId ?: return
         val pending = state.value.attachments
         if ((text.isBlank() && pending.isEmpty()) || state.value.running || (state.value.capabilities?.chat?.actionable == false && !state.value.resumeOnSend)) return
+        val provider = state.value.settings.provider ?: state.value.defaults?.provider.orEmpty()
+        if (consent?.needed(provider) == true) return state.update { it.copy(aiConsent = AiConsentRequest(provider, text, voice, action)) }
         val submission = pendingSubmission?.takeIf { it.text == text && it.attachments == pending.map { a -> a.id } && it.voice == voice && it.action == action }
             ?: PendingSubmission(Uuid.random().toString(), text, pending.map { it.id }, voice, action)
         pendingSubmission = submission
@@ -418,6 +422,13 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         state.value.settings.takeIf { it != SessionSettings() }?.let { apply(agent, id, it) }
         repo.view(agent, id)
         id
+    }
+
+    /** Answers [SessionState.aiConsent]: allowing remembers its provider and sends the message; declining puts it back in the input. */
+    fun answerAiConsent(allow: Boolean) {
+        val request = state.value.aiConsent ?: return
+        state.update { it.copy(aiConsent = null, unsent = if (allow) it.unsent else request.text) }
+        if (allow) { consent?.grant(request.provider); send(request.text, request.voice, request.action) }
     }
 
     private suspend fun sendNow(agent: String, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean, submissionId: String, action: SurfaceAction?) {

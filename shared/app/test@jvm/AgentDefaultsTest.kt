@@ -54,6 +54,28 @@ class AgentDefaultsTest {
         } finally { store.clearAndJoin() }
     }
 
+    @Test fun messagesWaitForPermissionBeforeReachingAThirdPartyProvider() = withOwner { owner, _, _ ->
+        val script = Script()
+        connect(owner, script)
+        val prefs = MemoryPreferences()
+        val consent = AiConsent(prefs, required = true)
+        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat("agent", null), consent)
+        store().put("consent", vm)
+        vm.state.first { it.defaults != null && !it.resolving }
+        vm.send("hello")
+        assertEquals(AiConsentRequest("codex", "hello", false), vm.state.value.aiConsent)
+        vm.answerAiConsent(false)
+        assertEquals("hello", vm.state.value.unsent)
+        assertTrue(script.sent.isEmpty)
+        vm.send("hello")
+        vm.answerAiConsent(true)
+        script.sent.receive()
+        assertNull(vm.state.value.aiConsent)
+        assertFalse(AiConsent(prefs, required = true).needed("codex"))
+        assertFalse(consent.needed("apple"))
+        assertFalse(AiConsent(MemoryPreferences(), required = false).needed("codex"))
+    }
+
     @Test fun reflectionReviewsSendTrimmedNotesForBothDecisions() = withOwner { owner, _, _ ->
         val script = Script()
         connect(owner, script)
