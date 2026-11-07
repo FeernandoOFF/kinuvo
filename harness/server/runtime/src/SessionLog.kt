@@ -146,7 +146,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         counts[sessionId] = seq + 1
         live[sessionId]?.let {
             val state = it.on(entry)
-            if (state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty())
+            if (state.running || state.approval != null || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
         }
         deliver(SessionUpdate(agentId, sessionId, SessionChange.Entry(seq, entry)))
@@ -166,7 +166,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         }
         val before = statusOf(sessionId)
         val state = (live[sessionId] ?: LiveState()).on(event)
-        if (state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty())
+        if (state.running || state.approval != null || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
         if (event.isLive) deliver(SessionUpdate(agentId, sessionId, SessionChange.Event(event)))
         eventListeners.load().forEach { it(agentId, sessionId, event) }

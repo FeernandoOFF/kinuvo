@@ -118,6 +118,12 @@ _Avoid_: Attachment, canvas
 **Surface**:
 An interactive layout or form an Agent shows in a Session, with controls the user can fill in and actions they can send back to the Agent.
 
+**HTML Surface**:
+A Surface made of the Agent's own HTML, shown in a sandboxed web view with no network access.
+
+**MCP App**:
+An MCP server's own UI for one of its tools, shown in the chat like an HTML Surface after the tool runs; it can call that server's tools.
+
 **Screen**:
 A surface an Agent can see and control, such as a Computer display or a Browser tab.
 

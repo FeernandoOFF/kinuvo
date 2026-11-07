@@ -40,6 +40,7 @@ interface HarnessPlugin {
     val knowledgeSources: List<KnowledgeSource> get() = emptyList()
     val webSearch: List<WebSearchProvider> get() = emptyList()
     val notifications: List<NotificationProvider> get() = emptyList()
+    val apps: McpApps? get() = null
     val mcp: McpManagement? get() = null
     val execCheck: ExecCheck? get() = null
     val browser: BrowserService? get() = null
@@ -90,3 +91,8 @@ data class PluginTools(
 }
 
 data class InstructionSection(val title: String, val body: String)
+
+interface McpApps {
+    suspend fun resource(agentId: String, ref: McpAppRef): McpAppResource
+    suspend fun tool(agentId: String, ref: McpAppRef, name: String): Tool
+}

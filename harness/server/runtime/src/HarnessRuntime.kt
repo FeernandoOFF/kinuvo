@@ -9,6 +9,7 @@ import kinuvo.protocol.attachmentInput
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.GenerateImageTool
 import kinuvo.harness.core.tools.ShowUiTool
+import kinuvo.harness.core.tools.ShowHtmlTool
 import kinuvo.protocol.UiCatalog
 import kinuvo.harness.core.routines.RoutineReportTool
 import kinuvo.harness.core.routines.RoutineRun
@@ -27,8 +28,21 @@ import kotlinx.datetime.todayIn
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
+import kotlin.uuid.Uuid
+import kinuvo.protocol.AgentEvent
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kinuvo.protocol.ReflectionResult
 import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.McpAppRef
+import kinuvo.protocol.McpAppRequest
+import kinuvo.protocol.McpAppResource
+import kinuvo.protocol.McpAppToolRequest
+import kinuvo.harness.core.plugin.McpApps
+import kinuvo.harness.core.tools.ToolRun
+import ai.koog.agents.core.tools.ToolDescriptor
+import kotlinx.serialization.json.*
 import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.artifacts.ArtifactTool
 import kinuvo.harness.core.tools.AskUserTool
@@ -305,6 +319,57 @@ open class HarnessRuntime(
     suspend fun readFile(agent: Agent, path: String): String =
         plugins.firstNotNullOfOrNull { it.readFile(agent, path) } ?: error("${agent.id} has no Workspace")
 
+    /** The MCP App that [request]'s stored tool result shows; clients never name the app themselves. */
+    private suspend fun app(request: McpAppRequest): Pair<McpApps, McpAppRef> {
+        val ref = store.entries(request.agentId, request.sessionId).filterIsInstance<SessionEntry.ToolResult>()
+            .lastOrNull { it.id == request.callId }?.app ?: error("No MCP App for this call")
+        return (plugins.firstNotNullOfOrNull { it.apps } ?: error("MCP Apps are unavailable")) to ref
+    }
+
+    suspend fun appResource(request: McpAppRequest): McpAppResource = app(request).let { (apps, ref) -> apps.resource(request.agentId, ref) }
+
+    /** Runs a tool of the app's own MCP server for the app, under the Agent's Approvals, asked in its Session. */
+    suspend fun appCallTool(agent: Agent, request: McpAppToolRequest): JsonObject {
+        val (apps, ref) = app(request.app)
+        val tool = secrets.redacting(apps.tool(agent.id, ref, request.name))
+        val sessionId = request.app.sessionId
+        val policy = ApprovalPolicy(agent, trustRules, session = sessionTrust.scope(sessionId))
+        val args = request.arguments.toString()
+        when (val verdict = policy.decide(tool, args)) {
+            is Verdict.Block -> error(verdict.reason)
+            is Verdict.Ask -> {
+                val callId = "app-${request.app.callId}-${Uuid.random()}"
+                val pending = approvals.register()
+                var decision: ApprovalDecision? = null
+                try {
+                    log.publish(agent.id, sessionId, AgentEvent.ApprovalRequested(pending.id, callId, request.name, args, null,
+                        verdict.assessment.risk, verdict.assessment.reason, verdict.trustKeys.isNotEmpty(), tool.identity))
+                    decision = withTimeoutOrNull(APP_APPROVAL_WAIT) { pending.await() }
+                } finally {
+                    pending.close()
+                    val allowed = decision != null && decision !is ApprovalDecision.Deny
+                    withContext(NonCancellable) { log.publish(agent.id, sessionId, AgentEvent.ApprovalResolved(callId, allowed)) }
+                }
+                when (decision) {
+                    null -> error("No answer to the Approval for '${request.name}'")
+                    is ApprovalDecision.Deny -> error("The user denied '${request.name}'")
+                    ApprovalDecision.AlwaysAllow -> policy.trust(tool, verdict.trustKeys)
+                    ApprovalDecision.AllowForSession -> policy.trustForSession(tool, verdict.trustKeys)
+                    else -> Unit
+                }
+            }
+            Verdict.Run -> Unit
+        }
+        val result = tool.executeResult(request.arguments, "app-${request.app.callId}", object : ToolRun {
+            override val tools = emptyList<ToolDescriptor>()
+            override suspend fun call(name: String, args: String) = SessionEntry.ToolResult(name, name, "Unavailable to MCP Apps", isError = true)
+        })
+        return result.appResult ?: buildJsonObject {
+            put("content", buildJsonArray { add(buildJsonObject { put("type", "text"); put("text", result.output) }) })
+            put("isError", result.isError)
+        }
+    }
+
     /** Stops everything the plugins run, e.g. before the process exits. */
     suspend fun close() { computers.close(); dependencies.resources.close() }
 
@@ -325,7 +390,7 @@ open class HarnessRuntime(
                 } }
             }, attachments::bytes) else null
         val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() && e.provider?.basicPrompt(agent.config.model) != true }?.let(::ShowUiTool)
-        return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool), imageTool, uiTool)
+        return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool), imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
     }
 
     private suspend fun builtInTools(e: Effective, sessionId: String?, routine: RoutineRun?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {
@@ -357,5 +422,6 @@ open class HarnessRuntime(
             ToolNames.KNOWLEDGE to ServerFeature.Knowledge, ToolNames.TASKS to ServerFeature.Tasks, ToolNames.DEVICE_TOOLS to ServerFeature.DeviceTools,
             ToolNames.COMPUTER to ServerFeature.Computer)
         const val UNATTENDED_DENIAL = "This is an unattended Routine run, so tool calls that need an Approval are denied."
+        val APP_APPROVAL_WAIT = 10.minutes
     }
 }

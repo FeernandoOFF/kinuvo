@@ -1,6 +1,8 @@
 package kinuvo.harness.core
 
 import kinuvo.harness.core.tools.Tool
+import kinuvo.protocol.ProtocolJson
+import kotlinx.serialization.json.jsonObject
 import kinuvo.protocol.REFERENCE
 import kinuvo.protocol.SecretEntry
 import kinuvo.protocol.SecretProviderStatus
@@ -87,6 +89,9 @@ class Secrets(val providers: List<SecretProvider> = emptyList(), private val ttl
         override suspend fun execute(args: JsonObject) = redacted { tool.execute(args) }
         override suspend fun execute(args: JsonObject, callId: String) = redacted { tool.execute(args, callId) }
         override suspend fun execute(args: JsonObject, callId: String, run: ToolRun) = redacted { tool.execute(args, callId, run) }
+        override suspend fun executeResult(args: JsonObject, callId: String, run: ToolRun) = tool.executeResult(args, callId, run).let {
+            it.copy(output = redact(it.output), appResult = it.appResult?.let { value -> ProtocolJson.parseToJsonElement(redact(value.toString())).jsonObject })
+        }
         private suspend fun redacted(block: suspend () -> String) = try {
             redact(block())
         } catch (e: CancellationException) {

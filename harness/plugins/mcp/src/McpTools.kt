@@ -7,12 +7,16 @@ import kinuvo.protocol.ToolIdentity
 
 import kinuvo.protocol.Risk
 import kinuvo.harness.core.tools.Tool
+import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.ImageContent
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import kotlinx.coroutines.CancellationException
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonObject
+import kinuvo.protocol.McpAppRef
+import kinuvo.protocol.McpAppResource
+import kinuvo.protocol.ProtocolJson
+import kinuvo.protocol.SessionEntry
+import kinuvo.harness.core.tools.ToolRun
+import kotlinx.serialization.json.*
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.JsonArray
 
@@ -23,6 +27,7 @@ class McpTool(
     schema: JsonObject,
     readOnly: Boolean = false,
     destructive: Boolean = false,
+    private val app: McpAppRef? = null,
 ) : Tool {
     override val identity = identity(server.config, toolName)
     override val displayName = toolName
@@ -35,6 +40,17 @@ class McpTool(
 
     override suspend fun execute(args: JsonObject): String {
         val result = server.callTool(toolName, args)
+        return render(result).also { if (result.isError == true) error(it.ifBlank { "tool failed" }) }
+    }
+
+    override suspend fun executeResult(args: JsonObject, callId: String, run: ToolRun): SessionEntry.ToolResult {
+        val result = server.callTool(toolName, args)
+        val shown = if (app != null && result.isError != true) "\n\nThe user sees this result in the tool's interactive app in the chat." else ""
+        return SessionEntry.ToolResult(callId, descriptor.name, render(result) + shown, isError = result.isError == true,
+            app = app, appResult = ProtocolJson.encodeToJsonElement(CallToolResult.serializer(), result).jsonObject)
+    }
+
+    private fun render(result: CallToolResult): String {
         val text = result.content.joinToString("\n") {
             when (it) {
                 is TextContent -> it.text
@@ -42,7 +58,6 @@ class McpTool(
                 else -> it.toString()
             }
         }.ifBlank { result.structuredContent?.toString().orEmpty() }
-        if (result.isError == true) error(text.ifBlank { "tool failed" })
         return text
     }
 
@@ -64,6 +79,23 @@ class McpManager(
     private val agentId: String? = null,
 ) {
     private var servers: Map<String, McpServer> = emptyMap()
+    private val apps = McpAppCache()
+    private var appTools = emptyMap<Pair<String, String>, Tool>()
+
+    suspend fun resource(ref: McpAppRef): McpAppResource {
+        apps.cached(ref)?.let { return it }
+        if (servers.isEmpty()) tools()
+        val server = servers.values.firstOrNull { it.config.instanceId == ref.serverId } ?: error("The MCP server for this app is no longer configured")
+        val current = apps.load(server, ref.resourceUri)
+        check(current == ref) { "MCP App resource changed; run the tool again" }
+        return apps.get(ref)
+    }
+
+    suspend fun appTool(ref: McpAppRef, name: String): Tool {
+        resource(ref)
+        return appTools[ref.serverId to name] ?: error("Tool '$name' is not available to this MCP App")
+    }
+
     private val removeHook = onShutdown { servers.values.forEach { it.destroyNow() } }
 
     /** Current tools of every server; failing servers are reported instead of thrown. */
@@ -72,16 +104,24 @@ class McpManager(
         val warnings = errors.toMutableList()
         val old = servers
         servers = configs.associate { cfg -> cfg.name to (old[cfg.name]?.takeIf { it.config == cfg && it.authGeneration == generation(cfg) } ?: McpServer(cfg, auth)) }
+        if (old.values.any { it !in servers.values }) apps.clear()
         (old.values - servers.values.toSet()).forEach { runCatching { it.close() } }
+        val callable = mutableMapOf<Pair<String, String>, Tool>()
         val tools = servers.values.flatMap { server ->
             try {
-                server.listTools().filter { server.config.allows(it.name) }.map { t ->
+                server.listTools().filter { server.config.allows(it.name) }.mapNotNull { t ->
                     val schema = buildJsonObject {
                         t.inputSchema.properties?.let { put("properties", it) }
                         t.inputSchema.required?.let { req -> put("required", JsonArray(req.map(::JsonPrimitive))) }
                         t.inputSchema.defs?.let { put("\$defs", it) }
                     }
-                    McpTool(server, t.name, t.description ?: t.title ?: t.name, schema, t.annotations?.readOnlyHint == true, t.annotations?.destructiveHint == true)
+                    val ui = t.meta?.get("ui") as? JsonObject
+                    val uri = (ui?.get("resourceUri") as? JsonPrimitive)?.content
+                    // A tool whose UI can't be read still works, without its app.
+                    val ref = uri?.let { try { apps.load(server, it) } catch (e: CancellationException) { throw e } catch (_: Exception) { null } }
+                    val tool = McpTool(server, t.name, t.description ?: t.title ?: t.name, schema, t.annotations?.readOnlyHint == true, t.annotations?.destructiveHint == true, ref)
+                    if (ui.visibleTo("app")) callable[server.config.instanceId to t.name] = tool
+                    tool.takeIf { ui.visibleTo("model") }
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -93,6 +133,7 @@ class McpManager(
                 emptyList()
             }
         }
+        appTools = callable
         return tools to warnings
     }
 
@@ -105,6 +146,8 @@ class McpManager(
     suspend fun close() {
         servers.values.forEach { it.close() }
         servers = emptyMap()
+        apps.clear()
+        appTools = emptyMap()
         removeHook()
     }
 }
