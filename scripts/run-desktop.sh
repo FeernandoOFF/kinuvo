@@ -12,6 +12,7 @@ fi
 for argument in "$@"; do
     if [ "$argument" = --compose-hot-reload ]; then
         ./scripts/build-mac-speech.sh >/dev/null
+        ./scripts/build-mac-web.sh >/dev/null
         exec ./kotlin run -m desktop --jvm-args=--enable-native-access=ALL-UNNAMED "$@"
     fi
 done
