@@ -77,6 +77,7 @@ Loading a Skill's full instructions into a Session, either by the Agent or by th
 
 **Secret reference**:
 A pointer into the user's password manager, written in its own URI syntax inside `${…}` in config, e.g. `${pass://Vault/Item/field}`; the Server reads the value when it's needed and never stores or shows it.
+A credential the user types for one Session instead is a `${secret://…}` reference: the Server keeps the value in memory, usable only by that Agent and Session.
 _Avoid_: Secret, credential, vault key
 
 **Approval**:
