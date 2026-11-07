@@ -72,7 +72,8 @@ class AgentToolsServerTest {
                 assertEquals(401, post("127.0.0.1"))
                 assertEquals(403, post("127.0.0.1", "X-Forwarded-For" to "203.0.113.9"))
                 assertEquals(403, post("127.0.0.1", "Origin" to "https://example.com"))
-                lanAddresses().firstOrNull()?.let { assertEquals(403, post(it)) }
+                // Skipped where the machine's own network address can't be reached.
+                lanAddresses().firstNotNullOfOrNull { runCatching { post(it) }.getOrNull() }?.let { assertEquals(403, it) }
             }
         } finally { server.stop(); dir.deleteRecursively() }
     }
