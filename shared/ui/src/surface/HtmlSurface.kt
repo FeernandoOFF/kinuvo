@@ -202,7 +202,9 @@ private fun HtmlSurfaceView(html: String, policy: HtmlPolicy, theme: HtmlTheme, 
     // A recreated web document performs a fresh handshake and receives input again.
     val host = remember(parent, fullscreen) { parent.also { it.reconnect() } }
     val bridge = remember(host) { HtmlBridge(host::receive).also { bridge -> host.deliver = { bridge.post(it) } } }
-    HtmlWebView(remember(html, policy, theme, fullscreen) { htmlSurfaceDocument(html, fullscreen, policy, theme) }, bridge, modifier)
+    val document = remember(html, policy, theme, fullscreen) { htmlSurfaceDocument(html, fullscreen, policy, theme) }
+    // A new host or theme gets a new web view, which wires its bridge and loads the document only when created.
+    key(bridge, document) { HtmlWebView(document, bridge, modifier) }
 }
 
 internal expect val htmlSurfacePlatform: String
