@@ -47,6 +47,8 @@ object ToolNames {
     const val KNOWLEDGE_REWRITE = "knowledge_rewrite"
     const val TASKS = "tasks"
     const val ASK_USER = "ask_user"
+    /** Comes with [ASK_USER]. */
+    const val REQUEST_SECRET = "request_secret"
     /** Offered when a Device has said which A2UI catalogs it renders. */
     const val SHOW_UI = "show_ui"
     /** Only in Routine runs. */
@@ -72,7 +74,7 @@ object ToolNames {
     val FROM_PLUGINS = setOf(RUN_CODE, "browser")
 }
 
-enum class ToolKind { Standard, Shell, ComputerAction, AskUser }
+enum class ToolKind { Standard, Shell, ComputerAction, AskUser, RequestSecret }
 
 interface Tool {
     val kind: ToolKind get() = ToolKind.Standard

@@ -20,6 +20,8 @@ class ToolExecutor(
     advertisedTools: List<ToolDescriptor> = tools.map { it.descriptor },
     private val approvals: Approvals = Approvals.none(),
     private val questions: Broker<Map<String, List<String>>?>? = null,
+    private val secretRequests: SecretRequests? = null,
+    private val secretScope: SecretScope? = null,
     private val attach: ((String, ByteArray) -> Attachment)? = null,
     private val emit: suspend (AgentEvent) -> Unit = {},
 ) {
@@ -104,7 +106,11 @@ class ToolExecutor(
                     ApprovalDecision.AllowForSession -> approvals.policy?.trustForSession(tool, verdict.trustKeys)
                     else -> {}
                 }
-                if (tool?.kind == ToolKind.AskUser) ask(call, approvalId) else execute(call, approvalId, stopped)
+                when (tool?.kind) {
+                    ToolKind.AskUser -> ask(call, approvalId)
+                    ToolKind.RequestSecret -> requestSecret(call, approvalId)
+                    else -> execute(call, approvalId, stopped)
+                }
             }
         }.copy(identity = tool?.identity)
     }
@@ -137,6 +143,31 @@ class ToolExecutor(
             val answers = pending.await()
             emit(AgentEvent.QuestionsAnswered(formId))
             return SessionEntry.ToolResult(call.id, call.name, AskUserTool.result(list, answers))
+        } finally {
+            pending.close()
+        }
+    }
+
+    private suspend fun requestSecret(call: SessionEntry.ToolCall, requestId: String = call.id): SessionEntry.ToolResult {
+        val requests = secretRequests
+        val scope = secretScope
+        if (requests == null || scope == null) return SessionEntry.ToolResult(call.id, call.name, "There's no user to ask in this run.", isError = true)
+        val (label, reason) = try {
+            RequestSecretTool.request(Json.parseToJsonElement(call.args.ifBlank { "{}" }).jsonObject)
+        } catch (e: Exception) {
+            return SessionEntry.ToolResult(call.id, call.name, "Error: ${e.message}", isError = true)
+        }
+        val pending = requests.register(scope)
+        try {
+            emit(AgentEvent.SecretRequested(pending.id, requestId, label, reason))
+            val wait = approvals.wait
+            val answer = if (wait == null) listOf(pending.await()) else withTimeoutOrNull(wait) { listOf(pending.await()) }
+            emit(AgentEvent.SecretResolved(requestId))
+            if (answer == null) {
+                approvals.skipped(toolsByName[call.name]?.displayName ?: call.name)
+                return SessionEntry.ToolResult(call.id, call.name, "No answer within ${wait?.inWholeMinutes} minutes; skipped", isError = true)
+            }
+            return SessionEntry.ToolResult(call.id, call.name, RequestSecretTool.result(label, answer.single()))
         } finally {
             pending.close()
         }

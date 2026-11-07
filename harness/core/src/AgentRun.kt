@@ -35,6 +35,7 @@ class AgentRun(
     private val context: String = "",
     private val approvals: Approvals = Approvals.none(),
     private val questions: Broker<Map<String, List<String>>?>? = null,
+    private val secretRequests: SecretRequests? = null,
     advertisedTools: List<ToolDescriptor> = tools.map { it.descriptor },
     private val contextTokens: Int? = null,
     private val requestKind: RequestKind = RequestKind.Chat,
@@ -59,7 +60,7 @@ class AgentRun(
         val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, { send(it) })
         var stopped = "Cancelled by user"
         var cancelled = false
-        val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, emit = { event ->
+        val executor = ToolExecutor(tools, advertisedTools, approvals, questions, secretRequests, SecretScope(agent.id, sessionId), attach, emit = { event ->
             if (event is AgentEvent.ToolCallStart) session.toolStarted(event.toolCallId)
             if (event !is AgentEvent.ToolCallResult || session.calls.none { it.id == event.toolCallId }) send(event)
         })

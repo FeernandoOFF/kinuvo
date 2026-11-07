@@ -2,6 +2,7 @@ package kinuvo.harness.core
 
 import kinuvo.harness.core.tools.Tool
 import kinuvo.protocol.REFERENCE
+import kinuvo.protocol.SESSION_SECRET_SCHEME
 import kinuvo.protocol.SecretEntry
 import kinuvo.protocol.SecretProviderStatus
 import kotlinx.coroutines.CancellationException
@@ -9,10 +10,12 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.JsonObject
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 import kinuvo.harness.core.tools.ToolRun
+import kotlin.uuid.Uuid
 
 /** A password manager that config can point into with Secret references, e.g. Proton Pass for `${pass://Vault/Item/field}`. */
 interface SecretProvider {
@@ -29,6 +32,38 @@ interface SecretProvider {
     suspend fun browse(path: List<String>): List<SecretEntry>
 }
 
+/** Whose `secret://` references a call may use: the Agent and Session the user typed the value for. */
+data class SecretScope(val agentId: String, val sessionId: String)
+
+/**
+ * Values the user typed for a `request_secret`, kept in memory only: each is usable by the [SecretScope] it was typed
+ * for and dropped after [ttl].
+ */
+class SessionSecrets(private val ttl: Duration = 24.hours, private val time: TimeSource = TimeSource.Monotonic) {
+    private class Entry(val scope: SecretScope, val value: String, val stored: TimeMark)
+
+    private val lock = Mutex()
+    private val entries = mutableMapOf<String, Entry>()
+
+    /** Keeps [value] for [scope] and returns its `secret://` URI. */
+    suspend fun store(scope: SecretScope, value: String): String = lock.withLock {
+        expire()
+        val id = Uuid.random().toString()
+        entries[id] = Entry(scope, value, time.markNow())
+        "$SESSION_SECRET_SCHEME://$id"
+    }
+
+    suspend fun resolve(uri: String, scope: SecretScope?): String = lock.withLock {
+        expire()
+        entries[uri.substringAfter("://")]?.takeIf { it.scope == scope }?.value
+            ?: error("Can't read $uri: only the Session it was shared in can use it, and only for 24 hours")
+    }
+
+    internal suspend fun values(): List<String> = lock.withLock { expire(); entries.values.map { it.value } }
+
+    private fun expire() = entries.values.removeAll { it.stored.elapsedNow() >= ttl }
+}
+
 /**
  * Expands `${VAR}`s and Secret references in config. Resolved secrets stay in memory for [ttl] (dropped at the next use
  * after that) and are never written or sent to clients; errors name the reference, not the value.
@@ -36,15 +71,18 @@ interface SecretProvider {
 class Secrets(val providers: List<SecretProvider> = emptyList(), private val ttl: Duration = 5.minutes, private val time: TimeSource = TimeSource.Monotonic) {
     private val lock = Mutex()
     private val cache = mutableMapOf<String, Pair<String, TimeMark>>()
+    /** Typed values, which only the [SecretScope] they were typed for resolves; none count as a password manager. */
+    val session = SessionSecrets(time = time)
     /** Bumped by [refresh], so a read that started before it isn't cached after it. */
     private var generation = 0
 
     /**
      * [value] with `${VAR}`s from [env] and Secret references resolved for [reason], e.g. "Kinuvo: MCP server github".
      * A variable's own value can hold Secret references too, e.g. `GITHUB_TOKEN=${pass://Kinuvo/GitHub/token}` in `.env`.
+     * A `secret://` reference resolves only for the [scope] it was shared in.
      */
-    suspend fun expand(value: String, env: Map<String, String>, reason: String): String = replace(value) { name, uri, m ->
-        if (uri.isNotEmpty()) resolve(uri, reason)
+    suspend fun expand(value: String, env: Map<String, String>, reason: String, scope: SecretScope? = null): String = replace(value) { name, uri, m ->
+        if (uri.isNotEmpty()) resolve(uri, reason, scope)
         else env[name]?.let { v -> replace(v) { _, inner, whole -> if (inner.isNotEmpty()) resolve(inner, reason) else whole.value } }
             ?: m.groups[2]?.value ?: error("environment variable $name is not set")
     }
@@ -59,7 +97,8 @@ class Secrets(val providers: List<SecretProvider> = emptyList(), private val ttl
         return out.append(value, last, value.length).toString()
     }
 
-    suspend fun resolve(uri: String, reason: String): String {
+    suspend fun resolve(uri: String, reason: String, scope: SecretScope? = null): String {
+        if (uri.substringBefore("://") == SESSION_SECRET_SCHEME) return session.resolve(uri, scope)
         val started = lock.withLock {
             expire()
             cache[uri]?.let { return it.first }
@@ -97,7 +136,7 @@ class Secrets(val providers: List<SecretProvider> = emptyList(), private val ttl
     }
 
     /** [text] with the secrets still in memory masked, e.g. in a tool's output. */
-    suspend fun redact(text: String): String = lock.withLock { expire(); cache.values.map { it.first } }
+    suspend fun redact(text: String): String = (lock.withLock { expire(); cache.values.map { it.first } } + session.values())
         .filter { it.length >= MIN_REDACTED }.sortedByDescending { it.length }
         .fold(text) { t, secret -> t.replace(secret, MASK) }
 
