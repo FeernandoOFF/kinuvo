@@ -1,6 +1,7 @@
 package kinuvo.ui.artifacts
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -21,9 +22,10 @@ internal fun editedHtml(args: String): String =
 
 /** The OS web view (WKWebView, WebView2, WebKitGTK) through swingwebview; it draws above Compose content. */
 @Composable
-internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?) {
+internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?) {
     val current by rememberUpdatedState(onMessage)
     val url = remember(html) { "data:text/html;charset=utf-8;base64," + Base64.encode(html.encodeToByteArray()) }
+    DisposableEffect(channel) { onDispose { channel?.send = {} } }
     SwingPanel(
         factory = {
             WebViewComponent.create().apply {
@@ -31,6 +33,9 @@ internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((Strin
             }
         },
         modifier = modifier,
-        update = { if (it.url != url) it.setUrl(url) },
+        update = {
+            if (it.url != url) it.setUrl(url)
+            channel?.send = { message -> it.eval(pageDelivery(message)) }
+        },
     )
 }

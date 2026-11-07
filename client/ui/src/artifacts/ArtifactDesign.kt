@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.*
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import androidx.compose.ui.Alignment
@@ -24,6 +26,7 @@ import kinuvo.ui.design.*
 
 /** What the canvas page tells the app, decoded from the JSON the bridge passes on. */
 internal sealed interface DesignMessage {
+    data object Ready : DesignMessage
     data class Open(val id: String) : DesignMessage
     data class Edit(val json: String) : DesignMessage
 }
@@ -31,29 +34,53 @@ internal sealed interface DesignMessage {
 internal fun designMessage(text: String): DesignMessage? = runCatching {
     val m = Json.parseToJsonElement(text).jsonObject
     when (m["kinuvo"]?.jsonPrimitive?.content) {
+        "design-ready" -> DesignMessage.Ready
         "design-open" -> DesignMessage.Open(m.getValue("id").jsonPrimitive.content)
         "design-edit" -> DesignMessage.Edit(m.getValue("json").jsonPrimitive.content)
         else -> null
     }
 }.getOrNull()
 
-/** The [json] design's artboards on a pan and zoom canvas, or only the artboard [focus] filling the page ([fill]) or fitted: a tap on an artboard's expand button reports [onOpen], and canvas edits come back as the whole design through [onEdit]. */
+internal fun designApply(json: String) = buildJsonObject { put("kinuvo", "design-apply"); put("json", json) }.toString()
+
+/**
+ * The [content] design's artboards on a pan and zoom canvas, or only the artboard [focus] filling the page ([fill]) or fitted. A tap on an
+ * artboard's expand button reports [onOpen]; canvas edits come back as the whole design through [onEdit] and are not applied again when
+ * they return in [content]. Any other change to [content] is applied in place once the page is ready, else the page reloads.
+ */
 @Composable
-internal fun DesignCanvas(json: String, background: Color, modifier: Modifier = Modifier, onOpen: ((String) -> Unit)? = null, onEdit: ((String) -> Unit)? = null, focus: String? = null, fill: Boolean = false) {
+internal fun DesignCanvas(content: String, background: Color, modifier: Modifier = Modifier, onOpen: ((String) -> Unit)? = null, onEdit: ((String) -> Unit)? = null, focus: String? = null, fill: Boolean = false) {
     val open by rememberUpdatedState(onOpen)
     val edit by rememberUpdatedState(onEdit)
+    val sent = remember { mutableSetOf<String>() }
+    val channel = remember { PageChannel() }
+    var shown by remember { mutableStateOf(content) }
+    var known by remember { mutableStateOf(content) }
+    val html = remember(shown, background, focus, fill) { designDocument(shown, background = background, focus = focus, fill = fill) }
+    var ready by remember(html) { mutableStateOf(false) }
+    LaunchedEffect(content, ready) {
+        if (content == known) return@LaunchedEffect
+        known = content
+        if (content in sent) return@LaunchedEffect
+        if (ready) channel.send(designApply(content)) else shown = content
+    }
     WebView(
-        remember(json, background, focus, fill) { designDocument(json, background = background, focus = focus, fill = fill) },
+        html,
         modifier,
         if (onOpen == null && onEdit == null) null else { text ->
             when (val m = designMessage(text)) {
+                DesignMessage.Ready -> ready = true
                 is DesignMessage.Open -> open?.invoke(m.id)
-                is DesignMessage.Edit -> edit?.invoke(m.json)
+                is DesignMessage.Edit -> { sent += m.json; if (sent.size > 16) sent.remove(sent.first()); edit?.invoke(m.json) }
                 null -> Unit
             }
         },
+        channel,
     )
 }
+
+/** The app's way into the canvas frame: [pageDelivery] calls this, and only the canvas accepts what it forwards from its parent. */
+private const val RECEIVE = """;window.kinuvoReceive=function(m){var f=document.getElementById("f");if(f&&f.contentWindow)f.contentWindow.postMessage(JSON.parse(m),"*")}"""
 
 private fun Color.css() = "rgb(${(red * 255).toInt()},${(green * 255).toInt()},${(blue * 255).toInt()})"
 
@@ -63,7 +90,7 @@ internal fun designDocument(json: String, nonce: String = newNonce(), background
         "<body><div id=\"s\"><div id=\"w\"></div></div><div id=\"o\"></div><style>${designCss(background.css(), background.luminance() <= 0.5f)}</style><script nonce=\"$nonce\">${designScript(json, focus, fill)}</script></body>",
         "'nonce-$nonce'",
     )
-    return framed(inner, "<script>$BRIDGE</script>" + topFade(background), "width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no", "allow-scripts allow-same-origin")
+    return framed(inner, "<script>$BRIDGE$RECEIVE</script>" + topFade(background), "width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no", "allow-scripts allow-same-origin")
 }
 
 private val Artboard.label get() = name.ifBlank { id }
@@ -89,12 +116,7 @@ internal fun DesignFocus(content: String, id: String, name: String, background: 
     var controls by remember { mutableStateOf(ControlsHeight) }
     var fill by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().background(background)) {
-        key(fill) {
-            val sent = remember { mutableSetOf<String>() }
-            var shown by remember { mutableStateOf(content) }
-            LaunchedEffect(content) { if (content !in sent) shown = content }
-            DesignCanvas(shown, background, Modifier.fillMaxSize().padding(top = controls), onEdit = { json -> sent += json; if (sent.size > 16) sent.remove(sent.first()); onEdit(json) }, focus = id, fill = fill)
-        }
+        key(fill) { DesignCanvas(content, background, Modifier.fillMaxSize().padding(top = controls), onEdit = onEdit, focus = id, fill = fill) }
         val chrome = LocalWindowChrome.current
         Row(
             Modifier.fillMaxWidth().onSizeChanged { controls = with(density) { it.height.toDp() } }
