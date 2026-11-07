@@ -127,6 +127,8 @@ package_desktop() {
     macos)
       ./scripts/build-mac-speech.sh >/dev/null
       cp -R build/voice-worker "$work/input/"
+      ./scripts/build-mac-web.sh >/dev/null
+      cp build/libKinuvoWeb.dylib "$work/input/"
       cp build/libKinuvoSpeech.dylib "$work/input/"
       args+=(--java-options '-Dcompose.application.resources.dir=$APPDIR')
       local identity=dev.kinuvo.desktop
