@@ -2,6 +2,7 @@ package kinuvo.ui
 
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
+import kinuvo.app.computer.ComputerDriver
 
 import android.Manifest
 import android.content.Context
@@ -83,6 +84,7 @@ internal class AndroidContactsReader(private val context: Context) : DeviceReade
 @Composable
 internal actual fun rememberDeviceAuthorization(reader: DeviceReader): (DeviceToolKind, (String?) -> Unit) -> Unit {
     val context = LocalContext.current
+    val driver = org.koin.compose.getKoin().getOrNull<ComputerDriver>()
     var completion by remember { mutableStateOf<((String?) -> Unit)?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         completion?.invoke(if (granted) null else "Contacts access was denied. You can grant it in Android Settings.")
@@ -93,13 +95,14 @@ internal actual fun rememberDeviceAuthorization(reader: DeviceReader): (DeviceTo
     LaunchedEffect(computer) {
         val waiting = computer ?: return@LaunchedEffect
         val until = System.currentTimeMillis() + 120_000
-        while (ComputerService.instance == null && System.currentTimeMillis() < until) kotlinx.coroutines.delay(500)
-        waiting(if (ComputerService.instance != null) null else "Turn on Kinuvo computer use in Android's Accessibility settings, then allow it again.")
+        while (driver?.ready != true && System.currentTimeMillis() < until) kotlinx.coroutines.delay(500)
+        waiting(if (driver?.ready == true) null else "Turn on Kinuvo computer use in Android's Accessibility settings, then allow it again.")
         computer = null
     }
     return { kind, callback ->
         when {
-            kind == DeviceToolKind.Computer -> if (ComputerService.instance != null) callback(null) else {
+            kind == DeviceToolKind.Computer && driver == null -> callback("Computer use is not included in this app")
+            kind == DeviceToolKind.Computer -> if (driver?.ready == true) callback(null) else {
                 computer = callback
                 context.startActivity(Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
             }

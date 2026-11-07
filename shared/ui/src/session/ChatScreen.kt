@@ -210,6 +210,8 @@ fun ChatScreen(
             onBack = onBack,
         )
     }
+    val consent = current.aiConsent?.provider
+    AiConsentPrompt(consent != null, consent?.let { id -> current.models.providers.firstOrNull { it.id == id }?.name ?: providerName(id) }, session::answerAiConsent)
 }
 
 class ChatActions(

@@ -6,8 +6,8 @@
     "dev": "astro dev",
     "build": "astro build && node .site/check-links.mjs",
     "preview": "astro preview",
-    "preview:tailscale": "astro dev --host 100.82.82.99 --port 4410",
-    "check:links": "node .site/check-links.mjs"
+    "check:links": "node .site/check-links.mjs",
+    "deploy": "wrangler deploy"
   },
   "dependencies": {
     "@astrojs/markdown-satteri": "0.4.5",
@@ -16,6 +16,7 @@
     "astro": "7.4.2"
   },
   "devDependencies": {
-    "simple-icons": "^16.36.0"
+    "simple-icons": "^16.36.0",
+    "wrangler": "4.157.0"
   }
 }

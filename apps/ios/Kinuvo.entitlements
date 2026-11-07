@@ -1,3 +1,3 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>aps-environment</key><string>development</string><key>com.apple.developer.healthkit</key><true/><key>com.apple.developer.usernotifications.time-sensitive</key><true/><key>keychain-access-groups</key><array><string>$(AppIdentifierPrefix)dev.kinuvo.ios</string><string>$(AppIdentifierPrefix)dev.kinuvo.shared</string></array></dict></plist>
+<plist version="1.0"><dict><key>aps-environment</key><string>development</string><key>com.apple.developer.usernotifications.time-sensitive</key><true/><key>keychain-access-groups</key><array><string>$(AppIdentifierPrefix)com.feernandooff.kinuvo</string><string>$(AppIdentifierPrefix)com.feernandooff.kinuvo.shared</string></array></dict></plist>

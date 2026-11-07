@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -271,6 +272,8 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
     val listed = SettingsSection.entries.filter { it.listed && !it.home }
     val groups = listOf("Device" to listed.filter { !it.server }, "Server" to listed.filter { it.server })
     val open = { section: SettingsSection -> go(ui.route.copy(section = section, item = null, editing = false)) }
+    val uri = LocalUriHandler.current
+    val links = listOf(Triple("Privacy policy", Lucide.ShieldCheck, PRIVACY_URL), Triple("Support", Lucide.LifeBuoy, SUPPORT_URL))
     Column(Modifier.fillMaxSize()) {
         SettingsPageHeader("Settings")
         if (wide) Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(start = Spacing.space8, end = Spacing.space8, bottom = Spacing.space8)) {
@@ -283,6 +286,13 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
                     }
                 }
             }
+            SectionLabel("About", Modifier.padding(top = 12.dp))
+            links.forEach { (label, icon, url) ->
+                ListRow(selected = false, onClick = { runCatching { uri.openUri(url) } }, leading = { Icon(icon, Modifier.size(16.dp)) }) {
+                    Text(label, Modifier.weight(1f), singleLine = true)
+                    Icon(Lucide.ExternalLink, Modifier.size(14.dp), tint = color(mutedColor))
+                }
+            }
         } else Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(Spacing.space16), verticalArrangement = Arrangement.spacedBy(Spacing.space20)) {
             groups.forEach { (title, sections) ->
                 RowGroup(title) {
@@ -291,9 +301,15 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
                     }
                 }
             }
+            RowGroup("About") {
+                links.forEach { (label, icon, url) -> ActionRow(label, icon, { runCatching { uri.openUri(url) } }) }
+            }
         }
     }
 }
+
+private const val PRIVACY_URL = "https://kinuvo.feernandooff.com/privacy/"
+private const val SUPPORT_URL = "https://kinuvo.feernandooff.com/support/"
 
 internal fun SettingsSection.icon(): ImageVector = when (this) {
     SettingsSection.Connection -> Lucide.Server

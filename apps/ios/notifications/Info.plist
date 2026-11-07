@@ -5,7 +5,7 @@
     <key>CFBundleDisplayName</key>
     <string>Kinuvo Notifications</string>
     <key>KinuvoKeychainGroup</key>
-    <string>$(AppIdentifierPrefix)dev.kinuvo.shared</string>
+    <string>$(AppIdentifierPrefix)com.feernandooff.kinuvo.shared</string>
     <key>NSExtension</key>
     <dict>
         <key>NSExtensionPointIdentifier</key>

@@ -127,7 +127,7 @@ class ComputerService : AccessibilityService() {
 }
 
 /** Sees the screen through [ComputerService]: elements from the accessibility tree, screenshots on Android 11+. */
-internal class AndroidComputer(private val context: Context) : ComputerDriver {
+class AndroidComputer(private val context: Context) : ComputerDriver {
     private class Capture(val id: String, val scale: Float, val nodes: Map<Int, AccessibilityNodeInfo>)
     private val lock = Mutex()
     private var last: Capture? = null

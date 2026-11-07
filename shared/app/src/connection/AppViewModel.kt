@@ -344,6 +344,9 @@ class AppViewModel(
 
     fun loadMoreSessions(agentId: String) = repo.loadSessions(agentId, more = true)
 
+    /** The model provider [agentId] uses, empty until its settings load. */
+    fun provider(agentId: String): String = owner.config.state.value[agentId]?.details?.settings?.provider.orEmpty()
+
     /** Starts a Session with [agentId] by sending [text]; returns its ID, or null when it couldn't. */
     suspend fun quickSend(agentId: String, text: String): String? =
         catching { owner.run { repo.createSession(agentId).id.also { repo.send(agentId, it, text) } } }.getOrNull()

@@ -22,10 +22,6 @@ run = "./kotlin run -m android"
 description = "Build, install and launch the iOS app"
 run = "./kotlin run -m ios"
 
-[tasks."ios:publish"]
-description = "Build and publish a private iPhone installer at a stable Tailscale URL"
-run = "python3 scripts/publish-ios.py"
-
 [tasks.cli]
 description = "Run CLI commands (KINUVO_HOME selects its data)"
 run = "./kotlin run -m cli --"

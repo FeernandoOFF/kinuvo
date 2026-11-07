@@ -38,4 +38,4 @@ internal fun ServerVoiceSettings() {
     }
 }
 
-private const val LiveCallsGuide = "https://feernandooff.github.io/kinuvo/guides/voice/#live-voice"
+private const val LiveCallsGuide = "https://kinuvo.feernandooff.com/guides/voice/#live-voice"

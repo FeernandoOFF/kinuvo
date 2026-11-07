@@ -78,3 +78,22 @@ Release signing remains ad hoc. Developer ID signing, Gatekeeper quarantine and
 notarization are not proven by local engine-load checks; a future notarized release
 must preserve the worker exception and the JVM's native-loading entitlements and
 verify installation on a clean Mac.
+
+## Documentation website
+
+The docs are served as static assets by the `kinuvo-docs` Cloudflare Worker at
+https://kinuvo.feernandooff.com. Build and deploy from the repository root:
+
+```sh
+mise run exec -- npm --prefix docs ci
+mise run exec -- npm --prefix docs run build
+mise run exec -- npm --prefix docs run deploy
+```
+
+`docs/wrangler.jsonc` owns the asset directory, custom domain and 404 behavior.
+The documentation workflow deploys changes on main using the repository secret
+`CLOUDFLARE_API_TOKEN`. Scope it to this Cloudflare account with Workers Scripts
+Edit and to feernandooff.com with Zone Read and Workers Routes Edit. Wrangler's
+interactive OAuth login is for local deployment; do not copy it into CI secrets.
+The old `/kinuvo/` prefix redirects to root paths on the new domain. The legacy
+GitHub Pages site remains available until its retirement is separately arranged.

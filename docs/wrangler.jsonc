@@ -1,0 +1,18 @@
+{
+  "name": "kinuvo-docs",
+  "account_id": "8563dce3adf2e7c2bac461611b99f60b",
+  "compatibility_date": "2026-11-06",
+  "workers_dev": false,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "force-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "routes": [
+    {
+      "pattern": "kinuvo.feernandooff.com",
+      "custom_domain": true
+    }
+  ]
+}

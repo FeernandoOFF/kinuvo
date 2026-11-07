@@ -18,7 +18,7 @@ Windows PowerShell:
 irm https://raw.githubusercontent.com/FeernandoOFF/kinuvo/main/install.ps1 | iex
 ```
 
-[Documentation and getting started](https://feernandooff.github.io/kinuvo/) · [Download apps](https://github.com/FeernandoOFF/kinuvo/releases/latest)
+[Documentation and getting started](https://kinuvo.feernandooff.com/) · [Download apps](https://github.com/FeernandoOFF/kinuvo/releases/latest)
 
 ## Build from source
 

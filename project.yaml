@@ -1,5 +1,6 @@
 modules:
   - apps/android
+  - apps/android-play
   - apps/cli
   - apps/desktop
   - apps/ios
@@ -35,3 +36,4 @@ modules:
   - shared/client
   - shared/protocol
   - shared/ui
+  - shared/ui/android-computer
