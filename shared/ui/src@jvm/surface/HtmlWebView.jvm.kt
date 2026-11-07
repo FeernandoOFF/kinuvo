@@ -20,6 +20,7 @@ import kinuvo.protocol.currentPlatform
 import kotlinx.coroutines.delay
 import kotlinx.serialization.json.*
 import java.awt.event.KeyEvent as AwtKeyEvent
+import java.awt.event.MouseEvent
 import java.util.Locale
 
 @Composable
@@ -45,7 +46,7 @@ internal actual fun HtmlWebView(document: String, bridge: HtmlBridge, modifier: 
     LaunchedEffect(host, document) { send("load") { put("html", document) } }
     LaunchedEffect(host, bridge) {
         while (true) {
-            repeat(64) { host.poll()?.let(bridge::receive) }
+            for (i in 0 until 64) bridge.receive(host.poll() ?: break)
             host.pixels()?.let { image = it.image() }
             delay(16)
         }
@@ -53,7 +54,7 @@ internal actual fun HtmlWebView(document: String, bridge: HtmlBridge, modifier: 
     val input = modifier.onSizeChanged { size ->
         send("size") { put("width", size.width / density); put("height", size.height / density) }
     }.focusRequester(focus).onFocusChanged { send("focus") { put("focused", it.isFocused) } }.onKeyEvent { event ->
-        if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+        if (event.type != KeyEventType.KeyDown && event.type != KeyEventType.KeyUp) return@onKeyEvent false
         val native = event.awtEventOrNull ?: return@onKeyEvent false
         val text = (if (event.isMetaPressed && native.keyCode in AwtKeyEvent.VK_A..AwtKeyEvent.VK_Z) native.keyCode.toChar().lowercaseChar() else native.keyChar).takeUnless { it == AwtKeyEvent.CHAR_UNDEFINED }?.toString().orEmpty()
         val code = when (native.keyCode) {
@@ -64,7 +65,9 @@ internal actual fun HtmlWebView(document: String, bridge: HtmlBridge, modifier: 
         }
         val modifiers = (if (event.isShiftPressed) 1 shl 17 else 0) or (if (event.isCtrlPressed) 1 shl 18 else 0) or
             (if (event.isAltPressed) 1 shl 19 else 0) or (if (event.isMetaPressed) 1 shl 20 else 0)
-        if (code == 0 && !event.isMetaPressed && !event.isCtrlPressed && text.isNotEmpty()) send("text") { put("text", text) }
+        // Typed characters go in as text, which needs no key window; key-ups only fire the page's keyup handlers.
+        if (event.type == KeyEventType.KeyUp) send("key") { put("text", text); put("code", code); put("modifiers", modifiers); put("up", true) }
+        else if (code == 0 && !event.isMetaPressed && !event.isCtrlPressed && text.isNotEmpty()) send("text") { put("text", text) }
         else send("key") { put("text", text); put("code", code); put("modifiers", modifiers) }
         true
     }.focusable().pointerInput(host, density, document) {
@@ -92,7 +95,8 @@ internal actual fun HtmlWebView(document: String, bridge: HtmlBridge, modifier: 
                     PointerEventType.Move -> if (change.pressed) "drag" else "move"
                     else -> continue
                 }
-                send("mouse") { put("kind", kind); put("clicks", clicks); put("modifiers", if (event.keyboardModifiers.isShiftPressed) 1 shl 17 else 0); put("x", change.position.x / density); put("y", change.position.y / density) }
+                val secondary = event.awtEventOrNull?.let { it.button == MouseEvent.BUTTON3 || it.modifiersEx and MouseEvent.BUTTON3_DOWN_MASK != 0 } == true
+                send("mouse") { put("kind", kind); put("secondary", secondary); put("clicks", clicks); put("modifiers", if (event.keyboardModifiers.isShiftPressed) 1 shl 17 else 0); put("x", change.position.x / density); put("y", change.position.y / density) }
                 change.consume()
             }
         }

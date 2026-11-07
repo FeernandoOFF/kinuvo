@@ -125,19 +125,30 @@ private final class OffscreenWeb: NSObject, WKScriptMessageHandler, WKNavigation
         case "key":
             let flags = NSEvent.ModifierFlags(rawValue: UInt(command["modifiers"] as? Int ?? 0))
             let text = command["text"] as? String ?? ""
-            if let event = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil, characters: text, charactersIgnoringModifiers: text, isARepeat: false, keyCode: UInt16(command["code"] as? Int ?? 0)) {
-                if !web.performKeyEquivalent(with: event) { web.keyDown(with: event) }
+            let up = command["up"] as? Bool == true
+            if let event = NSEvent.keyEvent(with: up ? .keyUp : .keyDown, location: .zero, modifierFlags: flags, timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil, characters: text, charactersIgnoringModifiers: text, isARepeat: false, keyCode: UInt16(command["code"] as? Int ?? 0)) {
+                if up { web.keyUp(with: event) }
+                else if !web.performKeyEquivalent(with: event) { web.keyDown(with: event) }
             }
         case "mouse":
             let x = command["x"] as? Double ?? 0, y = command["y"] as? Double ?? 0
             let kind = command["kind"] as? String ?? "move"
-            let type: NSEvent.EventType = kind == "down" ? .leftMouseDown : kind == "up" ? .leftMouseUp : kind == "drag" ? .leftMouseDragged : .mouseMoved
+            let secondary = command["secondary"] as? Bool == true
+            let type: NSEvent.EventType = switch kind {
+            case "down": secondary ? .rightMouseDown : .leftMouseDown
+            case "up": secondary ? .rightMouseUp : .leftMouseUp
+            case "drag": secondary ? .rightMouseDragged : .leftMouseDragged
+            default: .mouseMoved
+            }
             if let event = NSEvent.mouseEvent(with: type, location: NSPoint(x: x, y: web.bounds.height - y), modifierFlags: NSEvent.ModifierFlags(rawValue: UInt(command["modifiers"] as? Int ?? 0)), timestamp: ProcessInfo.processInfo.systemUptime, windowNumber: window.windowNumber, context: nil, eventNumber: 0, clickCount: command["clicks"] as? Int ?? 1, pressure: 1) {
                 let target = web.hitTest(NSPoint(x: x, y: y)) ?? web
                 switch type {
                 case .leftMouseDown: target.mouseDown(with: event)
                 case .leftMouseUp: target.mouseUp(with: event)
                 case .leftMouseDragged: target.mouseDragged(with: event)
+                case .rightMouseDown: target.rightMouseDown(with: event)
+                case .rightMouseUp: target.rightMouseUp(with: event)
+                case .rightMouseDragged: target.rightMouseDragged(with: event)
                 default: target.mouseMoved(with: event)
                 }
             }
