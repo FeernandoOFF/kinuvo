@@ -41,6 +41,13 @@ Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p j
 - ViewModels expose one state data class with orthogonal fields, using explicit backing fields (`val state: StateFlow<S>` / `field = MutableStateFlow(...)`), not `_state` pairs.
 - Write minimal code with few comments, and match the surrounding style.
 
+### Docs
+
+- Write `docs/` user guides in plain language for owners; omit implementation internals.
+- Record decisions in `docs/adr/`: short, one file per decision, next free number, frontmatter `title` and `description`.
+- Put contributor how-tos under the Contributing sidebar group or in module READMEs.
+- Do not commit plan, handoff or session documents.
+
 ## Shared client logic
 
 - Put feature behavior, validation, Repositories, ViewModels and immutable state in `shared/app`. Compose and SwiftUI call the same shared ViewModels; move reusable behavior out of screens before adding another UI. Keep `shared/app` free of Compose, UIKit and SwiftUI dependencies.
