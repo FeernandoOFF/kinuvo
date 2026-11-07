@@ -21,66 +21,19 @@ xcrun devicectl list devices
 
 The project uses Kotlin Toolchain 0.13.0 with incremental compilation enabled. Debug native linking reuses compiler caches; compilation to `.klib` files still runs in full.
 
-## Private wireless installation
-
-On the Mac hosting your builds, with Tailscale connected and Xcode signed into a
-paid Apple Developer account containing your registered iPhone:
-
-```sh
-mise run ios:publish
-```
-
-This archives the current checkout in Release mode, exports an Ad Hoc signed IPA,
-checks its signature and provisioning profile, and publishes a private installer
-at `https://<mac-tailnet-name>/install/ios/`. Open that URL in Safari on the iPhone
-with Tailscale connected and tap **Install Kinuvo**. The page URL stays the same;
-refresh it after publishing another build. Each package has a unique URL to avoid
-cached installations. Builds with the same bundle identifier update the existing
-app and preserve its data; different branches are not separate installations.
-
-Xcode automatically manages distribution signing. The iPhone must already be
-registered in the selected Apple team. The export fails if the account cannot
-create the necessary distribution certificate or profile.
-
-Prefer an App Store Connect API key with Admin access over the Xcode account:
-`xcodebuild` can remove an Xcode account whose sign-in it cannot read, which then
-fails every export with `No Accounts`. Save the key as
-`~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8` and set `KINUVO_ASC_KEY_ID`
-and `KINUVO_ASC_ISSUER_ID` (and `KINUVO_ASC_KEY_PATH` for another location) in
-your shell or global mise environment. Without them, the Xcode account is used. The generated page
-shows the build's minimum iOS version and signing expiration.
-
-Archives and Xcode logs live in the checkout's `build/ios-ota/`. Published files
-live in `~/.kinuvo-ios-install/site/`, shared by every checkout, so any worktree
-can publish to the same page. Release compilation uses an 8 GB Java heap to accommodate
-Kotlin/Native optimization; override it with `KINUVO_IOS_BUILD_HEAP` if needed.
-Keep that directory in place while serving builds. A user launch agent,
-`dev.kinuvo.ios-install`, serves only that directory on `127.0.0.1:8795` and starts
-at login. Tailscale Serve persists across restarts and adds only `/install/ios/`, preserving existing
-routes. Public Funnel on port 443 is rejected. Existing build files are retained
-so an installation in progress can finish. To remove the installer route, run
-`tailscale serve --https=443 --set-path=/install/ios/ off`. To stop the file host,
-run `launchctl bootout gui/$(id -u)/dev.kinuvo.ios-install` and remove its plist
-from `~/Library/LaunchAgents/`.
-
-To export an existing archive without rebuilding, use
-`mise run ios:publish -- --archive /absolute/path/Kinuvo.xcarchive`.
-The command verifies the HTTPS page, manifest and downloaded IPA; successful
-installation and launch still need verification on a registered iPhone.
-
 Debug builds keep `ENABLE_DEBUG_DYLIB=NO` in the Xcode target. This works around unsigned debug dylibs observed with Kotlin Toolchain 0.12.2 during CLI device installs, which iOS refuses to load. Keep this setting when regenerating the Xcode project. The Debug target also defines `DEBUG` in `SWIFT_ACTIVE_COMPILATION_CONDITIONS` for the simulator test override; preserve it when regenerating.
 
 ## TestFlight builds
 
-Bump `CURRENT_PROJECT_VERSION` for each upload, then archive and upload from the repository root:
+Bump `CURRENT_PROJECT_VERSION` for each upload, then archive and export from the repository root:
 
 ```sh
 _JAVA_OPTIONS=-Xmx10g xcodebuild -project apps/ios/module.xcodeproj -scheme ios -configuration Release \
   -destination generic/platform=iOS -archivePath build/Kinuvo.xcarchive -allowProvisioningUpdates _JAVA_OPTIONS=-Xmx10g archive
-xcodebuild -exportArchive -archivePath build/Kinuvo.xcarchive -exportOptionsPlist ExportOptions.plist -exportPath build/export -allowProvisioningUpdates
+xcodebuild -exportArchive -archivePath build/Kinuvo.xcarchive -exportOptionsPlist apps/ios/store/ExportOptions.plist -exportPath build/export -allowProvisioningUpdates
 ```
 
-`ExportOptions.plist` sets `method` to `app-store-connect`, `destination` to `upload` and `teamID`. The release framework's link needs more than the 3 GB heap the Kotlin Toolchain gives the native compiler; `_JAVA_OPTIONS` is the one JVM option that overrides it, passed as a build setting so the Build Kotlin phase sees it. Xcode must be signed in to the team's Apple account.
+`apps/ios/store/ExportOptions.plist` sets `method` to `app-store-connect`, `destination` to `export` and `teamID`. Inspect the exported archive/IPA, then upload through Xcode Organizer or Transporter. The release framework's link needs more than the 3 GB heap the Kotlin Toolchain gives the native compiler; `_JAVA_OPTIONS` is the one JVM option that overrides it, passed as a build setting so the Build Kotlin phase sees it. Xcode must be signed in to the team's Apple account.
 
 ## On-device demo
 
@@ -113,7 +66,7 @@ Without the entitlement, Private Cloud Compute reports itself available but stop
 
 ## Voice
 
-Dictation (the microphone in the composer) and voice chat (the button beside it when the composer is empty) run speech recognition and speech on-device, asking for microphone and Speech Recognition access the first time. Replies come from the Session's model as usual. Voice chat keeps the microphone open while it speaks, with Apple's echo cancellation, so you can talk over a reply to cut it short; Pause stops it and the microphone until Resume. Premium and enhanced voices downloaded in Settings → Accessibility → Spoken Content are used when available. The simulator has no echo cancellation; use a device.
+Dictation is the microphone in the composer; Voice chat is the button beside it when the composer is empty. Device speech processes recognition and synthesis on-device and asks for microphone and Speech Recognition access. When the connected Server offers speech services, the app can instead send recorded audio for Server transcription and text for synthesis. Live voice streams microphone audio to the Server and its configured speech-to-speech provider, which can also receive Session history. Server speech paths request microphone access without Device Speech Recognition access. The text-message provider consent prompt does not currently gate Server transcription or Live voice; those external-processing paths remain a release blocker. The prompt is not Server-wide: Routines, Reflection (potentially using another provider), and requests from other paired Devices or desktop/web clients also run outside this Device’s prompt. Allowing a generic unknown-provider prompt is remembered for later unknown-provider sends. Replies come from the Session's model as usual. Device Voice chat keeps the microphone open while it speaks, with Apple's echo cancellation, so you can talk over a reply to cut it short; Pause stops it and the microphone until Resume. Premium and enhanced voices downloaded in Settings → Accessibility → Spoken Content are used when available. The simulator has no echo cancellation; use a device.
 
 ## Remote Server
 

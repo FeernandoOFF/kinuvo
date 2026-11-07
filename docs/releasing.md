@@ -36,40 +36,6 @@ Without these secrets the release skips the APK.
 
 Android release builds use the tag without `v` as `versionName` and the Release workflow's run number as `versionCode`. Each new run increases the code; reruns keep it. Local builds default to `0.1.0-dev` with code `1`.
 
-## Google Play
-
-The `android-play` module is the Play distribution. It supports Android 8.0 (API 26) and newer,
-targets API 36 and packages only the arm64-v8a and x86_64 ABIs supported by its native model runtime. It uses `com.feernandooff.kinuvo`; the sideloaded `android` app uses `com.feernandooff.kinuvo.full`, so both can be installed. It excludes the
-Android Computer implementation, Accessibility Service, secure-settings and
-screen-wake permissions, and installed-app discovery. Computer use is absent from
-This Device's supported tools. The directly distributed `android` app retains it
-through the optional `android-computer` module. Launcher code and common resources
-are shared using relative symlinks.
-
-Build the release bundle and sign it with a local upload key:
-
-```sh
-mise run kotlin -- package -m android-play -f aab
-mise run exec -- python3 scripts/sign-android-play.py build/tasks/_android-play_bundleAndroid/gradle-project-release.aab --init-upload-key
-```
-
-Use the AAB path printed by the package command if it differs. Omit
-`--init-upload-key` on subsequent releases. The script writes `dist/Kinuvo-play.aab`
-and its public upload certificate, `dist/Kinuvo-play-upload.pem`. Back up the
-ignored `signing/` directory securely: it holds the upload keystore and its random
-password, created with owner-only permissions. Never commit these files.
-
-Choose Google's generated app signing key when enrolling the new app in Play App
-Signing. Google signs the APKs delivered to users; the local upload key signs the
-AAB submitted to Play. Google-managed signing does not eliminate upload signing.
-The Play and sideloaded builds are separate apps with separate data; neither
-upgrades the other.
-
-Before each upload, set a monotonically increasing `versionCode` and release
-`versionName` in `apps/android-play/module.yaml`; the GitHub APK workflow does not
-set these values for the Play module. Store declarations and review, including
-foreground service and AI/privacy requirements, remain separate from packaging.
-
 ## Unsigned macOS and Windows apps
 
 The desktop apps are not code-signed yet. On macOS, open the app once, then allow it under **System Settings → Privacy & Security → Open Anyway**. On Windows, choose **More info → Run anyway** in SmartScreen. The CLI installed by `install.sh` is unaffected.
