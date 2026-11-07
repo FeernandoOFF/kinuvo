@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
@@ -123,13 +124,13 @@ fun Tabs(titles: List<String>, selected: Int, onSelect: (Int) -> Unit, modifier:
 @Composable
 fun ChoiceSelect(options: List<Pair<String, String>>, selected: String?, enabled: Boolean, compact: Boolean = false, onSelect: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    val style = markdownTextStyle()
+    val style = TextStyles.secondary
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val width = with(density) { (options.maxOfOrNull { measurer.measure(it.second, style, softWrap = false).size.width } ?: 0).toDp() } + 32.dp
+    val width = with(density) { (options.maxOfOrNull { measurer.measure(it.second, style, softWrap = false).size.width } ?: 0).toDp() } + 48.dp
     DropdownMenu(expanded = open, onExpandedChange = { open = it }, panel = {
         DropdownMenuPanel {
-            options.forEach { (value, label) -> DropdownMenuItem(onClick = { open = false; onSelect(value) }) { Text(label) } }
+            options.forEach { (value, label) -> DropdownMenuItem(onClick = { open = false; onSelect(value) }) { Text(label, style = style) } }
         }
     }) {
         val shape = RoundedCornerShape(10.dp)
@@ -137,8 +138,8 @@ fun ChoiceSelect(options: List<Pair<String, String>>, selected: String?, enabled
             .clip(shape).background(color(backgroundColor)).border(1.dp, color(borderColor), shape)
             .clickable(enabled = enabled) { open = true }.padding(horizontal = if (compact) 6.dp else 12.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(options.firstOrNull { it.first == selected }?.second ?: "Select", Modifier.weight(1f), style = if (compact) TextStyles.caption else style, singleLine = true)
-            if (!compact) Icon(Lucide.ChevronDown, Modifier.size(12.dp), contentDescription = null)
+            Text(options.firstOrNull { it.first == selected }?.second ?: "Select", Modifier.weight(1f), style = if (compact) TextStyles.caption else style, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Icon(Lucide.ChevronDown, Modifier.size(12.dp), contentDescription = null)
         }
     }
 }
