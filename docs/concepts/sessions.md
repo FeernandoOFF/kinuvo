@@ -13,6 +13,10 @@ Routines can create a fresh Session for each run or continue a selected Session.
 
 Each Session belongs to one Agent. An Agent can list, search and read its own past Sessions and check their status with the `agent_tools` group; it never sees another Agent's Sessions or a Hidden Session. External Agents get the same tools over MCP, subject to the same Approvals.
 
+With `delegate` an Agent hands a goal to another Agent, or to itself with a fresh context, in a new child Session on that Agent, native or External. The child starts from the goal and context alone, never the parent's transcript. By default the parent waits for the child's final answer; in the background it fetches the answers later with `delegate_wait`, and several tasks run in parallel (up to four per call). `subagents` lists and cancels the children, and stopping a Session stops its running descendants. A child's questions and Approvals appear in its own Session for you to answer. Delegation is limited in depth by `delegationDepth` in [Agent configuration](../reference/agent.md); a child at the limit gets no delegation tools. The parent's `sessions_*` tools also see the children it delegated.
+
+A delegation can be `hidden`, for work on sensitive data: the child must run on an on-device model, its transcript is invisible to every Agent tool, it is never reflected on or notified about, and only the final answer crosses to the parent. With `review`, you see that answer and choose whether it reaches the parent. Work a Hidden Session hands on stays hidden. You still see Hidden Sessions in the app. A Session running on an on-device model that delegates to a cloud Agent sends it only the goal and context it writes.
+
 See [Agent configuration](../reference/agent.md) and [Routines and Tasks](routines-and-tasks.md).
 
 <div class="k-future">
@@ -20,6 +24,5 @@ See [Agent configuration](../reference/agent.md) and [Routines and Tasks](routin
 **Future enhancements**
 
 - **Teams**: a named group of Agents that share Artifacts; a Session can include several Team members through @mention.
-- **Delegation**: an Agent hands work to another in a child Session, optionally a Hidden Session whose transcript no Agent tool can see ([plan](../plans/2026-11-07-agent-collaboration-design.md)).
 
 </div>

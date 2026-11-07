@@ -148,6 +148,7 @@ class ServerRuntime(
 
     private fun changedCapabilities() = broadcast(Api.CapabilitiesChanged, Unit)
     init {
+        harness.delegation = ServerDelegation(harness, runs, external, { executions.registration(it) != null }, ::agent, ::createSession, { send(it) }, ::stop)
         harness.externalAgents = {
             val catalog = executions.catalog()
             catalog.agents.mapNotNull { a ->
@@ -712,7 +713,10 @@ class ServerRuntime(
         return SendResult(sessionId, run.id, message, activation)
     }
 
-    private suspend fun stop(sessionId: String) = dispatchFor(sessionId).stop(sessionId)
+    private suspend fun stop(sessionId: String) {
+        dispatchFor(sessionId).stop(sessionId)
+        harness.stopChildren(sessionId)
+    }
 
     private suspend fun checkHarness(config: HarnessConnection): ExecutionProbe {
         val probe = try {

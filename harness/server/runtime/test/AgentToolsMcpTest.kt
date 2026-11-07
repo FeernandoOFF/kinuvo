@@ -56,6 +56,19 @@ class AgentToolsMcpTest {
         assertTrue("denied" in denied.result()["content"]!!.jsonArray.single().jsonObject["text"]!!.jsonPrimitive.content)
     }
 
+    @Test fun delegatingAsksAtDefaultToleranceAndDenyStartsNothing() = runTest {
+        val scope = session()
+        val token = access.grant(scope.agentId, scope.sessionId!!)!!.token
+        decision = ApprovalDecision.Deny("not now")
+        val denied = endpoint.handle("Bearer $token", rpc(1, "tools/call", buildJsonObject { put("name", "delegate"); putJsonObject("arguments") { put("goal", "x") } }))
+        assertEquals(listOf("delegate"), asked)
+        assertTrue(denied.result()["isError"]!!.jsonPrimitive.boolean)
+        assertTrue("denied" in denied.result()["content"]!!.jsonArray.single().jsonObject["text"]!!.jsonPrimitive.content)
+        assertEquals(1, harness.store.sessions("test").size)
+        endpoint.handle("Bearer $token", call("subagents"))
+        assertEquals(listOf("delegate"), asked)
+    }
+
     @Test fun serverDenyRulesBlockWithoutAsking() = runTest {
         fixture.rules = TrustRules(deny = DenyRules(tools = listOf("sessions_list")))
         val scope = session(approvals = "strict")
@@ -69,7 +82,7 @@ class AgentToolsMcpTest {
         val scope = session()
         val token = access.grant(scope.agentId, scope.sessionId!!)!!.token
         val tools = endpoint.handle("Bearer $token", rpc(2, "tools/list")).result()["tools"]!!.jsonArray.map { it.jsonObject }
-        assertEquals(setOf("agents_list", "sessions_list", "sessions_search", "sessions_read", "session_status"), tools.map { it["name"]!!.jsonPrimitive.content }.toSet())
+        assertEquals(setOf("agents_list", "sessions_list", "sessions_search", "sessions_read", "session_status", "delegate", "delegate_wait", "subagents"), tools.map { it["name"]!!.jsonPrimitive.content }.toSet())
         val search = tools.first { it["name"]?.jsonPrimitive?.content == "sessions_search" }["inputSchema"]!!.jsonObject
         assertEquals("query", search["required"]!!.jsonArray.single().jsonPrimitive.content)
     }
