@@ -4,6 +4,8 @@ package kinuvo.harness.execution.acp
 
 import com.agentclientprotocol.client.v2.*
 import com.agentclientprotocol.model.AcpMethod
+import com.agentclientprotocol.model.EnvVariable
+import com.agentclientprotocol.model.HttpHeader
 import com.agentclientprotocol.model.SessionId
 import kotlinx.serialization.json.JsonElement
 import kinuvo.protocol.ProtocolJson
@@ -17,9 +19,12 @@ import kotlinx.coroutines.*
 import kotlinx.io.asSink
 import kotlinx.io.asSource
 import kotlinx.io.buffered
+import kinuvo.harness.execution.api.KinuvoMcp
 import kinuvo.protocol.ExecutionConnection
 import java.io.File
 import java.util.concurrent.TimeUnit
+
+private const val KINUVO_MCP = "kinuvo"
 
 /** JVM-only. Inherits the existing installation's environment and accounts; never installs a runtime. */
 class AcpConnection private constructor(
@@ -29,9 +34,18 @@ class AcpConnection private constructor(
 ) {
     suspend fun login(methodId: String) = client.login(AuthMethodId(methodId))
 
-    suspend fun newSession(cwd: String, operations: ClientSessionOperations): ClientSession {
+    suspend fun newSession(cwd: String, operations: ClientSessionOperations, tools: KinuvoMcp? = null): ClientSession {
         permissionHandler(operations)
-        return client.newSession(cwd = cwd, operations = operations)
+        return client.newSession(cwd = cwd, mcpServers = mcpServers(tools), operations = operations)
+    }
+
+    /** HTTP when the harness advertises it, else the stdio bridge, which every ACP harness must support. */
+    internal suspend fun mcpServers(tools: KinuvoMcp?): List<McpServer> {
+        tools ?: return emptyList()
+        if (client.agentInfo.await().capabilities.session?.mcp?.http != null)
+            return listOf(McpServer.Http(KINUVO_MCP, tools.url, listOf(HttpHeader("Authorization", "Bearer ${tools.token}"))))
+        val bridge = tools.bridge ?: return emptyList()
+        return listOf(McpServer.Stdio(KINUVO_MCP, bridge.first(), bridge.drop(1) + listOf("--url", tools.url), listOf(EnvVariable("KINUVO_MCP_TOKEN", tools.token))))
     }
 
     // SDK permission routing requires an already-created ClientSession, unlike its update inbox.
@@ -45,10 +59,10 @@ class AcpConnection private constructor(
 
     suspend fun supportsResume() = client.agentInfo.await().capabilities.session != null
 
-    suspend fun resumeSession(id: String, cwd: String, operations: ClientSessionOperations): ClientSession {
+    suspend fun resumeSession(id: String, cwd: String, operations: ClientSessionOperations, tools: KinuvoMcp? = null): ClientSession {
         check(supportsResume()) { "ACP harness did not negotiate Session resume support (capabilities.session)" }
         permissionHandler(operations, id)
-        return client.resumeSession(SessionId(id), cwd, replayFrom = null, operations = operations)
+        return client.resumeSession(SessionId(id), cwd, mcpServers = mcpServers(tools), replayFrom = null, operations = operations)
     }
 
     // SDK 0.33 drops PromptResponse and its unknown messageId field. Keep the raw acknowledgement.

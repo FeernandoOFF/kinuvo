@@ -34,7 +34,10 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
         finally { scope.cancel() }
     }
 
-    override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
+    override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
+        open(config, registration, state, broker, scope, null)
+
+    override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope, tools: KinuvoMcp?): ExecutionSession {
         val acp = config.connection as? ExecutionConnection.Acp ?: error("Remote execution is not installed")
         val requests = AcpRequests(broker)
         val reducer = AcpReducer(state) { persistAttachment(state, it) }
@@ -60,8 +63,8 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
                 }
             }
             val previous = state.snapshot().externalSessionId
-            val session = if (previous == null) connection.newSession(requireNotNull(registration.cwd), operations)
-                else connection.resumeSession(previous, requireNotNull(registration.cwd), operations)
+            val session = if (previous == null) connection.newSession(requireNotNull(registration.cwd), operations, tools)
+                else connection.resumeSession(previous, requireNotNull(registration.cwd), operations, tools)
             state.reference(session.sessionId.toString())
             val info = connection.client.agentInfo.await()
             val adapter = AcpSession(session, connection, state, broker, reducer, requests::cancel, ExecutionCapabilities(
