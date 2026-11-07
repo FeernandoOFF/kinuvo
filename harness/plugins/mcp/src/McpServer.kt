@@ -19,7 +19,12 @@ import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import io.modelcontextprotocol.kotlin.sdk.types.Tool
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.JsonObject
+import io.modelcontextprotocol.kotlin.sdk.client.ClientOptions
+import io.modelcontextprotocol.kotlin.sdk.types.ClientCapabilities
+import io.modelcontextprotocol.kotlin.sdk.types.ReadResourceRequest
+import io.modelcontextprotocol.kotlin.sdk.types.ReadResourceRequestParams
+import io.modelcontextprotocol.kotlin.sdk.types.ReadResourceResult
+import kotlinx.serialization.json.*
 import kotlinx.coroutines.CancellationException
 
 /** A lazily connected MCP server; reconnects on the next use after a failure. HTTP servers sign in through [auth]. */
@@ -34,6 +39,8 @@ class McpServer(val config: McpServerConfig, private val auth: McpAuth? = null) 
     suspend fun listTools(): List<Tool> = withClient { it.listTools().tools }
 
     suspend fun callTool(name: String, args: JsonObject): CallToolResult = withClient { it.callTool(name, args) }
+
+    suspend fun readResource(uri: String): ReadResourceResult = withClient { it.readResource(ReadResourceRequest(ReadResourceRequestParams(uri))) }
 
     private suspend fun <T> withClient(block: suspend (Client) -> T): T = try {
         block(mutex.withLock { client ?: connect().also { client = it } })
@@ -54,7 +61,7 @@ class McpServer(val config: McpServerConfig, private val auth: McpAuth? = null) 
     private fun processDetail(): String? = process?.detail()
 
     private suspend fun connect(): Client {
-        val c = Client(Implementation("kinuvo", "0.1"))
+        val c = Client(Implementation("kinuvo", "0.1"), ClientOptions(capabilities = appCapabilities))
         c.connect(transport())
         return c
     }
@@ -101,3 +108,9 @@ class McpServer(val config: McpServerConfig, private val auth: McpAuth? = null) 
         process?.destroyNow()
     }
 }
+
+internal val appCapabilities = ClientCapabilities(extensions = mapOf(
+    "io.modelcontextprotocol/ui" to buildJsonObject {
+        put("mimeTypes", buildJsonArray { add("text/html;profile=mcp-app") })
+    },
+))

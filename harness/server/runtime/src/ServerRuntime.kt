@@ -538,6 +538,8 @@ class ServerRuntime(
         Api.UploadAttachment.name -> respond(r, Api.UploadAttachment) { withContext(Dispatchers.Default) { harness.attachments.upload(prepareAttachment(it)) } }
         Api.SurfaceCatalogs.name -> respond(r, Api.SurfaceCatalogs) { harness.uiCatalogs.connect(client, it.catalogs) }
         Api.SurfaceImage.name -> respond(r, Api.SurfaceImage) { fetchSurfaceImage(it.url) }
+        Api.AppResource.name -> respond(r, Api.AppResource) { harness.appResource(it) }
+        Api.AppCallTool.name -> respond(r, Api.AppCallTool) { harness.appCallTool(agent(it.app.agentId), it) }
         Api.Attachment.name -> respond(r, Api.Attachment) { withContext(Dispatchers.Default) { harness.attachments.download(it.id) } }
         Api.Send.name -> respond(r, Api.Send) { send(it, client) }
         Api.Stop.name -> respond(r, Api.Stop) { stop(it.sessionId) }

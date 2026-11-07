@@ -10,6 +10,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.nullable
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
@@ -200,6 +201,8 @@ object Api {
     val CancelProviderDownload = Method("providers.cancelDownload", ProviderRef.serializer(), Unit.serializer())
     val RemoveProviderModel = Method("providers.removeModel", ProviderModelRef.serializer(), Unit.serializer())
     val UploadAttachment = Method("attachments.upload", UploadAttachmentParams.serializer(), kinuvo.protocol.Attachment.serializer())
+    val AppResource = Method("apps.resource", McpAppRequest.serializer(), McpAppResource.serializer())
+    val AppCallTool = Method("apps.callTool", McpAppToolRequest.serializer(), JsonObject.serializer())
     val SurfaceImage = Method("surfaces.image", SurfaceImageParams.serializer(), SurfaceImageResult.serializer())
     val Attachment = Method("attachments.get", AttachmentRef.serializer(), AttachmentData.serializer())
     val DeviceTools = Method("device.tools", DeviceToolsParams.serializer(), Unit.serializer())
