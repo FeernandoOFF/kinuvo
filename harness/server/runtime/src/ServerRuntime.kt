@@ -11,6 +11,13 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.harness.core.Agent
 import kinuvo.harness.server.execution.*
 import kinuvo.harness.execution.api.*
+import kinuvo.harness.core.Verdict
+import kinuvo.harness.core.agenttools.AgentSummary
+import kinuvo.harness.core.agenttools.CallerScope
+import kinuvo.harness.core.tools.Tool
+import kinuvo.harness.server.mcp.AgentToolGateway
+import kinuvo.harness.server.mcp.McpAccess
+import kinuvo.harness.server.mcp.McpEndpoint
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.serializer
@@ -54,6 +61,8 @@ class ServerRuntime(
     private val prepareAttachment: (UploadAttachmentParams) -> UploadAttachmentParams = { it },
     /** Held while a live voice call runs, so the host keeps serving it in real time. */
     private val keepAwake: () -> AutoCloseable = { AutoCloseable {} },
+    /** The MCP endpoint's tokens; the host that listens sets where harnesses reach it. */
+    val mcp: McpAccess = McpAccess(),
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val executions = executionRegistry
@@ -68,7 +77,9 @@ class ServerRuntime(
     private val installedFactory = object : ExecutionFactory {
         override suspend fun probe(config: HarnessConnection) = if (config.connection is ExecutionConnection.Remote) remoteFactory.probe(config) else executionFactory?.probe(config) ?: ExecutionProbe(ExecutionReadiness(true, false, "ACP unavailable", "unsupported"))
         override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
-            if (config.connection is ExecutionConnection.Remote) remoteFactory.open(config, registration, state, broker, scope) else requireNotNull(executionFactory).open(config, registration, state, broker, scope)
+            open(config, registration, state, broker, scope, null)
+        override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope, tools: KinuvoMcp?) =
+            if (config.connection is ExecutionConnection.Remote) remoteFactory.open(config, registration, state, broker, scope) else requireNotNull(executionFactory).open(config, registration, state, broker, scope, tools)
     }
     private val remoteGateway = RemoteGateway(remoteLinks,
         { admin.agents() + externalAgents() },
@@ -79,7 +90,10 @@ class ServerRuntime(
         { agent, answer -> execution(agent).answer(answer) },
         { _, id -> if (external.owns(id)) external.discard(id) else stop(id) })
     private val external = ExecutionCoordinator(executions, installedFactory, scope, harness.log, executionStorage,
-        resolve = { harness.attachments.download(it) }, readinessChanged = { catalogChanged() })
+        resolve = { harness.attachments.download(it) }, readinessChanged = { catalogChanged() }, mcp = mcp)
+    private val agentTools = AgentToolGateway(harness) { scope, tool, args, verdict -> askExternal(scope, tool, args, verdict) }
+    /** Kinuvo's tools for External Agents; the host serves it at `/mcp`. */
+    val mcpEndpoint = McpEndpoint(mcp, agentTools)
     suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData): Attachment {
         external.currentStateOwner(state)
         require(attachmentMimeType(data.attachment.name) == data.attachment.mimeType) { "Output filename and MIME differ" }
@@ -134,6 +148,13 @@ class ServerRuntime(
 
     private fun changedCapabilities() = broadcast(Api.CapabilitiesChanged, Unit)
     init {
+        harness.externalAgents = {
+            val catalog = executions.catalog()
+            catalog.agents.mapNotNull { a ->
+                catalog.connections.firstOrNull { it.config.id == a.connectionId }?.config?.takeIf { it.connection is ExecutionConnection.Acp }
+                    ?.let { AgentSummary(a.id, a.name, "External Agent on ${it.name}", ExecutionKind.Acp, null, null, false) }
+            }
+        }
         harness.log.executionMetadata = { info -> if (external.owns(info.id)) info.copy(legacyOrder = external.record(info.id).legacyOrder) else info }
         harness.browser?.authorize { owner ->
             browserOwner(owner)
@@ -731,6 +752,18 @@ class ServerRuntime(
     }
 
     private suspend fun agent(id: String): Agent = admin.agent(id)
+
+    private suspend fun askExternal(scope: CallerScope, tool: Tool, args: JsonObject, verdict: Verdict.Ask): ApprovalDecision {
+        val options = listOf(ExternalApprovalOption("allow", "Allow once", "allow_once")) +
+            (if (verdict.trustKeys.isNotEmpty()) listOf(ExternalApprovalOption("always", "Always allow", "allow_always")) else emptyList()) +
+            ExternalApprovalOption("deny", "Deny", "reject_once")
+        val description = listOfNotNull(verdict.assessment.reason, args.takeIf { it.isNotEmpty() }?.toString()).joinToString(" · ").ifEmpty { null }
+        return when (external.ask(requireNotNull(scope.sessionId), "Kinuvo: ${tool.displayName}", description, options)) {
+            "allow" -> ApprovalDecision.AllowOnce
+            "always" -> ApprovalDecision.AlwaysAllow
+            else -> ApprovalDecision.Deny()
+        }
+    }
 
     private suspend fun checkSession(agent: Agent, spec: RoutineSpec) = spec.also {
         val id = it.session?.takeIf { s -> s != NEW_SESSIONS } ?: return@also
