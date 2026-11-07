@@ -32,9 +32,9 @@ data class SessionInfo(
     val inChats: Boolean get() = routine == null || answered || status == SessionStatus.Waiting
 }
 
-/** Where a delegated Session came from: [depth] counts the delegations from the Session the user started, so a child of that one is 1. */
+/** Where a delegated Session came from: [depth] counts the delegations from the Session the user started, so a child of that one is 1; [toolCallId] is the parent's `delegate` call. */
 @Serializable
-data class SessionParent(val agentId: String, val sessionId: String, val depth: Int)
+data class SessionParent(val agentId: String, val sessionId: String, val depth: Int, val toolCallId: String? = null)
 
 /** A Task run's prompt: this first line, then the Task's details. */
 fun taskPrompt(id: String, title: String) = "[Task $id] $title"

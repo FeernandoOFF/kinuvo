@@ -142,6 +142,9 @@ internal fun Messages(
                     verticalArrangement = Arrangement.spacedBy(Spacing.space14),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    state.info?.takeIf { it.parent != null }?.let { info ->
+                        item(key = "delegated") { Box(Modifier.widthIn(max = ContentWidth).fillMaxWidth()) { DelegatedBanner(info, actions.agents, actions.onOpenSession) } }
+                    }
                     items(rows, key = { it.key }, contentType = {
                         when (it) {
                             is ChatRow.Single -> it.item::class
@@ -285,6 +288,7 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
             item.app != null && item.result != null && !item.isError -> McpAppSurface(item, actions.onAppResource, actions.onAppTool, actions.onSend) { ToolCallView(item, actions = actions) }
             item.name == "show_ui" && item.result != null && !item.isError -> SurfaceCall(item, actions.onSurfaceAction) { ToolCallView(item, actions = actions) }
             item.name == "artifact" && item.result != null && !item.isError -> Column { ArtifactCard(item, actions.onOpenArtifact); ToolAttachments(item.attachments, actions) }
+            item.name == "delegate" && !item.waiting -> DelegationCard(item, actions)
             else -> ToolCallView(item, actions = actions)
         }
         is ChatItem.Error -> Panel(

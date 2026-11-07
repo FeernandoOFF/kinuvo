@@ -17,7 +17,7 @@ internal val DEVICE_METHODS = setOf(
     Api.LiveVoiceStart.name, Api.LiveVoiceEnd.name, Api.LiveVoiceSettings.name,
     Api.VoiceSetup.name, Api.Transcribe.name, Api.Synthesize.name, Api.CancelVoice.name,
     Api.ExecutionSnapshot.name, Api.ExecutionAnswer.name, Api.ResumeExecution.name, Api.CloseExecution.name,
-    Api.Capabilities.name, Api.Models.name, Api.Agents.name, Api.Agent.name, Api.Sessions.name, Api.Session.name,
+    Api.Capabilities.name, Api.Models.name, Api.Agents.name, Api.Agent.name, Api.Sessions.name, Api.Session.name, Api.SessionChildren.name,
     Api.Skills.name, Api.Skill.name, Api.CatchUp.name, Api.Unsubscribe.name, Api.History.name, Api.CreateSession.name, Api.UpdateSession.name,
     Api.SurfaceImage.name, Api.AppResource.name, Api.AppCallTool.name, Api.UploadAttachment.name, Api.Attachment.name, Api.Send.name, Api.Stop.name, Api.Answer.name,
     Api.Artifacts.name, Api.Artifact.name, Api.KnowledgeSearch.name, Api.KnowledgeNote.name,

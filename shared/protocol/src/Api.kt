@@ -255,6 +255,8 @@ object Api {
     val Unsubscribe = Method("session.unsubscribe", UnsubscribeParams.serializer(), Unit.serializer())
     val History = Method("session.history", HistoryParams.serializer(), ListSerializer(SessionChange.Entry.serializer()))
     val Session = Method("session.get", SessionParams.serializer(), SessionInfo.serializer())
+    /** The Sessions [SessionParams.sessionId] delegated to, oldest first, hidden ones included. */
+    val SessionChildren = Method("session.children", SessionParams.serializer(), ListSerializer(SessionInfo.serializer()))
     val CreateSession = Method("session.create", AgentRef.serializer(), SessionInfo.serializer())
     val ConfigureSession = Method("session.configure", ConfigureSessionParams.serializer(), SessionInfo.serializer())
     val UpdateSession = Method("session.update", UpdateSessionParams.serializer(), SessionInfo.serializer())

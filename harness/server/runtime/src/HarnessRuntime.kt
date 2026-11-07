@@ -239,6 +239,11 @@ open class HarnessRuntime(
         override suspend fun review(parent: CallerScope, callId: String?, child: Child, result: String) = delegation.review(parent, callId, child, result)
     })
 
+    /** The Sessions [sessionId] delegated to, oldest first, with their live status. */
+    suspend fun children(sessionId: String) = (store.agents().map { it.id } + externalAgents().map { it.id }).distinct()
+        .flatMap { store.sessions(it) }.filter { it.parent?.sessionId == sessionId }
+        .map { it.copy(status = log.status(it.id)) }.sortedBy { it.createdAt ?: 0 }
+
     /** Whether [model] of [provider] runs on this Server's own device, so its prompts never leave it. */
     fun onDevice(provider: String, model: String) = providers[providerId(provider)]?.onDevice(model) == true
 

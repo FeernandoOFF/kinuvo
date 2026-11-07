@@ -57,6 +57,8 @@ import kinuvo.protocol.ExecutionPrompt
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.AgentSettings
 import kinuvo.protocol.SessionSettings
+import kinuvo.protocol.SessionInfo
+import kinuvo.protocol.AgentInfo
 import kinuvo.protocol.Usage
 import kinuvo.protocol.ServerFeature
 import kinuvo.protocol.supports
@@ -202,6 +204,10 @@ fun ChatScreen(
                 onExternal = session::answerExternal,
                 onCheckHarness = { appState.agents.firstOrNull { it.id == route.agentId }?.connectionId?.let(session::checkHarness) },
                 onCloseSession = session::closeExternal,
+                children = current.children,
+                agents = appState.agents,
+                agentId = route.agentId,
+                onOpenSession = { agentId, id -> onOpen(Route.Chat(agentId, id)) },
             ),
             wide = wide,
             compose = route.compose && route.sessionId == null,
@@ -260,6 +266,12 @@ class ChatActions(
     /** Reopens an external Session whose harness process ended. */
     /** Ends an external Session's harness process; its transcript stays. */
     val onCloseSession: () -> Unit = {},
+    /** The Sessions the open one delegated to, and the Agents they and its parent belong to. */
+    val children: List<SessionInfo> = emptyList(),
+    val agents: List<AgentInfo> = emptyList(),
+    /** The open Session's Agent, which a delegation without one goes to. */
+    val agentId: String? = null,
+    val onOpenSession: (agentId: String, sessionId: String) -> Unit = { _, _ -> },
 )
 
 /** The Browser panel beside a wide chat: [toggle] shows or hides it; [show] opens it on the Screen a card points at. */
@@ -422,6 +434,7 @@ fun ChatContent(
                         }
                     }
                     else Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8), horizontalAlignment = Alignment.CenterHorizontally) {
+                    DelegationFooter(actions.children, actions.agents, actions.onOpenSession, Modifier.widthIn(max = ContentWidth))
                     RequestComposer(state, actions, requestInputs, Modifier.widthIn(max = ContentWidth), notice = requestNotice) {
                         val over = state.ended?.takeIf { it.resume == false && !state.resumeOnSend }
                         if (over != null) EndedComposer(over.blocked, actions.onNew, Modifier.widthIn(max = ContentWidth))

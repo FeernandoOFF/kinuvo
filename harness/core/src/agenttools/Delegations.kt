@@ -41,8 +41,8 @@ const val DEFAULT_DELEGATION_DEPTH = 2
 /** How long a child may wait on an unanswered question or Approval before its parent stops waiting, as for a Routine. */
 val CHILD_ANSWER_WAIT = 30.minutes
 
-/** A Session [agentId] was given to run [goal] in; [hidden] ones keep their transcript from every Agent tool. */
-data class DelegateTask(val agentId: String, val goal: String, val context: String? = null, val model: String? = null, val hidden: Boolean = false) {
+/** A Session [agentId] was given to run [goal] in, by the parent's tool call [callId]; [hidden] ones keep their transcript from every Agent tool. */
+data class DelegateTask(val agentId: String, val goal: String, val context: String? = null, val model: String? = null, val hidden: Boolean = false, val callId: String? = null) {
     /** The child's first message: what it is to do and what it needs to know, never the parent's transcript. */
     val message get() = if (context.isNullOrBlank()) goal else "$goal\n\nContext:\n$context"
 }
@@ -161,7 +161,7 @@ internal class Delegations(private val source: AgentToolsSource, private val sco
         private suspend fun run(args: JsonObject, callId: String?): String {
             val a = args.clean()
             val parent = scope.also { requireNotNull(it.sessionId) { "Delegating needs a Session" } }
-            val tasks = (a["tasks"] as? JsonArray)?.map { task(it as? JsonObject ?: throw IllegalArgumentException("Every task is an object")) } ?: listOf(task(a))
+            val tasks = ((a["tasks"] as? JsonArray)?.map { task(it as? JsonObject ?: throw IllegalArgumentException("Every task is an object")) } ?: listOf(task(a))).map { it.copy(callId = callId) }
             require(tasks.size in 1..MAX_TASKS) { "Give 1 to $MAX_TASKS tasks" }
             val known = source.agents().map { it.id }.toSet()
             tasks.forEach { require(it.agentId in known) { "No Agent '${it.agentId}'; see agents_list" } }

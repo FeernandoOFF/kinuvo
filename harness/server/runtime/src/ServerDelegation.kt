@@ -7,6 +7,7 @@ import kinuvo.harness.core.agenttools.Child
 import kinuvo.harness.core.agenttools.ChildResult
 import kinuvo.harness.core.agenttools.DelegateTask
 import kinuvo.harness.server.execution.ExecutionCoordinator
+import kinuvo.protocol.ChangePreview
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.ExecutionPhase
@@ -53,7 +54,7 @@ internal class ServerDelegation(
         }
         val info = create(task.agentId)
         try {
-            harness.log.append(task.agentId, info.id, SessionEntry.Details(hidden = hidden, parent = SessionParent(parent.agentId, parentId, parent.depth + 1)))
+            harness.log.append(task.agentId, info.id, SessionEntry.Details(hidden = hidden, parent = SessionParent(parent.agentId, parentId, parent.depth + 1, task.callId)))
             // A hidden Session keeps the on-device model it was started with, whatever its Agent's default becomes.
             val settings = if (hidden) agent(task.agentId).config.let { SessionSettings(provider = it.provider, model = task.model ?: it.model) } else task.model?.let { SessionSettings(model = it) }
             settings?.let { harness.configure(agent(task.agentId), info.id, it) }
@@ -87,7 +88,8 @@ internal class ServerDelegation(
         val toolCallId = callId ?: pending.id
         try {
             harness.log.publish(parent.agentId, parentId, AgentEvent.ApprovalRequested(pending.id, toolCallId, "delegate", buildJsonObject { put("result", result) }.toString(),
-                risk = Risk.Medium, reason = "Review the result of a hidden Session before it reaches this conversation", trustable = false))
+                risk = Risk.Medium, reason = "Review the result of a hidden Session before it reaches this conversation", trustable = false,
+                preview = ChangePreview("Result of a hidden Session", body = result)))
             return pending.await().let { it !is ApprovalDecision.Deny }.also { harness.log.publish(parent.agentId, parentId, AgentEvent.ApprovalResolved(toolCallId, it)) }
         } catch (e: CancellationException) {
             withContext(NonCancellable) { harness.log.publish(parent.agentId, parentId, AgentEvent.ApprovalResolved(toolCallId, false)) }

@@ -192,7 +192,8 @@ private fun PendingRequest.title(): String = when (this) {
 }
 
 private fun PendingRequest.detail(): String? = when (this) {
-    is PendingRequest.Approval -> event.reason
+    // The card shows the preview itself, so only why it asks stays here.
+    is PendingRequest.Approval -> event.preview.let { p -> if (p == null) event.reason else event.reason?.removeSuffix(p.text())?.trim()?.ifEmpty { null } }
     is PendingRequest.Takeover -> reason ?: asked.title
     else -> null
 }
@@ -248,13 +249,15 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
     val always = event.trustHint?.let { if (identity?.instance?.pluginId == "kinuvo.computer" && identity.localId == "computer_act") "Always allow in $it" else "Always allow `$it …`" } ?: "Always allow"
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
         val command = if (event.isShell()) commandOf(event.args) else null
+        val preview = event.preview
+        if (preview != null) ChangePreviewView(preview)
         if (command != null) {
             Text("$ $command", Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.menu)).background(color(codeColor)).padding(horizontal = Spacing.space12, vertical = 9.dp),
                 style = MonoStyle, color = color(onCodeColor), maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
         val json = prettyJson(event.args)
         val toggle = when {
-            command != null -> if (input.arguments) "Hide arguments" else "Arguments"
+            command != null || preview != null -> if (input.arguments) "Hide arguments" else "Arguments"
             json.lines().size > ArgumentLines -> if (input.arguments) "Show less" else "Show all"
             else -> null
         }
@@ -266,7 +269,7 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
             } }
         }
         // Without a command to show, the arguments are what's being approved.
-        if (command == null || input.arguments) CodeBlock(json, language = "Arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
+        if ((command == null && preview == null) || input.arguments) CodeBlock(json, language = "Arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
         // The two answers side by side; a note for a denial is one tap away and goes above them.
         if (input.noting) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             Text("Note for the Agent, sent with Deny", style = TextStyles.caption, color = color(mutedColor))

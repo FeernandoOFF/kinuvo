@@ -132,7 +132,7 @@ class DelegationServerTest {
             until { harness.store.entries("boss", id).any { it is SessionEntry.AssistantMessage } }
         } finally { client.close() }
         val child = children("worker").single()
-        assertEquals(SessionParent("boss", id, 1), child.parent)
+        assertEquals(SessionParent("boss", id, 1, toolCallId = "c1"), child.parent)
         val answer = harness.store.entries("boss", id).filterIsInstance<SessionEntry.AssistantMessage>().single().text
         assertEquals("boss got: echo: from a native run\n\n(Session ${child.id} on worker)", answer)
     }

@@ -1,6 +1,7 @@
 package kinuvo.harness.core.tools
 
 import ai.koog.agents.core.tools.ToolDescriptor
+import kinuvo.protocol.ChangePreview
 import kinuvo.protocol.Risk
 import kinuvo.protocol.SessionEntry
 import kotlinx.serialization.json.JsonObject
@@ -84,8 +85,10 @@ interface Tool {
     val repeatable: Boolean get() = true
     /** What a call with [args] would do; by default the whole tool at its [risk]. */
     fun assess(args: JsonObject): Assessment = Assessment(listOf(Action(risk, listOf(descriptor.name))))
-    /** What a call with [args] would change, shown in its Approval; a call it rejects fails before the user is asked. */
-    suspend fun describe(args: JsonObject): String? = null
+    /** What a call with [args] would change, field by field, shown in its Approval; a call it rejects fails before the user is asked. */
+    suspend fun preview(args: JsonObject): ChangePreview? = null
+    /** [preview] as text, or what a call with [args] would do for tools without one. */
+    suspend fun describe(args: JsonObject): String? = preview(args)?.text()
     suspend fun bind(args: JsonObject): suspend () -> Unit = {}
     suspend fun executeResult(args: JsonObject, callId: String, run: ToolRun): SessionEntry.ToolResult =
         SessionEntry.ToolResult(callId, descriptor.name, execute(args, callId, run))
