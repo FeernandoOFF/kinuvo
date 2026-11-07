@@ -39,3 +39,12 @@ Android release builds use the tag without `v` as `versionName` and the Release 
 ## Unsigned macOS and Windows apps
 
 The desktop apps are not code-signed yet. On macOS, open the app once, then allow it under **System Settings → Privacy & Security → Open Anyway**. On Windows, choose **More info → Run anyway** in SmartScreen. The CLI installed by `install.sh` is unaffected.
+
+## Target native libraries
+
+Desktop and bundled-runtime CLI packages filter nested jars to the target OS and
+architecture, including LiteRT-LM, zstd and WebRTC. The universal `kinuvo.jar`
+retains all platforms. Nested jars remain uncompressed for the executable jar
+loader; upstream license notices remain intact. Skiko and Rive already resolve
+platform-specific artifacts. Run `python3 scripts/test-package-natives.py` to
+check the packaging filter.
