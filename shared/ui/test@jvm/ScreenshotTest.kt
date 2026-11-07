@@ -48,6 +48,7 @@ import com.composables.ui.components.Text
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
+import kotlinx.coroutines.Dispatchers
 import kinuvo.client.ConnectionState
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.CapabilityState
@@ -1301,7 +1302,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
     }
 
     private fun render(name: String, width: Int, height: Int, content: @Composable () -> Unit) = javax.swing.SwingUtilities.invokeAndWait {
-        ImageComposeScene(width * 2, height * 2, Density(2f), content = content).use { scene ->
+        ImageComposeScene(width * 2, height * 2, Density(2f), coroutineContext = Dispatchers.Main, content = content).use { scene ->
             repeat(5) { scene.render(it * 500_000_000L) }
             val image = scene.render(3_000_000_000L)
             File(out, "$name.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)

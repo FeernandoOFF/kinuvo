@@ -2,6 +2,7 @@ package kinuvo.ui.session
 
 import dev.onvoid.webrtc.media.audio.AudioProcessingStreamConfig
 import java.io.File
+import java.io.IOException
 import java.io.RandomAccessFile
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -10,7 +11,12 @@ class EchoCancellerTest {
     @Test
     fun removesTheReplyFromTheMicrophone() {
         val file = File.createTempFile("say", ".wav").apply { deleteOnExit() }
-        if (ProcessBuilder("say", "-o", file.path, "--data-format=LEI16@24000", "The weather in Paris is sunny and eighteen degrees, with a light wind from the west all afternoon.").start().waitFor() != 0) return
+        val process = try {
+            ProcessBuilder("say", "-o", file.path, "--data-format=LEI16@24000", "The weather in Paris is sunny and eighteen degrees, with a light wind from the west all afternoon.").start()
+        } catch (_: IOException) {
+            return
+        }
+        if (process.waitFor() != 0) return
         val reply = pcm(file)
         val canceller = echoCanceller()
         val stream = AudioProcessingStreamConfig(24_000, 1)

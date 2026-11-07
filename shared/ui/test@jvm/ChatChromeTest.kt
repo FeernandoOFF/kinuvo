@@ -60,6 +60,7 @@ import kinuvo.ui.design.Popovers
 import kinuvo.ui.session.ChatActions
 import kinuvo.ui.session.ChatContent
 import kinuvo.app.session.ChatState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
 import org.jetbrains.skia.EncodedImageFormat
@@ -73,7 +74,7 @@ class ChatChromeTest {
         var loaded: String? = null
         var previewed: String? = null
         var downloaded: String? = null
-        ImageComposeScene(600, 600, Density(1f), content = {
+        ImageComposeScene(600, 600, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 StepsView(ChatRow.Steps(listOf(ChatItem.ToolCall("tool", "t", "Image output", "", result = "", attachments = listOf(attachment)))),
                     active = false, actions = ChatActions(onLoadAttachment = { loaded = it }, onPreviewAttachment = { previewed = it }, onSaveAttachment = { downloaded = it }))
@@ -93,7 +94,7 @@ class ChatChromeTest {
 
     @Test fun phoneTodayNeverOffersBackAndItsMenuAndPillOpenTheDrawer() = javax.swing.SwingUtilities.invokeAndWait {
         var drawerOpened = false
-        ImageComposeScene(390, 844, Density(1f), content = {
+        ImageComposeScene(390, 844, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch, LocalHomeChrome provides HomeChrome({ drawerOpened = true }, wide = false)) {
                     HomeContent(HomeUi(Today(kotlinx.datetime.LocalDate(2026, 10, 27))), HomeActions(), wide = false)
@@ -116,7 +117,7 @@ class ChatChromeTest {
         val task = Route.Task("review")
         val history = History(mutableStateListOf(Route.Home, task, Route.Chat("echo", "review-run")), mutableStateListOf()).apply { compact = true }
         var settingsOpened = false
-        ImageComposeScene(390, 844, Density(1f), content = {
+        ImageComposeScene(390, 844, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) {
                     ChatContent(ChatState(agent = AgentInfo("echo", "Echo", "host"), loaded = true),
@@ -138,7 +139,7 @@ class ChatChromeTest {
     @Test fun desktopRenameOpensAndSaves() = javax.swing.SwingUtilities.invokeAndWait {
         var renamed: String? = null
         val info = SessionInfo("s1", "main", "Original title")
-        ImageComposeScene(1100, 850, Density(1f), content = {
+        ImageComposeScene(1100, 850, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = false) {
                 val popovers = remember { Popovers() }
                 CompositionLocalProvider(LocalPopovers provides popovers) {
@@ -200,7 +201,7 @@ class ChatChromeTest {
     @Test fun phoneAgentPillUsesTheSpaceAndSettingsStayInTheComposer() = javax.swing.SwingUtilities.invokeAndWait {
         val agent = AgentInfo("echo", "Echo", "host")
         val session = SessionInfo("journal", agent.id, "Evening journal")
-        ImageComposeScene(390, 844, Density(1f), content = {
+        ImageComposeScene(390, 844, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) {
                     ChatContent(ChatState(agent = agent, selected = session.id, sessions = listOf(session), loaded = true,
@@ -222,7 +223,7 @@ class ChatChromeTest {
     @Test fun emptyChatShowsBrowserWithoutSessionMenu() = javax.swing.SwingUtilities.invokeAndWait {
         val agent = AgentInfo("echo", "Echo", "host")
         for (touch in listOf(true, false)) {
-            ImageComposeScene(390, 844, Density(1f), content = {
+            ImageComposeScene(390, 844, Density(1f), coroutineContext = Dispatchers.Main, content = {
                 HarnessTheme(dark = true) {
                     CompositionLocalProvider(LocalInteractionMode provides if (touch) InteractionMode.Touch else InteractionMode.Pointer) {
                         ChatContent(ChatState(agent = agent, loaded = true), ConnectionState.Connected("Test"), null,
@@ -258,7 +259,7 @@ class ChatChromeTest {
         val docks = BrowserDocks()
         var session by mutableStateOf("first")
         var dock: BrowserDock? = null
-        ImageComposeScene(1200, 800, Density(1f), content = {
+        ImageComposeScene(1200, 800, Density(1f), coroutineContext = Dispatchers.Main, content = {
             KoinIsolatedContext(koin) { HarnessTheme(dark = true) {
                 key(session) { BrowserDockHost(Route.Browser("echo", session), docks, {}) { dock = it } }
             } }
@@ -279,7 +280,7 @@ class ChatChromeTest {
         val agent = AgentInfo("echo", "Echo", "host")
         val server = Server.Remote("ws://home/ws", "test", "Home Server", "home")
         val route = Route.Chat(agent.id, "journal")
-        ImageComposeScene(342, 844, Density(1f), content = {
+        ImageComposeScene(342, 844, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) {
                     Shell(ShellState(listOf(agent), agent, mapOf(agent.id to SessionList(emptyList())), view = route,
@@ -299,7 +300,7 @@ class ChatChromeTest {
     @Test fun narrowDesktopHeaderLeavesRoomForTheSessionTitle() = javax.swing.SwingUtilities.invokeAndWait {
         val agent = AgentInfo("echo", "Echo", "host")
         val session = SessionInfo("journal", agent.id, "Evening journal", routine = kinuvo.protocol.RoutineRef("journal", "Evening journal"))
-        ImageComposeScene(286, 900, Density(1f), content = {
+        ImageComposeScene(286, 900, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Pointer) {
                     ChatContent(ChatState(agent = agent, selected = session.id, sessions = listOf(session), loaded = true, items = listOf(ChatItem.User("u", "Hello"))),
@@ -320,7 +321,7 @@ class ChatChromeTest {
         val agent = AgentInfo("a", "External", "external", executionKind = ExecutionKind.Acp)
         val prompt = ExecutionPrompt.Questions("q", AgentEvent.QuestionsAsked("q", "t", "Travel details", listOf(Question("seat", "Seat", QuestionKind.Text))))
         val caps = SessionCapabilities(server = ServerCapabilities("s"), execution = ExecutionCapabilities())
-        ImageComposeScene(1000, 1400, Density(1f), content = {
+        ImageComposeScene(1000, 1400, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 ChatContent(ChatState(agent = agent, selected = "s", loaded = true, capabilities = caps,
                     defaults = AgentSettings("model", "medium", "default", "provider"),
@@ -343,7 +344,7 @@ class ChatChromeTest {
 
     @Test fun recoverableSessionHasNoResumeCardAndKeepsComposerAvailable() = javax.swing.SwingUtilities.invokeAndWait {
         val caps = SessionCapabilities(server = ServerCapabilities("s"), chat = CapabilityState.unavailable("Connection ended", "session_lost"), execution = ExecutionCapabilities(resume = true))
-        ImageComposeScene(900, 650, Density(1f), content = {
+        ImageComposeScene(900, 650, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 ChatContent(ChatState(agent = AgentInfo("a", "Wren", "external", executionKind = ExecutionKind.Acp), selected = "s", loaded = true,
                     capabilities = caps, phase = ExecutionPhase.Lost, resume = true, items = listOf(ChatItem.Assistant("m", "Saved reply"))),
@@ -363,7 +364,7 @@ class ChatChromeTest {
 
     @Test fun phoneChatInformationIsAttachedToComposer() = javax.swing.SwingUtilities.invokeAndWait {
         val caps = SessionCapabilities(server = ServerCapabilities("s"), chat = CapabilityState.unavailable("Codex Work is offline", "host_offline"))
-        ImageComposeScene(390, 760, Density(1f), content = {
+        ImageComposeScene(390, 760, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 ChatContent(ChatState(agent = AgentInfo("a", "Wren", "external", executionKind = ExecutionKind.Acp), selected = "s", loaded = true,
                     capabilities = caps), ConnectionState.Connected("Test"), null, ChatActions(), wide = false)
@@ -381,7 +382,7 @@ class ChatChromeTest {
 
     @Test fun archivedSessionShowsHistoryWithoutResume() = javax.swing.SwingUtilities.invokeAndWait {
         val caps = SessionCapabilities(server = ServerCapabilities("s"), chat = CapabilityState.unavailable("Saved history only", "archived"), execution = ExecutionCapabilities(resume = true))
-        ImageComposeScene(1000, 1000, Density(1f), content = {
+        ImageComposeScene(1000, 1000, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 ChatContent(ChatState(agent = AgentInfo("a", "Archived", "external", executionKind = ExecutionKind.Acp), selected = "s", loaded = true,
                     capabilities = caps, phase = ExecutionPhase.Lost, resume = true, items = listOf(ChatItem.Assistant("m", "Saved reply"))),
