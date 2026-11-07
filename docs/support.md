@@ -3,13 +3,11 @@ title: "Support"
 description: "Get help with Kinuvo, Server setup, permissions and data deletion."
 ---
 
-> Draft for release review. Store download links will be added after the testing tracks are available.
-
 Kinuvo is a free, self-hosted personal AI assistant by Fernando Obregon Fernandez. Contact **me@feernandooff.com** for support or privacy requests. The app is free; external AI providers, hosting and connected services may charge separately.
 
 ## Start using Kinuvo
 
-You can use the on-device Server or connect to your own remote Server. No hosted Kinuvo account is required. Available tools depend on the selected Server, Device and model.
+You can use the on-device Server or connect to your own remote Server. No hosted Kinuvo account is required. Available tools depend on the selected Server, Device and model. On Android, “Reach this Server from other Devices” allows Devices on your Wi-Fi or Tailscale network to pair with the on-device Server and access its data. Use trusted networks and revoke unwanted Devices; LAN connections may be unencrypted.
 
 - [Install a Server](start/install.md), [start it](start/first-server.md), and [pair a Device](start/pair-devices.md).
 - On iOS, Apple's on-device model requires a supported Apple Intelligence device, enabled Apple Intelligence and downloaded model assets. If unavailable, use a configured external model or remote Server. See the store listing for supported operating systems and Devices.
