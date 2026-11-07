@@ -22,6 +22,8 @@ The Agent's Risk tolerance decides which calls run without an Approval. A Sessio
 | `relaxed` | Low and Medium |
 | `full` | All Risk levels, subject to Deny rules and tool-specific checks |
 
+A tool can also describe what a call would change, and the Approval shows it: the `agent_manage` tools list each change as `field: old → new`. Those tools ask even at `full` and can't be trusted with an always allow.
+
 ## Trust and Deny rules
 
 Trust rules belong to one Agent or the whole Server. A tool rule matches its tool identity; a shell rule matches parsed command words. High Risk commands must match exactly. For example, trusting `git push` does not trust `git push --force`.
