@@ -355,6 +355,11 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     onFilter = artifacts::filter,
                                     onDelete = { id -> artifacts.delete(id); if (id == route.artifact) history.open(Route.Artifacts()) },
                                     onOpenSession = { agent, session -> history.open(Route.Chat(agent, session)) },
+                                    onEdit = artifacts::edit,
+                                    onChange = artifacts::change,
+                                    onSave = artifacts::save,
+                                    onCancel = artifacts::cancel,
+                                    onKeepMine = artifacts::keepMine,
                                     onFullScreen = { if (it) history.open(route.copy(fullScreen = true)) else if (history.canGoBack) back() else history.reset(route.copy(fullScreen = false)) },
                                 ))
                             }

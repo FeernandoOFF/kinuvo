@@ -49,6 +49,11 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
         info.also { save(it, transform(old.content)) }
     }
 
+    /** Replaces [id]'s content by the user, keeping the Agent and Session it was last saved from. */
+    suspend fun edit(id: String, content: String): ArtifactInfo = lock.withLock {
+        find(id).info.copy(updated = clock()).also { save(it, content) }
+    }
+
     suspend fun delete(id: String) = lock.withLock {
         check(repo.delete(id)) { "No artifact '$id'" }
         notify(ArtifactChange(id))
