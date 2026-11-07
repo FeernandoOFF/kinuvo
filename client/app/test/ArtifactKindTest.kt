@@ -20,4 +20,18 @@ class ArtifactKindTest {
         assertEquals("<html><body style=\"margin:0\"><svg/></body></html>", info("svg").page("<svg/>"))
         assertEquals("<p>a</p>", info("html").page("<p>a</p>"))
     }
+
+    @Test fun designsEditAsSourceOnly() {
+        assertEquals(listOf(EditorTab.Source), info("design").editorTabs(wide = false, visual = true))
+        assertEquals(listOf(EditorTab.Source), info("design").editorTabs(wide = true, visual = true))
+        assertTrue(info("design").isDesign)
+        assertFalse(info("design").web)
+        assertFalse(info("json").isDesign)
+    }
+
+    @Test fun designOfDecodesOrReturnsNull() {
+        assertEquals(listOf("a"), designOf("""{"artboards":[{"id":"a","html":"<p/>"}]}""")?.artboards?.map { it.id })
+        assertEquals(390, designOf("""{"artboards":[{"id":"a","html":"x"}]}""")?.artboards?.single()?.width)
+        assertNull(designOf("{"))
+    }
 }
