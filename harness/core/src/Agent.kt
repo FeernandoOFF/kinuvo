@@ -26,6 +26,8 @@ data class AgentConfig(
     val skillDirs: List<String> = emptyList(),
     /** Estimated context size (tokens) above which older turns of a Session get compacted. */
     val compactAtTokens: Int = 200_000,
+    /** How many delegations deep a Session of this Agent may still delegate: 0 never delegates; a child at this depth gets no `delegate`. */
+    val delegationDepth: Int = 2,
     /** Risk tolerance: strict | default | relaxed | full. */
     val approvals: String = "default",
     /** none | host | container | ssh: where shell and file tools run. */

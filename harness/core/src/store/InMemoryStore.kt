@@ -47,7 +47,7 @@ class InMemoryStore(private val clock: () -> Long = { Clock.System.now().toEpoch
         val routine = entries.filterIsInstance<SessionEntry.Started>().firstOrNull()?.routine
         return SessionInfo(sessionId, agentId, details?.title ?: routine?.name ?: entries.filterIsInstance<SessionEntry.UserMessage>().firstOrNull()?.text?.take(60) ?: FileStore.NEW_TITLE,
             routine = routine, settings = entries.filterIsInstance<SessionEntry.Settings>().lastOrNull()?.settings ?: SessionSettings(),
-            answered = entries.any { it is SessionEntry.UserMessage && it.routine == null || it is SessionEntry.Outcome && it.report }, favorite = details?.favorite ?: false, hidden = details?.hidden ?: false, createdAt = created[sessionId])
+            answered = entries.any { it is SessionEntry.UserMessage && it.routine == null || it is SessionEntry.Outcome && it.report }, favorite = details?.favorite ?: false, hidden = details?.hidden ?: false, parent = details?.parent, createdAt = created[sessionId])
     }
 
     override suspend fun createSession(agentId: String, instructions: String, routine: RoutineRef?): SessionInfo = lock.withLock {
