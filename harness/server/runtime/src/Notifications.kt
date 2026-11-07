@@ -19,13 +19,13 @@ import kotlinx.coroutines.launch
 private val log = KotlinLogging.logger("kinuvo.notifications")
 
 /**
- * Notifies the user about Sessions no client in the foreground is watching: an Approval or `ask_user` form waiting, a
+ * Notifies the user about Sessions no client in the foreground is watching: an Approval, `ask_user` form or `request_secret` waiting, a
  * reply or error, and a Routine's report or failure (a quiet run sends nothing).
  */
 class Notifications(private val harness: HarnessRuntime, private val scope: CoroutineScope, private val routineOf: (sessionId: String) -> RoutineRef?, private val externalName: suspend (String) -> String? = { null }, private val devices: DevicePush? = null) {
     private val attempted = ConcurrentMutableSet<String>()
     fun on(agentId: String, sessionId: String, event: AgentEvent) {
-        if (event !is AgentEvent.ApprovalRequested && event !is AgentEvent.QuestionsAsked && event !is AgentEvent.RunFinished && event !is AgentEvent.RunError && event !is AgentEvent.ExecutionRequested && event !is AgentEvent.ExecutionResolved) return
+        if (event !is AgentEvent.ApprovalRequested && event !is AgentEvent.QuestionsAsked && event !is AgentEvent.SecretRequested && event !is AgentEvent.RunFinished && event !is AgentEvent.RunError && event !is AgentEvent.ExecutionRequested && event !is AgentEvent.ExecutionResolved) return
         val semantic = when (event) {
             is AgentEvent.ExecutionRequested -> "request:${event.request.id}"
             is AgentEvent.RunFinished -> "finished:${event.runId}"
@@ -47,6 +47,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
                 is AgentEvent.ApprovalRequested -> approvalText(name, event).let { (title, body) ->
                     Notification(title, body.clip(), agentId, sessionId, urgent = true)
                 }
+                is AgentEvent.SecretRequested -> Notification("$name needs a secret", event.label.clip(), agentId, sessionId, urgent = true)
                 is AgentEvent.QuestionsAsked ->
                     Notification("${name} has questions", (event.title ?: event.questions.joinToString(" · ") { it.label }).clip(), agentId, sessionId, urgent = true)
                 // Routine runs are told by [routineRan], when they have something to report.
@@ -65,7 +66,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
     }
 
     private fun hiddenNotification(name: String, agentId: String, sessionId: String, event: AgentEvent) = when (event) {
-        is AgentEvent.ApprovalRequested, is AgentEvent.QuestionsAsked, is AgentEvent.ExecutionRequested -> Notification(name, "A hidden Session needs your attention", agentId, sessionId, urgent = true)
+        is AgentEvent.ApprovalRequested, is AgentEvent.QuestionsAsked, is AgentEvent.SecretRequested, is AgentEvent.ExecutionRequested -> Notification(name, "A hidden Session needs your attention", agentId, sessionId, urgent = true)
         else -> null
     }
 
