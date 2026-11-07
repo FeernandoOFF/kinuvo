@@ -3,6 +3,12 @@ package kinuvo.harness.server
 import kinuvo.harness.server.devices.*
 import kinuvo.harness.server.screens.*
 import kinuvo.harness.core.plugin.*
+import kinuvo.harness.core.agenttools.AgentSummary
+import kinuvo.harness.core.agenttools.AgentTools
+import kinuvo.harness.core.agenttools.AgentToolsSource
+import kinuvo.harness.core.agenttools.CallerScope
+import kinuvo.protocol.ExecutionKind
+import kinuvo.protocol.LiveState
 import kinuvo.protocol.ATTACHMENT_MIME_TYPES
 import kinuvo.protocol.attachmentInput
 
@@ -168,6 +174,31 @@ open class HarnessRuntime(
 
     val approvals = ApprovalBroker()
     private val sessionTrust = SessionTrust()
+
+    /** The External Agents the Server runs, which Agent tools list next to the native ones. */
+    var externalAgents: suspend () -> List<AgentSummary> = { emptyList() }
+
+    private val agentTools = AgentTools(object : AgentToolsSource {
+        override suspend fun agents() = store.agents().map { agent ->
+            val config = agent.config
+            val identity = docs.read(agent.id, AgentDoc.Identity).lineSequence().map(String::trim).firstOrNull { it.isNotEmpty() && !it.startsWith("#") }.orEmpty().take(MAX_DESCRIPTION)
+            AgentSummary(agent.id, agent.name, identity, ExecutionKind.Native, config.provider, config.model, providers[providerId(config.provider)]?.onDevice(config.model) == true)
+        } + externalAgents()
+        override suspend fun sessions(agentId: String) = store.sessions(agentId).map { it.copy(status = log.status(it.id)) }
+        override suspend fun entries(agentId: String, sessionId: String) = store.entries(agentId, sessionId)
+        override suspend fun live(sessionId: String): LiveState = log.live(sessionId)
+    })
+
+    /** [scope]'s Kinuvo tools bound to this Server, for callers outside a run, such as an MCP endpoint. */
+    fun agentTools(scope: CallerScope): List<Tool> =
+        PluginTools(agentTools.tools(scope)).ownedBy(PluginInstanceId("kinuvo.core")).tools.withModelNames()
+
+    /** The Risk, Trust and Deny rules for [scope]'s calls: the Agent's own, the Server's and the Session's. */
+    suspend fun approvalPolicy(scope: CallerScope): ApprovalPolicy {
+        val settings = scope.sessionId?.let { store.session(scope.agentId, it).settings }
+        return ApprovalPolicy(Agent(scope.agentId, scope.agentId, AgentConfig(approvals = settings?.approvals ?: "default")), trustRules,
+            session = scope.sessionId?.let(sessionTrust::scope))
+    }
     /** Pending `ask_user` forms; null answers mean skipped. */
     val questions = Broker<Map<String, List<String>>?>()
     val uiCatalogs = SurfaceCatalogs()
@@ -337,7 +368,8 @@ open class HarnessRuntime(
             ToolNames.ARTIFACT -> ArtifactTool(agent, sessionId, artifacts) { readFile(agent, it) }
             else -> null
         }
-    } + if (ToolNames.SKILLS in agent.config.tools) skillTools(agent) else emptyList() } + listOfNotNull(routine?.let(::RoutineReportTool))
+    } + if (ToolNames.SKILLS in agent.config.tools) skillTools(agent) else emptyList() } +
+        (if (ToolNames.AGENT_TOOLS in e.agent.config.tools) agentTools.tools(CallerScope(e.agent.id, sessionId)) else emptyList()) + listOfNotNull(routine?.let(::RoutineReportTool))
 
     /** [agent] without the tool groups this Server lacks the feature for, so neither its tools nor their instructions show. */
     private fun supported(agent: Agent) = agent.copy(config = agent.config.copy(tools = agent.config.tools.filter { it in toolGroups }))
@@ -356,6 +388,7 @@ open class HarnessRuntime(
         val TOOL_FEATURES = mapOf(ToolNames.SKILLS to ServerFeature.Skills, ToolNames.SCHEDULE to ServerFeature.Routines, ToolNames.ARTIFACT to ServerFeature.Artifacts,
             ToolNames.KNOWLEDGE to ServerFeature.Knowledge, ToolNames.TASKS to ServerFeature.Tasks, ToolNames.DEVICE_TOOLS to ServerFeature.DeviceTools,
             ToolNames.COMPUTER to ServerFeature.Computer)
+        const val MAX_DESCRIPTION = 160
         const val UNATTENDED_DENIAL = "This is an unattended Routine run, so tool calls that need an Approval are denied."
     }
 }

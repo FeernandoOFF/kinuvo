@@ -9,7 +9,9 @@ import kinuvo.harness.execution.api.ExecutionState
 import kinuvo.protocol.AttachmentData
 import java.net.InetAddress
 
-class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File(harness.files.home.toString(), "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity()) {
+class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File(harness.files.home.toString(), "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity(),
+    /** A stdio command that bridges to the Server's MCP endpoint, for External Agents whose harness has no HTTP MCP. */
+    private val mcpBridge: List<String>? = null) {
     private val executionStorage = ExecutionStorage(harness.files.home)
     private val activity = ProcessActivity("Serving a live voice call")
     val runtime: ServerRuntime = ServerRuntime(harness, auth, name,
@@ -26,7 +28,11 @@ class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File
         started = true
         try {
             runtime.start(schedule)
-            return listener.start(host, ports)
+            return listener.start(host, ports).also {
+                val local = listener.boundHost.takeUnless { h -> h == "0.0.0.0" || h == "::" } ?: "127.0.0.1"
+                runtime.mcp.url = "http://${if (':' in local) "[$local]" else local}:$it/mcp"
+                runtime.mcp.bridge = mcpBridge
+            }
         } catch (e: Throwable) {
             withContext(NonCancellable) {
                 try { listener.stop() } catch (cleanup: Throwable) { e.addSuppressed(cleanup) }

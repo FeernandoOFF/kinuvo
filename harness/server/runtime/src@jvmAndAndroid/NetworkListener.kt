@@ -7,6 +7,7 @@ import io.ktor.server.request.receiveChannel
 import io.ktor.server.request.header
 import io.ktor.server.response.respondText
 import io.ktor.server.response.header
+import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.Cookie
@@ -112,6 +113,23 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                         call.respondText("", status = HttpStatusCode.NoContent)
                     } finally { limits.close(source) }
                 }
+                post("/mcp") {
+                    val peer = call.request.local.remoteAddress
+                    val source = runCatching { network.source(peer, call.request.header("X-Forwarded-For")) }.getOrNull()
+                    // Only harnesses on the machine call it; a browser never does.
+                    if (call.request.header("Origin") != null) { limits.audit(peer, "mcp_origin"); call.respondText("Forbidden", status = HttpStatusCode.Forbidden); return@post }
+                    if (source == null || !limits.open(source)) { limits.audit(peer, "connection_limit"); call.respondText("Try again later", status = HttpStatusCode.TooManyRequests); return@post }
+                    try {
+                        val bytes = withTimeoutOrNull(10_000) { call.receiveChannel().readBuffer(MCP_BODY_LIMIT + 1).readByteArray() }
+                        if (bytes == null || bytes.size > MCP_BODY_LIMIT) { call.respondText("Invalid request", status = HttpStatusCode.BadRequest); return@post }
+                        val reply = runtime.mcpEndpoint.handle(call.request.header("Authorization"), bytes.decodeToString())
+                        when (reply.status) {
+                            401 -> { limits.audit(source, "mcp_token"); call.response.header("WWW-Authenticate", "Bearer"); call.respondText("Invalid or revoked token", status = HttpStatusCode.Unauthorized) }
+                            else -> call.respondText(reply.body.orEmpty(), ContentType.Application.Json, HttpStatusCode.fromValue(reply.status))
+                        }
+                    } finally { limits.close(source) }
+                }
+                get("/mcp") { call.response.header("Allow", "POST"); call.respondText("", status = HttpStatusCode.MethodNotAllowed) }
                 webSocket("/ws") {
                     val peer = call.request.local.remoteAddress
                     val hosts = (lanAddresses() + listOf("127.0.0.1", "localhost", "::1", host)).toSet()
@@ -171,6 +189,7 @@ private fun WebSocketSession.connection(credential: String?, authenticate: (Fram
 }
 
 private const val PREAUTH_FRAME_SIZE = 4096L
+private const val MCP_BODY_LIMIT = 1_000_000
 private const val SESSION_COOKIE = "__Host-kinuvo-session"
 
 

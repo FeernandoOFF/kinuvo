@@ -62,6 +62,8 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
 
     suspend fun status(sessionId: String): SessionStatus = lock.withLock { statusOf(sessionId) }
 
+    suspend fun live(sessionId: String): LiveState = lock.withLock { live[sessionId] ?: LiveState() }
+
     var executionMetadata: suspend (SessionInfo) -> SessionInfo = { it }
 
     override suspend fun session(agentId: String, sessionId: String): SessionInfo = executionMetadata(store.session(agentId, sessionId).copy(status = status(sessionId)))

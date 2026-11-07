@@ -5,6 +5,7 @@ import kinuvo.harness.execution.api.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.harness.core.store.SessionCommitConflict
 import kinuvo.harness.server.SessionLog
+import kinuvo.harness.server.mcp.McpAccess
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -25,6 +26,7 @@ class ExecutionCoordinator(
     private val recovery: ExecutionRecoveryStore = MemoryExecutionRecovery(),
     private val resolve: (String) -> AttachmentData = { error("Attachments unavailable") },
     private val readinessChanged: suspend () -> Unit = {},
+    private val mcp: McpAccess? = null,
 ) : ExecutionDispatch {
     private val lock = Mutex()
     private val journal = Mutex()
@@ -186,7 +188,8 @@ class ExecutionCoordinator(
         persist()
         log.publish(r.agentId, id, AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
         try {
-            val session = withTimeout(30_000) { requireNotNull(factory).open(r.connection, r.registration, state, broker, scope) }
+            val tools = if (r.connection.connection is ExecutionConnection.Acp) mcp?.grant(r.agentId, id) else null
+            val session = withTimeout(30_000) { requireNotNull(factory).open(r.connection, r.registration, state, broker, scope, tools) }
             val retained = lock.withLock {
                 if (states[id] === state) { live[id] = session; true } else false
             }
@@ -243,6 +246,7 @@ class ExecutionCoordinator(
         }
     }
     suspend fun discard(id: String) = withContext(NonCancellable) {
+        mcp?.revoke(id)
         val broker = lock.withLock { brokers[id] }
         broker?.lost()
         val pair = lock.withLock { states.remove(id); brokers.remove(id); live.remove(id) to dispatch.remove(id) }
@@ -252,6 +256,7 @@ class ExecutionCoordinator(
     private suspend fun releaseLost(id: String, generation: String) {
         val pair = lock.withLock {
             if (states[id]?.generation != generation) return
+            mcp?.revoke(id)
             states.remove(id); brokers.remove(id); live.remove(id) to dispatch.remove(id)
         }
         pair.second?.cancel()
@@ -262,6 +267,15 @@ class ExecutionCoordinator(
         require(record(id).agentId == agentId)
         discard(id); recovery.delete(agentId, id); lock.withLock { records.remove(id) }
     }
+    /** Asks the user in [sessionId] to choose one of [options] for something Kinuvo, not the harness, wants to do; null when cancelled. */
+    suspend fun ask(sessionId: String, title: String, description: String?, options: List<ExternalApprovalOption>): String? {
+        val broker = checkNotNull(lock.withLock { brokers[sessionId] }) { "This Session has no running execution to ask in" }
+        val id = Uuid.random().toString()
+        val request = ExecutionRequest(id, ExecutionRequestKind.Approval, buildJsonObject { put("title", title) }, options, ExecutionPrompt.Approval(id, title, description, options))
+        val answer = broker.ask(request) { value -> require(value == JsonNull || value.jsonObject["optionId"]?.jsonPrimitive?.content in options.map { it.id }) { "Unknown Approval option" } }
+        return if (answer == JsonNull) null else answer.jsonObject["optionId"]?.jsonPrimitive?.content
+    }
+
     override suspend fun answer(p: ExecutionAnswer): Boolean = lock.withLock { live[p.sessionId] }?.respond(p.requestId, p.answer)
         ?: (lock.withLock { brokers[p.sessionId] }?.answer(p.requestId, p.answer) ?: false)
     suspend fun close() { lock.withLock { states.keys.toList() }.forEach { discard(it) } }
