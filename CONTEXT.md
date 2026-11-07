@@ -112,8 +112,14 @@ Where an Agent's shell and file tools run: the host machine, a container, or a r
 _Avoid_: Sandbox, runtime, environment
 
 **Artifact**:
-A page, chart or document (HTML, SVG, Markdown, CSV, JSON or text) an Agent makes for the user, kept in `~/.kinuvo/artifacts` and shared by all Agents; only its latest content is kept. Opened from the chat or the Artifacts screen.
+A page, chart or document (HTML, SVG, Markdown, CSV, JSON, text or a Design) an Agent makes for the user, kept in `~/.kinuvo/artifacts` and shared by all Agents; only its latest content is kept. Opened from the chat or the Artifacts screen.
 _Avoid_: Attachment, canvas
+
+**Design**:
+An Artifact of type `design`: a row of Artboards on a pan and zoom canvas, kept as JSON. Artboards can be opened full screen or presented one by one.
+
+**Artboard**:
+One page of a Design: a self-contained HTML document shown at a fixed width and height.
 
 **Surface**:
 An interactive layout or form an Agent shows in a Session, with controls the user can fill in and actions they can send back to the Agent.

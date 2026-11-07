@@ -79,4 +79,38 @@ class ArtifactsTest {
         artifacts.delete(id)
         assertEquals(emptyList(), artifacts.list())
     }
+
+    private fun board(id: String, w: Int = 100, h: Int = 200) = """{"id":"$id","width":$w,"height":$h,"html":"<p>$id</p>"}"""
+
+    @Test
+    fun designsAreValidatedWhenSaved() = runTest {
+        val created = artifacts.create("main", null, "D", "design", """{"artboards":[${board("a")},${board("b")}]}""")
+        assertFailsWith<IllegalArgumentException> { artifacts.create("main", null, "D", "design", "not json") }
+        assertFailsWith<IllegalArgumentException> { artifacts.create("main", null, "D", "design", """{"artboards":[${board("a")},${board("a")}]}""") }
+        assertFailsWith<IllegalArgumentException> { artifacts.create("main", null, "D", "design", """{"artboards":[${board(" ")}]}""") }
+        assertFailsWith<IllegalArgumentException> { artifacts.create("main", null, "D", "design", """{"artboards":[${board("a", 0)}]}""") }
+        assertFailsWith<IllegalArgumentException> { artifacts.create("main", null, "D", "design", """{"artboards":[${board("a", 10, 10001)}]}""") }
+        assertFailsWith<IllegalArgumentException> { artifacts.replace(created.id, """{"artboards":[{"id":"x"}]}""") }
+        artifacts.replace(created.id, """{"artboards":[]}""")
+    }
+
+    @Test
+    fun artboardSetUpsertsAndRemoves() = runTest {
+        val changes = mutableListOf<ArtifactChange>()
+        artifacts.onChange { changes += it }
+        val id = artifacts.create("main", null, "D", "design", """{"artboards":[${board("a")}]}""").id
+        call("action" to "artboard_set", "id" to id, "artboard" to "b", "html" to "<p>new</p>")
+        call("action" to "artboard_set", "id" to id, "artboard" to "a", "name" to "Home", "width" to "320")
+        val boards = Artifacts.parseDesign(artifacts.get(id).content).artboards
+        assertEquals(listOf("a", "b"), boards.map { it.id })
+        assertEquals(Triple("Home", 320, 200), boards[0].let { Triple(it.name, it.width, it.height) })
+        assertEquals("<p>a</p>", boards[0].html)
+        assertEquals(listOf("b", 390, 844, "<p>new</p>"), boards[1].let { listOf(it.name, it.width, it.height, it.html) })
+        assertFailsWith<IllegalArgumentException> { call("action" to "artboard_set", "id" to id, "artboard" to "c") }
+        assertFailsWith<IllegalArgumentException> { call("action" to "artboard_set", "id" to id, "artboard" to "a", "height" to "0") }
+        call("action" to "artboard_remove", "id" to id, "artboard" to "a")
+        assertEquals(listOf("b"), Artifacts.parseDesign(artifacts.get(id).content).artboards.map { it.id })
+        assertFailsWith<IllegalArgumentException> { call("action" to "artboard_remove", "id" to id, "artboard" to "zzz") }
+        assertEquals(4, changes.size)
+    }
 }

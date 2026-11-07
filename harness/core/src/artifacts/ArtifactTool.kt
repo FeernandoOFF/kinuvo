@@ -9,6 +9,7 @@ import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
 import kinuvo.harness.core.tools.string
 import kinuvo.protocol.ArtifactInfo
+import kinuvo.protocol.Artboard
 import kinuvo.protocol.Risk
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -25,9 +26,11 @@ class ArtifactTool(
         name = ToolNames.ARTIFACT,
         description = "Make something for the user to open from the chat and keep: a self-contained HTML page (reports, " +
             "charts, small interactive tools; inline CSS/JS or load them from https CDNs, no fetch/XHR), SVG, Markdown, CSV, " +
-            "JSON or text. create returns its id; update replaces its content (only the latest is kept). Artifacts are " +
-            "shared by all agents; list and read find earlier ones.",
-        requiredParameters = listOf(ToolParameterDescriptor("action", "create | update | list | read", ToolParameterType.Enum(arrayOf("create", "update", "list", "read")))),
+            "JSON or text. A design holds artboards, JSON {\"artboards\":[{\"id\",\"name\",\"width\",\"height\",\"html\"}]}, " +
+            "each a self-contained HTML page at a fixed size, shown left to right; prefer artboard_set/artboard_remove for " +
+            "single-artboard changes. create returns its id; update replaces its content (only the latest is kept). " +
+            "Artifacts are shared by all agents; list and read find earlier ones.",
+        requiredParameters = listOf(ToolParameterDescriptor("action", "create | update | list | read | artboard_set | artboard_remove", ToolParameterType.Enum(arrayOf("create", "update", "list", "read", "artboard_set", "artboard_remove")))),
         optionalParameters = listOf(
             ToolParameterDescriptor("id", "The artifact, for update and read", ToolParameterType.String),
             ToolParameterDescriptor("title", "Name shown to the user; required for create", ToolParameterType.String),
@@ -36,6 +39,11 @@ class ArtifactTool(
             ToolParameterDescriptor("from_path", "Copy the content from this workspace file instead", ToolParameterType.String),
             ToolParameterDescriptor("old", "For update: exact text to replace, instead of content", ToolParameterType.String),
             ToolParameterDescriptor("new", "Replacement for old", ToolParameterType.String),
+            ToolParameterDescriptor("artboard", "For artboard_set and artboard_remove: the artboard id; id is the artifact", ToolParameterType.String),
+            ToolParameterDescriptor("name", "For artboard_set: its label (default the artboard id)", ToolParameterType.String),
+            ToolParameterDescriptor("width", "For artboard_set: pixels (default 390)", ToolParameterType.Integer),
+            ToolParameterDescriptor("height", "For artboard_set: pixels (default 844)", ToolParameterType.Integer),
+            ToolParameterDescriptor("html", "For artboard_set: the page; required for a new artboard", ToolParameterType.String),
         ),
     )
 
@@ -60,6 +68,28 @@ class ArtifactTool(
                     }
                     else -> current
                 }
+            })
+        }
+        "artboard_set" -> {
+            val board = args.requireString("artboard")
+            val html = args.given("html")
+            val width = args.given("width")?.toIntOrNull()
+            val height = args.given("height")?.toIntOrNull()
+            val name = args.given("name")
+            saved(artifacts.update(args.requireString("id"), agent.id, sessionId) { current ->
+                val design = Artifacts.parseDesign(current)
+                val old = design.artboards.firstOrNull { it.id == board }
+                require(old != null || html != null) { "A new artboard needs html" }
+                val next = Artboard(board, name ?: old?.name ?: board, width ?: old?.width ?: 390, height ?: old?.height ?: 844, html ?: old?.html.orEmpty())
+                Artifacts.encodeDesign(design.copy(artboards = if (old == null) design.artboards + next else design.artboards.map { if (it.id == board) next else it }))
+            })
+        }
+        "artboard_remove" -> {
+            val board = args.requireString("artboard")
+            saved(artifacts.update(args.requireString("id"), agent.id, sessionId) { current ->
+                val design = Artifacts.parseDesign(current)
+                require(design.artboards.any { it.id == board }) { "No artboard '$board'" }
+                Artifacts.encodeDesign(design.copy(artboards = design.artboards.filter { it.id != board }))
             })
         }
         "list" -> artifacts.list().joinToString("\n") { "${it.id} · ${it.title} · ${it.type} · by ${it.agentId}" }.ifEmpty { "No artifacts yet." }

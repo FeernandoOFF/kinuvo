@@ -144,11 +144,19 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
         var chosen by remember(editing) { mutableStateOf(tabs.firstOrNull()) }
         val tab = chosen?.takeIf { it in tabs } ?: tabs.firstOrNull()
         val density = LocalDensity.current
+        val design = remember(data?.content, data?.info?.type) { data?.takeIf { it.info.isDesign }?.let { designOf(it.content) } }
+        var viewing by remember(data?.info?.id) { mutableStateOf<Viewing?>(null) }
+        val background = color(backgroundColor)
         var controls by remember { mutableStateOf(ControlsHeight) }
         when {
             data == null -> (if (state.missing) "This artifact was deleted." else state.errors.lastOrNull())
                 ?.let { ErrorMessage(it, Modifier.align(Alignment.Center).padding(Spacing.space24)) } ?: Spinner(Modifier.align(Alignment.Center))
             editing -> ArtifactEditor(data, state, actions, tab, wide, Modifier.padding(top = controls))
+            data.info.isDesign -> key(data.info.updated) {
+                DesignCanvas(data.content, background, Modifier.fillMaxSize().padding(top = controls), if (visualEditing) { id ->
+                    design?.artboards?.indexOfFirst { it.id == id }?.takeIf { it >= 0 }?.let { viewing = Viewing(it, false) }
+                } else null)
+            }
             data.info.web -> key(data.info.updated) {
                 HtmlView(data.info.page(data.content), Modifier.fillMaxSize().padding(top = controls), fade = color(backgroundColor))
             }
@@ -177,20 +185,25 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                         style = TextStyles.secondary, fontWeight = FontWeight.SemiBold, color = if (on) color(backgroundColor) else color(mutedColor),
                     )
                 } else FloatingBar {
+                    if (design?.artboards?.isNotEmpty() == true) FloatingButton(Lucide.Play, "Present") { viewing = Viewing(0, true) }
                     FloatingButton(Lucide.Pencil, "Edit", actions.onEdit)
                     data.info.sessionId?.let { s -> FloatingButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(data.info.agentId, s) }) }
                     ArtifactMenu(data, agents, now, state.route.fullScreen, actions)
                 }
             }
         }
+        val view = viewing
+        if (view != null && design != null && !editing) ArtboardViewer(design.artboards, view.index, view.present, background, { viewing = view.copy(index = it) }, { viewing = null })
     }
 }
 
-private val ControlsHeight = 56.dp
+private data class Viewing(val index: Int, val present: Boolean)
+
+internal val ControlsHeight = 56.dp
 private val PointerButtonSize = 32.dp
 
 @Composable
-private fun FloatingBar(content: @Composable RowScope.() -> Unit) {
+internal fun FloatingBar(content: @Composable RowScope.() -> Unit) {
     Row(
         Modifier.titleBarControl().shadow(4.dp, CircleShape).background(color(backgroundColor), CircleShape).border(1.dp, color(borderColor), CircleShape).padding(2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -200,7 +213,7 @@ private fun FloatingBar(content: @Composable RowScope.() -> Unit) {
 }
 
 @Composable
-private fun FloatingButton(icon: ImageVector, label: String, onClick: () -> Unit) {
+internal fun FloatingButton(icon: ImageVector, label: String, onClick: () -> Unit) {
     val touch = LocalInteractionMode.current == InteractionMode.Touch
     IconButton(onClick, Modifier.size(if (touch) 40.dp else PointerButtonSize), style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(if (touch) onBackgroundColor else mutedColor)) {
         Icon(icon, Modifier.size(17.dp), contentDescription = label)
@@ -311,5 +324,6 @@ private fun String.icon(): ImageVector = when (this) {
     "svg" -> Lucide.Image
     "csv" -> Lucide.Sheet
     "json" -> Lucide.Braces
+    "design" -> Lucide.Frame
     else -> Lucide.FileText
 }

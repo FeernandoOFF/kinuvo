@@ -9,9 +9,11 @@ import kotlin.random.Random
 @Composable
 internal fun VisualEditor(html: String, modifier: Modifier = Modifier, onEdit: (String) -> Unit) = WebView(remember(html) { visualDocument(html) }, modifier, onEdit)
 
+internal fun newNonce() = Random.nextBytes(16).joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }
+
 private val DOCTYPE = Regex("^\\s*<!doctype[^>]*>", RegexOption.IGNORE_CASE)
 
-private fun literal(text: String) = buildString {
+internal fun literal(text: String) = buildString {
     append('"')
     for (c in text) when (c) {
         '"' -> append("\\\"")
@@ -19,20 +21,23 @@ private fun literal(text: String) = buildString {
         '\n' -> append("\\n")
         '\r' -> append("\\r")
         '<' -> append("\\u003c")
+        '\u2028' -> append("\\u2028")
+        '\u2029' -> append("\\u2029")
         else -> append(c)
     }
     append('"')
 }
 
 /** Only the editor's own script, marked with a nonce the artifact can't know, may run in the frame. */
-internal fun visualDocument(html: String, nonce: String = Random.nextBytes(16).joinToString("") { (it.toInt() and 0xff).toString(16).padStart(2, '0') }): String {
+internal fun visualDocument(html: String, nonce: String = newNonce()): String {
     val doctype = DOCTYPE.find(html)?.value?.trim() ?: "<!doctype html>"
     val inner = sandboxed(html, "'nonce-$nonce'") + "<style data-kinuvo-editor>$EDITOR_STYLE</style><script data-kinuvo-editor nonce=\"$nonce\">${editorScript(doctype)}</script>"
     return framed(inner, "<script>$BRIDGE</script>")
 }
 
-private const val BRIDGE = """addEventListener("message",function(e){var d=e.data,f=document.getElementById("f");if(e.source!==f.contentWindow||!d||d.kinuvo!=="artifact-edit"||typeof d.html!=="string")return;
-if(window.kinuvoEdit)window.kinuvoEdit(d.html);else if(window.Kinuvo&&Kinuvo.edit)Kinuvo.edit(d.html);else if(window.webkit&&webkit.messageHandlers&&webkit.messageHandlers.kinuvo)webkit.messageHandlers.kinuvo.postMessage(d.html)})"""
+internal const val BRIDGE = """addEventListener("message",function(e){var d=e.data,f=document.getElementById("f");if(e.source!==f.contentWindow||!d)return;
+var m=d.kinuvo==="artifact-edit"&&typeof d.html==="string"?d.html:d.kinuvo==="design-open"&&typeof d.id==="string"?d.id:null;if(m===null)return;
+if(window.kinuvoEdit)window.kinuvoEdit(m);else if(window.Kinuvo&&Kinuvo.edit)Kinuvo.edit(m);else if(window.webkit&&webkit.messageHandlers&&webkit.messageHandlers.kinuvo)webkit.messageHandlers.kinuvo.postMessage(m)})"""
 
 private const val EDITOR_STYLE = """body{outline:none}
 #kinuvo-bar{--bg:#fff;--fg:#222;--line:#d9d6cf;--hover:#eeece6;position:fixed;display:none;flex-wrap:wrap;gap:2px;max-width:calc(100vw - 16px);padding:3px;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:10px;box-shadow:0 2px 10px #0003;font:13px system-ui,sans-serif;z-index:2147483647}

@@ -34,13 +34,15 @@ private val EDITOR_POLICY = Regex("<meta http-equiv=\"Content-Security-Policy\" 
 
 internal fun artifactDocument(html: String, fade: Color? = null) = framed(sandboxed(html), fade?.let(::topFade).orEmpty())
 
-private fun topFade(c: Color): String {
+internal fun topFade(c: Color): String {
     val rgb = "${(c.red * 255).toInt()},${(c.green * 255).toInt()},${(c.blue * 255).toInt()}"
     return "<div style=\"position:fixed;left:0;right:0;top:0;height:24px;pointer-events:none;background:linear-gradient(rgb($rgb),rgba($rgb,0))\"></div>"
 }
 
+internal fun attr(text: String) = text.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;")
+
 internal fun framed(inner: String, extra: String = ""): String {
-    val content = inner.replace("&", "&amp;").replace("\"", "&quot;").replace("<", "&lt;").replace(">", "&gt;")
+    val content = attr(inner)
     return "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>" +
         "<body style=\"margin:0\"><iframe id=\"f\" title=\"Artifact\" sandbox=\"allow-scripts\" referrerpolicy=\"no-referrer\" " +
         "style=\"border:0;width:100%;height:100vh\" srcdoc=\"$content\"></iframe>$extra</body></html>"
