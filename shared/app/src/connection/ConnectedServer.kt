@@ -8,6 +8,7 @@ import kinuvo.app.board.*
 import kinuvo.app.knowledge.*
 import kinuvo.app.routine.*
 
+import kinuvo.app.surface.McpApps
 import kinuvo.app.surface.SurfaceImages
 import kinuvo.client.KinuvoClient
 import kotlinx.coroutines.*
@@ -29,6 +30,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
     internal val client get() = lifetime?.client
     internal val scope get() = CoroutineScope((lifetime?.job ?: Job().also { it.cancel() }) + Dispatchers.Main.immediate + (lifetime ?: EmptyCoroutineContext))
     val surfaceImages = SurfaceImages(this)
+    val mcpApps = McpApps(this)
     val sessions = SessionRepository(notifications, this)
     val routines = RoutineRepository(notifications, this)
     val config = ConfigRepository(this)
@@ -72,6 +74,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
         previous?.job?.cancel()
         previous?.client?.close()
         surfaceImages.clear()
+        mcpApps.clear()
         sessions.detach()
         routines.detach()
         config.detach()

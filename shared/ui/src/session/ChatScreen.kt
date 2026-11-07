@@ -1,6 +1,8 @@
 package kinuvo.ui.session
 
 import kinuvo.app.surface.SurfaceImages
+import kinuvo.protocol.McpAppResource
+import kotlinx.serialization.json.JsonObject
 import kinuvo.protocol.SurfaceAction
 
 import kinuvo.protocol.ScreenRef
@@ -158,6 +160,8 @@ fun ChatScreen(
                 onSelect = { id -> if (id != route.sessionId) onOpen(Route.Chat(route.agentId, id)) },
                 onSend = session::send,
                 onSurfaceAction = { text, action -> session.send(text, action = action) },
+                onAppResource = session::appResource,
+                onAppTool = session::appCallTool,
                 onAttach = pickAttachment,
                 onDropAttachments = session::addAttachments,
                 onRemoveAttachment = session::removeAttachment,
@@ -211,6 +215,9 @@ class ChatActions(
     val onSelect: (String) -> Unit = {},
     val onSend: (String) -> Unit = {},
     val onSurfaceAction: (String, SurfaceAction) -> Unit = { _, _ -> },
+    /** The HTML of the MCP App a tool call shows, and its calls to its own MCP server's tools. */
+    val onAppResource: suspend (callId: String) -> McpAppResource = { error("MCP Apps are unavailable") },
+    val onAppTool: suspend (callId: String, name: String, arguments: JsonObject) -> JsonObject = { _, _, _ -> error("MCP Apps are unavailable") },
     val onAttach: (AttachmentSource) -> Unit = {},
     val onDropAttachments: (List<UploadAttachmentParams>, String?) -> Unit = { _, _ -> },
     val onRemoveAttachment: (String) -> Unit = {},
