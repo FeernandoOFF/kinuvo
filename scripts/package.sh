@@ -22,6 +22,8 @@ case "$(uname -m)" in
 esac
 
 java_home=${JAVA_HOME:?Set JAVA_HOME to a JetBrains Runtime 25 SDK}
+java_major=$(sed -n 's/^JAVA_VERSION="\([0-9]*\).*/\1/p' "$java_home/release")
+[ "${java_major:-0}" -ge 25 ] || { echo "Packaging requires Java 25+: $java_home" >&2; exit 1; }
 # From jdeps --print-module-deps, plus service-loaded jdk.zipfs and jdk.charsets.
 modules=java.base,java.desktop,java.instrument,java.logging,java.management,jdk.management,java.naming,java.net.http,jdk.httpserver,jdk.unsupported,jdk.zipfs,jdk.charsets,jdk.localedata
 dist=$PWD/dist
@@ -89,6 +91,7 @@ package_cli() {
   local app=$work/kinuvo
   mkdir -p "$app/bin" "$app/lib"
   cp "$jar" "$app/lib/kinuvo.jar"
+  python3 scripts/package-natives.py "$app/lib/kinuvo.jar" "$os" "$arch"
   runtime "$app/runtime" --include-locales en
   rm -rf "$app/runtime/lib/fonts"
   if [ "$os" = windows ]; then
@@ -110,11 +113,12 @@ EOF
 }
 
 package_desktop() {
-  ./kotlin package -m desktop -f executable-jar
+  mise run kotlin -- package -m desktop -p jvm -f executable-jar
   mkdir -p "$work/input"
   cp build/tasks/_desktop_executableJarJvm/desktop-jvm-executable.jar "$work/input/kinuvo-desktop.jar"
   restore_collisions desktop "$work/input/kinuvo-desktop.jar"
   allow_native_access "$work/input/kinuvo-desktop.jar"
+  python3 scripts/package-natives.py "$work/input/kinuvo-desktop.jar" "$os" "$arch"
   modules=$modules,jdk.accessibility runtime "$work/runtime"
   local args=(--name Kinuvo --input "$work/input" --main-jar kinuvo-desktop.jar --runtime-image "$work/runtime" --dest "$work/out"
     --java-options --enable-native-access=ALL-UNNAMED)
@@ -137,7 +141,8 @@ package_desktop() {
       local bundle="$work/out/Kinuvo.app"
       /usr/libexec/PlistBuddy -c 'Add :NSSpeechRecognitionUsageDescription string Kinuvo turns speech into messages for your Agent. Apple may process audio when on-device recognition is unavailable.' "$bundle/Contents/Info.plist"
       /usr/libexec/PlistBuddy -c 'Set :NSMicrophoneUsageDescription Kinuvo listens while Voice chat or Dictation is active.' "$bundle/Contents/Info.plist"
-      codesign --force --deep --sign - --entitlements apps/desktop/entitlements.plist "$bundle"
+      codesign --force --options runtime --sign - --entitlements apps/desktop/voice/entitlements.plist "$bundle/Contents/app/voice-worker/MacOS/KinuvoVoiceInference"
+      codesign --force --sign - --entitlements apps/desktop/entitlements.plist "$bundle"
       if [ "${KINUVO_DESKTOP_APP_IMAGE:-0}" = 1 ]; then
         # Replace only the generated app image; do not merge stale runtime files into it.
         rm -rf "$dist/Kinuvo.app"

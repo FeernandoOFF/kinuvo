@@ -16,7 +16,7 @@ private val log = KotlinLogging.logger {}
  * Keeps one model loaded at a time, running one request at a time, and unloads it after [idle] ms unused. Loading tries
  * the GPU first and falls back to the CPU.
  */
-internal class Engines(private val files: ModelFiles, private val cache: File, private val idle: Long = 5 * 60_000) {
+internal class Engines(private val files: ModelFiles, private val cache: File, private val native: NativeEngine, private val idle: Long = 5 * 60_000) {
     private val lock = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var loaded: Pair<LocalModel, Engine>? = null
@@ -47,6 +47,7 @@ internal class Engines(private val files: ModelFiles, private val cache: File, p
     private suspend fun engine(model: LocalModel): Engine = withContext(Dispatchers.IO) {
         loaded?.takeIf { it.first == model }?.let { return@withContext it.second }
         close()
+        native.load()
         files.acquire(model.download)
         try {
             val path = File(files.folder(model.download), model.file).path

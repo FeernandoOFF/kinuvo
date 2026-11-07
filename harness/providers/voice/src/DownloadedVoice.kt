@@ -3,6 +3,7 @@ package kinuvo.harness.voice
 import kinuvo.harness.core.plugin.HarnessPlugin
 import kinuvo.harness.core.store.writeAtomically
 import kinuvo.harness.core.voice.*
+import kinuvo.harness.models.voiceEngine
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -15,6 +16,7 @@ import java.nio.ByteOrder
 class DownloadedVoice(home: File, private val inference: Inference = Inference(Inference.bundled())) : ServerVoice, HarnessPlugin {
     override val definition = PluginDefinition("kinuvo.voice", "Downloaded voice")
     override val voice get() = this
+    private val engine = voiceEngine(home)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val settings = File(home, "server-voice/settings.json")
     private var values = if (settings.exists()) ProtocolJson.decodeFromString<Map<String, String>>(settings.readText()) else emptyMap()
@@ -31,7 +33,7 @@ class DownloadedVoice(home: File, private val inference: Inference = Inference(I
     @Volatile private var downloading: String? = null
     @Volatile private var downloaded = 0L
     @Volatile private var error: String? = null
-    override fun state() = VoiceModelsState(store.models, store.installed(), store.selected(VoiceModelKind.Transcription), store.selected(VoiceModelKind.Synthesis), store.language, downloading, downloaded, error, inference.supported)
+    override fun state() = VoiceModelsState(store.models.map { it.copy(files = it.files + engine.download.files) }, if (engine.installed) store.installed() else emptySet(), store.selected(VoiceModelKind.Transcription), store.selected(VoiceModelKind.Synthesis), store.language, downloading, downloaded, error, inference.supported)
     override val providers get() = VoiceProviders(
         transcriber = if (store.selected(VoiceModelKind.Transcription) == null) null else Transcriber { audio ->
             val pcm = when (audio.format) {
@@ -53,7 +55,10 @@ class DownloadedVoice(home: File, private val inference: Inference = Inference(I
         val model = store.models.single { it.id == id }
         downloading = id; downloaded = 0; error = null
         job = scope.launch(start = CoroutineStart.ATOMIC) {
-            try { store.download(model) { downloaded = it } }
+            try {
+                engine.ensure { downloaded = it }
+                if (model.id !in store.installed()) store.download(model) { downloaded = engine.download.bytes + it }
+            }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { error = e.message ?: "Download failed" }
             finally { downloading = null; downloaded = 0 }
@@ -69,13 +74,15 @@ class DownloadedVoice(home: File, private val inference: Inference = Inference(I
     override suspend fun select(selection: VoiceSelection) = management.withLock {
         require(selection.id == null || store.models.any { it.id == selection.id && it.kind == selection.kind && it.id in store.installed() }) { "Download this model first" }
         check(selection.id == null || inference.supported) { "Server voice inference unavailable" }
+        if (selection.id != null) engine.ensure()
         store.select(selection.kind, selection.id)
     }
     override fun language(language: String) { require(language in VOICE_LANGUAGES); store.language = language }
     private suspend fun infer(kind: VoiceModelKind, input: ByteArray): ByteArray {
         val model = store.models.singleOrNull { it.id == store.selected(kind) && it.kind == kind } ?: error("Server voice model is not configured")
+        engine.ensure()
         store.acquire(model)
-        try { return inference.run(if (kind == VoiceModelKind.Transcription) "transcribe" else "synthesize", store.directory(model), store.language, model.id.removePrefix("whisper-"), input) }
+        try { return inference.run(if (kind == VoiceModelKind.Transcription) "transcribe" else "synthesize", store.directory(model), store.language, model.id.removePrefix("whisper-"), input, engine.folder) }
         finally { store.release(model) }
     }
     override suspend fun close() { scope.coroutineContext.job.cancelAndJoin() }
