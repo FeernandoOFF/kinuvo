@@ -25,7 +25,16 @@ data class ArtifactsState(
     /** The open Artifact was deleted, or never existed. */
     val missing: Boolean = false,
     val errors: List<String> = emptyList(),
+    /** The open Artifact's source being edited; null when not editing. */
+    val draft: String? = null,
+    /** [ArtifactInfo.updated] of the open Artifact when editing began. */
+    val base: Long = 0,
+    val saving: Boolean = false,
 ) {
+    /** The open Artifact changed since editing began. */
+    val stale get() = draft != null && open != null && open.info.updated != base
+    val dirty get() = draft != null && draft != open?.content
+
     val shown get() = all.orEmpty().filter { (agent == null || it.agentId == agent) && (query.isBlank() || it.title.contains(query, ignoreCase = true)) }
 }
 
@@ -49,6 +58,32 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
         viewModelScope.launch { attempt { client.call(Api.DeleteArtifact, ArtifactRef(id)) } }
     }
 
+    fun edit() = state.update { s -> s.open?.let { s.copy(draft = it.content, base = it.info.updated, errors = emptyList()) } ?: s }
+
+    fun change(text: String) = state.update { if (it.draft != null) it.copy(draft = text) else it }
+
+    /** Keeps the draft over the newer version. */
+    fun keepMine() = state.update { s -> s.copy(base = s.open?.info?.updated ?: s.base) }
+
+    fun cancel() {
+        state.update { it.copy(draft = null) }
+    }
+
+    fun save() {
+        val s = state.value
+        val draft = s.draft ?: return
+        val id = s.open?.info?.id ?: return
+        if (s.saving) return
+        state.update { it.copy(saving = true) }
+        viewModelScope.launch {
+            attempt {
+                val info = client.call(Api.SaveArtifact, ArtifactSave(id, draft))
+                state.update { it.copy(open = ArtifactData(info, draft), draft = null, errors = emptyList()) }
+            }
+            state.update { it.copy(saving = false) }
+        }
+    }
+
     private fun load() {
         loading?.cancel()
         loading = viewModelScope.launch {
@@ -56,7 +91,7 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
                 val all = client.call(Api.Artifacts, Unit)
                 val id = state.value.route.artifact
                 val open = id?.takeIf { all.any { a -> a.id == it } }?.let { client.call(Api.Artifact, ArtifactRef(it)) }
-                state.update { it.copy(all = all, open = open, missing = id != null && open == null) }
+                state.update { it.copy(all = all, open = open, missing = id != null && open == null, draft = it.draft.takeIf { _ -> open?.info?.id == it.open?.info?.id }) }
             }
         }
     }

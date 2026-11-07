@@ -8,16 +8,29 @@ import kinuvo.ui.settings.*
 import kinuvo.ui.navigation.*
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -52,6 +65,11 @@ class ArtifactsActions(
     val onDelete: (String) -> Unit = {},
     val onOpenSession: (agentId: String, sessionId: String) -> Unit = { _, _ -> },
     val onFullScreen: (Boolean) -> Unit = {},
+    val onEdit: () -> Unit = {},
+    val onChange: (String) -> Unit = {},
+    val onSave: () -> Unit = {},
+    val onCancel: () -> Unit = {},
+    val onKeepMine: () -> Unit = {},
 )
 
 @Composable
@@ -115,39 +133,177 @@ private fun ArtifactList(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
     }
 }
 
-/** HTML and SVG render in a web view, Markdown as text, anything else as code. */
+private val Float32 = 32.dp
+
+/** Content fills the pane; the back button, the actions or the editing controls float over it. HTML and SVG render in a web view, Markdown as text, anything else as code. */
 @Composable
 private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Long, actions: ArtifactsActions, back: (() -> Unit)?) {
     val data = state.open?.takeIf { it.info.id == state.route.artifact }
-    Column(Modifier.fillMaxSize()) {
-        TitleBarRow(leading = back != null || state.route.fullScreen) {
-            back?.let { HeaderButton(Lucide.ArrowLeft, "Back", it) }
-            Column(Modifier.weight(1f).padding(start = Spacing.space4)) {
-                Text(data?.info?.title ?: "Artifact", fontWeight = FontWeight.Normal, singleLine = true, overflow = TextOverflow.Ellipsis)
-                data?.info?.let { Text("${it.type} · ${agents.name(it.agentId)} · ${relative(it.updated, now)}", style = TextStyles.caption, color = color(mutedColor), singleLine = true) }
+    val editing = state.draft != null
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val wide = maxWidth >= 700.dp
+        val tabs = data?.let { editorTabs(it.info.type, wide) }.orEmpty()
+        var chosen by remember(editing) { mutableStateOf(tabs.firstOrNull()) }
+        val tab = chosen?.takeIf { it in tabs } ?: tabs.firstOrNull()
+        val density = LocalDensity.current
+        var controls by remember { mutableStateOf(ControlsHeight) }
+        when {
+            data == null -> (if (state.missing) "This artifact was deleted." else state.errors.lastOrNull())
+                ?.let { ErrorMessage(it, Modifier.align(Alignment.Center).padding(Spacing.space24)) } ?: Spinner(Modifier.align(Alignment.Center))
+            editing -> ArtifactEditor(data, state, actions, tab, wide, Modifier.padding(top = controls))
+            data.info.type == "html" || data.info.type == "svg" -> key(data.info.updated) {
+                HtmlView(if (data.info.type == "svg") "<html><body style=\"margin:0\">${data.content}</body></html>" else data.content, Modifier.fillMaxSize().padding(top = controls), fade = color(backgroundColor))
             }
-            val full = state.route.fullScreen
-            HeaderButton(if (full) Lucide.Minimize2 else Lucide.Maximize2, if (full) "Exit full screen" else "Full screen", { actions.onFullScreen(!full) })
-            data?.info?.let { info ->
-                info.sessionId?.let { s -> HeaderButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(info.agentId, s) }) }
-                HeaderButton(Lucide.Trash2, "Delete", { actions.onDelete(info.id) })
+            else -> SelectionContainer(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = Spacing.space24, end = Spacing.space24, top = controls + Spacing.space8, bottom = Spacing.space24)) {
+                if (data.info.type == "md") Markdown(data.content, Modifier.fillMaxWidth())
+                else CodeBlock(data.content, language = data.info.type)
             }
         }
-        HorizontalSeparator()
-        Box(Modifier.weight(1f).fillMaxWidth()) {
-            when {
-                data == null -> (if (state.missing) "This artifact was deleted." else state.errors.lastOrNull())
-                    ?.let { ErrorMessage(it, Modifier.align(Alignment.Center).padding(Spacing.space24)) } ?: Spinner(Modifier.align(Alignment.Center))
-                data.info.type == "html" || data.info.type == "svg" -> key(data.info.updated) {
-                    HtmlView(if (data.info.type == "svg") "<html><body style=\"margin:0\">${data.content}</body></html>" else data.content, Modifier.fillMaxSize())
-                }
-                else -> SelectionContainer(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.space24)) {
-                    if (data.info.type == "md") Markdown(data.content, Modifier.fillMaxWidth())
-                    else CodeBlock(data.content, language = data.info.type)
+        val chrome = LocalWindowChrome.current
+        val leading = back != null || state.route.fullScreen
+        Row(
+            Modifier.fillMaxWidth().onSizeChanged { controls = with(density) { it.height.toDp() } }
+                .padding(chrome?.padding(leading, true) ?: PaddingValues()).padding(horizontal = Spacing.space10, vertical = Spacing.space8),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (back != null) FloatingBar { FloatingButton(Lucide.ArrowLeft, "Back", back) }
+            Spacer(Modifier.weight(1f))
+            if (data != null) {
+                if (editing) FloatingBar {
+                    Text("Cancel", Modifier.clip(CircleShape).clickable(onClick = actions.onCancel).padding(horizontal = Spacing.space10, vertical = Spacing.space8), style = TextStyles.secondary)
+                    if (tabs.size > 1 && tab != null) Segmented(tabs, tabs.indexOf(tab), Modifier, small = true) { chosen = tabs[it] }
+                    val on = state.dirty && !state.saving && !state.stale
+                    Text(
+                        if (state.saving) "Saving…" else "Save",
+                        Modifier.clip(CircleShape).background(if (on) color(accentColor) else color(subtleColor)).clickable(enabled = on, onClick = actions.onSave).padding(horizontal = Spacing.space12, vertical = Spacing.space8),
+                        style = TextStyles.secondary, fontWeight = FontWeight.SemiBold, color = if (on) color(backgroundColor) else color(mutedColor),
+                    )
+                } else FloatingBar {
+                    FloatingButton(Lucide.Pencil, "Edit", actions.onEdit)
+                    data.info.sessionId?.let { s -> FloatingButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(data.info.agentId, s) }) }
+                    ArtifactMenu(data, agents, now, state.route.fullScreen, actions)
                 }
             }
         }
     }
+}
+
+private val ControlsHeight = 56.dp
+
+@Composable
+private fun FloatingBar(content: @Composable RowScope.() -> Unit) {
+    Row(
+        Modifier.titleBarControl().shadow(4.dp, CircleShape).background(color(backgroundColor), CircleShape).border(1.dp, color(borderColor), CircleShape).padding(2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(Spacing.space2),
+        content = content,
+    )
+}
+
+@Composable
+private fun FloatingButton(icon: ImageVector, label: String, onClick: () -> Unit) {
+    val touch = LocalInteractionMode.current == InteractionMode.Touch
+    IconButton(onClick, Modifier.size(if (touch) 40.dp else Float32), style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(if (touch) onBackgroundColor else mutedColor)) {
+        Icon(icon, Modifier.size(17.dp), contentDescription = label)
+    }
+}
+
+@Suppress("DEPRECATION")
+@Composable
+private fun ArtifactMenu(data: ArtifactData, agents: List<AgentInfo>, now: Long, full: Boolean, actions: ArtifactsActions) {
+    var open by remember { mutableStateOf(false) }
+    var asking by remember { mutableStateOf(false) }
+    val clipboard = LocalClipboardManager.current
+    val info = data.info
+    DropdownMenu(
+        expanded = open,
+        onExpandedChange = { open = it },
+        panel = {
+            DropdownMenuPanel {
+                Column(Modifier.padding(horizontal = Spacing.space10, vertical = Spacing.space6)) {
+                    Text(info.title, fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis)
+                    Text("${info.type} · ${agents.name(info.agentId)} · ${relative(info.updated, now)}", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
+                }
+                HorizontalSeparator()
+                MenuAction(if (full) Lucide.Minimize2 else Lucide.Maximize2, if (full) "Exit full screen" else "Full screen") { open = false; actions.onFullScreen(!full) }
+                MenuAction(Lucide.Copy, "Copy source") { open = false; clipboard.setText(AnnotatedString(data.content)) }
+                HorizontalSeparator()
+                MenuAction(Lucide.Trash2, "Delete", destructive = true) { open = false; asking = true }
+            }
+        },
+    ) { FloatingButton(Lucide.Ellipsis, "More", { open = true }) }
+    ConfirmPopover(asking, "Delete this artifact?", info.title, "Delete", true, { asking = false }) { asking = false; actions.onDelete(info.id) }
+}
+
+@Composable
+private fun DropdownMenuPanelContentScope.MenuAction(icon: ImageVector, label: String, destructive: Boolean = false, onClick: () -> Unit) {
+    val tint = if (destructive) color(destructiveColor) else color(onBackgroundColor)
+    DropdownMenuItem(onClick = onClick) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+            Icon(icon, Modifier.size(16.dp), tint = tint)
+            Text(label, color = tint, singleLine = true)
+        }
+    }
+}
+
+/** What the Segmented control offers while editing; html's Source also shows its live preview ≥700dp. */
+private fun editorTabs(type: String, wide: Boolean) = buildList {
+    if (visualEditing && type == "html") add("Visual")
+    add("Source")
+    if ((type == "html" || type == "svg" || type == "md") && !wide) add("Preview")
+}
+
+/** The source beside a live preview when [wide], else one of the [tab]s at a time. */
+@Composable
+private fun ArtifactEditor(data: ArtifactData, state: ArtifactsState, actions: ArtifactsActions, tab: String?, wide: Boolean, modifier: Modifier = Modifier) {
+    val draft = state.draft.orEmpty()
+    val type = data.info.type
+    val previewable = type == "html" || type == "svg" || type == "md"
+    var preview by remember { mutableStateOf(draft) }
+    LaunchedEffect(draft) { delay(300); preview = draft }
+    val seed = remember(state.base, tab) { draft }
+    val editor = @Composable { key(state.base) { SourceEditor(draft, actions.onChange, Modifier.fillMaxSize()) } }
+    val view = @Composable {
+        if (type == "md") Box(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.space24)) { Markdown(preview, Modifier.fillMaxWidth()) }
+        else HtmlView(if (type == "svg") "<html><body style=\"margin:0\">$preview</body></html>" else preview, Modifier.fillMaxSize())
+    }
+    Column(modifier.fillMaxSize()) {
+        if (state.stale) Row(
+            Modifier.fillMaxWidth().background(color(subtleColor)).padding(horizontal = Spacing.space12, vertical = Spacing.space4),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.space8),
+        ) {
+            Text("Updated by an agent while you edit.", Modifier.weight(1f), style = TextStyles.secondary, color = color(mutedColor))
+            Button(onClick = actions.onEdit, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text("Reload") }
+            Button(onClick = actions.onKeepMine, style = ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text("Keep mine") }
+        }
+        state.errors.lastOrNull()?.let { Pill(it, Modifier.padding(Spacing.space8), tone = Tone.Danger, icon = Lucide.CircleX) }
+        Box(Modifier.weight(1f).fillMaxWidth()) {
+            when {
+                tab == "Visual" -> key(seed, state.base) { VisualEditor(seed, Modifier.fillMaxSize(), actions.onChange) }
+                tab == "Preview" -> view()
+                previewable && wide -> Row(Modifier.fillMaxSize()) {
+                    Box(Modifier.weight(1f)) { editor() }
+                    VerticalSeparator()
+                    Box(Modifier.weight(1f)) { view() }
+                }
+                else -> editor()
+            }
+        }
+    }
+}
+
+@Composable
+private fun SourceEditor(initial: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+    val text = rememberTextFieldState(initial)
+    LaunchedEffect(text) { snapshotFlow { text.text.toString() }.collect(onChange) }
+    BasicTextField(
+        text,
+        modifier.verticalScroll(rememberScrollState()).padding(Spacing.space12),
+        textStyle = MonoStyle.copy(color = color(onBackgroundColor)),
+        cursorBrush = SolidColor(color(accentColor)),
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, autoCorrectEnabled = false),
+    )
 }
 
 private fun List<AgentInfo>.name(id: String) = firstOrNull { it.id == id }?.name ?: id
