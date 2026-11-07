@@ -93,6 +93,9 @@ class ArtifactsTest {
         assertFailsWith<IllegalArgumentException> { artifacts.create("main", null, "D", "design", """{"artboards":[${board("a", 0)}]}""") }
         assertFailsWith<IllegalArgumentException> { artifacts.create("main", null, "D", "design", """{"artboards":[${board("a", 10, 10001)}]}""") }
         assertFailsWith<IllegalArgumentException> { artifacts.replace(created.id, """{"artboards":[{"id":"x"}]}""") }
+        assertFailsWith<IllegalArgumentException> { artifacts.replace(created.id, """{"artboards":[{"id":"a","x":2000000,"html":"x"}]}""") }
+        artifacts.replace(created.id, """{"artboards":[{"id":"a","x":-40,"y":12,"html":"x"}]}""")
+        assertEquals(-40, Artifacts.parseDesign(artifacts.get(created.id).content).artboards.single().x)
         artifacts.replace(created.id, """{"artboards":[]}""")
     }
 

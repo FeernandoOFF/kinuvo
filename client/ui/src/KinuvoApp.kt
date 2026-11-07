@@ -381,6 +381,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     onSave = artifacts::save,
                                     onCancel = artifacts::cancel,
                                     onKeepMine = artifacts::keepMine,
+                                    onSaveDesign = artifacts::saveDesign,
                                     onFullScreen = { if (it) history.open(route.copy(fullScreen = true)) else if (history.canGoBack) back() else history.reset(route.copy(fullScreen = false)) },
                                 ))
                             }

@@ -13,6 +13,8 @@ import kinuvo.protocol.artifact.*
 import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 
@@ -46,6 +48,7 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
     val state: StateFlow<ArtifactsState>
         field = MutableStateFlow(ArtifactsState(route))
     private var loading: Job? = null
+    private val designSaves = Mutex()
 
     init {
         owner.bind(viewModelScope, client)
@@ -84,6 +87,19 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
                 state.update { it.copy(open = ArtifactData(info, draft.text), draft = null, errors = emptyList()) }
             }
             state.update { it.copy(saving = false) }
+        }
+    }
+
+    /** A canvas edit: saved at once, in order, without a draft. */
+    fun saveDesign(json: String) {
+        val id = state.value.open?.info?.id ?: return
+        viewModelScope.launch {
+            designSaves.withLock {
+                attempt {
+                    val info = client.call(Api.SaveArtifact, ArtifactSave(id, json))
+                    state.update { if (it.open?.info?.id == id) it.copy(open = ArtifactData(info, json), errors = emptyList()) else it }
+                }
+            }
         }
     }
 

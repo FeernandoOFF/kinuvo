@@ -36,7 +36,7 @@ internal fun visualDocument(html: String, nonce: String = newNonce()): String {
 }
 
 internal const val BRIDGE = """addEventListener("message",function(e){var d=e.data,f=document.getElementById("f");if(e.source!==f.contentWindow||!d)return;
-var m=d.kinuvo==="artifact-edit"&&typeof d.html==="string"?d.html:d.kinuvo==="design-open"&&typeof d.id==="string"?d.id:null;if(m===null)return;
+var m=d.kinuvo==="artifact-edit"&&typeof d.html==="string"?d.html:d.kinuvo==="design-open"&&typeof d.id==="string"?JSON.stringify({kinuvo:d.kinuvo,id:d.id}):d.kinuvo==="design-edit"&&typeof d.json==="string"?JSON.stringify({kinuvo:d.kinuvo,json:d.json}):null;if(m===null)return;
 if(window.kinuvoEdit)window.kinuvoEdit(m);else if(window.Kinuvo&&Kinuvo.edit)Kinuvo.edit(m);else if(window.webkit&&webkit.messageHandlers&&webkit.messageHandlers.kinuvo)webkit.messageHandlers.kinuvo.postMessage(m)})"""
 
 private const val EDITOR_STYLE = """body{outline:none}

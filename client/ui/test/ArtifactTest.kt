@@ -4,6 +4,7 @@ import kinuvo.ui.artifacts.*
 import androidx.compose.ui.graphics.Color
 import kinuvo.protocol.Artboard
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ArtifactTest {
@@ -69,6 +70,29 @@ class ArtifactTest {
         assertTrue(page.contains("e.source!==f.contentWindow"))
         assertTrue(inner.contains("background:rgb(16,16,16)"))
         assertTrue(inner.contains("pointer-events:none"))
+        assertTrue(page.contains("maximum-scale=1,user-scalable=no"))
+        assertTrue(!frame(artifactDocument("<p/>")).contains("user-scalable"))
+        assertTrue(artifactDocument("<p/>").contains("content=\"width=device-width,initial-scale=1\""))
+    }
+
+    @Test
+    fun theBridgeForwardsOnlyDesignEnvelopesFromItsFrame() {
+        val page = designDocument(sample, nonce = "abc")
+        assertTrue(page.contains("d.kinuvo===\"design-edit\"&&typeof d.json===\"string\""))
+        assertTrue(page.contains("d.kinuvo===\"design-open\"&&typeof d.id===\"string\""))
+        assertEquals(DesignMessage.Open("a"), designMessage("""{"kinuvo":"design-open","id":"a"}"""))
+        assertEquals(DesignMessage.Edit("{}"), designMessage("""{"kinuvo":"design-edit","json":"{}"}"""))
+        assertEquals(null, designMessage("<p>html</p>"))
+        assertEquals(null, designMessage("""{"kinuvo":"other"}"""))
+    }
+
+    @Test
+    fun editorStylesAreMarkedSoSavingStripsThem() {
+        val inner = frame(designDocument(sample, nonce = "abc"))
+        assertTrue(inner.contains("setAttribute(\"data-kinuvo-editor\",\"\")"))
+        assertTrue(inner.contains("querySelectorAll(\"[data-kinuvo-editor]\")"))
+        assertTrue(inner.contains("removeAttribute(\"contenteditable\")"))
+        assertTrue(inner.contains("kinuvo:\"design-edit\""))
     }
 
     @Test
@@ -81,7 +105,7 @@ class ArtifactTest {
 
     @Test
     fun anArtboardIsShownAtItsSizeInTheNormalSandbox() {
-        val page = artboardDocument(Artboard("b", "B", 800, 600, "<p>x</p>"), Color.White)
+        val page = artboardDocument(Artboard("b", "B", 800, 600, html = "<p>x</p>"), Color.White)
         assertTrue(page.contains("width:800px;height:600px"))
         assertTrue(page.contains("sandbox=\"allow-scripts\""))
         assertTrue(!page.contains("allow-same-origin"))
