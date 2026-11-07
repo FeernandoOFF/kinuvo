@@ -31,5 +31,13 @@ class PackageNativesTest(unittest.TestCase):
         with zipfile.ZipFile(io.BytesIO(natives.prune(original.getvalue(), 'macos', 'arm64'))) as jar:
             self.assertEqual(set(jar.namelist()), {'Example.class', 'META-INF/LICENSE', 'darwin/aarch64/engine.so'})
 
+    def test_on_demand_keeps_api_without_engine(self):
+        original = io.BytesIO()
+        with zipfile.ZipFile(original, 'w') as jar:
+            jar.writestr('Engine.class', b'api')
+            jar.writestr('darwin-aarch64/liblitertlm_jni.so', b'native')
+        with zipfile.ZipFile(io.BytesIO(natives.prune(original.getvalue(), 'macos', 'arm64', on_demand=True))) as jar:
+            self.assertEqual(jar.namelist(), ['Engine.class'])
+
 
 unittest.main()

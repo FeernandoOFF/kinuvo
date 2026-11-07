@@ -13,10 +13,12 @@ import java.util.jar.JarFile
 class Inference(private val executable: File) {
     val supported get() = System.getProperty("os.name").startsWith("Mac") && executable.canExecute()
     private val slots = Semaphore(1)
-    suspend fun run(operation: String, directory: File, language: String, variant: String, input: ByteArray): ByteArray {
+    suspend fun run(operation: String, directory: File, language: String, variant: String, input: ByteArray, libraries: File? = null): ByteArray {
         check(supported) { "Downloaded voice inference requires the packaged macOS Server worker" }
         return slots.withPermit { withTimeout(120_000) { withContext(Dispatchers.IO) {
-            val args = mutableListOf(executable.path, operation, directory.path, language)
+            val args = mutableListOf(executable.path)
+            libraries?.let { args += it.absolutePath }
+            args += listOf(operation, directory.path, language)
             if (operation == "transcribe") args += variant
             val process = ProcessBuilder(args).redirectError(ProcessBuilder.Redirect.DISCARD).start()
             val cancellation = currentCoroutineContext().job.invokeOnCompletion(onCancelling = true, invokeImmediately = true) { if (it != null) process.destroyForcibly() }
