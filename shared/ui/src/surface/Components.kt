@@ -12,6 +12,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -102,6 +105,11 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
                 listOfNotNull((component.properties["child"] as? JsonPrimitive)?.content)
             return own + children.flatMap { labels(it, depth + 1) }
         }
+        fun hasPicker(id: String, depth: Int = 0): Boolean {
+            val component = components[id] ?: return false
+            if (component.component == "ChoicePicker") return true
+            return depth < 16 && (component.properties["children"] as? JsonArray).orEmpty().any { (it as? JsonPrimitive)?.content?.let { child -> hasPicker(child, depth + 1) } == true }
+        }
         fun rowCells(id: String, visited: Set<String> = emptySet()): List<List<String>> {
             if (id in visited) return emptyList()
             val component = components[id] ?: return emptyList()
@@ -115,7 +123,8 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
         val measured = (0 until (rows.maxOfOrNull { it.size } ?: 0)).map { column ->
             val pixels = rows.flatMap { it.getOrNull(column)?.let { id -> labels(id) }.orEmpty() }
                 .maxOfOrNull { measurer.measure(it, style, softWrap = false).size.width } ?: 0
-            with(density) { pixels.toDp() }.plus(24.dp).coerceIn(40.dp, 240.dp)
+            val chevron = if (rows.any { it.getOrNull(column)?.let(::hasPicker) == true }) 16.dp else 0.dp
+            with(density) { pixels.toDp() }.plus(24.dp + chevron).coerceIn(40.dp, 240.dp)
         }
         TableFrame(measured, modifier, compact = true) { widths ->
             CompositionLocalProvider(LocalTableWidths provides widths) {
@@ -197,7 +206,7 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
     "Text" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
         val variant = scope.surfaceString("variant")
         val caption = variant == "caption"
-        if (LocalSurfaceButton.current) Text(scope.surfaceString("text").orEmpty(), modifier, style = markdownTextStyle())
+        if (LocalSurfaceButton.current) Text(scope.surfaceString("text").orEmpty(), modifier, style = TextStyles.secondary)
         else Markdown(scope.surfaceString("text").orEmpty(), modifier,
             style = if (caption) TextStyles.caption.copy(color = color(mutedColor)) else when (variant) {
                 "h1" -> TextStyles.headline
@@ -242,19 +251,21 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
             CompositionLocalProvider(LocalSurfaceButton provides true) { children.forEach { scope.RenderChild(it) } }
         }
         if (iconOnly) IconButton(onClick = onClick, modifier = modifier, style = style, enabled = enabled, content = content)
-        else Button(onClick = onClick, modifier = modifier, style = style, enabled = enabled) { content() }
+        else Button(onClick = onClick, modifier = modifier, style = style, enabled = enabled, buttonSize = ButtonSize.Small) { content() }
     },
     "TextField" to ComponentRenderer(LayoutTraits.Content) { scope, modifier ->
         val value = scope.surfaceString("value").orEmpty()
-        val state = rememberTextFieldState(value)
-        val target = scope.binding("value")
         val variant = scope.surfaceString("variant")
+        val display = if (variant == "number" && value.toDoubleOrNull()?.isFinite() == true) value.removeSuffix(".0") else value
+        val state = rememberTextFieldState(display)
+        val target = scope.binding("value")
         val placeholder = scope.surfaceString("placeholder").orEmpty()
+        val compact = LocalTableWidths.current.isNotEmpty()
         val failure = scope.rememberCheckFailures().firstMessage()?.message
         LaunchedEffect(value) {
             val current = state.text.toString()
             val sameNumber = variant == "number" && current.toDoubleOrNull()?.let { it == value.toDoubleOrNull() } == true
-            if (current != value && !sameNumber) state.edit { replace(0, length, value) }
+            if (current != display && !sameNumber) state.edit { replace(0, length, display) }
         }
         LaunchedEffect(state, scope, target, variant) {
             snapshotFlow { state.text.toString() }.collect { text ->
@@ -263,8 +274,14 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
         }
         Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             scope.surfaceString("label")?.let { Text(it, style = TextStyles.secondary) }
-            if (variant == "longText") TextArea(state, placeholder)
-            else Input(state, placeholder, modifier = if (LocalTableWidths.current.isNotEmpty()) Modifier.height(36.dp) else Modifier, secret = variant == "obscured", error = failure != null, compact = LocalTableWidths.current.isNotEmpty())
+            if (variant == "longText" && !compact) TextArea(state, placeholder)
+            else Input(state, placeholder, modifier = if (compact) Modifier.height(36.dp) else Modifier, secret = variant == "obscured", error = failure != null, compact = compact,
+                lineLimits = if (compact || variant in listOf("number", "obscured")) TextFieldLineLimits.SingleLine else TextFieldLineLimits.MultiLine(maxHeightInLines = 4),
+                keyboardOptions = when (variant) {
+                    "number" -> KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                    "obscured" -> KeyboardOptions(keyboardType = KeyboardType.Password)
+                    else -> inputKeyboard(false)
+                })
             Failure(failure)
         }
     },
@@ -299,16 +316,17 @@ internal val surfaceComponents = ComponentRegistry(mapOf(
         Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             scope.surfaceString("label")?.let { Text(it, style = TextStyles.secondary) }
             if (filterable) Input(filter, "Filter options")
-            if (segmented) Row(Modifier.clip(RoundedCornerShape(10.dp)).background(color(subtleColor)).padding(4.dp)) {
+            if (segmented) Row(Modifier.height(IntrinsicSize.Min).clip(RoundedCornerShape(10.dp)).background(color(subtleColor)).padding(4.dp)) {
                 visible.forEach { (value, label) ->
                     Button(onClick = { change(listOf(value)) }, enabled = target != null,
-                        modifier = Modifier.semantics { this.selected = value in selected },
-                        style = if (value in selected) ButtonStyle.Primary else ButtonStyle.Ghost) { Text(label) }
+                        modifier = Modifier.fillMaxHeight().semantics { this.selected = value in selected },
+                        shape = RoundedCornerShape(6.dp),
+                        style = if (value in selected) ButtonStyle.Primary else ButtonStyle.Ghost, buttonSize = ButtonSize.Small) { Text(label, style = TextStyles.secondary) }
                 }
             } else if (chips) FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                 visible.forEach { (value, label) ->
                     Button(onClick = { change(if (exclusive) listOf(value) else if (value in selected) selected - value else selected + value) },
-                        modifier = Modifier.semantics { this.selected = value in selected }, enabled = target != null, style = if (value in selected) ButtonStyle.Primary else ButtonStyle.Outlined) { Text(label) }
+                        modifier = Modifier.semantics { this.selected = value in selected }, enabled = target != null, style = if (value in selected) ButtonStyle.Primary else ButtonStyle.Outlined, buttonSize = ButtonSize.Small) { Text(label, style = TextStyles.secondary) }
                 }
             } else if (exclusive && scope.surfaceString("displayStyle") == "dropdown") {
                 ChoiceSelect(visible, selected.firstOrNull(), target != null, compact = LocalTableWidths.current.isNotEmpty()) { change(listOf(it)) }

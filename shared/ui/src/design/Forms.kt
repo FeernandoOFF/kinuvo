@@ -8,6 +8,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -106,6 +107,7 @@ internal fun TextArea(state: TextFieldState, placeholder: String = "", lines: In
         lineLimits = TextFieldLineLimits.MultiLine(minHeightInLines = lines, maxHeightInLines = 30),
         contentPadding = PaddingValues(horizontal = Spacing.space12, vertical = Spacing.space8),
         textStyle = style,
+        cursorBrush = SolidColor(color(accentColor)),
         keyboardOptions = inputKeyboard(capitalize),
     )
 }

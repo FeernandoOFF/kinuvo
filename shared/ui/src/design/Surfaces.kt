@@ -8,8 +8,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.FocusInteraction
-import androidx.compose.foundation.interaction.Interaction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.hoverable
@@ -24,6 +22,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -33,6 +33,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -51,6 +53,7 @@ import com.composeunstyled.theme.Theme
 import com.composeunstyled.ProvideContentColor
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.input.TextFieldLineLimits
 import androidx.compose.foundation.text.input.OutputTransformation
 import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.ui.semantics.Role
@@ -230,19 +233,7 @@ fun inputTextStyle(): TextStyle {
 /** The keyboard starts sentences with a capital when [capitalize]; off for URLs, IDs, keys and commands. */
 fun inputKeyboard(capitalize: Boolean) = KeyboardOptions(capitalization = if (capitalize) KeyboardCapitalization.Sentences else KeyboardCapitalization.None)
 
-/** Shows focus as the field's own border, like the composer, instead of the library's ring outside it. */
-private class FocusBorder(private val source: MutableInteractionSource = MutableInteractionSource()) : MutableInteractionSource by source {
-    var focused by mutableStateOf(false)
-    override suspend fun emit(interaction: Interaction) { if (!track(interaction)) source.emit(interaction) }
-    override fun tryEmit(interaction: Interaction) = track(interaction) || source.tryEmit(interaction)
-    private fun track(interaction: Interaction) = when (interaction) {
-        is FocusInteraction.Focus -> { focused = true; true }
-        is FocusInteraction.Unfocus -> { focused = false; true }
-        else -> false
-    }
-}
-
-/** Single-line bordered text input that stays visible on any surface; [capitalize] for prose such as names and notes. */
+/** Bordered text input that stays visible on any surface; [capitalize] for prose such as names and notes. */
 @Composable
 fun Input(
     state: TextFieldState,
@@ -254,25 +245,47 @@ fun Input(
     leading: (@Composable () -> Unit)? = null,
     error: Boolean = false,
     compact: Boolean = false,
+    lineLimits: TextFieldLineLimits = TextFieldLineLimits.SingleLine,
+    keyboardOptions: KeyboardOptions = if (secret) KeyboardOptions(keyboardType = KeyboardType.Password) else inputKeyboard(capitalize),
+    enabled: Boolean = true,
 ) {
     val style = if (compact) TextStyles.caption else inputTextStyle()
-    val focus = remember { FocusBorder() }
-    com.composables.ui.components.TextField(
+    var focused by remember { mutableStateOf(false) }
+    val shape = Theme[shapes][mediumShape]
+    val minHeight = if (compact) 36.dp else if (LocalInteractionMode.current == InteractionMode.Touch) 48.dp else 40.dp
+    val verticalPadding = if (lineLimits is TextFieldLineLimits.MultiLine) with(LocalDensity.current) {
+        ((minHeight - style.lineHeight.toDp()) / 2).coerceAtLeast(0.dp)
+    } else 0.dp
+    BasicTextField(
         state,
-        modifier.fillMaxWidth(),
-        leading = leading,
-        trailing = trailing,
-        backgroundColor = color(backgroundColor),
-        borderColor = when {
-            error -> color(destructiveColor)
-            focus.focused -> color(accentColor).copy(alpha = 0.55f)
-            else -> color(com.composables.ui.theme.borderColor)
-        },
-        interactionSource = focus,
-        placeholder = { Text(placeholder, style = style) },
-        contentPadding = PaddingValues(horizontal = if (compact) 6.dp else 12.dp),
-        textStyle = style,
+        modifier.fillMaxWidth().alpha(if (enabled) 1f else 0.4f).onFocusChanged { focused = it.isFocused },
+        enabled = enabled,
+        textStyle = style.copy(color = color(onFieldColor)),
+        cursorBrush = SolidColor(color(accentColor)),
+        lineLimits = lineLimits,
         outputTransformation = if (secret) OutputTransformation { replace(0, length, "•".repeat(length)) } else null,
-        keyboardOptions = if (secret) KeyboardOptions(keyboardType = KeyboardType.Password) else inputKeyboard(capitalize),
+        keyboardOptions = keyboardOptions,
+        decorator = { inner ->
+            Row(
+                Modifier.clip(shape).background(color(backgroundColor), shape)
+                    .border(1.dp, when {
+                        error -> color(destructiveColor)
+                        focused -> color(accentColor).copy(alpha = 0.55f)
+                        else -> color(borderColor)
+                    }, shape)
+                    .heightIn(min = minHeight)
+                    .padding(horizontal = if (compact) 6.dp else 12.dp,
+                        vertical = verticalPadding),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.space8),
+            ) {
+                leading?.invoke()
+                Box(Modifier.weight(1f)) {
+                    if (state.text.isEmpty()) Text(placeholder, style = style, color = color(mutedColor))
+                    inner()
+                }
+                trailing?.invoke()
+            }
+        },
     )
 }
