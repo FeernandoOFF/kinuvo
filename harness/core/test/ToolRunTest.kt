@@ -93,4 +93,31 @@ class ToolRunTest {
         assertEquals(0, calls)
         assertEquals("Denied (stopped)", home.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>().single().output)
     }
+
+    @Test fun anApprovalShowsWhatTheToolDescribesAndABadCallFailsBeforeAsking() = runTest {
+        val agent = home.agent
+        val describing = object : Tool by target {
+            override suspend fun describe(args: JsonObject) = "name: Ada → Ada L".also { check(args["bad"] == null) { "Not allowed" } }
+        }
+        val broker = ApprovalBroker()
+        suspend fun run(args: String): Pair<List<AgentEvent.ApprovalRequested>, String> {
+            val session = home.store.createSession(agent.id, "")
+            val asked = mutableListOf<AgentEvent.ApprovalRequested>()
+            val model = scriptedModel { prompt, _ ->
+                if (prompt.messages.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("c1", "change", args), StreamFrame.End())
+                else flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
+            }
+            AgentRun(agent, home.store, model, listOf(describing), approvals = Approvals(ApprovalPolicy(agent, home.trustRules), broker)).run(session.id, "go").collect { event ->
+                if (event is AgentEvent.ApprovalRequested) { asked += event; broker.respond(event.approvalId, ApprovalDecision.AllowOnce) }
+            }
+            return asked to home.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>().single().output
+        }
+        val (asked, output) = run("{}")
+        assertEquals("name: Ada → Ada L", asked.single().reason)
+        assertEquals("changed", output)
+        val (refused, error) = run("""{"bad":true}""")
+        assertTrue(refused.isEmpty())
+        assertTrue("Not allowed" in error)
+        assertEquals(1, calls)
+    }
 }

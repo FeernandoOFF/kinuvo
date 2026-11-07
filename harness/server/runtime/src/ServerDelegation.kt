@@ -54,7 +54,9 @@ internal class ServerDelegation(
         val info = create(task.agentId)
         try {
             harness.log.append(task.agentId, info.id, SessionEntry.Details(hidden = hidden, parent = SessionParent(parent.agentId, parentId, parent.depth + 1)))
-            task.model?.let { harness.configure(agent(task.agentId), info.id, SessionSettings(model = it)) }
+            // A hidden Session keeps the on-device model it was started with, whatever its Agent's default becomes.
+            val settings = if (hidden) agent(task.agentId).config.let { SessionSettings(provider = it.provider, model = task.model ?: it.model) } else task.model?.let { SessionSettings(model = it) }
+            settings?.let { harness.configure(agent(task.agentId), info.id, it) }
             send(SendParams(task.agentId, info.id, task.message))
         } catch (e: Throwable) {
             withContext(NonCancellable) { runCatching { harness.log.deleteSession(task.agentId, info.id) } }

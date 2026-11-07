@@ -227,7 +227,7 @@ internal fun NewAgentForm(p: Pane) {
 }
 
 internal val REASONING = listOf("minimal", "low", "medium", "high", "xhigh")
-internal val TOOLS = listOf("memory" to "Memory (what it remembers across Sessions)", "web_fetch" to "Web (fetch, search)", "skills" to "Skills (instructions it can load)", "schedule" to "Routines (prompts on a schedule)", "knowledge" to "Knowledge (your Notes)", "tasks" to "Tasks (the Board)", "ask_user" to "Ask the user (forms)", "artifact" to "Artifacts (pages and charts)", "device_tools" to "Device tools (Contacts, workouts, sleep)", "agent_tools" to "Agents and Sessions (find past conversations)", "run_code" to "Scripts (chain tool calls in JavaScript)", "computer" to "Computer use (see and control a screen)", "browser" to "Browser (Server-owned tabs)")
+internal val TOOLS = listOf("memory" to "Memory (what it remembers across Sessions)", "web_fetch" to "Web (fetch, search)", "skills" to "Skills (instructions it can load)", "schedule" to "Routines (prompts on a schedule)", "knowledge" to "Knowledge (your Notes)", "tasks" to "Tasks (the Board)", "ask_user" to "Ask the user (forms)", "artifact" to "Artifacts (pages and charts)", "device_tools" to "Device tools (Contacts, workouts, sleep)", "agent_tools" to "Agents and Sessions (find past conversations)", "agent_manage" to "Manage itself (its settings, MCP servers, new Agents)", "run_code" to "Scripts (chain tool calls in JavaScript)", "computer" to "Computer use (see and control a screen)", "browser" to "Browser (Server-owned tabs)")
 internal val APPROVALS = mapOf(
     "strict" to "Every tool call",
     "default" to "Anything that changes things",
