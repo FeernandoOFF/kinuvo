@@ -43,7 +43,7 @@ private const val SLIDERS = """<svg viewBox='0 0 24 24' width='18' height='18' f
 private const val DESIGN_SCRIPT = """(function(){
 var D;try{D=JSON.parse(J)}catch(e){D={}}
 var S=document.getElementById("s"),W=document.getElementById("w"),O=document.getElementById("o"),G=48,P=48,MIN=.1,MAX=4,LH=26,HS=16;
-var x=0,y=0,k=1,touched=false,P1={},tap=null,last=null,pinch=null,drag=null,sel=null,txt=null,pinned=false,timer=null,panelOpen=false,cur=0,saved=null;
+var x=0,y=0,k=1,touched=false,P1={},tap=null,last=null,pinch=null,drag=null,sel=null,txt=null,pinned=false,timer=null,pend=false,panelOpen=false,cur=0,saved=null;
 function mk(t,c,p){var e=document.createElement(t);if(c)e.className=c;if(p)p.appendChild(e);return e}
 var B=(D.artboards||[]).map(function(a){return{a:a,bx:0,by:0,w:a.width,h:a.height,name:a.name||a.id,html:a.html||"",dirty:false,v:F===null||a.id===F,ex:a.x!=null&&a.y!=null}});
 B.forEach(function(b){if(b.ex){b.bx=b.a.x;b.by=b.a.y}else{b.bx=cur;b.by=0}cur+=b.w+G});
@@ -60,7 +60,7 @@ function bounds(){var a=1e9,t=1e9,r=-1e9,u=-1e9;B.forEach(function(b){if(!b.v)re
 function put(){W.style.transform="translate("+x+"px,"+y+"px) scale("+k+")";draw()}
 function fit(){var q=bounds(),vw=innerWidth,vh=innerHeight;if(F!==null&&FL){k=Math.max(MIN,Math.min(MAX,vw/q.w));x=-q.l*k;y=-q.t*k;put();return}if(F!==null){k=Math.max(MIN,Math.min((vw-32)/q.w,(vh-32)/q.h,1));x=(vw-q.w*k)/2-q.l*k;y=(vh-q.h*k)/2-q.t*k;put();return}k=Math.max(MIN,Math.min((vw-2*P)/q.w,(vh-2*P-LH)/q.h,1));x=(vw-q.w*k)/2-q.l*k;y=(vh-q.h*k)/2-q.t*k+LH/2;put()}
 function zoom(px,py,nk){nk=Math.max(MIN,Math.min(MAX,nk));x=px-(px-x)*nk/k;y=py-(py-y)*nk/k;k=nk;put()}
-function open(id){if(timer)flush();parent.postMessage({kinuvo:"design-open",id:id},"*")}
+function open(id){if(pend)flush();parent.postMessage({kinuvo:"design-open",id:id},"*")}
 function cs(el){return el.ownerDocument.defaultView.getComputedStyle(el)}
 function rectOf(){if(!sel)return null;var b=B[sel.b];if(sel.el){var r=sel.el.getBoundingClientRect();return{l:x+(b.bx+r.left)*k,t:y+(b.by+r.top)*k,w:r.width*k,h:r.height*k}}return{l:x+b.bx*k,t:y+b.by*k,w:b.w*k,h:b.h*k}}
 function corners(r){return[[r.l,r.t],[r.l+r.w,r.t],[r.l,r.t+r.h],[r.l+r.w,r.t+r.h]]}
@@ -99,15 +99,16 @@ function ser(b){if(!b.dirty)return b.html;var d=doc(b),c=d.documentElement.clone
 c.querySelectorAll("[data-kinuvo-editor]").forEach(function(e){e.remove()});
 c.querySelectorAll("[contenteditable]").forEach(function(e){e.removeAttribute("contenteditable")});
 b.dirty=false;return(d.doctype?"<!DOCTYPE "+d.doctype.name+">":"")+c.outerHTML}
-function flush(){clearTimeout(timer);timer=null;parent.postMessage({kinuvo:"design-edit",json:snap()},"*")}
-function schedule(){clearTimeout(timer);timer=setTimeout(flush,500)}
+function flush(){pend=false;parent.postMessage({kinuvo:"design-edit",json:snap()},"*")}
+function schedule(){if(timer){pend=true;return}flush();timer=setTimeout(function(){timer=null;if(pend)schedule()},250)}
+addEventListener("pagehide",function(){if(pend)flush()});document.addEventListener("visibilitychange",function(){if(pend)flush()});
 window.kinuvoFlush=flush;
 function inject(b){var d=doc(b),s=d.createElement("style");s.setAttribute("data-kinuvo-editor","");s.textContent="*{-webkit-user-select:none;user-select:none;cursor:default}[contenteditable]{-webkit-user-select:text;user-select:text;cursor:text;outline:none}";(d.head||d.documentElement).appendChild(s)}
 function noNav(e){if(e.target.closest&&e.target.closest("a"))e.preventDefault()}
 function onText(){B[sel.b].dirty=true;draw();schedule()}
 function startText(el){endText();txt=el;var b=B[sel.b],d=doc(b);inject(b);el.contentEditable="true";b.f.style.pointerEvents="auto";
 d.addEventListener("input",onText);d.addEventListener("keydown",esc);d.addEventListener("click",noNav);b.f.contentWindow.focus();el.focus();draw()}
-function endText(){if(!txt)return;var b=B[sel.b],d=doc(b);d.querySelectorAll("style[data-kinuvo-editor]").forEach(function(e){e.remove()});txt.removeAttribute("contenteditable");b.f.style.pointerEvents="";
+function endText(){if(!txt)return;if(pend)flush();var b=B[sel.b],d=doc(b);d.querySelectorAll("style[data-kinuvo-editor]").forEach(function(e){e.remove()});txt.removeAttribute("contenteditable");b.f.style.pointerEvents="";
 d.removeEventListener("input",onText);d.removeEventListener("keydown",esc);d.removeEventListener("click",noNav);txt=null;fb.style.display="none"}
 function choose(T){if(T.k==="board")sel={b:T.i,el:null};else if(T.k==="el")sel={b:T.i,el:T.el};else{sel=null;panelOpen=false}refresh()}
 function tapped(T,e){var now=Date.now(),dbl=last&&now-last.t<350&&Math.hypot(e.clientX-last.x,e.clientY-last.y)<30;
