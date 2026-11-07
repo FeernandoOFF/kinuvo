@@ -20,7 +20,7 @@ export default function links({ fileURL }) {
     let url;
     if (!fromDocs.startsWith('../') && !fromDocs.startsWith('adr/') && /\.mdx?$/.test(path)) {
       const route = fromDocs.replace(/\.mdx?$/, '').replace(/(^|\/)index$/, '$1');
-      url = '/kinuvo/' + (route ? route.replace(/\/$/, '') + '/' : '') + suffix;
+      url = '/' + (route ? route.replace(/\/$/, '') + '/' : '') + suffix;
     } else {
       url = `https://github.com/FeernandoOFF/kinuvo/blob/main/${fromRepo}${suffix}`;
     }

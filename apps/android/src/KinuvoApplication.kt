@@ -11,4 +11,3 @@ class KinuvoApplication : Application() {
         startKinuvo(androidComputerModule) { androidContext(this@KinuvoApplication) }
     }
 }
-

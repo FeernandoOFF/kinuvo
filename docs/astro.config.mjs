@@ -4,8 +4,7 @@ import { satteri } from '@astrojs/markdown-satteri';
 import links from './.site/plugins/links.mjs';
 
 export default defineConfig({
-  site: 'https://feernandooff.github.io',
-  base: '/kinuvo',
+  site: 'https://kinuvo.feernandooff.com',
   devToolbar: { enabled: false },
   srcDir: './.site',
   publicDir: './.site/public',
@@ -29,6 +28,7 @@ export default defineConfig({
       { label: 'Guides', items: ['guides/apple-models', 'guides/notes', 'guides/mcp', 'guides/voice', 'guides/workspaces', 'guides/attachments', 'guides/browser-access', 'guides/computer-use', 'guides/public-hosting'] },
       { label: 'Reference', items: ['reference/config', 'reference/agent', 'reference/cli', 'reference/models', 'reference/secrets', 'reference/plugins'] },
       { label: 'Operate', items: ['operate/upgrade', 'operate/backup', 'operate/service', 'operate/troubleshooting', 'operate/tracing'] },
+      { label: 'Support and privacy', items: ['support', 'privacy'] },
       { label: 'Contributing', items: ['releasing', 'local-testing', 'controlled-browser', 'desktop-voice', 'device-local-voice', 'live-calls', 'reference/android-browser-host', 'contributing/voice-providers', 'contributing/native-ui-with-a2ui', 'contributing/html-surfaces-and-mcp-apps'] },
     ],
   })],
