@@ -1,6 +1,7 @@
 package kinuvo.ui
 
 import com.composables.icons.lucide.*
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.mutableStateOf
@@ -9,6 +10,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.ClipboardManager
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.UriHandler
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.runtime.CompositionLocalProvider
 import dev.ynagai.a2ui.core.surface.JsonPointer
@@ -112,9 +114,13 @@ class SurfaceScreenshotTest {
                             when (name) {
                                 "example-recipe-scaler" -> { click("Increase"); assertTrue(hasText("300 g")) }
                                 "example-workout-log" -> { click("Increase"); assertTrue(hasText("1,920 kg total volume")) }
-                                "example-invoice-builder" -> { click("Increase"); assertTrue(hasText("EUR 1,260")) }
+                                "example-invoice-builder" -> { click("Increase"); assertTrue(hasText("€1,260.00")) }
                                 "example-habit-tracker" -> assertTrue(hasText("5 wins"))
-                                "example-trip-budget" -> assertTrue(hasText("Paid EUR 165.00"))
+                                "example-trip-budget" -> {
+                                    assertTrue(hasText("Paid €165.00"))
+                                    assertTrue(hasText("Pays €10.00"))
+                                    assertTrue(hasText("€100.00 each"))
+                                }
                                 "example-dinner-poll" -> click("Pizza")
                             }
                         }
@@ -129,7 +135,7 @@ class SurfaceScreenshotTest {
                             else -> "Send"
                         })
                         assertEquals(1, messages.size)
-                        if (name == "example-invoice-builder") assertEquals(JsonPrimitive("EUR 1,260"), (messages.single() as ActionMessage).context["total"])
+                        if (name == "example-invoice-builder") assertEquals(JsonPrimitive("€1,260.00"), (messages.single() as ActionMessage).context["total"])
                     }
                 }
             }
@@ -252,6 +258,57 @@ class SurfaceScreenshotTest {
         assertEquals(Lucide.Heart, catalogIcon("favorite"))
         assertEquals(catalogIcon("help"), catalogIcon("unknown"))
         assertEquals(catalogIcon("help"), catalogIcon(null))
+    }
+
+    @Test fun textEditsRetainSelectionAcrossModelEchoes() = javax.swing.SwingUtilities.invokeAndWait {
+        for (variant in listOf("shortText", "number")) {
+            val args = """{"messages":[{"createSurface":{"surfaceId":"form","catalogId":"${kinuvoCatalogDefinition.catalogId}","components":[
+                {"id":"root","component":"TextField","variant":"$variant","value":{"path":"/value"}}],"dataModel":{"value":${if (variant == "number") "700.0" else "\"12.00\""}}}}]}"""
+            val call = ChatItem.ToolCall("tool", "call", "show_ui", args, result = "Shown")
+            val cache = mutableMapOf<String, SurfaceRenderer>()
+            ImageComposeScene(780, 300, Density(2f), content = {
+                HarnessTheme(dark = false) {
+                    SelectionContainer {
+                        CompositionLocalProvider(LocalSurfaceRenderers provides cache) {
+                            SurfaceCall(call, { _, _ -> }) { fail("Surface failed to render") }
+                        }
+                    }
+                }
+            }).use { scene ->
+                var frame = 0L
+                fun settle() { repeat(8) { frame += 200_000_000L; scene.render(frame) } }
+                fun flatten(node: SemanticsNode): List<SemanticsNode> = listOf(node) + node.children.flatMap(::flatten)
+                fun field() = scene.semanticsOwners.flatMap { flatten(it.unmergedRootSemanticsNode) }
+                    .first { it.config.getOrNull(SemanticsActions.SetText) != null }
+                settle()
+                if (variant == "number") {
+                    assertEquals("700", field().config[SemanticsProperties.EditableText].text)
+                    field().config[SemanticsActions.SetText].action!!.invoke(AnnotatedString("12.00"))
+                    settle()
+                }
+                field().config[SemanticsActions.SetSelection].action!!.invoke(1, 1, false)
+                settle()
+                cache.getValue("call").renderer.write("form", JsonPointer.parse("/value"),
+                    if (variant == "number") JsonPrimitive(12.0) else JsonPrimitive("12.00"))
+                settle()
+                assertEquals("12.00", field().config[SemanticsProperties.EditableText].text)
+                assertEquals(TextRange(1), field().config[SemanticsProperties.TextSelectionRange])
+                field().config[SemanticsActions.InsertTextAtCursor].action!!.invoke(AnnotatedString("3"))
+                settle()
+                assertEquals("132.00", field().config[SemanticsProperties.EditableText].text)
+                assertEquals(TextRange(2), field().config[SemanticsProperties.TextSelectionRange])
+                assertEquals(if (variant == "number") JsonPrimitive(132.0) else JsonPrimitive("132.00"),
+                    cache.getValue("call").renderer.state.surfaces.getValue("form").dataModel["value"])
+                if (variant == "number") {
+                    cache.getValue("call").renderer.write("form", JsonPointer.parse("/value"), JsonPrimitive(420.0))
+                    settle()
+                    assertEquals("420", field().config[SemanticsProperties.EditableText].text)
+                    cache.getValue("call").renderer.write("form", JsonPointer.parse("/value"), JsonPrimitive(420.5))
+                    settle()
+                    assertEquals("420.5", field().config[SemanticsProperties.EditableText].text)
+                }
+            }
+        }
     }
 
     @Test fun restoresSubmittedInputsAndKeepsCachedEdits() = javax.swing.SwingUtilities.invokeAndWait {

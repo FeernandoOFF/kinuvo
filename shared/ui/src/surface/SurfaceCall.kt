@@ -8,6 +8,7 @@ import kinuvo.app.surface.surfaceAction
 import kinuvo.app.surface.surfaceSubmissions
 import kinuvo.protocol.SurfaceAction
 
+import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.*
 import dev.ynagai.a2ui.compose.*
@@ -43,17 +44,19 @@ internal fun SurfaceCall(call: ChatItem.ToolCall, send: (String, SurfaceAction) 
         }.getOrNull()?.let(::SurfaceRenderer)?.also { cache[call.callId] = it }
     }
     if (renderer == null) fallback()
-    else Column {
-        val state = renderer.renderer
-        renderer.submissions.update(models) { id, model -> state.apply(UpdateDataModelMessage(surfaceId = id, path = "/", value = model)) }
-        state.state.surfaces.keys.forEach { id ->
-            key(id, models[id]?.first) {
-                val drafts = remember { SurfaceDrafts() }
-                CompositionLocalProvider(LocalSurfaceDrafts provides drafts) {
-                    A2uiSurface(state, id, surfaceComponents, onMessage = { message ->
-                        if (message is ActionMessage && drafts.canSubmit) send(message.userMessage ?: message.name,
-                            message.surfaceAction(call.callId, state.state.surfaces.getValue(id).dataModel))
-                    })
+    else DisableSelection {
+        Column {
+            val state = renderer.renderer
+            renderer.submissions.update(models) { id, model -> state.apply(UpdateDataModelMessage(surfaceId = id, path = "/", value = model)) }
+            state.state.surfaces.keys.forEach { id ->
+                key(id, models[id]?.first) {
+                    val drafts = remember { SurfaceDrafts() }
+                    CompositionLocalProvider(LocalSurfaceDrafts provides drafts) {
+                        A2uiSurface(state, id, surfaceComponents, onMessage = { message ->
+                            if (message is ActionMessage && drafts.canSubmit) send(message.userMessage ?: message.name,
+                                message.surfaceAction(call.callId, state.state.surfaces.getValue(id).dataModel))
+                        })
+                    }
                 }
             }
         }
