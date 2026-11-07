@@ -26,7 +26,7 @@ Each Agent has `agents/<id>/agent.yaml` under the Server home. These are the fil
 Default optional tool groups:
 
 ```yaml
-tools: [memory, web_fetch, skills, schedule, knowledge, tasks, ask_user, artifact, device_tools, run_code, computer]
+tools: [memory, web_fetch, skills, schedule, knowledge, tasks, ask_user, artifact, device_tools, agent_tools, run_code, computer]
 ```
 
 A group is offered only when its provider and required capabilities are available. Shell and file tools come from the configured Exec backend; `exec: none` disables them.

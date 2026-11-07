@@ -163,13 +163,17 @@ This Device's own name for a remote Server, independent of the names other Devic
 **Revoke**:
 Unpair a Device from a Server, ending its access until it pairs again.
 
-**Room**:
-Planned: a lasting conversation space defined by its members (the user and one or more Agents). Not implemented yet; Sessions belong to an Agent.
-_Avoid_: Chat, channel, thread
+**Team**:
+Planned: a named group of Agents that share Artifacts. Each conversation stays a Session that can include several Team members through @mention. Not implemented yet; Sessions belong to an Agent.
+_Avoid_: Room, crew
 
 **Session**:
-One bounded conversation with an Agent (later, inside a Room); its transcript does not carry into the next Session, only Memory does.
+One bounded conversation with an Agent; its transcript does not carry into the next Session, only Memory does.
 _Avoid_: Conversation, context
+
+**Hidden Session**:
+A Session whose transcript no Agent tool can see, whoever calls; only its final result is handed back. The user still sees it in the app.
+_Avoid_: Private Session, secret chat
 
 **Session settings**:
 A Session's own model, reasoning effort and Risk tolerance, chosen by the user for that conversation; unset ones follow the Agent's.
