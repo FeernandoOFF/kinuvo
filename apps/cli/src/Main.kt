@@ -71,7 +71,7 @@ private suspend fun serve(host: String, port: Int, publicUrl: String? = null, tr
     val bind = if (tailscale) "127.0.0.1" else host
     val network = NetworkSecurity(route?.url ?: publicUrl ?: System.getenv("KINUVO_PUBLIC_URL"),
         (trustedProxy ?: System.getenv("KINUVO_TRUSTED_PROXIES") ?: "127.0.0.1,::1").split(',').map(String::trim).toSet())
-    val server = HarnessServer(Harness(), network = network)
+    val server = HarnessServer(Harness(), network = network, mcpBridge = McpBridgeCommand.command())
     var desktop: CliComputer? = null
     var ready = false
     val shutdown = Thread { try { server.stop() } finally { desktop?.close() } }
