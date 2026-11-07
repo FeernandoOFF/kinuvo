@@ -1,7 +1,15 @@
 ---
 title: "Agent tools: one service, native and MCP transports"
-description: "Kinuvo's tools for Agents are one Server service reached natively or over MCP, scoped to the caller."
+description: "Give Agents one Server tool service, reached natively or over MCP and scoped to the caller."
 ---
+
+Status: Accepted
+
+## Context
+
+Agents, native or external, need to read Sessions, delegate work and configure themselves under the same rules as the user.
+
+## Decision
 
 Tools that let Agents work with one another are one service on the Server. Every call carries a caller scope: the calling Agent, its Session and its delegation depth. The service enforces the scope, so Session tools see only the caller Agent's own Sessions and the child Sessions it delegated, never another Agent's, and never a Hidden Session. The first group, `agent_tools`, is a built-in tool group, always sent to the model and on by default. Its read tools are `agents_list`, `sessions_list`, `sessions_search`, `sessions_read` and `session_status` (Low risk). Its delegation tools are `delegate` (Medium), `delegate_wait` and `subagents` (Low, except `subagents` cancel at Medium).
 
@@ -19,4 +27,8 @@ Delegation is part of the same service and uses the shared `ExecutionDispatch`, 
 
 A hidden delegation keeps sensitive data on the Server's own device. A Hidden Session keeps an on-device model for good: it is started with that provider and model as its own settings, every later change (the `session_configure` tool, the user's Settings, a changed Agent default) must keep one or is rejected, and a run whose model isn't on-device is refused whatever chose it. It also has no network-egress tools: `web_fetch` and `web_search`, Browser, Computer, image generation and MCP servers are withheld, as are Memory, Knowledge and Skills. Of `agent_manage` it gets only `session_configure`. The target must be a native Agent whose model provider reports `onDevice`; anything else fails the call, and an External Agent can never be a hidden child. The child's transcript is excluded from every Agent tool for all callers (the parent sees only metadata and the final answer), it is never reflected on, its Agent's Memory, Knowledge and Skills tools are withheld, and Notifications about it carry no content. Work a Hidden Session delegates stays hidden. With `review`, the user sees the answer in an Approval in the parent's Session and may withhold it. A parent that runs on-device and delegates to a cloud Agent sends only the goal and context it writes, as for any child.
 
-There is no standalone MCP server for the `kinuvo` CLI yet: the endpoint exists to serve Agents Kinuvo itself runs. Further tools build on the same service ([plan](../plans/2026-11-07-agent-collaboration-design.md)).
+## Consequences
+
+There is no standalone MCP server for the `kinuvo` CLI yet: the endpoint exists to serve Agents Kinuvo itself runs.
+
+Future work: board handoffs between Agents, Teams, Kinuvo-side identity tools for External Agents, and catching the loopback OAuth callback so `mcp_login` needs no pasted address.
