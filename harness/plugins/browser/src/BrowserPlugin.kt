@@ -10,7 +10,7 @@ import kinuvo.protocol.*
 import kotlinx.serialization.json.*
 import kotlin.io.encoding.Base64
 
-class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
+class BrowserPlugin(override val browser: BrowserService, private val secrets: Secrets = Secrets()) : HarnessPlugin {
     override val definition = PluginDefinition("kinuvo.browser", "Browser")
     override val features = setOf(ServerFeature.Browser)
     override val integrations = mapOf(Integration.Tools to setOf("browser"))
@@ -21,10 +21,12 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
             "While the user controls a tab, wait for handback. A failed action may have happened; inspect before deciding to retry.")
 
     override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
-        if ("browser" !in run.agent.config.tools || run.sessionId == null) return PluginTools()
+        val sessionId = run.sessionId
+        if ("browser" !in run.agent.config.tools || sessionId == null) return PluginTools()
         val owner = BrowserOwner(run.agent.id)
+        val scope = SecretScope(run.agent.id, sessionId)
         return PluginTools(listOf(ListTabs(owner)) + listOf(BrowserAction.Open, BrowserAction.Capture, BrowserAction.Navigate,
-            BrowserAction.Back, BrowserAction.Forward, BrowserAction.Click, BrowserAction.Type, BrowserAction.Scroll, BrowserAction.Wait, BrowserAction.Close).map { BrowserTool(owner, it) })
+            BrowserAction.Back, BrowserAction.Forward, BrowserAction.Click, BrowserAction.Type, BrowserAction.Scroll, BrowserAction.Wait, BrowserAction.Close).map { BrowserTool(owner, it, scope) })
     }
 
     private inner class ListTabs(val owner: BrowserOwner) : Tool {
@@ -33,7 +35,7 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
         override suspend fun execute(args: JsonObject) = ProtocolJson.encodeToString(browser.tabs(owner).map { it.copy(thumbnail = null) })
     }
 
-    private inner class BrowserTool(val owner: BrowserOwner, val action: BrowserAction) : Tool {
+    private inner class BrowserTool(val owner: BrowserOwner, val action: BrowserAction, val scope: SecretScope) : Tool {
         override val repeatable = action !in setOf(BrowserAction.Open, BrowserAction.Navigate, BrowserAction.Click, BrowserAction.Type, BrowserAction.Close)
         override val risk = when (action) {
             BrowserAction.Open, BrowserAction.Capture, BrowserAction.Navigate, BrowserAction.Back, BrowserAction.Forward, BrowserAction.Scroll, BrowserAction.Wait -> Risk.Low
@@ -47,7 +49,7 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
             BrowserAction.Back -> "Go back one entry in the tab history, then capture. Does nothing at the beginning of history."
             BrowserAction.Forward -> "Go forward one entry in the tab history, then capture. Does nothing at the end of history."
             BrowserAction.Click -> "Click ref from the most recent capture with its revision. May submit or change data."
-            BrowserAction.Type -> "Fill ref with text using its capture revision."
+            BrowserAction.Type -> "Fill ref with text using its capture revision. To type a credential, give text as exactly one Secret reference like \"\${secret://…}\"; the Server types the value without showing it to you."
             BrowserAction.Scroll -> "Scroll vertically by pixels (positive down)."
             BrowserAction.Wait -> "Wait up to 5000 milliseconds (pixels field), then capture."
             BrowserAction.Close -> "Close a tab."
@@ -62,7 +64,10 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
             val generation = gate.state.value.generation
             return { check(gate.state.value.generation == generation) { "Screen control changed while awaiting Approval; capture again" } }
         }
-        private fun command(args: JsonObject) = BrowserCommand(owner, action, args.string("tab"), args.string("revision"), args.string("ref"), args.string("text"), y = args["pixels"]?.jsonPrimitive?.intOrNull)
+        private suspend fun command(args: JsonObject): BrowserCommand {
+            val text = args.string("text")?.let { if (action == BrowserAction.Type && Secrets.isReference(it) && Secrets.hasSecret(it)) secrets.expand(it, emptyMap(), "Kinuvo: Browser typing (Agent ${owner.agentId})", scope) else it }
+            return BrowserCommand(owner, action, args.string("tab"), args.string("revision"), args.string("ref"), text, y = args["pixels"]?.jsonPrimitive?.intOrNull)
+        }
         override suspend fun execute(args: JsonObject): String = render(browser.command(command(args)))
         override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {
             val frame = browser.command(command(args))
