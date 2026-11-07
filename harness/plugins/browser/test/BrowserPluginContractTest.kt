@@ -70,4 +70,21 @@ class BrowserPluginContractTest {
         assertFailsWith<IllegalStateException> { bound() }
         assertTrue(browser.commands.isEmpty())
     }
+
+    @Test fun typingASecretReferenceTypesTheValueForItsSessionOnly() = runTest {
+        val browser = Browser()
+        val secrets = Secrets()
+        val plugin = BrowserPlugin(browser, secrets)
+        val reference = "\${${secrets.session.store(SecretScope("agent", "session"), "hunter2-value")}}"
+        suspend fun type(session: String, text: String) = plugin.prepare(RunContext(agent, session), false).ownedBy(plugin.instance).tools
+            .single { it.identity?.localId == "browser_type" }
+            .execute(buildJsonObject { put("tab", "tab"); put("ref", "e1"); put("revision", "revision"); put("text", text) })
+
+        type("session", reference)
+        type("session", "plain text")
+        assertEquals(listOf("hunter2-value", "plain text"), browser.commands.map { it.text })
+        assertFailsWith<IllegalStateException> { type("another-session", reference) }
+        assertEquals(2, browser.commands.size)
+        plugin.close()
+    }
 }
