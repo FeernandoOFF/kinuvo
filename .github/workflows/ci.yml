@@ -34,6 +34,25 @@ jobs:
             echo 'code=false' >> "$GITHUB_OUTPUT"
           fi
 
+  commits:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          pattern='^(feat|fix|perf|refactor|style|test|docs|build|ci|chore|revert)(\([a-z0-9/-]+\))?!?: .{1,72}$'
+          bad=$(git log --no-merges --format='%h %s' "$BASE..$HEAD" | grep -vE "^[0-9a-f]+ $pattern" || true)
+          if [ -n "$bad" ]; then
+            echo "::error::Commit subjects must follow Conventional Commits (see AGENTS.md):"
+            echo "$bad"
+            exit 1
+          fi
+
   tests:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -130,7 +149,7 @@ jobs:
           key: ${{ steps.build.outputs.cache-primary-key }}
 
   test:
-    needs: [changes, tests]
+    needs: [changes, tests, commits]
     if: always()
     runs-on: ubuntu-24.04
     steps:
@@ -138,8 +157,10 @@ jobs:
           CHANGES: ${{ needs.changes.result }}
           CODE: ${{ needs.changes.outputs.code }}
           TESTS: ${{ needs.tests.result }}
+          COMMITS: ${{ needs.commits.result }}
         run: |
           test "$CHANGES" = success
+          test "$COMMITS" = success || test "$COMMITS" = skipped
           test "$CODE" = false || test "$TESTS" = success
 
   secrets:

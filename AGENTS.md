@@ -12,6 +12,14 @@ Self-hosted personal AI assistant. Terms: `CONTEXT.md`. Decisions: `docs/adr/`.
 
 Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p jvm`. UI screenshots render to `shared/ui/build/screens/` via `./kotlin test -m ui -p jvm`. Releases: [docs/releasing.md](docs/releasing.md).
 
+## Commits
+
+- Every commit follows [Conventional Commits](https://www.conventionalcommits.org): `type(scope): subject`. CI rejects pull requests with other commit subjects (merges excepted).
+- Types: `feat`, `fix`, `perf`, `refactor`, `style`, `test`, `docs`, `build`, `ci`, `chore`, `revert`. Append `!` for breaking protocol or config changes.
+- Scope is the feature or area, lowercase, matching `shared/app` feature names where one fits: `agents`, `sessions`, `chat`, `voice`, `browser`, `screens`, `computers`, `surfaces`, `notifications`, `models`, `approvals`, `onboarding`, `settings`, `ui`, `server`, `core`, `plugins`, `ios`, `android`, `desktop`, `cli`, `release`. Omit it for repo-wide changes.
+- Subject: imperative, lowercase start, no trailing period, at most 72 characters. Explain why in the body when it isn't obvious.
+- One logical change per commit; never `wip`, `fixup` or round-numbered subjects on main.
+
 ## Device workflow
 
 - Use T3 `device_list` and `device_open` only to discover, boot and attach a device to the sidebar for the user to watch. Use the returned device ID for every subsequent operation. Do not use T3 device screenshot tools for inspection or verification.
