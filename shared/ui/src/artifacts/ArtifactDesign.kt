@@ -70,10 +70,17 @@ private val Artboard.label get() = name.ifBlank { id }
 
 /** A single artboard at its real size, shrunk to the page's width when wider. */
 internal fun artboardDocument(board: Artboard, background: Color): String =
-    "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"></head>" +
-        "<body style=\"margin:0;background:${background.css()}\"><div id=\"o\" style=\"overflow:hidden\"><div id=\"c\" style=\"transform-origin:0 0;width:${board.width}px;height:${board.height}px\">" +
-        "<iframe sandbox=\"allow-scripts\" referrerpolicy=\"no-referrer\" style=\"border:0;width:100%;height:100%;display:block\" srcdoc=\"${attr(sandboxed(board.html))}\"></iframe></div></div>" +
-        "<script>var c=document.getElementById('c'),o=document.getElementById('o');function r(){var s=Math.min(1,innerWidth/${board.width});c.style.transform='scale('+s+')';o.style.width=${board.width}*s+'px';o.style.height=${board.height}*s+'px'}addEventListener('resize',r);r()</script></body></html>"
+    "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>" +
+        "body{margin:0;height:100vh;display:flex;overflow:auto;background:${background.css()}}#o{margin:auto;flex:none;overflow:hidden}#c{transform-origin:0 0;width:${board.width}px;height:${board.height}px}" +
+        "#z{position:fixed;right:12px;bottom:12px;display:flex;gap:2px;padding:3px;border-radius:999px;background:rgba(40,40,40,.85);font:12px system-ui,sans-serif}" +
+        "#z button{all:unset;cursor:pointer;min-width:28px;height:28px;padding:0 6px;text-align:center;border-radius:999px;color:#eee}#z button:hover{background:rgba(255,255,255,.12)}</style></head>" +
+        "<body><div id=\"o\"><div id=\"c\"><iframe sandbox=\"allow-scripts\" referrerpolicy=\"no-referrer\" style=\"border:0;width:100%;height:100%;display:block\" srcdoc=\"${attr(sandboxed(board.html))}\"></iframe></div></div>" +
+        "<div id=\"z\"><button id=\"m\" title=\"Zoom out\">−</button><button id=\"p\" title=\"Fit\"></button><button id=\"a\" title=\"Zoom in\">+</button></div>" +
+        "<script>var W=${board.width},H=${board.height},z=1,c=document.getElementById('c'),o=document.getElementById('o'),p=document.getElementById('p');" +
+        "function r(){var s=Math.min(innerWidth/W,innerHeight/H,1)*z;c.style.transform='scale('+s+')';o.style.width=W*s+'px';o.style.height=H*s+'px';p.textContent=Math.round(s*100)+'%'}" +
+        "function zz(f){z=f?Math.min(8,Math.max(.1,z*f)):1;r()}document.getElementById('m').onclick=function(){zz(.8)};document.getElementById('a').onclick=function(){zz(1.25)};p.onclick=function(){zz(0)};" +
+        "addEventListener('keydown',function(e){var f=e.key==='+'||e.key==='='?1.25:e.key==='-'||e.key==='_'?.8:e.key==='0'?0:null;if(f!==null){zz(f);e.preventDefault()}});" +
+        "addEventListener('wheel',function(e){if(e.ctrlKey||e.metaKey){e.preventDefault();zz(Math.exp(-e.deltaY*.01))}},{passive:false});addEventListener('resize',r);r()</script></body></html>"
 
 /** The artboard [id] alone on the same canvas, editable; its edits save like the canvas's own and don't reload it. */
 @Composable
