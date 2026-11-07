@@ -19,6 +19,10 @@ data class ArtifactInfo(
 @Serializable
 data class ArtifactData(val info: ArtifactInfo, val content: String)
 
+/** A user edit: [content] replaces the whole source. */
+@Serializable
+data class ArtifactSave(val id: String, val content: String)
+
 @Serializable
 data class ArtifactRef(val id: String)
 

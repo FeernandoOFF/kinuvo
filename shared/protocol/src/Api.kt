@@ -266,6 +266,7 @@ object Api {
     /** Every Artifact, newest first. */
     val Artifacts = Method("artifacts.list", Unit.serializer(), ListSerializer(ArtifactInfo.serializer()))
     val Artifact = Method("artifact.get", ArtifactRef.serializer(), ArtifactData.serializer())
+    val SaveArtifact = Method("artifact.save", ArtifactSave.serializer(), ArtifactInfo.serializer())
     val DeleteArtifact = Method("artifact.delete", ArtifactRef.serializer(), Unit.serializer())
     val Routines = Method("routines.list", AgentRef.serializer(), ListSerializer(Routine.serializer()))
     val CreateRoutine = Method("routine.create", CreateRoutineParams.serializer(), Routine.serializer())
