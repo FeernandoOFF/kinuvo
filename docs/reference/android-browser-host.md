@@ -1,5 +1,6 @@
 ---
 title: "Android Browser"
+description: "Contributor reference for Android WebView hosting, isolation and control."
 ---
 
 The Android Server offers Browser when the installed WebView supports AndroidX
@@ -56,7 +57,4 @@ separate popup windows and native dialogs are not supported. Use ordinary
 Takeover for page controls the semantic tools cannot operate. Some sites and
 sign-in providers restrict embedded WebViews; this is not desktop Chromium.
 
-Screen-off/background loading, actions and pixel capture passed short Samsung
-Android 16 checks. Secure keyguard, long idle periods, Doze, battery saver,
-memory pressure and other WebView/device versions remain unverified. Browser
-requests no wake lock and does not promise unattended locked-screen reliability.
+Browser requests no wake lock and does not promise unattended locked-screen reliability. Verify secure keyguard, long idle periods, Doze, battery saver and memory pressure on the target Device.

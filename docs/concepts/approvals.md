@@ -5,7 +5,7 @@ description: "How Risk tolerance, Trust rules and Deny rules control tool calls.
 
 An Approval is your decision on one tool call or Reflection proposal. For a tool call, you can allow it once, allow it **for this Session**, save an **always allow** Trust rule where offered, or deny it. Allowing for this Session trusts the same calls as always allow would, but only in that Session and until the Server restarts; nothing is saved.
 
-The harness classifies tool calls with code rather than asking the model:
+Kinuvo assigns each tool call a Risk level:
 
 | Risk | Meaning |
 | --- | --- |
@@ -39,5 +39,3 @@ Workspace checks and command classification are not OS isolation. A trusted scri
 Routines normally use relaxed Risk tolerance. Auto runs, and runs whose Agent is full, use full. An Approval unanswered for 30 minutes is denied for that call and the run continues with the skipped call in its report. Deny rules still apply.
 
 Computer use has extra checks, including app-scoped Trust rules and actions that always need an Approval. Read [Computer use](../guides/computer-use.md#risk) before enabling it.
-
-Source: [ADR 0006](../adr/0006-deterministic-approvals.md), [shell parser](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/core/src/ShellCommand.kt).

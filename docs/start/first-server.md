@@ -50,4 +50,4 @@ With the Server running, open another terminal and [pair a management Device](pa
 kinuvo pair --manage
 ```
 
-The usual home is `~/.kinuvo`; `KINUVO_HOME` selects another. In a development checkout, follow [isolated local testing](../local-testing.md) and use its pinned mise commands.
+The usual home is `~/.kinuvo`; `KINUVO_HOME` selects another. In a development checkout, follow [isolated local testing](../local-testing.md) and use its scoped mise commands.

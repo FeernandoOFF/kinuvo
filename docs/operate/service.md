@@ -36,5 +36,3 @@ kinuvo service uninstall
 Uninstall stops and removes the service; it does not delete the Server home or disable persistent Tailscale Serve routes. See [browser access](../guides/browser-access.md).
 
 Only one Server should use a home. macOS has one service label across homes, so managing a different home does not create an independent launchd label. Development checkouts must follow their [assigned local-testing setup](../local-testing.md).
-
-Source: [ServiceCommands](https://github.com/FeernandoOFF/kinuvo/blob/main/apps/cli/src/ServiceCommands.kt).

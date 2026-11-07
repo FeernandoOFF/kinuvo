@@ -62,5 +62,3 @@ MCP `command` and `args` refuse references; use environment values or HTTP heade
 Tool output masks cached resolved values of at least four characters. This is not a guarantee against a consumer exposing a value: masking covers only values still in memory. Keep tool access and Workspaces appropriate.
 
 Self-refreshing provider OAuth tokens, such as Codex sign-in, are separate. MCP OAuth is Server-owned storage too; see [MCP](../guides/mcp.md). Other password managers' URI schemes are not implemented just because their syntax exists.
-
-Sources: [ADR 0005](../adr/0005-secret-references-resolved-by-the-server.md), [Secrets](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/core/src/Secrets.kt).

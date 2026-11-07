@@ -1,6 +1,6 @@
 ---
 title: "Browser access"
-description: "Kinuvo browser access."
+description: "Connect to your Server’s web app over private HTTPS."
 ---
 
 The Server includes the web app. Open it at the Server's own HTTPS address, then pair that browser. Native apps can also use explicit private HTTP/WS addresses; remote browser sign-in requires HTTPS even over Tailscale.
@@ -73,3 +73,13 @@ Visit `http://localhost:18787` while the tunnel stays open. Run `kinuvo pair` on
 - **HTTPS opens but authentication is refused:** the proxy and Kinuvo must agree on the exact origin, including a non-default port. `--tailscale` configures both; for a manual proxy, configure `--public-url`, trusted proxy addresses and `X-Forwarded-Proto: https`.
 - **The browser asks to pair again:** the cookie expired or was discarded, or the Device was revoked or its credential rotated elsewhere. This does not mean the Server lost your Agents or Sessions. Browser sessions created before persistent Device credentials were introduced require one new pairing.
 - **iOS reports "TLS sessions are not supported on Native platform":** update or rebuild the iOS app. Older builds selected a networking engine without native TLS support; the iOS client now uses Apple's networking engine for HTTPS and secure WebSockets.
+
+## Let an Agent browse
+
+Browser is separate from the web app you use to connect to Kinuvo. Enable **Browser** under the Agent’s **Tools & MCP → Built-in tools**, then select the Browser globe in its Session. Desktop and CLI Servers need Chrome or Chromium installed. Set `KINUVO_BROWSER_EXECUTABLE` to an absolute executable path if it is not found automatically. Android Servers require a WebView version with isolated-profile support; the iOS Server does not offer Browser.
+
+Each Agent has its own saved sign-ins, shared across its Sessions. Closing a tab affects all Sessions of that Agent. Desktop and CLI Servers restore saved tab URLs after restart, but not unsaved forms or page state. Android tabs close when its Server process stops.
+
+From a management Device, open Live view and choose **Take over** to navigate, type or sign in yourself. Choose **Hand back** to let the Agent continue. Disconnecting leaves Takeover suspended; reconnect and recover it or hand back explicitly. Other tabs may keep working.
+
+Desktop Browser options include **Show browser window**. Changing it restarts Chrome and loses unsaved page state while retaining sign-ins. Browser file transfers and native dialogs are not supported. Some sign-in providers reject Android’s embedded browser.

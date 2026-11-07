@@ -1,5 +1,6 @@
 ---
 title: "Server-owned Browser"
+description: "Contributor guide to Browser engines, lifecycle, control and verification."
 ---
 
 JVM Servers (desktop and CLI) use Chrome/Chromium through kdriver; Android Servers use WebView
@@ -66,7 +67,7 @@ also invalidates previous refs; Live view polling does not. Listing tabs, openin
 capturing, navigating, back/forward, scrolling and waiting are Low Risk and run
 without Approval at the default Risk tolerance. Close is Medium Risk; click/fill
 are High Risk. Strict tolerance still asks for every tool. Existing Approval, Trust
-and Deny rules apply. Agent capture/input is refused during Takeover. By explicit user scope, Browser
+and Deny rules apply. Agent capture/input is refused during Takeover. Browser
 adds no password, OTP or payment-field refusals or per-site Trust rules. Existing
 Agent Risk tolerance, Approval, Trust and Deny rules govern these actions too.
 Typed values must not be logged. No password-manager value injection is implemented.
@@ -170,10 +171,7 @@ are in `shared/ui/build/screens/browser-*.png`. The shared mobile flow is
 `.maestro/flows/mobile/browser.yaml`; run it through Mockstro using only a
 checkout-designated device, as documented in `.maestro/README.md`.
 
-The kdriver backend is verified on macOS arm64 with real Chrome fixtures and user testing of Agent actions and Takeover. Android Agent tools, Live view,
-Takeover, user tap/text input, control exclusion and reconnection recovery are
-verified on a Samsung Android 16 phone. Windows, Linux, real account sign-in,
-secure keyguard and long-idle/Doze operation still need verification.
+Verify platform behavior separately: real sign-ins, secure keyguard, long-idle and Doze behavior need runtime checks on the target system.
 
 Upstream references: [kdriver](https://github.com/cdpdriver/kdriver) and
 [Chrome DevTools Protocol](https://chromedevtools.github.io/devtools-protocol/).
@@ -197,8 +195,7 @@ connection. A missing or different version is incompatible: the Server rejects
 it before pairing/authentication, capabilities or cookie rotation. Browser HTTP
 authentication returns 409. Updated clients check the response version before
 decoding feature enums and preserve saved credentials on a protocol mismatch.
-Update the Server and Device together. The unified Screens contract replaces
-legacy management mutations.
+Update the Server and Device together.
 
 The active management API is `screens.*`, through `ScreensClient`. Legacy Browser
 commands and Computer input/control/watch RPCs return migration errors. Holds

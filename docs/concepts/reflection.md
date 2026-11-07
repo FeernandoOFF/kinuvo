@@ -11,4 +11,4 @@ Knowledge's `reflection` setting controls automatic Reflection. The Server's `re
 
 Keep Knowledge Conventions clear so proposals fit your note system. Applied Knowledge changes remain visible in the change log and can be undone.
 
-See [Knowledge](knowledge.md), [Memory and Skills](memory-and-skills.md), and the [Server configuration](../reference/config.md). Implementation: [Reflection](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/core/src/knowledge/Reflection.kt).
+See [Knowledge](knowledge.md), [Memory and Skills](memory-and-skills.md), and the [Server configuration](../reference/config.md).

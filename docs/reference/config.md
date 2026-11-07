@@ -72,7 +72,7 @@ tasks:
 
 ## Search and Notifications
 
-Both use `ServiceSettings`:
+Both sections accept these settings:
 
 | Field | Type | Default | Example / meaning |
 | --- | --- | --- | --- |
@@ -155,5 +155,3 @@ rules:
   deny:
     shell: ['rm *']
 ```
-
-Sources: [ServerConfig](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/core/src/store/ServerConfig.kt), [KnowledgeConfig](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/core/src/knowledge/KnowledgeConfig.kt), [TasksConfig](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/core/src/tasks/Tasks.kt), [ServiceSettings](https://github.com/FeernandoOFF/kinuvo/blob/main/shared/protocol/src/Services.kt), [TrustRules](https://github.com/FeernandoOFF/kinuvo/blob/main/shared/protocol/src/Approval.kt), [ADR 0014](../adr/0014-one-config-file.md).

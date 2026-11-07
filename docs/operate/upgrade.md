@@ -21,5 +21,3 @@ If a user service is installed, run `kinuvo service install` again with its exis
 For Docker, pull the desired image, stop the old container and recreate it with the same persistent data volume and deployment settings. Update Device apps from Releases as needed.
 
 Older versions are not guaranteed to understand data written by newer versions. Preserve the stopped-home backup and previous release together; see [backup](backup.md) and [service management](service.md).
-
-Sources: [installer](https://github.com/FeernandoOFF/kinuvo/blob/main/install.sh), [service installer](https://github.com/FeernandoOFF/kinuvo/blob/main/apps/cli/src/ServiceCommands.kt).

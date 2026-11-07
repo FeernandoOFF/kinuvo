@@ -9,7 +9,7 @@ Voice chat lets you talk with an Agent in a Session, with a transcript saved the
 
 Live voice is an opt-in speech-to-speech mode for Voice chat, using ChatGPT's realtime voice model through the owner's ChatGPT/Codex subscription. Sign in to Codex on the Server, then enable **Live voice** under **Settings → Server → Voice**. The setting appears only when the Server can offer it: currently a JVM Server on macOS arm64 with Codex signed in. Devices on iOS, Android and desktop can join through that Server.
 
-Start a Voice call from the Session's voice controls. Audio streams continuously from the Device through the Server to OpenAI during the call. The Server holds the WebRTC connection through an undocumented Codex endpoint. Calls count against the ChatGPT plan's usage limits; the call screen shows readable errors, including a reached usage limit and its reset time when available.
+Start a Voice call from the Session's voice controls. Audio streams continuously from the Device through the Server to OpenAI during the call. Calls count against the ChatGPT plan's usage limits; the call screen shows readable errors, including a reached usage limit and its reset time when available.
 
 The voice model hands tasks to the Session's Agent, including External Agents. These run as ordinary Session messages labelled **By voice**, with Approvals shown in a sheet over the call. When the call ends, its transcript is saved in the Session as one collapsible **Voice call** block.
 
@@ -31,28 +31,17 @@ Configure `voice.transcription` for speech to text (STT), `voice.synthesis` for 
 
 Restart the Server after editing the configuration. Voice chat chooses the advertised providers when it starts; end an existing chat and start it again to use a changed selection. No separate model-provider login is needed: audio providers use their own optional `apiKey`.
 
-For this transcription-and-synthesis mode, Server-backed Voice chat and Dictation are available on iOS and macOS. Windows uses Device speech. Android offers Live voice through a supported Server; browser clients do not currently offer Voice chat. Desktop setup is described in [Desktop speech](../desktop-voice.md). Microphone access is always needed; Device speech recognition access is needed only when using Device transcription or Dictation.
+For this transcription-and-synthesis mode, Server-backed Voice chat and Dictation are available on iOS and macOS. Windows uses Device speech. Android offers Live voice through a supported Server; browser clients do not currently offer Voice chat. On desktop, allow microphone access in system settings; Device transcription also needs speech recognition access. Microphone access is always needed; Device speech recognition access is needed only when using Device transcription or Dictation.
 
 Server transcription records a WAV turn and uploads it after about 1.3 seconds of quiet. Hold to talk to include pauses, then let go to transcribe and send. Recordings stop after 30 seconds; ten seconds without speech restarts listening without a provider request. The 30-second cap bounds memory use and upload latency for a buffered turn; it is an application limit, not an OpenAI API requirement. At 16 kHz mono PCM16, a full turn contains about 960 KB of audio. Transcripts appear after the recording is uploaded, rather than word by word.
 
 When either Server provider is selected, listening pauses while the Agent thinks and replies play, to avoid transcribing the speaker. Pause cuts speech short; resume listens again. Replies are synthesized in ordered chunks of up to 240 characters. Provider errors end Voice chat with an error; they do not silently switch providers.
 
-## Endpoint contract and limits
+## Compatible speech services
 
-The base URL must include the provider's API prefix, such as `/v1`. The Server appends:
-
-- `/audio/transcriptions`: multipart `file` (WAV), `model`, `response_format=json`, and optional `language`; expects a JSON object with a string `text`.
-- `/audio/speech`: JSON `model`, `input`, `voice` and `response_format=wav`; expects RIFF/WAVE audio.
-
-The contract follows the official OpenAI [transcription](https://developers.openai.com/api/reference/resources/audio/subresources/transcriptions/methods/create) and [speech](https://developers.openai.com/api/reference/resources/audio/subresources/speech/methods/create) APIs. Compatible services must implement these formats; chat-only OpenAI compatibility is insufficient.
-
-Limits are 2 MiB per recording, 20,000 transcript characters, 2,000 characters per synthesis request, 8 MiB per returned WAV and 128 KiB per transcription JSON response. Requests time out after two minutes. Warm local models first if their initial load takes longer.
+Include the API prefix, such as `/v1`, in the base URL. The service must support OpenAI-compatible audio transcription and WAV speech synthesis; a chat-only endpoint is not enough. Requests time out after two minutes, so warm local services first if initial loading takes longer.
 
 Endpoints and keys remain on the Server. A configured STT service receives your recorded speech; a configured TTS service receives the text being read aloud, including spoken Approval notices. Audio clips stay in memory and are not stored in Session history by Kinuvo. Provider retention policies still apply.
-
-The authenticated client API exposes `voice.transcribe` (`{base64}` WAV → string) and `voice.synthesize` (`{text}` → `{base64}` WAV). Cancelling either call sends `voice.cancel` (`{requestId}`) on the same connection, which cancels the matching Server request and releases its request slot. Cancellation does not consume a request slot. `ServerCapabilities.voice` advertises available parts; older Servers default to Device speech.
-
-Implementation: [voice interfaces](https://github.com/FeernandoOFF/kinuvo/blob/main/shared/app/src/session/Voice.kt), [HTTP adapter](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/core/src/voice/OpenAICompatibleVoice.kt).
 
 <div class="k-future">
 
@@ -62,3 +51,9 @@ Implementation: [voice interfaces](https://github.com/FeernandoOFF/kinuvo/blob/m
 - The design is recorded in [ADR 0013](../adr/0013-voice-providers.md).
 
 </div>
+
+## Download voice models onto the Server
+
+In **Settings → Server → Voice**, download and select a transcription or synthesis model when your Server offers downloaded models. These run on the Server’s machine, including when you control the download from a phone. Downloading requires network access; installed models can run offline. The initial download also installs the required inference engine.
+
+Downloaded selections take precedence over configured speech endpoints. Removing a selected model clears that selection; active models cannot be removed while in use. A configured model failure is reported rather than silently using Device speech. Audio may still leave the Device when the selected Server is remote.

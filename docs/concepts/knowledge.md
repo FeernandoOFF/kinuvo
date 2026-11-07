@@ -9,7 +9,7 @@ Kinuvo uses that system's own types, properties and Markdown bodies. Links in No
 
 **Conventions** explain how you organize Notes: which types hold people, where facts go, how you link them, and any journal structure you use. They are saved per provider in the Server home's `conventions/` folder. Kinuvo has no built-in journal.
 
-During requested work an Agent can change Knowledge through its tools, subject to Approvals. Background [Reflection](reflection.md) proposes Knowledge changes for you to review first. Applied changes are listed and can be undone; each change records the source scope and its native undo information.
+During requested work an Agent can change Knowledge through its tools, subject to Approvals. Background [Reflection](reflection.md) proposes Knowledge changes for you to review first. Applied changes are listed and can be undone; each change identifies the note system it changed.
 
 Replacing text you wrote uses a separate tool that needs an Approval. Switching Knowledge providers does not migrate Notes.
 

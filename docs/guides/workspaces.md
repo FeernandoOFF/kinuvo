@@ -52,5 +52,3 @@ ssh:
 The remote machine needs Bash. Extra `env` values are supported for container and SSH modes and can hold Secret references. See [Agent configuration](../reference/agent.md).
 
 Use the Settings connection test before asking the Agent to work. If it fails, check folder existence, runtime availability, SSH authentication and paths on the correct machine.
-
-Source: [Exec backends](https://github.com/FeernandoOFF/kinuvo/tree/main/harness/plugins/exec/src).

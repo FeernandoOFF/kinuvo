@@ -1,21 +1,19 @@
 ---
 title: "Models and provider plugins"
-description: "Kinuvo models and provider plugins."
+description: "Choose models and configure cloud, Custom and downloaded providers."
 ---
 
 Choose an Agent's provider and model in Settings → Agent → Model. The composer can choose a different provider/model for one Session; “Agent's model” clears that choice and its reasoning setting. Changes take effect on the next run. Both places support custom model IDs and a manual refresh.
 
-## Discovery and metadata
+## Available models
 
-The Server exposes the authenticated `models.list` method (`ModelsParams(refresh = false)`). Installed `ModelProvider` plugins discover the runnable models. The open-source [Models.dev catalog](https://github.com/anomalyco/models.dev), fetched from `https://models.dev/api.json`, fills missing display names, reasoning options, modalities, tool support, context limits and reference API costs. Provider data takes precedence. Models.dev cannot make an uninstalled provider or undiscovered model appear as runnable.
+The picker lists models available from providers installed on the selected Server. Refresh after signing in or changing credentials. You can also enter a custom model ID.
 
-Codex discovers models through the existing ChatGPT login and authenticated Codex models endpoint, using compatibility version `0.160.1`. Hidden models are excluded. This version describes the endpoint contract; model IDs are never hard-coded in the picker. The backend is undocumented and may require future compatibility updates.
-
-Reference costs, when present in the protocol, are USD per million tokens from Models.dev. They describe API pricing, not ChatGPT subscription billing; the picker does not display them. The resolved metadata configures both Session capabilities and the Koog `LLModel` used for execution; explicit unsupported tools, inputs and reasoning are not advertised to the client. Unknown fields remain unknown in the catalog. Metadata does not install plugins.
+Provider information and the [Models.dev catalog](https://models.dev) supply capability details such as supported inputs, tools, reasoning options and context size. Missing information stays unknown; a catalog entry alone does not make a model available on your Server.
 
 ## OpenAI API and ChatGPT subscription
 
-The Server offers `codex` (ChatGPT subscription sign-in) and `openai` (OpenAI API key). They share the Koog Responses adapter, with separate authentication and model discovery.
+The Server offers `codex` (ChatGPT subscription sign-in) and `openai` (OpenAI API key). Sign in to each separately.
 
 For API access, open **Settings → Model providers → OpenAI API** to paste a key or use **From Proton Pass** (when connected) to choose a Secret reference. The client sends the setting to the selected Server and never reads a saved key back. A saved setting takes precedence over `OPENAI_API_KEY`; removing it returns to the environment value, if any. Refresh models after changing credentials.
 
@@ -29,10 +27,6 @@ OPENAI_API_KEY=${pass://Kinuvo/OpenAI/api key}
 
 Choose **OpenAI API** in the Agent or Session model picker and refresh its models. Keys stay on the Server. API models are discovered from `https://api.openai.com/v1/models`; the picker excludes known audio, image-generation, embedding and other non-chat model families. Custom IDs remain available. API usage is separate from the ChatGPT subscription. See the [OpenAI API quickstart](https://developers.openai.com/api/docs/quickstart).
 
-Tool definitions have stable ordering and recursively sorted schema object keys. Conventions remain in late Session Context, so changing them does not rewrite tool descriptions. The chat runner allows 30 model steps and reports exhausted work as an error rather than normal completion.
-
-Compaction can summarize completed tool exchanges within the current turn while keeping its user request, current Context and activated Skills. The full transcript remains on disk. Input estimates include tool definitions and reserve output space for known context windows; oversized summaries are chunked, and requests that still cannot fit are rejected before inference.
-
 ## Apple on-device models
 
 On macOS, the desktop and standalone Servers automatically offer **Apple → Apple on-device model** when Apple's `/usr/bin/fm` is installed. Enable Apple Intelligence and review and accept the CLI license on the Mac running the Server with `sudo fm license`, then refresh models. Kinuvo shows setup instructions while the license or model is unavailable. No API key is needed. See the [Mac setup guide](../guides/apple-models.md) for requirements, troubleshooting and limits.
@@ -41,7 +35,7 @@ On iOS, the embedded Server uses Apple's native Foundation Models framework; the
 
 ## OpenAI-compatible endpoints
 
-JVM and embedded mobile Servers can connect to OpenAI-compatible Chat Completions APIs through Koog. Add named endpoints to `providers` in the Server home's `config.yaml`, then restart the Server:
+JVM and embedded mobile Servers can connect to OpenAI-compatible Chat Completions APIs through their Chat Completions API. Add named endpoints to `providers` in the Server home's `config.yaml`, then restart the Server:
 
 ```yaml
 providers:
@@ -74,13 +68,13 @@ providers:
         context: 32768
 ```
 
-Model IDs are sent unchanged. Unknown capabilities remain unspecified. Text and image attachments use the existing shared conversion; native document attachments and provider-specific reasoning extensions are not supported by this adapter. OpenAI encrypted reasoning from an existing Session is omitted when switching to a compatible endpoint. Codex, OpenAI Responses, Apple and LiteRT on-device inference retain their existing behavior.
+Model IDs are sent unchanged. Unknown capabilities remain unspecified. Text and image attachments are supported; native document attachments and provider-specific reasoning extensions are not supported by Custom providers. OpenAI encrypted reasoning from an existing Session is omitted when switching to a compatible endpoint. Codex, OpenAI Responses, Apple and LiteRT on-device inference retain their existing behavior.
 
 ## On-device models
 
-The `local` provider (“On this device”) runs open models on the Server's own machine with [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), so conversations never leave it. It is available on Android embedded Servers and on JVM Servers (desktop and `kinuvo serve`) running on Apple silicon macOS, 64-bit Linux or 64-bit Windows. iOS keeps Apple's on-device models.
+The `local` provider (“On this device”) runs open models on the Server's own machine with [LiteRT-LM](https://github.com/google-ai-edge/LiteRT-LM), so model inference stays on that machine. Tools may still contact other services. It is available on Android embedded Servers and on JVM Servers (desktop and `kinuvo serve`) running on Apple silicon macOS, 64-bit Linux or 64-bit Windows. iOS keeps Apple's on-device models.
 
-Download a model in **Settings → Model providers → On this device**, or pick it during onboarding. Any management Device can start, cancel or remove a download on the selected Server, e.g. a phone downloading onto a desktop Server. Progress follows `providers.changed`.
+Download a model in **Settings → Model providers → On this device**, or pick it during onboarding. Any management Device can start, cancel or remove a download on the selected Server, e.g. a phone downloading onto a desktop Server. You can follow progress in Settings.
 
 | Model | Download | Device RAM | Context | Tools |
 | --- | --- | --- | --- | --- |
@@ -90,7 +84,7 @@ Download a model in **Settings → Model providers → On this device**, or pick
 
 All three are Apache-2.0 `.litertlm` files from `litert-community` on Hugging Face, pinned by revision, size and SHA-256. Models the machine can't run are listed with the reason and aren't offered in pickers. Files live in `<Server home>/local-models/<id>/`; an interrupted download resumes, and canceling discards it.
 
-One model is loaded at a time and unloaded after five idle minutes. Loading tries the GPU (Metal, OpenCL) and falls back to the CPU. Each request replays the Session history into a new LiteRT-LM conversation; Kinuvo's agent loop runs the tools. Screen control, Scripts and the tool catalog are left out. A tool call LiteRT-LM can't parse is retried twice with a correction. Replies are capped at 1,024 tokens. Reasoning is off and input is text only.
+One model is loaded at a time and unloaded after five idle minutes. Loading tries the GPU (Metal, OpenCL) and falls back to the CPU. Long Sessions can take longer to process. Screen control, Scripts and the tool catalog are left out. A tool call LiteRT-LM can't parse is retried twice with a correction. Replies are capped at 1,024 tokens. Reasoning is off and input is text only.
 
 Qwen3 0.6B is the smallest download but only handles short, simple turns. Gemma 4 E2B is the recommended default.
 
@@ -101,20 +95,3 @@ The Server saves successful discovery and metadata in `~/.kinuvo/cache/models.js
 Existing Agent configuration and Session transcripts remain valid. A model absent from discovery can still be entered by ID; the selected provider validates access when running it. Existing Session settings without a provider inherit the Agent's provider. New choices save the provider and model together, so identical model IDs in different plugins route correctly.
 
 The discovery cache belongs to the Server and is keyed by provider, not account. After changing the logged-in account, use “Refresh models” to replace the saved list. Offline lists indicate prior availability and cannot guarantee current account access.
-
-## Adding a provider
-
-Implement `ModelProvider` and expose it through a `HarnessPlugin.modelProviders` list:
-
-```kotlin
-override val id = "my-provider" // agent.yaml provider key
-override val name = "My provider"
-override val catalogId = "models-dev-provider-key" // optional
-override suspend fun models(): List<ModelInfo> = discoverFromProvider()
-override fun model(config: AgentConfig): Model = buildModel(config)
-override fun model(config: AgentConfig, info: ModelInfo?): Model = buildModel(config, info)
-```
-
-Add it to `jvmProviders` in `harness/server/jvm/src/Plugins.kt` for JVM hosts and to `embeddedPlugins` in `harness/server/embedded/src@android|@ios/EmbeddedPlugins.*.kt` for phones, or pass it in `Harness(plugins = ...)` for another host. Plugins are compiled into the host today. Only installed plugins are exposed. Discovery runs on the Server; credentials never go to Models.dev or clients. Plugins without discovery keep working through custom IDs. Use `catalogId = null` for providers without a matching Models.dev catalog.
-
-`ModelInfo.reasoning = null` means unknown; an empty list means unsupported; otherwise the list contains the accepted values. `defaultReasoning` is optional. The UI uses those options when selecting a model and preserves custom IDs. Codex omits the reasoning parameter when the selected effort is `none`.

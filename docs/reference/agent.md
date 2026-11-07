@@ -3,7 +3,7 @@ title: "Agent configuration"
 description: "Every agent.yaml field and the documents stored beside it."
 ---
 
-Each Agent has `agents/<id>/agent.yaml` under the Server home. These are the `AgentConfig` defaults; onboarding or a host's default provider can choose different values for a new Agent. Session settings can override provider, model, reasoning and Risk tolerance for one Session.
+Each Agent has `agents/<id>/agent.yaml` under the Server home. These are the file defaults; onboarding or a host's default provider can choose different values for a new Agent. Session settings can override provider, model, reasoning and Risk tolerance for one Session.
 
 | Field | Type | Default | Example / meaning |
 | --- | --- | --- | --- |
@@ -85,5 +85,3 @@ container:
 | `skills/` | Agent-owned Skills |
 | `sessions/` | Session transcripts |
 | `routines.json` | Routines and their state |
-
-Sources: [AgentConfig](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/core/src/Agent.kt), [nested settings](https://github.com/FeernandoOFF/kinuvo/blob/main/shared/protocol/src/Config.kt), [tool groups](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/core/src/tools/Tool.kt), [file layout](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/core/src/store/AgentFiles.kt).

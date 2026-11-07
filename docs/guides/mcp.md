@@ -59,5 +59,3 @@ Shared config is `<Server home>/mcp.json`; Agent config is `agents/<id>/mcp.json
 ```
 
 For many tools, the Agent uses the Tool catalog to find, describe and call them on demand. Scripts using `run_code` can call tools under the same Approvals.
-
-Sources: [McpCommands](https://github.com/FeernandoOFF/kinuvo/blob/main/apps/cli/src/McpCommands.kt), [ADR 0007](../adr/0007-mcp-oauth-server-owned-flow.md), [ADR 0012](../adr/0012-central-tools-and-tool-catalog.md).

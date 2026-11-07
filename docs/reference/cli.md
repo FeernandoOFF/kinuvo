@@ -119,5 +119,3 @@ Add options: repeatable `--env KEY=VALUE`, `--header KEY=VALUE`, `--include TOOL
 | `secrets browse [VAULT [ITEM]]` | Names only; `--scheme pass` |
 | `secrets refresh` | Clear the in-memory resolved-value cache |
 | `notify [MESSAGE]` | Test the configured Notification service |
-
-Source: [CLI command implementations](https://github.com/FeernandoOFF/kinuvo/tree/main/apps/cli/src). This reference is derived from the Clikt definitions; no CLI command was run against a data home to generate it.

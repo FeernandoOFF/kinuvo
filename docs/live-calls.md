@@ -1,4 +1,7 @@
-# Live voice ownership
+---
+title: "Live voice ownership"
+description: "Contributor guide to call lifetimes, platform audio and iOS Live Activities."
+---
 
 Koin's `LiveCalls` singleton owns the active live voice chat. Observe
 `state: StateFlow<ActiveCall?>`: null means no call. `ActiveCall` identifies the

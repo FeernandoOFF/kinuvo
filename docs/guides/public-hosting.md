@@ -1,6 +1,6 @@
 ---
 title: "Public hosting"
-description: "Kinuvo public hosting."
+description: "Configure and use public hosting."
 ---
 
 Run one Server for one owner's Devices. Ordinary access shares that owner's Agents, Sessions and Tasks; it does not create a separate user account. Unrelated users need separate instances and data directories.
@@ -68,5 +68,3 @@ Browser origins are matched exactly against the configured public URL. Requests 
 Before authentication, connections have a ten-second deadline and a 4 KiB frame limit. Failed authentication closes the socket. Unknown WebSocket credentials and new HTTP session exchanges are limited to ten attempts per source and sixty globally per minute; valid WebSocket credentials and existing browser sessions do not consume the guessing budget. Connections are capped at eight per source and sixty-four globally. Sources come from the raw peer address or the configured trusted proxy's forwarded address. HTTP authentication bodies are bounded to 4 KiB and ten seconds. After authentication, requests are limited to eight concurrent operations and six hundred messages per minute; the larger frame allowance supports existing attachments. Access-denial logs are throttled and contain no codes, tokens, cookie contents or message bodies.
 
 Generated HTML Artifacts run in an opaque-origin iframe sandbox that permits scripts but forbids same-origin access, popups and top-level navigation. The existing resource CSP remains inside the frame. They cannot read app storage or its opener; iOS uses a non-persistent web-view store and Android disables file/content access.
-
-Validation: authentication tests cover code consumption, expiry, rotation, management restrictions, origin/proxy handling, secure cookies, revocation, deadlines, oversized pre-authentication frames, and message limits. Storage tests cover secure storage failures and keeping credentials out of preferences; the macOS integration test writes and deletes a temporary Keychain entry. The packaged web app was paired and reloaded through this Caddy configuration over HTTPS/WSS, verifying security headers, cookie attributes, credential-free local storage, and foreign-Origin rejection. Browser verification confirms Artifact scripts work while storage access raises `SecurityError`. Android was paired and restarted with encrypted credentials, and the iOS app builds successfully. Compile shared clients and UI for JVM, Android, iOS Simulator and web when changing these flows. Windows and Linux secure stores still need runtime checks on those operating systems.

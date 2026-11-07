@@ -29,7 +29,7 @@ export default defineConfig({
       { label: 'Guides', items: ['guides/apple-models', 'guides/notes', 'guides/mcp', 'guides/voice', 'guides/workspaces', 'guides/attachments', 'guides/browser-access', 'guides/computer-use', 'guides/public-hosting'] },
       { label: 'Reference', items: ['reference/config', 'reference/agent', 'reference/cli', 'reference/models', 'reference/secrets', 'reference/plugins'] },
       { label: 'Operate', items: ['operate/upgrade', 'operate/backup', 'operate/service', 'operate/troubleshooting', 'operate/tracing'] },
-      { label: 'Contributing', items: ['releasing', 'local-testing'] },
+      { label: 'Contributing', items: ['releasing', 'local-testing', 'controlled-browser', 'desktop-voice', 'device-local-voice', 'live-calls', 'reference/android-browser-host', 'contributing/voice-providers', 'contributing/native-ui-with-a2ui', 'contributing/html-surfaces-and-mcp-apps'] },
     ],
   })],
   vite: { server: { allowedHosts: ['mac-mini.tail204f86.ts.net'] } },

@@ -18,5 +18,3 @@ A self-hosted Server can use a cloud model. An on-device model does not imply th
 The Apple provider limits the tools it offers to fit its models, so it does not expose every tool available to a larger cloud model. Use the model picker for availability and [models](../reference/models.md) for provider details.
 
 See [plugins](../reference/plugins.md), [MCP](../guides/mcp.md), [Workspaces](../guides/workspaces.md) and [Computer use](../guides/computer-use.md).
-
-Implementation: [Apple provider](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/providers/apple/src/AppleProvider.kt), [embedded Server](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/server/embedded/src/EmbeddedServerHost.kt).
