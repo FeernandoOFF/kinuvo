@@ -4,6 +4,10 @@ import kinuvo.ui.surface.LocalSurfaceItems
 
 import kinuvo.ui.surface.LocalSurfaceRenderers
 import kinuvo.ui.surface.SurfaceCall
+import kinuvo.ui.surface.HtmlSurface
+import kinuvo.ui.surface.McpAppSurface
+import kinuvo.ui.surface.LocalHtmlHeights
+import kinuvo.ui.surface.LocalHtmlSurfaces
 import kinuvo.ui.surface.SurfaceRenderer
 import kinuvo.protocol.Attachment
 import kinuvo.app.connection.*
@@ -126,7 +130,9 @@ internal fun Messages(
         return
     }
     val surfaceRenderers = remember(state.selected) { mutableMapOf<String, SurfaceRenderer>() }
-    CompositionLocalProvider(LocalSurfaceRenderers provides surfaceRenderers, LocalSurfaceItems provides items) {
+    val htmlHeights = remember(state.selected) { mutableMapOf<String, Int>() }
+    val htmlSurfaces = remember(state.selected) { mutableStateListOf<String>() }
+    CompositionLocalProvider(LocalHtmlSurfaces provides htmlSurfaces, LocalHtmlHeights provides htmlHeights, LocalSurfaceRenderers provides surfaceRenderers, LocalSurfaceItems provides items) {
         Box(modifier.fillMaxWidth()) {
             SelectionContainer {
                 LazyColumn(
@@ -275,6 +281,8 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
                     GeneratedImage(a, actions.downloads[a.id]?.base64, { actions.onPreviewAttachment(a.id) }, { actions.onSaveAttachment(a.id) })
                 }
             }
+            item.name == "show_html" && item.result != null && !item.isError -> HtmlSurface(item, actions.onSend) { ToolCallView(item, actions = actions) }
+            item.app != null && item.result != null && !item.isError -> McpAppSurface(item, actions.onAppResource, actions.onAppTool, actions.onSend) { ToolCallView(item, actions = actions) }
             item.name == "show_ui" && item.result != null && !item.isError -> SurfaceCall(item, actions.onSurfaceAction) { ToolCallView(item, actions = actions) }
             item.name == "artifact" && item.result != null && !item.isError -> Column { ArtifactCard(item, actions.onOpenArtifact); ToolAttachments(item.attachments, actions) }
             else -> ToolCallView(item, actions = actions)

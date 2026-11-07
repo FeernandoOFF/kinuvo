@@ -28,6 +28,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 
 sealed interface ChatItem {
     data class VoiceCall(override val id: String, val turns: List<VoiceTurn>, val startedAt: Long, val durationMillis: Long) : ChatItem
@@ -50,6 +51,9 @@ sealed interface ChatItem {
         val questions: AgentEvent.QuestionsAsked? = null,
         val identity: ToolIdentity? = null,
         val attachments: List<Attachment> = emptyList(),
+        /** The MCP App this call shows, with the tool's full result for it. */
+        val app: McpAppRef? = null,
+        val appResult: JsonObject? = null,
     ) : ChatItem {
         val waiting get() = approval != null || questions != null
         val trustHint get() = approval?.trustHint
@@ -122,7 +126,7 @@ fun List<ChatItem>.requestMetrics(): List<RequestMetrics> = flatMap {
 private fun ChatItem.isStep() = when (this) {
     is ChatItem.Reasoning -> true
     is ChatItem.ToolCall -> if (name == "generate_image") waiting || isError
-        else !waiting && !(name in setOf("ask_user", "artifact", "show_ui") && result != null && !isError)
+        else !waiting && !((name in setOf("ask_user", "artifact", "show_ui", "show_html") || app != null) && result != null && !isError)
     else -> false
 }
 
@@ -498,6 +502,18 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
             if (approve) repo.loadSkills(agentId)
         } }
     }
+
+    /** The HTML of the MCP App that tool call [callId] shows. */
+    suspend fun appResource(callId: String): McpAppResource {
+        val ref = checkNotNull(state.value.items.filterIsInstance<ChatItem.ToolCall>().last { it.callId == callId }.app)
+        return repo.connection.mcpApps.resource(ref, appRequest(callId))
+    }
+
+    /** Runs [name] on the MCP server of the app that [callId] shows, for that app. */
+    suspend fun appCallTool(callId: String, name: String, arguments: JsonObject): JsonObject =
+        repo.connection.mcpApps.callTool(appRequest(callId), name, arguments)
+
+    private fun appRequest(callId: String) = McpAppRequest(checkNotNull(route.agentId), checkNotNull(route.sessionId), callId)
 
     /** Keeps [value] as the answer to [questionId] in the `ask_user` form [questionsId] until it's sent. */
     fun editAnswer(questionsId: String, questionId: String, value: List<String>) =

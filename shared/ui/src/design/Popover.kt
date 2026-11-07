@@ -33,7 +33,7 @@ import com.composables.ui.components.Text
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
-private class Shown(val title: String?, val content: @Composable () -> Unit, val onDismiss: () -> Unit)
+private class Shown(val title: String?, val content: @Composable () -> Unit, val onDismiss: () -> Unit, val maxWidth: Dp)
 
 /** Where [Popover]s show: over the whole app, which blurs behind them while [active]. */
 @Stable
@@ -41,7 +41,7 @@ class Popovers {
     private var shown by mutableStateOf<Shown?>(null)
     val active get() = shown != null
 
-    internal fun show(title: String?, content: @Composable () -> Unit, onDismiss: () -> Unit) { shown = Shown(title, content, onDismiss) }
+    internal fun show(title: String?, content: @Composable () -> Unit, onDismiss: () -> Unit, maxWidth: Dp = 440.dp) { shown = Shown(title, content, onDismiss, maxWidth) }
     internal fun hide() { shown = null }
 
     /** Touch screens get a draggable sheet; pointers get a centered panel. */
@@ -62,7 +62,7 @@ class Popovers {
                 // On touch screens, the same full-width sheet as Settings; for pointers, a centered panel.
                 Box(Modifier.align(if (touch) Alignment.BottomCenter else Alignment.Center)
                     .then(if (touch) Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top)) else Modifier.windowInsetsPadding(WindowInsets.safeDrawing).padding(Spacing.space12))
-                    .widthIn(max = if (touch) Dp.Infinity else 440.dp).fillMaxWidth()
+                    .widthIn(max = if (touch) Dp.Infinity else popover.maxWidth).fillMaxWidth()
                     .animateEnterExit(enter = slideInVertically { if (touch) it else 0 }, exit = slideOutVertically { if (touch) it else 0 })
                     .offset { IntOffset(0, drag.value.roundToInt()) }
                     .draggable(
@@ -88,12 +88,12 @@ val LocalPopovers = staticCompositionLocalOf<Popovers?> { null }
 
 /** Shows [content] over the app while [visible], in a sheet on touch screens or a centered panel for pointers. */
 @Composable
-fun Popover(visible: Boolean, onDismiss: () -> Unit, title: String? = null, content: @Composable () -> Unit) {
+fun Popover(visible: Boolean, onDismiss: () -> Unit, title: String? = null, maxWidth: Dp = 440.dp, content: @Composable () -> Unit) {
     val host = LocalPopovers.current ?: return
     val latest by rememberUpdatedState(content)
     val dismiss by rememberUpdatedState(onDismiss)
     DisposableEffect(host, visible) {
-        if (visible) host.show(title, { latest() }, { dismiss() })
+        if (visible) host.show(title, { latest() }, { dismiss() }, maxWidth)
         onDispose { if (visible) host.hide() }
     }
 }
