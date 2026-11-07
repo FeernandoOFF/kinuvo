@@ -148,7 +148,8 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
         val tab = chosen?.takeIf { it in tabs } ?: tabs.firstOrNull()
         val density = LocalDensity.current
         val design = remember(data?.content, data?.info?.type) { data?.takeIf { it.info.isDesign }?.let { designOf(it.content) } }
-        var viewing by remember(data?.info?.id) { mutableStateOf<Viewing?>(null) }
+        var present by remember(data?.info?.id) { mutableStateOf<Int?>(null) }
+        var focus by remember(data?.info?.id) { mutableStateOf<String?>(null) }
         val background = color(backgroundColor)
         var controls by remember { mutableStateOf(ControlsHeight) }
         when {
@@ -161,7 +162,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                 LaunchedEffect(data.content) { if (data.content !in sent) shown = data.content }
                 DesignCanvas(
                     shown, background, Modifier.fillMaxSize().padding(top = controls),
-                    if (visualEditing) { id -> design?.artboards?.indexOfFirst { it.id == id }?.takeIf { it >= 0 }?.let { viewing = Viewing(it, false) } } else null,
+                    if (visualEditing) { id -> if (design?.artboards?.any { it.id == id } == true) focus = id } else null,
                     if (visualEditing) { json -> sent += json; if (sent.size > 16) sent.remove(sent.first()); actions.onSaveDesign(json) } else null,
                 )
             }
@@ -194,19 +195,19 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                         style = TextStyles.secondary, fontWeight = FontWeight.SemiBold, color = if (on) color(backgroundColor) else color(mutedColor),
                     )
                 } else FloatingBar {
-                    if (design?.artboards?.isNotEmpty() == true) FloatingButton(Lucide.Play, "Present") { viewing = Viewing(0, true) }
-                    FloatingButton(Lucide.Pencil, "Edit", actions.onEdit)
+                    if (design?.artboards?.isNotEmpty() == true) FloatingButton(Lucide.Play, "Present") { present = 0 }
+                    if (data.info.isDesign.not()) FloatingButton(Lucide.Pencil, "Edit", actions.onEdit)
                     data.info.sessionId?.let { s -> FloatingButton(Lucide.MessageSquare, "Open the chat", { actions.onOpenSession(data.info.agentId, s) }) }
                     ArtifactMenu(data, agents, now, state.route.fullScreen, actions)
                 }
             }
         }
-        val view = viewing
-        if (view != null && design != null && !editing) ArtboardViewer(design.artboards, view.index, view.present, background, { viewing = view.copy(index = it) }, { viewing = null })
+        val shownBoard = design?.artboards?.firstOrNull { it.id == focus }
+        if (shownBoard != null && data != null && !editing) DesignFocus(data.content, shownBoard.id, shownBoard.name.ifBlank { shownBoard.id }, background, actions.onSaveDesign) { focus = null }
+        val index = present
+        if (index != null && design != null && !editing) ArtboardViewer(design.artboards, index, background, { present = it }, { present = null })
     }
 }
-
-private data class Viewing(val index: Int, val present: Boolean)
 
 internal val ControlsHeight = 56.dp
 private val PointerButtonSize = 32.dp
