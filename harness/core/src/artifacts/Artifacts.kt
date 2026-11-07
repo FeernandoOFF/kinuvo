@@ -3,8 +3,10 @@ package kinuvo.harness.core.artifacts
 import kinuvo.protocol.ArtifactChange
 import kinuvo.protocol.ArtifactData
 import kinuvo.protocol.ArtifactInfo
+import kinuvo.protocol.Design
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.serialization.json.Json
 import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.update
@@ -61,6 +63,7 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
 
     private suspend fun save(info: ArtifactInfo, content: String) {
         require(content.length <= MAX_CHARS) { "Artifacts are limited to ${MAX_CHARS / 1_000_000} MB" }
+        if (info.type == "design") checkedDesign(content)
         repo.save(info, content)
         notify(ArtifactChange(info.id, info))
     }
@@ -68,8 +71,26 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
     private fun notify(change: ArtifactChange) = listeners.load().forEach { runCatching { it(change) } }
 
     companion object {
-        val TYPES = listOf("html", "svg", "md", "csv", "json", "txt")
+        val TYPES = listOf("html", "svg", "md", "csv", "json", "txt", "design")
+        private val json = Json { ignoreUnknownKeys = true }
+        const val MAX_SIDE = 10_000
         const val MAX_CHARS = 5_000_000
+
+        fun parseDesign(content: String): Design = try {
+            json.decodeFromString<Design>(content)
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Design must be JSON like {\"artboards\":[{\"id\",\"name\",\"width\",\"height\",\"html\"}]}: ${e.message?.lineSequence()?.first()}")
+        }
+
+        fun encodeDesign(design: Design) = json.encodeToString(Design.serializer(), design)
+
+        fun checkedDesign(content: String) = parseDesign(content).also { design ->
+            require(design.artboards.all { it.id.isNotBlank() }) { "Artboard ids can't be blank" }
+            require(design.artboards.map { it.id }.toSet().size == design.artboards.size) { "Artboard ids must be unique" }
+            design.artboards.forEach {
+                require(it.width in 1..MAX_SIDE && it.height in 1..MAX_SIDE) { "Artboard '${it.id}' width and height must be 1..$MAX_SIDE" }
+            }
+        }
 
         fun checkedType(type: String) = type.lowercase().removePrefix(".").let { t ->
             when (t) {

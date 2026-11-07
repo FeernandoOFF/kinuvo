@@ -1,6 +1,8 @@
 package kinuvo.ui
 
 import kinuvo.ui.artifacts.*
+import androidx.compose.ui.graphics.Color
+import kinuvo.protocol.Artboard
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -50,5 +52,39 @@ class ArtifactTest {
         assertTrue(frame(visualDocument("<p>x</p>", "n")).contains("DT=\"\\u003c!doctype html>\""))
         val script = frame(visualDocument("<!doctype html></script><p>", "n")).substringAfter("data-kinuvo-editor nonce=\"n\">")
         assertTrue(script.indexOf("</script>") == script.length - "</script>".length)
+    }
+
+    private val sample = """{"artboards":[{"id":"home","name":"Home </script><b>","width":390,"height":844,"html":"<h1>Hi</h1><script>steal()</script>"},{"id":"b","name":"B","width":800,"height":600,"html":"<p>\"x\"</p>"},{"id":"c","name":"C","width":320,"height":480,"html":"<p>c</p>"}]}"""
+
+    @Test
+    fun designCanvasRunsOnlyItsOwnScriptAndKeepsArtboardsReadOnly() {
+        val page = designDocument(sample, nonce = "abc", background = Color(0xFF101010))
+        val inner = frame(page)
+        assertTrue(inner.contains("script-src 'nonce-abc'"))
+        assertTrue(!inner.contains("'unsafe-inline' 'unsafe-eval'"))
+        assertTrue(inner.contains("<script nonce=\"abc\">"))
+        assertTrue(inner.contains("setAttribute(\"sandbox\",\"allow-same-origin\")"))
+        assertTrue(!inner.contains("allow-scripts"))
+        assertTrue(page.contains("sandbox=\"allow-scripts\""))
+        assertTrue(page.contains("e.source!==f.contentWindow"))
+        assertTrue(inner.contains("background:rgb(16,16,16)"))
+        assertTrue(inner.contains("pointer-events:none"))
+    }
+
+    @Test
+    fun designJsonCannotCloseTheCanvasScript() {
+        val inner = frame(designDocument(sample, nonce = "abc"))
+        val script = inner.substringAfter("<script nonce=\"abc\">")
+        assertTrue(script.indexOf("</script>") == script.length - "</script></body>".length)
+        assertTrue(script.contains("Home \\u003c/script>\\u003cb>"))
+    }
+
+    @Test
+    fun anArtboardIsShownAtItsSizeInTheNormalSandbox() {
+        val page = artboardDocument(Artboard("b", "B", 800, 600, "<p>x</p>"), Color.White)
+        assertTrue(page.contains("width:800px;height:600px"))
+        assertTrue(page.contains("sandbox=\"allow-scripts\""))
+        assertTrue(!page.contains("allow-same-origin"))
+        assertTrue(page.contains("Content-Security-Policy"))
     }
 }

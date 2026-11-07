@@ -7,7 +7,7 @@ import kotlinx.serialization.Serializable
 data class ArtifactInfo(
     val id: String,
     val title: String,
-    /** File extension: html, svg, md, csv, json or txt. */
+    /** File extension: html, svg, md, csv, json, txt or design. */
     val type: String,
     val agentId: String,
     /** The Session it was last saved from. */
@@ -29,3 +29,17 @@ data class ArtifactRef(val id: String)
 /** [info] is null when the Artifact was deleted. */
 @Serializable
 data class ArtifactChange(val id: String, val info: ArtifactInfo? = null)
+
+/** A `design` Artifact's content: [artboards] laid out left to right. */
+@Serializable
+data class Design(val artboards: List<Artboard> = emptyList())
+
+/** One page of a [Design]: a self-contained [html] document shown at [width] x [height]. */
+@Serializable
+data class Artboard(
+    val id: String,
+    val name: String = id,
+    val width: Int = 390,
+    val height: Int = 844,
+    val html: String,
+)
