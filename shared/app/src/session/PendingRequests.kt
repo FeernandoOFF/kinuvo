@@ -25,6 +25,11 @@ sealed interface PendingRequest {
         override val id get() = asked.questionsId
     }
 
+    /** A `request_secret` call: the user picks a password manager item or types the value; the Agent only gets a reference. */
+    data class Secret(val asked: AgentEvent.SecretRequested) : PendingRequest {
+        override val id get() = asked.requestId
+    }
+
     /** An external Agent's harness prompt. */
     data class External(val prompt: ExecutionPrompt) : PendingRequest {
         override val id get() = prompt.id
@@ -34,7 +39,7 @@ sealed interface PendingRequest {
 internal const val TAKEOVER_TOOL = "request_takeover"
 
 /** Native requests in transcript order, those without a call in the transcript last, then the harness's own. */
-internal fun pendingRequests(items: List<ChatItem>, approval: AgentEvent.ApprovalRequested?, questions: AgentEvent.QuestionsAsked?, prompts: List<ExecutionPrompt>): List<PendingRequest> {
+internal fun pendingRequests(items: List<ChatItem>, approval: AgentEvent.ApprovalRequested?, questions: AgentEvent.QuestionsAsked?, prompts: List<ExecutionPrompt>, secret: AgentEvent.SecretRequested? = null): List<PendingRequest> {
     fun call(id: String) = items.indexOfLast { it is ChatItem.ToolCall && it.callId == id && it.result == null }
     val native = listOfNotNull(
         approval?.let { call(it.toolCallId) to PendingRequest.Approval(it) },
@@ -43,6 +48,7 @@ internal fun pendingRequests(items: List<ChatItem>, approval: AgentEvent.Approva
             val tool = items.getOrNull(index) as? ChatItem.ToolCall
             index to if (tool?.name == TAKEOVER_TOOL) PendingRequest.Takeover(takeoverReason(tool.args), it) else PendingRequest.Questions(it)
         },
+        secret?.let { call(it.toolCallId) to PendingRequest.Secret(it) },
     )
     return native.sortedBy { if (it.first < 0) Int.MAX_VALUE else it.first }.map { it.second } + prompts.map { PendingRequest.External(it) }
 }

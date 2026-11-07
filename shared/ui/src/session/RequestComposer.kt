@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronUp
 import com.composables.icons.lucide.Hand
+import com.composables.icons.lucide.KeyRound
 import com.composables.icons.lucide.Lucide
 import com.composables.icons.lucide.MessageCircleQuestionMark
 import com.composables.icons.lucide.Pencil
@@ -69,6 +70,10 @@ internal class RequestInput(note: String = "") {
     var step by mutableIntStateOf(0)
     var arguments by mutableStateOf(false)
     var noting by mutableStateOf(note.isNotEmpty())
+    /** A `request_secret` answer: the typed value, or the picked [reference] and where the picker is. */
+    val secret = TextFieldState()
+    var reference by mutableStateOf<String?>(null)
+    var path by mutableStateOf<List<String>?>(null)
 }
 
 /** The [RequestInput] of each open request, by request ID. */
@@ -101,8 +106,12 @@ internal fun RequestComposer(
     val request = requests.firstOrNull()?.takeUnless { it is PendingRequest.External }
     LaunchedEffect(requests) { inputs.retain(requests.map { it.id }.toSet()) }
     val body: @Composable (PendingRequest, Boolean) -> Unit = { current, wide ->
-        RequestHeader(current, requests.size, onClose = if (current is PendingRequest.Questions) ({ actions.onAnswer(null) }) else null)
-        RequestBody(current, state.answers, inputs.of(current), actions, wide)
+        RequestHeader(current, requests.size, onClose = when (current) {
+            is PendingRequest.Questions -> ({ actions.onAnswer(null) })
+            is PendingRequest.Secret -> ({ actions.onSecret(null, null) })
+            else -> null
+        })
+        RequestBody(current, state, inputs.of(current), actions, wide)
     }
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val wide = maxWidth >= WideBreakpoint
@@ -180,6 +189,7 @@ private fun PendingRequest.tone(): Color = when (this) {
 
 private fun PendingRequest.icon(): ImageVector = when (this) {
     is PendingRequest.Approval -> Lucide.ShieldAlert
+    is PendingRequest.Secret -> Lucide.KeyRound
     is PendingRequest.Takeover -> Lucide.Hand
     else -> Lucide.MessageCircleQuestionMark
 }
@@ -187,6 +197,7 @@ private fun PendingRequest.icon(): ImageVector = when (this) {
 private fun PendingRequest.title(): String = when (this) {
     is PendingRequest.Approval -> if (event.isShell()) "Run this command?" else "Allow ${event.identity?.localId ?: event.toolCallName}?"
     is PendingRequest.Questions -> asked.title ?: "Questions for you"
+    is PendingRequest.Secret -> "Share ${asked.label}"
     is PendingRequest.Takeover -> "Your turn"
     is PendingRequest.External -> ""
 }
@@ -195,6 +206,7 @@ private fun PendingRequest.detail(): String? = when (this) {
     // The card shows the preview itself, so only why it asks stays here.
     is PendingRequest.Approval -> event.preview.let { p -> if (p == null) event.reason else event.reason?.removeSuffix(p.text())?.trim()?.ifEmpty { null } }
     is PendingRequest.Takeover -> reason ?: asked.title
+    is PendingRequest.Secret -> asked.reason
     else -> null
 }
 
@@ -220,11 +232,13 @@ private fun RequestHeader(request: PendingRequest, count: Int, onClose: (() -> U
 }
 
 @Composable
-private fun RequestBody(request: PendingRequest, drafts: Map<String, Map<String, List<String>>>, input: RequestInput, actions: ChatActions, wide: Boolean) {
+private fun RequestBody(request: PendingRequest, state: ChatState, input: RequestInput, actions: ChatActions, wide: Boolean) {
+    val drafts = state.answers
     when (request) {
         is PendingRequest.Approval -> ApprovalBody(request.event, input, wide) { actions.onDecision(request.id, it) }
         is PendingRequest.Questions -> QuestionsBody(request.asked, drafts, input, wide, actions)
         is PendingRequest.Takeover -> TakeoverBody(request.asked, input, wide, actions)
+        is PendingRequest.Secret -> SecretRequestBody(request.asked, state, input, wide, actions)
         is PendingRequest.External -> Unit
     }
 }

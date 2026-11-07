@@ -165,6 +165,10 @@ data class ChatState(
     /** The Approval and form the run waits on, which [respond][SessionViewModel.respond] and [answer][SessionViewModel.answer] act on. */
     val approval: AgentEvent.ApprovalRequested? = null,
     val questions: AgentEvent.QuestionsAsked? = null,
+    val secret: AgentEvent.SecretRequested? = null,
+    /** The Server's connected password managers and the names browsed in them, for answering [secret]; null until loaded. */
+    val secretProviders: List<SecretProviderStatus>? = null,
+    val secretEntries: Map<List<String>, List<SecretEntry>> = emptyMap(),
     /** What an external Agent's harness waits on: its permission requests and forms; [harness] names it. */
     val prompts: List<ExecutionPrompt> = emptyList(),
     val harness: String? = null,
@@ -180,7 +184,7 @@ data class ChatState(
     val ended get() = if (external && selected != null && capabilities?.chat?.reasonCode != "archived") SessionEnd.of(phase, capabilities?.chat, resume) else null
     val resumeOnSend get() = external && resumeOnSend(phase, capabilities)
     /** Everything the open Session waits on from the user, oldest first. */
-    val requests get() = pendingRequests(items, approval, questions, prompts)
+    val requests get() = pendingRequests(items, approval, questions, prompts, secret)
     val canStop get() = !external || capabilities?.execution?.cancel == true
     val skills get() = capabilities?.server.supports(ServerFeature.Skills)
     /** Why nothing can be sent, or null when chat works. */
@@ -230,6 +234,9 @@ data class SessionState(
     val resuming: Boolean = false,
     /** The Sessions this one delegated to, oldest first, kept current from the Server's events. */
     val children: List<SessionInfo> = emptyList(),
+    /** Connected password managers and names browsed in them, for answering a `request_secret`; null until loaded. */
+    val secretProviders: List<SecretProviderStatus>? = null,
+    val secretEntries: Map<List<String>, List<SecretEntry>> = emptyMap(),
 ) {
     val prompts get() = data?.live?.pending.orEmpty().map { it.displayPrompt() }
     val phase get() = data?.live?.executionPhase
@@ -538,6 +545,29 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
             repo.answer(questions.questionsId, answers)
             state.update { it.copy(answers = it.answers - questions.questionsId) }
         } }
+    }
+
+    /** Answers the open `request_secret` with a picked [reference] or a typed [value]; neither declines. */
+    fun respondSecret(reference: String?, value: String?) {
+        val secret = state.value.data?.live?.secret ?: return
+        viewModelScope.launch { attempt { repo.respondSecret(SecretAnswer(secret.requestId, reference, value)) } }
+    }
+
+    /** Loads the Server's password managers, for picking an answer to a `request_secret`. */
+    fun loadSecretProviders() {
+        if (state.value.secretProviders != null) return
+        viewModelScope.launch {
+            val providers = try { repo.secretProviders() } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() }
+            state.update { it.copy(secretProviders = providers) }
+        }
+    }
+
+    /** Loads the names under [path] (scheme, then vault, item…) in a password manager. */
+    fun browseSecrets(path: List<String>) {
+        viewModelScope.launch {
+            val entries = try { repo.browseSecrets(path.first(), path.drop(1)) } catch (e: CancellationException) { throw e } catch (_: Exception) { emptyList() }
+            state.update { it.copy(secretEntries = it.secretEntries + (path to entries)) }
+        }
     }
 
     /** Asks the harness to reopen the open external Session after its process ended; the Server says why when it can't. */

@@ -150,6 +150,9 @@ fun ChatScreen(
         answers = current.answers,
         approval = current.data?.live?.approval,
         questions = current.data?.live?.questions,
+        secret = current.data?.live?.secret,
+        secretProviders = current.secretProviders,
+        secretEntries = current.secretEntries,
         prompts = current.prompts,
         phase = current.phase,
         resume = current.capabilities?.execution?.resume,
@@ -179,6 +182,9 @@ fun ChatScreen(
                 onDecision = { _, decision -> session.respond(decision) },
                 onReviewReflection = session::reviewReflection,
                 onAnswer = session::answer,
+                onSecret = session::respondSecret,
+                onLoadSecretProviders = session::loadSecretProviders,
+                onBrowseSecrets = session::browseSecrets,
                 onEditAnswer = session::editAnswer,
                 onOpenArtifact = { onNavigate(Route.Artifacts(it)) },
                 onWatch = { onNavigate(Route.Computers()) },
@@ -242,6 +248,11 @@ class ChatActions(
     /** The open `ask_user` form's answers by question ID; null skips it. */
     val onAnswer: (Map<String, List<String>>?) -> Unit = {},
     val onEditAnswer: (questionsId: String, questionId: String, value: List<String>) -> Unit = { _, _, _ -> },
+    /** Answers the open `request_secret` with a picked reference or a typed value; neither declines. */
+    val onSecret: (reference: String?, value: String?) -> Unit = { _, _ -> },
+    val onLoadSecretProviders: () -> Unit = {},
+    /** Lists the names under a path in a password manager: its scheme, then vault, item… */
+    val onBrowseSecrets: (List<String>) -> Unit = {},
     val onOpenArtifact: (id: String) -> Unit = {},
     /** Opens Live view of the Computers an Agent controls. */
     val onWatch: () -> Unit = {},

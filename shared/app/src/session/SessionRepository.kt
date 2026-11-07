@@ -185,6 +185,12 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     suspend fun answer(questionsId: String, answers: Map<String, List<String>>?) = call { it.call(Api.Answer, QuestionsParams(questionsId, answers)) }
 
+    suspend fun respondSecret(answer: SecretAnswer) = call { it.call(Api.RespondSecret, answer) }
+
+    suspend fun secretProviders() = call { it.call(Api.SecretProviders, Unit) }.filter { it.connected }
+
+    suspend fun browseSecrets(scheme: String, path: List<String>) = call { it.call(Api.BrowseSecrets, BrowseSecretsParams(scheme, path)) }
+
     private suspend fun <T> call(block: suspend (KinuvoClient) -> T): T =
         connection.call(block)
 
