@@ -45,14 +45,13 @@ var D;try{D=JSON.parse(J)}catch(e){D={}}
 var S=document.getElementById("s"),W=document.getElementById("w"),O=document.getElementById("o"),G=48,P=48,MIN=.1,MAX=4,LH=26,HS=16;
 var x=0,y=0,k=1,touched=false,P1={},tap=null,last=null,pinch=null,drag=null,sel=null,txt=null,pinned=false,timer=null,pend=false,watch=null,seen=null,panelOpen=false,cur=0,saved=null;
 function mk(t,c,p){var e=document.createElement(t);if(c)e.className=c;if(p)p.appendChild(e);return e}
-var B=(D.artboards||[]).map(function(a){return{a:a,bx:0,by:0,w:a.width,h:a.height,name:a.name||a.id,html:a.html||"",dirty:false,v:F===null||a.id===F,ex:a.x!=null&&a.y!=null}});
-B.forEach(function(b){if(b.ex){b.bx=b.a.x;b.by=b.a.y}else{b.bx=cur;b.by=0}cur+=b.w+G});
+var B=[],se;
+function make(a,ex){var b={a:a,bx:0,by:0,w:a.width,h:a.height,name:a.name||a.id,html:a.html||"",dirty:false,later:null,v:F===null||a.id===F,ex:a.x!=null&&a.y!=null},c=mk("div","a",W),f=mk("iframe","",c),l=document.createElement("div");
+l.className="l";O.insertBefore(l,se||null);f.setAttribute("sandbox","allow-same-origin");f.srcdoc=b.html;f.onload=function(){draw()};
+b.n=mk("span","",l);b.e=mk("span","e",l);b.e.textContent="\u2922";b.c=c;b.f=f;b.l=l;return b}
+(D.artboards||[]).forEach(function(a){var b=make(a);if(b.ex){b.bx=a.x;b.by=a.y}else{b.bx=cur;b.by=0}cur+=b.w+G;B.push(b);geom(b)});
 pinned=B.some(function(b){return b.ex});
-B.forEach(function(b){var c=mk("div","a",W),f=mk("iframe","",c),l=mk("div","l",O);
-f.setAttribute("sandbox","allow-same-origin");f.srcdoc=b.html;
-b.n=mk("span","",l);b.e=mk("span","e",l);b.e.textContent="⤢";
-b.c=c;b.f=f;b.l=l;geom(b)});
-var se=mk("div","",O),hs=[0,1,2,3].map(function(){var h=mk("div","hd",O);return h}),tb=mk("div","ui",O),fb=mk("div","ui",O),pn=mk("div","ui",O);
+se=mk("div","",O);var hs=[0,1,2,3].map(function(){var h=mk("div","hd",O);return h}),tb=mk("div","ui",O),fb=mk("div","ui",O),pn=mk("div","ui",O);
 se.id="sel";tb.id="tb";fb.id="fb";pn.id="pn";
 function geom(b){b.c.style.display=b.v?"":"none";b.l.style.display=b.v&&F===null?"":"none";b.c.style.left=b.bx+"px";b.c.style.top=b.by+"px";b.f.style.width=b.w+"px";b.f.style.height=b.h+"px"}
 function doc(b){return b.f.contentDocument}
@@ -99,7 +98,7 @@ function snap(){return JSON.stringify({artboards:B.map(function(b){var o={id:b.a
 function ser(b){if(!b.dirty)return b.html;var d=doc(b),c=d.documentElement.cloneNode(true);
 c.querySelectorAll("[data-kinuvo-editor]").forEach(function(e){e.remove()});
 c.querySelectorAll("[contenteditable]").forEach(function(e){e.removeAttribute("contenteditable")});
-b.dirty=false;return(d.doctype?"<!DOCTYPE "+d.doctype.name+">":"")+c.outerHTML}
+b.dirty=false;return b.html=(d.doctype?"<!DOCTYPE "+d.doctype.name+">":"")+c.outerHTML}
 function flush(){pend=false;parent.postMessage({kinuvo:"design-edit",json:snap()},"*")}
 function schedule(){if(timer){pend=true;return}flush();timer=setTimeout(function(){timer=null;if(pend)schedule()},250)}
 addEventListener("pagehide",function(){if(pend)flush()});document.addEventListener("visibilitychange",function(){if(pend)flush()});
@@ -111,7 +110,22 @@ function onText(){if(!txt||txt.innerHTML===seen)return;seen=txt.innerHTML;B[sel.
 function startText(el){endText();txt=el;var b=B[sel.b],d=doc(b);inject(b);el.contentEditable="true";seen=el.innerHTML;watch=setInterval(onText,200);b.f.style.pointerEvents="auto";
 d.addEventListener("input",onText);d.addEventListener("keydown",esc);d.addEventListener("click",noNav);b.f.contentWindow.focus();el.focus();draw()}
 function endText(){if(!txt)return;clearInterval(watch);onText();if(pend)flush();var b=B[sel.b],d=doc(b);d.querySelectorAll("style[data-kinuvo-editor]").forEach(function(e){e.remove()});txt.removeAttribute("contenteditable");b.f.style.pointerEvents="";
-d.removeEventListener("input",onText);d.removeEventListener("keydown",esc);d.removeEventListener("click",noNav);txt=null;fb.style.display="none"}
+d.removeEventListener("input",onText);d.removeEventListener("keydown",esc);d.removeEventListener("click",noNav);txt=null;fb.style.display="none";if(b.later!==null){var h=b.later;b.later=null;setHtml(b,h);schedule()}}
+function setHtml(b,h){b.html=h;b.dirty=false;b.f.srcdoc=h;if(sel&&B[sel.b]===b)sel.el=null;draw();if(panelOpen)build()}
+/* Applies a design saved elsewhere in place: boards are matched by id, so zoom, pan and the selection survive. */
+function apply(js){var N;try{N=JSON.parse(js)}catch(e){return}var A=N.artboards||[],was=B.length,sb=sel?B[sel.b]:null;
+if(pend)flush();
+var by={};B.forEach(function(b){by[b.a.id]=b});
+var nb=A.map(function(a){var b=by[a.id];if(!b)return null;
+delete by[a.id];
+b.a=a;b.name=a.name||a.id;b.w=a.width;b.h=a.height;if(a.x!=null&&a.y!=null){b.bx=a.x;b.by=a.y;b.ex=true}
+var h=a.html||"";if(h!==b.html){if(txt&&sb===b)b.later=h;else setHtml(b,h)}return b});
+var edge=0;nb.forEach(function(b){if(b)edge=Math.max(edge,b.bx+b.w+G)});
+nb=nb.map(function(b,i){if(b)return b;var a=A[i];b=make(a);if(a.x!=null&&a.y!=null){b.bx=a.x;b.by=a.y}else{b.bx=edge;b.by=0;edge+=b.w+G}return b});
+Object.keys(by).forEach(function(id){var b=by[id];if(b===sb){endText();sel=null;sb=null;panelOpen=false}b.c.remove();b.l.remove()});
+B=nb;B.forEach(geom);if(sb){var i=B.indexOf(sb);sel=i<0?null:{b:i,el:sel.el}}
+if(!was)fit();else{put();refresh()}}
+addEventListener("message",function(e){var d=e.data;if(e.source===parent&&d&&d.kinuvo==="design-apply"&&typeof d.json==="string")apply(d.json)});
 function choose(T){if(T.k==="board")sel={b:T.i,el:null};else if(T.k==="el")sel={b:T.i,el:T.el};else{sel=null;panelOpen=false}refresh()}
 function tapped(T,e){var now=Date.now(),dbl=last&&now-last.t<350&&Math.hypot(e.clientX-last.x,e.clientY-last.y)<30;
 if(T.k==="expand"){last=null;open(B[sel.b].a.id);return}
@@ -184,4 +198,4 @@ l.replaceWith(i);i.focus()},fb)}
 fmt();
 function refresh(){draw();toolbar();build()}
 tb.style.display="none";
-fit()})();"""
+fit();parent.postMessage({kinuvo:"design-ready"},"*")})();"""

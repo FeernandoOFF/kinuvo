@@ -3,6 +3,9 @@ package kinuvo.ui
 import kinuvo.ui.artifacts.*
 import androidx.compose.ui.graphics.Color
 import kinuvo.protocol.Artboard
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -119,5 +122,26 @@ class ArtifactTest {
         assertTrue(frame(designDocument(sample, nonce = "abc")).contains("F=null,FL=false;"))
         assertTrue(inner.contains("script-src 'nonce-abc'"))
         assertTrue(frame(designDocument(sample, focus = "x\"</script>")).contains("F=\"x\\\"\\u003c/script>\""))
+    }
+
+    @Test
+    fun theAppReachesTheCanvasOnlyThroughItsWrapper() {
+        val page = designDocument(sample, nonce = "abc")
+        assertTrue(page.contains("window.kinuvoReceive=function(m)"))
+        assertTrue(page.contains("f.contentWindow.postMessage(JSON.parse(m),\"*\")"))
+        val inner = frame(page)
+        assertTrue(inner.contains("e.source===parent&&d&&d.kinuvo===\"design-apply\"&&typeof d.json===\"string\""))
+        assertTrue(inner.contains("kinuvo:\"design-ready\""))
+        assertTrue(page.contains("d.kinuvo===\"design-ready\"?JSON.stringify"))
+        assertEquals(DesignMessage.Ready, designMessage("""{"kinuvo":"design-ready"}"""))
+    }
+
+    @Test
+    fun deliveryEscapesTheMessageIntoAStringLiteral() {
+        val js = pageDelivery(designApply("""{"a":"</script>\n\"x\""}"""))
+        assertTrue(js.startsWith("window.kinuvoReceive&&window.kinuvoReceive(\""))
+        assertTrue(!js.contains("\n"))
+        assertTrue(js.endsWith("\");"))
+        assertEquals("design-apply", Json.parseToJsonElement(Json.parseToJsonElement("\"" + js.substringAfter("(\"").substringBeforeLast("\")")+ "\"").jsonPrimitive.content).jsonObject["kinuvo"]?.jsonPrimitive?.content)
     }
 }

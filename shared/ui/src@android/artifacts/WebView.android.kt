@@ -19,7 +19,7 @@ private class EditBridge(val onMessage: () -> ((String) -> Unit)?) {
 }
 
 @Composable
-internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?) {
+internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?) {
     val current by rememberUpdatedState(onMessage)
     val loaded = remember { arrayOf<String?>(null) }
     AndroidView(
@@ -40,7 +40,8 @@ internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((Strin
         }
     },
     modifier = modifier,
-    update = { if (loaded[0] != html) { loaded[0] = html; it.loadDataWithBaseURL(null, html, "text/html", "utf-8", null) } },
-    onRelease = { it.destroy() },
+    update = { channel?.send = { message -> it.evaluateJavascript(pageDelivery(message), null) }
+        if (loaded[0] != html) { loaded[0] = html; it.loadDataWithBaseURL(null, html, "text/html", "utf-8", null) } },
+    onRelease = { channel?.send = {}; it.destroy() },
     )
 }

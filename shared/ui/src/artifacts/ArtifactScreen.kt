@@ -155,13 +155,10 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                 ?.let { ErrorMessage(it, Modifier.align(Alignment.Center).padding(Spacing.space24)) } ?: Spinner(Modifier.align(Alignment.Center))
             editing -> ArtifactEditor(data, state, actions, tab, wide, Modifier.padding(top = controls))
             data.info.isDesign -> key(data.info.id) {
-                val sent = remember { mutableSetOf<String>() }
-                var shown by remember { mutableStateOf(data.content) }
-                LaunchedEffect(data.content) { if (data.content !in sent) shown = data.content }
                 DesignCanvas(
-                    shown, background, Modifier.fillMaxSize().padding(top = controls),
+                    data.content, background, Modifier.fillMaxSize().padding(top = controls),
                     if (visualEditing) { id -> if (design?.artboards?.any { it.id == id } == true) focus = id } else null,
-                    if (visualEditing) { json -> sent += json; if (sent.size > 16) sent.remove(sent.first()); actions.onSaveDesign(json) } else null,
+                    if (visualEditing) actions.onSaveDesign else null,
                 )
             }
             data.info.web -> key(data.info.updated) {
@@ -201,6 +198,7 @@ private fun ArtifactPane(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
             }
         }
         val shownBoard = design?.artboards?.firstOrNull { it.id == focus }
+        LaunchedEffect(shownBoard == null, focus) { if (focus != null && shownBoard == null && design != null) focus = null }
         if (shownBoard != null && data != null && !editing) DesignFocus(data.content, shownBoard.id, shownBoard.name.ifBlank { shownBoard.id }, background, actions.onSaveDesign) { focus = null }
         val index = present
         if (index != null && design != null && !editing) ArtboardViewer(design.artboards, index, background, { present = it }, { present = null })

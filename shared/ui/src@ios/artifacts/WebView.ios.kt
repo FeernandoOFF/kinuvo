@@ -23,7 +23,7 @@ private class EditHandler(val onMessage: () -> ((String) -> Unit)?) : NSObject()
 
 @OptIn(ExperimentalForeignApi::class)
 @Composable
-internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?) {
+internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?) {
     val current by rememberUpdatedState(onMessage)
     val loaded = remember { arrayOf<String?>(null) }
     UIKitView(
@@ -43,8 +43,10 @@ internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((Strin
             }
         },
         modifier = modifier,
-        update = { if (loaded[0] != html) { loaded[0] = html; it.loadHTMLString(html, baseURL = null) } },
-        onRelease = { if (onMessage != null) it.configuration.userContentController.removeScriptMessageHandlerForName("kinuvo") },
+        update = { channel?.send = { message -> it.evaluateJavaScript(pageDelivery(message), null) }
+            if (loaded[0] != html) { loaded[0] = html; it.loadHTMLString(html, baseURL = null) } },
+        onRelease = { channel?.send = {}
+            if (onMessage != null) it.configuration.userContentController.removeScriptMessageHandlerForName("kinuvo") },
         // Cooperative mode delays touches, which keeps WebKit from focusing editable text.
         properties = UIKitInteropProperties(interactionMode = if (onMessage != null) UIKitInteropInteractionMode.NonCooperative else UIKitInteropInteractionMode.Cooperative()),
     )

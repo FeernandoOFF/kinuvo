@@ -3,10 +3,18 @@ package kinuvo.ui.artifacts
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import kotlinx.serialization.json.JsonPrimitive
 
-/** The platform's own web view showing [html]; one file per platform, so the engine can change in one place. */
+/** Where the app talks to a page after it loaded: [send] runs `window.kinuvoReceive(message)` in it, and does nothing until a web view wires it. */
+internal class PageChannel {
+    var send: (String) -> Unit = {}
+}
+
+internal fun pageDelivery(message: String) = "window.kinuvoReceive&&window.kinuvoReceive(${JsonPrimitive(message)});"
+
+/** The platform's own web view showing [html]; one file per platform, so the engine can change in one place. [channel] reaches the page from the app. */
 @Composable
-internal expect fun WebView(html: String, modifier: Modifier = Modifier, onMessage: ((String) -> Unit)? = null)
+internal expect fun WebView(html: String, modifier: Modifier = Modifier, onMessage: ((String) -> Unit)? = null, channel: PageChannel? = null)
 
 /** Whether [WebView] can pass a message from the page, which visual editing needs. */
 internal expect val visualEditing: Boolean
