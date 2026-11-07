@@ -43,7 +43,7 @@ private const val SLIDERS = """<svg viewBox='0 0 24 24' width='18' height='18' f
 private const val DESIGN_SCRIPT = """(function(){
 var D;try{D=JSON.parse(J)}catch(e){D={}}
 var S=document.getElementById("s"),W=document.getElementById("w"),O=document.getElementById("o"),G=48,P=48,MIN=.1,MAX=4,LH=26,HS=16;
-var x=0,y=0,k=1,touched=false,P1={},tap=null,last=null,pinch=null,drag=null,sel=null,txt=null,pinned=false,timer=null,pend=false,panelOpen=false,cur=0,saved=null;
+var x=0,y=0,k=1,touched=false,P1={},tap=null,last=null,pinch=null,drag=null,sel=null,txt=null,pinned=false,timer=null,pend=false,watch=null,seen=null,panelOpen=false,cur=0,saved=null;
 function mk(t,c,p){var e=document.createElement(t);if(c)e.className=c;if(p)p.appendChild(e);return e}
 var B=(D.artboards||[]).map(function(a){return{a:a,bx:0,by:0,w:a.width,h:a.height,name:a.name||a.id,html:a.html||"",dirty:false,v:F===null||a.id===F,ex:a.x!=null&&a.y!=null}});
 B.forEach(function(b){if(b.ex){b.bx=b.a.x;b.by=b.a.y}else{b.bx=cur;b.by=0}cur+=b.w+G});
@@ -105,10 +105,11 @@ addEventListener("pagehide",function(){if(pend)flush()});document.addEventListen
 window.kinuvoFlush=flush;
 function inject(b){var d=doc(b),s=d.createElement("style");s.setAttribute("data-kinuvo-editor","");s.textContent="*{-webkit-user-select:none;user-select:none;cursor:default}[contenteditable]{-webkit-user-select:text;user-select:text;cursor:text;outline:none}";(d.head||d.documentElement).appendChild(s)}
 function noNav(e){if(e.target.closest&&e.target.closest("a"))e.preventDefault()}
-function onText(){B[sel.b].dirty=true;draw();schedule()}
-function startText(el){endText();txt=el;var b=B[sel.b],d=doc(b);inject(b);el.contentEditable="true";b.f.style.pointerEvents="auto";
+/* WebKit runs no listeners in a document whose scripts are off, so the edited text is watched from here. */
+function onText(){if(!txt||txt.innerHTML===seen)return;seen=txt.innerHTML;B[sel.b].dirty=true;draw();schedule()}
+function startText(el){endText();txt=el;var b=B[sel.b],d=doc(b);inject(b);el.contentEditable="true";seen=el.innerHTML;watch=setInterval(onText,200);b.f.style.pointerEvents="auto";
 d.addEventListener("input",onText);d.addEventListener("keydown",esc);d.addEventListener("click",noNav);b.f.contentWindow.focus();el.focus();draw()}
-function endText(){if(!txt)return;if(pend)flush();var b=B[sel.b],d=doc(b);d.querySelectorAll("style[data-kinuvo-editor]").forEach(function(e){e.remove()});txt.removeAttribute("contenteditable");b.f.style.pointerEvents="";
+function endText(){if(!txt)return;clearInterval(watch);onText();if(pend)flush();var b=B[sel.b],d=doc(b);d.querySelectorAll("style[data-kinuvo-editor]").forEach(function(e){e.remove()});txt.removeAttribute("contenteditable");b.f.style.pointerEvents="";
 d.removeEventListener("input",onText);d.removeEventListener("keydown",esc);d.removeEventListener("click",noNav);txt=null;fb.style.display="none"}
 function choose(T){if(T.k==="board")sel={b:T.i,el:null};else if(T.k==="el")sel={b:T.i,el:T.el};else{sel=null;panelOpen=false}refresh()}
 function tapped(T,e){var now=Date.now(),dbl=last&&now-last.t<350&&Math.hypot(e.clientX-last.x,e.clientY-last.y)<30;
