@@ -45,7 +45,13 @@ class ToolExecutor(
     private suspend fun perform(call: SessionEntry.ToolCall, approvalId: String, stopped: (String) -> Unit): SessionEntry.ToolResult {
         val tool = toolsByName[call.name]
         val verdict = tool?.let { approvals.policy?.decide(it, call.args) } ?: Verdict.Run
-        val binding = try { if (verdict is Verdict.Block) null else tool?.bind(ProtocolJson.parseToJsonElement(call.args).jsonObject) }
+        var change: String? = null
+        val binding = try {
+            if (verdict is Verdict.Block || tool == null) null else ProtocolJson.parseToJsonElement(call.args).jsonObject.let { args ->
+                if (verdict is Verdict.Ask) change = tool.describe(args)
+                tool.bind(args)
+            }
+        }
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { return SessionEntry.ToolResult(call.id, call.name, e.message ?: "Tool binding failed", isError = true) }
         val decision = when {
@@ -62,7 +68,7 @@ class ToolExecutor(
                         ToolKind.ComputerAction -> verdict.trustKeys.joinToString(", ") { it.removePrefix("${tool.policyKey} ") }
                         else -> ""
                     }.ifEmpty { null }
-                    emit(AgentEvent.ApprovalRequested(pending.id, approvalId, call.name, call.args, hint, a.risk, a.reason, verdict.trustKeys.isNotEmpty(), tool?.identity))
+                    emit(AgentEvent.ApprovalRequested(pending.id, approvalId, call.name, call.args, hint, a.risk, listOfNotNull(a.reason, change).joinToString("\n").ifEmpty { null }, verdict.trustKeys.isNotEmpty(), tool?.identity))
                     val wait = approvals.wait
                     val answer = if (wait == null) pending.await() else withTimeoutOrNull(wait) { pending.await() }
                     stopped("Cancelled by user")

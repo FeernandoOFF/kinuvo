@@ -55,6 +55,8 @@ object ToolNames {
     const val DEVICE_TOOLS = "device_tools"
     /** Tools to read the Agent's own Sessions, see the Agents it can work with and delegate work to them. */
     const val AGENT_TOOLS = "agent_tools"
+    /** Tools to change the Agent's own settings, create Agents and manage its MCP servers, always with an Approval. */
+    const val AGENT_MANAGE = "agent_manage"
     const val RUN_CODE = "run_code"
     const val COMPUTER = "computer"
     /** Its Trust rules are scoped to the app acted in. */
@@ -64,7 +66,7 @@ object ToolNames {
     const val CALL_TOOL = "call_tool"
 
     /** The built-in tools an Agent's `tools:` can turn on. */
-    val OPTIONAL = listOf(MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, AGENT_TOOLS, RUN_CODE, COMPUTER, "browser")
+    val OPTIONAL = listOf(MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, AGENT_TOOLS, AGENT_MANAGE, RUN_CODE, COMPUTER, "browser")
     val DEFAULT = OPTIONAL
     /** Groups a plugin provides, offered only where one is installed. */
     val FROM_PLUGINS = setOf(RUN_CODE, "browser")
@@ -82,6 +84,8 @@ interface Tool {
     val repeatable: Boolean get() = true
     /** What a call with [args] would do; by default the whole tool at its [risk]. */
     fun assess(args: JsonObject): Assessment = Assessment(listOf(Action(risk, listOf(descriptor.name))))
+    /** What a call with [args] would change, shown in its Approval; a call it rejects fails before the user is asked. */
+    suspend fun describe(args: JsonObject): String? = null
     suspend fun bind(args: JsonObject): suspend () -> Unit = {}
     suspend fun executeResult(args: JsonObject, callId: String, run: ToolRun): SessionEntry.ToolResult =
         SessionEntry.ToolResult(callId, descriptor.name, execute(args, callId, run))

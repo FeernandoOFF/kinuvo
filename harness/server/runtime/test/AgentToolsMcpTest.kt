@@ -17,7 +17,7 @@ class AgentToolsMcpTest {
     private val harness = fixture.runtime()
     private val asked = mutableListOf<String>()
     private var decision: ApprovalDecision = ApprovalDecision.AllowOnce
-    private val gateway = AgentToolGateway(harness) { _, tool, _, _ -> asked += tool.descriptor.name; decision }
+    private val gateway = AgentToolGateway(harness) { _, tool, _, _, _ -> asked += tool.descriptor.name; decision }
     private val access = McpAccess().apply { url = "http://127.0.0.1:1/mcp" }
     private val endpoint = McpEndpoint(access, gateway)
 

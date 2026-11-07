@@ -16,7 +16,7 @@ class ToolReply(val text: String, val isError: Boolean = false)
  */
 class AgentToolGateway(
     private val harness: HarnessRuntime,
-    private val ask: suspend (CallerScope, Tool, JsonObject, Verdict.Ask) -> ApprovalDecision,
+    private val ask: suspend (CallerScope, Tool, JsonObject, Verdict.Ask, change: String?) -> ApprovalDecision,
 ) {
     suspend fun tools(scope: CallerScope): List<Tool> = harness.agentTools(scope)
 
@@ -27,7 +27,7 @@ class AgentToolGateway(
             when (val verdict = policy.decide(tool, args.toString())) {
                 Verdict.Run -> {}
                 is Verdict.Block -> return ToolReply("${verdict.reason} Don't retry it; find another way or ask the user.", true)
-                is Verdict.Ask -> when (val decision = ask(scope, tool, args, verdict)) {
+                is Verdict.Ask -> when (val decision = ask(scope, tool, args, verdict, tool.describe(args))) {
                     is ApprovalDecision.Deny -> return ToolReply("The user denied this call." + (decision.note?.takeIf { it.isNotBlank() }?.let { " Note: $it" } ?: ""), true)
                     ApprovalDecision.AlwaysAllow -> policy.trust(tool, verdict.trustKeys)
                     ApprovalDecision.AllowForSession -> policy.trustForSession(tool, verdict.trustKeys)

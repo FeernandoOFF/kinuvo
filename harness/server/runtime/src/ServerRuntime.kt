@@ -91,7 +91,7 @@ class ServerRuntime(
         { _, id -> if (external.owns(id)) external.discard(id) else stop(id) })
     private val external = ExecutionCoordinator(executions, installedFactory, scope, harness.log, executionStorage,
         resolve = { harness.attachments.download(it) }, readinessChanged = { catalogChanged() }, mcp = mcp)
-    private val agentTools = AgentToolGateway(harness) { scope, tool, args, verdict -> askExternal(scope, tool, args, verdict) }
+    private val agentTools = AgentToolGateway(harness) { scope, tool, args, verdict, change -> askExternal(scope, tool, args, verdict, change) }
     /** Kinuvo's tools for External Agents; the host serves it at `/mcp`. */
     val mcpEndpoint = McpEndpoint(mcp, agentTools)
     suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData): Attachment {
@@ -148,6 +148,7 @@ class ServerRuntime(
 
     private fun changedCapabilities() = broadcast(Api.CapabilitiesChanged, Unit)
     init {
+        harness.management = ServerManagement(harness, admin, { admin.agents() + externalAgents() }, ::createAgent, ::changedCapabilities)
         harness.delegation = ServerDelegation(harness, runs, external, { executions.registration(it) != null }, ::agent, ::createSession, { send(it) }, ::stop)
         harness.externalAgents = {
             val catalog = executions.catalog()
@@ -530,7 +531,7 @@ class ServerRuntime(
         Api.UnregisterExternalAgent.name -> respond(r, Api.UnregisterExternalAgent) { executionManagement.withLock { val a = executions.registration(it.id); check(a == null || !external.agentInUse(a.id)) { "Agent has live Sessions" }; external.archive(it.id); executions.removeAgent(it.id).also { catalogChanged() } } }
         Api.Agents.name -> respond(r, Api.Agents) { admin.agents() + externalAgents() }
         Api.Agent.name -> respond(r, Api.Agent) { external.registrationOrArchived(it.agentId)?.let { a -> AgentDetails(externalInfo(a), AgentSettings("", "", "", "external"), "", "", managed = true, cwd = a.cwd, remoteAgentId = a.remoteAgentId) } ?: admin.details(agent(it.agentId)) }
-        Api.CreateAgent.name -> respond(r, Api.CreateAgent) { p -> require(executions.catalog().agents.none { it.id == p.agentId }) { "Agent ID is reserved by an external registration" }; admin.create(p) }
+        Api.CreateAgent.name -> respond(r, Api.CreateAgent) { createAgent(it) }
         Api.UpdateAgent.name -> respond(r, Api.UpdateAgent) { admin.update(it).also { changedCapabilities() } }
         Api.TestExec.name -> respond(r, Api.TestExec) { admin.testExec(it) }
         Api.ImageModel.name -> respond(r, Api.ImageModel) { admin.imageModel() }
@@ -757,11 +758,16 @@ class ServerRuntime(
 
     private suspend fun agent(id: String): Agent = admin.agent(id)
 
-    private suspend fun askExternal(scope: CallerScope, tool: Tool, args: JsonObject, verdict: Verdict.Ask): ApprovalDecision {
+    private suspend fun createAgent(p: CreateAgentParams): AgentInfo {
+        require(executions.catalog().agents.none { it.id == p.agentId }) { "Agent ID is reserved by an external registration" }
+        return admin.create(p)
+    }
+
+    private suspend fun askExternal(scope: CallerScope, tool: Tool, args: JsonObject, verdict: Verdict.Ask, change: String?): ApprovalDecision {
         val options = listOf(ExternalApprovalOption("allow", "Allow once", "allow_once")) +
             (if (verdict.trustKeys.isNotEmpty()) listOf(ExternalApprovalOption("always", "Always allow", "allow_always")) else emptyList()) +
             ExternalApprovalOption("deny", "Deny", "reject_once")
-        val description = listOfNotNull(verdict.assessment.reason, args.takeIf { it.isNotEmpty() }?.toString()).joinToString(" · ").ifEmpty { null }
+        val description = listOfNotNull(verdict.assessment.reason, change, args.takeIf { it.isNotEmpty() }?.toString()).joinToString(" · ").ifEmpty { null }
         return when (external.ask(requireNotNull(scope.sessionId), "Kinuvo: ${tool.displayName}", description, options)) {
             "allow" -> ApprovalDecision.AllowOnce
             "always" -> ApprovalDecision.AlwaysAllow
