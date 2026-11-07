@@ -39,7 +39,7 @@ Android release builds use the tag without `v` as `versionName` and the Release 
 ## Google Play
 
 The `android-play` module is the Play distribution. It supports Android 8.0 (API 26) and newer,
-targets API 36, and uses `com.feernandooff.kinuvo`; the sideloaded `android` app uses `com.feernandooff.kinuvo.full`, so both can be installed. It excludes the
+targets API 36 and packages only the arm64-v8a and x86_64 ABIs supported by its native model runtime. It uses `com.feernandooff.kinuvo`; the sideloaded `android` app uses `com.feernandooff.kinuvo.full`, so both can be installed. It excludes the
 Android Computer implementation, Accessibility Service, secure-settings and
 screen-wake permissions, and installed-app discovery. Computer use is absent from
 This Device's supported tools. The directly distributed `android` app retains it

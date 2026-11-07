@@ -13,6 +13,7 @@ settings:
     versionCode: 2
     minSdk: 26
     targetSdk: 36
+    abiFilters: [arm64-v8a, x86_64]
   compose:
     enabled: true
     version: 1.12.1

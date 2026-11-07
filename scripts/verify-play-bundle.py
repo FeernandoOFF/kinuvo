@@ -24,6 +24,8 @@ checked = 0
 failures = []
 with zipfile.ZipFile(args.bundle) as bundle:
     assert not any('computer_use' in n for n in bundle.namelist())
+    abis = {name.split('/')[2] for name in bundle.namelist() if name.startswith('base/lib/') and name.endswith('.so')}
+    assert abis and abis <= {'arm64-v8a', 'x86_64'}, f'Unsupported native ABIs: {abis}'
     assert any(n.startswith('META-INF/') and n.endswith('.RSA') for n in bundle.namelist())
     for name in bundle.namelist():
         if not name.endswith('.so') or not any('/' + abi + '/' in name for abi in ['arm64-v8a', 'x86_64']):
