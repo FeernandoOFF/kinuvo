@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 class EditedHtmlTest {
     @Test
     fun readsThePageFromTheCallbackArguments() {
-        assertEquals("<p>\"a\"</p>", editedHtml("[\"<p>\\\"a\\\"</p>\"]"))
+        assertEquals("<p>\"a\"</p>", editedHtml("{\"name\":\"kinuvoEdit\",\"seq\":4,\"args\":[\"<p>\\\"a\\\"</p>\"]}"))
         assertEquals("<p>a</p>", editedHtml("<p>a</p>"))
     }
 }
