@@ -60,6 +60,7 @@ function bounds(){var a=1e9,t=1e9,r=-1e9,u=-1e9;B.forEach(function(b){if(!b.v)re
 function put(){W.style.transform="translate("+x+"px,"+y+"px) scale("+k+")";draw()}
 function fit(){var q=bounds(),vw=innerWidth,vh=innerHeight;if(F!==null&&FL){k=Math.max(MIN,Math.min(MAX,vw/q.w));x=-q.l*k;y=-q.t*k;put();return}if(F!==null){k=Math.max(MIN,Math.min((vw-32)/q.w,(vh-32)/q.h,1));x=(vw-q.w*k)/2-q.l*k;y=(vh-q.h*k)/2-q.t*k;put();return}k=Math.max(MIN,Math.min((vw-2*P)/q.w,(vh-2*P-LH)/q.h,1));x=(vw-q.w*k)/2-q.l*k;y=(vh-q.h*k)/2-q.t*k+LH/2;put()}
 function zoom(px,py,nk){nk=Math.max(MIN,Math.min(MAX,nk));x=px-(px-x)*nk/k;y=py-(py-y)*nk/k;k=nk;put()}
+addEventListener("keydown",function(e){if(txt||/INPUT|SELECT|TEXTAREA/.test((e.target.tagName||"")))return;var f=e.key==="+"||e.key==="="?1.25:e.key==="-"||e.key==="_"?.8:0;if(e.key==="0"){fit();e.preventDefault();return}if(f){zoom(innerWidth/2,innerHeight/2,k*f);e.preventDefault()}});
 function open(id){if(pend)flush();parent.postMessage({kinuvo:"design-open",id:id},"*")}
 function cs(el){return el.ownerDocument.defaultView.getComputedStyle(el)}
 function rectOf(){if(!sel)return null;var b=B[sel.b];if(sel.el){var r=sel.el.getBoundingClientRect();return{l:x+(b.bx+r.left)*k,t:y+(b.by+r.top)*k,w:r.width*k,h:r.height*k}}return{l:x+b.bx*k,t:y+b.by*k,w:b.w*k,h:b.h*k}}
