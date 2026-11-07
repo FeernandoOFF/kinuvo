@@ -206,6 +206,7 @@ private class SessionStatusTool(source: AgentToolsSource, scope: CallerScope) : 
         val waiting = listOfNotNull(
             live.approval?.let { "approval for ${it.toolCallName}" },
             live.questions?.let { "an answer to the user's form" },
+            live.secret?.let { "the user to share ${it.label}" },
             live.pending.takeIf { it.isNotEmpty() }?.let { "${it.size} request(s) from the harness" },
         )
         return buildList {

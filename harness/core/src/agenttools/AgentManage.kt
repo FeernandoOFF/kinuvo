@@ -26,6 +26,7 @@ import kinuvo.protocol.McpTestResult
 import kinuvo.protocol.Question
 import kinuvo.protocol.QuestionKind
 import kinuvo.protocol.Risk
+import kinuvo.protocol.SESSION_SECRET_SCHEME
 import kinuvo.protocol.SaveMcpParams
 import kinuvo.protocol.SessionInfo
 import kinuvo.protocol.SessionSettings
@@ -261,7 +262,7 @@ private class McpAdd(management: AgentManagement, scope: CallerScope) : ManageTo
     override val descriptor = RawSchemaToolDescriptor(
         "mcp_add",
         "Add an MCP server to yourself: an HTTP one with url, or a local one with command (it runs on the Server). Only yours; other Agents don't get it. " +
-            "Put secrets in env or headers as references such as \${VAR} or pass://..., never as plain values. The user sees the server and approves it. " +
+            "Put secrets in env or headers as references such as \${VAR} or pass://... (get one from the user with request_secret), never as plain values; secret:// references aren't kept. The user sees the server and approves it. " +
             "Then try it with mcp_test, and mcp_login if it needs sign-in.",
         buildJsonObject {
             put("type", "object")
@@ -299,7 +300,12 @@ private class McpAdd(management: AgentManagement, scope: CallerScope) : ManageTo
         val url = a.string("url")
         val command = a.string("command")
         require((url == null) != (command == null)) { "Give either a url or a command" }
-        return McpServerInfo(a.requireString("name"), ConfigScope.Agent, command, a.strings("args"), a.map("env"), url, a.map("headers"))
+        val server = McpServerInfo(a.requireString("name"), ConfigScope.Agent, command, a.strings("args"), a.map("env"), url, a.map("headers"))
+        val values = server.env.values + server.headers.values
+        require(values.none { "\${$SESSION_SECRET_SCHEME://" in it }) {
+            "A secret:// reference only lasts for this Session, so an MCP server can't keep it. Ask the user to save the credential in their password manager and pick it with request_secret instead."
+        }
+        return server
     }
 
     private fun connection(s: McpServerInfo) = s.url ?: "${s.command} ${s.args.joinToString(" ")}".trim()

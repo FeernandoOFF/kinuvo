@@ -206,6 +206,20 @@ class AgentManageTest {
         assertTrue(management.saved.isEmpty())
     }
 
+    @Test fun mcpAddKeepsPasswordManagerReferencesButRejectsSessionSecrets() = runTest {
+        fun server(token: String) = buildJsonObject {
+            put("name", "files"); put("url", "https://files.example/mcp")
+            put("headers", buildJsonObject { put("Authorization", "Bearer $token") })
+        }
+        tool("mcp_add").execute(server("\${pass://Kinuvo/Files/token}"))
+        assertEquals(mapOf("Authorization" to "Bearer \${pass://Kinuvo/Files/token}"), management.saved.single().server.headers)
+        val typed = server("\${secret://abc}")
+        val e = assertFailsWith<IllegalArgumentException> { tool("mcp_add").describe(typed) }
+        assertTrue("password manager" in e.message!!, e.message)
+        assertFailsWith<IllegalArgumentException> { tool("mcp_add").execute(typed) }
+        assertEquals(1, management.saved.size)
+    }
+
     @Test fun mcpRemoveOnlyRemovesOwnServersAndShowsWhat() = runTest {
         assertTrue("MCP server: notes [https://notes.example/mcp] → (removed)" in described("mcp_remove", "name" to "notes"))
         run("mcp_remove", "name" to "notes")

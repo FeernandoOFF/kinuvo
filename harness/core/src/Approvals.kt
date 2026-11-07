@@ -74,7 +74,7 @@ class ApprovalPolicy(
         val json = runCatching { Json.parseToJsonElement(args).jsonObject }.getOrElse { JsonObject(emptyMap()) }
         val command = if (tool.kind == ToolKind.Shell) json.string("command")?.let(ShellCommand::parse) else null
         blocked(tool, command, rules)?.let { return Verdict.Block(it) }
-        if (tool.kind == ToolKind.AskUser) return Verdict.Run
+        if (tool.kind == ToolKind.AskUser || tool.kind == ToolKind.RequestSecret) return Verdict.Run
         val assessment = tool.assess(json).let { if (tool.kind == ToolKind.Shell) it else it.withToolKey(tool.descriptor.name, key) }
         if (assessment.actions.any { it.alwaysAsk }) return ask(assessment, emptyList())
         val limit = tolerance.autoUpTo ?: return ask(assessment, emptyList())
