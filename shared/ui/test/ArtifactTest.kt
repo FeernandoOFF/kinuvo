@@ -66,7 +66,7 @@ class ArtifactTest {
         assertTrue(inner.contains("<script nonce=\"abc\">"))
         assertTrue(inner.contains("setAttribute(\"sandbox\",\"allow-same-origin\")"))
         assertTrue(!inner.contains("allow-scripts"))
-        assertTrue(page.contains("sandbox=\"allow-scripts\""))
+        assertTrue(page.contains("sandbox=\"allow-scripts allow-same-origin\""))
         assertTrue(page.contains("e.source!==f.contentWindow"))
         assertTrue(inner.contains("background:rgb(16,16,16)"))
         assertTrue(inner.contains("pointer-events:none"))
