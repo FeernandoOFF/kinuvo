@@ -28,6 +28,64 @@ import kotlinx.serialization.json.put
 import kotlin.test.*
 
 class RunPreparationRuntimeTest {
+    @Test fun basicProfileOmitsFrozenIdentityAndSoul() = runBlocking {
+        val fixture = RuntimeFixture()
+        fixture.documents[AgentDoc.Identity] = "IDENTITY_SENTINEL".repeat(1000)
+        fixture.documents[AgentDoc.Soul] = "SOUL_SENTINEL".repeat(1000)
+        var systems = ""
+        val harness = fixture.runtime(scriptedModel { prompt, _ ->
+            systems = prompt.messages.filterIsInstance<Message.System>().joinToString("\n") { it.textContent() }
+            flowOf(StreamFrame.End())
+        })
+        try {
+            val base = agent(harness)
+            val agent = base.copy(config = base.config.copy(tier = ModelTier.Micro))
+            val session = harness.newSession(agent)
+            harness.runner(agent, session.id).run(session.id, "hello").toList()
+            assertFalse("IDENTITY_SENTINEL" in systems)
+            assertFalse("SOUL_SENTINEL" in systems)
+            assertTrue("personal assistant" in systems)
+        } finally { harness.close() }
+    }
+
+    @Test fun scopedCatalogToolRunsDirectlyOnMid() = runBlocking {
+        var executed = false
+        var requests = 0
+        val plugin = object : HarnessPlugin {
+            override val definition = PluginDefinition("test.scoped", "Scoped")
+            override val catalogued = true
+            override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(object : Tool {
+                override val descriptor = ToolDescriptor("mcp_read", "Read", optionalParameters = listOf(
+                    ToolParameterDescriptor("nested", "Nested", ToolParameterType.List(ToolParameterType.List(ToolParameterType.String)))))
+                override val risk = Risk.Low
+                override suspend fun execute(args: JsonObject): String { executed = true; return "read" }
+            }))
+        }
+        val provider = object : ModelProvider {
+            override val id = "test"
+            override suspend fun models() = listOf(ModelInfo("tools", tools = true))
+            override fun model(config: AgentConfig) = scriptedModel { _, tools ->
+                assertEquals(listOf("mcp_read"), tools.map { it.name })
+                assertEquals(if (config.tier == ModelTier.Mid) 1 else 0, tools.single().optionalParameters.size)
+                if (requests++ == 0) flowOf(StreamFrame.ToolCallComplete("read", "mcp_read", "{}"), StreamFrame.End())
+                else flowOf(StreamFrame.End())
+            }
+        }
+        val harness = harness(listOf(plugin), listOf(provider))
+        try {
+            val base = agent(harness)
+            for (tier in listOf(ModelTier.Mid, ModelTier.Small, ModelTier.Micro)) {
+                requests = 0
+                executed = false
+                val agent = base.copy(config = base.config.copy(tier = tier, approvals = "full"))
+                val session = harness.newSession(agent)
+                val events = harness.runner(agent, session.id, scope = ToolScope.only("mcp_read")).run(session.id, "read").toList()
+                assertTrue(executed)
+                assertTrue(events.none { it is AgentEvent.RunError })
+            }
+        } finally { harness.close() }
+    }
+
     @Test fun authenticatedCatalogsEnableShowUiAndDisconnectRemovesThem() = runBlocking {
         val offered = mutableListOf<List<String>>()
         val fixture = RuntimeFixture()

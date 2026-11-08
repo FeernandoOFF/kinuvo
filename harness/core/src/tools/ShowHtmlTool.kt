@@ -3,12 +3,9 @@ package kinuvo.harness.core.tools
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.protocol.Risk
 import kotlinx.serialization.json.*
 
-class ShowHtmlTool : Tool {
-    override val risk = Risk.Low
-    override val group = ToolGroup.Interactive
+class ShowHtmlTool : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.SHOW_HTML,
         description = "Show an interactive HTML Surface in the chat. No network access. " +

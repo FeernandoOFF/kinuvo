@@ -45,6 +45,7 @@ import kinuvo.protocol.McpAppToolRequest
 import kinuvo.harness.core.plugin.McpApps
 import kinuvo.harness.core.tools.ToolRun
 import kinuvo.harness.core.tools.ToolGroup
+import kinuvo.harness.core.tools.simplified
 import kinuvo.harness.core.tools.ToolScope
 import kinuvo.harness.core.tools.select
 import kinuvo.protocol.ModelTier
@@ -56,6 +57,7 @@ import kinuvo.harness.core.tools.AskUserTool
 import kinuvo.harness.core.tools.MemoryTool
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.indexedTools
+import kinuvo.harness.core.tools.Toolsets
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.ToolCatalog
 import kinuvo.harness.core.effective
@@ -250,10 +252,12 @@ open class HarnessRuntime(
         }
         val usableTools = all.filter { it.descriptor.name in eligible }
         val cataloguedNames = plugins.zip(contributed).filter { it.first.catalogued }.flatMap { it.second.tools }.map { renamed[it.descriptor.name] ?: it.descriptor.name }.toSet()
-        val candidates = if (usableTools.size > if (e.profile.tools.catalogExternal) 0 else ToolCatalog.LIMIT) usableTools.filter { it.descriptor.name in cataloguedNames } else emptyList()
+        val candidates = usableTools.filter { it.descriptor.name in cataloguedNames }.takeIf {
+            if (e.profile.tools.catalogExternal) it.size > ToolCatalog.DIRECT_LIMIT else usableTools.size > ToolCatalog.LIMIT
+        }.orEmpty()
         // Only when the model can take the catalog's own tools; otherwise every tool stays direct.
         val finders = if (candidates.isEmpty()) emptyList() else PluginTools(ToolCatalog.tools(candidates)).ownedBy(PluginInstanceId("kinuvo.core")).tools
-            .withModelNames(all.map { it.descriptor.name }.toSet()).takeIf { f -> usable(e, f).size == f.size }.orEmpty()
+            .withModelNames(all.map { it.descriptor.name }.toSet()).takeIf { f -> usable(e, f, scope).size == f.size }.orEmpty()
         val hidden = if (finders.isEmpty()) emptyList() else candidates
         val reported = catalog + finders.map { ResolvedTool(it.descriptor.name, it.displayName, identity = it.identity) }
         return PreparedRun(e, usableTools + finders, usableTools - hidden.toSet() + finders, reported, contributed.flatMap { it.warnings }, chat)
@@ -306,15 +310,15 @@ open class HarnessRuntime(
             contextTokens = e.info?.context,
             tracing = dependencies.tracing,
             tools = tools,
-            advertisedTools = advertised.map { it.descriptor },
+            advertisedTools = advertised.mapNotNull { it.descriptor.simplified(e.profile.tools.schema) },
             context = secrets.redact(context),
             warnings = prepared.warnings.map { secrets.redact(it) },
             approvals = sessionId?.let(sessionTrust::scope).let { session ->
                 when (routine?.routine?.approvals) {
-                    null -> Approvals(ApprovalPolicy(agent, trustRules, session = session), approvals)
-                    RoutineApprovals.Auto -> Approvals(ApprovalPolicy(agent, trustRules, Tolerance.Full, session), approvals)
-                    RoutineApprovals.Deny -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent), session), approvals, ApprovalDecision.Deny(UNATTENDED_DENIAL))
-                    RoutineApprovals.Inherit -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent), session), approvals, wait = routineApprovalWait, skipped = { routine.skipped += it })
+                    null -> Approvals(ApprovalPolicy(agent, trustRules, session = session, scope = scope), approvals)
+                    RoutineApprovals.Auto -> Approvals(ApprovalPolicy(agent, trustRules, Tolerance.Full, session, scope), approvals)
+                    RoutineApprovals.Deny -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent), session, scope), approvals, ApprovalDecision.Deny(UNATTENDED_DENIAL))
+                    RoutineApprovals.Inherit -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent), session, scope), approvals, wait = routineApprovalWait, skipped = { routine.skipped += it })
                 }
             },
             routine = routine,
@@ -409,7 +413,7 @@ open class HarnessRuntime(
                     else -> emptyList()
                 } }
             }, attachments::bytes) else null
-        val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() && ToolGroup.Interactive in e.profile.tools.groups }?.let(::ShowUiTool)
+        val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() }?.let(::ShowUiTool)
         return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool), imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
     }
 
@@ -425,7 +429,9 @@ open class HarnessRuntime(
     } + if (ToolNames.SKILLS in agent.config.tools) skillTools(agent) else emptyList() } + listOfNotNull(routine?.let(::RoutineReportTool))
 
     /** [agent] without the tool groups this Server lacks the feature for, so neither its tools nor their instructions show. */
-    private fun supported(agent: Agent) = agent.copy(config = agent.config.copy(tools = agent.config.tools.filter { it in toolGroups }))
+    private fun supported(agent: Agent) = agent.copy(config = agent.config.copy(tools = agent.config.tools.flatMap { name ->
+        Toolsets.legacyGroups(name)
+    }.distinct().filter { it in toolGroups }))
 
     /** The built-in tool groups this Server can run: its own, where it has their feature, and those its plugins add. */
     private val toolGroups get() = ToolNames.OPTIONAL.filter { it !in ToolNames.FROM_PLUGINS && TOOL_FEATURES[it]?.let(features::contains) != false }.toSet() +

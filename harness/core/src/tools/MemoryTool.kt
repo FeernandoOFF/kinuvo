@@ -1,7 +1,5 @@
 package kinuvo.harness.core.tools
 
-import kinuvo.protocol.Risk
-
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -13,12 +11,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 
 /** Edits Memory (MEMORY.md) and User Notes (USER.md) as bullet entries. Changes refresh in personal context on the next turn. */
-class MemoryTool(private val agent: Agent, private val docs: AgentDocs, private val memoryCap: Int = 4000, private val userCap: Int = 2000) : Tool {
-    override val risk = Risk.Low
-
-    override val repeatable = false
-
-    override val group = ToolGroup.Core
+class MemoryTool(private val agent: Agent, private val docs: AgentDocs, private val memoryCap: Int = 4000, private val userCap: Int = 2000) : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.MEMORY,
         description = "Persist concise, durable information across Sessions. target=memory for verified lessons useful across many tasks; " +

@@ -49,14 +49,13 @@ class AgentRunTest {
                     }
                 }
                 val events = AgentRun(home.agent, home.store, model, listOf(tool), requestKind = kind).run(session.id, "go").toList()
-                // The start node, history checks, model requests and each tool call share 200 iterations.
-                assertEquals(if (batch == 1) 66 else 40, calls)
-                assertEquals(if (batch == 1) 66 else 119, executed)
+                assertEquals(66, calls)
+                assertEquals(66 * batch, executed)
                 assertTrue(events.none { it is AgentEvent.RunFinished })
                 assertEquals("The work is unfinished; send another message to continue.", assertIs<AgentEvent.RunError>(events.last()).message)
                 val results = events.filterIsInstance<AgentEvent.ToolCallResult>()
                 assertEquals(calls * batch, results.size)
-                assertEquals(if (batch == 1) 0 else 1, results.count { it.isError })
+                assertEquals(0, results.count { it.isError })
                 val entries = home.store.entries(home.agent.id, session.id)
                 assertEquals(entries.filterIsInstance<SessionEntry.ToolCall>().map { it.id }, entries.filterIsInstance<SessionEntry.ToolResult>().map { it.id })
             }
@@ -82,6 +81,24 @@ class AgentRunTest {
             assertEquals(profile.maxSteps, calls, "$tier")
             assertIs<AgentEvent.RunError>(events.last())
         }
+    }
+
+    @Test fun microExecutesOnlyOneCallPerResponse() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent.id, "full instructions")
+        var executed = 0
+        var requests = 0
+        val tool = object : Tool {
+            override val descriptor = ToolDescriptor("read", "Read")
+            override suspend fun execute(args: JsonObject): String { executed++; return "OK" }
+        }
+        val model = scriptedModel { _, _ ->
+            if (requests++ == 0) flowOf(StreamFrame.ToolCallComplete("a", "read", "{}"), StreamFrame.ToolCallComplete("b", "read", "{}"), StreamFrame.End())
+            else flowOf(StreamFrame.End())
+        }
+        val events = AgentRun(home.agent, home.store, model, listOf(tool), profile = ModelProfile.of(ModelTier.Micro)).run(session.id, "read").toList()
+        assertEquals(1, executed)
+        assertEquals(1, events.filterIsInstance<AgentEvent.ToolCallResult>().count { it.isError })
     }
 
     private val home = TestHome()

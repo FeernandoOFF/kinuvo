@@ -1,6 +1,6 @@
 package kinuvo.harness.core.routines
 
-import kinuvo.harness.core.tools.ToolGroup
+import kinuvo.harness.core.tools.CoreTool
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -8,7 +8,6 @@ import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
 import kinuvo.harness.core.tools.string
-import kinuvo.protocol.Risk
 import kinuvo.protocol.Routine
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.RunStatus
@@ -64,9 +63,7 @@ class RoutineRun(
 }
 
 /** How the Agent ends a Routine run: report to the user, or nothing new. */
-class RoutineReportTool(private val run: RoutineRun) : Tool {
-    override val risk = Risk.Low
-    override val group = ToolGroup.Internal
+class RoutineReportTool(private val run: RoutineRun) : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.ROUTINE_REPORT,
         description = "End this Routine run: report when something is new or needs the user, whose summary is their notification, " +

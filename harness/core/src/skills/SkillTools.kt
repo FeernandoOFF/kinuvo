@@ -1,13 +1,11 @@
 package kinuvo.harness.core.skills
 
-import kinuvo.harness.core.tools.ToolGroup
+import kinuvo.harness.core.tools.CoreTool
 import kinuvo.protocol.SessionEntry
 
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.protocol.Risk
-import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
 import kotlinx.serialization.json.JsonObject
@@ -27,10 +25,7 @@ suspend fun SkillRepository.activationText(skill: Skill): String = buildString {
 }
 
 /** Looks Skills up when called, so one the Agent created during the run can be activated right away. */
-class ActivateSkillTool(private val agent: Agent, private val repo: SkillRepository) : Tool {
-    override val risk = Risk.Low
-
-    override val group = ToolGroup.Skills
+class ActivateSkillTool(private val agent: Agent, private val repo: SkillRepository) : CoreTool {
     override val descriptor get() = ToolDescriptor(
         name = ToolNames.ACTIVATE_SKILL,
         description = "Load a Skill's full instructions. Use it when a task matches a Skill's description.",
@@ -47,10 +42,7 @@ class ActivateSkillTool(private val agent: Agent, private val repo: SkillReposit
     }
 }
 
-class ReadSkillFileTool(private val agent: Agent, private val repo: SkillRepository, private val maxChars: Int = 50_000) : Tool {
-    override val risk = Risk.Low
-
-    override val group = ToolGroup.Skills
+class ReadSkillFileTool(private val agent: Agent, private val repo: SkillRepository, private val maxChars: Int = 50_000) : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.READ_SKILL_FILE,
         description = "Read a file bundled with a Skill (paths as listed in <skill_resources>).",
@@ -69,10 +61,7 @@ class ReadSkillFileTool(private val agent: Agent, private val repo: SkillReposit
 }
 
 /** Lets the Agent create, edit or delete Skills in its own skills dir only. */
-class SkillManageTool(private val agent: Agent, private val repo: SkillRepository) : Tool {
-    override val risk = Risk.High
-
-    override val group = ToolGroup.Skills
+class SkillManageTool(private val agent: Agent, private val repo: SkillRepository) : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.SKILL_MANAGE,
         description = "Create, edit or delete one of your own Skills. content is the full SKILL.md, starting with " +

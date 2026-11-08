@@ -27,21 +27,12 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
             BrowserAction.Back, BrowserAction.Forward, BrowserAction.Click, BrowserAction.Type, BrowserAction.Scroll, BrowserAction.Wait, BrowserAction.Close).map { BrowserTool(owner, it) })
     }
 
-    private inner class ListTabs(val owner: BrowserOwner) : Tool {
-        override val risk = Risk.Low
-        override val group = ToolGroup.Automation
+    private inner class ListTabs(val owner: BrowserOwner) : CoreTool {
         override val descriptor = ToolDescriptor("browser_tabs", "List this Agent's browser tabs and who controls them.", emptyList())
         override suspend fun execute(args: JsonObject) = ProtocolJson.encodeToString(browser.tabs(owner).map { it.copy(thumbnail = null) })
     }
 
-    private inner class BrowserTool(val owner: BrowserOwner, val action: BrowserAction) : Tool {
-        override val repeatable = action !in setOf(BrowserAction.Open, BrowserAction.Navigate, BrowserAction.Click, BrowserAction.Type, BrowserAction.Close)
-        override val risk = when (action) {
-            BrowserAction.Open, BrowserAction.Capture, BrowserAction.Navigate, BrowserAction.Back, BrowserAction.Forward, BrowserAction.Scroll, BrowserAction.Wait -> Risk.Low
-            BrowserAction.Click, BrowserAction.Type -> Risk.High
-            else -> Risk.Medium
-        }
-        override val group = ToolGroup.Automation
+    private inner class BrowserTool(val owner: BrowserOwner, val action: BrowserAction) : CoreTool {
         override val descriptor = ToolDescriptor("browser_${action.name.lowercase()}", when (action) {
             BrowserAction.Open -> "Open a tab shared by this Agent's Sessions. text is an HTTP(S) URL, a bare host or a Google search; private hosts are allowed."
             BrowserAction.Capture -> "Capture the tab's visible semantic elements, revision and screenshot."

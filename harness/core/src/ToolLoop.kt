@@ -63,11 +63,17 @@ internal class ToolLoop(
     private val completed: suspend (SessionEntry.ToolCall) -> SessionEntry.ToolResult = { call ->
         SessionEntry.ToolResult(call.id, call.name, "This exact action already succeeded. Use its result and answer the user; don't repeat it.", isError = true, identity = call.identity)
     },
+    private val skipped: suspend (SessionEntry.ToolCall) -> SessionEntry.ToolResult = { call ->
+        SessionEntry.ToolResult(call.id, call.name, SKIPPED_CALL, isError = true, identity = call.identity)
+    },
     private val onResponse: suspend () -> Unit = {},
     private val onResult: suspend (SessionEntry.ToolResult) -> Unit = {},
     private val onFrame: suspend (StreamFrame) -> Unit = {},
     private val stopped: (String) -> Unit = {},
+    private val maxRequests: Int = Int.MAX_VALUE,
+    private val parallelCalls: Boolean = true,
 ) {
+    private var requests = 0
     private val failed = mutableSetOf<Pair<String, String>>()
     private var repeats = 0
     private var repeatedSuccess = false
@@ -78,6 +84,7 @@ internal class ToolLoop(
 
     val request by node<Unit, Unit>("streamResponse") {
         checkRepeats()
+        if (requests++ >= maxRequests) throw RequestLimitReached()
         llm.writeSession {
             requestLLMStreaming().requireEndFrame().collect { onFrame(it) }
             prompt = prompt.withMessages { it + response.messages(messages) }
@@ -99,6 +106,14 @@ internal class ToolLoop(
         onResult(result)
         llm.writeSession { prompt = prompt.withMessages { it + messages.messages(listOf(result)) } }
         pending = pending.drop(1)
+        if (!parallelCalls) {
+            pending.forEach { call ->
+                val result = skipped(call)
+                onResult(result)
+                llm.writeSession { prompt = prompt.withMessages { it + messages.messages(listOf(result)) } }
+            }
+            pending = emptyList()
+        }
     }
 
     fun connect(builder: AIAgentSubgraphBuilderBase<Unit, Unit>, beforeRequest: AIAgentNodeBase<Unit, Unit> = request, finish: AIAgentNodeBase<Unit, *> = builder.nodeFinish) = with(builder) {
@@ -150,6 +165,8 @@ internal class ToolLoopFeature private constructor() {
     }
 }
 
+internal const val SKIPPED_CALL = "Skipped: only one tool call is allowed per turn. Call this tool in the next response if still needed."
+
 private suspend fun AIAgentGraphContextBase.toolCall(call: SessionEntry.ToolCall, name: String, execute: suspend () -> SessionEntry.ToolResult): SessionEntry.ToolResult {
     val event = Uuid.random().toString()
     val args = JSONObject(emptyMap())
@@ -168,3 +185,5 @@ private suspend fun AIAgentGraphContextBase.toolCall(call: SessionEntry.ToolCall
 }
 
 internal fun canonical(args: String) = runCatching { Json.parseToJsonElement(args).deterministic().toString() }.getOrDefault(args)
+
+internal class RequestLimitReached : IllegalStateException()

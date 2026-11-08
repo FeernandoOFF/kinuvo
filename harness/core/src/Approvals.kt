@@ -3,6 +3,7 @@ package kinuvo.harness.core
 import kinuvo.harness.core.tools.Action
 import kinuvo.harness.core.tools.Assessment
 import kinuvo.harness.core.tools.Tool
+import kinuvo.harness.core.tools.ToolScope
 import kinuvo.harness.core.tools.ToolKind
 import kinuvo.harness.core.tools.string
 import kinuvo.harness.core.tools.policyKey
@@ -67,6 +68,7 @@ class ApprovalPolicy(
     private val rules: TrustRulesRepository,
     val tolerance: Tolerance = Tolerance.of(agent.config.approvals),
     private val session: SessionTrust.Scope? = null,
+    private val scope: ToolScope = ToolScope.All,
 ) {
     suspend fun decide(tool: Tool, args: String = "{}"): Verdict {
         val key = tool.policyKey
@@ -74,10 +76,11 @@ class ApprovalPolicy(
         val json = runCatching { Json.parseToJsonElement(args).jsonObject }.getOrElse { JsonObject(emptyMap()) }
         val command = if (tool.kind == ToolKind.Shell) json.string("command")?.let(ShellCommand::parse) else null
         blocked(tool, command, rules)?.let { return Verdict.Block(it) }
+        if (!scope.allows(tool)) return Verdict.Block("Tool is outside this run’s scope.")
         if (tool.kind == ToolKind.AskUser) return Verdict.Run
         val assessment = tool.assess(json).let { if (tool.kind == ToolKind.Shell) it else it.withToolKey(tool.descriptor.name, key) }
-        if (assessment.actions.any { it.alwaysAsk }) return ask(assessment, emptyList())
-        val limit = tolerance.autoUpTo ?: return ask(assessment, emptyList())
+        if (scope.mustAsk(tool) || assessment.actions.any { it.alwaysAsk }) return ask(assessment, emptyList())
+        val limit = scope.tolerance(tolerance).autoUpTo ?: return ask(assessment, emptyList())
         val saved = if (tool.kind == ToolKind.Shell) rules.shell.map(ShellCommand::words) else rules.trusted.map { it.split(' ') }
         fun trusted(a: Action) = saved.any(a::matches)
         val pending = assessment.actions.filter { a -> a.risk > limit && !(a.floor <= limit && trusted(a)) }

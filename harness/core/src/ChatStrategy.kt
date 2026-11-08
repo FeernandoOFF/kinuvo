@@ -18,13 +18,19 @@ internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: 
 
 /** The Session's history, compaction and the tool loop, ending at [finish]; returns the node to start from. */
 internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit, finish: AIAgentNodeBase<Unit, *>): AIAgentNodeBase<Unit, Unit> {
-    val loop = ToolLoop(session.messages, session.response, { executor }, session::toolName,
+    val loop = ToolLoop(session.messages, response = session.response, executor = { executor }, toolName = session::toolName,
+        maxRequests = session.profile.maxSteps, parallelCalls = session.profile.tools.parallelCalls,
         repeated = { call ->
             session.toolStarted(call.id)
             session.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
             SessionEntry.ToolResult(call.id, call.name, "This exact call already failed in this turn. Don't repeat it; try something else or answer the user.", isError = true, identity = call.identity)
         },
         repeatable = executor::repeatable,
+        skipped = { call ->
+            session.toolStarted(call.id)
+            session.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
+            SessionEntry.ToolResult(call.id, call.name, SKIPPED_CALL, isError = true, identity = call.identity)
+        },
         completed = { call ->
             session.toolStarted(call.id)
             session.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))

@@ -23,6 +23,7 @@ private const val MICRO_CONTEXT = 4096
 private val MID_NAMES = Regex("(?<![a-z])(mini|flash|nano|haiku|small|lite)(?![a-z])")
 private val PARAMETERS = Regex("""(?<![a-z0-9.])(\d+(?:\.\d+)?)b(?![a-z])""")
 private val EXPERTS = Regex("""(?<![a-z0-9.])(\d+)x(\d+(?:\.\d+)?)b(?![a-z])""")
+private val MILLIONS = Regex("""(?<![a-z0-9.])(\d+(?:\.\d+)?)m(?![a-z])""")
 private val EFFECTIVE = Regex("""(?<![a-z0-9.])e(\d+)b(?![a-z])""")
 
 /** Parameter count in billions from a model ID such as `qwen2.5-7b`, `llama3.1:8b` or `gemma-4-e4b` (effective parameters) or `mixtral-8x7b`; null when it names none. */
@@ -30,5 +31,6 @@ internal fun parameterBillions(id: String): Double? {
     val name = id.lowercase()
     EXPERTS.find(name)?.let { return it.groupValues[1].toDouble() * it.groupValues[2].toDouble() }
     EFFECTIVE.find(name)?.let { return it.groupValues[1].toDouble() }
-    return PARAMETERS.findAll(name).mapNotNull { it.groupValues[1].toDoubleOrNull() }.lastOrNull()
+    PARAMETERS.findAll(name).mapNotNull { it.groupValues[1].toDoubleOrNull() }.lastOrNull()?.let { return it }
+    return MILLIONS.find(name)?.let { it.groupValues[1].toDouble() / 1000 }
 }

@@ -14,20 +14,17 @@ import dev.ynagai.a2ui.core.surface.MessageProcessor
 import dev.ynagai.a2ui.core.surface.RendererState
 import dev.ynagai.a2ui.core.validation.CatalogValidator
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.Risk
 import kinuvo.protocol.UiCatalog
 import kinuvo.protocol.uiMessages
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.*
 
 /** Shows the user an A2UI surface in the chat, checked against the catalogs their Devices render. */
-class ShowUiTool(catalogs: List<UiCatalog>) : Tool {
+class ShowUiTool(catalogs: List<UiCatalog>) : CoreTool {
     private val validator = CatalogValidator.of(catalogs.map {
         A2uiJson.lenient.decodeFromJsonElement(CatalogDefinition.serializer(), ProtocolJson.encodeToJsonElement(UiCatalog.serializer(), it))
     })
 
-    override val risk = Risk.Low
-    override val group = ToolGroup.Interactive
     override val descriptor = ToolDescriptor(
         name = ToolNames.SHOW_UI,
         description = "Show native interactive Surfaces using A2UI v1.0. Use the advertised catalog schemas. " +

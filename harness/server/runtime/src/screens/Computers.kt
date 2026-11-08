@@ -294,9 +294,7 @@ class Computers(
         return listOfNotNull(result.message, render(computer, screen)).joinToString("\n\n")
     }
 
-    private inner class ListTool : Tool {
-        override val risk = Risk.Low
-        override val group = ToolGroup.Automation
+    private inner class ListTool : CoreTool {
         override val descriptor = ToolDescriptor(ToolNames.COMPUTER_LIST, "List the Computers you can control (paired phones and computers) and whether each is available.", emptyList())
         override suspend fun execute(args: JsonObject): String {
             all().filter { it.available }.forEach { probe(it) }
@@ -304,10 +302,8 @@ class Computers(
         }
     }
 
-    private inner class ReadTool(private val windowList: Boolean, private val windows: MutableMap<String, List<ComputerWindow>>) : Tool {
-        override val risk = Risk.Low
+    private inner class ReadTool(private val windowList: Boolean, private val windows: MutableMap<String, List<ComputerWindow>>) : CoreTool {
         private val action = if (windowList) ComputerActionKind.ListWindows else ComputerActionKind.ListApps
-        override val group = ToolGroup.Automation
         override val descriptor = ToolDescriptor(if (windowList) "computer_windows" else "computer_apps",
             if (windowList) "List windows with ids, apps and frames in desktop points for set_window_frame."
             else "List installed apps with names, bundle/package ids and running/frontmost flags. Sensitive apps need Approval to open. Android only knows the frontmost app is running.",
@@ -329,8 +325,7 @@ class Computers(
         }
     }
 
-    private inner class CaptureTool(private val seen: MutableMap<String, ComputerScreen>) : Tool {
-        override val group = ToolGroup.Automation
+    private inner class CaptureTool(private val seen: MutableMap<String, ComputerScreen>) : CoreTool {
         override val descriptor = ToolDescriptor(
             "computer_capture", "See a Computer's screen: its foreground app, numbered elements and a screenshot.",
             optionalParameters = listOf(
@@ -348,7 +343,7 @@ class Computers(
     }
 
     private inner class ActTool(private val seen: MutableMap<String, ComputerScreen>,
-        private val windows: MutableMap<String, List<ComputerWindow>>, supported: Set<ComputerActionKind>) : Tool {
+        private val windows: MutableMap<String, List<ComputerWindow>>, supported: Set<ComputerActionKind>) : CoreTool {
         /** The app [args] acts in, as named in Trust rules, and whether it types into a password field; null app before any capture. */
         private fun target(args: JsonObject): Triple<ComputerActionKind?, String?, Boolean> {
             val action = ACTIONS[args.string("action")]
@@ -364,7 +359,6 @@ class Computers(
             return Triple(action, app, action in setOf(ComputerActionKind.Type, ComputerActionKind.SetValue) && element?.password == true)
         }
 
-        override val group = ToolGroup.Automation
         override val descriptor = ToolDescriptor(
             "computer_act", "Act on a Computer's screen, then see the result. Use element numbers from the latest capture.",
             requiredParameters = listOf(ToolParameterDescriptor("action", "What to do", ToolParameterType.Enum(ACTIONS.filterValues { it in supported }.keys.toTypedArray()))),
@@ -395,8 +389,6 @@ class Computers(
             val generation = gate.state.value.generation
             return { check(gate.state.value.generation == generation) { "Screen control changed while awaiting Approval; capture again" } }
         }
-
-        override val kind = ToolKind.ComputerAction
 
         override fun assess(args: JsonObject): Assessment {
             // Every app asks until "Always allow" trusts it, like a shell command prefix; opening one counts as acting in it.
@@ -483,9 +475,7 @@ class Computers(
         }
     }
 
-    private inner class TakeoverTool(private val context: RunContext) : Tool {
-        override val risk = Risk.Low
-        override val group = ToolGroup.Automation
+    private inner class TakeoverTool(private val context: RunContext) : CoreTool {
         override val descriptor = ToolDescriptor(
             "request_takeover", "Ask the user to take over a Computer for a step only they should do (sign-in, one-time code, CAPTCHA, payment, " +
                 "permission dialog) and wait until they hand it back or skip.",

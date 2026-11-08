@@ -1,9 +1,9 @@
 package kinuvo.harness.core.knowledge
 
+import kinuvo.harness.core.tools.CoreTool
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
 import kinuvo.protocol.ReflectionProposal
@@ -31,7 +31,7 @@ ${Json.encodeToString(ReflectionProposal.serializer(), proposal)}
 
 """
 
-    internal fun decisionTool() = object : Tool {
+    internal fun decisionTool() = object : CoreTool {
         override val descriptor = ToolDescriptor(ToolNames.REFLECTION_FEEDBACK, "Classify this review note before finishing.", requiredParameters = listOf(
             ToolParameterDescriptor("lasting", "Whether the note states a rule useful beyond this proposal", ToolParameterType.Boolean),
         ))
@@ -56,7 +56,7 @@ ${Json.encodeToString(ReflectionProposal.serializer(), proposal)}
     }
 }
 
-internal fun conventionsTool() = object : Tool {
+internal fun conventionsTool() = object : CoreTool {
     override val descriptor = ToolDescriptor(ToolNames.CONVENTIONS, "Propose how the user organizes Knowledge, preserving their other Conventions.", requiredParameters = listOf(
         ToolParameterDescriptor("action", "edit", ToolParameterType.String),
         ToolParameterDescriptor("content", "The complete revised Conventions", ToolParameterType.String),

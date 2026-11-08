@@ -46,22 +46,12 @@ Suggestions and silence are not agreement. Background Knowledge changes and lear
 
 /** Derived from the tools of this run, rather than remembered product documentation. */
 fun capabilitiesFor(agent: Agent, tools: List<Tool>): String = buildString {
-    val names = tools.map { it.identity?.localId ?: it.descriptor.name }.toSet()
     append("## Kinuvo capabilities for this run\n\n")
     append("This current capability summary, Workspace and Conventions supersede older snapshots in this Session.\n")
     append("You run in Kinuvo, a self-hosted personal AI harness. The Server owns Agents, Sessions and tools; paired Devices are clients.\n")
     append("Model provider: ${agent.config.provider}. Exec backend: ${agent.config.exec}.\n")
     append("Available tools: ${tools.map { it.descriptor.name }.sorted().joinToString()}. Use these tools to establish what is possible; do not assume unlisted integrations exist.\n")
-    if ("memory" in names) append("The memory tool edits this Agent's Memory and User Notes. Their current contents appear in the personal context.\n")
-    if ("knowledge" in names) append("Knowledge is the user's shared note system. Follow its Conventions. Asking for advice or options is not authorization to edit Notes.\n")
-    if ("activate_skill" in names) append("Before specialized work, inspect the Current Skills catalog and activate a matching Skill with the Skill activation tool.\n")
-    if (ToolNames.READ_SKILL_FILE in names) append("Read an activated Skill's referenced resources with the Skill file tool when its instructions call for them.\n")
-    if (ToolNames.SKILL_MANAGE in names) append("When Skill instructions are outdated or contradicted by tool results, identify the concrete correction. Leave automatic learning to background Reflection, which proposes improvements for review; drafts are unavailable until approved. Explicit user requests to edit a Skill use the Skill management tool and the normal Approval policy.\n")
-    if ("tasks" in names) append("Tasks live in the user's task provider and appear on the Board. Agents can work assigned Tasks; waiting on the user leaves the provider Task incomplete.\n")
-    if ("schedule" in names) append("Routines schedule future Agent work on the Server; use the scheduling tool instead of claiming you will remember to act later.\n")
-    if ("device_tools" in names) append("Device tools depend on paired Devices being available; check tool results for availability.\n")
-    if ("find_tools" in names) append("More tools are in the tool catalog: search it before concluding a tool doesn't exist.\n")
-    if ("run_code" in names) append("For many related tool calls (loops, filtering, chaining), write one Script with the Script tool instead of calling them one by one; only its return value comes back.\n")
+    tools.mapNotNull { it.coreMetadata }.distinct().forEach { append(it.hint ?: it.summary); append("\n") }
     append("Tool calls follow the Session's Risk tolerance and Trust/Deny rules. Background Reflection stages Knowledge and learned Skills for explicit Approval regardless of Risk tolerance.\n")
 }
 

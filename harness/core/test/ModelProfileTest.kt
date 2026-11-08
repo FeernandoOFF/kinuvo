@@ -14,6 +14,7 @@ import kotlin.test.assertNull
 
 class ModelProfileTest {
     private fun tool(name: String, group: ToolGroup, vararg required: ToolParameterDescriptor) = object : Tool {
+        override val coreMetadata = CoreToolRegistry[name]
         override val group = group
         override val descriptor = ToolDescriptor(name, name, required.toList())
         override suspend fun execute(args: JsonObject) = name
@@ -36,6 +37,8 @@ class ModelProfileTest {
             tier("gpt-5.6-sol", tools = false, context = 128_000) to ModelTier.NoTools,
             tier("tiny", tools = true, context = 4096) to ModelTier.Micro,
             tier("local", context = 2048, location = ExecutionLocation.ServerHost) to ModelTier.Micro,
+            tier("gemma3:270m") to ModelTier.Small,
+            tier("smollm2:135m") to ModelTier.Small,
             tier("qwen2.5-7b") to ModelTier.Small,
             tier("llama3.1:8b", context = 128_000) to ModelTier.Small,
             tier("gemma-4-e4b") to ModelTier.Small,
@@ -63,6 +66,8 @@ class ModelProfileTest {
         assertEquals(0.6, parameterBillions("qwen3-0.6b"))
         assertEquals(56.0, parameterBillions("mixtral-8x7b"))
         assertEquals(4.0, parameterBillions("gemma-4-e4b"))
+        assertEquals(14.0, parameterBillions("qwen2.5-14b-instruct-1m"))
+        assertEquals(0.27, parameterBillions("gemma3:270m"))
         assertNull(parameterBillions("gpt-4o"))
     }
 
@@ -86,12 +91,7 @@ class ModelProfileTest {
         assertEquals(50, mid.maxSteps)
         val frontier = ModelProfile.of(ModelTier.Frontier)
         assertEquals(ToolGroup.entries.toSet(), frontier.tools.groups)
-        assertEquals(200, frontier.graphSteps)
         assertEquals(emptySet(), ModelProfile.of(ModelTier.NoTools).tools.groups)
-    }
-
-    @Test fun stepLimitsMapToGraphSteps() {
-        assertEquals(listOf(14, 32, 152, 200), listOf(ModelTier.Micro, ModelTier.Small, ModelTier.Mid, ModelTier.Frontier).map { ModelProfile.of(it).graphSteps })
     }
 
     @Test fun groupsFilterTools() {
