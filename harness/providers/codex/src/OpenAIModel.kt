@@ -32,7 +32,7 @@ fun openAIModel(config: AgentConfig, executor: PromptExecutor, info: ModelInfo? 
             include = listOf(OpenAIInclude.REASONING_ENCRYPTED_CONTENT),
             parallelToolCalls = false,
             reasoning = if (config.reasoning == "none" || !model.supports(LLMCapability.Thinking)) null else ReasoningConfig(effort = effort(config.reasoning), summary = summary(config.reasoningSummary)),
-            additionalProperties = mapOf("instructions" to JsonPrimitive(instructions)),
+            additionalProperties = if (instructions.isBlank()) emptyMap() else mapOf("instructions" to JsonPrimitive(instructions)),
         )
     }, attachments = attachments, instructionsInPrompt = false, failure = { friendly(config, it) })
 }

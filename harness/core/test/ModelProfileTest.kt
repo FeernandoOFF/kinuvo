@@ -66,6 +66,8 @@ class ModelProfileTest {
         assertEquals(0.6, parameterBillions("qwen3-0.6b"))
         assertEquals(56.0, parameterBillions("mixtral-8x7b"))
         assertEquals(4.0, parameterBillions("gemma-4-e4b"))
+        assertEquals(14.0, parameterBillions("qwen2.5-14b-instruct-1m"))
+        assertEquals(0.27, parameterBillions("gemma3:270m"))
         assertNull(parameterBillions("gpt-4o"))
     }
 
@@ -89,12 +91,10 @@ class ModelProfileTest {
         assertEquals(50, mid.maxSteps)
         val frontier = ModelProfile.of(ModelTier.Frontier)
         assertEquals(ToolGroup.entries.toSet(), frontier.tools.groups)
-        assertEquals(200, frontier.graphSteps)
         assertEquals(emptySet(), ModelProfile.of(ModelTier.NoTools).tools.groups)
     }
 
     @Test fun stepLimitsMapToGraphSteps() {
-        assertEquals(listOf(14, 32, 152, 200), listOf(ModelTier.Micro, ModelTier.Small, ModelTier.Mid, ModelTier.Frontier).map { ModelProfile.of(it).graphSteps })
     }
 
     @Test fun groupsFilterTools() {

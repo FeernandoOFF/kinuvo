@@ -253,7 +253,7 @@ open class HarnessRuntime(
         val usableTools = all.filter { it.descriptor.name in eligible }
         val cataloguedNames = plugins.zip(contributed).filter { it.first.catalogued }.flatMap { it.second.tools }.map { renamed[it.descriptor.name] ?: it.descriptor.name }.toSet()
         val candidates = usableTools.filter { it.descriptor.name in cataloguedNames }.takeIf {
-            if (e.profile.tools.catalogExternal) it.size > 8 else usableTools.size > ToolCatalog.LIMIT
+            if (e.profile.tools.catalogExternal) it.size > ToolCatalog.DIRECT_LIMIT else usableTools.size > ToolCatalog.LIMIT
         }.orEmpty()
         // Only when the model can take the catalog's own tools; otherwise every tool stays direct.
         val finders = if (candidates.isEmpty()) emptyList() else PluginTools(ToolCatalog.tools(candidates)).ownedBy(PluginInstanceId("kinuvo.core")).tools

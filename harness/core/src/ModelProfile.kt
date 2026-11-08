@@ -43,11 +43,7 @@ data class ModelProfile(
     val maxSteps: Int,
     val memoryPercent: Int = 30,
 ) {
-    /** Koog graph steps for [maxSteps]: each model request, its tool call and the history check are one each, plus the turn's start and end. */
-    val graphSteps get() = maxSteps * STEPS_PER_REQUEST + 2
-
     companion object {
-        const val STEPS_PER_REQUEST = 3
         private val ALL = ToolGroup.entries.toSet()
 
         fun of(tier: ModelTier) = when (tier) {

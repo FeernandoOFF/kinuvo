@@ -16,6 +16,8 @@ import kotlinx.serialization.json.JsonPrimitive
  */
 object ToolCatalog {
     const val LIMIT = 40
+    /** On tiers that always catalogue external tools, this many or fewer are still sent directly. */
+    const val DIRECT_LIMIT = 8
 
     fun tools(catalogued: List<Tool>): List<Tool> = listOf(FindTools(catalogued), DescribeTool(catalogued), CallTool(catalogued))
 }

@@ -63,6 +63,9 @@ internal class ToolLoop(
     private val completed: suspend (SessionEntry.ToolCall) -> SessionEntry.ToolResult = { call ->
         SessionEntry.ToolResult(call.id, call.name, "This exact action already succeeded. Use its result and answer the user; don't repeat it.", isError = true, identity = call.identity)
     },
+    private val skipped: suspend (SessionEntry.ToolCall) -> SessionEntry.ToolResult = { call ->
+        SessionEntry.ToolResult(call.id, call.name, SKIPPED_CALL, isError = true, identity = call.identity)
+    },
     private val onResponse: suspend () -> Unit = {},
     private val onResult: suspend (SessionEntry.ToolResult) -> Unit = {},
     private val onFrame: suspend (StreamFrame) -> Unit = {},
@@ -104,8 +107,8 @@ internal class ToolLoop(
         llm.writeSession { prompt = prompt.withMessages { it + messages.messages(listOf(result)) } }
         pending = pending.drop(1)
         if (!parallelCalls) {
-            pending.forEach { skipped ->
-                val result = SessionEntry.ToolResult(skipped.id, skipped.name, "Skipped: only one tool call is allowed per turn. Call this tool in the next response if still needed.", isError = true, identity = skipped.identity)
+            pending.forEach { call ->
+                val result = skipped(call)
                 onResult(result)
                 llm.writeSession { prompt = prompt.withMessages { it + messages.messages(listOf(result)) } }
             }
@@ -161,6 +164,8 @@ internal class ToolLoopFeature private constructor() {
         }
     }
 }
+
+internal const val SKIPPED_CALL = "Skipped: only one tool call is allowed per turn. Call this tool in the next response if still needed."
 
 private suspend fun AIAgentGraphContextBase.toolCall(call: SessionEntry.ToolCall, name: String, execute: suspend () -> SessionEntry.ToolResult): SessionEntry.ToolResult {
     val event = Uuid.random().toString()

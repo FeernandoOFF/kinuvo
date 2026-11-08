@@ -50,7 +50,7 @@ object CoreToolRegistry {
         CoreToolEntry("request_takeover", ToolGroup.Automation, Risk.Low, ToolKind.Standard, true, "Ask the user to take over a Computer."),
         CoreToolEntry("computer_apps", ToolGroup.Automation, Risk.Low, ToolKind.Standard, true, "List installed apps on a Computer."),
         CoreToolEntry("computer_windows", ToolGroup.Automation, Risk.Low, ToolKind.Standard, true, "List Computer windows and their frames."),
-        CoreToolEntry(ToolNames.DEVICE_TOOLS, ToolGroup.Automation, Risk.Low, ToolKind.Standard, true, "List enabled paired Device tools.", hint = "Device tools depend on paired Devices being available; check tool results for availability."),
+        CoreToolEntry(ToolNames.DEVICE_TOOLS, ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "List enabled paired Device tools.", hint = "Device tools depend on paired Devices being available; check tool results for availability."),
         CoreToolEntry("contacts_lookup", ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "Find matching Contacts on a paired Device."),
         CoreToolEntry("workouts_list", ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "Read Health workouts from a paired Device."),
         CoreToolEntry("sleep_sessions", ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "Read Health sleep sessions from a paired Device."),
