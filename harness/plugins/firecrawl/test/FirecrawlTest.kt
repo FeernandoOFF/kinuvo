@@ -8,6 +8,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
+import kinuvo.harness.core.tools.SearchRegion
 import kinuvo.harness.core.tools.WebSearchTool
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
@@ -40,6 +41,18 @@ class FirecrawlTest {
             network = effective.filterKeys { it in provider.hostAccess.network },
             secrets = effective.filterKeys { it in provider.hostAccess.secrets })
         return provider.configured(effective, runtime.bind(plugin.manifest, plugin.instance) { grants })
+    }
+
+    @Test fun sendsDerivedRegionAndSettingsOverrideIt() = runTest {
+        reply = """{"success":true,"data":{"web":[]}}"""
+        val region = SearchRegion("IE", "Dublin,Ireland")
+        firecrawl.search("doctor", 3, false, region)
+        assertEquals("IE", requests.last().second["country"]?.jsonPrimitive?.content)
+        assertEquals("Dublin,Ireland", requests.last().second["location"]?.jsonPrimitive?.content)
+        val configured = firecrawl(mapOf("apiKey" to "secret", "country" to "MX", "location" to "Mexico City,Mexico"))
+        configured.search("doctor", 3, false, region)
+        assertEquals("MX", requests.last().second["country"]?.jsonPrimitive?.content)
+        assertEquals("Mexico City,Mexico", requests.last().second["location"]?.jsonPrimitive?.content)
     }
 
     @Test

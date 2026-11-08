@@ -16,3 +16,5 @@ Micro leaves out web fetch, whose pages fill its context and whose URLs it tends
 Registered searches reject reworded queries whose normalized word sets have Jaccard overlap of at least 0.6. This returns guidance without triggering the failed-call repeat abort. Micro and Small receive a prompt-only answer nudge after results, and shorter web-search snippets and URLs without dates. Larger tiers retain full search output.
 
 This keeps tool choice with the model. Deterministic search and summarise remains deferred.
+
+Micro and Small read the first search result with a six-second timeout and keep up to 1,200 characters of query-relevant passages. Failed reads leave search results intact. Search uses the Server time zone for country and city; Firecrawl Country and Location settings override those defaults. Unknown zones omit the region. Result limits still trim only the model prompt.

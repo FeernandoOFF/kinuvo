@@ -241,9 +241,12 @@ const val ANSWER_NUDGE = "Answer the user from these results unless something es
 
 internal fun searchWords(args: String): Set<String> = runCatching {
     val query = Json.parseToJsonElement(args).jsonObject["query"]?.jsonPrimitive?.content.orEmpty()
+    queryWords(query)
+}.getOrDefault(emptySet())
+
+internal fun queryWords(query: String): Set<String> =
     query.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))
         .filter { it.isNotBlank() && it !in setOf("a", "an", "the", "is", "who", "what", "of", "in", "on", "for", "to", "and") }.toSet()
-}.getOrDefault(emptySet())
 
 internal fun similarSearch(a: Set<String>, b: Set<String>) = a.isNotEmpty() && b.isNotEmpty() &&
     a.intersect(b).size.toDouble() / a.union(b).size >= 0.6

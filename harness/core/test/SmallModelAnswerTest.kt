@@ -4,6 +4,9 @@ import ai.koog.prompt.streaming.StreamFrame
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.harness.core.tools.Tool
 import kotlinx.serialization.json.JsonObject
+import kinuvo.harness.core.tools.SearchRegion
+import kinuvo.harness.core.tools.relevantPassages
+import kotlinx.coroutines.delay
 import kinuvo.harness.core.tools.WebResult
 import kinuvo.harness.core.tools.WebSearch
 import kinuvo.harness.core.tools.WebSearchTool
@@ -21,6 +24,55 @@ import kotlinx.serialization.json.put
 import kotlin.test.*
 
 class SmallModelAnswerTest {
+    @Test fun searchRegionsFollowServerZones() {
+        assertEquals(SearchRegion("IE", "Dublin,Ireland"), SearchRegion.fromTimeZone("Europe/Dublin"))
+        assertEquals(SearchRegion("MX", "Mexico City,Mexico"), SearchRegion.fromTimeZone("America/Mexico_City"))
+        assertNull(SearchRegion.fromTimeZone("UTC"))
+        assertNull(SearchRegion.fromTimeZone("Etc/GMT"))
+        assertNull(SearchRegion.fromTimeZone("Unknown/City"))
+    }
+
+    @Test fun compactSearchReadsOnlyTheFirstPageAndSurvivesFailures() = runTest {
+        val region = SearchRegion("IE", "Dublin,Ireland")
+        var reads = 0
+        var mode = "success"
+        val tool = WebSearchTool(object : WebSearch {
+            override suspend fun search(query: String, limit: Int, news: Boolean, region: SearchRegion?): List<WebResult> {
+                assertEquals(SearchRegion("IE", "Dublin,Ireland"), region)
+                return listOf(WebResult("Ada", "https://example.org/ada", "A mathematician."))
+            }
+            override suspend fun read(url: String): String? {
+                reads++
+                assertEquals("https://example.org/ada", url)
+                return when (mode) {
+                    "failure" -> error("offline")
+                    "timeout" -> { delay(7_000); "Ada too late" }
+                    "null" -> null
+                    else -> "Unrelated paragraph.\n\nAda wrote notes."
+                }
+            }
+        }, region = region)
+        val args = buildJsonObject { put("query", "Ada") }
+        val full = tool.execute(args)
+        assertEquals(0, reads)
+        assertTrue(tool.compact().execute(args).endsWith("From example.org:\nAda wrote notes."))
+        for (failure in listOf("failure", "timeout", "null")) {
+            mode = failure
+            assertFalse(tool.compact().execute(args).contains("From "))
+        }
+        assertTrue(full.contains("https://example.org/ada"))
+    }
+
+    @Test fun passagesRankThenReturnInPageOrderWithinCap() {
+        val page = "Ada first.\n\nUnrelated.\n\nAda Lovelace second.\n\nAda " + "😀".repeat(800)
+        val passages = relevantPassages(page, "Ada Lovelace")
+        assertTrue(passages.startsWith("Ada first.\n\nAda Lovelace second."))
+        assertFalse(passages.contains("Unrelated"))
+        assertTrue(passages.length <= 1_200)
+        assertFalse(passages.last().isHighSurrogate())
+        assertEquals("", relevantPassages(page, "Dublin"))
+    }
+
     @Test fun nudgeAppliesOnlyToSmallTiers() = runTest {
         for (tier in listOf(ModelTier.Micro, ModelTier.Small, ModelTier.Mid, ModelTier.Frontier)) {
             val home = TestHome()
@@ -50,7 +102,7 @@ class SmallModelAnswerTest {
             var searches = 0
             var requests = 0
             val tool = WebSearchTool(object : WebSearch {
-                override suspend fun search(query: String, limit: Int, news: Boolean): List<WebResult> {
+                override suspend fun search(query: String, limit: Int, news: Boolean, region: SearchRegion?): List<WebResult> {
                     searches++
                     assertTrue(limit in 3..10)
                     return listOf(WebResult("Ada", "https://example.org/ada", "A mathematician."))
@@ -77,7 +129,7 @@ class SmallModelAnswerTest {
 
     @Test fun compactSearchLeavesFullSearchUnchanged() = runTest {
         val tool = WebSearchTool(object : WebSearch {
-            override suspend fun search(query: String, limit: Int, news: Boolean) =
+            override suspend fun search(query: String, limit: Int, news: Boolean, region: SearchRegion?) =
                 listOf(WebResult("Title", "https://example.org/path?q=long", "x".repeat(199) + "😀end", "2026-01-01"))
         })
         val args = buildJsonObject { put("query", "query") }
@@ -134,7 +186,7 @@ class SmallModelAnswerTest {
         val home = TestHome()
         val session = home.store.createSession(home.agent.id, "")
         val tool = WebSearchTool(object : WebSearch {
-            override suspend fun search(query: String, limit: Int, news: Boolean) = listOf(WebResult("Ada", "https://example.org/ada", "A mathematician."))
+            override suspend fun search(query: String, limit: Int, news: Boolean, region: SearchRegion?) = listOf(WebResult("Ada", "https://example.org/ada", "A mathematician."))
         })
         val model = scriptedModel { _, tools ->
             if (tools.isEmpty()) flowOf(StreamFrame.TextDelta("Ada was a mathematician."), StreamFrame.End())
