@@ -2,6 +2,10 @@ package kinuvo.protocol
 
 import kotlinx.serialization.Serializable
 
+/** How capable a model is as an agent, which sets its prompt, tools and step limit. */
+@Serializable
+enum class ModelTier { NoTools, Micro, Small, Mid, Frontier }
+
 @Serializable
 data class ModelInfo(
     val id: String,
@@ -16,6 +20,8 @@ data class ModelInfo(
     /** Stable [ToolIdentity.key] values this model can call; null means unrestricted. */
     val toolIds: Set<String>? = null,
     val location: ExecutionLocation = ExecutionLocation.External,
+    /** Set by the provider or the owner's config; the Server infers it when null. */
+    val tier: ModelTier? = null,
     val state: CapabilityState = CapabilityState(),
 )
 
