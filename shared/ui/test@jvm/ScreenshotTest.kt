@@ -228,8 +228,8 @@ class ScreenshotTest {
     )
 
     private val modelCatalog = ModelsCatalog(listOf(
-        ProviderModels("codex", "ChatGPT / Codex", listOf(ModelInfo("gpt-5.6-sol", "GPT-5.6-Sol", listOf("low", "medium", "high"), "medium"))),
-        ProviderModels("local", "Local models", listOf(ModelInfo("custom-local", "Local model", emptyList()))),
+        ProviderModels("codex", "ChatGPT / Codex", listOf(ModelInfo("gpt-5.6-sol", "GPT-5.6-Sol", listOf("low", "medium", "high"), "medium", tier = ModelTier.Frontier))),
+        ProviderModels("local", "Local models", listOf(ModelInfo("custom-local", "Local model", emptyList(), tier = ModelTier.Small))),
     ))
     private fun settingsAt(route: Route.Settings) = settings.copy(state = settings.state.copy(route = route, models = modelCatalog))
 
@@ -651,6 +651,12 @@ class ScreenshotTest {
             theme(true) { Box(Modifier.fillMaxSize()) {
                 transcript()
                 AgentInspectorContent(if (risk) inspected.copy(pages = listOf(InspectorPage.Approvals)) else inspected, host, InspectorActions(), sheet = true)
+            } }
+        }
+        render("owner-rail-inspector-model-phone", 390, 844) {
+            theme(true) { Box(Modifier.fillMaxSize()) {
+                transcript()
+                AgentInspectorContent(inspected.copy(pages = listOf(InspectorPage.Model)), host, InspectorActions(), sheet = true)
             } }
         }
         val dirty = inspected.copy(draft = inspected.draft!!.copy(name = "Echo revised"), guard = InspectorExit.Close)

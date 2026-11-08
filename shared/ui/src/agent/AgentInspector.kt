@@ -273,7 +273,7 @@ private fun ModelPage(state: InspectorState, draft: AgentDraft, actions: Inspect
                 actions.onBack()
             }) {
                 Column(Modifier.weight(1f)) {
-                    Text(model.name)
+                    ModelName(model)
                     model.state.reason?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
                 }
                 if (picked) Icon(Lucide.Check, Modifier.size(14.dp))

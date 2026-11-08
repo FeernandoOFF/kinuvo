@@ -7,6 +7,7 @@ import kinuvo.app.session.*
 
 import kinuvo.app.connection.*
 import kinuvo.app.agent.*
+import kinuvo.ui.agent.ModelName
 import kinuvo.ui.settings.*
 import kinuvo.ui.board.*
 
@@ -209,7 +210,7 @@ internal fun RowScope.ComposerSettings(
                 group.chatModels.forEach { model ->
                     ListRow(false, { listing = false; onChange(settings.select(group.id, model, defaults)) }) {
                         Column(Modifier.weight(1f)) {
-                            Text(model.name)
+                            ModelName(model)
                             model.state.reason?.let { Text(it, fontSize = 12.sp, color = color(mutedColor)) }
                         }
                         if (provider == group.id && settings.model == model.id) Icon(Lucide.Check, Modifier.size(14.dp))
