@@ -177,6 +177,20 @@ class SchedulerTest {
     }
 
     @Test
+    fun stoppingWhenTheRoutineBecomesRunningStopsTheReservedSession() = runBlocking {
+        hang = true
+        val r = harness.routines.create(agent, "Brief", "Summarize", Trigger.Every(60))
+        harness.routines.onChange { _, routines ->
+            routines.firstOrNull { it.id == r.id && it.lastStatus == RunStatus.Running }
+                ?.lastSessionId?.let(runs::stop)
+        }
+        now += 60 * 60_000
+        tickAndWait()
+        assertEquals(RunStatus.Stopped, routine(r.id).lastStatus)
+        assertTrue(runs.sessions().isEmpty())
+    }
+
+    @Test
     fun settingsPickedDuringASilentRunAreKept() = runBlocking {
         nothingNew()
         val session = harness.newSession(agent).id
