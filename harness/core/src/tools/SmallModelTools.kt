@@ -11,4 +11,5 @@ fun smallModelTools(tools: List<ToolDescriptor>, max: Int, local: (ToolDescripto
 private val PREFERRED = listOf(ToolNames.MEMORY, ToolNames.WEB_SEARCH, ToolNames.WEB_FETCH)
 /** Tools that need more context or steps than an on-device model has. */
 private val SKIPPED = setOf(ToolNames.SKILLS, ToolNames.ACTIVATE_SKILL, ToolNames.SHELL, ToolNames.KNOWLEDGE, ToolNames.KNOWLEDGE_REWRITE,
-    ToolNames.TASKS, ToolNames.ARTIFACT, ToolNames.SCHEDULE, ToolNames.DEVICE_TOOLS, ToolNames.ASK_USER)
+    ToolNames.TASKS, ToolNames.ARTIFACT, ToolNames.SCHEDULE, ToolNames.DEVICE_TOOLS, ToolNames.ASK_USER,
+    ToolNames.READ_SKILL_FILE, ToolNames.SKILL_MANAGE, ToolNames.SHOW_UI, ToolNames.SHOW_HTML)

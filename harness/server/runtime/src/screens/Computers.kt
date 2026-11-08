@@ -296,7 +296,7 @@ class Computers(
 
     private inner class ListTool : Tool {
         override val risk = Risk.Low
-        override val descriptor = ToolDescriptor("computer_list", "List the Computers you can control (paired phones and computers) and whether each is available.", emptyList())
+        override val descriptor = ToolDescriptor(ToolNames.COMPUTER_LIST, "List the Computers you can control (paired phones and computers) and whether each is available.", emptyList())
         override suspend fun execute(args: JsonObject): String {
             all().filter { it.available }.forEach { probe(it) }
             return ProtocolJson.encodeToString(ListSerializer(ComputerInfo.serializer()), list())

@@ -10,6 +10,7 @@ import ai.koog.agents.core.tools.ToolParameterType
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.Tool
+import kinuvo.harness.core.tools.ToolNames
 import kinuvo.protocol.*
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.server.devices.*
@@ -233,6 +234,29 @@ class RunPreparationRuntimeTest {
             assertFailsWith<IllegalArgumentException> { harness.runner(agent) }
             assertEquals(0, modelsBuilt)
         } finally { harness.close() }
+    }
+
+    @Test fun skillCatalogFollowsTheAdvertisedActivateSkillTool() = runBlocking {
+        val systems = mutableListOf<String>()
+        fun provider(strip: Boolean) = object : ModelProvider {
+            override val id = "test"
+            override suspend fun models() = listOf(ModelInfo("tools", tools = true))
+            override fun usableTools(model: String, tools: List<ToolDescriptor>) =
+                if (strip) tools.filter { it.name != ToolNames.ACTIVATE_SKILL } else tools
+            override fun model(config: AgentConfig) = scriptedModel { prompt, _ ->
+                systems += prompt.messages.filterIsInstance<Message.System>().joinToString("\n") { it.textContent() }
+                flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
+            }
+        }
+        for (strip in listOf(false, true)) {
+            val harness = harness(providers = listOf(provider(strip)))
+            try {
+                val agent = agent(harness, listOf(ToolNames.SKILLS))
+                val session = harness.newSession(agent)
+                harness.runner(agent, session.id).run(session.id, "hi").toList()
+                assertEquals(!strip, "Current Skills:" in systems.last())
+            } finally { harness.close() }
+        }
     }
 
     private val seen = mutableListOf<List<String>>()

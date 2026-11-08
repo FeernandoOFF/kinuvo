@@ -5,6 +5,7 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.RawSchemaToolDescriptor
+import kinuvo.harness.core.tools.smallModelTools
 import kinuvo.protocol.CapabilityState
 import kinuvo.protocol.ModelInfo
 import kinuvo.protocol.ExecutionLocation
@@ -157,10 +158,8 @@ internal data class AppleParameter(val name: String, val description: String, va
     val values: List<String>? = null, val items: String? = null)
 
 /** The tools an Apple model takes: Memory and web first, at most [max], skipping ones it can't fill in. */
-internal fun appleTools(tools: List<ToolDescriptor>, local: (ToolDescriptor) -> String = { it.name }, max: Int = 6): List<ToolDescriptor> = tools
-    .filter { local(it) !in SKIPPED && it.toApple() != null }
-    .sortedWith(compareBy<ToolDescriptor> { PREFERRED.indexOf(local(it)).let { i -> if (i < 0) PREFERRED.size else i } }.thenBy { local(it) })
-    .take(max)
+internal fun appleTools(tools: List<ToolDescriptor>, local: (ToolDescriptor) -> String = { it.name }, max: Int = 6): List<ToolDescriptor> =
+    smallModelTools(tools, max, local) { it.toApple() != null }
 
 /** Compact model-facing names route back to the full tool identity after generation. */
 internal fun appleOffer(tools: List<ToolDescriptor>): List<AppleTool> = tools.mapNotNull { it.toApple() }.mapIndexed { index, tool ->
@@ -191,10 +190,6 @@ private fun ToolParameterDescriptor.apple(required: Boolean): AppleParameter? {
 }
 
 private const val REPLY = "reply"
-private val PREFERRED = listOf(ToolNames.MEMORY, ToolNames.WEB_SEARCH, ToolNames.WEB_FETCH)
-/** Tools that need more context or steps than the on-device model has. */
-private val SKIPPED = setOf(ToolNames.SKILLS, ToolNames.ACTIVATE_SKILL, ToolNames.SHELL, ToolNames.KNOWLEDGE, ToolNames.KNOWLEDGE_REWRITE,
-    ToolNames.TASKS, ToolNames.ARTIFACT, ToolNames.SCHEDULE, ToolNames.DEVICE_TOOLS, ToolNames.ASK_USER)
 
 /** The basic context and active Skills; the Session's full instructions aren't sent to Apple models. */
 internal fun appleInstructions(history: List<Message>) = history.filterIsInstance<Message.System>().joinToString("\n\n") { it.textContent() }

@@ -36,7 +36,7 @@ class ReflectionReview(private val harness: HarnessRuntime) {
         fun checkSource() {
             val scope = when (proposal.tool) {
                 ToolNames.KNOWLEDGE -> harness.knowledge.scope()
-                "conventions" -> harness.knowledge.provider()
+                ToolNames.CONVENTIONS -> harness.knowledge.provider()
                 else -> return
             }
             check(proposal.scope == scope) { "The Knowledge source changed; review a fresh proposal" }
@@ -49,9 +49,9 @@ class ReflectionReview(private val harness: HarnessRuntime) {
                     KnowledgeTool(harness.knowledge, ChangeSource(agent.id, sessionId, proposal.id))
                         .executeReviewed(proposal.args, proposal.note, requireNotNull(proposal.scope))
                 }
-                "conventions" -> harness.knowledge.saveConventionsReviewed(requireNotNull(proposal.scope),
+                ToolNames.CONVENTIONS -> harness.knowledge.saveConventionsReviewed(requireNotNull(proposal.scope),
                     requireNotNull(proposal.conventionsBefore), proposal.args.requireString("content"))
-                "skill_manage" -> harness.skills.saveReviewed(agent, proposal.args.requireString("name"),
+                ToolNames.SKILL_MANAGE -> harness.skills.saveReviewed(agent, proposal.args.requireString("name"),
                     proposal.args.requireString("content"), proposal.skillBefore)
                 else -> error("Unsupported Reflection destination")
             }
