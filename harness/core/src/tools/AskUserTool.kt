@@ -16,6 +16,7 @@ import kotlinx.serialization.json.JsonPrimitive
 class AskUserTool(routine: Boolean = false) : Tool {
     override val kind = ToolKind.AskUser
     override val risk = Risk.Low
+    override val group = ToolGroup.Interactive
     override val descriptor = ToolDescriptor(
         name = ToolNames.ASK_USER,
         description = "Ask the user one or more questions as a form and wait for their answers. Use it when you need " +

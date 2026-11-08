@@ -27,6 +27,7 @@ class ShowUiTool(catalogs: List<UiCatalog>) : Tool {
     })
 
     override val risk = Risk.Low
+    override val group = ToolGroup.Interactive
     override val descriptor = ToolDescriptor(
         name = ToolNames.SHOW_UI,
         description = "Show native interactive Surfaces using A2UI v1.0. Use the advertised catalog schemas. " +

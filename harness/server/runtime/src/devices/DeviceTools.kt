@@ -72,6 +72,7 @@ class DeviceTools(
         if (run.sessionId == null || ToolNames.DEVICE_TOOLS !in run.agent.config.tools) return PluginTools()
         return PluginTools(listOf(
             object : Tool {
+                override val group = ToolGroup.Automation
                 override val risk = Risk.Low
                 override val descriptor = ToolDescriptor(ToolNames.DEVICE_TOOLS, "List paired Devices, enabled read tools and foreground availability. Use the id to choose a Device when several have the same tool.", emptyList())
                 override suspend fun execute(args: JsonObject) = ProtocolJson.encodeToString(ListSerializer(ToolDevice.serializer()), devices())
@@ -83,6 +84,7 @@ class DeviceTools(
     }
 
     private fun readTool(run: RunContext, kind: DeviceToolKind, name: String, description: String) = object : Tool {
+        override val group = ToolGroup.Automation
         override val risk = Risk.Low
         override val descriptor = ToolDescriptor(
             name, "$description Requires an enabled paired Device. If it cannot answer, the run waits for it to open, or for the user to Skip. Never infer data from an unavailable result.",

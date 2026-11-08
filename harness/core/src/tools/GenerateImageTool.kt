@@ -15,6 +15,7 @@ class GenerateImageTool(
     private val references: suspend () -> List<Attachment>,
     private val bytes: (Attachment) -> ByteArray,
 ) : Tool {
+    override val group = ToolGroup.Interactive
     override val descriptor = ToolDescriptor(
         name = ToolNames.GENERATE_IMAGE,
         description = "Generate or edit images. For edits, pass reference attachment IDs from this Session. Returned images can be used as references in later calls.",

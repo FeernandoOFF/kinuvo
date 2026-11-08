@@ -54,6 +54,7 @@ internal class RunSession(
     callable: List<Tool>,
     private val kind: RequestKind,
     private val contextTokens: Int?,
+    private val latestTurnOnly: Boolean,
     val emit: suspend (AgentEvent) -> Unit,
 ) {
     val messages = SessionMessages(model, tools.any { it.name == ToolNames.GENERATE_IMAGE })
@@ -85,7 +86,8 @@ internal class RunSession(
     suspend fun load(): Prompt {
         val entries = store.entries(agent.id, sessionId)
         instructions = entries.filterIsInstance<SessionEntry.Started>().firstOrNull()?.instructions.orEmpty()
-        return messages.prompt(instructions, entries.activeHistory().recentScreens())
+        val history = entries.activeHistory().let { if (latestTurnOnly) it.latestTurn() else it }
+        return messages.prompt(instructions, history.recentScreens())
     }
 
     suspend fun startRequest() {

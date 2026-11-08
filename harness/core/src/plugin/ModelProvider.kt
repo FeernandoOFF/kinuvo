@@ -24,11 +24,10 @@ interface ModelProvider {
     fun model(config: AgentConfig, info: ModelInfo?): AgentModel = model(config)
     /** Plan usage, for providers that report it. */
     val usage: StateFlow<Usage?>? get() = null
-    /** The [tools] [model] can take, e.g. fewer and simpler ones for a small model; the rest aren't offered. */
-    fun usableTools(model: String, tools: List<ToolDescriptor>) = tools
-    fun usableTools(model: String, tools: List<ToolDescriptor>, identities: Map<String, ToolIdentity>) = usableTools(model, tools)
-    /** Whether [model] is too small for the full instructions and gets [basicContextFor] instead. */
-    fun basicPrompt(model: String) = false
+    /** [model]'s [base] profile as this provider runs it, e.g. with a lower tool cap. */
+    fun profile(model: String, base: ModelProfile): ModelProfile = base
+    /** Whether [model] can be offered [tool], beyond what its profile allows. */
+    fun accepts(model: String, tool: ToolDescriptor): Boolean = true
     /** Signs in to the provider's account; null when it needs no sign-in. */
     val auth: ProviderAuth? get() = null
     val apiKey: ProviderApiKey? get() = null

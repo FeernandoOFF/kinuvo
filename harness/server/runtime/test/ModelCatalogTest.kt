@@ -38,8 +38,21 @@ class ModelCatalogTest {
             val original = harness.store.agents().single()
             val agent = harness.store.saveConfig(original, AgentConfig(provider = "test", model = "resolved"))
             harness.runner(agent)
-            assertEquals(expected, received)
+            assertEquals(expected.copy(tier = ModelTier.NoTools), received)
         } finally { harness.close() }
+    }
+
+    @Test
+    fun catalogFillsTheTierWithoutReplacingADeclaredOne() = runBlocking {
+        val plugin = object : ModelProvider {
+            override val id = "tiers"
+            override fun model(config: AgentConfig) = scriptedModel { _, _ -> emptyFlow() }
+            override suspend fun models() = listOf(ModelInfo("qwen2.5-7b"), ModelInfo("no-tools", tools = false), ModelInfo("big-one"),
+                ModelInfo("declared", tier = ModelTier.Micro), ModelInfo("on-device", context = 8192, location = ExecutionLocation.ServerHost))
+        }
+        val tiers = ModelCatalog(Path(home, "tiers.json"), listOf(plugin), { error("No metadata needed") }).list().providers.single().models.associate { it.id to it.tier }
+        assertEquals(mapOf("qwen2.5-7b" to ModelTier.Small, "no-tools" to ModelTier.NoTools, "big-one" to ModelTier.Frontier,
+            "declared" to ModelTier.Micro, "on-device" to ModelTier.Small), tiers)
     }
 
     @Test

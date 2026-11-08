@@ -75,10 +75,13 @@ suspend fun personalContextFor(agent: Agent, docs: AgentDocs): String = buildStr
     append("### User Notes\n\n${docs.read(agent.id, AgentDoc.UserNotes).trim()}\n")
 }
 
-/** The whole prompt for a small on-device model: who it is, what it knows about the user, and its tools. */
-suspend fun basicContextFor(agent: Agent, docs: AgentDocs, tools: List<Tool>, today: String): String = buildString {
+private const val IDENTITY_CHARS = 600
+
+/** The whole prompt for a small model: who it is, what it knows about the user, and its tools; with [identity], the start of the Agent's Identity too. */
+suspend fun basicContextFor(agent: Agent, docs: AgentDocs, tools: List<Tool>, today: String, identity: Boolean = false): String = buildString {
     val known = listOf(AgentDoc.UserNotes, AgentDoc.Memory).map { docs.read(agent.id, it).trim() }.filter { it.isNotEmpty() }
     append("You are ${agent.name}, the user's personal assistant. Keep replies short and friendly.\n\n")
+    if (identity) docs.read(agent.id, AgentDoc.Identity).trim().take(IDENTITY_CHARS).takeIf { it.isNotEmpty() }?.let { append("Who you are:\n$it\n\n") }
     append("What you know about the user:\n${known.joinToString("\n").ifEmpty { "Nothing saved yet." }}\n\n")
     if (tools.isNotEmpty()) append("Tools: ${tools.joinToString { it.identity?.localId ?: it.descriptor.name }}. ")
     append("Use a tool when the user asks you to do something, and only say it's done after the tool succeeds.")

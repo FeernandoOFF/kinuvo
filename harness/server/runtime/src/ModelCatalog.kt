@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.inferTier
 import kinuvo.harness.core.plugin.CUSTOM_PROVIDERS
 import kinuvo.harness.core.plugin.ModelProvider
 import kinuvo.harness.core.store.readTextOrNull
@@ -65,7 +66,7 @@ class ModelCatalog(
                 } else failed += provider.id
             }
             val stale = saved == null || now - saved.at >= HOUR || provider.id in failed
-            ProviderModels(provider.id, provider.name, saved?.models.orEmpty().map { enrich(it, provider.catalogId) }, stale,
+            ProviderModels(provider.id, provider.name, saved?.models.orEmpty().map { enrich(it, provider.catalogId).let { m -> m.copy(tier = inferTier(m)) } }, stale,
                 if (stale) "Couldn't refresh models; saved models and custom IDs remain available." else null)
         }
         if (dirty) writeAtomically(file, ProtocolJson.encodeToString(cache), private = true)

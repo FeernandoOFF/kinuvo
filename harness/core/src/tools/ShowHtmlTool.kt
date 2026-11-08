@@ -8,6 +8,7 @@ import kotlinx.serialization.json.*
 
 class ShowHtmlTool : Tool {
     override val risk = Risk.Low
+    override val group = ToolGroup.Interactive
     override val descriptor = ToolDescriptor(
         name = ToolNames.SHOW_HTML,
         description = "Show an interactive HTML Surface in the chat. No network access. " +

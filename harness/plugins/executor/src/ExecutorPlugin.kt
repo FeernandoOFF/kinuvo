@@ -1,5 +1,6 @@
 package kinuvo.harness.executor
 
+import kinuvo.harness.core.tools.ToolGroup
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -26,6 +27,7 @@ class ExecutorPlugin(private val limits: Limits = Limits()) : HarnessPlugin {
 /** Runs a Script; its own Risk is Low since every tool it calls goes through its own Approval. */
 class RunCodeTool(private val limits: Limits = Limits()) : Tool {
     override val risk = Risk.Low
+    override val group = ToolGroup.Automation
     override val descriptor = ToolDescriptor(
         ToolNames.RUN_CODE,
         "Run a JavaScript Script to chain, loop over or filter many tool calls in one step. The code is the body of an async " +

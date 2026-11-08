@@ -1,5 +1,6 @@
 package kinuvo.harness.core.routines
 
+import kinuvo.harness.core.tools.ToolGroup
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -53,6 +54,7 @@ class ScheduleTool(
         }, trustable = risk != Risk.High)))
     }
 
+    override val group = ToolGroup.Data
     override val descriptor = ToolDescriptor(
         name = ToolNames.SCHEDULE,
         description = "Manage your Routines: prompts you run on a schedule, each in a fresh Session by default. " +

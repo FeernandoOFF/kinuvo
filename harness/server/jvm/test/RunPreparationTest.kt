@@ -55,9 +55,8 @@ class RunPreparationTest {
             ModelInfo("text", tools = false),
             ModelInfo("limited", tools = true, toolIds = setOf("ping")),
         )
-        override fun usableTools(model: String, tools: List<ToolDescriptor>) = tools.filter {
-            it.name != "ping" || it.requiredParameters.any { p -> p.name == "message" }
-        }
+        override fun accepts(model: String, tool: ToolDescriptor) =
+            tool.name != "ping" || tool.requiredParameters.any { p -> p.name == "message" }
         override fun model(config: AgentConfig): AgentModel {
             modelsBuilt++
             return scriptedModel { _, tools ->
@@ -215,7 +214,7 @@ class RunPreparationTest {
         val narrow = object : ModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true))
-            override fun usableTools(model: String, tools: List<ToolDescriptor>) = tools.filter { it.name != "memory" }
+            override fun accepts(model: String, tool: ToolDescriptor) = tool.name != "memory"
             override fun model(config: AgentConfig) = scriptedModel { _, _ -> flowOf(StreamFrame.End()) }
         }
         val harness = harness(providers = listOf(narrow))

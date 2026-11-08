@@ -1,5 +1,6 @@
 package kinuvo.harness.core.tasks
 
+import kinuvo.harness.core.tools.ToolGroup
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -19,6 +20,7 @@ import kotlinx.serialization.json.JsonPrimitive
 class TasksTool(private val tasks: Tasks, private val agent: Agent, private val taskId: String? = null) : Tool {
     override val risk = Risk.Low
 
+    override val group = ToolGroup.Data
     override val descriptor = ToolDescriptor(
         name = ToolNames.TASKS,
         description = taskId?.let {

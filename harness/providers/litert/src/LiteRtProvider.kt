@@ -1,11 +1,8 @@
 package kinuvo.harness.litert
 
 import kinuvo.harness.core.plugin.*
-import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.llm.LLMProvider
 import kinuvo.harness.core.*
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.smallModelTools
 import kinuvo.harness.models.ModelFiles
 import kinuvo.harness.models.gigabytes
 import kinuvo.protocol.*
@@ -41,15 +38,8 @@ class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
         else CapabilityState.unavailable("Download ${local.name} in Settings → Model providers", "not-downloaded")
     }
 
-    override fun usableTools(model: String, tools: List<ToolDescriptor>) = usableTools(model, tools, emptyMap())
-
-    /** Screen control, Scripts and the tool catalog take more steps and context than these models handle well. */
-    override fun usableTools(model: String, tools: List<ToolDescriptor>, identities: Map<String, ToolIdentity>) =
-        smallModelTools(tools, localModels.firstOrNull { it.id == model }?.tools ?: 4, { identities[it.name]?.localId ?: it.name }) { tool ->
-            (identities[tool.name]?.localId ?: tool.name).let { it !in SCREENS_AND_SCRIPTS && !it.startsWith("browser") }
-        }
-
-    override fun basicPrompt(model: String) = true
+    override fun profile(model: String, base: ModelProfile) = localModels.firstOrNull { it.id == model }
+        ?.takeIf { it.tier == base.tier }?.cap?.let { base.copy(tools = base.tools.copy(cap = it)) } ?: base
 
     override fun model(config: AgentConfig): AgentModel = model(config, null)
 
@@ -116,8 +106,7 @@ class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
 
     companion object {
         private const val REPORT = 8L * 1024 * 1024
-        private val SCREENS_AND_SCRIPTS = setOf(ToolNames.COMPUTER, ToolNames.COMPUTER_ACT, ToolNames.RUN_CODE, ToolNames.FIND_TOOLS, ToolNames.DESCRIBE_TOOL, ToolNames.CALL_TOOL)
     }
 }
 
-private fun LocalModel.info() = ModelInfo(id, name, reasoning = emptyList(), input = listOf("text"), tools = true, context = context, location = ExecutionLocation.ServerHost)
+private fun LocalModel.info() = ModelInfo(id, name, reasoning = emptyList(), input = listOf("text"), tools = true, context = context, location = ExecutionLocation.ServerHost, tier = tier)
