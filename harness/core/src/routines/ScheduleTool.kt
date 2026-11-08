@@ -1,6 +1,6 @@
 package kinuvo.harness.core.routines
 
-import kinuvo.harness.core.tools.ToolGroup
+import kinuvo.harness.core.tools.CoreTool
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -38,9 +38,7 @@ class ScheduleTool(
     private val sessionId: String? = null,
     private val routine: Routine? = null,
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
-) : Tool {
-    override val risk = Risk.High
-
+) : CoreTool {
     override fun assess(args: JsonObject): Assessment {
         val risk = when ((args["action"] as? JsonPrimitive)?.content) {
             "list", "pause", "remove" -> Risk.Low
@@ -54,7 +52,6 @@ class ScheduleTool(
         }, trustable = risk != Risk.High)))
     }
 
-    override val group = ToolGroup.Data
     override val descriptor = ToolDescriptor(
         name = ToolNames.SCHEDULE,
         description = "Manage your Routines: prompts you run on a schedule, each in a fresh Session by default. " +

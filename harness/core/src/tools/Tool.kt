@@ -95,6 +95,7 @@ enum class ToolGroup {
 }
 
 interface Tool {
+    val coreMetadata: CoreToolEntry? get() = null
     val kind: ToolKind get() = ToolKind.Standard
     val descriptor: ToolDescriptor
     val identity: ToolIdentity? get() = null

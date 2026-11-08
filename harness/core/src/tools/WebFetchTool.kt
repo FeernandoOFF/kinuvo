@@ -1,7 +1,6 @@
 package kinuvo.harness.core.tools
 
 import kinuvo.harness.core.takeWhole
-import kinuvo.protocol.Risk
 
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
@@ -18,10 +17,7 @@ class WebFetchTool(
     private val http: HttpClient,
     private val maxChars: Int = 20_000,
     private val reader: WebSearch? = null,
-) : Tool {
-    override val risk = Risk.Low
-
-    override val group = ToolGroup.Core
+) : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.WEB_FETCH,
         description = "Fetch a URL over HTTP(S) and return its text content (HTML is reduced to plain text).",

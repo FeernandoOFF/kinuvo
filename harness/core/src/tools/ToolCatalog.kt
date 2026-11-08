@@ -3,7 +3,6 @@ package kinuvo.harness.core.tools
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.protocol.Risk
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -23,8 +22,7 @@ object ToolCatalog {
 
 private fun List<Tool>.named(name: String) = requireNotNull(firstOrNull { it.descriptor.name == name }) { "No tool '$name' in the catalog; search it first" }
 
-private class FindTools(private val catalogued: List<Tool>) : Tool {
-    override val risk = Risk.Low
+private class FindTools(private val catalogued: List<Tool>) : CoreTool {
     private val sources = catalogued.mapNotNull { it.identity?.instance?.instanceId?.substringAfterLast('/') }.distinct()
     override val descriptor = ToolDescriptor(
         ToolNames.FIND_TOOLS,
@@ -44,8 +42,7 @@ private class FindTools(private val catalogued: List<Tool>) : Tool {
     companion object { const val MAX = 25 }
 }
 
-private class DescribeTool(private val catalogued: List<Tool>) : Tool {
-    override val risk = Risk.Low
+private class DescribeTool(private val catalogued: List<Tool>) : CoreTool {
     override val descriptor = ToolDescriptor(
         ToolNames.DESCRIBE_TOOL, "A catalogued tool's description and parameters (JSON Schema).",
         requiredParameters = listOf(ToolParameterDescriptor("name", "The tool's exact name from the catalog search", ToolParameterType.String)),
@@ -68,8 +65,7 @@ private class DescribeTool(private val catalogued: List<Tool>) : Tool {
     }
 }
 
-private class CallTool(private val catalogued: List<Tool>) : Tool {
-    override val risk = Risk.Low
+private class CallTool(private val catalogued: List<Tool>) : CoreTool {
     override val descriptor = ToolDescriptor(
         ToolNames.CALL_TOOL, "Run a catalogued tool; it asks for Approval like the tool itself would.",
         requiredParameters = listOf(

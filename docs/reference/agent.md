@@ -86,3 +86,9 @@ container:
 | `skills/` | Agent-owned Skills |
 | `sessions/` | Session transcripts |
 | `routines.json` | Routines and their state |
+
+### Toolsets and run scopes
+
+Built-in tools share one Core tool registry for their group, default Risk and capability summaries. Named Toolsets combine tools in code and can include other Toolsets. Existing `tools:` entries keep working; names such as `core`, `web`, `data`, `automation` and `interactive` enable the corresponding available tool families. Tools still depend on the Server's installed integrations and features.
+
+A run can narrow the Agent's tools by name, group or Toolset. Explicit tools skip the Model profile's group filter, while its schema and tool count limits still apply. A run can also require stricter Risk tolerance or ask for individual tools even when trusted. Child scopes intersect the parent's tools and retain its stricter Approvals. Scopes cannot add Trust or override Deny rules; both rules remain per tool.

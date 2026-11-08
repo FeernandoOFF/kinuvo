@@ -6,17 +6,13 @@ import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.Question
 import kinuvo.protocol.QuestionKind
-import kinuvo.protocol.Risk
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /** Shows the user a form and waits for the answers; the runner does the asking, since only it can reach the user. */
-class AskUserTool(routine: Boolean = false) : Tool {
-    override val kind = ToolKind.AskUser
-    override val risk = Risk.Low
-    override val group = ToolGroup.Interactive
+class AskUserTool(routine: Boolean = false) : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.ASK_USER,
         description = "Ask the user one or more questions as a form and wait for their answers. Use it when you need " +

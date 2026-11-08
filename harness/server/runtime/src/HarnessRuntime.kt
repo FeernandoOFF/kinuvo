@@ -56,6 +56,7 @@ import kinuvo.harness.core.tools.AskUserTool
 import kinuvo.harness.core.tools.MemoryTool
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.indexedTools
+import kinuvo.harness.core.tools.Toolsets
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.ToolCatalog
 import kinuvo.harness.core.effective
@@ -311,10 +312,10 @@ open class HarnessRuntime(
             warnings = prepared.warnings.map { secrets.redact(it) },
             approvals = sessionId?.let(sessionTrust::scope).let { session ->
                 when (routine?.routine?.approvals) {
-                    null -> Approvals(ApprovalPolicy(agent, trustRules, session = session), approvals)
-                    RoutineApprovals.Auto -> Approvals(ApprovalPolicy(agent, trustRules, Tolerance.Full, session), approvals)
-                    RoutineApprovals.Deny -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent), session), approvals, ApprovalDecision.Deny(UNATTENDED_DENIAL))
-                    RoutineApprovals.Inherit -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent), session), approvals, wait = routineApprovalWait, skipped = { routine.skipped += it })
+                    null -> Approvals(ApprovalPolicy(agent, trustRules, session = session, scope = scope), approvals)
+                    RoutineApprovals.Auto -> Approvals(ApprovalPolicy(agent, trustRules, Tolerance.Full, session, scope), approvals)
+                    RoutineApprovals.Deny -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent), session, scope), approvals, ApprovalDecision.Deny(UNATTENDED_DENIAL))
+                    RoutineApprovals.Inherit -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent), session, scope), approvals, wait = routineApprovalWait, skipped = { routine.skipped += it })
                 }
             },
             routine = routine,
@@ -425,7 +426,13 @@ open class HarnessRuntime(
     } + if (ToolNames.SKILLS in agent.config.tools) skillTools(agent) else emptyList() } + listOfNotNull(routine?.let(::RoutineReportTool))
 
     /** [agent] without the tool groups this Server lacks the feature for, so neither its tools nor their instructions show. */
-    private fun supported(agent: Agent) = agent.copy(config = agent.config.copy(tools = agent.config.tools.filter { it in toolGroups }))
+    private fun supported(agent: Agent) = agent.copy(config = agent.config.copy(tools = agent.config.tools.flatMap { name ->
+        if (name in ToolNames.OPTIONAL || !Toolsets.Core.contains(name)) listOf(name)
+        else {
+            val tools = Toolsets.Core.resolve(name)
+            ToolNames.OPTIONAL.filter { option -> option in tools || (Toolsets.Core.contains(option) && Toolsets.Core.resolve(option).any { it in tools }) }
+        }
+    }.distinct().filter { it in toolGroups }))
 
     /** The built-in tool groups this Server can run: its own, where it has their feature, and those its plugins add. */
     private val toolGroups get() = ToolNames.OPTIONAL.filter { it !in ToolNames.FROM_PLUGINS && TOOL_FEATURES[it]?.let(features::contains) != false }.toSet() +

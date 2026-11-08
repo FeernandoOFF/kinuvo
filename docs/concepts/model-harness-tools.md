@@ -18,3 +18,9 @@ A self-hosted Server can use a cloud model. An on-device model does not imply th
 Each model has a tier (Micro, Small, Mid or Frontier) that sets its prompt, tools and step limit. Small models (Apple on-device, LiteRT) get a short basic prompt and a capped tool list, with no Skills, Skill catalog or `show_ui`: Apple's on-device model and Qwen3 0.6B offer 5 tools in 4 steps, Gemma 4 E2B 8 and E4B 10 in 10 steps, Memory and web first. Mid models take up to 50 steps and Frontier models 66, and Mid models reach MCP tools through the tool catalog. Use the model picker for availability and [models](../reference/models.md) for provider details.
 
 See [plugins](../reference/plugins.md), [MCP](../guides/mcp.md), [Workspaces](../guides/workspaces.md) and [Computer use](../guides/computer-use.md).
+
+### Toolsets and run scopes
+
+Built-in tools share one Core tool registry for their group, default Risk and capability summaries. Named Toolsets combine tools in code and can include other Toolsets. Existing `tools:` entries keep working; names such as `core`, `web`, `data`, `automation` and `interactive` enable the corresponding available tool families. Tools still depend on the Server's installed integrations and features.
+
+A run can narrow the Agent's tools by name, group or Toolset. Explicit tools skip the Model profile's group filter, while its schema and tool count limits still apply. A run can also require stricter Risk tolerance or ask for individual tools even when trusted. Child scopes intersect the parent's tools and retain its stricter Approvals. Scopes cannot add Trust or override Deny rules; both rules remain per tool.

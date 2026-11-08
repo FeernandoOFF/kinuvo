@@ -1,16 +1,14 @@
 package kinuvo.harness.core.artifacts
 
-import kinuvo.harness.core.tools.ToolGroup
+import kinuvo.harness.core.tools.CoreTool
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.harness.core.Agent
-import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
 import kinuvo.harness.core.tools.string
 import kinuvo.protocol.ArtifactInfo
-import kinuvo.protocol.Risk
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
@@ -20,9 +18,7 @@ class ArtifactTool(
     private val sessionId: String?,
     private val artifacts: Artifacts,
     private val readWorkspace: suspend (String) -> String,
-) : Tool {
-    override val risk = Risk.Low
-    override val group = ToolGroup.Interactive
+) : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.ARTIFACT,
         description = "Make something for the user to open from the chat and keep: a self-contained HTML page (reports, " +

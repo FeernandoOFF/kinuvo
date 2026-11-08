@@ -1,11 +1,10 @@
 package kinuvo.harness.core.knowledge
 
-import kinuvo.harness.core.tools.ToolGroup
+import kinuvo.harness.core.tools.CoreTool
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.protocol.Risk
-import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.Assessment
 import kinuvo.harness.core.tools.Action
 import kinuvo.harness.core.tools.ToolNames
@@ -22,10 +21,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /** Reads and adds to the user's Knowledge, in their system's own types and properties; every change can be undone. */
-class KnowledgeTool(private val knowledge: Knowledge, private val source: ChangeSource) : Tool {
-    override val risk = Risk.Low
-
-    override val group = ToolGroup.Data
+class KnowledgeTool(private val knowledge: Knowledge, private val source: ChangeSource) : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.KNOWLEDGE,
         description = "The user's knowledge base (their own note system). Follow the user's conventions in your instructions. " +
@@ -112,10 +108,7 @@ class KnowledgeTool(private val knowledge: Knowledge, private val source: Change
 }
 
 /** Replaces text in a note's body; it needs the user's Approval, since it changes what they wrote. */
-class KnowledgeRewriteTool(private val knowledge: Knowledge, private val source: ChangeSource) : Tool {
-    override val risk = Risk.Medium
-
-    override val group = ToolGroup.Data
+class KnowledgeRewriteTool(private val knowledge: Knowledge, private val source: ChangeSource) : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.KNOWLEDGE_REWRITE,
         description = "Replace text in the body of a note in the user's knowledge base, e.g. to correct a fact. old must occur " +

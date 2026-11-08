@@ -3,7 +3,6 @@ package kinuvo.harness.core.tools
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.protocol.Risk
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
@@ -25,10 +24,7 @@ interface WebSearch {
 
 data class WebResult(val title: String, val url: String, val snippet: String, val date: String? = null)
 
-class WebSearchTool(private val provider: WebSearch) : Tool {
-    override val risk = Risk.Low
-
-    override val group = ToolGroup.Core
+class WebSearchTool(private val provider: WebSearch) : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.WEB_SEARCH,
         description = "Search the web. Returns titles, URLs and snippets; read a result with web_fetch.",

@@ -1,12 +1,10 @@
 package kinuvo.harness.core.tasks
 
-import kinuvo.harness.core.tools.ToolGroup
+import kinuvo.harness.core.tools.CoreTool
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.harness.core.Agent
-import kinuvo.protocol.Risk
-import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
 import kinuvo.harness.core.tools.string
@@ -17,10 +15,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /** The user's Tasks on the Board, for the Agent to list, create and update. */
-class TasksTool(private val tasks: Tasks, private val agent: Agent, private val taskId: String? = null) : Tool {
-    override val risk = Risk.Low
-
-    override val group = ToolGroup.Data
+class TasksTool(private val tasks: Tasks, private val agent: Agent, private val taskId: String? = null) : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.TASKS,
         description = taskId?.let {
