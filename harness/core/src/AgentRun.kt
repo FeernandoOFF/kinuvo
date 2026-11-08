@@ -9,6 +9,8 @@ import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.harness.core.routines.routineStrategy
 import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.tools.Tool
+import kinuvo.harness.core.tools.itemLimits
+import kinuvo.harness.core.tools.withItemLimits
 import kinuvo.harness.core.tools.ToolExecutor
 import kinuvo.protocol.*
 import kotlinx.coroutines.CancellationException
@@ -41,7 +43,7 @@ class AgentRun(
     private val routine: RoutineRun? = null,
     private val profile: ModelProfile = ModelProfile.of(ModelTier.Frontier),
 ) {
-    private val advertisedTools = advertisedTools.sortedBy { it.name }
+    private val advertisedTools = advertisedTools.map { d -> d.withItemLimits(tools.firstOrNull { it.descriptor.name == d.name }?.itemLimits(profile.resultLimits.maxItems).orEmpty()) }.sortedBy { it.name }
 
     fun run(
         sessionId: String,
@@ -57,7 +59,7 @@ class AgentRun(
         val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, profile.history.latestTurnOnly, profile, { send(it) })
         var stopped = "Cancelled by user"
         var cancelled = false
-        val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, emit = { event ->
+        val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, maxItems = profile.resultLimits.maxItems, emit = { event ->
             if (event is AgentEvent.ToolCallStart) session.toolStarted(event.toolCallId)
             if (event !is AgentEvent.ToolCallResult || session.calls.none { it.id == event.toolCallId }) send(event)
         })

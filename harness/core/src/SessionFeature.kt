@@ -59,6 +59,7 @@ internal class RunSession(
     val emit: suspend (AgentEvent) -> Unit,
 ) {
     val messages = SessionMessages(model, tools.any { it.name == ToolNames.GENERATE_IMAGE })
+    private val callablePaging = callable.filter { it.coreMetadata?.paging == true }.map { it.descriptor.name }.toSet()
     private val identities = callable.associate { it.descriptor.name to it.identity }
     fun toolName(name: String) = name.takeIf { it in identities } ?: "unknown"
     private var instructions = ""
@@ -88,7 +89,7 @@ internal class RunSession(
         val entries = store.entries(agent.id, sessionId)
         instructions = if (profile.prompt == PromptStyle.Full) entries.filterIsInstance<SessionEntry.Started>().firstOrNull()?.instructions.orEmpty() else ""
         val history = entries.activeHistory().let { if (latestTurnOnly) it.latestTurn() else it }
-        return messages.prompt(instructions, history.recentScreens())
+        return messages.limitedPrompt(instructions, history.recentScreens(), profile.resultLimits, callablePaging)
     }
 
     suspend fun startRequest() {
@@ -188,7 +189,7 @@ internal class RunSession(
 
     private suspend fun estimate(prompt: Prompt): Int {
         counted?.takeIf { it.first === prompt }?.let { return it.second }
-        val size = model.estimateTokens?.invoke(prompt, tools) ?: messages.entries(prompt.messages).estimatedTokens(instructions, tools)
+        val size = model.estimateTokens?.invoke(prompt, tools) ?: messages.estimatedEntries(prompt.messages).estimatedTokens(instructions, tools)
         logger.debug { diagnostics(prompt, size) }
         counted = prompt to size
         return size

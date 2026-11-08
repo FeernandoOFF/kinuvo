@@ -1,6 +1,7 @@
 package kinuvo.harness.core
 
 import ai.koog.prompt.message.Message
+import kinuvo.protocol.ModelTier
 import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.testing.*
@@ -166,7 +167,8 @@ class CompactionTest {
                 flowOf(StreamFrame.TextDelta("Read completed."), StreamFrame.End())
             } else flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
         }
-        val events = AgentRun(home.agent, home.store, model, emptyList(), contextTokens = 4096).run(session.id, "next").toList()
+        val events = AgentRun(home.agent, home.store, model, emptyList(), contextTokens = 4096,
+            profile = ModelProfile.of(ModelTier.Frontier).copy(resultLimits = ResultLimits(100_000, null))).run(session.id, "next").toList()
         assertIs<AgentEvent.RunFinished>(events.last())
         assertTrue(summaries > 1)
         assertTrue(tail)

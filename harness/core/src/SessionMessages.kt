@@ -23,6 +23,26 @@ class SessionMessages(private val model: AgentModel, private val imageReferences
         return initial.withMessages { system + messages(history.activeHistory()) }
     }
 
+    suspend fun limitedPrompt(instructions: String, history: List<SessionEntry>, limits: ResultLimits, paging: Set<String>): Prompt {
+        val original = prompt(instructions, history)
+        val latest = original.messages.indexOfLast(::user)
+        val limited = original.messages.mapIndexed { index, message ->
+            val result = entry(message)?.singleOrNull() as? SessionEntry.ToolResult
+            if (result == null) message else {
+                val budget = if (index < latest) (limits.maxTokens * limits.olderShare).toInt() else limits.maxTokens
+                val text = result.output.limitResult(budget, result.name in paging) { value ->
+                    model.estimateTokens?.invoke(prompt("tool-result") { user(value) }, emptyList()) ?: ((value.length + 3) / 4)
+                }
+                if (text == result.output) message else {
+                    val replacement = prompt("tool-result") { toolResult(MessagePart.Tool.Result(result.id, result.name, text, result.isError)) }.messages.single()
+                    entries += replacement to listOf(result)
+                    replacement
+                }
+            }
+        }
+        return original.withMessages { limited }
+    }
+
     fun messages(history: List<SessionEntry>): List<Message> = history.flatMap { entry ->
         if (entry is SessionEntry.Compaction) return@flatMap messages(entry.history)
         val toolFiles = (entry as? SessionEntry.ToolResult)?.attachments.orEmpty()
@@ -53,6 +73,11 @@ class SessionMessages(private val model: AgentModel, private val imageReferences
         if (entry is SessionEntry.ToolResult && toolFiles.isNotEmpty())
             block + messages(listOf(SessionEntry.UserMessage(TOOL_FILES, attachments = toolFiles)))
         else block
+    }
+
+    fun estimatedEntries(messages: List<Message>): List<SessionEntry> = messages.flatMap { message ->
+        val results = message.parts.filterIsInstance<MessagePart.Tool.Result>()
+        if (results.isEmpty()) entries(listOf(message)) else results.map { SessionEntry.ToolResult(it.id.orEmpty(), it.tool, it.output) }
     }
 
     fun entries(messages: List<Message>): List<SessionEntry> = messages.flatMap { entry(it) ?: when (it) {
