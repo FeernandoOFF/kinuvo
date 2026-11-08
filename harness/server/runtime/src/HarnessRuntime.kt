@@ -208,7 +208,7 @@ open class HarnessRuntime(
         val context = info?.context
         val provider = providers[configured.config.provider]
         val base = ModelProfile.of(configured.config.tier ?: inferTier(info ?: ModelInfo(configured.config.model)))
-        val profile = provider?.profile(configured.config.model, base) ?: base
+        val profile = (provider?.profile(configured.config.model, base) ?: base).let { it.copy(resultLimits = ResultLimits.of(it.tier, context)) }
         val fitted = if (context == null) configured else configured.copy(config = configured.config.copy(compactAtTokens = minOf(configured.config.compactAtTokens, context * profile.history.compactAtPercent / 100)))
         fun cap(limit: Int) = context?.let { minOf(limit, it * profile.memoryPercent / 100) } ?: limit
         return Effective(fitted, info, provider, profile, cap(memoryCap), cap(userCap))
@@ -256,7 +256,7 @@ open class HarnessRuntime(
             if (e.profile.tools.catalogExternal) it.size > ToolCatalog.DIRECT_LIMIT else usableTools.size > ToolCatalog.LIMIT
         }.orEmpty()
         // Only when the model can take the catalog's own tools; otherwise every tool stays direct.
-        val finders = if (candidates.isEmpty()) emptyList() else PluginTools(ToolCatalog.tools(candidates)).ownedBy(PluginInstanceId("kinuvo.core")).tools
+        val finders = if (candidates.isEmpty()) emptyList() else PluginTools(ToolCatalog.tools(candidates, e.profile.resultLimits.maxItems)).ownedBy(PluginInstanceId("kinuvo.core")).tools
             .withModelNames(all.map { it.descriptor.name }.toSet()).takeIf { f -> usable(e, f, scope).size == f.size }.orEmpty()
         val hidden = if (finders.isEmpty()) emptyList() else candidates
         val reported = catalog + finders.map { ResolvedTool(it.descriptor.name, it.displayName, identity = it.identity) }

@@ -2,6 +2,9 @@ package kinuvo.harness.core.tools
 
 import kinuvo.protocol.Risk
 
+/** A tool's result-count parameter; [lines] counts lines of text, which the Result limits' text budget bounds instead of maxItems. */
+data class ItemLimit(val parameter: String, val max: Int, val lines: Boolean = false)
+
 data class CoreToolEntry(
     val name: String,
     val group: ToolGroup,
@@ -11,6 +14,8 @@ data class CoreToolEntry(
     val summary: String,
     val hint: String? = null,
     val documentation: String? = null,
+    val itemLimit: ItemLimit? = null,
+    val paging: Boolean = false,
 )
 
 object CoreToolRegistry {
@@ -20,11 +25,11 @@ object CoreToolRegistry {
         CoreToolEntry(ToolNames.SHOW_HTML, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Show an interactive HTML Surface in the chat."),
         CoreToolEntry(ToolNames.SHOW_UI, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Show native interactive Surfaces using A2UI v1.0."),
         CoreToolEntry(ToolNames.ASK_USER, ToolGroup.Interactive, Risk.Low, ToolKind.AskUser, true, "Ask the user one or more questions as a form and wait for their answers."),
-        CoreToolEntry(ToolNames.WEB_SEARCH, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "Search the web."),
+        CoreToolEntry(ToolNames.WEB_SEARCH, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "Search the web.", itemLimit = ItemLimit("limit", 20)),
         CoreToolEntry(ToolNames.WEB_FETCH, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "Fetch a URL over HTTP(S) and return its text content (HTML is reduced to plain text)."),
         CoreToolEntry(ToolNames.GENERATE_IMAGE, ToolGroup.Interactive, Risk.Medium, ToolKind.Standard, true, "Generate or edit images."),
         CoreToolEntry(ToolNames.MEMORY, ToolGroup.Core, Risk.Low, ToolKind.Standard, false, "Persist concise, durable information across Sessions.", hint = "The memory tool edits this Agent's Memory and User Notes. Their current contents appear in the personal context."),
-        CoreToolEntry(ToolNames.FIND_TOOLS, ToolGroup.External, Risk.Low, ToolKind.Standard, true, "Search the tool catalog for more tools.", hint = "More tools are in the tool catalog: search it before concluding a tool doesn't exist."),
+        CoreToolEntry(ToolNames.FIND_TOOLS, ToolGroup.External, Risk.Low, ToolKind.Standard, true, "Search the tool catalog for more tools.", hint = "More tools are in the tool catalog: search it before concluding a tool doesn't exist.", itemLimit = ItemLimit("limit", 25)),
         CoreToolEntry(ToolNames.DESCRIBE_TOOL, ToolGroup.External, Risk.Low, ToolKind.Standard, true, "A catalogued tool's description and parameters (JSON Schema)."),
         CoreToolEntry(ToolNames.CALL_TOOL, ToolGroup.External, Risk.Low, ToolKind.Standard, true, "Run a catalogued tool; it asks for Approval like the tool itself would."),
         CoreToolEntry(ToolNames.ROUTINE_REPORT, ToolGroup.Internal, Risk.Low, ToolKind.Standard, true, "Finish a Routine and report its outcome."),
@@ -37,7 +42,7 @@ object CoreToolRegistry {
         CoreToolEntry(ToolNames.READ_SKILL_FILE, ToolGroup.Skills, Risk.Low, ToolKind.Standard, true, "Read a file bundled with a Skill (paths as listed in <skill_resources>).", hint = "Read an activated Skill's referenced resources with the Skill file tool when its instructions call for them."),
         CoreToolEntry(ToolNames.SKILL_MANAGE, ToolGroup.Skills, Risk.High, ToolKind.Standard, true, "Create, edit or delete one of your own Skills.", hint = "When Skill instructions are outdated or contradicted by tool results, identify the concrete correction. Leave automatic learning to background Reflection, which proposes improvements for review; drafts are unavailable until approved. Explicit user requests to edit a Skill use the Skill management tool and the normal Approval policy."),
         CoreToolEntry(ToolNames.SHELL, ToolGroup.Exec, Risk.Medium, ToolKind.Shell, true, "Run a bash command (fresh process each call; cd/export don't persist)."),
-        CoreToolEntry("read_file", ToolGroup.Exec, Risk.Low, ToolKind.Standard, true, "Read a text file from the workspace."),
+        CoreToolEntry("read_file", ToolGroup.Exec, Risk.Low, ToolKind.Standard, true, "Read a text file from the workspace.", itemLimit = ItemLimit("limit", 2000, lines = true), paging = true),
         CoreToolEntry("write_file", ToolGroup.Exec, Risk.Medium, ToolKind.Standard, true, "Create or overwrite a file in the workspace with the given content."),
         CoreToolEntry("edit_file", ToolGroup.Exec, Risk.Medium, ToolKind.Standard, true, "Replace one exact, unique occurrence of old with new in a workspace file."),
         CoreToolEntry("list_files", ToolGroup.Exec, Risk.Low, ToolKind.Standard, true, "List files under a workspace folder (skips .git, build, node_modules), optionally filtered by a glob like **/*.kt."),
@@ -51,8 +56,8 @@ object CoreToolRegistry {
         CoreToolEntry("computer_apps", ToolGroup.Automation, Risk.Low, ToolKind.Standard, true, "List installed apps on a Computer."),
         CoreToolEntry("computer_windows", ToolGroup.Automation, Risk.Low, ToolKind.Standard, true, "List Computer windows and their frames."),
         CoreToolEntry(ToolNames.DEVICE_TOOLS, ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "List enabled paired Device tools.", hint = "Device tools depend on paired Devices being available; check tool results for availability."),
-        CoreToolEntry("contacts_lookup", ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "Find matching Contacts on a paired Device."),
-        CoreToolEntry("workouts_list", ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "Read Health workouts from a paired Device."),
+        CoreToolEntry("contacts_lookup", ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "Find matching Contacts on a paired Device.", itemLimit = ItemLimit("limit", 20)),
+        CoreToolEntry("workouts_list", ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "Read Health workouts from a paired Device.", itemLimit = ItemLimit("limit", 20)),
         CoreToolEntry("sleep_sessions", ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "Read Health sleep sessions from a paired Device."),
         CoreToolEntry("browser_tabs", ToolGroup.Automation, Risk.Low, ToolKind.Standard, true, "List this Agent's shared Browser tabs."),
         CoreToolEntry("browser_open", ToolGroup.Automation, Risk.Low, ToolKind.Standard, false, "Open a Browser tab."),

@@ -32,7 +32,7 @@ data class ToolPolicy(
 data class HistoryPolicy(val latestTurnOnly: Boolean = false, val compactAtPercent: Int = 55)
 
 /**
- * Everything that varies with a model's [ModelTier]: its prompt, tools, history, step limit and Memory budget. [maxSteps]
+ * Everything that varies with a model's [ModelTier]: its prompt, tools, history, step limit, Memory budget and Result limits. [maxSteps]
  * counts model requests in a turn; [memoryPercent] is the share of the context window the Memory documents may take.
  */
 data class ModelProfile(
@@ -42,6 +42,7 @@ data class ModelProfile(
     val history: HistoryPolicy = HistoryPolicy(),
     val maxSteps: Int,
     val memoryPercent: Int = 30,
+    val resultLimits: ResultLimits = ResultLimits.of(tier),
 ) {
     companion object {
         private val ALL = ToolGroup.entries.toSet()

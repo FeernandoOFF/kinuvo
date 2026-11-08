@@ -223,3 +223,6 @@ Speaking into the composer instead of typing; nothing is sent until the user sen
 **Compaction**:
 Replacing the older part of a Session with a summary so the conversation can continue; the full transcript is kept.
 _Avoid_: Truncation, pruning
+
+**Result limits**:
+The Model profile's item counts and per-tool-result token budget. Earlier turns receive a smaller share; only the model prompt is shortened, while the saved Session keeps the full result.
