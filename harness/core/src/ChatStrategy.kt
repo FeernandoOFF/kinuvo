@@ -27,10 +27,10 @@ internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession
             SessionEntry.ToolResult(call.id, call.name, "This exact call already failed in this turn. Don't repeat it; try something else or answer the user.", isError = true, identity = call.identity)
         },
         repeatable = executor::repeatable,
-        skipped = { call ->
+        skipped = { call, text, error ->
             session.toolStarted(call.id)
             session.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
-            SessionEntry.ToolResult(call.id, call.name, SKIPPED_CALL, isError = true, identity = call.identity)
+            SessionEntry.ToolResult(call.id, call.name, text, isError = error, identity = call.identity)
         },
         completed = { call ->
             session.toolStarted(call.id)

@@ -65,8 +65,8 @@ internal class ToolLoop(
     private val completed: suspend (SessionEntry.ToolCall) -> SessionEntry.ToolResult = { call ->
         SessionEntry.ToolResult(call.id, call.name, "This exact action already succeeded. Use its result and answer the user; don't repeat it.", isError = true, identity = call.identity)
     },
-    private val skipped: suspend (SessionEntry.ToolCall) -> SessionEntry.ToolResult = { call ->
-        SessionEntry.ToolResult(call.id, call.name, SKIPPED_CALL, isError = true, identity = call.identity)
+    private val skipped: suspend (SessionEntry.ToolCall, String, Boolean) -> SessionEntry.ToolResult = { call, text, error ->
+        SessionEntry.ToolResult(call.id, call.name, text, isError = error, identity = call.identity)
     },
     private val onResponse: suspend () -> Unit = {},
     private val onResult: suspend (SessionEntry.ToolResult) -> Unit = {},
@@ -118,8 +118,8 @@ internal class ToolLoop(
                 val query = if (executor().search(call.name, call.args)) searchWords(call.args) else emptySet()
                 val previous = searches.getOrPut(call.name) { mutableListOf() }
                 if (query.isNotEmpty() && previous.any { similarSearch(it, query) })
-                    SessionEntry.ToolResult(call.id, call.name, "You already searched for this; use the results above and answer.", identity = call.identity)
-                else if (callsPerTurn?.let { executor().executedCalls >= it } == true && !executor().internal(call.name)) skipped(call)
+                    skipped(call, SEARCHED, false)
+                else if (callsPerTurn?.let { executor().executedCalls >= it } == true && !executor().internal(call.name)) skipped(call, SKIPPED_CALL, true)
                 else {
                     if (query.isNotEmpty()) previous += query
                     executor().call(call, stopped = stopped)
@@ -132,7 +132,7 @@ internal class ToolLoop(
         pending = pending.drop(1)
         if (!parallelCalls) {
             pending.forEach { call ->
-                val result = skipped(call)
+                val result = skipped(call, SKIPPED_CALL, true)
                 onResult(result)
                 llm.writeSession { prompt = prompt.withMessages { it + messages.messages(listOf(result)) } }
             }
@@ -212,6 +212,7 @@ internal fun canonical(args: String) = runCatching { Json.parseToJsonElement(arg
 
 internal class RequestLimitReached : IllegalStateException()
 
+internal const val SEARCHED = "You already searched for this; use the results above and answer."
 internal const val ANSWER_NOW = "Answer now using what you found so far; say briefly what's still missing."
 internal const val ANSWER_NUDGE = "Answer the user from these results unless something essential is missing."
 
