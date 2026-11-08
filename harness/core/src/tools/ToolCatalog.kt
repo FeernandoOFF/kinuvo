@@ -19,7 +19,12 @@ object ToolCatalog {
     /** On tiers that always catalogue external tools, this many or fewer are still sent directly. */
     const val DIRECT_LIMIT = 8
 
-    fun tools(catalogued: List<Tool>): List<Tool> = listOf(FindTools(catalogued), DescribeTool(catalogued), CallTool(catalogued))
+    fun tools(catalogued: List<Tool>, maxItems: Int? = null): List<Tool> {
+        val limited = catalogued.map { tool -> object : Tool by tool {
+            override val descriptor = tool.descriptor.withItemLimits(tool.itemLimits(maxItems))
+        } }
+        return listOf(FindTools(limited), DescribeTool(limited), CallTool(limited))
+    }
 }
 
 private fun List<Tool>.named(name: String) = requireNotNull(firstOrNull { it.descriptor.name == name }) { "No tool '$name' in the catalog; search it first" }
@@ -37,7 +42,7 @@ private class FindTools(private val catalogued: List<Tool>) : CoreTool {
     override suspend fun execute(args: JsonObject): String {
         val words = args.string("query").orEmpty().lowercase().split(Regex("\\W+")).filter { it.isNotEmpty() }
         val found = catalogued.map { t -> t to "${t.descriptor.name} ${t.descriptor.description}".lowercase().let { text -> words.count(text::contains) } }
-            .filter { words.isEmpty() || it.second > 0 }.sortedByDescending { it.second }.take(MAX).map { it.first }
+            .filter { words.isEmpty() || it.second > 0 }.sortedByDescending { it.second }.take((args["limit"] as? JsonPrimitive)?.content?.toIntOrNull()?.coerceIn(1, MAX) ?: MAX).map { it.first }
         return found.joinToString("\n") { "- ${it.descriptor.name}: ${it.descriptor.description.replace('\n', ' ').take(160)}" }
             .ifEmpty { "No tools match; try other words or an empty query." }
     }

@@ -20,11 +20,12 @@ class ToolExecutor(
     private val approvals: Approvals = Approvals.none(),
     private val questions: Broker<Map<String, List<String>>?>? = null,
     private val attach: ((String, ByteArray) -> Attachment)? = null,
+    private val maxItems: Int? = null,
     private val emit: suspend (AgentEvent) -> Unit = {},
 ) {
     // Sessions recorded before a tool got its short name still call it by its alias.
     private val toolsByName = tools.indexedTools().let { named -> named + tools.mapNotNull { t -> t.identity?.modelAlias()?.let { it to t } }.filter { it.first !in named } }
-    private val callable = (advertisedTools + tools.map { it.descriptor }).distinctBy { it.name }
+    private val callable = (advertisedTools + tools.map { it.descriptor.withItemLimits(it.itemLimits(maxItems)) }).distinctBy { it.name }
 
     fun repeatable(name: String) = toolsByName[name]?.repeatable ?: true
 
@@ -137,7 +138,7 @@ class ToolExecutor(
         val attached = mutableListOf<Attachment>()
         return try {
             val args = Json.parseToJsonElement(call.args.ifBlank { "{}" }).jsonObject
-            val result = tool.executeResult(args, call.id, toolRun(call, approvalId, stopped, attached))
+            val result = tool.executeResult(args.clampItems(tool.itemLimits(maxItems)), call.id, toolRun(call, approvalId, stopped, attached))
             result.copy(name = call.name, attachments = attached + result.attachments)
         } catch (e: CancellationException) {
             throw e
