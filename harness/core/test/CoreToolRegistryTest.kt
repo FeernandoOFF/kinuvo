@@ -82,6 +82,8 @@ class CoreToolRegistryTest {
         assertIs<Verdict.Block>(ApprovalPolicy(agent, home.trustRules, scope = ToolScope.only("shell")).decide(tool))
         home.trustRules.update(agent.id) { it.copy(deny = DenyRules(tools = listOf(tool.policyKey))) }
         assertIs<Verdict.Block>(ApprovalPolicy(agent, home.trustRules, scope = child).decide(tool))
+        val ask = tool(ToolNames.ASK_USER)
+        assertIs<Verdict.Run>(ApprovalPolicy(agent, home.trustRules, scope = ToolScope(ceiling = Tolerance.Strict, ask = setOf(ToolNames.ASK_USER))).decide(ask))
     }
 
     @Test fun capabilitiesUseRegistryHints() {
