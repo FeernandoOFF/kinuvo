@@ -126,7 +126,6 @@ class Scheduler(
         val startedAt = clock()
         val sessionId = attached ?: harness.newSession(agent, ref).id
         val before = harness.store.entries(agent.id, sessionId).size
-        record(agent, routine, RunStatus.Running, null, startedAt, sessionId)
         var error: String? = null
         var kept: String? = sessionId
         var status = RunStatus.Ok
@@ -151,6 +150,7 @@ class Scheduler(
                 harness.store.deleteSession(agent.id, sessionId)
             }
         }) {
+            record(agent, routine, RunStatus.Running, null, startedAt, sessionId)
             harness.runner(agent, sessionId, routineRun)
         } } catch (_: Runs.StoppedBeforeStart) { null }
         run?.job?.join()
