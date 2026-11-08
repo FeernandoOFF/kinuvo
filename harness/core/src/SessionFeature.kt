@@ -88,7 +88,7 @@ internal class RunSession(
     suspend fun load(): Prompt {
         val entries = store.entries(agent.id, sessionId)
         instructions = if (profile.prompt == PromptStyle.Full) entries.filterIsInstance<SessionEntry.Started>().firstOrNull()?.instructions.orEmpty() else ""
-        val history = entries.activeHistory().let { if (latestTurnOnly) it.latestTurn() else it }
+        val history = entries.activeHistory().withoutBlockedRepeats().let { if (latestTurnOnly) it.latestTurn() else it }
         return messages.limitedPrompt(instructions, history.recentScreens(), profile.resultLimits, callablePaging)
     }
 

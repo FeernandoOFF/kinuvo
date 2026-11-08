@@ -75,6 +75,6 @@ suspend fun basicContextFor(agent: Agent, docs: AgentDocs, tools: List<Tool>, to
     if (known.isNotEmpty()) append("What you know about the user:\n${known.joinToString("\n")}\n\n")
     if (tools.isNotEmpty()) append("Tools: ${tools.joinToString { it.identity?.localId ?: it.descriptor.name }}. ")
     append("Use a tool when the user asks you to do something, and only say it's done after the tool succeeds.")
-    if (tools.any { it.identity?.localId == ToolNames.MEMORY }) append(" When the user asks you to remember something, call memory with action=add, target=user and content starting \"The user\".")
+    if (tools.any { it.identity?.localId == ToolNames.MEMORY }) append(" To remember something about the user, use the memory tool.")
     append("\nToday is $today.\n")
 }

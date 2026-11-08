@@ -1,5 +1,6 @@
 package kinuvo.harness.apple
 
+import kinuvo.harness.core.ANSWER_NUDGE
 import kinuvo.harness.testing.*
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
@@ -29,10 +30,11 @@ class AppleProviderTest {
     @Test fun sharedAnswerNudgeReplacesAppleTrailingNudge() {
         val history = listOf(
             Message.User("Who?", RequestMetaInfo.Empty),
-            Message.System("Answer the user from these results unless something essential is missing.", RequestMetaInfo.Empty),
+            Message.System(ANSWER_NUDGE, RequestMetaInfo.Empty),
         )
         assertFalse(promptFor(history).contains("Answer the user's message using the tool results above"))
-        assertTrue(appleInstructions(history).contains("Answer the user from these results"))
+        assertTrue(promptFor(history).trimEnd().endsWith(ANSWER_NUDGE))
+        assertFalse(appleInstructions(history).contains(ANSWER_NUDGE))
         assertTrue(appleOffer(emptyList()).isEmpty())
     }
 

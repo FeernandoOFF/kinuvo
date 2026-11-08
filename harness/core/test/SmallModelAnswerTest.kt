@@ -10,6 +10,7 @@ import kinuvo.harness.core.tools.WebSearchTool
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ModelTier
+import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -64,7 +65,8 @@ class SmallModelAnswerTest {
         assertEquals(1, searches)
         assertEquals("Ada was a mathematician.", events.filterIsInstance<AgentEvent.TextMessageEnd>().last().text)
         assertTrue(events.none { it is AgentEvent.Compacted })
-        assertTrue(events.filterIsInstance<AgentEvent.ToolCallResult>().any { it.content.contains("already searched") })
+        assertTrue(events.filterIsInstance<AgentEvent.ToolCallResult>().any { it.content == SEARCHED })
+        assertTrue(home.store.entries(home.agent.id, session.id).withoutBlockedRepeats().none { it is SessionEntry.ToolResult && it.output == SEARCHED })
         assertIs<AgentEvent.RunFinished>(events.last())
     }
 

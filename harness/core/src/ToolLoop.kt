@@ -213,9 +213,9 @@ internal fun canonical(args: String) = runCatching { Json.parseToJsonElement(arg
 
 internal class RequestLimitReached : IllegalStateException()
 
-internal const val SEARCHED = "You already searched for this; use the results above and answer."
-internal const val ANSWER_NOW = "Answer now using what you found so far; say briefly what's still missing."
-internal const val ANSWER_NUDGE = "Answer the user from these results unless something essential is missing."
+const val SEARCHED = "You already searched for this; use the results above and answer."
+const val ANSWER_NOW = "Answer the user's question now in a few sentences, using the tool results above. Don't ask the user to clarify; if the results don't answer it, say what you found and what's missing."
+const val ANSWER_NUDGE = "Answer the user from these results unless something essential is missing. Don't ask the user to clarify."
 
 internal fun searchWords(args: String): Set<String> = runCatching {
     val query = Json.parseToJsonElement(args).jsonObject["query"]?.jsonPrimitive?.content.orEmpty()

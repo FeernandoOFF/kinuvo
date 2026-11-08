@@ -182,7 +182,7 @@ private fun ToolParameterDescriptor.apple(required: Boolean): AppleParameter {
 private const val REPLY = "reply"
 
 /** The basic context and active Skills; the Session's full instructions aren't sent to Apple models. */
-internal fun appleInstructions(history: List<Message>) = history.filterIsInstance<Message.System>().joinToString("\n\n") { it.textContent() }
+internal fun appleInstructions(history: List<Message>) = history.filterIsInstance<Message.System>().filter { it.textContent() != ANSWER_NOW && it.textContent() != ANSWER_NUDGE }.joinToString("\n\n") { it.textContent() }
 
 internal fun applePrompt(history: List<Message>, tools: List<ToolDescriptor>): String {
     val original = tools.mapNotNull { it.toApple() }
@@ -211,6 +211,7 @@ internal fun promptFor(history: List<Message>, toolName: (String) -> String = { 
             }
         }
     }
-    if (history.none { it is Message.System && it.textContent().contains("Answer the user from these results") })
-        append("Answer the user's message using the tool results above. Do not repeat an action already completed for this request. If the tool results satisfy the request, reply to the user now.\n")
+    val answer = history.lastOrNull { it is Message.System && it.textContent().let { text -> text == ANSWER_NOW || text == ANSWER_NUDGE } }?.textContent()
+    append(answer ?: "Answer the user's message using the tool results above. Do not repeat an action already completed for this request. If the tool results satisfy the request, reply to the user now.")
+    append("\n")
 }

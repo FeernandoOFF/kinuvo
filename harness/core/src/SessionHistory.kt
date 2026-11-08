@@ -25,6 +25,12 @@ fun List<SessionEntry>.activeHistory(): List<SessionEntry> {
 }
 
 /** The latest user message and what follows it, with the current [SessionEntry.Context] and Skill activations. */
+/** Without searches blocked as repeats: the model only sees the real results, so it answers from them instead of echoing the block. */
+fun List<SessionEntry>.withoutBlockedRepeats(): List<SessionEntry> {
+    val blocked = filterIsInstance<SessionEntry.ToolResult>().filter { it.output == SEARCHED }.map { it.id }.toSet()
+    return if (blocked.isEmpty()) this else filterNot { it is SessionEntry.ToolCall && it.id in blocked || it is SessionEntry.ToolResult && it.id in blocked }
+}
+
 fun List<SessionEntry>.latestTurn(): List<SessionEntry> {
     val at = indexOfLast { it is SessionEntry.UserMessage }
     return if (at < 0) this else filterIndexed { index, entry -> index >= at || entry is SessionEntry.Context || entry is SessionEntry.Activation }
