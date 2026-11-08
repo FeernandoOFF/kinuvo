@@ -7,6 +7,7 @@ import kotlinx.serialization.json.JsonObject
 import kinuvo.harness.core.tools.WebResult
 import kinuvo.harness.core.tools.WebSearch
 import kinuvo.harness.core.tools.WebSearchTool
+import kinuvo.harness.core.tools.MemoryTool
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ModelTier
@@ -101,5 +102,22 @@ class SmallModelAnswerTest {
         assertTrue("- Who is Ada Lovelace?" in prompts[1])
         assertTrue("- Who is Ada Lovelace?" in prompts[2] && "- Where was she born?" in prompts[2])
         assertFalse(prompts[2].contains("Reply 1.") || prompts[2].contains("Reply 2."))
+    }
+
+    @Test fun microSavesMemoryOnlyWhenAsked() = runTest {
+        for ((text, saves) in listOf("When is Mexican Independence Day?" to 0, "Remember that I like tea" to 1)) {
+            val home = TestHome()
+            val session = home.store.createSession(home.agent.id, "")
+            var requests = 0
+            val model = scriptedModel { _, tools ->
+                if (tools.isEmpty() || requests++ > 0) flowOf(StreamFrame.TextDelta("September 16."), StreamFrame.End())
+                else flowOf(StreamFrame.ToolCallComplete("m", "memory", """{"action":"add","target":"user","content":"Likes tea"}"""), StreamFrame.End())
+            }
+            val events = AgentRun(home.agent, home.store, model, listOf(MemoryTool(home.agent, home.docs)), contextTokens = 4096,
+                profile = ModelProfile.of(ModelTier.Micro)).run(session.id, text).toList()
+            assertEquals(saves, home.docs.read(home.agent.id, AgentDoc.UserNotes).lines().count { it.isNotBlank() })
+            assertIs<AgentEvent.RunFinished>(events.last())
+            assertEquals("September 16.", events.filterIsInstance<AgentEvent.TextMessageEnd>().last().text)
+        }
     }
 }

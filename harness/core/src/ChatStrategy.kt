@@ -2,6 +2,7 @@
 
 package kinuvo.harness.core
 
+import kinuvo.harness.core.tools.ToolNames
 import ai.koog.agents.core.agent.entity.AIAgentNodeBase
 import ai.koog.agents.core.dsl.builder.AIAgentSubgraphBuilderBase
 import ai.koog.agents.core.dsl.builder.node
@@ -20,6 +21,7 @@ internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: 
 internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit, finish: AIAgentNodeBase<Unit, *>): AIAgentNodeBase<Unit, Unit> {
     val loop = ToolLoop(session.messages, response = session.response, executor = { executor }, toolName = session::toolName,
         callsPerTurn = session.profile.tools.callsPerTurn, answerNudge = session.profile.tools.callsPerTurn != null,
+        refuse = { call -> if (session.profile.tools.callsPerTurn != null && call.name == ToolNames.MEMORY && !REMEMBER.containsMatchIn(session.latestUserText())) MEMORY_UNASKED else null },
         maxRequests = session.profile.maxSteps, parallelCalls = session.profile.tools.parallelCalls,
         repeated = { call ->
             session.toolStarted(call.id)
@@ -62,3 +64,7 @@ internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession
     loop.connect(this, checkHistory, finish)
     return checkHistory
 }
+
+/** Small models save facts they were asked about; they may write Memory only when the user asks them to remember something. */
+internal val REMEMBER = Regex("""(?i)\b(remember|memori[sz]e|don'?t forget|keep in mind|note (that|down)|save (that|this)|recuerda|acu[eé]rdate|no olvides|apunta|guarda)""")
+internal const val MEMORY_UNASKED = "Only save to Memory when the user asks you to remember something. Answer the user instead."

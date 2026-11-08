@@ -124,6 +124,8 @@ internal class RunSession(
 
     fun text() = response.text.toString()
 
+    suspend fun latestUserText(): String = store.entries(agent.id, sessionId).lastOrNull { it is SessionEntry.UserMessage }?.let { (it as SessionEntry.UserMessage).text }.orEmpty()
+
     suspend fun append(entry: SessionEntry) = withContext(NonCancellable) { store.append(agent.id, sessionId, entry) }
 
     fun toolStarted(id: String) { startedCalls += id }

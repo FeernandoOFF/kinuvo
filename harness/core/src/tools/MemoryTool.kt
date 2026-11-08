@@ -49,7 +49,7 @@ class MemoryTool(private val agent: Agent, private val docs: AgentDocs, private 
         val text = docs.update(agent.id, doc) { old ->
             val entries = old.lines().filter { it.isNotBlank() }.map { it.removePrefix("- ").trim() }.toMutableList()
             for (operation in operations) when (operation.requireString("action")) {
-                "add" -> entries += operation.requireString("content").oneLine()
+                "add" -> operation.requireString("content").oneLine().let { entry -> if (entries.none { it.equals(entry, ignoreCase = true) }) entries += entry }
                 "replace" -> entries[indexOf(entries, operation.requireString("old_text"))] = operation.requireString("content").oneLine()
                 "remove" -> entries.removeAt(indexOf(entries, operation.requireString("old_text")))
                 else -> error("action must be add, replace or remove")

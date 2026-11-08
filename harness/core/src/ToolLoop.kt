@@ -76,10 +76,12 @@ internal class ToolLoop(
     private val parallelCalls: Boolean = true,
     private val callsPerTurn: Int? = null,
     private val answerNudge: Boolean = false,
+    /** A reason not to run this call, e.g. a small model saving to Memory unasked; the turn then ends with an answer. */
+    private val refuse: suspend (SessionEntry.ToolCall) -> String? = { null },
 ) {
     private var requests = 0
     private val searches = mutableMapOf<String, MutableList<Set<String>>>()
-    private var repeatedSearch = false
+    private var forceAnswer = false
     private val failed = mutableSetOf<Pair<String, String>>()
     private var repeats = 0
     private var repeatedSuccess = false
@@ -90,7 +92,7 @@ internal class ToolLoop(
 
     val request by node<Unit, Unit>("streamResponse") {
         checkRepeats()
-        val finalAnswer = requests++ >= maxRequests || repeatedSearch || callsPerTurn?.let { executor().executedCalls >= it } == true
+        val finalAnswer = requests++ >= maxRequests || forceAnswer || answerNudge && repeats > 0 || callsPerTurn?.let { executor().executedCalls >= it } == true
         llm.writeSession {
             if (finalAnswer) {
                 tools = emptyList()
@@ -118,8 +120,10 @@ internal class ToolLoop(
             else {
                 val query = if (executor().search(call.name, call.args)) searchWords(call.args) else emptySet()
                 val previous = searches.getOrPut(call.name) { mutableListOf() }
-                if (query.isNotEmpty() && previous.any { similarSearch(it, query) })
-                    skipped(call, SEARCHED, false).also { repeatedSearch = true }
+                val refusal = refuse(call)
+                if (refusal != null) skipped(call, refusal, true).also { forceAnswer = true }
+                else if (query.isNotEmpty() && previous.any { similarSearch(it, query) })
+                    skipped(call, SEARCHED, false).also { forceAnswer = true }
                 else if (callsPerTurn?.let { executor().executedCalls >= it } == true && !executor().internal(call.name)) skipped(call, SKIPPED_CALL, true)
                 else {
                     if (query.isNotEmpty()) previous += query
