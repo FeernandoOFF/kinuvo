@@ -123,7 +123,7 @@ internal class ToolLoop(
                 val query = if (executor().search(call.name, call.args)) searchWords(call.args) else emptySet()
                 val previous = searches.getOrPut(call.name) { mutableListOf() }
                 val refusal = refuse(call)
-                if (refusal != null) skipped(call, refusal, true).also { forceAnswer = true }
+                if (refusal != null) skipped(call, refusal, true)
                 else if (query.isNotEmpty() && previous.any { similarSearch(it, query) })
                     skipped(call, SEARCHED, false).also { forceAnswer = true }
                 else if (callsPerTurn?.let { executor().executedCalls >= it } == true && !executor().internal(call.name)) skipped(call, SKIPPED_CALL, true)

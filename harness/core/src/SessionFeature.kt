@@ -100,7 +100,7 @@ internal class RunSession(
         val count = profile.history.earlierQuestions
         if (!latestTurnOnly || count <= 0) return null
         val asked = history.filterIsInstance<SessionEntry.UserMessage>().dropLast(1).takeLast(count)
-            .map { it.modelText.trim().takeWhole(200) }.filter { it.isNotEmpty() }
+            .map { it.modelText.trim().takeWhole(120) }.filter { it.isNotEmpty() }
         return asked.takeIf { it.isNotEmpty() }?.joinToString("\n", "Earlier in this conversation the user asked (for context only; answer the latest message):\n") { "- $it" }
     }
 

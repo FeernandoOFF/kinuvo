@@ -56,7 +56,7 @@ data class ModelProfile(
         fun of(tier: ModelTier) = when (tier) {
             ModelTier.NoTools -> ModelProfile(tier, PromptStyle.Basic, ToolPolicy(emptySet(), cap = 0, schema = SchemaLevel.Flat), maxSteps = 1)
             ModelTier.Micro -> ModelProfile(tier, PromptStyle.Basic, ToolPolicy(setOf(ToolGroup.Core), cap = 5, callsPerTurn = 2, schema = SchemaLevel.Flat, parallelCalls = false,
-                excluded = setOf(ToolNames.WEB_FETCH)), HistoryPolicy(latestTurnOnly = true, earlierQuestions = 2), maxSteps = 4)
+                excluded = setOf(ToolNames.WEB_FETCH)), HistoryPolicy(latestTurnOnly = true, earlierQuestions = 4), maxSteps = 4)
             ModelTier.Small -> ModelProfile(tier, PromptStyle.BasicWithIdentity, ToolPolicy(setOf(ToolGroup.Core, ToolGroup.Data), cap = 8, callsPerTurn = 4, schema = SchemaLevel.OneLevel, parallelCalls = false),
                 maxSteps = 10)
             ModelTier.Mid -> ModelProfile(tier, PromptStyle.Full, ToolPolicy(ALL - ToolGroup.Automation, catalogExternal = true), maxSteps = 50)
