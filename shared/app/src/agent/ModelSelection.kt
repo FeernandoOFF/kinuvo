@@ -23,3 +23,5 @@ fun SessionSettings.select(provider: String, model: ModelInfo, defaults: AgentSe
 
 /** Models that can chat, without image-only ones such as `gpt-image-1`. */
 val ProviderModels.chatModels get() = models.filter { it.output?.contains("text") != false }
+
+val ModelTier.label get() = if (this == ModelTier.NoTools) "No tools" else name

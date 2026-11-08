@@ -1,5 +1,6 @@
 package kinuvo.harness.core.routines
 
+import kinuvo.harness.core.tools.ToolGroup
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -65,6 +66,7 @@ class RoutineRun(
 /** How the Agent ends a Routine run: report to the user, or nothing new. */
 class RoutineReportTool(private val run: RoutineRun) : Tool {
     override val risk = Risk.Low
+    override val group = ToolGroup.Internal
     override val descriptor = ToolDescriptor(
         name = ToolNames.ROUTINE_REPORT,
         description = "End this Routine run: report when something is new or needs the user, whose summary is their notification, " +

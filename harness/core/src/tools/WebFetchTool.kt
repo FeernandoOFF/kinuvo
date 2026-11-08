@@ -21,6 +21,7 @@ class WebFetchTool(
 ) : Tool {
     override val risk = Risk.Low
 
+    override val group = ToolGroup.Core
     override val descriptor = ToolDescriptor(
         name = ToolNames.WEB_FETCH,
         description = "Fetch a URL over HTTP(S) and return its text content (HTML is reduced to plain text).",

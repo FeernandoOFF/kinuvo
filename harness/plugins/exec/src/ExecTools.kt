@@ -1,5 +1,6 @@
 package kinuvo.harness.exec
 
+import kinuvo.harness.core.tools.ToolGroup
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -32,6 +33,7 @@ class ShellTool(private val backend: ExecBackend) : Tool {
     override val kind = ToolKind.Shell
     override fun assess(args: JsonObject) = args.string("command")?.let { ShellCommand.parse(it).assess(backend.roots) } ?: super.assess(args)
 
+    override val group = ToolGroup.Exec
     override val descriptor = ToolDescriptor(
         name = ToolNames.SHELL,
         description = "Run a bash command (fresh process each call; cd/export don't persist). Runs on ${backend.label}. " +
@@ -62,6 +64,7 @@ class ShellTool(private val backend: ExecBackend) : Tool {
 
 class ReadFileTool(private val backend: ExecBackend) : Tool {
     override val risk = Risk.Low
+    override val group = ToolGroup.Exec
     override val descriptor = ToolDescriptor(
         name = "read_file",
         description = "Read a text file from the workspace. offset/limit select lines (1-based).",
@@ -82,6 +85,7 @@ class ReadFileTool(private val backend: ExecBackend) : Tool {
 }
 
 class WriteFileTool(private val backend: ExecBackend) : Tool {
+    override val group = ToolGroup.Exec
     override val descriptor = ToolDescriptor(
         name = "write_file",
         description = "Create or overwrite a file in the workspace with the given content.",
@@ -99,6 +103,7 @@ class WriteFileTool(private val backend: ExecBackend) : Tool {
 }
 
 class EditFileTool(private val backend: ExecBackend) : Tool {
+    override val group = ToolGroup.Exec
     override val descriptor = ToolDescriptor(
         name = "edit_file",
         description = "Replace one exact, unique occurrence of old with new in a workspace file.",
@@ -124,6 +129,7 @@ class EditFileTool(private val backend: ExecBackend) : Tool {
 
 class ListFilesTool(private val backend: ExecBackend) : Tool {
     override val risk = Risk.Low
+    override val group = ToolGroup.Exec
     override val descriptor = ToolDescriptor(
         name = "list_files",
         description = "List files under a workspace folder (skips .git, build, node_modules), optionally filtered by a glob like **/*.kt.",
@@ -139,6 +145,7 @@ class ListFilesTool(private val backend: ExecBackend) : Tool {
 
 class ProcessOutputTool(private val backend: ExecBackend) : Tool {
     override val risk = Risk.Low
+    override val group = ToolGroup.Exec
     override val descriptor = ToolDescriptor(
         name = "process_output",
         description = "Check a background process started with shell(background=true): running state, exit code and the end of its output.",
@@ -156,6 +163,7 @@ class ProcessOutputTool(private val backend: ExecBackend) : Tool {
 
 class ProcessKillTool(private val backend: ExecBackend) : Tool {
     override val risk = Risk.Low
+    override val group = ToolGroup.Exec
     override val descriptor = ToolDescriptor(
         name = "process_kill",
         description = "Stop a background process started with shell(background=true).",

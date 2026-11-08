@@ -75,10 +75,30 @@ object ToolNames {
 
 enum class ToolKind { Standard, Shell, ComputerAction, AskUser }
 
+/** What a tool is for, so a model's [kinuvo.harness.core.ModelProfile] and a run's [ToolScope] can allow it by kind. */
+enum class ToolGroup {
+    /** Memory, fetching and searching the web. */
+    Core,
+    /** Knowledge, Tasks and Routines. */
+    Data,
+    /** Talking back to the user: questions, Artifacts, rendered UI, images. */
+    Interactive,
+    Skills,
+    /** The shell and file tools. */
+    Exec,
+    /** Scripts, browsers, computers and devices. */
+    Automation,
+    /** MCP and other plugins' tools. */
+    External,
+    /** Run bookkeeping the harness itself relies on; always allowed. */
+    Internal,
+}
+
 interface Tool {
     val kind: ToolKind get() = ToolKind.Standard
     val descriptor: ToolDescriptor
     val identity: ToolIdentity? get() = null
+    val group: ToolGroup get() = ToolGroup.External
     val displayName: String get() = descriptor.name
     val risk: Risk get() = Risk.Medium
     /** Whether identical consecutive successful calls can be useful within one turn. */

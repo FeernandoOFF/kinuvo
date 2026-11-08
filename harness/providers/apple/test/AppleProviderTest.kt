@@ -6,6 +6,8 @@ import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.core.ModelProfile
+import kinuvo.protocol.ModelTier
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ToolIdentity
@@ -105,27 +107,26 @@ class AppleProviderTest {
     }
 
     @Test
-    fun offersFewSimpleToolsWithMemoryFirst() {
+    fun acceptsOnlyToolsItsSchemaFits() {
         val text = ToolParameterDescriptor("query", "Query", ToolParameterType.String)
         val nested = ToolParameterDescriptor("filter", "Filter", ToolParameterType.Object(listOf(text)))
-        val many = (1..8).map { ToolDescriptor("mcp_$it", "MCP $it", listOf(text)) }
-        val offered = appleTools(many + listOf(ToolDescriptor(ToolNames.SHELL, "Shell", listOf(text)), ToolDescriptor("nested", "Nested", listOf(nested)),
-            ToolDescriptor(ToolNames.MEMORY, "Memory", listOf(ToolParameterDescriptor("action", "Action", ToolParameterType.Enum(arrayOf("add", "remove")))))))
-        assertEquals(listOf(ToolNames.MEMORY) + (1..5).map { "mcp_$it" }, offered.map { it.name })
+        val memory = ToolDescriptor(ToolNames.MEMORY, "Memory", listOf(ToolParameterDescriptor("action", "Action", ToolParameterType.Enum(arrayOf("add", "remove")))))
+        val provider = AppleProvider(Native())
+        assertTrue(provider.accepts(SYSTEM, memory))
+        assertTrue(provider.accepts(SYSTEM, ToolDescriptor("optional", "Optional", optionalParameters = listOf(nested))))
+        assertFalse(provider.accepts(SYSTEM, ToolDescriptor("nested", "Nested", listOf(nested))))
         val native = Native { _, done -> done("""{"tool":"reply","reply":""}""", null) }
-        runBlocking { model(native).request("", emptyList(), offered).toList() }
+        runBlocking { model(native).request("", emptyList(), listOf(memory)).toList() }
         assertTrue(native.tools!!.contains("""["add","remove"]"""))
     }
 
     @Test
-    fun capsToolsPerModelAndSkipsSkillAndUiTools() {
-        val skipped = listOf(ToolNames.READ_SKILL_FILE, ToolNames.SKILL_MANAGE, ToolNames.SHOW_UI, ToolNames.SHOW_HTML).map { ToolDescriptor(it, it) }
-        val many = (1..20).map { ToolDescriptor("mcp_$it", "MCP $it") }
-        val provider = AppleProvider(Native())
-        assertTrue(provider.basicPrompt(SYSTEM))
-        assertEquals(6, provider.usableTools(SYSTEM, skipped + many).size)
-        assertEquals(16, provider.usableTools(PRIVATE_CLOUD, skipped + many).size)
-        assertTrue(provider.usableTools(PRIVATE_CLOUD, skipped).isEmpty())
+    fun declaresTiersAndToolCaps() = runTest {
+        val provider = AppleProvider(Native(cloud = 32768))
+        assertEquals(mapOf(SYSTEM to ModelTier.Micro, PRIVATE_CLOUD to ModelTier.Small), provider.models().associate { it.id to it.tier })
+        assertEquals(5, provider.profile(SYSTEM, ModelProfile.of(ModelTier.Micro)).tools.cap)
+        assertEquals(16, provider.profile(PRIVATE_CLOUD, ModelProfile.of(ModelTier.Small)).tools.cap)
+        assertNull(provider.profile(PRIVATE_CLOUD, ModelProfile.of(ModelTier.Frontier)).tools.cap)
     }
 
     @Test
@@ -140,9 +141,6 @@ class AppleProviderTest {
         }
         val frames = model(native).request("", emptyList(), listOf(ToolDescriptor(original, "Open Browser"))).toList()
         assertEquals(original, frames.filterIsInstance<StreamFrame.ToolCallComplete>().single().name)
-        val blocked = ToolIdentity(PluginInstanceId("kinuvo.core"), ToolNames.SHELL)
-        val alias = blocked.modelAlias()
-        assertTrue(AppleProvider(native).usableTools(SYSTEM, listOf(ToolDescriptor(alias, "Shell")), mapOf(alias to blocked)).isEmpty())
     }
 
     @Test

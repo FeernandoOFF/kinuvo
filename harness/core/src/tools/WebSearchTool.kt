@@ -28,6 +28,7 @@ data class WebResult(val title: String, val url: String, val snippet: String, va
 class WebSearchTool(private val provider: WebSearch) : Tool {
     override val risk = Risk.Low
 
+    override val group = ToolGroup.Core
     override val descriptor = ToolDescriptor(
         name = ToolNames.WEB_SEARCH,
         description = "Search the web. Returns titles, URLs and snippets; read a result with web_fetch.",

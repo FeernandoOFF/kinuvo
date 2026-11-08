@@ -44,7 +44,7 @@ If the model is unavailable, check Apple Intelligence settings, download status,
 Kinuvo exposes only the on-device `system` model through `fm`; Private Cloud Compute is not included. It is a no-setup option for quick, private conversations, not a replacement for larger models:
 
 - **Basic prompt.** Instead of Kinuvo's full instructions, the model gets a short prompt: the Agent's name, your User Notes and Memory, its tools and today's date. Identity and Soul aren't sent.
-- **Few tools.** It takes simple typed tools, Memory and web first: at most 6 on the system model, 16 on Private Cloud Compute. No Skills, Skill catalog or `show_ui`.
+- **Few tools.** It takes simple typed tools, Memory and web first: at most 5 on the system model, 16 on Private Cloud Compute. No Skills, Skill catalog or `show_ui`.
 - **Text only.** Browser screenshots stay in the Session archive; the model receives the page text instead.
 - **Latest message only.** Each request carries your latest message and the current turn's tool steps. Earlier turns stay in the Session but aren't sent, because the model tends to copy earlier replies. Facts you want it to keep belong in Memory or User Notes.
 - **Small context.** It has 4,096 tokens, counted with `fm count-tokens`. Large tool results such as full web pages can exceed it.

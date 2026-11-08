@@ -22,6 +22,15 @@ _Avoid_: backend, LLM
 An OpenAI-compatible endpoint the owner lists under `providers:` in config.yaml; its ID is `custom/<key>`, so it never replaces a built-in Model provider.
 _Avoid_: compatible provider, custom model
 
+**Model tier**:
+How capable a model is as an Agent: NoTools, Micro, Small, Mid or Frontier. Set by config or its provider, otherwise inferred; it picks the Model profile.
+
+**Model profile**:
+What a Model tier changes in a run: prompt style, which tool groups and how many tools, history and Compaction limits, step limit and Memory budget.
+
+**Tool scope**:
+The tools one run may use, by name or group, narrowing the Agent's before the Model profile applies. Tools it names skip the profile's group filter.
+
 **External Agent**:
 An Agent registered in Kinuvo whose execution and configuration belong to another harness or Server; its local display identity can differ from its source identity.
 

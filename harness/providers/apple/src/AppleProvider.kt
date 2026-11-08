@@ -4,12 +4,11 @@ import kinuvo.harness.core.plugin.*
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.RawSchemaToolDescriptor
-import kinuvo.harness.core.tools.smallModelTools
+import kinuvo.harness.core.tools.simplified
 import kinuvo.protocol.CapabilityState
 import kinuvo.protocol.ModelInfo
 import kinuvo.protocol.ExecutionLocation
-import kinuvo.protocol.ToolIdentity
+import kinuvo.protocol.ModelTier
 import kinuvo.protocol.ProtocolJson
 import ai.koog.prompt.Prompt
 import ai.koog.prompt.dsl.ModerationResult
@@ -71,15 +70,13 @@ class AppleProvider(private val native: AppleLanguageModel, private val dispatch
         listOf(SYSTEM to "Apple on-device model", PRIVATE_CLOUD to "Apple Private Cloud Compute").mapNotNull { (id, name) ->
             suspendCoroutine { c -> native.contextSize(id) { c.resume(it) } }.takeIf { it > 0 }
                 ?.let { ModelInfo(id, name, reasoning = emptyList(), input = listOf("text"), tools = true, context = it,
-                    location = ExecutionLocation.ServerHost, state = availability(id)) }
+                    location = ExecutionLocation.ServerHost, tier = if (id == SYSTEM) ModelTier.Micro else ModelTier.Small, state = availability(id)) }
         }
     }
 
-    override fun usableTools(model: String, tools: List<ToolDescriptor>) = appleTools(tools, max = maxTools(model))
-    override fun usableTools(model: String, tools: List<ToolDescriptor>, identities: Map<String, ToolIdentity>) =
-        appleTools(tools, { identities[it.name]?.localId ?: it.name }, maxTools(model))
-    override fun basicPrompt(model: String) = true
-    private fun maxTools(model: String) = if (model == SYSTEM) 6 else 16
+    override fun profile(model: String, base: ModelProfile) =
+        if (model == PRIVATE_CLOUD && base.tier == ModelTier.Small) base.copy(tools = base.tools.copy(cap = 16)) else base
+    override fun accepts(model: String, tool: ToolDescriptor) = tool.toApple() != null
 
     override suspend fun availability(model: String) = withContext(dispatcher) {
         native.unavailableReason(model)?.let { CapabilityState.unavailable(it, native.unavailableCode(model) ?: "unavailable") }
@@ -157,35 +154,28 @@ internal data class AppleTool(val name: String, val description: String, val par
 internal data class AppleParameter(val name: String, val description: String, val type: String, val required: Boolean,
     val values: List<String>? = null, val items: String? = null)
 
-/** The tools an Apple model takes: Memory and web first, at most [max], skipping ones it can't fill in. */
-internal fun appleTools(tools: List<ToolDescriptor>, local: (ToolDescriptor) -> String = { it.name }, max: Int = 6): List<ToolDescriptor> =
-    smallModelTools(tools, max, local) { it.toApple() != null }
-
 /** Compact model-facing names route back to the full tool identity after generation. */
 internal fun appleOffer(tools: List<ToolDescriptor>): List<AppleTool> = tools.mapNotNull { it.toApple() }.mapIndexed { index, tool ->
     if ("__" !in tool.name) tool else tool.copy(name = "t${index}_${tool.name.substringBeforeLast("__").substringAfterLast("__")}")
 }
 
 internal fun ToolDescriptor.toApple(): AppleTool? {
-    if (this is RawSchemaToolDescriptor) return null
-    val parameters = requiredParameters.map { it to true } + optionalParameters.map { it to false }
-    return AppleTool(name, description, parameters.mapNotNull { (p, required) ->
-        p.apple(required) ?: if (required) return null else null
-    })
+    val flat = simplified(SchemaLevel.Flat) ?: return null
+    val parameters = flat.requiredParameters.map { it to true } + flat.optionalParameters.map { it to false }
+    return AppleTool(name, description, parameters.map { (p, required) -> p.apple(required) })
 }
 
-private fun ToolParameterDescriptor.apple(required: Boolean): AppleParameter? {
+private fun ToolParameterDescriptor.apple(required: Boolean): AppleParameter {
     fun simple(type: ToolParameterType) = when (type) {
-        ToolParameterType.String, is ToolParameterType.Enum -> "string"
         ToolParameterType.Integer -> "integer"
         ToolParameterType.Float -> "number"
         ToolParameterType.Boolean -> "boolean"
-        else -> null
+        else -> "string"
     }
     return when (val t = type) {
         is ToolParameterType.Enum -> AppleParameter(name, description, "string", required, t.entries.toList())
-        is ToolParameterType.List -> simple(t.itemsType)?.let { AppleParameter(name, description, "array", required, items = it) }
-        else -> simple(t)?.let { AppleParameter(name, description, it, required) }
+        is ToolParameterType.List -> AppleParameter(name, description, "array", required, items = simple(t.itemsType))
+        else -> AppleParameter(name, description, simple(t), required)
     }
 }
 

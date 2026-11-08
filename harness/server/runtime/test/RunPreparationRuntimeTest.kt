@@ -11,6 +11,8 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
+import kinuvo.harness.core.tools.ToolGroup
+import kinuvo.harness.core.tools.ToolScope
 import kinuvo.protocol.*
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.server.devices.*
@@ -241,8 +243,7 @@ class RunPreparationRuntimeTest {
         fun provider(strip: Boolean) = object : ModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true))
-            override fun usableTools(model: String, tools: List<ToolDescriptor>) =
-                if (strip) tools.filter { it.name != ToolNames.ACTIVATE_SKILL } else tools
+            override fun accepts(model: String, tool: ToolDescriptor) = !strip || tool.name != ToolNames.ACTIVATE_SKILL
             override fun model(config: AgentConfig) = scriptedModel { prompt, _ ->
                 systems += prompt.messages.filterIsInstance<Message.System>().joinToString("\n") { it.textContent() }
                 flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
@@ -259,6 +260,46 @@ class RunPreparationRuntimeTest {
         }
     }
 
+    @Test fun tierPolicyAndToolScopeNarrowWhatTheModelIsOffered() = runBlocking {
+        val harness = harness()
+        try {
+            val base = agent(harness, listOf(ToolNames.MEMORY, ToolNames.SCHEDULE, ToolNames.ASK_USER))
+            suspend fun offered(agent: Agent, scope: ToolScope = ToolScope.All): List<String> {
+                val session = harness.newSession(agent)
+                harness.runner(agent, session.id, scope = scope).run(session.id, "hi").toList()
+                return seen.last().sorted()
+            }
+            assertEquals(listOf("ask_user", "memory", "schedule"), offered(base))
+            assertEquals(listOf("memory"), offered(base.copy(config = base.config.copy(tier = ModelTier.Micro))))
+            assertEquals(listOf("memory", "schedule"), offered(base.copy(config = base.config.copy(tier = ModelTier.Small))))
+            assertEquals(listOf("ask_user"), offered(base, ToolScope.only("ask_user")))
+            assertEquals(listOf("memory", "schedule"), offered(base.copy(config = base.config.copy(tier = ModelTier.Micro)), ToolScope.only("memory", "schedule")))
+            assertEquals(listOf("memory"), offered(base.copy(config = base.config.copy(tier = ModelTier.Micro)), ToolScope.groups(ToolGroup.Core, ToolGroup.Data)))
+        } finally { harness.close() }
+    }
+
+    @Test fun tierSetsThePromptStyle() = runBlocking {
+        val systems = mutableListOf<String>()
+        val harness = harness(providers = listOf(object : ModelProvider {
+            override val id = "test"
+            override suspend fun models() = listOf(ModelInfo("tools", tools = true))
+            override fun model(config: AgentConfig) = scriptedModel { prompt, _ ->
+                systems += prompt.messages.filterIsInstance<Message.System>().joinToString("\n") { it.textContent() }
+                flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
+            }
+        }))
+        try {
+            val base = agent(harness)
+            for (tier in listOf(ModelTier.Micro, ModelTier.Small, ModelTier.Frontier)) {
+                val agent = base.copy(config = base.config.copy(tier = tier))
+                val session = harness.newSession(agent)
+                harness.runner(agent, session.id).run(session.id, "hi").toList()
+            }
+            assertTrue("Kinuvo capabilities for this run" !in systems[0] && "Kinuvo capabilities for this run" !in systems[1])
+            assertTrue("Kinuvo capabilities for this run" in systems[2])
+        } finally { harness.close() }
+    }
+
     private val seen = mutableListOf<List<String>>()
     private var modelsBuilt = 0
     private val provider = object : ModelProvider {
@@ -268,9 +309,8 @@ class RunPreparationRuntimeTest {
             ModelInfo("text", tools = false),
             ModelInfo("limited", tools = true, toolIds = setOf(ToolIdentity(PluginInstanceId("test.runpreparationruntimetest.3"), "ping").key)),
         )
-        override fun usableTools(model: String, tools: List<ToolDescriptor>) = tools.filter {
-            it.name != "ping" || it.requiredParameters.any { p -> p.name == "message" }
-        }
+        override fun accepts(model: String, tool: ToolDescriptor) =
+            tool.name != "ping" || tool.requiredParameters.any { p -> p.name == "message" }
         override fun model(config: AgentConfig): AgentModel {
             modelsBuilt++
             return scriptedModel { _, tools ->

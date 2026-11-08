@@ -2,6 +2,7 @@ package kinuvo.harness.core
 
 import kotlinx.serialization.Serializable
 import kinuvo.harness.core.tools.ToolNames
+import kinuvo.protocol.ModelTier
 import kinuvo.protocol.SessionSettings
 import kinuvo.protocol.TrustRules
 import kinuvo.protocol.ContainerSettings
@@ -21,6 +22,8 @@ data class AgentConfig(
     val reasoning: String = "medium",
     /** auto | concise | detailed | none */
     val reasoningSummary: String = "auto",
+    /** Overrides the model's tier, which otherwise comes from its provider or is inferred. */
+    val tier: ModelTier? = null,
     val tools: List<String> = ToolNames.DEFAULT,
     /** Extra read-only Skill directories, after the Agent's own and the shared one. */
     val skillDirs: List<String> = emptyList(),

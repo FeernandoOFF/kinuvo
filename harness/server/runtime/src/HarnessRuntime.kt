@@ -44,6 +44,10 @@ import kinuvo.protocol.McpAppResource
 import kinuvo.protocol.McpAppToolRequest
 import kinuvo.harness.core.plugin.McpApps
 import kinuvo.harness.core.tools.ToolRun
+import kinuvo.harness.core.tools.ToolGroup
+import kinuvo.harness.core.tools.ToolScope
+import kinuvo.harness.core.tools.select
+import kinuvo.protocol.ModelTier
 import ai.koog.agents.core.tools.ToolDescriptor
 import kotlinx.serialization.json.*
 import kinuvo.harness.core.store.Store
@@ -148,7 +152,7 @@ open class HarnessRuntime(
             val info = catalog.firstOrNull { it.id == id && it.tools != false && it.state.actionable }
             if (provider != null && info != null && provider.availability(info.id).actionable) {
                 val reflected = chat.agent.copy(config = chat.agent.config.copy(provider = provider.id, model = info.id))
-                reflected to model(Effective(reflected, info, provider, chat.memoryCap, chat.userCap))
+                reflected to model(Effective(reflected, info, provider, chat.profile, chat.memoryCap, chat.userCap))
             } else null
         } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
         val (reflected, model) = chosen ?: (chat.agent to model(chat))
@@ -191,32 +195,35 @@ open class HarnessRuntime(
 
     /**
      * The Agent as a Session runs it: its settings applied, tool groups this Server lacks dropped, and compaction and
-     * Memory limits fitted to the model's context window. Capabilities, instructions and runs all start from this.
+     * Memory limits fitted to the model's context window, and its [profile] resolved once. Capabilities, instructions and runs all start from this.
      */
-    private class Effective(val agent: Agent, val info: ModelInfo?, val provider: ModelProvider?, val memoryCap: Int, val userCap: Int)
+    private class Effective(val agent: Agent, val info: ModelInfo?, val provider: ModelProvider?, val profile: ModelProfile, val memoryCap: Int, val userCap: Int)
 
     private suspend fun effective(agent: Agent, sessionId: String?, settings: SessionSettings? = null): Effective {
         val configured = supported(agent.with(settings ?: sessionId?.let { store.session(agent.id, it).settings } ?: SessionSettings()))
             .let { it.copy(config = it.config.copy(provider = providerId(it.config.provider))) }
         val info = modelCatalog().providers.firstOrNull { it.id == configured.config.provider }?.models?.firstOrNull { it.id == configured.config.model }
         val context = info?.context
-        val fitted = if (context == null) configured else configured.copy(config = configured.config.copy(compactAtTokens = minOf(configured.config.compactAtTokens, context * 55 / 100)))
-        fun cap(limit: Int) = context?.let { minOf(limit, it * 3 / 10) } ?: limit
-        return Effective(fitted, info, providers[configured.config.provider], cap(memoryCap), cap(userCap))
+        val provider = providers[configured.config.provider]
+        val base = ModelProfile.of(configured.config.tier ?: inferTier(info ?: ModelInfo(configured.config.model)))
+        val profile = provider?.profile(configured.config.model, base) ?: base
+        val fitted = if (context == null) configured else configured.copy(config = configured.config.copy(compactAtTokens = minOf(configured.config.compactAtTokens, context * profile.history.compactAtPercent / 100)))
+        fun cap(limit: Int) = context?.let { minOf(limit, it * profile.memoryPercent / 100) } ?: limit
+        return Effective(fitted, info, provider, profile, cap(memoryCap), cap(userCap))
     }
 
-    /** Which of [tools] the model takes: none when it can't call tools, else what its catalog entry and provider allow. */
-    private fun usable(e: Effective, tools: List<Tool>): Set<String> {
-        if (e.info?.tools == false) return emptySet()
-        val listed = tools.filter { t -> e.info?.toolIds?.let { t.identity?.key in it } != false }.map { it.descriptor }
-        return (e.provider?.usableTools(e.agent.config.model, listed, tools.mapNotNull { t -> t.identity?.let { t.descriptor.name to it } }.toMap()) ?: listed).map { it.name }.toSet()
+    /** Which of [tools] the model takes within [scope]: none when it can't call tools, else what its catalog entry, profile and provider allow. */
+    private fun usable(e: Effective, tools: List<Tool>, scope: ToolScope = ToolScope.All): Set<String> {
+        if (e.profile.tier == ModelTier.NoTools || e.info?.tools == false) return emptySet()
+        val listed = tools.filter { t -> e.info?.toolIds?.let { t.identity?.key in it } != false }
+        return e.profile.tools.select(listed, scope) { e.provider?.accepts(e.agent.config.model, it.descriptor) != false }.map { it.descriptor.name }.toSet()
     }
 
     /** [tools] can all be called; the model is sent only [advertised], with catalogued tools behind the catalog's. */
     private class PreparedRun(val effective: Effective, val tools: List<Tool>, val advertised: List<Tool>, val catalog: List<ResolvedTool>, val warnings: List<String>, val chat: CapabilityState)
 
     private suspend fun prepare(agent: Agent, sessionId: String?, settings: SessionSettings? = null,
-        routine: RoutineRun? = null, taskId: String? = null, activate: Boolean = false, catalogs: List<UiCatalog> = uiCatalogs.forRun()): PreparedRun {
+        routine: RoutineRun? = null, taskId: String? = null, activate: Boolean = false, catalogs: List<UiCatalog> = uiCatalogs.forRun(), scope: ToolScope = ToolScope.All): PreparedRun {
         val e = effective(agent, sessionId, settings)
         val chat = if (modelFactoryOverride) CapabilityState() else e.provider?.availability(e.agent.config.model)
             ?: CapabilityState.unsupported("No model provider '${e.agent.config.provider}'; this model provider is not installed")
@@ -227,7 +234,7 @@ open class HarnessRuntime(
         val aliased = own + contributed.flatMap { it.tools }
         val all = aliased.withModelNames().also { it.indexedTools() }
         val renamed = aliased.zip(all).filter { (a, b) -> a !== b }.associate { (a, b) -> a.descriptor.name to b.descriptor.name }
-        val eligible = usable(e, all)
+        val eligible = usable(e, all, scope)
         val descriptors = all.map { it.descriptor.name }.toSet()
         val rules = trustRules.effective(agent.id)
         val catalog = (own.map { ResolvedTool(renamed[it.descriptor.name] ?: it.descriptor.name, it.displayName, identity = it.identity) } +
@@ -243,7 +250,7 @@ open class HarnessRuntime(
         }
         val usableTools = all.filter { it.descriptor.name in eligible }
         val cataloguedNames = plugins.zip(contributed).filter { it.first.catalogued }.flatMap { it.second.tools }.map { renamed[it.descriptor.name] ?: it.descriptor.name }.toSet()
-        val candidates = if (usableTools.size > ToolCatalog.LIMIT) usableTools.filter { it.descriptor.name in cataloguedNames } else emptyList()
+        val candidates = if (usableTools.size > if (e.profile.tools.catalogExternal) 0 else ToolCatalog.LIMIT) usableTools.filter { it.descriptor.name in cataloguedNames } else emptyList()
         // Only when the model can take the catalog's own tools; otherwise every tool stays direct.
         val finders = if (candidates.isEmpty()) emptyList() else PluginTools(ToolCatalog.tools(candidates)).ownedBy(PluginInstanceId("kinuvo.core")).tools
             .withModelNames(all.map { it.descriptor.name }.toSet()).takeIf { f -> usable(e, f).size == f.size }.orEmpty()
@@ -279,15 +286,16 @@ open class HarnessRuntime(
      * Builds a runner with the Agent's current tools, starting what its plugins need on first use. [sessionId] is the
      * Session it runs in; [routine] is set for a Routine's run, which follows the Routine's approval mode.
      */
-    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun()): AgentRun {
-        val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs)
+    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
+        scope: ToolScope = ToolScope.All): AgentRun {
+        val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs, scope = scope)
         val e = prepared.effective
         val agent = e.agent
         val tools = prepared.tools.map(secrets::redacting)
         val advertised = prepared.advertised.map { it.descriptor.name }.toSet().let { names -> tools.filter { it.descriptor.name in names } }
         val sections = plugins.mapNotNull { it.instructions(agent) }
         val today = "${Clock.System.todayIn(timeZone)} ($timeZone)"
-        val context = if (e.provider?.basicPrompt(agent.config.model) == true) basicContextFor(agent, docs, advertised, today)
+        val context = if (e.profile.prompt != PromptStyle.Full) basicContextFor(agent, docs, advertised, today, identity = e.profile.prompt == PromptStyle.BasicWithIdentity)
         else personalContextFor(agent, docs) + "\n" + capabilitiesFor(agent, advertised) + "\nServer platform: $platformDescription. Today is ${Clock.System.todayIn(timeZone)} ($timeZone).\n" + sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
             if (advertised.any { it.descriptor.name == ToolNames.ACTIVATE_SKILL }) "\n\nCurrent Skills:\n" + skillCatalogFor(skills.load(agent)) else ""
         val model = model(e)
@@ -310,6 +318,7 @@ open class HarnessRuntime(
                 }
             },
             routine = routine,
+            profile = e.profile,
             questions = questions,
             attach = { name, bytes -> attachments.upload(UploadAttachmentParams(name, Base64.encode(bytes))) },
         )
@@ -400,7 +409,7 @@ open class HarnessRuntime(
                     else -> emptyList()
                 } }
             }, attachments::bytes) else null
-        val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() }?.let(::ShowUiTool)
+        val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() && ToolGroup.Interactive in e.profile.tools.groups }?.let(::ShowUiTool)
         return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool), imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
     }
 

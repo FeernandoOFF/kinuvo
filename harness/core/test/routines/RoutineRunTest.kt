@@ -7,6 +7,8 @@ import kinuvo.harness.core.AgentRun
 import kinuvo.harness.core.ApprovalBroker
 import kinuvo.harness.core.ApprovalPolicy
 import kinuvo.harness.core.Approvals
+import kinuvo.harness.core.ModelProfile
+import kinuvo.protocol.ModelTier
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.Tolerance
 import kinuvo.harness.core.tools.Tool
@@ -179,5 +181,18 @@ class RoutineRunTest {
         assertTrue(store.entries(agent.id, session.id).none { it is SessionEntry.Outcome })
         assertTrue(notified.isEmpty())
         assertNull(run.outcome)
+    }
+
+    @Test fun routineRunsStopAtTheProfileStepLimit() = runTest {
+        var calls = 0
+        val loop = scriptedModel { _, _ ->
+            calls++
+            flowOf(StreamFrame.ToolCallComplete("c$calls", "deploy", "{}"), StreamFrame.End())
+        }
+        val run = run()
+        val session = store.createSession(agent.id, "", run.ref)
+        val events = AgentRun(agent, store, loop, listOf(Deploy(Risk.Low)), routine = run, profile = ModelProfile.of(ModelTier.Micro)).run(session.id, run.routine.prompt).toList()
+        assertEquals(ModelProfile.of(ModelTier.Micro).maxSteps, calls)
+        assertIs<AgentEvent.RunError>(events.last())
     }
 }

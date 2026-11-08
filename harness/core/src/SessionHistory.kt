@@ -24,6 +24,12 @@ fun List<SessionEntry>.activeHistory(): List<SessionEntry> {
     }.filterNot { it is SessionEntry.Compaction || it is SessionEntry.Started || it is SessionEntry.Settings || it is SessionEntry.Details || it is SessionEntry.Reflection || it is SessionEntry.ReflectionReview || it is SessionEntry.Measurement || it is SessionEntry.Outcome || it is SessionEntry.Notice }
 }
 
+/** The latest user message and what follows it, with the current [SessionEntry.Context] and Skill activations. */
+fun List<SessionEntry>.latestTurn(): List<SessionEntry> {
+    val at = indexOfLast { it is SessionEntry.UserMessage }
+    return if (at < 0) this else filterIndexed { index, entry -> index >= at || entry is SessionEntry.Context || entry is SessionEntry.Activation }
+}
+
 /** Screenshots a Computer tool shows the model are named so, and only the latest few are sent again. */
 const val SCREENSHOT_PREFIX = "screen-"
 

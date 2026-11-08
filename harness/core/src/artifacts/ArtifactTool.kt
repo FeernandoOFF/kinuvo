@@ -1,5 +1,6 @@
 package kinuvo.harness.core.artifacts
 
+import kinuvo.harness.core.tools.ToolGroup
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -21,6 +22,7 @@ class ArtifactTool(
     private val readWorkspace: suspend (String) -> String,
 ) : Tool {
     override val risk = Risk.Low
+    override val group = ToolGroup.Interactive
     override val descriptor = ToolDescriptor(
         name = ToolNames.ARTIFACT,
         description = "Make something for the user to open from the chat and keep: a self-contained HTML page (reports, " +

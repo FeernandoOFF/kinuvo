@@ -11,6 +11,7 @@ Each Agent has `agents/<id>/agent.yaml` under the Server home. These are the fil
 | `model` | string | `gpt-5.6-sol` | A model ID from the selected provider |
 | `reasoning` | string | `medium` | A supported effort from the model picker |
 | `reasoningSummary` | string | `auto` | `auto`, `concise`, `detailed` or `none` |
+| `tier` | string or null | `null` | `NoTools`, `Micro`, `Small`, `Mid` or `Frontier`; overrides the model's tier. Unset follows the provider or an inference |
 | `tools` | list of strings | All optional groups below | `[memory, web_fetch, skills]` |
 | `skillDirs` | list of strings | `[]` | `["/home/me/shared-skills"]`; extra read-only Skill folders |
 | `compactAtTokens` | integer | `200000` | `100000`; estimated context threshold for Compaction |

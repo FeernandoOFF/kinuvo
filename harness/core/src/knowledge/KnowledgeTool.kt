@@ -1,5 +1,6 @@
 package kinuvo.harness.core.knowledge
 
+import kinuvo.harness.core.tools.ToolGroup
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -24,6 +25,7 @@ import kotlinx.serialization.json.JsonPrimitive
 class KnowledgeTool(private val knowledge: Knowledge, private val source: ChangeSource) : Tool {
     override val risk = Risk.Low
 
+    override val group = ToolGroup.Data
     override val descriptor = ToolDescriptor(
         name = ToolNames.KNOWLEDGE,
         description = "The user's knowledge base (their own note system). Follow the user's conventions in your instructions. " +
@@ -113,6 +115,7 @@ class KnowledgeTool(private val knowledge: Knowledge, private val source: Change
 class KnowledgeRewriteTool(private val knowledge: Knowledge, private val source: ChangeSource) : Tool {
     override val risk = Risk.Medium
 
+    override val group = ToolGroup.Data
     override val descriptor = ToolDescriptor(
         name = ToolNames.KNOWLEDGE_REWRITE,
         description = "Replace text in the body of a note in the user's knowledge base, e.g. to correct a fact. old must occur " +

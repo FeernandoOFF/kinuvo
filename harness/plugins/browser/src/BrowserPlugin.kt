@@ -29,6 +29,7 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
 
     private inner class ListTabs(val owner: BrowserOwner) : Tool {
         override val risk = Risk.Low
+        override val group = ToolGroup.Automation
         override val descriptor = ToolDescriptor("browser_tabs", "List this Agent's browser tabs and who controls them.", emptyList())
         override suspend fun execute(args: JsonObject) = ProtocolJson.encodeToString(browser.tabs(owner).map { it.copy(thumbnail = null) })
     }
@@ -40,6 +41,7 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
             BrowserAction.Click, BrowserAction.Type -> Risk.High
             else -> Risk.Medium
         }
+        override val group = ToolGroup.Automation
         override val descriptor = ToolDescriptor("browser_${action.name.lowercase()}", when (action) {
             BrowserAction.Open -> "Open a tab shared by this Agent's Sessions. text is an HTTP(S) URL, a bare host or a Google search; private hosts are allowed."
             BrowserAction.Capture -> "Capture the tab's visible semantic elements, revision and screenshot."

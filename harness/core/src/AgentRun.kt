@@ -19,9 +19,6 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.withContext
 import kotlin.uuid.Uuid
 
-/** Koog graph steps in a chat or Routine turn: each model request and tool call is one, so about 66 tool calls. */
-internal const val MAX_AGENT_ITERATIONS = 200
-
 /** Koog's default, for each Reflection stage. */
 internal const val STAGE_ITERATIONS = 50
 
@@ -42,6 +39,7 @@ class AgentRun(
     private val tracing: AgentTracing? = null,
     private val traceSessionId: String? = null,
     private val routine: RoutineRun? = null,
+    private val profile: ModelProfile = ModelProfile.of(ModelTier.Frontier),
 ) {
     private val advertisedTools = advertisedTools.sortedBy { it.name }
 
@@ -56,7 +54,7 @@ class AgentRun(
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.RunStarted(runId))
         warnings.forEach { send(AgentEvent.Warning(it)) }
-        val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, { send(it) })
+        val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, profile.history.latestTurnOnly, { send(it) })
         var stopped = "Cancelled by user"
         var cancelled = false
         val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, emit = { event ->
@@ -71,7 +69,7 @@ class AgentRun(
             val koog = AIAgent(
                 id = agent.id,
                 promptExecutor = model.executor,
-                agentConfig = AIAgentConfig(Prompt.Empty, model.model, MAX_AGENT_ITERATIONS),
+                agentConfig = AIAgentConfig(Prompt.Empty, model.model, profile.graphSteps),
                 strategy = routine?.let { routineStrategy(session, executor, it, userText) { stopped = it } } ?: chatStrategy(session, executor) { stopped = it },
             ) {
                 install(ToolLoopFeature) {

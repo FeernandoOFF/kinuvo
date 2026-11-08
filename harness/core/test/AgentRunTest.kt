@@ -5,6 +5,7 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.ModelTier
 import kinuvo.protocol.RequestKind
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.withWrittenAt
@@ -59,6 +60,27 @@ class AgentRunTest {
                 val entries = home.store.entries(home.agent.id, session.id)
                 assertEquals(entries.filterIsInstance<SessionEntry.ToolCall>().map { it.id }, entries.filterIsInstance<SessionEntry.ToolResult>().map { it.id })
             }
+        }
+    }
+
+    @Test
+    fun profileStepLimitsBoundModelRequestsInChatsAndRoutines() = runTest {
+        for (tier in listOf(ModelTier.Micro, ModelTier.Small, ModelTier.Mid, ModelTier.Frontier)) {
+            val home = TestHome()
+            val session = home.store.createSession(home.agent.id, "")
+            var calls = 0
+            val tool = object : Tool {
+                override val descriptor = ToolDescriptor("read", "Read")
+                override suspend fun execute(args: JsonObject) = "OK"
+            }
+            val model = scriptedModel { _, _ ->
+                calls++
+                flowOf(StreamFrame.ToolCallComplete("c$calls", "read", "{}"), StreamFrame.End())
+            }
+            val profile = ModelProfile.of(tier)
+            val events = AgentRun(home.agent, home.store, model, listOf(tool), profile = profile).run(session.id, "go").toList()
+            assertEquals(profile.maxSteps, calls, "$tier")
+            assertIs<AgentEvent.RunError>(events.last())
         }
     }
 

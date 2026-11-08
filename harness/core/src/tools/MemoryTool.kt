@@ -18,6 +18,7 @@ class MemoryTool(private val agent: Agent, private val docs: AgentDocs, private 
 
     override val repeatable = false
 
+    override val group = ToolGroup.Core
     override val descriptor = ToolDescriptor(
         name = ToolNames.MEMORY,
         description = "Persist concise, durable information across Sessions. target=memory for verified lessons useful across many tasks; " +
