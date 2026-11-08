@@ -15,6 +15,6 @@ The Server advertises the providers and capabilities it actually has. An embedde
 
 A self-hosted Server can use a cloud model. An on-device model does not imply that every tool is local: web search, MCP and Device tools may reach other systems. Choose all three parts to match the work.
 
-On-device models (Apple, LiteRT) get a short basic prompt and a capped tool list, with no Skills, Skill catalog or `show_ui`. Apple offers 6 tools (system model) or 16 (Private Cloud Compute); LiteRT offers 4 (Qwen3 0.6B), 8 (Gemma 4 E2B) or 12 (Gemma 4 E4B), Memory and web first. Use the model picker for availability and [models](../reference/models.md) for provider details.
+Each model has a tier (Micro, Small, Mid or Frontier) that sets its prompt, tools and step limit. Small models (Apple on-device, LiteRT) get a short basic prompt and a capped tool list, with no Skills, Skill catalog or `show_ui`: Apple's on-device model and Qwen3 0.6B offer 5 tools in 4 steps, Gemma 4 E2B 8 and E4B 10 in 10 steps, Memory and web first. Mid models take up to 50 steps and Frontier models 66, and Mid models reach MCP tools through the tool catalog. Use the model picker for availability and [models](../reference/models.md) for provider details.
 
 See [plugins](../reference/plugins.md), [MCP](../guides/mcp.md), [Workspaces](../guides/workspaces.md) and [Computer use](../guides/computer-use.md).

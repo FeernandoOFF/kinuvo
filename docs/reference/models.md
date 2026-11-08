@@ -27,6 +27,20 @@ OPENAI_API_KEY=${pass://Kinuvo/OpenAI/api key}
 
 Choose **OpenAI API** in the Agent or Session model picker and refresh its models. Keys stay on the Server. API models are discovered from `https://api.openai.com/v1/models`; the picker excludes known audio, image-generation, embedding and other non-chat model families. Custom IDs remain available. API usage is separate from the ChatGPT subscription. See the [OpenAI API quickstart](https://developers.openai.com/api/docs/quickstart).
 
+## Model tiers
+
+Each model has a tier, shown beside its name in the model picker. The tier sets how much of Kinuvo's instructions and tools the model gets, and how many steps it may take in one turn.
+
+| Tier | Prompt | Tools | Steps |
+| --- | --- | --- | --- |
+| No tools | Basic | None | 1 |
+| Micro | Basic | Memory and web, at most 5, simple parameters, latest message only | 4 |
+| Small | Basic with a short Identity | Memory, web, Knowledge, Tasks and Routines, at most 8, simple parameters | 10 |
+| Mid | Full | All except screen, browser, Script and Device tools; MCP tools through the tool catalog | 50 |
+| Frontier | Full | All | 66 |
+
+A step is one model request, which can include tool calls. The Server picks the tier: the Agent's `tier`, then a built-in provider's own choice, then an inference from the model (no tool support, a 4,096-token context or less, on-device or up to 8B parameters, up to 70B or a small-model name, otherwise Frontier). Set `tier` on a model in a Custom provider's `models` list to override the inference for it, or on an Agent in agent.yaml for all its models.
+
 ## Apple on-device models
 
 On macOS, the desktop and standalone Servers automatically offer **Apple → Apple on-device model** when Apple's `/usr/bin/fm` is installed. Enable Apple Intelligence and review and accept the CLI license on the Mac running the Server with `sudo fm license`, then refresh models. Kinuvo shows setup instructions while the license or model is unavailable. No API key is needed. See the [Mac setup guide](../guides/apple-models.md) for requirements, troubleshooting and limits.
@@ -66,6 +80,7 @@ providers:
         input: [text, image]
         reasoning: []
         context: 32768
+        tier: Mid
 ```
 
 Model IDs are sent unchanged. Unknown capabilities remain unspecified. Text and image attachments are supported; native document attachments and provider-specific reasoning extensions are not supported by Custom providers. OpenAI encrypted reasoning from an existing Session is omitted when switching to a compatible endpoint. Codex, OpenAI Responses, Apple and LiteRT on-device inference retain their existing behavior.
@@ -79,12 +94,12 @@ Download a model in **Settings → Model providers → On this device**, or pick
 | Model | Download | Device RAM | Context | Tools |
 | --- | --- | --- | --- | --- |
 | Gemma 4 E2B | 2.6 GB | 6 GB | 8,192 | 8 |
-| Gemma 4 E4B | 3.7 GB | 10 GB | 8,192 | 12 |
-| Qwen3 0.6B | 614 MB | 3 GB | 4,096 | 4 |
+| Gemma 4 E4B | 3.7 GB | 10 GB | 8,192 | 10 |
+| Qwen3 0.6B | 614 MB | 3 GB | 4,096 | 5 |
 
 All three are Apache-2.0 `.litertlm` files from `litert-community` on Hugging Face, pinned by revision, size and SHA-256. Models the machine can't run are listed with the reason and aren't offered in pickers. Files live in `<Server home>/local-models/<id>/`; an interrupted download resumes, and canceling discards it.
 
-One model is loaded at a time and unloaded after five idle minutes. Loading tries the GPU (Metal, OpenCL) and falls back to the CPU. Each request replays the Session history into a new LiteRT-LM conversation; Kinuvo's agent loop runs the tools. Screen control, Scripts, the tool catalog, Skills, `show_ui` and `show_html` are left out, and the model gets the short basic prompt instead of the full instructions. Tool caps: 4 (Qwen3 0.6B), 8 (Gemma 4 E2B), 12 (Gemma 4 E4B). A tool call LiteRT-LM can't parse is retried twice with a correction. Replies are capped at 1,024 tokens. Reasoning is off and input is text only.
+One model is loaded at a time and unloaded after five idle minutes. Loading tries the GPU (Metal, OpenCL) and falls back to the CPU. Each request replays the Session history into a new LiteRT-LM conversation; Kinuvo's agent loop runs the tools. Qwen3 0.6B is Micro and the Gemma models are Small, so they get the short basic prompt and only [their tier's tools](#model-tiers). Tool caps: 5 (Qwen3 0.6B), 8 (Gemma 4 E2B), 10 (Gemma 4 E4B). A tool call LiteRT-LM can't parse is retried twice with a correction. Replies are capped at 1,024 tokens. Reasoning is off and input is text only.
 
 Qwen3 0.6B is the smallest download but only handles short, simple turns. Gemma 4 E2B is the recommended default.
 
