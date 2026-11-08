@@ -50,7 +50,7 @@ object BrowserDom {
         const pending=window.__kinuvoBrowser?.pending;
         if(!pending)throw Error('Typed value could not be verified; page changed');
         const {el,expected}=pending;delete window.__kinuvoBrowser.pending;
-        const value=el.isContentEditable?el.textContent:el.value;
+        const value=el.isContentEditable?el.innerText:el.value;
         if(!el.isConnected||value!==expected)throw Error('Value did not stick; typed but reverted. Current value: '+(el.type==='password'?'[hidden]':JSON.stringify(value)));
         return 'done';
     })()"""
@@ -77,7 +77,7 @@ object BrowserDom {
               const identity=($identity)(e);s.identities[ref]=JSON.stringify(identity);
               const state={};
               if(e.matches('input,textarea,select')&&e.type!=='password')state.value=String(e.value);
-              if(e.isContentEditable)state.value=e.textContent;
+              if(e.isContentEditable)state.value=e.innerText;
               if(e.tagName==='SELECT')state.options=[...e.options].slice(0,100).map(o=>o.label.slice(0,180));
               if(e.matches('input[type=checkbox],input[type=radio]'))state.checked=e.checked;
               return {ref,...identity,...state};

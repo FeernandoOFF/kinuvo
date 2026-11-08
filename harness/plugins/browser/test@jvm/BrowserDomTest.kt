@@ -72,6 +72,8 @@ class BrowserDomTest {
             assertContains(missing.message.orEmpty(), "Ireland (ie)")
             frame = type(capture(), "Editor", "Edited text")
             assertContains(frame.text, "Edited text")
+            frame = type(capture(), "Editor", "first\nsecond")
+            assertEquals("first\nsecond", frame.elements.first { it.label == "Editor" }.value)
             frame = type(capture(), "Message", "Ordinary text")
             val read = frame.elements.first { it.label == "Read value" }
             frame = runtime.command(BrowserCommand(owner, BrowserAction.Click, tab, frame.revision, read.ref))!!

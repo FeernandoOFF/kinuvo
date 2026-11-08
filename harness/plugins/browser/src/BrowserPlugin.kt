@@ -60,7 +60,7 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
         override suspend fun bind(args: JsonObject): suspend () -> Unit {
             val gate = if (action == BrowserAction.Open) browser.openingGate(owner) else browser.gate(owner, args.requireString("tab"))
             val generation = gate.state.value.generation
-            return { check(gate.state.value.generation == generation) { "Screen control changed while awaiting Approval; capture again" } }
+            return { check(gate.state.value.generation == generation) { "Not performed: screen control changed while awaiting Approval; capture again" } }
         }
         private fun command(args: JsonObject) = BrowserCommand(owner, action, args.string("tab"), args.string("revision"), args.string("ref"), args.string("text"), y = args["pixels"]?.jsonPrimitive?.intOrNull)
         override suspend fun execute(args: JsonObject): String = render(browser.command(command(args)))

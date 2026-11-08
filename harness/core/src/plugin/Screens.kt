@@ -22,7 +22,7 @@ class ScreenGate(initial: ScreenControl = ScreenControl()) {
 
     suspend fun <T> agent(expected: Long = state.value.generation, block: suspend () -> T): T = execution.withLock {
         val current = state.value
-        check(!current.closed && current.generation == expected && current.holder == null && !current.draining && !current.suspended) { "Screen control changed; observe again" }
+        check(!current.closed && current.generation == expected && current.holder == null && !current.draining && !current.suspended) { "Not performed: screen control changed; observe again" }
         block()
     }
 
