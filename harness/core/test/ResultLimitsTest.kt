@@ -40,6 +40,9 @@ class ResultLimitsTest {
         assertEquals(full, old.output)
         val normal = "normal result"
         assertEquals(normal, normal.limitResult(25000, false) { it.length / 4 })
+        var estimates = 0
+        "x".repeat(200_000).limitResult(500, false) { estimates++; it.length / 4 }
+        assertTrue(estimates <= 4)
     }
 
     @Test fun executorClampsCoreAndMcpCalls() = runTest {
@@ -88,11 +91,16 @@ class ResultLimitsTest {
 
     @Test fun coreAndMcpItemLimits() {
         val core = object : CoreTool {
-            override val descriptor = ToolDescriptor("read_file", "Read")
+            override val descriptor = ToolDescriptor("web_search", "Search")
             override suspend fun execute(args: JsonObject) = ""
         }
         assertEquals(mapOf("limit" to 3), core.itemLimits(3))
         assertTrue("default 3, max 3" in core.descriptor.withItemLimits(core.itemLimits(3)).optionalParameters.single().description)
+        val lines = object : CoreTool {
+            override val descriptor = ToolDescriptor("read_file", "Read")
+            override suspend fun execute(args: JsonObject) = ""
+        }
+        assertTrue(lines.itemLimits(3).isEmpty())
         for (parameter in listOf("limit", "max_results")) {
             val tool = object : Tool {
                 override val descriptor = RawSchemaToolDescriptor("mcp_search", "Search", buildJsonObject {
@@ -106,5 +114,12 @@ class ResultLimitsTest {
             assertTrue("default 3, max 3" in (tool.descriptor.withItemLimits(limits) as RawSchemaToolDescriptor).schema.toString())
             assertTrue(tool.itemLimits(null).isEmpty())
         }
+        val counted = object : Tool {
+            override val descriptor = RawSchemaToolDescriptor("mcp_create", "Create", buildJsonObject {
+                putJsonObject("properties") { putJsonObject("count") { put("type", "integer") } }
+            })
+            override suspend fun execute(args: JsonObject) = ""
+        }
+        assertTrue(counted.itemLimits(3).isEmpty())
     }
 }

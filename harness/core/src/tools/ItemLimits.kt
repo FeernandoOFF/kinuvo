@@ -5,11 +5,11 @@ import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
 import kotlinx.serialization.json.*
 
-private val limitNames = setOf("limit", "max_results", "maxResults", "count", "top_k", "page_size")
+private val limitNames = setOf("limit", "max_results", "maxResults", "top_k", "page_size")
 
 fun Tool.itemLimits(maxItems: Int?): Map<String, Int> {
     if (maxItems == null) return emptyMap()
-    coreMetadata?.let { entry -> return entry.itemLimit?.let { mapOf(it.parameter to minOf(it.max, maxItems)) }.orEmpty() }
+    coreMetadata?.let { entry -> return entry.itemLimit?.takeUnless { it.lines }?.let { mapOf(it.parameter to minOf(it.max, maxItems)) }.orEmpty() }
     val raw = descriptor as? RawSchemaToolDescriptor
     if (raw != null) return (raw.schema["properties"] as? JsonObject).orEmpty().mapNotNull { (name, value) ->
         val property = value as? JsonObject ?: return@mapNotNull null

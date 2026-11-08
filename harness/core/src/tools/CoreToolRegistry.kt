@@ -2,7 +2,8 @@ package kinuvo.harness.core.tools
 
 import kinuvo.protocol.Risk
 
-data class ItemLimit(val parameter: String, val max: Int)
+/** A tool's result-count parameter; [lines] counts lines of text, which the Result limits' text budget bounds instead of maxItems. */
+data class ItemLimit(val parameter: String, val max: Int, val lines: Boolean = false)
 
 data class CoreToolEntry(
     val name: String,
@@ -41,7 +42,7 @@ object CoreToolRegistry {
         CoreToolEntry(ToolNames.READ_SKILL_FILE, ToolGroup.Skills, Risk.Low, ToolKind.Standard, true, "Read a file bundled with a Skill (paths as listed in <skill_resources>).", hint = "Read an activated Skill's referenced resources with the Skill file tool when its instructions call for them."),
         CoreToolEntry(ToolNames.SKILL_MANAGE, ToolGroup.Skills, Risk.High, ToolKind.Standard, true, "Create, edit or delete one of your own Skills.", hint = "When Skill instructions are outdated or contradicted by tool results, identify the concrete correction. Leave automatic learning to background Reflection, which proposes improvements for review; drafts are unavailable until approved. Explicit user requests to edit a Skill use the Skill management tool and the normal Approval policy."),
         CoreToolEntry(ToolNames.SHELL, ToolGroup.Exec, Risk.Medium, ToolKind.Shell, true, "Run a bash command (fresh process each call; cd/export don't persist)."),
-        CoreToolEntry("read_file", ToolGroup.Exec, Risk.Low, ToolKind.Standard, true, "Read a text file from the workspace.", itemLimit = ItemLimit("limit", 2000), paging = true),
+        CoreToolEntry("read_file", ToolGroup.Exec, Risk.Low, ToolKind.Standard, true, "Read a text file from the workspace.", itemLimit = ItemLimit("limit", 2000, lines = true), paging = true),
         CoreToolEntry("write_file", ToolGroup.Exec, Risk.Medium, ToolKind.Standard, true, "Create or overwrite a file in the workspace with the given content."),
         CoreToolEntry("edit_file", ToolGroup.Exec, Risk.Medium, ToolKind.Standard, true, "Replace one exact, unique occurrence of old with new in a workspace file."),
         CoreToolEntry("list_files", ToolGroup.Exec, Risk.Low, ToolKind.Standard, true, "List files under a workspace folder (skips .git, build, node_modules), optionally filtered by a glob like **/*.kt."),

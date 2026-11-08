@@ -17,7 +17,9 @@ data class ResultLimits(val maxTokens: Int, val maxItems: Int?, val olderShare: 
 }
 
 internal suspend fun String.limitResult(tokens: Int, paging: Boolean, estimate: suspend (String) -> Int): String {
-    if (estimate(this) <= tokens) return this
+    if ((length + 3) / 4 <= tokens / 2) return this
+    val size = estimate(this)
+    if (size <= tokens) return this
     fun cut(keep: Int): String {
         val head = takeWhole(keep / 2)
         var start = length - (keep - head.length)
@@ -26,11 +28,12 @@ internal suspend fun String.limitResult(tokens: Int, paging: Boolean, estimate: 
         val advice = if (paging) "narrow the query or page with offset/limit" else "narrow the query"
         return "$head\n…[${length - head.length - tail.length} chars omitted — $advice]\n$tail"
     }
-    var low = 0
-    var high = length
-    while (low < high) {
-        val mid = low + (high - low + 1) / 2
-        if (estimate(cut(mid)) <= tokens) low = mid else high = mid - 1
+    // A few estimates at most: the provider's counter can be slow (Apple's runs a process).
+    var keep = (length.toLong() * tokens / size * 9 / 10).toInt().coerceIn(0, length)
+    repeat(3) {
+        val text = cut(keep)
+        if (estimate(text) <= tokens) return text
+        keep = keep * 4 / 5
     }
-    return cut(low)
+    return cut(keep)
 }
