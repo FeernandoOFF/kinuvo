@@ -289,7 +289,7 @@ open class HarnessRuntime(
         val today = "${Clock.System.todayIn(timeZone)} ($timeZone)"
         val context = if (e.provider?.basicPrompt(agent.config.model) == true) basicContextFor(agent, docs, advertised, today)
         else personalContextFor(agent, docs) + "\n" + capabilitiesFor(agent, advertised) + "\nServer platform: $platformDescription. Today is ${Clock.System.todayIn(timeZone)} ($timeZone).\n" + sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
-            "\n\nCurrent Skills:\n" + skillCatalogFor(if (ToolNames.SKILLS in agent.config.tools) skills.load(agent) else emptyList())
+            if (advertised.any { it.descriptor.name == ToolNames.ACTIVATE_SKILL }) "\n\nCurrent Skills:\n" + skillCatalogFor(skills.load(agent)) else ""
         val model = model(e)
         return AgentRun(
             agent = agent,
@@ -400,7 +400,7 @@ open class HarnessRuntime(
                     else -> emptyList()
                 } }
             }, attachments::bytes) else null
-        val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() && e.provider?.basicPrompt(agent.config.model) != true }?.let(::ShowUiTool)
+        val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() }?.let(::ShowUiTool)
         return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool), imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
     }
 

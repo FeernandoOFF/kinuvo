@@ -134,7 +134,7 @@ internal class ReflectionRun(
             if (review == null || normal.isEmpty()) normal else normal + review.decisionTool() +
                 if (stage == ReflectionStage.Knowledge) listOf(changes.staging(conventionsTool())) else emptyList()
         }.flatMap { tool ->
-            val owner = if (tool.descriptor.name in listOf(ToolNames.KNOWLEDGE, "conventions")) "kinuvo.knowledge" else "kinuvo.core"
+            val owner = if (tool.descriptor.name in listOf(ToolNames.KNOWLEDGE, ToolNames.CONVENTIONS)) "kinuvo.knowledge" else "kinuvo.core"
             PluginTools(listOf(tool)).ownedBy(PluginInstanceId(owner)).tools
         }.withModelNames().filter { deny.blockedTool(it.identity) == null }
         if (tools.isEmpty()) return null

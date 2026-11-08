@@ -49,7 +49,7 @@ class ReadSkillFileTool(private val agent: Agent, private val repo: SkillReposit
     override val risk = Risk.Low
 
     override val descriptor = ToolDescriptor(
-        name = "read_skill_file",
+        name = ToolNames.READ_SKILL_FILE,
         description = "Read a file bundled with a Skill (paths as listed in <skill_resources>).",
         requiredParameters = listOf(
             ToolParameterDescriptor("name", "Skill name", ToolParameterType.String),
@@ -70,7 +70,7 @@ class SkillManageTool(private val agent: Agent, private val repo: SkillRepositor
     override val risk = Risk.High
 
     override val descriptor = ToolDescriptor(
-        name = "skill_manage",
+        name = ToolNames.SKILL_MANAGE,
         description = "Create, edit or delete one of your own Skills. content is the full SKILL.md, starting with " +
             "frontmatter (---, name, description, ---) followed by the instructions. Shared Skills are read-only; " +
             "to change one, create your own Skill with the same name. New Skills appear in the catalog on the next turn; the Skill activation tool can load them immediately.",

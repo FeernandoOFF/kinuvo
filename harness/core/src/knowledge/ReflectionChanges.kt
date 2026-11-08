@@ -37,7 +37,7 @@ class ReflectionChanges(private val agent: Agent, private val knowledge: Knowled
             require(action in listOf("create", "update", "edit")) { "Reflection can only propose creating or updating Knowledge and Skills" }
             if (review != null) {
                 if (tool.descriptor.name == ToolNames.KNOWLEDGE) require(review.approve && review.proposal.tool == ToolNames.KNOWLEDGE) { "Only revise the reviewed proposal" }
-                if (tool.descriptor.name == "skill_manage") require(args.requireString("name") == review.proposal.args.requireString("name")) { "Only change the reviewed Skill" }
+                if (tool.descriptor.name == ToolNames.SKILL_MANAGE) require(args.requireString("name") == review.proposal.args.requireString("name")) { "Only change the reviewed Skill" }
             }
             val reason = args.requireString("reason")
             val references = args.requireString("evidence")
@@ -57,12 +57,12 @@ class ReflectionChanges(private val agent: Agent, private val knowledge: Knowled
                     val pinned = if (note != null) JsonObject(clean + ("ref" to JsonPrimitive(note.ref))) else clean
                     ReflectionProposal(Uuid.random().toString(), tool.descriptor.name, pinned, reason, evidence, note = note, scope = scope)
                 }
-                "conventions" -> {
+                ToolNames.CONVENTIONS -> {
                     args.requireString("content")
-                    ReflectionProposal(Uuid.random().toString(), "conventions", clean, reason, evidence,
+                    ReflectionProposal(Uuid.random().toString(), ToolNames.CONVENTIONS, clean, reason, evidence,
                         scope = knowledge.provider(), conventionsBefore = knowledge.conventions())
                 }
-                "skill_manage" -> {
+                ToolNames.SKILL_MANAGE -> {
                     val repo = requireNotNull(skills)
                     val name = args.requireString("name")
                     val content = args.requireString("content")

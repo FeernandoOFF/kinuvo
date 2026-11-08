@@ -84,7 +84,7 @@ Download a model in **Settings → Model providers → On this device**, or pick
 
 All three are Apache-2.0 `.litertlm` files from `litert-community` on Hugging Face, pinned by revision, size and SHA-256. Models the machine can't run are listed with the reason and aren't offered in pickers. Files live in `<Server home>/local-models/<id>/`; an interrupted download resumes, and canceling discards it.
 
-One model is loaded at a time and unloaded after five idle minutes. Loading tries the GPU (Metal, OpenCL) and falls back to the CPU. Long Sessions can take longer to process. Screen control, Scripts and the tool catalog are left out. A tool call LiteRT-LM can't parse is retried twice with a correction. Replies are capped at 1,024 tokens. Reasoning is off and input is text only.
+One model is loaded at a time and unloaded after five idle minutes. Loading tries the GPU (Metal, OpenCL) and falls back to the CPU. Each request replays the Session history into a new LiteRT-LM conversation; Kinuvo's agent loop runs the tools. Screen control, Scripts, the tool catalog, Skills, `show_ui` and `show_html` are left out, and the model gets the short basic prompt instead of the full instructions. Tool caps: 4 (Qwen3 0.6B), 8 (Gemma 4 E2B), 12 (Gemma 4 E4B). A tool call LiteRT-LM can't parse is retried twice with a correction. Replies are capped at 1,024 tokens. Reasoning is off and input is text only.
 
 Qwen3 0.6B is the smallest download but only handles short, simple turns. Gemma 4 E2B is the recommended default.
 

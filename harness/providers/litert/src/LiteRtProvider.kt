@@ -49,11 +49,13 @@ class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
             (identities[tool.name]?.localId ?: tool.name).let { it !in SCREENS_AND_SCRIPTS && !it.startsWith("browser") }
         }
 
+    override fun basicPrompt(model: String) = true
+
     override fun model(config: AgentConfig): AgentModel = model(config, null)
 
     override fun model(config: AgentConfig, info: ModelInfo?): AgentModel {
         val local = requireNotNull(localModels.firstOrNull { it.id == config.model }) { "No on-device model '${config.model}'" }
-        return AgentModel(executor, (info ?: local.info()).llModel(LiteRt))
+        return AgentModel(executor, (info ?: local.info()).llModel(LiteRt), instructionsInPrompt = false)
     }
 
     private val downloadScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)

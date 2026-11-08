@@ -15,6 +15,6 @@ The Server advertises the providers and capabilities it actually has. An embedde
 
 A self-hosted Server can use a cloud model. An on-device model does not imply that every tool is local: web search, MCP and Device tools may reach other systems. Choose all three parts to match the work.
 
-The Apple provider limits the tools it offers to fit its models, so it does not expose every tool available to a larger cloud model. Use the model picker for availability and [models](../reference/models.md) for provider details.
+On-device models (Apple, LiteRT) get a short basic prompt and a capped tool list, with no Skills, Skill catalog or `show_ui`. Apple offers 6 tools (system model) or 16 (Private Cloud Compute); LiteRT offers 4 (Qwen3 0.6B), 8 (Gemma 4 E2B) or 12 (Gemma 4 E4B), Memory and web first. Use the model picker for availability and [models](../reference/models.md) for provider details.
 
 See [plugins](../reference/plugins.md), [MCP](../guides/mcp.md), [Workspaces](../guides/workspaces.md) and [Computer use](../guides/computer-use.md).

@@ -4,6 +4,7 @@ import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.harness.core.tools.Tool
+import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
 import kinuvo.protocol.ReflectionProposal
 import kinuvo.protocol.ReflectionResult
@@ -13,7 +14,7 @@ import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonPrimitive
 
 class ReflectionRevision(val proposal: ReflectionProposal, val note: String, val approve: Boolean) {
-    internal val stage get() = if (proposal.tool == "skill_manage") ReflectionStage.Skills else ReflectionStage.Knowledge
+    internal val stage get() = if (proposal.tool == ToolNames.SKILL_MANAGE) ReflectionStage.Skills else ReflectionStage.Knowledge
     var lasting: Boolean? = null
         private set
 
@@ -31,7 +32,7 @@ ${Json.encodeToString(ReflectionProposal.serializer(), proposal)}
 """
 
     internal fun decisionTool() = object : Tool {
-        override val descriptor = ToolDescriptor("reflection_feedback", "Classify this review note before finishing.", requiredParameters = listOf(
+        override val descriptor = ToolDescriptor(ToolNames.REFLECTION_FEEDBACK, "Classify this review note before finishing.", requiredParameters = listOf(
             ToolParameterDescriptor("lasting", "Whether the note states a rule useful beyond this proposal", ToolParameterType.Boolean),
         ))
         override suspend fun execute(args: JsonObject): String {
@@ -47,16 +48,16 @@ ${Json.encodeToString(ReflectionProposal.serializer(), proposal)}
         check(lasting != null) { "Reflection did not classify the review note" }
         if (approve) check(result.proposals.any { it.tool == proposal.tool }) { "Reflection did not produce a revised proposal" }
         if (lasting == true) check(result.proposals.any {
-            if (stage == ReflectionStage.Knowledge) it.tool == "conventions"
-            else it.tool == "skill_manage" && it.args.requireString("name") == proposal.args.requireString("name")
+            if (stage == ReflectionStage.Knowledge) it.tool == ToolNames.CONVENTIONS
+            else it.tool == ToolNames.SKILL_MANAGE && it.args.requireString("name") == proposal.args.requireString("name")
         }) { "Reflection did not propose lasting learning" }
         if (!approve && lasting == false) check(result.proposals.isEmpty()) { "A one-off rejection needs only recent feedback" }
-        check(lasting == true || proposal.tool == "conventions" || result.proposals.none { it.tool == "conventions" }) { "Conventions need a lasting rule" }
+        check(lasting == true || proposal.tool == ToolNames.CONVENTIONS || result.proposals.none { it.tool == ToolNames.CONVENTIONS }) { "Conventions need a lasting rule" }
     }
 }
 
 internal fun conventionsTool() = object : Tool {
-    override val descriptor = ToolDescriptor("conventions", "Propose how the user organizes Knowledge, preserving their other Conventions.", requiredParameters = listOf(
+    override val descriptor = ToolDescriptor(ToolNames.CONVENTIONS, "Propose how the user organizes Knowledge, preserving their other Conventions.", requiredParameters = listOf(
         ToolParameterDescriptor("action", "edit", ToolParameterType.String),
         ToolParameterDescriptor("content", "The complete revised Conventions", ToolParameterType.String),
     ))

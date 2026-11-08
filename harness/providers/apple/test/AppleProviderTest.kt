@@ -118,6 +118,17 @@ class AppleProviderTest {
     }
 
     @Test
+    fun capsToolsPerModelAndSkipsSkillAndUiTools() {
+        val skipped = listOf(ToolNames.READ_SKILL_FILE, ToolNames.SKILL_MANAGE, ToolNames.SHOW_UI, ToolNames.SHOW_HTML).map { ToolDescriptor(it, it) }
+        val many = (1..20).map { ToolDescriptor("mcp_$it", "MCP $it") }
+        val provider = AppleProvider(Native())
+        assertTrue(provider.basicPrompt(SYSTEM))
+        assertEquals(6, provider.usableTools(SYSTEM, skipped + many).size)
+        assertEquals(16, provider.usableTools(PRIVATE_CLOUD, skipped + many).size)
+        assertTrue(provider.usableTools(PRIVATE_CLOUD, skipped).isEmpty())
+    }
+
+    @Test
     fun shortModelNamesRouteBackToTheOriginalToolIdentity() = runTest {
         val original = ToolIdentity(PluginInstanceId("kinuvo.browser"), "browser_open").modelAlias()
         lateinit var native: Native
