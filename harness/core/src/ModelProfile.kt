@@ -16,8 +16,8 @@ enum class PromptStyle {
 enum class SchemaLevel { Flat, OneLevel, Full }
 
 /**
- * Which tools a model is offered: those in [groups], the [preferred] first, at most [cap]. [catalogExternal] sends
- * External tools through the tool catalog instead of one by one.
+ * Which tools a model is offered: those in [groups] but not [excluded] core tools, the [preferred] first, at most [cap].
+ * [catalogExternal] sends External tools through the tool catalog instead of one by one.
  */
 data class ToolPolicy(
     val groups: Set<ToolGroup>,
@@ -27,10 +27,15 @@ data class ToolPolicy(
     val parallelCalls: Boolean = true,
     val catalogExternal: Boolean = false,
     val callsPerTurn: Int? = null,
+    val excluded: Set<String> = emptySet(),
 )
 
-/** [latestTurnOnly] sends the latest user message and this turn's tool steps, not earlier turns; [compactAtPercent] is the share of the context window that triggers Compaction. */
-data class HistoryPolicy(val latestTurnOnly: Boolean = false, val compactAtPercent: Int = 55)
+/**
+ * [latestTurnOnly] sends the latest user message and this turn's tool steps, not earlier turns, plus a note of the
+ * [earlierQuestions] user messages before it (not the replies, which small models copy); [compactAtPercent] is the share
+ * of the context window that triggers Compaction.
+ */
+data class HistoryPolicy(val latestTurnOnly: Boolean = false, val compactAtPercent: Int = 55, val earlierQuestions: Int = 0)
 
 /**
  * Everything that varies with a model's [ModelTier]: its prompt, tools, history, step limit, Memory budget and Result limits. [maxSteps]
@@ -50,8 +55,8 @@ data class ModelProfile(
 
         fun of(tier: ModelTier) = when (tier) {
             ModelTier.NoTools -> ModelProfile(tier, PromptStyle.Basic, ToolPolicy(emptySet(), cap = 0, schema = SchemaLevel.Flat), maxSteps = 1)
-            ModelTier.Micro -> ModelProfile(tier, PromptStyle.Basic, ToolPolicy(setOf(ToolGroup.Core), cap = 5, callsPerTurn = 2, schema = SchemaLevel.Flat, parallelCalls = false),
-                HistoryPolicy(latestTurnOnly = true), maxSteps = 4)
+            ModelTier.Micro -> ModelProfile(tier, PromptStyle.Basic, ToolPolicy(setOf(ToolGroup.Core), cap = 5, callsPerTurn = 2, schema = SchemaLevel.Flat, parallelCalls = false,
+                excluded = setOf(ToolNames.WEB_FETCH)), HistoryPolicy(latestTurnOnly = true, earlierQuestions = 2), maxSteps = 4)
             ModelTier.Small -> ModelProfile(tier, PromptStyle.BasicWithIdentity, ToolPolicy(setOf(ToolGroup.Core, ToolGroup.Data), cap = 8, callsPerTurn = 4, schema = SchemaLevel.OneLevel, parallelCalls = false),
                 maxSteps = 10)
             ModelTier.Mid -> ModelProfile(tier, PromptStyle.Full, ToolPolicy(ALL - ToolGroup.Automation, catalogExternal = true), maxSteps = 50)

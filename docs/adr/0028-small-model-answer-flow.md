@@ -11,6 +11,8 @@ Chats and Routines make one final request without tools when their step limit is
 
 Micro executes at most two tool calls per turn; Small executes four. Internal bookkeeping and synthetic duplicate or skipped results do not consume this budget. Once spent, the next request asks for an answer without tools. Mid and Frontier have no tool-call budget.
 
+Micro leaves out web fetch, whose pages fill its context and whose URLs it tends to guess; a scope can still name it. Micro sees only the latest turn plus a note of the two user questions before it, not earlier replies, which small models copy. Blocked repeat searches stay in the Session but are left out of the prompt, so the model answers from the real results.
+
 Registered searches reject reworded queries whose normalized word sets have Jaccard overlap of at least 0.6. This returns guidance without triggering the failed-call repeat abort. Micro and Small receive a prompt-only answer nudge after results, and shorter web-search snippets and URLs without dates. Larger tiers retain full search output.
 
 This keeps tool choice with the model. Deterministic search and summarise remains deferred.

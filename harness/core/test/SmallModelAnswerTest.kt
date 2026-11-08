@@ -85,4 +85,21 @@ class SmallModelAnswerTest {
         assertFalse(compact.contains("?q="))
         assertFalse(compact.any { it.isSurrogate() })
     }
+
+    @Test fun microSeesEarlierQuestionsButNotReplies() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent.id, "")
+        val prompts = mutableListOf<String>()
+        val model = scriptedModel { prompt, _ ->
+            prompts += prompt.messages.joinToString("\n") { it.textContent() }
+            flowOf(StreamFrame.TextDelta("Reply ${prompts.size}."), StreamFrame.End())
+        }
+        val profile = ModelProfile.of(ModelTier.Micro)
+        for (text in listOf("Who is Ada Lovelace?", "Where was she born?", "And her father?"))
+            AgentRun(home.agent, home.store, model, emptyList(), contextTokens = 4096, profile = profile).run(session.id, text).toList()
+        assertFalse("Earlier in this conversation" in prompts[0])
+        assertTrue("- Who is Ada Lovelace?" in prompts[1])
+        assertTrue("- Who is Ada Lovelace?" in prompts[2] && "- Where was she born?" in prompts[2])
+        assertFalse(prompts[2].contains("Reply 1.") || prompts[2].contains("Reply 2."))
+    }
 }

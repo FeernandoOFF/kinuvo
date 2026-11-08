@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ModelProfileTest {
     private fun tool(name: String, group: ToolGroup, vararg required: ToolParameterDescriptor) = object : Tool {
@@ -95,7 +96,8 @@ class ModelProfileTest {
     }
 
     @Test fun groupsFilterTools() {
-        assertEquals(listOf("routine_report", "memory", "web_search", "web_fetch"), names(ModelProfile.of(ModelTier.Micro).tools.select(everything)))
+        assertEquals(listOf("routine_report", "memory", "web_search"), names(ModelProfile.of(ModelTier.Micro).tools.select(everything)))
+        assertTrue("web_fetch" in names(ModelProfile.of(ModelTier.Micro).tools.select(everything, ToolScope.only("web_fetch"))))
         assertEquals(listOf("routine_report", "memory", "web_search", "web_fetch", "tasks"), names(ModelProfile.of(ModelTier.Small).tools.select(everything)))
         val mid = names(ModelProfile.of(ModelTier.Mid).tools.select(everything))
         assertEquals(everything.size - 1, mid.size)

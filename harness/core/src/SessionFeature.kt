@@ -7,6 +7,7 @@ import ai.koog.agents.core.feature.config.FeatureConfig
 import ai.koog.agents.core.feature.pipeline.AIAgentGraphPipeline
 import ai.koog.prompt.Prompt
 import ai.koog.prompt.message.Message
+import ai.koog.prompt.message.RequestMetaInfo
 import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
@@ -89,7 +90,18 @@ internal class RunSession(
         val entries = store.entries(agent.id, sessionId)
         instructions = if (profile.prompt == PromptStyle.Full) entries.filterIsInstance<SessionEntry.Started>().firstOrNull()?.instructions.orEmpty() else ""
         val history = entries.activeHistory().withoutBlockedRepeats().let { if (latestTurnOnly) it.latestTurn() else it }
-        return messages.limitedPrompt(instructions, history.recentScreens(), profile.resultLimits, callablePaging)
+        val prompt = messages.limitedPrompt(instructions, history.recentScreens(), profile.resultLimits, callablePaging)
+        return earlierQuestions(entries.activeHistory())?.let { note ->
+            prompt.withMessages { it.takeWhile { m -> m is Message.System } + Message.System(note, RequestMetaInfo.Empty) + it.dropWhile { m -> m is Message.System } }
+        } ?: prompt
+    }
+
+    private fun earlierQuestions(history: List<SessionEntry>): String? {
+        val count = profile.history.earlierQuestions
+        if (!latestTurnOnly || count <= 0) return null
+        val asked = history.filterIsInstance<SessionEntry.UserMessage>().dropLast(1).takeLast(count)
+            .map { it.modelText.trim().takeWhole(200) }.filter { it.isNotEmpty() }
+        return asked.takeIf { it.isNotEmpty() }?.joinToString("\n", "Earlier in this conversation the user asked:\n") { "- $it" }
     }
 
     suspend fun startRequest() {

@@ -34,7 +34,7 @@ Each model has a tier, shown beside its name in the model picker. The tier sets 
 | Tier | Prompt | Tools | Steps |
 | --- | --- | --- | --- |
 | No tools | Basic | None | 1 |
-| Micro | Basic | Memory and web, at most 5, simple parameters, latest message only | 4 |
+| Micro | Basic | Memory and web search (no web fetch), at most 5, simple parameters; latest message plus a note of the two questions before it, without earlier replies | 4 |
 | Small | Basic with a short Identity | Memory, web, Knowledge, Tasks and Routines, at most 8, simple parameters | 10 |
 | Mid | Full | All except screen, browser, Script and Device tools; MCP tools through the tool catalog | 50 |
 | Frontier | Full | All | 66 |
