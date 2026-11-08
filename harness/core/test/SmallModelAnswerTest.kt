@@ -61,7 +61,8 @@ class SmallModelAnswerTest {
         }
         val events = AgentRun(home.agent, home.store, model, listOf(tool), contextTokens = 4096,
             profile = ModelProfile.of(ModelTier.Micro)).run(session.id, "Who is Ada Lovelace?").toList()
-        assertEquals(2, searches)
+        assertEquals(1, searches)
+        assertEquals("Ada was a mathematician.", events.filterIsInstance<AgentEvent.TextMessageEnd>().last().text)
         assertTrue(events.none { it is AgentEvent.Compacted })
         assertTrue(events.filterIsInstance<AgentEvent.ToolCallResult>().any { it.content.contains("already searched") })
         assertIs<AgentEvent.RunFinished>(events.last())

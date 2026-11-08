@@ -9,7 +9,6 @@ import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.harness.core.routines.routineStrategy
 import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.WebSearchTool
 import kinuvo.harness.core.tools.itemLimits
 import kinuvo.harness.core.tools.withItemLimits
 import kinuvo.harness.core.tools.ToolExecutor
@@ -60,8 +59,7 @@ class AgentRun(
         val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, profile.history.latestTurnOnly, profile, { send(it) })
         var stopped = "Cancelled by user"
         var cancelled = false
-        val runTools = if (profile.tools.callsPerTurn != null) tools.map { if (it is WebSearchTool) it.compact() else it } else tools
-        val executor = ToolExecutor(runTools, advertisedTools, approvals, questions, attach, maxItems = profile.resultLimits.maxItems, callsPerTurn = profile.tools.callsPerTurn, emit = { event ->
+        val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, maxItems = profile.resultLimits.maxItems, callsPerTurn = profile.tools.callsPerTurn, emit = { event ->
             if (event is AgentEvent.ToolCallStart) session.toolStarted(event.toolCallId)
             if (event !is AgentEvent.ToolCallResult || session.calls.none { it.id == event.toolCallId }) send(event)
         })

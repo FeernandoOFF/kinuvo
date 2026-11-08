@@ -79,6 +79,7 @@ internal class ToolLoop(
 ) {
     private var requests = 0
     private val searches = mutableMapOf<String, MutableList<Set<String>>>()
+    private var repeatedSearch = false
     private val failed = mutableSetOf<Pair<String, String>>()
     private var repeats = 0
     private var repeatedSuccess = false
@@ -89,7 +90,7 @@ internal class ToolLoop(
 
     val request by node<Unit, Unit>("streamResponse") {
         checkRepeats()
-        val finalAnswer = requests++ >= maxRequests || callsPerTurn?.let { executor().executedCalls >= it } == true
+        val finalAnswer = requests++ >= maxRequests || repeatedSearch || callsPerTurn?.let { executor().executedCalls >= it } == true
         llm.writeSession {
             if (finalAnswer) {
                 tools = emptyList()
@@ -118,7 +119,7 @@ internal class ToolLoop(
                 val query = if (executor().search(call.name, call.args)) searchWords(call.args) else emptySet()
                 val previous = searches.getOrPut(call.name) { mutableListOf() }
                 if (query.isNotEmpty() && previous.any { similarSearch(it, query) })
-                    skipped(call, SEARCHED, false)
+                    skipped(call, SEARCHED, false).also { repeatedSearch = true }
                 else if (callsPerTurn?.let { executor().executedCalls >= it } == true && !executor().internal(call.name)) skipped(call, SKIPPED_CALL, true)
                 else {
                     if (query.isNotEmpty()) previous += query

@@ -414,7 +414,7 @@ open class HarnessRuntime(
                 } }
             }, attachments::bytes) else null
         val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() }?.let(::ShowUiTool)
-        return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool), imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
+        return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null) }, imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
     }
 
     private suspend fun builtInTools(e: Effective, sessionId: String?, routine: RoutineRun?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {
