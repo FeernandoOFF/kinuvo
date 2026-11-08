@@ -94,9 +94,6 @@ class ModelProfileTest {
         assertEquals(emptySet(), ModelProfile.of(ModelTier.NoTools).tools.groups)
     }
 
-    @Test fun stepLimitsMapToGraphSteps() {
-    }
-
     @Test fun groupsFilterTools() {
         assertEquals(listOf("routine_report", "memory", "web_search", "web_fetch"), names(ModelProfile.of(ModelTier.Micro).tools.select(everything)))
         assertEquals(listOf("routine_report", "memory", "web_search", "web_fetch", "tasks"), names(ModelProfile.of(ModelTier.Small).tools.select(everything)))
