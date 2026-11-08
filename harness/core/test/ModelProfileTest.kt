@@ -137,7 +137,8 @@ class ModelProfileTest {
         assertEquals(listOf("web_fetch", "routine_report"), names(policy.select(everything, ToolScope.only("web_fetch"))))
         assertEquals(listOf("shell", "run_code", "routine_report"), names(policy.select(everything, ToolScope.groups(ToolGroup.Exec, ToolGroup.Automation))))
         val micro = ModelProfile.of(ModelTier.Micro).tools
-        assertEquals(listOf("routine_report"), names(micro.select(everything, ToolScope.only("shell"))))
+        assertEquals(listOf("routine_report", "shell"), names(micro.select(everything, ToolScope.only("shell"))))
+        assertEquals(listOf("routine_report"), names(micro.select(everything, ToolScope.groups(ToolGroup.Exec))))
     }
 
     @Test fun scopeSmallerThanTheCapPassesThroughWhole() {

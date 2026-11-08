@@ -17,7 +17,7 @@ The tier is the first of: the Agent's `tier:` in agent.yaml, the model's `tier:`
 
 A provider may adjust a model's profile (Apple's Private Cloud Compute and Gemma 4 E4B raise the Small tool cap) and filter tools it cannot take (Apple's schema). Tools declare a `ToolGroup`; tools without one are External, which covers MCP and other plugins.
 
-`ToolScope` narrows the tools of one run by name or group before the tier policy, the provider filter and the cap apply, in that order. A selection no larger than the cap is kept whole. `HarnessRuntime.runner` accepts a scope, so a future `spawn_agent` tool can start a run on a smaller model with only the tools it names.
+`ToolScope` narrows the tools of one run by name or group before the tier policy, the provider filter and the cap apply, in that order. A tool the scope names skips the tier's group filter, so a larger model can hand a small one a tool its tier would not offer by default; the schema level, provider filter and cap still apply. A selection no larger than the cap is kept whole. `HarnessRuntime.runner` accepts a scope, so a future `spawn_agent` tool can start a run on a smaller model with only the tools it names.
 
 `maxSteps` counts model requests. Each request is about three Koog graph steps, so a limit is `3 × maxSteps + 2` graph steps; Frontier's 66 requests keep the earlier 200.
 

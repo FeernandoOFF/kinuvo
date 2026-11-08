@@ -11,6 +11,7 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
+import kinuvo.harness.core.tools.ToolGroup
 import kinuvo.harness.core.tools.ToolScope
 import kinuvo.protocol.*
 import kinuvo.client.KinuvoClient
@@ -272,7 +273,8 @@ class RunPreparationRuntimeTest {
             assertEquals(listOf("memory"), offered(base.copy(config = base.config.copy(tier = ModelTier.Micro))))
             assertEquals(listOf("memory", "schedule"), offered(base.copy(config = base.config.copy(tier = ModelTier.Small))))
             assertEquals(listOf("ask_user"), offered(base, ToolScope.only("ask_user")))
-            assertEquals(listOf("memory"), offered(base.copy(config = base.config.copy(tier = ModelTier.Micro)), ToolScope.only("memory", "schedule")))
+            assertEquals(listOf("memory", "schedule"), offered(base.copy(config = base.config.copy(tier = ModelTier.Micro)), ToolScope.only("memory", "schedule")))
+            assertEquals(listOf("memory"), offered(base.copy(config = base.config.copy(tier = ModelTier.Micro)), ToolScope.groups(ToolGroup.Core, ToolGroup.Data)))
         } finally { harness.close() }
     }
 
