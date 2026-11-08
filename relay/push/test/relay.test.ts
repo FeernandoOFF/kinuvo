@@ -119,7 +119,7 @@ describe("APNs", () => {
     expect(url).toBe(`https://api.push.apple.com/3/device/${"ab".repeat(32)}`)
     expect(init.method).toBe("POST")
     const headers = init.headers as Record<string, string>
-    expect(headers["apns-topic"]).toBe("dev.kinuvo.ios")
+    expect(headers["apns-topic"]).toBe("com.feernandooff.kinuvo")
     expect(headers["apns-push-type"]).toBe("alert")
     expect(headers["apns-priority"]).toBe("10")
     expect(headers["apns-expiration"]).toBe(String(Date.parse("2026-10-31T12:00:00Z") / 1000 + 120))

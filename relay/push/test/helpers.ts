@@ -49,7 +49,7 @@ export async function makeEnv(overrides: Partial<Env> = {}) {
   const fcm = await rsaKey()
   const env = {
     RATE_LIMITER: rateLimiter(),
-    APNS_TOPIC: "dev.kinuvo.ios",
+    APNS_TOPIC: "com.feernandooff.kinuvo",
     APNS_KEY_ID: "KEY123",
     APNS_TEAM_ID: "TEAM456",
     APNS_KEY: apns.pem,
