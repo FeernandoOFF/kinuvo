@@ -27,7 +27,7 @@ data class ToolScope(
 
     private fun namedHere(tool: Tool) = tool.matchesNames(resolved)
     fun named(tool: Tool): Boolean = allows(tool) && (namedHere(tool) || parents.any { it.named(tool) })
-    fun mustAsk(tool: Tool): Boolean = tool.localName in ask || tool.descriptor.name in ask || parents.any { it.mustAsk(tool) }
+    fun mustAsk(tool: Tool): Boolean = tool.identity?.key in ask || tool.localName in ask || tool.descriptor.name in ask || parents.any { it.mustAsk(tool) }
     fun tolerance(agent: Tolerance): Tolerance = minOf(parents.fold(agent) { limit, parent -> parent.tolerance(limit) }, ceiling ?: agent)
 
     fun child(requested: ToolScope): ToolScope = ToolScope(parents = listOf(this, requested))

@@ -33,6 +33,15 @@ class CoreToolRegistryTest {
         assertFalse(ToolScope.only("memory").allows(external))
         assertTrue(ToolScope.only(external.identity.key).allows(external))
         assertTrue(ModelProfile.of(kinuvo.protocol.ModelTier.Micro).tools.select(listOf(external)).isEmpty())
+        val other = object : Tool {
+            override val identity = ToolIdentity(PluginInstanceId("mcp.other"), "memory")
+            override val descriptor = ToolDescriptor("memory", "Other memory")
+            override suspend fun execute(args: JsonObject) = "OK"
+        }
+        val keyed = ToolScope(names = setOf(external.identity.key), ask = setOf(external.identity.key))
+        assertTrue(keyed.mustAsk(external))
+        assertFalse(ToolScope(ask = setOf(external.identity.key)).mustAsk(other))
+        assertTrue(ToolScope.All.child(keyed).mustAsk(external))
         assertEquals(listOf("device_tools"), Toolsets.legacyGroups("device_tools"))
         assertTrue("device_tools" in Toolsets.legacyGroups("data"))
     }
