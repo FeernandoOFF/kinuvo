@@ -4,6 +4,7 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.message.RequestMetaInfo
 import ai.koog.prompt.message.ResponseMetaInfo
+import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.Role
 import kotlinx.serialization.json.*
@@ -11,6 +12,10 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class LiteRtHistoryTest {
+    @Test fun conversationAcceptsNoTools() {
+        ConversationConfig(tools = emptyList(), automaticToolCalling = false)
+    }
+
     private val request = RequestMetaInfo.Empty
     private val response = ResponseMetaInfo.Empty
 

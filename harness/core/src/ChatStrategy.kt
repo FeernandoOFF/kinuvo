@@ -19,6 +19,7 @@ internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: 
 /** The Session's history, compaction and the tool loop, ending at [finish]; returns the node to start from. */
 internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit, finish: AIAgentNodeBase<Unit, *>): AIAgentNodeBase<Unit, Unit> {
     val loop = ToolLoop(session.messages, response = session.response, executor = { executor }, toolName = session::toolName,
+        callsPerTurn = session.profile.tools.callsPerTurn, answerNudge = session.profile.tools.callsPerTurn != null,
         maxRequests = session.profile.maxSteps, parallelCalls = session.profile.tools.parallelCalls,
         repeated = { call ->
             session.toolStarted(call.id)

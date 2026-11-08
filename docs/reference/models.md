@@ -116,3 +116,5 @@ The discovery cache belongs to the Server and is keyed by provider, not account.
 Tool results fit the selected model's context. Micro and Small models receive up to 15% of context per result; Mid and Frontier receive 10%, capped at 8,000 and 25,000 tokens. Micro has a 400-token minimum. Earlier turns get a quarter of that budget. Unknown context uses 24,576 tokens as its starting budget.
 
 Micro, Small and Mid request up to 3, 5 and 20 items from tools with count parameters. Frontier keeps each tool's existing defaults. Large results show their beginning and end with an omission marker in model input; the Session and app retain the full tool output.
+
+Micro and Small can run two and four tool calls per turn respectively, then answer from their results. Their web search results use short snippets and URLs without dates. All tiers get one final chance to answer without tools when the step limit is reached; if that request fails, the run reports the unfinished-work error.

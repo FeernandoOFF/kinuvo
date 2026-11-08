@@ -64,6 +64,7 @@ class CompatibleProviderTest {
             val continuation = SessionMessages(model).prompt("", parallelToolHistory())
             model.executor.execute(continuation, model.model)
             assertParallelToolMessages(assertNotNull(sent))
+            assertTrue(sent?.get("tools")?.jsonArray.orEmpty().isEmpty())
         } finally { provider.close(); home.deleteRecursively() }
     }
 

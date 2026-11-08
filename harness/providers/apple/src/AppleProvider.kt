@@ -211,5 +211,6 @@ internal fun promptFor(history: List<Message>, toolName: (String) -> String = { 
             }
         }
     }
-    append("Answer the user's message using the tool results above. Do not repeat an action already completed for this request. If the tool results satisfy the request, reply to the user now.\n")
+    if (history.none { it is Message.System && it.textContent().contains("Answer the user from these results") })
+        append("Answer the user's message using the tool results above. Do not repeat an action already completed for this request. If the tool results satisfy the request, reply to the user now.\n")
 }

@@ -29,8 +29,34 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class AgentRunTest {
+    @Test fun requestLimitAnswersWithoutTools() = runTest {
+        for (fails in listOf(false, true)) {
+            val home = TestHome()
+            val session = home.store.createSession(home.agent.id, "")
+            val tool = object : Tool {
+                override val descriptor = ToolDescriptor("read", "Read")
+                override suspend fun execute(args: JsonObject) = "found"
+            }
+            var requests = 0
+            val model = scriptedModel { prompt, tools ->
+                requests++
+                if (tools.isNotEmpty()) flowOf(StreamFrame.ToolCallComplete("c$requests", "read", "{}"), StreamFrame.End())
+                else {
+                    assertTrue(prompt.messages.any { it.textContent().contains(ANSWER_NOW) })
+                    if (fails) error("failed final answer")
+                    flowOf(StreamFrame.TextDelta("The answer"), StreamFrame.End())
+                }
+            }
+            val events = AgentRun(home.agent, home.store, model, listOf(tool),
+                profile = ModelProfile.of(ModelTier.Frontier).copy(maxSteps = 1)).run(session.id, "go").toList()
+            assertEquals(2, requests)
+            if (fails) assertEquals("The work is unfinished; send another message to continue.", assertIs<AgentEvent.RunError>(events.last()).message)
+            else assertIs<AgentEvent.RunFinished>(events.last())
+        }
+    }
+
     @Test
-    fun koogIterationLimitStopsChatAndReflectionAndClosesPendingCalls() = runTest {
+    fun requestLimitFinishesChatAndReflectionRequests() = runTest {
         for (kind in listOf(RequestKind.Chat, RequestKind.Reflection)) {
             for (batch in listOf(1, 3)) {
                 val home = TestHome()
@@ -41,20 +67,20 @@ class AgentRunTest {
                     override val descriptor = ToolDescriptor("read", "Read")
                     override suspend fun execute(args: JsonObject): String { executed++; return "OK" }
                 }
-                val model = scriptedModel { _, _ ->
+                val model = scriptedModel { _, offered ->
                     calls++
+                    if (offered.isEmpty()) return@scriptedModel flowOf(StreamFrame.TextDelta("Done"), StreamFrame.End())
                     flow {
                         repeat(batch) { emit(StreamFrame.ToolCallComplete("c$calls-$it", "read", "{}")) }
                         emit(StreamFrame.End())
                     }
                 }
                 val events = AgentRun(home.agent, home.store, model, listOf(tool), requestKind = kind).run(session.id, "go").toList()
-                assertEquals(66, calls)
+                assertEquals(67, calls)
                 assertEquals(66 * batch, executed)
-                assertTrue(events.none { it is AgentEvent.RunFinished })
-                assertEquals("The work is unfinished; send another message to continue.", assertIs<AgentEvent.RunError>(events.last()).message)
+                assertIs<AgentEvent.RunFinished>(events.last())
                 val results = events.filterIsInstance<AgentEvent.ToolCallResult>()
-                assertEquals(calls * batch, results.size)
+                assertEquals((calls - 1) * batch, results.size)
                 assertEquals(0, results.count { it.isError })
                 val entries = home.store.entries(home.agent.id, session.id)
                 assertEquals(entries.filterIsInstance<SessionEntry.ToolCall>().map { it.id }, entries.filterIsInstance<SessionEntry.ToolResult>().map { it.id })
@@ -63,7 +89,7 @@ class AgentRunTest {
     }
 
     @Test
-    fun profileStepLimitsBoundModelRequestsInChatsAndRoutines() = runTest {
+    fun profileLimitsReserveAnAnswer() = runTest {
         for (tier in listOf(ModelTier.Micro, ModelTier.Small, ModelTier.Mid, ModelTier.Frontier)) {
             val home = TestHome()
             val session = home.store.createSession(home.agent.id, "")
@@ -72,14 +98,15 @@ class AgentRunTest {
                 override val descriptor = ToolDescriptor("read", "Read")
                 override suspend fun execute(args: JsonObject) = "OK"
             }
-            val model = scriptedModel { _, _ ->
+            val model = scriptedModel { _, offered ->
                 calls++
+                if (offered.isEmpty()) return@scriptedModel flowOf(StreamFrame.TextDelta("Done"), StreamFrame.End())
                 flowOf(StreamFrame.ToolCallComplete("c$calls", "read", "{}"), StreamFrame.End())
             }
             val profile = ModelProfile.of(tier)
             val events = AgentRun(home.agent, home.store, model, listOf(tool), profile = profile).run(session.id, "go").toList()
-            assertEquals(profile.maxSteps, calls, "$tier")
-            assertIs<AgentEvent.RunError>(events.last())
+            assertEquals((profile.tools.callsPerTurn ?: profile.maxSteps) + 1, calls, "$tier")
+            assertIs<AgentEvent.RunFinished>(events.last())
         }
     }
 

@@ -66,6 +66,10 @@ class OpenAIProviderTest {
             assertNull(request["reasoning"])
             assertTrue(request.getValue("tools").jsonArray.all { it.jsonObject["strict"]?.jsonPrimitive?.boolean == false })
             assertEquals(listOf("a", "z"), request.getValue("tools").jsonArray.map { it.jsonObject.getValue("name").jsonPrimitive.content })
+            assertFailsWith<IllegalStateException> {
+                model.request("Answer now", listOf(SessionEntry.UserMessage("hello")), emptyList()).toList()
+            }
+            assertTrue(sent?.get("tools")?.jsonArray.orEmpty().isEmpty())
         } finally { provider.close() }
     }
 

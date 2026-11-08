@@ -183,16 +183,17 @@ class RoutineRunTest {
         assertNull(run.outcome)
     }
 
-    @Test fun routineRunsStopAtTheProfileStepLimit() = runTest {
+    @Test fun routineRunsAnswerAtTheToolCallLimit() = runTest {
         var calls = 0
-        val loop = scriptedModel { _, _ ->
+        val loop = scriptedModel { _, tools ->
             calls++
+            if (tools.isEmpty()) return@scriptedModel flowOf(StreamFrame.TextDelta("Done"), StreamFrame.End())
             flowOf(StreamFrame.ToolCallComplete("c$calls", "deploy", "{}"), StreamFrame.End())
         }
         val run = run()
         val session = store.createSession(agent.id, "", run.ref)
         val events = AgentRun(agent, store, loop, listOf(Deploy(Risk.Low)), routine = run, profile = ModelProfile.of(ModelTier.Micro)).run(session.id, run.routine.prompt).toList()
-        assertEquals(ModelProfile.of(ModelTier.Micro).maxSteps, calls)
-        assertIs<AgentEvent.RunError>(events.last())
+        assertEquals(3, calls)
+        assertIs<AgentEvent.RunFinished>(events.last())
     }
 }

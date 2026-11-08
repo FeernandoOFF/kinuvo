@@ -11,6 +11,7 @@ import ai.koog.agents.core.dsl.builder.node
 import ai.koog.agents.core.feature.AIAgentGraphFeature
 import ai.koog.agents.core.feature.config.FeatureConfig
 import ai.koog.agents.core.feature.pipeline.AIAgentGraphPipeline
+import ai.koog.prompt.message.RequestMetaInfo
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import ai.koog.prompt.streaming.requireEndFrame
@@ -20,7 +21,8 @@ import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ToolIdentity
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.json.*
 import kotlin.uuid.Uuid
 
 internal class StreamResponse(private val identity: (String) -> ToolIdentity? = { null }) {
@@ -72,8 +74,11 @@ internal class ToolLoop(
     private val stopped: (String) -> Unit = {},
     private val maxRequests: Int = Int.MAX_VALUE,
     private val parallelCalls: Boolean = true,
+    private val callsPerTurn: Int? = null,
+    private val answerNudge: Boolean = false,
 ) {
     private var requests = 0
+    private val searches = mutableMapOf<String, MutableList<Set<String>>>()
     private val failed = mutableSetOf<Pair<String, String>>()
     private var repeats = 0
     private var repeatedSuccess = false
@@ -84,9 +89,18 @@ internal class ToolLoop(
 
     val request by node<Unit, Unit>("streamResponse") {
         checkRepeats()
-        if (requests++ >= maxRequests) throw RequestLimitReached()
+        val finalAnswer = requests++ >= maxRequests || callsPerTurn?.let { executor().executedCalls >= it } == true
         llm.writeSession {
-            requestLLMStreaming().requireEndFrame().collect { onFrame(it) }
+            if (finalAnswer) {
+                tools = emptyList()
+                prompt = prompt.withMessages { it + Message.System(ANSWER_NOW, RequestMetaInfo.Empty) }
+            } else if (answerNudge && executor().executedCalls > 0) {
+                prompt = prompt.withMessages { it + Message.System(ANSWER_NUDGE, RequestMetaInfo.Empty) }
+            }
+            try { requestLLMStreaming().requireEndFrame().collect { onFrame(it) } }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) { if (finalAnswer) throw RequestLimitReached() else throw e }
+            if (finalAnswer && response.calls.isNotEmpty()) throw RequestLimitReached()
             prompt = prompt.withMessages { it + response.messages(messages) }
         }
         onResponse()
@@ -99,8 +113,18 @@ internal class ToolLoop(
         val key = call.name to canonical(call.args)
         val result = toolCall(call, toolName(call.name)) {
             if (key == lastSuccessful && !repeatable(call.name)) { repeats++; repeatedSuccess = true; completed(call) }
-            else if (key in failed) { repeats++; repeated(call) }
-            else executor().call(call, stopped = stopped)
+            else if (key in failed && !executor().search(call.name, call.args)) { repeats++; repeated(call) }
+            else {
+                val query = if (executor().search(call.name, call.args)) searchWords(call.args) else emptySet()
+                val previous = searches.getOrPut(call.name) { mutableListOf() }
+                if (query.isNotEmpty() && previous.any { similarSearch(it, query) })
+                    SessionEntry.ToolResult(call.id, call.name, "You already searched for this; use the results above and answer.", identity = call.identity)
+                else if (callsPerTurn?.let { executor().executedCalls >= it } == true && !executor().internal(call.name)) skipped(call)
+                else {
+                    if (query.isNotEmpty()) previous += query
+                    executor().call(call, stopped = stopped)
+                }
+            }
         }
         if (result.isError) failed += key else lastSuccessful = key
         onResult(result)
@@ -187,3 +211,15 @@ private suspend fun AIAgentGraphContextBase.toolCall(call: SessionEntry.ToolCall
 internal fun canonical(args: String) = runCatching { Json.parseToJsonElement(args).deterministic().toString() }.getOrDefault(args)
 
 internal class RequestLimitReached : IllegalStateException()
+
+internal const val ANSWER_NOW = "Answer now using what you found so far; say briefly what's still missing."
+internal const val ANSWER_NUDGE = "Answer the user from these results unless something essential is missing."
+
+internal fun searchWords(args: String): Set<String> = runCatching {
+    val query = Json.parseToJsonElement(args).jsonObject["query"]?.jsonPrimitive?.content.orEmpty()
+    query.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))
+        .filter { it.isNotBlank() && it !in setOf("a", "an", "the", "is", "who", "what", "of", "in", "on", "for", "to", "and") }.toSet()
+}.getOrDefault(emptySet())
+
+internal fun similarSearch(a: Set<String>, b: Set<String>) = a.isNotEmpty() && b.isNotEmpty() &&
+    a.intersect(b).size.toDouble() / a.union(b).size >= 0.6
