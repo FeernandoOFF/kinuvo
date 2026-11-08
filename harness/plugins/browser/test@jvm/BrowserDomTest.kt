@@ -27,7 +27,7 @@ class BrowserDomTest {
                 <input aria-label="Trusted" oninput="if(!event.isTrusted)this.value='untrusted'">
                 <input aria-label="Password" type="password" value="secret">
                 <select aria-label="Origin"><option value="ie">Ireland</option><option value="gb">United Kingdom</option></select>
-                <span id="ticker"></span><script>setInterval(()=>{document.querySelector('#ticker').textContent=Date.now();document.body.dataset.tick=Date.now()},10)</script>
+                <ul role="menu"><li role="menuitem">Menu item</li></ul><span id="ticker"></span><script>setInterval(()=>{document.querySelector('#ticker').textContent=Date.now();document.body.dataset.tick=Date.now()},10)</script>
                 <script>customElements.define('symbol-labels', class extends HTMLElement { get labels() { return Symbol() } })</script>
                 <symbol-labels role="search">Custom labels</symbol-labels>
                 <div aria-label="Editor" contenteditable="true">original</div>

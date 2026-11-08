@@ -17,7 +17,7 @@ object BrowserDom {
             if(tag==='select'){
               const options=[...el.options],normalize=s=>s.trim().toLowerCase();
               option=options.find(o=>o.label===text||o.value===text)||options.find(o=>normalize(o.label)===normalize(text)||normalize(o.value)===normalize(text));
-              if(!option)throw Error('Not performed: no matching option. Available options: '+options.map(o=>o.label+' ('+o.value+')').join(', '));
+              if(!option)throw Error('Not performed: no matching option. Available options: '+options.slice(0,100).map(o=>o.label+' ('+o.value+')').join(', ').slice(0,4000));
               if(option.disabled||option.parentElement.disabled)throw Error('Not performed: this option is disabled');
             }
             snapshot.revision='';snapshot.pending={el,expected:option?option.value:text};
@@ -76,9 +76,9 @@ object BrowserDom {
               const ref='e'+(i+1);s.refs[ref]=e;const r=e.getBoundingClientRect();s.rects[ref]=[r.x,r.y,r.width,r.height];
               const identity=($identity)(e);s.identities[ref]=JSON.stringify(identity);
               const state={};
-              if(e.type!=='password'&&'value' in e)state.value=e.value;
+              if(e.matches('input,textarea,select')&&e.type!=='password')state.value=String(e.value);
               if(e.isContentEditable)state.value=e.textContent;
-              if(e.tagName==='SELECT')state.options=[...e.options].map(o=>o.label);
+              if(e.tagName==='SELECT')state.options=[...e.options].slice(0,100).map(o=>o.label.slice(0,180));
               if(e.matches('input[type=checkbox],input[type=radio]'))state.checked=e.checked;
               return {ref,...identity,...state};
             });
