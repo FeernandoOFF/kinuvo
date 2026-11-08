@@ -14,6 +14,7 @@ import kotlin.test.assertNull
 
 class ModelProfileTest {
     private fun tool(name: String, group: ToolGroup, vararg required: ToolParameterDescriptor) = object : Tool {
+        override val coreMetadata = CoreToolRegistry[name]
         override val group = group
         override val descriptor = ToolDescriptor(name, name, required.toList())
         override suspend fun execute(args: JsonObject) = name
@@ -36,6 +37,8 @@ class ModelProfileTest {
             tier("gpt-5.6-sol", tools = false, context = 128_000) to ModelTier.NoTools,
             tier("tiny", tools = true, context = 4096) to ModelTier.Micro,
             tier("local", context = 2048, location = ExecutionLocation.ServerHost) to ModelTier.Micro,
+            tier("gemma3:270m") to ModelTier.Small,
+            tier("smollm2:135m") to ModelTier.Small,
             tier("qwen2.5-7b") to ModelTier.Small,
             tier("llama3.1:8b", context = 128_000) to ModelTier.Small,
             tier("gemma-4-e4b") to ModelTier.Small,

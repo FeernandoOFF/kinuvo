@@ -20,3 +20,5 @@ A Tool scope accepts names, groups and toolsets. Explicit selections bypass only
 ## Consequences
 
 Adding a built-in requires a registry entry. Model policy, capability hints and default Approvals read the same metadata. Toolsets enable tools but never grant Trust; Trust and Deny rules remain per tool. Tool descriptions retain detailed call instructions alongside their schemas.
+
+Read-only Device data tools belong to Data; Device control, Browser, Computer and Scripts remain Automation. Internal exemptions require core registry metadata.

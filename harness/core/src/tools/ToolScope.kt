@@ -17,14 +17,15 @@ data class ToolScope(
 ) {
     init { toolsets?.forEach { Toolsets.Core.resolve(it) } }
 
-    private val resolved get() = names.orEmpty().flatMap { if (CoreToolRegistry[it] == null && Toolsets.Core.contains(it)) Toolsets.Core.resolve(it) + it else setOf(it) }.toSet() +
+    private val resolved = names.orEmpty().flatMap { if (CoreToolRegistry[it] == null && Toolsets.Core.contains(it)) Toolsets.Core.resolve(it) + it else setOf(it) }.toSet() +
         toolsets.orEmpty().flatMap { Toolsets.Core.resolve(it) }
 
-    fun allows(tool: Tool): Boolean = tool.group == ToolGroup.Internal ||
+    fun allows(tool: Tool): Boolean = tool.internal ||
+        (tool.coreMetadata?.name in setOf(ToolNames.FIND_TOOLS, ToolNames.DESCRIBE_TOOL, ToolNames.CALL_TOOL) && tool.catalogTargets.any(::allows)) ||
         (parents.all { it.allows(tool) } && ((names == null && groups == null && toolsets == null) ||
             namedHere(tool) || groups?.let { tool.group in it } == true))
 
-    private fun namedHere(tool: Tool) = tool.localName in resolved || tool.descriptor.name in resolved
+    private fun namedHere(tool: Tool) = tool.matchesNames(resolved)
     fun named(tool: Tool): Boolean = allows(tool) && (namedHere(tool) || parents.any { it.named(tool) })
     fun mustAsk(tool: Tool): Boolean = tool.localName in ask || tool.descriptor.name in ask || parents.any { it.mustAsk(tool) }
     fun tolerance(agent: Tolerance): Tolerance = minOf(parents.fold(agent) { limit, parent -> parent.tolerance(limit) }, ceiling ?: agent)
@@ -39,3 +40,9 @@ data class ToolScope(
 }
 
 val Tool.localName get() = identity?.localId ?: descriptor.name
+
+internal val Tool.internal get() = coreMetadata?.group == ToolGroup.Internal
+
+internal fun Tool.matchesNames(names: Set<String>): Boolean =
+    identity?.key in names || (coreMetadata != null && coreMetadata!!.name in names) ||
+        (descriptor.name in names && (coreMetadata != null || CoreToolRegistry[descriptor.name] == null))

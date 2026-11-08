@@ -19,8 +19,10 @@ A provider may adjust a model's profile (Apple's Private Cloud Compute and Gemma
 
 `ToolScope` narrows the tools of one run by name or group before the tier policy, the provider filter and the cap apply, in that order. A tool the scope names skips the tier's group filter, so a larger model can hand a small one a tool its tier would not offer by default; the schema level, provider filter and cap still apply. A selection no larger than the cap is kept whole. `HarnessRuntime.runner` accepts a scope, so a future `spawn_agent` tool can start a run on a smaller model with only the tools it names.
 
-`maxSteps` counts model requests. Each request is about three Koog graph steps, so a limit is `3 × maxSteps + 2` graph steps; Frontier's 66 requests keep the earlier 200.
+`maxSteps` counts model requests directly in the tool loop; Frontier allows 66 requests.
 
 ## Consequences
 
 Adding a model or provider means declaring a tier, not new hooks. Mid models send External tools through the tool catalog and leave out Automation tools unless an Agent or scope asks for them. Per-request tool selection and an eval harness remain future work.
+
+Mid retains read-only Device data tools in Data. Catalogued selections of eight or fewer tools are offered directly.

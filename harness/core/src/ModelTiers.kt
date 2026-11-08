@@ -30,5 +30,6 @@ internal fun parameterBillions(id: String): Double? {
     val name = id.lowercase()
     EXPERTS.find(name)?.let { return it.groupValues[1].toDouble() * it.groupValues[2].toDouble() }
     EFFECTIVE.find(name)?.let { return it.groupValues[1].toDouble() }
+    Regex("""(?<![a-z0-9.])(\d+(?:\.\d+)?)m(?![a-z])""").find(name)?.let { return it.groupValues[1].toDouble() / 1000 }
     return PARAMETERS.findAll(name).mapNotNull { it.groupValues[1].toDoubleOrNull() }.lastOrNull()
 }

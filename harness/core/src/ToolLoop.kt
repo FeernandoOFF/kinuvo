@@ -67,7 +67,10 @@ internal class ToolLoop(
     private val onResult: suspend (SessionEntry.ToolResult) -> Unit = {},
     private val onFrame: suspend (StreamFrame) -> Unit = {},
     private val stopped: (String) -> Unit = {},
+    private val maxRequests: Int = Int.MAX_VALUE,
+    private val parallelCalls: Boolean = true,
 ) {
+    private var requests = 0
     private val failed = mutableSetOf<Pair<String, String>>()
     private var repeats = 0
     private var repeatedSuccess = false
@@ -78,6 +81,7 @@ internal class ToolLoop(
 
     val request by node<Unit, Unit>("streamResponse") {
         checkRepeats()
+        if (requests++ >= maxRequests) throw RequestLimitReached()
         llm.writeSession {
             requestLLMStreaming().requireEndFrame().collect { onFrame(it) }
             prompt = prompt.withMessages { it + response.messages(messages) }
@@ -99,6 +103,14 @@ internal class ToolLoop(
         onResult(result)
         llm.writeSession { prompt = prompt.withMessages { it + messages.messages(listOf(result)) } }
         pending = pending.drop(1)
+        if (!parallelCalls) {
+            pending.forEach { skipped ->
+                val result = SessionEntry.ToolResult(skipped.id, skipped.name, "Skipped: only one tool call is allowed per turn. Call this tool in the next response if still needed.", isError = true, identity = skipped.identity)
+                onResult(result)
+                llm.writeSession { prompt = prompt.withMessages { it + messages.messages(listOf(result)) } }
+            }
+            pending = emptyList()
+        }
     }
 
     fun connect(builder: AIAgentSubgraphBuilderBase<Unit, Unit>, beforeRequest: AIAgentNodeBase<Unit, Unit> = request, finish: AIAgentNodeBase<Unit, *> = builder.nodeFinish) = with(builder) {
@@ -168,3 +180,5 @@ private suspend fun AIAgentGraphContextBase.toolCall(call: SessionEntry.ToolCall
 }
 
 internal fun canonical(args: String) = runCatching { Json.parseToJsonElement(args).deterministic().toString() }.getOrDefault(args)
+
+internal class RequestLimitReached : IllegalStateException()

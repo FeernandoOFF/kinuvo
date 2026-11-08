@@ -54,7 +54,7 @@ class AgentRun(
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.RunStarted(runId))
         warnings.forEach { send(AgentEvent.Warning(it)) }
-        val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, profile.history.latestTurnOnly, { send(it) })
+        val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, profile.history.latestTurnOnly, profile, { send(it) })
         var stopped = "Cancelled by user"
         var cancelled = false
         val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, emit = { event ->
@@ -69,7 +69,7 @@ class AgentRun(
             val koog = AIAgent(
                 id = agent.id,
                 promptExecutor = model.executor,
-                agentConfig = AIAgentConfig(Prompt.Empty, model.model, profile.graphSteps),
+                agentConfig = AIAgentConfig(Prompt.Empty, model.model, Int.MAX_VALUE),
                 strategy = routine?.let { routineStrategy(session, executor, it, userText) { stopped = it } } ?: chatStrategy(session, executor) { stopped = it },
             ) {
                 install(ToolLoopFeature) {
@@ -89,7 +89,7 @@ class AgentRun(
             throw e
         } catch (e: Exception) {
             stopped = "Stopped before this call could run"
-            val message = if (e is AIAgentMaxNumberOfIterationsReachedException)
+            val message = if (e is AIAgentMaxNumberOfIterationsReachedException || e is RequestLimitReached)
                 "The work is unfinished; send another message to continue."
             else model.failure(e).message ?: e.toString()
             AgentEvent.RunError(runId, message)

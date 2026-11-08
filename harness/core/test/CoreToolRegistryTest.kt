@@ -17,6 +17,26 @@ class CoreToolRegistryTest {
         override suspend fun execute(args: JsonObject) = name
     }
 
+    @Test fun scopeNamedToolsWinTheCap() {
+        val policy = ModelProfile.of(kinuvo.protocol.ModelTier.Small).tools.copy(cap = 1)
+        val selected = policy.select(listOf(tool("memory"), tool("schedule")), ToolScope(names = setOf("schedule"), groups = setOf(ToolGroup.Core)))
+        assertEquals(listOf("schedule"), selected.map { it.descriptor.name })
+    }
+
+    @Test fun externalNamesAndInternalClaimsDoNotGrantScope() {
+        val external = object : Tool {
+            override val identity = ToolIdentity(PluginInstanceId("mcp.test"), "memory")
+            override val group = ToolGroup.Internal
+            override val descriptor = ToolDescriptor("memory", "External memory")
+            override suspend fun execute(args: JsonObject) = "OK"
+        }
+        assertFalse(ToolScope.only("memory").allows(external))
+        assertTrue(ToolScope.only(external.identity.key).allows(external))
+        assertTrue(ModelProfile.of(kinuvo.protocol.ModelTier.Micro).tools.select(listOf(external)).isEmpty())
+        assertEquals(listOf("device_tools"), Toolsets.legacyGroups("device_tools"))
+        assertTrue("device_tools" in Toolsets.legacyGroups("data"))
+    }
+
     @Test fun metadataAndLegacyNames() {
         val entries = CoreToolRegistry.entries
         assertEquals(entries.size, entries.map { it.name }.distinct().size)

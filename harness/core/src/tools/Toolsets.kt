@@ -19,6 +19,12 @@ class Toolsets(val entries: List<Toolset>) {
     fun contains(name: String) = name in byName
 
     companion object {
+        fun legacyGroups(name: String): List<String> {
+            if (name in ToolNames.OPTIONAL || !Core.contains(name)) return listOf(name)
+            val tools = Core.resolve(name)
+            return ToolNames.OPTIONAL.filter { option -> option in tools || (Core.contains(option) && Core.resolve(option).any { it in tools }) }
+        }
+
         val Core = Toolsets(
             CoreToolRegistry.entries.groupBy { it.group }.map { (group, tools) ->
                 Toolset(group.name.lowercase(), tools.map { it.name }.toSet())

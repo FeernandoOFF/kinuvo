@@ -45,6 +45,7 @@ import kinuvo.protocol.McpAppToolRequest
 import kinuvo.harness.core.plugin.McpApps
 import kinuvo.harness.core.tools.ToolRun
 import kinuvo.harness.core.tools.ToolGroup
+import kinuvo.harness.core.tools.simplified
 import kinuvo.harness.core.tools.ToolScope
 import kinuvo.harness.core.tools.select
 import kinuvo.protocol.ModelTier
@@ -251,10 +252,12 @@ open class HarnessRuntime(
         }
         val usableTools = all.filter { it.descriptor.name in eligible }
         val cataloguedNames = plugins.zip(contributed).filter { it.first.catalogued }.flatMap { it.second.tools }.map { renamed[it.descriptor.name] ?: it.descriptor.name }.toSet()
-        val candidates = if (usableTools.size > if (e.profile.tools.catalogExternal) 0 else ToolCatalog.LIMIT) usableTools.filter { it.descriptor.name in cataloguedNames } else emptyList()
+        val candidates = usableTools.filter { it.descriptor.name in cataloguedNames }.takeIf {
+            if (e.profile.tools.catalogExternal) it.size > 8 else usableTools.size > ToolCatalog.LIMIT
+        }.orEmpty()
         // Only when the model can take the catalog's own tools; otherwise every tool stays direct.
         val finders = if (candidates.isEmpty()) emptyList() else PluginTools(ToolCatalog.tools(candidates)).ownedBy(PluginInstanceId("kinuvo.core")).tools
-            .withModelNames(all.map { it.descriptor.name }.toSet()).takeIf { f -> usable(e, f).size == f.size }.orEmpty()
+            .withModelNames(all.map { it.descriptor.name }.toSet()).takeIf { f -> usable(e, f, scope).size == f.size }.orEmpty()
         val hidden = if (finders.isEmpty()) emptyList() else candidates
         val reported = catalog + finders.map { ResolvedTool(it.descriptor.name, it.displayName, identity = it.identity) }
         return PreparedRun(e, usableTools + finders, usableTools - hidden.toSet() + finders, reported, contributed.flatMap { it.warnings }, chat)
@@ -307,7 +310,7 @@ open class HarnessRuntime(
             contextTokens = e.info?.context,
             tracing = dependencies.tracing,
             tools = tools,
-            advertisedTools = advertised.map { it.descriptor },
+            advertisedTools = advertised.mapNotNull { it.descriptor.simplified(e.profile.tools.schema) },
             context = secrets.redact(context),
             warnings = prepared.warnings.map { secrets.redact(it) },
             approvals = sessionId?.let(sessionTrust::scope).let { session ->
@@ -410,7 +413,7 @@ open class HarnessRuntime(
                     else -> emptyList()
                 } }
             }, attachments::bytes) else null
-        val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() && ToolGroup.Interactive in e.profile.tools.groups }?.let(::ShowUiTool)
+        val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() }?.let(::ShowUiTool)
         return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let(::WebSearchTool), imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
     }
 
@@ -427,11 +430,7 @@ open class HarnessRuntime(
 
     /** [agent] without the tool groups this Server lacks the feature for, so neither its tools nor their instructions show. */
     private fun supported(agent: Agent) = agent.copy(config = agent.config.copy(tools = agent.config.tools.flatMap { name ->
-        if (name in ToolNames.OPTIONAL || !Toolsets.Core.contains(name)) listOf(name)
-        else {
-            val tools = Toolsets.Core.resolve(name)
-            ToolNames.OPTIONAL.filter { option -> option in tools || (Toolsets.Core.contains(option) && Toolsets.Core.resolve(option).any { it in tools }) }
-        }
+        Toolsets.legacyGroups(name)
     }.distinct().filter { it in toolGroups }))
 
     /** The built-in tool groups this Server can run: its own, where it has their feature, and those its plugins add. */
