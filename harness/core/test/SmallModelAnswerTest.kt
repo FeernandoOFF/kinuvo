@@ -129,4 +129,20 @@ class SmallModelAnswerTest {
         assertEquals("Past events · Mar 31, 2026 · Free registration · GDG Dublin",
             cleanSnippet("# Past events\n[Mar 31, 2026\\\n\\\n**Free registration**](https://gdg.community.dev/x)\n\nGDG Dublin\n\nGDG Dublin"))
     }
+
+    @Test fun failedSmallModelRequestAnswersWithoutTools() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent.id, "")
+        val tool = WebSearchTool(object : WebSearch {
+            override suspend fun search(query: String, limit: Int, news: Boolean) = listOf(WebResult("Ada", "https://example.org/ada", "A mathematician."))
+        })
+        val model = scriptedModel { _, tools ->
+            if (tools.isEmpty()) flowOf(StreamFrame.TextDelta("Ada was a mathematician."), StreamFrame.End())
+            else kotlinx.coroutines.flow.flow { throw IllegalStateException("The model refused to answer.") }
+        }
+        val events = AgentRun(home.agent, home.store, model, listOf(tool), contextTokens = 4096,
+            profile = ModelProfile.of(ModelTier.Small)).run(session.id, "Who is Ada?").toList()
+        assertIs<AgentEvent.RunFinished>(events.last())
+        assertEquals("Ada was a mathematician.", events.filterIsInstance<AgentEvent.TextMessageEnd>().last().text)
+    }
 }

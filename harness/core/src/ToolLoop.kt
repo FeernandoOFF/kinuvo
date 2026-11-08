@@ -79,6 +79,8 @@ internal class ToolLoop(
     /** A reason not to run this call, e.g. a small model saving to Memory unasked; the turn then ends with an answer. */
     /** After a successful search, the next request answers: Micro models otherwise repeat the same search. */
     private val answerAfterSearch: Boolean = false,
+    /** Tools left out of this request, e.g. Memory for a small model the user didn't ask to remember anything. */
+    private val hidden: suspend () -> Set<String> = { emptySet() },
     private val refuse: suspend (SessionEntry.ToolCall) -> String? = { null },
 ) {
     private var requests = 0
@@ -95,17 +97,31 @@ internal class ToolLoop(
     val request by node<Unit, Unit>("streamResponse") {
         checkRepeats()
         val finalAnswer = requests++ >= maxRequests || forceAnswer || answerNudge && repeats > 0 || callsPerTurn?.let { executor().executedCalls >= it } == true
+        val hide = if (finalAnswer) emptySet() else hidden()
         llm.writeSession {
-            if (finalAnswer) {
+            var answering = finalAnswer
+            fun answerNow() {
                 tools = emptyList()
                 prompt = prompt.withMessages { it + Message.System(ANSWER_NOW, RequestMetaInfo.Empty) }
-            } else if (answerNudge && executor().executedCalls > 0) {
-                prompt = prompt.withMessages { it + Message.System(ANSWER_NUDGE, RequestMetaInfo.Empty) }
+            }
+            if (finalAnswer) answerNow()
+            else {
+                if (hide.isNotEmpty()) tools = tools.filterNot { it.name in hide }
+                if (answerNudge && executor().executedCalls > 0) prompt = prompt.withMessages { it + Message.System(ANSWER_NUDGE, RequestMetaInfo.Empty) }
             }
             try { requestLLMStreaming().requireEndFrame().collect { onFrame(it) } }
             catch (e: CancellationException) { throw e }
-            catch (e: Exception) { if (finalAnswer) throw RequestLimitReached() else throw e }
-            if (finalAnswer && response.calls.isNotEmpty()) throw RequestLimitReached()
+            catch (e: Exception) {
+                if (finalAnswer) throw RequestLimitReached()
+                if (!answerNudge) throw e
+                // Small models can fail mid-turn (Apple's guardrails refuse some requests): one try at answering without tools.
+                answerNow()
+                answering = true
+                try { requestLLMStreaming().requireEndFrame().collect { onFrame(it) } }
+                catch (c: CancellationException) { throw c }
+                catch (_: Exception) { throw e }
+            }
+            if (answering && response.calls.isNotEmpty()) throw RequestLimitReached()
             prompt = prompt.withMessages { it + response.messages(messages) }
         }
         onResponse()

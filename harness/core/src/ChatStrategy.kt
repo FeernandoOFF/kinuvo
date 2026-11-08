@@ -23,6 +23,7 @@ internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession
     val loop = ToolLoop(session.messages, response = session.response, executor = { executor }, toolName = session::toolName,
         callsPerTurn = session.profile.tools.callsPerTurn, answerNudge = session.profile.tools.callsPerTurn != null,
         answerAfterSearch = session.profile.tier == ModelTier.Micro,
+        hidden = { if (session.profile.tools.callsPerTurn != null && !REMEMBER.containsMatchIn(session.latestUserText())) setOf(ToolNames.MEMORY) else emptySet() },
         refuse = { call -> if (session.profile.tools.callsPerTurn != null && call.name == ToolNames.MEMORY && !REMEMBER.containsMatchIn(session.latestUserText())) MEMORY_UNASKED else null },
         maxRequests = session.profile.maxSteps, parallelCalls = session.profile.tools.parallelCalls,
         repeated = { call ->
