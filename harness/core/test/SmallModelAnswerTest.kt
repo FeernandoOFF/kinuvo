@@ -8,6 +8,7 @@ import kinuvo.harness.core.tools.WebResult
 import kinuvo.harness.core.tools.WebSearch
 import kinuvo.harness.core.tools.WebSearchTool
 import kinuvo.harness.core.tools.MemoryTool
+import kinuvo.harness.core.tools.cleanSnippet
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ModelTier
@@ -42,33 +43,36 @@ class SmallModelAnswerTest {
         }
     }
 
-    @Test fun microBlocksRewordedSearchAndAnswers() = runTest {
-        val home = TestHome()
-        val session = home.store.createSession(home.agent.id, "")
-        var searches = 0
-        var requests = 0
-        val tool = WebSearchTool(object : WebSearch {
-            override suspend fun search(query: String, limit: Int, news: Boolean): List<WebResult> {
-                searches++
-                assertEquals(3, limit)
-                return listOf(WebResult("Ada", "https://example.org/ada", "A mathematician."))
+    @Test fun smallModelsAnswerInsteadOfSearchingAgain() = runTest {
+        for (tier in listOf(ModelTier.Micro, ModelTier.Small)) {
+            val home = TestHome()
+            val session = home.store.createSession(home.agent.id, "")
+            var searches = 0
+            var requests = 0
+            val tool = WebSearchTool(object : WebSearch {
+                override suspend fun search(query: String, limit: Int, news: Boolean): List<WebResult> {
+                    searches++
+                    assertTrue(limit in 3..10)
+                    return listOf(WebResult("Ada", "https://example.org/ada", "A mathematician."))
+                }
+            })
+            val queries = listOf("Who is Ada Lovelace?", "Ada Lovelace", "Lovelace published notes 1843")
+            val model = scriptedModel { prompt, tools ->
+                if (requests > 0) assertTrue(prompt.messages.any { it.textContent().contains(ANSWER_NUDGE) || it.textContent().contains(ANSWER_NOW) })
+                if (tools.isEmpty()) flowOf(StreamFrame.TextDelta("Ada was a mathematician."), StreamFrame.End())
+                else flowOf(StreamFrame.ToolCallComplete("c${requests}", "web_search",
+                    """{"query":"${queries[requests++]}"}"""), StreamFrame.End())
             }
-        })
-        val queries = listOf("Who is Ada Lovelace?", "Ada Lovelace", "Lovelace published notes 1843")
-        val model = scriptedModel { prompt, tools ->
-            if (requests > 0) assertTrue(prompt.messages.any { it.textContent().contains(ANSWER_NUDGE) || it.textContent().contains(ANSWER_NOW) })
-            if (tools.isEmpty()) flowOf(StreamFrame.TextDelta("Ada was a mathematician."), StreamFrame.End())
-            else flowOf(StreamFrame.ToolCallComplete("c${requests}", "web_search",
-                """{"query":"${queries[requests++]}"}"""), StreamFrame.End())
+            val events = AgentRun(home.agent, home.store, model, listOf(tool), contextTokens = 4096,
+                profile = ModelProfile.of(tier)).run(session.id, "Who is Ada Lovelace?").toList()
+            assertEquals(1, searches)
+            assertEquals("Ada was a mathematician.", events.filterIsInstance<AgentEvent.TextMessageEnd>().last().text)
+            assertTrue(events.none { it is AgentEvent.Compacted })
+            // Micro answers right after its search; Small's reworded search is blocked first.
+            assertEquals(tier == ModelTier.Small, events.filterIsInstance<AgentEvent.ToolCallResult>().any { it.content == SEARCHED })
+            assertTrue(home.store.entries(home.agent.id, session.id).withoutBlockedRepeats().none { it is SessionEntry.ToolResult && it.output == SEARCHED })
+            assertIs<AgentEvent.RunFinished>(events.last())
         }
-        val events = AgentRun(home.agent, home.store, model, listOf(tool), contextTokens = 4096,
-            profile = ModelProfile.of(ModelTier.Micro)).run(session.id, "Who is Ada Lovelace?").toList()
-        assertEquals(1, searches)
-        assertEquals("Ada was a mathematician.", events.filterIsInstance<AgentEvent.TextMessageEnd>().last().text)
-        assertTrue(events.none { it is AgentEvent.Compacted })
-        assertTrue(events.filterIsInstance<AgentEvent.ToolCallResult>().any { it.content == SEARCHED })
-        assertTrue(home.store.entries(home.agent.id, session.id).withoutBlockedRepeats().none { it is SessionEntry.ToolResult && it.output == SEARCHED })
-        assertIs<AgentEvent.RunFinished>(events.last())
     }
 
     @Test fun compactSearchLeavesFullSearchUnchanged() = runTest {
@@ -119,5 +123,10 @@ class SmallModelAnswerTest {
             assertIs<AgentEvent.RunFinished>(events.last())
             assertEquals("September 16.", events.filterIsInstance<AgentEvent.TextMessageEnd>().last().text)
         }
+    }
+
+    @Test fun compactSnippetsDropMarkup() {
+        assertEquals("Past events · Mar 31, 2026 · Free registration · GDG Dublin",
+            cleanSnippet("# Past events\n[Mar 31, 2026\\\n\\\n**Free registration**](https://gdg.community.dev/x)\n\nGDG Dublin\n\nGDG Dublin"))
     }
 }

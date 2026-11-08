@@ -77,6 +77,8 @@ internal class ToolLoop(
     private val callsPerTurn: Int? = null,
     private val answerNudge: Boolean = false,
     /** A reason not to run this call, e.g. a small model saving to Memory unasked; the turn then ends with an answer. */
+    /** After a successful search, the next request answers: Micro models otherwise repeat the same search. */
+    private val answerAfterSearch: Boolean = false,
     private val refuse: suspend (SessionEntry.ToolCall) -> String? = { null },
 ) {
     private var requests = 0
@@ -127,7 +129,7 @@ internal class ToolLoop(
                 else if (callsPerTurn?.let { executor().executedCalls >= it } == true && !executor().internal(call.name)) skipped(call, SKIPPED_CALL, true)
                 else {
                     if (query.isNotEmpty()) previous += query
-                    executor().call(call, stopped = stopped)
+                    executor().call(call, stopped = stopped).also { if (answerAfterSearch && query.isNotEmpty() && !it.isError) forceAnswer = true }
                 }
             }
         }
@@ -218,7 +220,7 @@ internal fun canonical(args: String) = runCatching { Json.parseToJsonElement(arg
 internal class RequestLimitReached : IllegalStateException()
 
 const val SEARCHED = "You already searched for this; use the results above and answer."
-const val ANSWER_NOW = "Answer the user's question now in a few sentences, using the tool results above. Don't ask the user to clarify; if the results don't answer it, say what you found and what's missing."
+const val ANSWER_NOW = "Answer the user's question now in a few sentences, using the tool results above. Don't ask the user to clarify, and don't say you'll remember or save anything; if the results don't answer it, say what you found and what's missing."
 const val ANSWER_NUDGE = "Answer the user from these results unless something essential is missing. Don't ask the user to clarify."
 
 internal fun searchWords(args: String): Set<String> = runCatching {

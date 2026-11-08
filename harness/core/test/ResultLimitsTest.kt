@@ -13,9 +13,10 @@ import kotlin.test.*
 
 class ResultLimitsTest {
     @Test fun tierBudgets() {
-        assertEquals(ResultLimits(614, 3), ResultLimits.of(ModelTier.Micro, 4096))
+        assertEquals(ResultLimits(614, 5), ResultLimits.of(ModelTier.Micro, 4096))
+        assertEquals(6, ResultLimits.of(ModelTier.Micro, 8192).maxItems)
         assertEquals(400, ResultLimits.of(ModelTier.Micro, 1000).maxTokens)
-        assertEquals(ResultLimits(1200, 5), ResultLimits.of(ModelTier.Small, 8000))
+        assertEquals(ResultLimits(1200, 8), ResultLimits.of(ModelTier.Small, 8000))
         assertEquals(ResultLimits(8000, 20), ResultLimits.of(ModelTier.Mid, 200000))
         assertEquals(ResultLimits(25000, null), ResultLimits.of(ModelTier.Frontier, 1000000))
         assertEquals(2457, ResultLimits.of(ModelTier.Frontier).maxTokens)

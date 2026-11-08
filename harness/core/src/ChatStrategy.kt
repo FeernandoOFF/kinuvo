@@ -2,6 +2,7 @@
 
 package kinuvo.harness.core
 
+import kinuvo.protocol.ModelTier
 import kinuvo.harness.core.tools.ToolNames
 import ai.koog.agents.core.agent.entity.AIAgentNodeBase
 import ai.koog.agents.core.dsl.builder.AIAgentSubgraphBuilderBase
@@ -21,6 +22,7 @@ internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: 
 internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit, finish: AIAgentNodeBase<Unit, *>): AIAgentNodeBase<Unit, Unit> {
     val loop = ToolLoop(session.messages, response = session.response, executor = { executor }, toolName = session::toolName,
         callsPerTurn = session.profile.tools.callsPerTurn, answerNudge = session.profile.tools.callsPerTurn != null,
+        answerAfterSearch = session.profile.tier == ModelTier.Micro,
         refuse = { call -> if (session.profile.tools.callsPerTurn != null && call.name == ToolNames.MEMORY && !REMEMBER.containsMatchIn(session.latestUserText())) MEMORY_UNASKED else null },
         maxRequests = session.profile.maxSteps, parallelCalls = session.profile.tools.parallelCalls,
         repeated = { call ->

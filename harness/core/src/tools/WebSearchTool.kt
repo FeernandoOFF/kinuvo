@@ -44,7 +44,7 @@ class WebSearchTool(private val provider: WebSearch, private val compact: Boolea
         val results = provider.search(query, limit, args["news"]?.jsonPrimitive?.booleanOrNull == true)
         if (results.isEmpty()) return "No results for \"$query\"."
         return results.mapIndexed { i, r ->
-            listOfNotNull("${i + 1}. ${r.title}", "   ${if (compact) compactUrl(r.url) else r.url}", r.date?.takeUnless { compact }?.let { "   $it" }, (if (compact) r.snippet.takeWhole(200) else r.snippet).takeIf { it.isNotBlank() }?.let { "   $it" }).joinToString("\n")
+            listOfNotNull("${i + 1}. ${r.title}", "   ${if (compact) compactUrl(r.url) else r.url}", r.date?.takeUnless { compact }?.let { "   $it" }, (if (compact) cleanSnippet(r.snippet).takeWhole(200) else r.snippet).takeIf { it.isNotBlank() }?.let { "   $it" }).joinToString("\n")
         }.joinToString("\n\n")
     }
 
@@ -54,3 +54,12 @@ class WebSearchTool(private val provider: WebSearch, private val compact: Boolea
 }
 
 internal fun compactUrl(url: String) = url.removePrefix("https://").removePrefix("http://").substringBefore('?').substringBefore('#').takeWhole(100)
+
+/** Snippets some providers return as page markdown, reduced to their words: no links, images, markup or repeated lines. */
+internal fun cleanSnippet(text: String): String = text
+    .replace(Regex("""!\[[^\]]*]\([^)]*\)"""), "")
+    .replace(Regex("""\[([^\]]*)]\([^)]*\)"""), "$1")
+    .replace(Regex("""https?://\S+"""), "")
+    .replace(Regex("""[#*_`>|\\]+"""), " ")
+    .split('\n').map { it.replace(Regex("""\s+"""), " ").trim() }.filter { it.isNotEmpty() }.distinct()
+    .joinToString(" · ")
