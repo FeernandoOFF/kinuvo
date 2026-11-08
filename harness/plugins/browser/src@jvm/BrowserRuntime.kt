@@ -63,7 +63,10 @@ class BrowserRuntime(private val home: File) : BrowserService {
         val result = send("Runtime.evaluate", buildJsonObject {
             put("expression", expression); put("returnByValue", true); put("userGesture", true)
         })
-        check(result["exceptionDetails"] == null) { "Browser script failed; capture again" }
+        result["exceptionDetails"]?.jsonObject?.let { details ->
+            error(details["exception"]?.jsonObject?.get("description")?.jsonPrimitive?.content
+                ?: details["text"]?.jsonPrimitive?.content ?: "Browser script failed")
+        }
         return result["result"]?.jsonObject?.get("value") ?: JsonNull
     }
 
@@ -273,12 +276,12 @@ class BrowserRuntime(private val home: File) : BrowserService {
         }
         val tab = entry(c.owner, requireNotNull(c.tabId))
         val held = tab.gate.state.value.holder != null
-        check(if (user) held || c.action == BrowserAction.Close else !held) { "Browser control changed; take over or wait for handback" }
-        if (!user && c.action != BrowserAction.Capture) check(tab.generation == tab.gate.state.value.generation) { "Screen control changed; capture again" }
+        check(if (user) held || c.action == BrowserAction.Close else !held) { "Not performed: browser control changed; take over or wait for handback" }
+        if (!user && c.action != BrowserAction.Capture) check(tab.generation == tab.gate.state.value.generation) { "Not performed: screen control changed; capture again" }
         if (c.action == BrowserAction.Capture) return@withLock capture(tab, !user)
         val revision = tab.revision
         if (!user && c.action in setOf(BrowserAction.Click, BrowserAction.Type))
-            require(revision.isNotEmpty() && c.revision == revision) { "Stale ref; capture again" }
+            require(revision.isNotEmpty() && c.revision == revision) { "Not performed: stale ref; capture again" }
         tab.revision = ""
         try {
             when (c.action) {
@@ -308,10 +311,16 @@ class BrowserRuntime(private val home: File) : BrowserService {
                     tab.page.mouseClick(point.getValue("x").jsonPrimitive.double, point.getValue("y").jsonPrimitive.double)
                 }
                 BrowserAction.Type -> {
-                    require((c.text?.length ?: 0) <= 16_384) { "Text is too long" }
+                    require((c.text?.length ?: 0) <= 16_384) { "Not performed: text is too long" }
                     if (user) tab.page.send("Input.insertText", buildJsonObject { put("text", c.text.orEmpty()) })
                     else {
-                        tab.page.evaluate(BrowserDom.action(revision, requireNotNull(c.ref), c.text.orEmpty()))
+                        val prepared = tab.page.evaluate(BrowserDom.action(revision, requireNotNull(c.ref), c.text.orEmpty(), trusted = true))
+                        if (prepared.jsonPrimitive.content == "text") {
+                            tab.page.send("Input.insertText", buildJsonObject { put("text", c.text.orEmpty()) })
+                            tab.page.evaluate(BrowserDom.commit())
+                        }
+                        delay(100)
+                        tab.page.evaluate(BrowserDom.verify())
                     }
                 }
                 BrowserAction.Key -> {
@@ -337,10 +346,10 @@ class BrowserRuntime(private val home: File) : BrowserService {
                 BrowserAction.Close -> { tab.page.send("Page.close"); tabs.remove(tab.id); tab.events?.cancel(); tab.gate.close(); streams.remove(tab.id); persist(); changed(c.owner); return@withLock null }
                 else -> error("Unsupported browser action")
             }
+            persist(); changed(c.owner)
+            capture(tab, !user)
         } catch (e: CancellationException) { throw e }
-        catch (_: Exception) { error("Browser action failed; outcome may be unknown. Capture and inspect before continuing.") }
-        persist(); changed(c.owner)
-        capture(tab, !user)
+        catch (e: Exception) { throw IllegalStateException(BrowserDom.failure(e.message), e) }
     }
 
     private suspend fun capture(tab: Entry, semantic: Boolean): BrowserFrame {

@@ -97,8 +97,8 @@ internal class AndroidBrowserRuntime(private val context: Context) : BrowserServ
         val tab = tab(command.owner, requireNotNull(command.tabId))
         tab.lock.withLock {
             val control = tab.gate.state.value
-            if (user) check(control.holder != null && !control.suspended && !control.draining || command.action == BrowserAction.Close) { "Take over this tab before sending input" }
-            else check(control.holder == null && !control.suspended && !control.draining) { "The user controls this tab. Wait for explicit handback." }
+            if (user) check(control.holder != null && !control.suspended && !control.draining || command.action == BrowserAction.Close) { "Not performed: take over this tab before sending input" }
+            else check(control.holder == null && !control.suspended && !control.draining) { "Not performed: the user controls this tab. Wait for explicit handback." }
             if (command.action == BrowserAction.Capture) return@withLock capture(tab, !user)
             if (!user && command.action != BrowserAction.Close) {
                 tab.observation.requireGeneration(control.generation)
@@ -127,7 +127,7 @@ internal class AndroidBrowserRuntime(private val context: Context) : BrowserServ
                         }
                     } else semantic(tab, command, previousRevision)
                     BrowserAction.Type -> {
-                        require(command.text.orEmpty().length <= 16_384) { "Text is too long" }
+                        require(command.text.orEmpty().length <= 16_384) { "Not performed: text is too long" }
                         if (user) {
                             val connection = checkNotNull(tab.surface.view.onCreateInputConnection(EditorInfo())) { "Focus a text field first" }
                             check(connection.commitText(command.text.orEmpty(), 1)) { "This field did not accept text" }
@@ -162,13 +162,17 @@ internal class AndroidBrowserRuntime(private val context: Context) : BrowserServ
                 }
                 capture(tab, !user)
             } catch (e: CancellationException) { throw e }
-            catch (e: Exception) { throw IllegalStateException("Browser action failed; outcome may be unknown. Capture and inspect before continuing. ${e.message}", e) }
+            catch (e: Exception) { throw IllegalStateException(BrowserDom.failure(e.message), e) }
             finally { changed(command.owner) }
         }
     }
 
     private suspend fun semantic(tab: Tab, command: BrowserCommand, revision: String) {
-        tab.surface.evaluate(BrowserDom.action(revision, command.ref.orEmpty(), command.text.takeIf { command.action == BrowserAction.Type }))
+        tab.surface.evaluate(BrowserDom.action(revision, command.ref.orEmpty(), command.text.orEmpty().takeIf { command.action == BrowserAction.Type }))
+        if (command.action == BrowserAction.Type) {
+            delay(100)
+            tab.surface.evaluate(BrowserDom.verify())
+        }
     }
     private suspend fun capture(tab: Tab, semantic: Boolean): BrowserFrame {
         val generation = tab.gate.state.value.generation
@@ -178,7 +182,10 @@ internal class AndroidBrowserRuntime(private val context: Context) : BrowserServ
         if (semantic) tab.observation.capture(revision, generation)
         val elements = data?.getJSONArray("elements")?.let { items -> (0 until items.length()).map { index ->
             val element = items.getJSONObject(index)
-            BrowserElement(element.getString("ref"), element.getString("role"), element.getString("label"))
+            BrowserElement(element.getString("ref"), element.getString("role"), element.getString("label"),
+                value = if (element.has("value")) element.getString("value") else null,
+                options = element.optJSONArray("options")?.let { options -> (0 until options.length()).map { options.getString(it) } },
+                checked = if (element.has("checked")) element.getBoolean("checked") else null)
         } }.orEmpty()
         return BrowserFrame(info(tab), if (semantic) revision else "", elements, image, AndroidBrowserSurface.WIDTH, AndroidBrowserSurface.HEIGHT, data?.getString("text").orEmpty())
     }

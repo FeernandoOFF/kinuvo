@@ -10,7 +10,8 @@ data class BrowserTab(val id: String, val agentId: String, val title: String, va
     val takeover: Boolean = false, val thumbnail: String? = null)
 
 @Serializable
-data class BrowserElement(val ref: String, val role: String, val label: String)
+data class BrowserElement(val ref: String, val role: String, val label: String,
+    val value: String? = null, val options: List<String>? = null, val checked: Boolean? = null)
 
 @Serializable
 data class BrowserFrame(val tab: BrowserTab, val revision: String, val elements: List<BrowserElement> = emptyList(),
