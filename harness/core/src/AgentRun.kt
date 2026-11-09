@@ -56,7 +56,7 @@ class AgentRun(
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.RunStarted(runId))
         warnings.forEach { send(AgentEvent.Warning(it)) }
-        val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, profile.history.latestTurnOnly, profile, { send(it) })
+        val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, profile.history.latestTurnOnly, profile, { send(it) }, voice = voice)
         var stopped = "Cancelled by user"
         var cancelled = false
         val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, maxItems = profile.resultLimits.maxItems, emit = { event ->

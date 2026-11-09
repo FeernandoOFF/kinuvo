@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.liveVoiceInstructions
 import kinuvo.harness.core.voice.AgentProgress
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.execution.api.*
@@ -30,7 +31,8 @@ class VoiceRpcTest {
             override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession = object : ExecutionSession {
                 override val capabilities = ExecutionCapabilities()
                 override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance {
-                    assertEquals("task", input.text)
+                    assertTrue(input.text.startsWith(liveVoiceInstructions))
+                    assertTrue(input.text.endsWith("\n\ntask"))
                     scope.launch {
                         delay(200)
                         state.boundSink().commit(listOf(SessionEntry.AssistantMessage("external reply", "reply")))
