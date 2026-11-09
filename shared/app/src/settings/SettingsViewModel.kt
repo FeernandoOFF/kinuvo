@@ -77,6 +77,7 @@ data class SettingsState(
     val imageModels get() = models.providers.flatMap { provider ->
         provider.models.filter { "image" in it.output.orEmpty() }.map { ProviderModelRef(provider.id, it.id) }
     }
+    val automaticImageModel get() = models.imageModels().firstOrNull()
     val routine get() = routines?.firstOrNull { it.id == route.item }
 }
 
@@ -281,7 +282,7 @@ class SettingsViewModel(
     /** Loads the open server-wide section's settings, e.g. to retry after a failure. */
     fun reloadServer() {
         when (state.value.route.section) {
-            SettingsSection.Providers -> attempt { config.imageModel().let { m -> state.update { it.copy(imageModel = m) } } }
+            SettingsSection.Providers, SettingsSection.Images -> attempt { config.imageModel().let { m -> state.update { it.copy(imageModel = m) } } }
             SettingsSection.Tasks -> attempt { config.tasksSetup().also { s -> state.update { it.copy(tasks = s) }; loadLists(TaskProviderRef(s.settings.provider)) } }
             SettingsSection.Knowledge -> attempt { config.knowledgeSetup().let { s -> state.update { it.copy(knowledge = s) } } }
             SettingsSection.Secrets -> loadSecrets()

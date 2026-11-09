@@ -49,7 +49,7 @@ class ImageModelViewModelTest {
         val store = ViewModelStore()
         try {
             client.connect(); server.open(client, "local:test"); server.config.attach(client)
-            val vm = SettingsViewModel(server.routines, server.config, AppSchemeBrowser {}, Route.Settings("agent", SettingsSection.Providers))
+            val vm = SettingsViewModel(server.routines, server.config, AppSchemeBrowser {}, Route.Settings("agent", SettingsSection.Images))
             store.put("settings", vm)
             runCurrent()
             assertEquals(ref, vm.state.value.imageModel)

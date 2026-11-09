@@ -32,10 +32,6 @@ import kinuvo.ui.design.*
 internal fun ProvidersSettingsPane(p: Pane) {
     val providers = p.ui.state.providers ?: return ServerLoading(p, "Model providers")
     DetailPane(p.back, "Model providers", error = p.ui.error, info = "Models use the Server’s credentials. Configure its API key or sign in here, wherever the Server runs.") {
-        RowGroup("Image generation") {
-            PickerRow("Image model", listOf(null) + p.ui.state.imageModels, p.ui.state.imageModel,
-                { it?.let { "${it.provider} / ${it.model}" } ?: "Off" }, p.actions.onSaveImageModel)
-        }
         providers.forEach { ProviderGroup(it, p) }
     }
 }
@@ -138,3 +134,17 @@ internal fun ModelDownloadRows(downloads: ProviderDownloads, onDownload: (String
 }
 
 internal fun gigabytes(bytes: Long) = if (bytes >= 1_000_000_000) "${(bytes / 100_000_000) / 10.0} GB" else "${bytes / 1_000_000} MB"
+
+@Composable
+internal fun ImageGenerationSettingsPane(p: Pane) {
+    val state = p.ui.state
+    DetailPane(p.back, "Image generation", error = p.ui.error,
+        info = "Uses the Session’s model when it can generate images, then this fallback.") {
+        RowGroup("Image model") {
+            PickerRow("Fallback model", listOf(null) + state.imageModels, state.imageModel,
+                { it?.let { "${it.provider} / ${it.model}" } ?: "Automatic (best available)" }, p.actions.onSaveImageModel)
+            GroupRow("Automatic selection", subtitle = state.automaticImageModel?.let { "${it.provider} / ${it.model}" }
+                ?: "No image-capable model available. Connect a model provider.")
+        }
+    }
+}
