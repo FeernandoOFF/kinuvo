@@ -1009,6 +1009,17 @@ class ScreenshotTest {
     }
 
     @Test
+    fun renderMarkdownImage() {
+        render("markdown-image", 390, 260) {
+            HarnessTheme(dark = false) {
+                Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
+                    Markdown("Here is the chart:\n\n![Chart](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAhklEQVR4nO3QAQkAIADAMOMY0dhGsIXCHTzA2dhr6kLj+cEngQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K0O/6L0hoP34ewAAAAASUVORK5CYII=)\n\nDone.")
+                }
+            }
+        }
+    }
+
+    @Test
     fun renderWideTable() {
         render("markdown-wide-table", 390, 260) {
             HarnessTheme(dark = true) {
