@@ -443,16 +443,19 @@ class ServerRuntime(
             sourceSnapshot(p.agentId, p.sessionId)
             LiveVoiceSession(provider, client.callScope, voiceContext(name, harness.store.entries(p.agentId, p.sessionId)),
                 client::offerLiveVoice,
-                askAgent = { task ->
+                askAgent = { task, progress ->
                     if (registration != null) {
                         try {
                             return@LiveVoiceSession withTimeout(300_000) {
                                 val before = harness.store.entries(p.agentId, p.sessionId).size
+                                val updates = VoiceAgentProgress(sourceSnapshot(p.agentId, p.sessionId))
                                 send(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true))
                                 var snapshot = sourceSnapshot(p.agentId, p.sessionId)
+                                updates.update(snapshot).forEach { progress(it) }
                                 while (snapshot.phase == ExecutionPhase.Running || snapshot.phase == ExecutionPhase.RequiresAction) {
                                     delay(100)
                                     snapshot = sourceSnapshot(p.agentId, p.sessionId)
+                                    updates.update(snapshot).forEach { progress(it) }
                                 }
                                 if (snapshot.phase == ExecutionPhase.Lost) "The Agent could not finish the request."
                                 else harness.store.entries(p.agentId, p.sessionId).drop(before)
@@ -466,6 +469,7 @@ class ServerRuntime(
                     var reply = "The Agent finished without a reply."
                     var failure: String? = null
                     sendNative(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true)) {
+                        it.voiceProgress()?.let { update -> progress(update) }
                         when (it) {
                             is AgentEvent.TextMessageEnd -> reply = it.text
                             is AgentEvent.RunError -> failure = "The Agent could not finish the request"
@@ -673,7 +677,7 @@ class ServerRuntime(
 
     private suspend fun sendNative(p: SendParams, catalogs: List<UiCatalog> = harness.uiCatalogs.forRun()): SendResult = sendNative(p, catalogs) {}
 
-    private suspend fun sendNative(p: SendParams, catalogs: List<UiCatalog> = harness.uiCatalogs.forRun(), onEvent: (AgentEvent) -> Unit): SendResult {
+    private suspend fun sendNative(p: SendParams, catalogs: List<UiCatalog> = harness.uiCatalogs.forRun(), onEvent: suspend (AgentEvent) -> Unit): SendResult {
         val agent = agent(p.agentId)
         require(p.text.isNotBlank() || p.attachments.isNotEmpty()) { "Add a message or attachment" }
         check(p.attachments.isEmpty() || ServerFeature.Attachments in capabilities.features) { "Attachments are not available on this Server" }

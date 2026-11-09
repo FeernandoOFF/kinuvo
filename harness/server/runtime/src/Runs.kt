@@ -69,7 +69,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
         attachments: List<Attachment> = emptyList(),
         voice: Boolean = false,
         action: SurfaceAction? = null,
-        onEvent: (AgentEvent) -> Unit = {},
+        onEvent: suspend (AgentEvent) -> Unit = {},
         onDone: suspend (stopped: Boolean) -> Unit = {},
         runner: suspend () -> AgentRun,
     ): Run {

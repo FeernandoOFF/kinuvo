@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.voice.AgentProgress
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.execution.api.*
 import kinuvo.harness.server.execution.ExecutionRegistry
@@ -44,8 +45,8 @@ class VoiceRpcTest {
         val voice = VoiceProviders(speechToSpeech = object : SpeechToSpeech {
             override val input = AudioFormat.Pcm16(24000)
             override val output = AudioFormat.Pcm16(24000)
-            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String) -> String) {
-                output(VoiceOutput.Transcript("reply", askAgent("task"), false))
+            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) {
+                output(VoiceOutput.Transcript("reply", askAgent("task") {}, false))
             }
         })
         val fixture = RuntimeFixture(voice = voice)
@@ -72,8 +73,8 @@ class VoiceRpcTest {
         val voice = VoiceProviders(speechToSpeech = object : SpeechToSpeech {
             override val input = AudioFormat.Pcm16(24000)
             override val output = AudioFormat.Pcm16(24000)
-            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String) -> String) {
-                val text = try { askAgent("some task") } catch (e: IllegalStateException) { "failure: ${e.message}" }
+            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) {
+                val text = try { askAgent("some task") {} } catch (e: IllegalStateException) { "failure: ${e.message}" }
                 output(VoiceOutput.Transcript("reply", text, false))
             }
         })
@@ -111,7 +112,7 @@ class VoiceRpcTest {
         val voice = VoiceProviders(speechToSpeech = object : SpeechToSpeech {
             override val input = AudioFormat.Pcm16(24000)
             override val output = AudioFormat.Pcm16(24000)
-            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String) -> String) {
+            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) {
                 output(VoiceOutput.Ready)
                 for (value in input) {
                     received.send(value)
@@ -153,7 +154,7 @@ class VoiceRpcTest {
         val voice = VoiceProviders(speechToSpeech = object : SpeechToSpeech {
             override val input = AudioFormat.Pcm16(24000)
             override val output = AudioFormat.Pcm16(24000)
-            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String) -> String) {
+            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) {
                 repeat(2_000) { output(VoiceOutput.Audio("reply", ByteArray(1_920))) }
                 output(VoiceOutput.Transcript("reply", "Hello there", false, final = false))
                 output(VoiceOutput.Transcript("reply", "Hello there.", false))
@@ -201,7 +202,7 @@ class VoiceRpcTest {
         val voice = VoiceProviders(speechToSpeech = object : SpeechToSpeech {
             override val input = AudioFormat.Pcm16(24000)
             override val output = AudioFormat.Pcm16(24000)
-            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String) -> String) {
+            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) {
                 entered.send(Unit)
                 try {
                     output(VoiceOutput.Ready)

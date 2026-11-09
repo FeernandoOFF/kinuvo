@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.voice.AgentProgress
 import kinuvo.harness.core.voice.SpeechToSpeech
 import kinuvo.harness.core.voice.VoiceContext
 import kinuvo.harness.core.voice.VoiceInput
@@ -24,7 +25,7 @@ internal class LiveVoiceSession(
     private val scope: CoroutineScope,
     private val context: VoiceContext,
     private val emit: (LiveVoiceOutput) -> Delivery,
-    private val askAgent: suspend (String) -> String,
+    private val askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String,
     private val record: suspend (SessionEntry.VoiceCall) -> Unit = {},
     private val keepAwake: () -> AutoCloseable = { AutoCloseable {} },
 ) {
