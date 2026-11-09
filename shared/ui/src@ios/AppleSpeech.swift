@@ -14,6 +14,14 @@ final class AppleSpeech: NSObject, SpeechEngine, VoiceAudio, LiveAudio {
     var liveAudioSupported: Bool { true }
     // iOS ends calls through LiveCalls, from the Live Activity or the app.
     func onEndRequested(end: @escaping () -> Void) {}
+    private var inputMuteChanged: (KotlinBoolean) -> Void = { _ in }
+    private var inputMuteObserver: NSObjectProtocol?
+    func onInputMuteChanged(changed: @escaping (KotlinBoolean) -> Void) { inputMuteChanged = changed }
+    func setInputMuted(muted: Bool) {
+        guard AVAudioApplication.shared.isInputMuted != muted else { return }
+        do { try AVAudioApplication.shared.setInputMuted(muted) }
+        catch { Logger(subsystem: "dev.kinuvo.app", category: "live").error("Couldn't set input mute: \(error.localizedDescription)") }
+    }
     var echoes: Bool { false }
     private var liveGeneration = 0
     private var liveStarting = false
@@ -23,6 +31,12 @@ final class AppleSpeech: NSObject, SpeechEngine, VoiceAudio, LiveAudio {
         releaseDeviceAudio()
         liveGeneration += 1
         let epoch = liveGeneration
+        if let inputMuteObserver { NotificationCenter.default.removeObserver(inputMuteObserver) }
+        inputMuteObserver = NotificationCenter.default.addObserver(forName: AVAudioApplication.inputMuteStateChangeNotification, object: nil, queue: .main) { [weak self] notification in
+            guard let self, self.liveGeneration == epoch,
+                  let muted = notification.userInfo?[AVAudioApplication.muteStateKey] as? Bool else { return }
+            self.inputMuteChanged(KotlinBoolean(bool: muted))
+        }
         liveStarting = true
         livePending.removeAll()
         liveRate = Int(sampleRate)
@@ -45,6 +59,9 @@ final class AppleSpeech: NSObject, SpeechEngine, VoiceAudio, LiveAudio {
     }
     func flushLive() { livePending.removeAll(); liveAudio.flush() }
     func stopLive() {
+        if let inputMuteObserver { NotificationCenter.default.removeObserver(inputMuteObserver) }
+        inputMuteObserver = nil
+        setInputMuted(muted: false)
         liveGeneration += 1; liveStarting = false; livePending.removeAll()
         liveAudio.stop()
     }

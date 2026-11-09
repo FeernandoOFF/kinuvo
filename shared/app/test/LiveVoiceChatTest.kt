@@ -23,6 +23,10 @@ class LiveVoiceChatTest {
         override var echoes = false
         var endRequested: () -> Unit = {}
         override fun onEndRequested(end: () -> Unit) { endRequested = end }
+        var muteChanged: (Boolean) -> Unit = {}
+        val muted = mutableListOf<Boolean>()
+        override fun onInputMuteChanged(changed: (Boolean) -> Unit) { muteChanged = changed }
+        override fun setInputMuted(muted: Boolean) { this.muted += muted; muteChanged(muted) }
         var microphone: (ByteArray) -> Unit = {}
         val played = mutableListOf<ByteArray>()
         val cues = mutableListOf<ByteArray>()
@@ -143,7 +147,11 @@ class LiveVoiceChatTest {
             runCurrent()
             val beforePause = audio.played.size
             chat.pause()
+            chat.pause()
             runCurrent()
+            assertTrue(chat.state.value.paused)
+            assertEquals(listOf(false, true), audio.muted)
+            assertEquals(1, inputs.count { it is LiveVoiceInput.Pause })
             assertEquals(0, audio.flushes, "Muting keeps the reply playing")
             assertTrue(inputs.none { it is LiveVoiceInput.Interrupt })
             assertTrue(inputs.any { it is LiveVoiceInput.Pause })
@@ -156,6 +164,14 @@ class LiveVoiceChatTest {
             assertTrue(audio.played.size > beforePause, "Replies play while muted")
             assertContentEquals(byteArrayOf(5, 6, 9, 10), audio.played.last())
 
+            audio.muteChanged(false)
+            runCurrent()
+            assertFalse(chat.state.value.paused)
+            assertEquals(listOf(false, true, false), audio.muted)
+            assertEquals(1, inputs.count { it is LiveVoiceInput.Resume })
+            audio.muteChanged(true)
+            runCurrent()
+            assertTrue(chat.state.value.paused)
             chat.resume()
             runCurrent()
             assertTrue(inputs.any { it is LiveVoiceInput.Resume })
@@ -192,6 +208,7 @@ class LiveVoiceChatTest {
             runCurrent()
             assertTrue(inputs.any { it is LiveVoiceInput.Audio && it.base64 == Base64.encode(byteArrayOf(11, 12)) })
 
+            val staleMuteChanged = audio.muteChanged
             output(LiveVoiceOutput.Ended("call", "Usage limit reached"))
             advanceTimeBy(1_000); runCurrent()
             assertEquals("Usage limit reached", chat.state.value.error)
@@ -199,6 +216,9 @@ class LiveVoiceChatTest {
             assertEquals(VoicePhase.Off, chat.state.value.phase)
             chat.start()
             advanceTimeBy(1_000); runCurrent()
+            staleMuteChanged(true)
+            runCurrent()
+            assertFalse(chat.state.value.paused, "An ended call must not mute the next call")
             audio.endRequested()
             runCurrent()
             assertEquals(VoicePhase.Off, chat.state.value.phase)
