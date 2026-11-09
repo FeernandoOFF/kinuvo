@@ -6,20 +6,33 @@ import kinuvo.protocol.ExecutionPrompt
 import kinuvo.protocol.ExecutionRequestKind
 import kinuvo.protocol.ExecutionSnapshot
 
-internal fun AgentEvent.voiceProgress(): AgentProgress? = when (this) {
-    is AgentEvent.ApprovalRequested -> AgentProgress.ApprovalRequested(toolCallName, trustHint ?: reason ?: "Review the action's details in the app")
-    is AgentEvent.ApprovalResolved -> AgentProgress.ApprovalResolved(allowed)
-    is AgentEvent.QuestionsAsked -> AgentProgress.Question(questions.joinToString("; ") { it.label }.take(600))
-    is AgentEvent.TextMessageEnd -> AgentProgress.Text(text)
-    else -> null
+/** A native run's progress; a message is reported only once more work follows it, since the last one is the reply. */
+internal class NativeVoiceProgress {
+    private var text: String? = null
+
+    fun update(event: AgentEvent): List<AgentProgress> = buildList {
+        fun flush() { text?.let { add(AgentProgress.Text(it)) }; text = null }
+        when (event) {
+            is AgentEvent.TextMessageEnd -> { flush(); text = event.text.takeIf { it.isNotBlank() } }
+            is AgentEvent.ToolCallStart -> flush()
+            is AgentEvent.ApprovalRequested -> { flush(); add(AgentProgress.ApprovalRequested(event.toolCallName, event.trustHint ?: event.reason ?: "Review the action's details in the app")) }
+            is AgentEvent.ApprovalResolved -> add(AgentProgress.ApprovalResolved(event.allowed))
+            is AgentEvent.QuestionsAsked -> { flush(); add(AgentProgress.Question(event.questions.joinToString("; ") { it.label }.take(600))) }
+            else -> {}
+        }
+    }
 }
 
+/** An external run's progress from its snapshots; like [NativeVoiceProgress], the latest message waits to be superseded. */
 internal class VoiceAgentProgress(initial: ExecutionSnapshot) {
     private var pending = initial.pending.associateBy { it.id }
-    private val messages = initial.messages.associate { it.id to it.text }.toMutableMap()
+    private val reported = initial.messages.map { it.id }.toMutableSet()
 
     fun update(snapshot: ExecutionSnapshot): List<AgentProgress> = buildList {
         val current = snapshot.pending.associateBy { it.id }
+        val asking = current.keys.any { it !in pending }
+        val settled = if (asking) snapshot.messages else snapshot.messages.dropLast(1)
+        settled.filter { it.role == "assistant" && it.text.isNotBlank() && reported.add(it.id) }.forEach { add(AgentProgress.Text(it.text)) }
         pending.values.filter { it.id !in current && it.kind == ExecutionRequestKind.Approval }
             .forEach { add(AgentProgress.ApprovalResolved(null)) }
         current.values.filter { it.id !in pending }.forEach { request ->
@@ -29,10 +42,6 @@ internal class VoiceAgentProgress(initial: ExecutionSnapshot) {
                 add(AgentProgress.ApprovalRequested(approval?.title ?: "Agent action", approval?.description ?: "Review the action's details in the app"))
             } else add(AgentProgress.Question((prompt as? ExecutionPrompt.Questions)?.asked?.questions.orEmpty().joinToString("; ") { it.label }.take(600)))
         }
-        snapshot.messages.filter { it.role == "assistant" && it.text.isNotBlank() && messages[it.id] != it.text }.forEach {
-            add(AgentProgress.Text(it.text))
-        }
-        snapshot.messages.forEach { messages[it.id] = it.text }
         pending = current
     }
 }

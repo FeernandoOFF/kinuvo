@@ -468,8 +468,9 @@ class ServerRuntime(
                     runs.join(p.sessionId)
                     var reply = "The Agent finished without a reply."
                     var failure: String? = null
+                    val updates = NativeVoiceProgress()
                     sendNative(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true)) {
-                        it.voiceProgress()?.let { update -> progress(update) }
+                        updates.update(it).forEach { update -> progress(update) }
                         when (it) {
                             is AgentEvent.TextMessageEnd -> reply = it.text
                             is AgentEvent.RunError -> failure = "The Agent could not finish the request"
