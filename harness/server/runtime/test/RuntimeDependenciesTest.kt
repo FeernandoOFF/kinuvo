@@ -34,7 +34,7 @@ class RuntimeDependenciesTest {
             val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
             val history = prompt.messages
             assertTrue("Injected soul" in instructions)
-            assertEquals(setOf("memory", "web_fetch", "generate_image").map { it }.toSet(), tools.map { it.name }.toSet())
+            assertEquals(setOf("memory", "web_fetch").map { it }.toSet(), tools.map { it.name }.toSet())
             when (history.toolResults.size) {
                 0 -> flowOf(StreamFrame.ToolCallComplete("memory", "memory", """{"action":"add","target":"memory","content":"Injected memory"}"""), StreamFrame.End())
                 1 -> flowOf(StreamFrame.ToolCallComplete("fetch", "web_fetch", "{}"), StreamFrame.End())

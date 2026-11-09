@@ -10,7 +10,7 @@ import kinuvo.protocol.MAX_ATTACHMENT_BYTES
 import kotlinx.serialization.json.*
 
 class GenerateImageTool(
-    private val generator: ImageGeneration?,
+    private val generator: ImageGeneration,
     private val model: String,
     private val references: suspend () -> List<Attachment>,
     private val bytes: (Attachment) -> ByteArray,
@@ -26,7 +26,6 @@ class GenerateImageTool(
     )
     override suspend fun execute(args: JsonObject): String = error("Image generation needs a tool run")
     override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {
-        val generator = requireNotNull(generator) { "No image-capable model is available. Connect a provider with image generation in Settings → Model providers." }
         val prompt = args.requireString("prompt")
         val ids = (args["references"] as? JsonArray).orEmpty().map { it.jsonPrimitive.content }
         require(ids.size <= 16) { "Use at most 16 reference images" }

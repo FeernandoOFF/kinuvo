@@ -250,7 +250,7 @@ class RunPreparationRuntimeTest {
         fixture.rules = TrustRules(deny = DenyRules(tools = listOf(first.key)))
         val harness = fixture.runtime()
         try {
-            val agent = agent(harness).let { it.copy(config = it.config.copy(approvals = "full")) }
+            val agent = agent(harness)
             val catalog = inspect(harness, agent).tools
             assertEquals(setOf(first, second), catalog.map { it.identity }.toSet())
             assertEquals(2, catalog.map { it.id }.distinct().size)
@@ -258,7 +258,7 @@ class RunPreparationRuntimeTest {
             val session = harness.newSession(agent)
             harness.runner(agent, session.id).run(session.id, "ping").toList()
             assertEquals(listOf("second"), executed)
-            val results = harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>().filter { it.name != "generate_image" }
+            val results = harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>()
             assertEquals(setOf(first, second), results.map { it.identity }.toSet())
             assertTrue(results.single { it.identity == first }.isError)
             val limited = agent.copy(config = agent.config.copy(model = "limited"))
@@ -327,7 +327,7 @@ class RunPreparationRuntimeTest {
                 harness.runner(agent, session.id, scope = scope).run(session.id, "hi").toList()
                 return seen.last().sorted()
             }
-            assertEquals(listOf("ask_user", "generate_image", "memory", "schedule"), offered(base))
+            assertEquals(listOf("ask_user", "memory", "schedule"), offered(base))
             assertEquals(listOf("memory"), offered(base.copy(config = base.config.copy(tier = ModelTier.Micro))))
             assertEquals(listOf("memory", "schedule"), offered(base.copy(config = base.config.copy(tier = ModelTier.Small))))
             assertEquals(listOf("ask_user"), offered(base, ToolScope.only("ask_user")))
@@ -406,10 +406,10 @@ class RunPreparationRuntimeTest {
             val session = harness.newSession(agent)
             for (model in listOf("tools", "text", "limited", "custom")) {
                 harness.configure(agent, session.id, SessionSettings(model = model, approvals = "strict"))
-                val capability = inspect(harness, agent, session.id).tools.single { it.identity?.localId == "ping" }
+                val capability = inspect(harness, agent, session.id).tools.single()
                 assertEquals(if (model == "text") Support.Unsupported else if (model == "custom") Support.Unknown else Support.Supported, capability.state.support)
                 harness.runner(agent, session.id).run(session.id, "hi").toList()
-                assertEquals(if (model == "text") emptyList() else listOf(capability.id), seen.last().filter { it != "generate_image" })
+                assertEquals(if (model == "text") emptyList() else listOf(capability.id), seen.last())
             }
             assertEquals(listOf(false, true, false, true, false, true, false, true), modes)
         } finally { harness.close() }

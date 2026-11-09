@@ -12,18 +12,6 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class GenerateImageToolTest {
-    @Test fun explainsMissingImageProvider() = runTest {
-        val tool = GenerateImageTool(null, "", { emptyList() }, { byteArrayOf() })
-        val run = object : ToolRun {
-            override val tools = emptyList<ToolDescriptor>()
-            override suspend fun call(name: String, args: String): SessionEntry.ToolResult = error("unused")
-        }
-        val failure = assertFailsWith<IllegalArgumentException> {
-            tool.execute(buildJsonObject { put("prompt", "Draw") }, "call", run)
-        }
-        assertTrue(failure.message.orEmpty().contains("No image-capable model"))
-    }
-
     @Test fun loadsSessionReferencesAndAttachesEveryImage() = runTest {
         val reference = Attachment("upload", "input.png", "image/png", 1)
         val attached = mutableListOf<Attachment>()

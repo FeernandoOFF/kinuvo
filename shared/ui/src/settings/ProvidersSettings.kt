@@ -141,10 +141,9 @@ internal fun ImageGenerationSettingsPane(p: Pane) {
     DetailPane(p.back, "Image generation", error = p.ui.error,
         info = "Uses the Session’s model when it can generate images, then this fallback.") {
         RowGroup("Image model") {
-            PickerRow("Fallback model", listOf(null) + state.imageModels, state.imageModel,
-                { it?.let { "${it.provider} / ${it.model}" } ?: "Automatic (best available)" }, p.actions.onSaveImageModel)
-            GroupRow("Automatic selection", subtitle = state.automaticImageModel?.let { "${it.provider} / ${it.model}" }
-                ?: "No image-capable model available. Connect a model provider.")
+            if (state.imageModels.isEmpty()) GroupRow("No image-capable model", subtitle = "Connect a model provider that can generate images.")
+            else PickerRow("Fallback model", listOf(null) + state.imageModels, state.imageModel,
+                { it?.let { "${it.provider} / ${it.model}" } ?: "Automatic" + state.automaticImageModel?.let { " (${it.model})" }.orEmpty() }, p.actions.onSaveImageModel)
         }
     }
 }

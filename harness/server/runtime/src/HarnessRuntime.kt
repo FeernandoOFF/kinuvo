@@ -411,8 +411,8 @@ open class HarnessRuntime(
             candidate?.images != null && candidate.availability(ref.model).actionable
         }
         val selected = resolveImageModel(ProviderModelRef(agent.config.provider, agent.config.model), imageModel, available)
-        val provider = selected?.let { providers[it.provider] }
-        val imageTool = if (sessionId != null) GenerateImageTool(provider?.images, selected?.model.orEmpty(), {
+        val images = selected?.let { providers[it.provider]?.images }
+        val imageTool = if (selected != null && images != null && sessionId != null) GenerateImageTool(images, selected.model, {
                 store.entries(agent.id, sessionId).flatMap { entry -> when (entry) {
                     is SessionEntry.UserMessage -> entry.attachments
                     is SessionEntry.ToolResult -> entry.attachments
