@@ -100,6 +100,7 @@ private fun MarkdownContent(text: String, modifier: Modifier, style: TextStyle, 
     }
     val components = markdownComponents(
         table = { MarkdownTable(it.content, it.node, it.typography.table) },
+        image = { MarkdownImageBlock(it.content, it.node) },
         checkbox = { model ->
             MarkdownCheckBox(model.content, model.node, model.typography.list) { checked, indicator ->
                 val ink = if (checked) accent else colors.text
