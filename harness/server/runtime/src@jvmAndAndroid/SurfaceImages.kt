@@ -15,8 +15,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import kotlin.io.encoding.Base64
 
-internal const val MAX_SURFACE_IMAGE_BYTES = 5 * 1024 * 1024
-
 internal fun publicImageAddress(address: InetAddress): Boolean {
     if (address.isAnyLocalAddress || address.isLoopbackAddress || address.isLinkLocalAddress || address.isSiteLocalAddress || address.isMulticastAddress) return false
     val bytes = address.address.map { it.toInt() and 255 }
@@ -57,7 +55,7 @@ internal actual suspend fun fetchSurfaceImage(url: String): SurfaceImage = withC
         if (':' in next.host || next.host.all { it.isDigit() || it == '.' }) {
             require(publicImageAddress(InetAddress.getByName(next.host))) { "Image URL must be public" }
         }
-        val call = imageHttp.newCall(Request.Builder().url(next).header("Accept", "image/*").build())
+        val call = imageHttp.newCall(Request.Builder().url(next).header("Accept", "image/*").header("User-Agent", SURFACE_IMAGE_USER_AGENT).build())
         call.timeout().timeout((deadline - System.nanoTime()).coerceIn(1, TimeUnit.SECONDS.toNanos(10)), TimeUnit.NANOSECONDS)
         call.execute().use { response ->
             if (response.code in setOf(301, 302, 303, 307, 308)) {
@@ -66,7 +64,7 @@ internal actual suspend fun fetchSurfaceImage(url: String): SurfaceImage = withC
                 require(response.isSuccessful) { "Image request failed (${response.code})" }
                 val body = requireNotNull(response.body)
                 val mime = body.contentType()?.let { "${it.type}/${it.subtype}" }
-                require(mime in setOf("image/png", "image/jpeg", "image/webp", "image/gif", "image/avif", "image/bmp")) { "URL must return a raster image" }
+                require(mime in SURFACE_IMAGE_TYPES) { "URL must return a raster image" }
                 require(body.contentLength() <= MAX_SURFACE_IMAGE_BYTES) { "Image exceeds 5 MB" }
                 val bytes = body.byteStream().use { it.readBytesCapped() }
                 return@withContext SurfaceImage(requireNotNull(mime), Base64.encode(bytes))
