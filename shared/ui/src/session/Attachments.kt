@@ -90,8 +90,8 @@ internal fun AttachmentChip(attachment: Attachment, base64: String? = null, onPr
 internal fun GeneratedImage(attachment: Attachment, base64: String?, onPreview: () -> Unit, onSave: () -> Unit) {
     val image = remember(attachment.id, base64) { attachment.image(base64) }
     val shape = Theme[shapes][mediumShape]
-    Box(Modifier.widthIn(max = 360.dp).clip(shape)) {
-        if (image != null) Image(image, attachment.name, Modifier.heightIn(max = 360.dp).clickable(onClick = onPreview), contentScale = ContentScale.Fit)
+    Box(Modifier.widthIn(max = 360.dp).fillMaxWidth().clip(shape)) {
+        if (image != null) Image(image, attachment.name, Modifier.fillMaxWidth().aspectRatio(image.width.toFloat() / image.height).clickable(onClick = onPreview), contentScale = ContentScale.Fit)
         else ImagePlaceholder()
         IconButton(onClick = onSave, style = ButtonStyle.Ghost, modifier = Modifier.align(Alignment.TopEnd).padding(Spacing.space8).size(32.dp)
             .clip(shape).background(color(backgroundColor).copy(alpha = 0.7f))) {
