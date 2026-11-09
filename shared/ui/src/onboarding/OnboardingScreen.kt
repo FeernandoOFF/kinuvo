@@ -673,10 +673,12 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
     val account = s.providers.firstOrNull { it.id == s.provider }
     s.providerGroups.forEach { (title, providers) ->
         if (providers.isNotEmpty()) RowGroup(title) {
-            if (title == "On device") GroupBox {
-                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
-                    Icon(Lucide.TriangleAlert, Modifier.size(24.dp), tint = color(warningColor))
-                    Text("Private, but less capable. Small models can struggle with tools and longer tasks. Running locally uses battery and memory; downloads can be several GB. Use Wi-Fi.", color = color(warningColor), style = TextStyles.secondary)
+            if (title == "On device") Row(Modifier.fillMaxWidth().background(color(warningColor).copy(alpha = 0.1f))
+                .padding(horizontal = Spacing.space16, vertical = Spacing.space12), horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
+                Icon(Lucide.TriangleAlert, Modifier.size(24.dp), tint = color(warningColor))
+                Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
+                    Text("Less capable than cloud models", color = color(warningColor), style = TextStyles.label.copy(fontWeight = FontWeight.SemiBold))
+                    Text("Private, but small models can struggle with tools and longer tasks. Running locally uses battery and memory; downloads can be several GB. Use Wi-Fi.", style = TextStyles.secondary)
                 }
             }
             providers.forEach { id ->
