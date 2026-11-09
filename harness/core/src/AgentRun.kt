@@ -71,7 +71,7 @@ class AgentRun(
                 session.append(SessionEntry.Context(context))
             activation?.let { session.append(it) }
             report?.let { session.append(it) }
-            if (routine == null && userText.isNotBlank()) session.append(SessionEntry.UserMessage(userText, null, attachments, voice, action = action))
+            if (routine == null && (userText.isNotBlank() || attachments.isNotEmpty())) session.append(SessionEntry.UserMessage(userText, null, attachments, voice, action = action))
             val koog = AIAgent(
                 id = agent.id,
                 promptExecutor = model.executor,
