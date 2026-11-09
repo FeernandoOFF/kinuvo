@@ -108,9 +108,17 @@ data class OnboardingState(
         HarnessChoice.Kinuvo -> null
     }
 
+    val providerGroups get() = listOf(
+        "Subscriptions" to availableProviders.filter { id -> providers.firstOrNull { it.id == id }?.account != null },
+        "On device" to availableProviders.filter { it == "apple" || it == "local" },
+        "API providers" to availableProviders.filter { id -> id != "apple" && id != "local" && providers.firstOrNull { it.id == id }?.account == null },
+    )
+    private val availableProviders get() = (catalog.providers.map { it.id } + providers.map { it.id }).distinct()
+        .filter { id -> providers.firstOrNull { it.id == id }?.downloads?.models?.none { it.supported } != true }
+
     val modelReady: Boolean get() {
         val account = providers.firstOrNull { it.id == provider }
-        return details != null && provider.isNotBlank() && model.isNotBlank() &&
+        return details != null && provider in availableProviders && provider.isNotBlank() && model.isNotBlank() &&
             account?.apiKey?.configured != false && account?.account?.signedIn != false &&
             account?.downloads?.models?.firstOrNull { it.id == model }?.installed != false &&
             catalog.model(provider, model)?.state?.actionable != false
@@ -201,10 +209,11 @@ class OnboardingViewModel(private val config: ConfigRepository, private val noti
         if (section == null) loadConnected()
     }
 
-    fun refresh() = attempt {
+    fun refresh(selected: String? = null, selectedModel: String? = null) = attempt {
         val catalog = config.models(refresh = true)
         val providers = config.providerAccounts()
-        edit { it.copy(catalog = catalog, providers = providers) }
+        edit { it.copy(catalog = catalog, providers = providers, provider = selected ?: it.provider,
+            model = selectedModel ?: selected?.let { id -> catalog.providers.firstOrNull { it.id == id }?.chatModels?.firstOrNull()?.id }.orEmpty().ifBlank { it.model }) }
     }
 
     fun login(): Job {

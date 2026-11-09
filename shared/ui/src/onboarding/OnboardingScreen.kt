@@ -195,7 +195,7 @@ internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel
                     busy = advancing || (a.connection as? Connection.Connecting)?.server != null,
                     error = scanError ?: (a.connection as? Connection.Unpaired)?.error,
                 ), featured, pokes, poke, tint, insets)
-            }, model = { ModelStep(s, onboarding::selectProvider, onboarding::refresh, onboarding::edit, { onboarding.download() }, { onboarding.cancelDownload() }) },
+            }, model = { ModelStep(s, onboarding::selectProvider, { onboarding.refresh() }, onboarding::edit, { onboarding.download() }, { onboarding.cancelDownload() }, { id, model -> onboarding.refresh(id, model) }) },
             connect = {
                 ConnectList(s, a.capabilities::allows, onboarding::setUp)
                 DeviceToolsGroup("On this device", "Agents read these from this app, so they can only use them while Kinuvo is open here.")
@@ -667,19 +667,32 @@ private fun DraftRow(label: String, value: String, placeholder: String, secret: 
 
 @Composable
 internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefresh: () -> Unit, onEdit: ((OnboardingState) -> OnboardingState) -> Unit,
-    onDownload: () -> Unit = {}, onCancel: () -> Unit = {}) {
+    onDownload: () -> Unit = {}, onCancel: () -> Unit = {}, onEndpoint: ((String, String) -> Unit)? = null) {
     val tint = LocalTint.current
-    val providers = (s.catalog.providers.map { it.id } + s.providers.map { it.id } + s.provider.takeIf { it.isNotBlank() }.let { listOfNotNull(it) }).distinct()
-        .filter { id -> id == s.provider || s.providers.firstOrNull { it.id == id }?.downloads?.models?.none { it.supported } != true }
     val group = s.catalog.providers.firstOrNull { it.id == s.provider }
     val account = s.providers.firstOrNull { it.id == s.provider }
-    RowGroup("Provider") {
-        providers.forEach { id ->
-            val info = s.providers.firstOrNull { it.id == id }
-            ChoiceRow(Lucide.Brain, info?.name ?: s.catalog.providers.firstOrNull { it.id == id }?.name ?: id,
-                providerStatus(info) ?: if (id == APPLE) "No setup · private, for simple tasks" else "", id == s.provider) { onProvider(id) }
+    s.providerGroups.forEach { (title, providers) ->
+        if (providers.isNotEmpty()) RowGroup(title) {
+            if (title == "On device") GroupBox {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
+                    Icon(Lucide.TriangleAlert, Modifier.size(24.dp), tint = color(warningColor))
+                    Text("Private, but less capable. Small models can struggle with tools and longer tasks. Running locally uses battery and memory; downloads can be several GB. Use Wi-Fi.", color = color(warningColor), style = TextStyles.secondary)
+                }
+            }
+            providers.forEach { id ->
+                val info = s.providers.firstOrNull { it.id == id }
+                ChoiceRow(Lucide.Brain, info?.name ?: s.catalog.providers.firstOrNull { it.id == id }?.name ?: id,
+                    providerStatus(info).orEmpty(), id == s.provider) { onProvider(id) }
+            }
         }
+    }
+    RowGroup {
         ActionRow("Refresh models and sign-in", Lucide.RefreshCw, onRefresh, enabled = !s.busy)
+    }
+    if (onEndpoint != null) {
+        var adding by remember { mutableStateOf(false) }
+        RowGroup { ActionRow("Add OpenAI-compatible endpoint", Lucide.Plus, { adding = !adding }) }
+        if (adding) EndpointForm { id, model -> adding = false; onEndpoint(id, model) }
     }
     RowGroup {
         if (!group?.chatModels.isNullOrEmpty()) PickerRow("Model", (group.chatModels.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
@@ -705,8 +718,6 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
             ActionRow("Open sign-in page", Lucide.ExternalLink, { runCatching { uri.openUri(code.url) } })
         }
     }
-    if (s.provider == APPLE) Text("Apple's on-device model needs no setup and keeps everything on this device. It's small, so it's best for quick chats and remembering things about you. For browsing, files and longer tasks, pick a larger model; you can switch any time in the Agent's settings.",
-        color = color(mutedColor), style = TextStyles.caption)
     (account?.downloads?.error ?: s.catalog.model(s.provider, s.model)?.state?.reason ?: group?.warning ?: s.catalog.warning ?: account?.error)?.let { Text(it, color = color(mutedColor), style = TextStyles.caption) }
 }
 

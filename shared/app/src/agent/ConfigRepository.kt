@@ -69,6 +69,9 @@ class ConfigRepository(internal val connection: ConnectedServer) {
 
     private fun offered(providers: List<ProviderInfo>) = providers.filter { connection.offers(it.id) }
 
+    suspend fun discoverEndpoint(params: CustomEndpointParams) = call { it.call(Api.DiscoverEndpoint, params) }
+    suspend fun saveEndpoint(params: CustomEndpointParams) = call { it.call(Api.SaveEndpoint, params) }
+
     suspend fun providerAccounts() = offered(call { it.call(Api.Providers, Unit) })
 
     suspend fun models(refresh: Boolean = false) = call { it.call(Api.Models, ModelsParams(refresh)) }.let { catalog ->

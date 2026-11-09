@@ -43,7 +43,11 @@ object ServerInstallation {
             tracing = if (files.config().tracing) localTracing(files) else null
             val installedStore = store ?: FileStore(files, clock)
             val docs = FileAgentDocs(files)
-            val providers = (modelProviders + plugins.flatMap { it.modelProviders }).associateBy { it.id }.values.toList()
+            val providers = object : AbstractList<ModelProvider>() {
+                private fun current() = (modelProviders + plugins.flatMap { it.modelProviders }).distinctBy { it.id }
+                override val size get() = current().size
+                override fun get(index: Int) = current()[index]
+            }
             if (store == null) claimShadowedProviders(files, installedStore, providers)
             val client = HttpClient {
                 followRedirects = true

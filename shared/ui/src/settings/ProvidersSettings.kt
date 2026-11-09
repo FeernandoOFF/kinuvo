@@ -33,6 +33,9 @@ internal fun ProvidersSettingsPane(p: Pane) {
     val providers = p.ui.state.providers ?: return ServerLoading(p, "Model providers")
     DetailPane(p.back, "Model providers", error = p.ui.error, info = "Models use the Server’s credentials. Configure its API key or sign in here, wherever the Server runs.") {
         providers.forEach { ProviderGroup(it, p) }
+        var adding by remember { mutableStateOf(false) }
+        RowGroup { ActionRow("Add OpenAI-compatible endpoint", Lucide.Plus, { adding = !adding }) }
+        if (adding) EndpointForm { _, _ -> adding = false; p.actions.onRefreshModels() }
     }
 }
 

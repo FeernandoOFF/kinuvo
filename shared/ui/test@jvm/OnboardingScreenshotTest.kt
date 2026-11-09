@@ -3,6 +3,7 @@ package kinuvo.ui
 import kinuvo.app.connection.*
 import kinuvo.app.agent.*
 import kinuvo.app.onboarding.*
+import kinuvo.app.settings.EndpointState
 import kinuvo.ui.agent.*
 import kinuvo.ui.settings.*
 import kinuvo.ui.onboarding.*
@@ -30,6 +31,18 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class OnboardingScreenshotTest {
+    @Test fun endpointDiscoveryStates() {
+        val params = CustomEndpointParams(baseUrl = "http://localhost:1234/v1", model = "local-chat")
+        val states = listOf(
+            "loading" to EndpointState(params, busy = true),
+            "models" to EndpointState(params, listOf(ModelInfo("local-chat")), discovered = true),
+            "manual" to EndpointState(params, discovered = true, reason = "No chat models were returned. Enter a Model ID to continue."),
+        )
+        for ((name, state) in states) render("onboarding-endpoint-$name", 390, 844) {
+            HarnessTheme(dark = false) { EndpointContent(state, {}, {}, {}) }
+        }
+    }
+
     @Test fun safeAreasKeepTheGlow() {
         render("onboarding-safe-areas", 390, 844) {
             HarnessTheme(dark = false) {
@@ -61,7 +74,8 @@ class OnboardingScreenshotTest {
                         val state = OnboardingState(step = step, userName = "Alex", agentName = "Milo", avatar = 1,
                             provider = "codex", model = "gpt-5.6-sol",
                             catalog = ModelsCatalog(listOf(ProviderModels("codex", "OpenAI Codex", listOf(ModelInfo("gpt-5.6-sol", "GPT-5.6"))))),
-                            providers = listOf(ProviderInfo("codex", "OpenAI Codex", account = ProviderAccount(false))))
+                            providers = listOf(ProviderInfo("codex", "OpenAI Codex", account = ProviderAccount(false)),
+                                ProviderInfo("apple", "Apple"), ProviderInfo("openai", "OpenAI", apiKey = ProviderApiKeyStatus(false, "Server"))))
                         val labels = mapOf(2 to "Sign in to OpenAI Codex", 6 to "Meet Milo")
                         OnboardingContent(state, action = OnboardingAction(labels[step] ?: "Continue"), welcome = { featured, pokes, poke, tint, insets ->
                             Welcome(WelcomeOptions(onScan = {}, onLocal = {}, onPair = {}), featured, pokes, poke, tint, insets)

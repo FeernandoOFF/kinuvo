@@ -14,6 +14,8 @@ internal class SettingsRequests(private val harness: HarnessRuntime, private val
         Api.Service.name -> respond(r, Api.Service) { harness.serviceSetup(it.kind) }
         Api.SaveService.name -> respond(r, Api.SaveService) { harness.saveService(it.kind, it.settings, it.secretUpdates) }
         Api.TestService.name -> respond(r, Api.TestService) { if (it.kind == ServiceKind.Notifications) notifications.test(it) else harness.testService(it) }
+        Api.DiscoverEndpoint.name -> respond(r, Api.DiscoverEndpoint) { harness.customEndpoints.discover(it) }
+        Api.SaveEndpoint.name -> respond(r, Api.SaveEndpoint) { harness.customEndpoints.save(it).also { logins.refresh() } }
         Api.Models.name -> respond(r, Api.Models) { harness.modelCatalog(it.refresh) }
         Api.Providers.name -> respond(r, Api.Providers) { logins.list() }
         Api.SetProviderApiKey.name -> respond(r, Api.SetProviderApiKey) { logins.saveApiKey(it.provider, it.value) }

@@ -191,6 +191,8 @@ object Api {
     val Capabilities = Method("session.capabilities", CapabilitiesParams.serializer(), SessionCapabilities.serializer())
     val CapabilitiesChanged = EventType("capabilities.changed", Unit.serializer())
     val Models = Method("models.list", ModelsParams.serializer(), ModelsCatalog.serializer())
+    val DiscoverEndpoint = Method("providers.discoverEndpoint", CustomEndpointParams.serializer(), ListSerializer(ModelInfo.serializer()))
+    val SaveEndpoint = Method("providers.saveEndpoint", CustomEndpointParams.serializer(), ProviderRef.serializer())
     val Providers = Method("providers.list", Unit.serializer(), ListSerializer(ProviderInfo.serializer()))
     /** Starts signing in; the Server finishes it in the background and sends [ProvidersChanged]. */
     val LoginProvider = Method("providers.login", ProviderRef.serializer(), DeviceCode.serializer())

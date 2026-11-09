@@ -34,6 +34,7 @@ val appModule = module {
     single { get<ConnectedServer>().board }
     single { get<ConnectedServer>().knowledge }
     single { get<ConnectedServer>().devices }
+    viewModel { EndpointViewModel(get<ConfigRepository>()) }
     viewModel { ServerVoiceViewModel(get()) }
     viewModel { OnboardingViewModel(get(), getOrNull() ?: NotificationPermission.None) }
     viewModel { AppViewModel(get(), get(), get(), get(), getOrNull() ?: ClientCache.None, getOrNull() ?: NotificationPermission.None, getOrNull<UiCatalogs>()?.all.orEmpty()) }

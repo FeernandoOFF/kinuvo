@@ -130,9 +130,10 @@ open class HarnessRuntime(
     val computers = Computers(log) { questions }
     private val plugins = (listOf(KnowledgePlugin(knowledge), TasksPlugin(tasks), devices, computers) + external).also { it.checkPluginInstances() }
     private val reflection = Reflection(knowledge, docs, skills, { trustRules.effective(it.id).deny }, tracing = dependencies.tracing) { Clock.System.todayIn(timeZone) }
-    private val providers = dependencies.modelProviders.associateBy { it.id }
+    private val providers get() = dependencies.modelProviders.associateBy { it.id }
     suspend fun modelCatalog(refresh: Boolean = false) = dependencies.modelCatalog(refresh)
-    val modelProviders get() = providers.values.toList()
+    val modelProviders get() = dependencies.modelProviders
+    val customEndpoints get() = dependencies.plugins.firstNotNullOfOrNull { it.customEndpoints } ?: error("Custom providers are unavailable on this Server")
     fun requireModelProvider(id: String) { require(providerId(id) in providers) { "No model provider '$id'" } }
     /** A custom provider's bare ID, as agent.yaml named it before custom IDs were prefixed, still finds it. */
     fun providerId(id: String) = if (id !in providers && CUSTOM_PROVIDERS + id in providers) CUSTOM_PROVIDERS + id else id

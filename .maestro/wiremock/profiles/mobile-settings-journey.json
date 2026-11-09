@@ -33,6 +33,7 @@
     "mobile/settings-skill-save",
     "mobile/providers",
     "mobile/harnesses",
-    "mobile/execution-grants"
+    "mobile/execution-grants",
+    "mobile/endpoint-discover-empty"
   ]
 }
