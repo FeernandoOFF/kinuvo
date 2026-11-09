@@ -94,6 +94,10 @@ class LiveVoiceSessionTest {
         assertEquals(listOf(VoiceMessage(true, "hello"), VoiceMessage(false, "hi")), context.history)
         assertTrue(context.instructions.contains("Ada"))
         assertTrue(context.instructions.contains("Delegate"))
+        assertTrue(context.instructions.contains("acknowledge the request aloud before delegating"))
+        assertTrue(context.instructions.contains("short spoken updates"))
+        assertTrue(context.instructions.contains("never by voice"))
+        assertTrue(context.instructions.contains("when results come back"))
         assertTrue(context.instructions.contains("latest"))
         assertFalse(context.instructions.contains("old"))
     }

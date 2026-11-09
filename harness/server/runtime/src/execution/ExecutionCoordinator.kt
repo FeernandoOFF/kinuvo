@@ -1,6 +1,7 @@
 package kinuvo.harness.server.execution
 
 
+import kinuvo.harness.core.liveVoiceInstructions
 import kinuvo.harness.execution.api.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.harness.core.store.SessionCommitConflict
@@ -224,7 +225,7 @@ class ExecutionCoordinator(
         mutate(id) { it.copy(inputCheckpoint = null) }
         val job = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
-                val accepted = session.prompt(ExecutionInput(p.text, attachments, p.action))
+                val accepted = session.prompt(ExecutionInput(if (p.voice) "$liveVoiceInstructions\n\n${p.text}" else p.text, attachments, p.action))
                 if (lock.withLock { states[id] === state }) mutate(id) { current -> current.copy(submissions = current.submissions + (submission to accepted.messageId), acceptedSubmissions = current.acceptedSubmissions + submission) }
             } catch (e: Exception) {
                 withContext(NonCancellable) { if (lock.withLock { states[id] === state }) lock.withLock { brokers[id] }?.lost() }

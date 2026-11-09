@@ -29,6 +29,21 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class AgentRunTest {
+    @Test fun voiceGuidanceAppliesOnlyToTheCurrentRun() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent.id, "stable")
+        val seen = mutableListOf<String>()
+        val model = scriptedModel { prompt, _ ->
+            seen += prompt.messages.filterIsInstance<Message.System>().first().textContent()
+            flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
+        }
+        val runner = AgentRun(home.agent, home.store, model, emptyList())
+        runner.run(session.id, "voice", voice = true).toList()
+        runner.run(session.id, "text").toList()
+        assertTrue(seen[0].contains(liveVoiceInstructions))
+        assertEquals("stable", seen[1])
+    }
+
     @Test
     fun koogIterationLimitStopsChatAndReflectionAndClosesPendingCalls() = runTest {
         for (kind in listOf(RequestKind.Chat, RequestKind.Reflection)) {

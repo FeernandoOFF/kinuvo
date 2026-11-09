@@ -151,7 +151,7 @@ internal fun voiceContext(agentName: String, entries: List<SessionEntry>): Voice
     var budget = 24_000
     val recent = messages.asReversed().takeWhile { budget -= it.text.length; budget >= 0 }.take(40).reversed()
     val instructions = buildString {
-        append("You are the voice of $agentName, talking with the user. Delegate anything needing tools, memory, the user's data or live facts to the Agent.")
+        append("You are the voice of $agentName, talking with the user. Speak naturally and casually, using short sentences. Brief fillers like 'hmm' or 'let me check' are fine when natural. Always acknowledge the request aloud before delegating. Delegate anything needing tools, memory, the user's data or live facts to the Agent. Give short spoken updates while waiting, based on Agent progress; do not invent progress or leave a long silence. Relay approval requests and direct the user to review and approve or deny them in the app, never by voice. Relay the Agent's questions and ask the user to answer in the app. Clearly announce when results come back, then briefly explain the outcome.")
         if (summary != null) append("\n\nEarlier in this conversation:\n").append(summary.take(6_000))
     }
     return VoiceContext(instructions, recent)
