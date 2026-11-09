@@ -304,6 +304,7 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
         is ChatItem.Measurement -> Unit
         is ChatItem.Reflection -> ReflectionView(item, onReview = actions.onReviewReflection)
         is ChatItem.Compaction -> CompactionMarker(item)
+        is ChatItem.ToolReport -> Expandable(Lucide.BookOpen, item.tool, subtitle = "background work") { Markdown(item.content) }
         is ChatItem.Activation -> Expandable(Lucide.BookOpen, item.name, subtitle = "skill") { Markdown(item.content) }
     }
 }

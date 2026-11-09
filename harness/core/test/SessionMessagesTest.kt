@@ -11,6 +11,18 @@ import kotlinx.coroutines.flow.emptyFlow
 import kotlin.test.*
 
 class SessionMessagesTest {
+    @Test fun backgroundReportsRemainOrdinaryHistory() {
+        val report = SessionEntry.ToolReport("shell", "call", "done")
+        val history = listOf(report, report, SessionEntry.UserMessage("continue"))
+        assertEquals(history, history.activeHistory())
+        assertEquals(listOf(history.last()), history.latestTurn())
+        assertTrue(history.activations().isEmpty())
+        assertEquals(listOf(SessionEntry.AssistantMessage("summary")), (history + SessionEntry.Compaction(history = listOf(SessionEntry.AssistantMessage("summary")))).activeHistory())
+        val prompt = messages.prompt("", listOf(report))
+        assertEquals("Background work from shell (call call) finished:\ndone", prompt.messages.single().parts.filterIsInstance<MessagePart.Text>().single().text)
+        assertEquals(listOf(report), messages.entries(prompt.messages))
+    }
+
     @Test fun surfaceActionContextReplaysIntoModelInput() {
         val context = JsonObject(mapOf("name" to JsonPrimitive("Alex")))
         val action = SurfaceAction("call", "plan", "save", "submit", context, context)

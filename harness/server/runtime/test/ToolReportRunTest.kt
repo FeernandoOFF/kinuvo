@@ -12,7 +12,7 @@ import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class ToolReportRunTest {
-    @Test fun reportQueuesAnActivationBehindTheActiveRun() = runTest {
+    @Test fun reportQueuesBehindTheActiveRun() = runTest {
         val fixture = RuntimeFixture()
         val session = fixture.transcripts.createSession(fixture.agent.id, "")
         val release = CompletableDeferred<Unit>()
@@ -26,8 +26,8 @@ class ToolReportRunTest {
         fun runner() = AgentRun(fixture.agent, fixture.store, model, emptyList())
         val first = runs.start(fixture.agent, session.id, "start", runner = ::runner)
         runCurrent()
-        val report = SessionEntry.Activation("shell", "exit 0: done")
-        val second = async { runs.start(fixture.agent, session.id, "", activation = report, queued = true, runner = ::runner) }
+        val report = SessionEntry.ToolReport("shell", "call", "exit 0: done")
+        val second = async { runs.start(fixture.agent, session.id, "", report = report, queued = true, runner = ::runner) }
         runCurrent()
         assertFalse(second.isCompleted)
         assertEquals(1, calls)
@@ -35,7 +35,7 @@ class ToolReportRunTest {
         first.job.join()
         second.await().job.join()
         val entries = fixture.store.entries(fixture.agent.id, session.id)
-        assertEquals(report.content, entries.filterIsInstance<SessionEntry.Activation>().single().content)
+        assertEquals(report.content, entries.filterIsInstance<SessionEntry.ToolReport>().single().content)
         assertEquals(1, entries.filterIsInstance<SessionEntry.UserMessage>().size)
         assertEquals(2, calls)
     }

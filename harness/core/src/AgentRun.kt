@@ -55,6 +55,7 @@ class AgentRun(
         attachments: List<Attachment> = emptyList(),
         voice: Boolean = false,
         action: SurfaceAction? = null,
+        report: SessionEntry.ToolReport? = null,
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.RunStarted(runId))
         warnings.forEach { send(AgentEvent.Warning(it)) }
@@ -69,6 +70,7 @@ class AgentRun(
             if (context.isNotBlank() && store.entries(agent.id, sessionId).activeHistory().filterIsInstance<SessionEntry.Context>().lastOrNull()?.content != context)
                 session.append(SessionEntry.Context(context))
             activation?.let { session.append(it) }
+            report?.let { session.append(it) }
             if (routine == null && userText.isNotBlank()) session.append(SessionEntry.UserMessage(userText, null, attachments, voice, action = action))
             val koog = AIAgent(
                 id = agent.id,

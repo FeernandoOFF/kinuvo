@@ -70,6 +70,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
         voice: Boolean = false,
         queued: Boolean = false,
         action: SurfaceAction? = null,
+        report: SessionEntry.ToolReport? = null,
         onEvent: suspend (AgentEvent) -> Unit = {},
         onDone: suspend (stopped: Boolean) -> Unit = {},
         runner: suspend () -> AgentRun,
@@ -97,7 +98,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
             val job = scope.launch(start = CoroutineStart.LAZY) {
                 var stopped = false
                 try {
-                    r.run(sessionId, message, activation, runId, attachments, voice, action).collect {
+                    r.run(sessionId, message, activation, runId, attachments, voice, action, report).collect {
                         onEvent(it); log.publish(agent.id, sessionId, it); activity.update { a -> a.copy(steps = a.steps + 1) }
                     }
                 } catch (e: CancellationException) {

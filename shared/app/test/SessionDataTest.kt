@@ -12,6 +12,11 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class SessionDataTest {
+    @Test fun backgroundReportsAreChatItems() {
+        val data = SessionData("main", entries = listOf(SessionEntry.ToolReport("shell", "call", "done")))
+        assertEquals(ChatItem.ToolReport("entry-0", "shell", "call", "done"), data.items.single())
+    }
+
     @Test fun surfacesStayOutsideStepsOnlyAfterSuccess() {
         for (name in listOf("show_ui", "show_html")) {
             val pending = ChatItem.ToolCall("ui", "call", name, "{}")

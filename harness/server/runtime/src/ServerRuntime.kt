@@ -701,7 +701,7 @@ class ServerRuntime(
 
     private fun toolReports(agent: Agent, sessionId: String, catalogs: List<UiCatalog>): ToolReports = ToolReports(scope) { report ->
         try {
-            runs.start(agent, sessionId, "", activation = report, queued = true, onEvent = { event ->
+            runs.start(agent, sessionId, "", report = report, queued = true, onEvent = { event ->
                 if (event is AgentEvent.TextMessageEnd) {
                     clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveVoice?.notify(event.text) }
                 }

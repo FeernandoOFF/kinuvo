@@ -56,8 +56,9 @@ class ShellTool(private val backend: ExecBackend) : CoreTool {
         if (args["watch"]?.jsonPrimitive?.booleanOrNull == true && args["background"]?.jsonPrimitive?.booleanOrNull != true) {
             val p = backend.startBackground(args.requireString("command"), args.string("cwd"))
             var finished = false
+            val timeout = (args.int("timeout") ?: 120).coerceIn(1, 600).seconds
             try {
-                return withTimeoutOrNull((args.int("timeout") ?: 120).coerceIn(1, 600).seconds) {
+                return withTimeoutOrNull(timeout) {
                     var previous = ""
                     while (true) {
                         val status = backend.status(p, 8000)
@@ -67,7 +68,7 @@ class ShellTool(private val backend: ExecBackend) : CoreTool {
                     }
                     val status = backend.status(p, 8000)
                     "[exit ${status.exit ?: "unknown"}]\n${status.output}"
-                } ?: "Timed out"
+                } ?: "[timed out after $timeout]\n${backend.status(p, 8000).output}"
             } finally { if (!finished) withContext(NonCancellable) { backend.kill(p) } }
         }
         if (args["background"]?.jsonPrimitive?.booleanOrNull != true) return execute(args)
@@ -78,7 +79,7 @@ class ShellTool(private val backend: ExecBackend) : CoreTool {
                 delay(1000)
                 status = backend.status(p, 8000)
             }
-            "[${p.id} ${status.exit?.let { "exit $it" } ?: "stopped"}] ${p.command}\n${status.output}"
+            "[${p.id} ${status.exit?.let { if (it == "killed") "killed" else "exit $it" } ?: "stopped"}] ${p.command}\n${status.output}"
         }
     }
 

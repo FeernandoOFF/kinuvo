@@ -15,8 +15,31 @@ import kotlin.test.assertTrue
 import kinuvo.protocol.AgentEvent
 
 class BackgroundProcessTest {
+    @Test fun watchTimeoutKeepsOutput() = runBlocking {
+        val executor = ToolExecutor(listOf(ShellTool(backend)))
+        try {
+            val result = executor.call(SessionEntry.ToolCall("watch", "shell", """{"command":"echo partial; sleep 30","watch":true,"timeout":1}"""))
+            assertTrue("[timed out after 1s]" in result.output && "partial" in result.output, result.output)
+        } finally { backend.close() }
+    }
+
+    @Test fun killedBackgroundReportsOnce() = runBlocking {
+        val reports = Channel<SessionEntry.ToolReport>(Channel.UNLIMITED)
+        val executor = ToolExecutor(execTools(backend), reports = ToolReports(this) { reports.send(it) })
+        try {
+            executor.call(SessionEntry.ToolCall("start", "shell", """{"command":"echo partial; sleep 30","background":true}"""))
+            delay(200)
+            executor.call(SessionEntry.ToolCall("kill", "process_kill", """{"id":"bg1"}"""))
+            val report = withTimeout(10000) { reports.receive() }
+            assertTrue("killed" in report.content, report.content)
+            assertTrue(report.callId == "start")
+            delay(1200)
+            assertTrue(reports.tryReceive().isFailure)
+        } finally { backend.close() }
+    }
+
     @Test fun shellReportsCompletionThroughTheGenericRun() = runBlocking {
-        val reports = Channel<SessionEntry.Activation>(1)
+        val reports = Channel<SessionEntry.ToolReport>(1)
         val reporter = ToolReports(this) { reports.send(it) }
         val executor = ToolExecutor(listOf(ShellTool(backend)), reports = reporter)
         try {

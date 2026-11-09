@@ -106,7 +106,7 @@ class ToolExecutor(
                                                   attached: MutableList<Attachment>) = object : ToolRun {
         override suspend fun progress(content: String) { progress(AgentEvent.ToolCallResult(call.id, content, false, call.identity)) }
         override fun background(started: String, work: suspend () -> String): String {
-            requireNotNull(reports) { "Background reports are unavailable in this run" }.start(call.name, work)
+            requireNotNull(reports) { "Background reports are unavailable in this run" }.start(call.name, call.id, work)
             return started
         }
         private var count = 0

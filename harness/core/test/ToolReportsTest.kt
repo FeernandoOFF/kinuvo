@@ -13,7 +13,7 @@ import kotlin.test.*
 class ToolReportsTest {
     @Test fun regularWatchAndBackgroundShareTheCall() = runTest {
         val done = CompletableDeferred<String>()
-        val reports = mutableListOf<SessionEntry.Activation>()
+        val reports = mutableListOf<SessionEntry.ToolReport>()
         val events = mutableListOf<AgentEvent>()
         val tool = object : Tool {
             override val descriptor = ToolDescriptor("worker", "Work")
@@ -32,12 +32,12 @@ class ToolReportsTest {
         assertEquals(listOf("first", "second", "started"), events.filterIsInstance<AgentEvent.ToolCallResult>().map { it.content })
         done.complete("finished")
         runCurrent()
-        assertEquals(listOf(SessionEntry.Activation("worker", "finished")), reports)
+        assertEquals(listOf(SessionEntry.ToolReport("worker", "1", "finished")), reports)
     }
 
     @Test fun failureReportsOnce() = runTest {
-        val reports = mutableListOf<SessionEntry.Activation>()
-        ToolReports(this) { reports += it }.start("worker") { error("broken") }
+        val reports = mutableListOf<SessionEntry.ToolReport>()
+        ToolReports(this) { reports += it }.start("worker", "call") { error("broken") }
         runCurrent()
         assertEquals("Failed: broken", reports.single().content)
     }
