@@ -1,5 +1,6 @@
 package kinuvo.harness.codex
 
+import kinuvo.harness.core.voice.AgentProgress
 import dev.onvoid.webrtc.PeerConnectionFactory
 import dev.onvoid.webrtc.media.audio.AudioTrackSource
 import dev.onvoid.webrtc.media.audio.CustomAudioSource
@@ -33,6 +34,7 @@ import kinuvo.harness.core.voice.VoiceContext
 import kinuvo.harness.core.voice.VoiceInput
 import kinuvo.harness.core.voice.VoiceOutput
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.channels.Channel
@@ -74,12 +76,12 @@ class CodexRealtime(
     override val input = AudioFormat.Pcm16(24_000)
     override val output = AudioFormat.Pcm16(48_000)
 
-    override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (task: String) -> String) {
+    override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) {
         try { converseAvailable(context, input, output, askAgent) }
         catch (e: LinkageError) { throw RealtimeCallException(UNSUPPORTED_PLATFORM, e) }
     }
 
-    private suspend fun converseAvailable(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String) -> String) {
+    private suspend fun converseAvailable(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) {
         val audio = PcmAudio()
         val rtc = WebRtcClient(JvmWebRtc) {
             mediaTrackFactory = JvmMediaDevices(audioFactory = audio)
@@ -150,7 +152,7 @@ class CodexRealtime(
     }
 
     private suspend fun handle(
-        json: JsonObject, channel: WebRtcDataChannel, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String) -> String,
+        json: JsonObject, channel: WebRtcDataChannel, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String,
         scope: CoroutineScope, reply: ReplyAudio, transcripts: Transcripts,
     ): Boolean {
         json.string("type").takeUnless { it.endsWith(".delta") || it.endsWith(".added") }?.let { log.info { "Call event $it" } }
@@ -181,12 +183,17 @@ class CodexRealtime(
                 val task = item.getValue("content").jsonArray.joinToString("") { it.jsonObject["text"]?.jsonPrimitive?.content.orEmpty() }
                 output(VoiceOutput.Thinking)
                 scope.launch {
-                    val answer = runCatching { askAgent(task) }.getOrElse { "The task failed: ${it.message}" }
-                    for (text in contextAppendChunks(answer)) channel.send(buildJsonObject {
-                        put("type", "delegation.context.append")
-                        put("delegation_item_id", item.string("id"))
-                        put("content", buildJsonArray { add(buildJsonObject { put("type", "input_text"); put("text", text) }) })
-                    }.toString())
+                    suspend fun append(value: String) {
+                        for (text in contextAppendChunks(value)) channel.send(buildJsonObject {
+                            put("type", "delegation.context.append")
+                            put("delegation_item_id", item.string("id"))
+                            put("content", buildJsonArray { add(buildJsonObject { put("type", "input_text"); put("text", text) }) })
+                        }.toString())
+                    }
+                    val answer = try { askAgent(task) { append(it.voiceText()) } }
+                    catch (e: CancellationException) { throw e }
+                    catch (e: Exception) { "The task failed: ${e.message}" }
+                    append(answer)
                 }
             }
             "error" -> {
@@ -368,4 +375,15 @@ internal fun realtimeAvailable(
     return try { probe(); true }
     catch (e: LinkageError) { log.warn(e) { UNSUPPORTED_PLATFORM }; false }
     catch (e: Exception) { log.warn(e) { UNSUPPORTED_PLATFORM }; false }
+}
+
+internal fun AgentProgress.voiceText(): String = when (this) {
+    is AgentProgress.ApprovalRequested -> "Waiting for the user's approval on screen to run ${tool.take(80)}: ${summary.take(240)}. Tell the user to review it in the app. Approvals must only be answered on screen, never by voice."
+    is AgentProgress.ApprovalResolved -> when (allowed) {
+        true -> "The user allowed the action. The Agent is continuing."
+        false -> "The user denied the action."
+        null -> "The approval request is no longer pending. Its decision is unavailable; do not assume it was allowed."
+    }
+    is AgentProgress.Question -> "The Agent asks: ${text.take(600)}. Tell the user to answer in the app."
+    is AgentProgress.Text -> "Agent progress (not the final result): ${text.take(2000)}"
 }

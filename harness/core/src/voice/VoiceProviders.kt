@@ -35,7 +35,7 @@ interface SpeechToSpeech {
     /** What the model hears and speaks, e.g. 16 kHz in and 24 kHz out; Devices convert to it. */
     val input: AudioFormat.Pcm16
     val output: AudioFormat.Pcm16
-    suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (task: String) -> String)
+    suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String)
 }
 
 /** What a conversation starts from: who the model speaks for, and the Session so far, oldest first. */
@@ -76,4 +76,11 @@ class VoiceProviders(
     val speechToSpeech: SpeechToSpeech? = null,
 ) {
     val setup get() = VoiceSetup(transcriber != null, processor != null, synthesizer != null, speechToSpeech != null)
+}
+
+sealed interface AgentProgress {
+    data class ApprovalRequested(val tool: String, val summary: String) : AgentProgress
+    data class ApprovalResolved(val allowed: Boolean?) : AgentProgress
+    data class Question(val text: String) : AgentProgress
+    data class Text(val text: String) : AgentProgress
 }
