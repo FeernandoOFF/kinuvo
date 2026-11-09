@@ -79,6 +79,9 @@ import kinuvo.protocol.SessionCapabilities
 import kinuvo.protocol.ServerCapabilities
 import kinuvo.protocol.Platform
 import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.ProviderModelRef
+import kinuvo.protocol.imageModels
+import kinuvo.protocol.resolveImageModel
 import kinuvo.protocol.ModelInfo
 import kotlinx.coroutines.flow.StateFlow
 import kinuvo.protocol.PluginInstanceId
@@ -403,10 +406,13 @@ open class HarnessRuntime(
     private suspend fun toolsFor(e: Effective, sessionId: String?, routine: RoutineRun?, catalogs: List<UiCatalog>): List<Tool> {
         val agent = e.agent
         val search = if (ToolNames.WEB_FETCH in agent.config.tools) webSearch() else null
-        val selected = imageModel
+        val available = modelCatalog().imageModels().filter { ref ->
+            val candidate = providers[ref.provider]
+            candidate?.images != null && candidate.availability(ref.model).actionable
+        }
+        val selected = resolveImageModel(ProviderModelRef(agent.config.provider, agent.config.model), imageModel, available)
         val provider = selected?.let { providers[it.provider] }
-        val imageTool = if (selected != null && sessionId != null && provider?.images != null &&
-            provider.availability(selected.model).actionable) GenerateImageTool(provider.images!!, selected.model, {
+        val imageTool = if (sessionId != null) GenerateImageTool(provider?.images, selected?.model.orEmpty(), {
                 store.entries(agent.id, sessionId).flatMap { entry -> when (entry) {
                     is SessionEntry.UserMessage -> entry.attachments
                     is SessionEntry.ToolResult -> entry.attachments
