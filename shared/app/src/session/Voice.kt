@@ -103,6 +103,10 @@ interface VoiceChat {
     fun hold()
     /** Ends a [hold] and sends what was heard; hands-free listening carries on after the reply unless paused. */
     fun letGo()
+    /** Cuts the reply short without pausing. */
+    fun interrupt() {}
+    /** The Agent needs the user, e.g. for an Approval. */
+    fun attention() {}
     fun speaker(on: Boolean)
     /** The app went out of view, e.g. for the photo picker: frees the microphone but stays in voice chat for [foreground]. */
     fun background()
@@ -124,7 +128,7 @@ class VoiceViewModel(device: SpeechEngine, session: SessionViewModel, server: Co
                 }) { agent, id ->
                     LiveVoiceChat(requireNotNull(server), audio) { agent to id }
                 }
-            else LiveVoiceChat(requireNotNull(server), audio, session::liveSession)
+            else LiveVoiceChat(requireNotNull(server), audio, openSession = session::liveSession)
         },
         viewModelScope,
     ) { server?.call { it.call(Api.VoiceSetup, Unit) }?.speechToSpeech == true }

@@ -51,6 +51,9 @@ class LiveCalls(private val scope: CoroutineScope = CoroutineScope(SupervisorJob
 
     fun mute(muted: Boolean) { if (muted) chat?.pause() else chat?.resume() }
     fun speaker(on: Boolean) { chat?.speaker(on) }
+    fun interrupt() { chat?.interrupt() }
+    fun hold(holding: Boolean) { if (holding) chat?.hold() else chat?.letGo() }
+    fun attention() { chat?.attention() }
     fun end() {
         starting?.cancel(); starting = null
         observation?.cancel(); observation = null
