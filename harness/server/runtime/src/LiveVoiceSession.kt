@@ -39,6 +39,13 @@ internal class LiveVoiceSession(
     private var reported = TimeSource.Monotonic.markNow()
     val active get() = job?.isActive == true
 
+    suspend fun notify(text: String) {
+        if (!active) return
+        try { provider.notify(text, input) }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { log.warn(e) { "Live voice $id could not receive a report" } }
+    }
+
     fun start(): LiveVoiceCall {
         log.info { "Live voice $id starting" }
         job = scope.launch {

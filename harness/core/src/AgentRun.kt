@@ -11,6 +11,7 @@ import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.itemLimits
 import kinuvo.harness.core.tools.withItemLimits
+import kinuvo.harness.core.tools.ToolReports
 import kinuvo.harness.core.tools.ToolExecutor
 import kinuvo.protocol.*
 import kotlinx.coroutines.CancellationException
@@ -41,6 +42,7 @@ class AgentRun(
     private val tracing: AgentTracing? = null,
     private val traceSessionId: String? = null,
     private val routine: RoutineRun? = null,
+    private val reports: ToolReports? = null,
     private val profile: ModelProfile = ModelProfile.of(ModelTier.Frontier),
 ) {
     private val advertisedTools = advertisedTools.map { d -> d.withItemLimits(tools.firstOrNull { it.descriptor.name == d.name }?.itemLimits(profile.resultLimits.maxItems).orEmpty()) }.sortedBy { it.name }
@@ -59,7 +61,7 @@ class AgentRun(
         val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, profile.history.latestTurnOnly, profile, { send(it) }, voice = voice)
         var stopped = "Cancelled by user"
         var cancelled = false
-        val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, maxItems = profile.resultLimits.maxItems, emit = { event ->
+        val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, maxItems = profile.resultLimits.maxItems, reports = reports, progress = { send(it) }, emit = { event ->
             if (event is AgentEvent.ToolCallStart) session.toolStarted(event.toolCallId)
             if (event !is AgentEvent.ToolCallResult || session.calls.none { it.id == event.toolCallId }) send(event)
         })
@@ -67,7 +69,7 @@ class AgentRun(
             if (context.isNotBlank() && store.entries(agent.id, sessionId).activeHistory().filterIsInstance<SessionEntry.Context>().lastOrNull()?.content != context)
                 session.append(SessionEntry.Context(context))
             activation?.let { session.append(it) }
-            if (routine == null) session.append(SessionEntry.UserMessage(userText, null, attachments, voice, action = action))
+            if (routine == null && userText.isNotBlank()) session.append(SessionEntry.UserMessage(userText, null, attachments, voice, action = action))
             val koog = AIAgent(
                 id = agent.id,
                 promptExecutor = model.executor,

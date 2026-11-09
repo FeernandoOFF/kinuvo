@@ -15,6 +15,7 @@ internal class NativeVoiceProgress {
         when (event) {
             is AgentEvent.TextMessageEnd -> { flush(); text = event.text.takeIf { it.isNotBlank() } }
             is AgentEvent.ToolCallStart -> flush()
+            is AgentEvent.ToolCallResult -> { flush(); if (event.content.isNotBlank()) add(AgentProgress.Text(event.content)) }
             is AgentEvent.ApprovalRequested -> { flush(); add(AgentProgress.ApprovalRequested(event.toolCallName, event.trustHint ?: event.reason ?: "Review the action's details in the app")) }
             is AgentEvent.ApprovalResolved -> add(AgentProgress.ApprovalResolved(event.allowed))
             is AgentEvent.QuestionsAsked -> { flush(); add(AgentProgress.Question(event.questions.joinToString("; ") { it.label }.take(600))) }
