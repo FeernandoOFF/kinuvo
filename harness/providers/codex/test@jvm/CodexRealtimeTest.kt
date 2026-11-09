@@ -12,6 +12,10 @@ import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 class CodexRealtimeTest {
+    @Test fun notificationUsesADeveloperConversationItem() {
+        assertEquals("""{"type":"conversation.item.create","item":{"type":"message","role":"developer","content":[{"type":"input_text","text":"finished"}]}}""", notificationItem("finished").toString())
+    }
+
     @Test fun progressKeepsApprovalsOnScreenAndBoundsDetails() {
         val text = AgentProgress.ApprovalRequested("shell", "x".repeat(5000)).voiceText()
         assertTrue(text.contains("never by voice"))

@@ -329,6 +329,7 @@ private fun SessionData.chatItems(): List<ChatItem> {
             is SessionEntry.Measurement -> items += ChatItem.Measurement(key("metrics-${entry.metrics.id}", seq), entry.metrics)
             is SessionEntry.Reflection -> items += ChatItem.Reflection(key("reflection-${entry.id}", seq), entry.result, reviews, revised)
             is SessionEntry.Compaction -> items += ChatItem.Compaction(key(null, seq), entry.summary)
+            is SessionEntry.ToolReport -> items += ChatItem.ToolReport(key(null, seq), entry.tool, entry.callId, entry.content)
             is SessionEntry.Activation -> items += ChatItem.Activation(key(null, seq), entry.name, entry.content)
             is SessionEntry.ReflectionReview -> entry.result?.takeIf { it.proposals.isNotEmpty() }?.let {
                 items += ChatItem.Reflection(key("reflection-review-${entry.proposalId}", seq), it, reviews, revised)

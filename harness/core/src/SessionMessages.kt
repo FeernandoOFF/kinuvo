@@ -59,6 +59,7 @@ class SessionMessages(private val model: AgentModel, private val imageReferences
                     MessagePart.Reasoning(content = emptyList(), summary = listOf(entry.text), encrypted = entry.encrypted, id = entry.id)
                 )
                 is SessionEntry.Activation -> system(activation(entry))
+                is SessionEntry.ToolReport -> system("Background work from ${entry.tool}${entry.callId?.let { " (call $it)" }.orEmpty()} finished:\n${entry.content}")
                 else -> Unit
             }
         }.messages.map { message ->

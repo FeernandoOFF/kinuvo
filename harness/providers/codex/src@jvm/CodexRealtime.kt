@@ -132,6 +132,11 @@ class CodexRealtime(
                                         if (filled == chunk.size) { audio.source.pushAudio(chunk, 16, rate, 1, chunk.size / 2); filled = 0 }
                                     }
                                 }
+                                is VoiceInput.Notify -> {
+                                    log.info { "Sending best-effort out-of-delegation realtime text" }
+                                    events.send(notificationItem(next.text).toString())
+                                    events.send(buildJsonObject { put("type", "response.create") }.toString())
+                                }
                                 VoiceInput.Pause -> paused = true
                                 VoiceInput.Resume -> paused = false
                                 is VoiceInput.Interrupt -> reply.interrupt(next.item).forEach { output(it) }
@@ -386,4 +391,13 @@ internal fun AgentProgress.voiceText(): String = when (this) {
     }
     is AgentProgress.Question -> "The Agent asks: ${text.take(600)}. Tell the user to answer in the app."
     is AgentProgress.Text -> "Agent progress (not the final result): ${text.take(2000)}"
+}
+
+internal fun notificationItem(text: String) = buildJsonObject {
+    put("type", "conversation.item.create")
+    put("item", buildJsonObject {
+        put("type", "message")
+        put("role", "developer")
+        put("content", buildJsonArray { add(buildJsonObject { put("type", "input_text"); put("text", text) }) })
+    })
 }

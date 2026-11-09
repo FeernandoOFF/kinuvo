@@ -8,6 +8,7 @@ import co.touchlab.stately.collections.ConcurrentMutableSet
 import co.touchlab.stately.concurrency.Lock
 import co.touchlab.stately.concurrency.withLock
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kinuvo.harness.core.tools.ToolReports
 import kinuvo.harness.core.Agent
 import kinuvo.harness.server.execution.*
 import kinuvo.harness.execution.api.*
@@ -205,6 +206,7 @@ class ServerRuntime(
 
     private inner class Client(private val connection: FrameConnection) : SessionLog.Subscriber {
         var liveVoice: LiveVoiceSession? = null
+        var voiceSessionId: String? = null
         var callScope: CoroutineScope = scope
         val browser = connection.credential != null
         val outbox = Channel<Frame>(OUTBOX_SIZE)
@@ -441,6 +443,7 @@ class ServerRuntime(
             val registration = executions.registration(p.agentId)
             val name = registration?.let { externalInfo(it).name } ?: agent(p.agentId).name
             sourceSnapshot(p.agentId, p.sessionId)
+            client.voiceSessionId = p.sessionId
             LiveVoiceSession(provider, client.callScope, voiceContext(name, harness.store.entries(p.agentId, p.sessionId)),
                 client::offerLiveVoice,
                 askAgent = { task, progress ->
@@ -692,8 +695,19 @@ class ServerRuntime(
         effective.chat.requireReady()
         attachments.forEach { attachment -> effective.attachment(attachment.mimeType).requireReady() }
         val (activation, message) = (if (ServerFeature.Skills in capabilities.features) harness.slashActivation(agent, p.text) else null) ?: (null to p.text)
-        val run = runs.start(agent, sessionId, message, activation, attachments = attachments, voice = p.voice, action = p.action, onEvent = onEvent, onDone = { reflector.ran(agent, sessionId) }) { harness.runner(agent, sessionId, catalogs = catalogs) }
+        val run = runs.start(agent, sessionId, message, activation, attachments = attachments, voice = p.voice, action = p.action, onEvent = onEvent, onDone = { reflector.ran(agent, sessionId) }) { harness.runner(agent, sessionId, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs)) }
         return SendResult(sessionId, run.id, message, activation)
+    }
+
+    private fun toolReports(agent: Agent, sessionId: String, catalogs: List<UiCatalog>): ToolReports = ToolReports(scope) { report ->
+        try {
+            runs.start(agent, sessionId, "", report = report, queued = true, onEvent = { event ->
+                if (event is AgentEvent.TextMessageEnd) {
+                    clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveVoice?.notify(event.text) }
+                }
+            }) { harness.runner(agent, sessionId, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs)) }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { log.warn(e) { "Background report could not start in Session $sessionId" } }
     }
 
     private suspend fun stop(sessionId: String) = dispatchFor(sessionId).stop(sessionId)

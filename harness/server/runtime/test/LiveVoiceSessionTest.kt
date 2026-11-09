@@ -136,6 +136,9 @@ class LiveVoiceSessionTest {
         runCurrent()
         assertContentEquals(byteArrayOf(1, 0, 2, 0), (received.receive() as VoiceInput.Audio).pcm)
         assertFailsWith<IllegalArgumentException> { call.accept(LiveVoiceInput.Audio(ref.callId, "A".repeat(65540))) }
+        call.notify("background finished")
+        runCurrent()
+        assertEquals("background finished", (received.receive() as VoiceInput.Notify).text)
         call.close()
         runCurrent()
         assertTrue(stopped)

@@ -68,17 +68,25 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
         routine: RoutineRef? = null,
         attachments: List<Attachment> = emptyList(),
         voice: Boolean = false,
+        queued: Boolean = false,
         action: SurfaceAction? = null,
+        report: SessionEntry.ToolReport? = null,
         onEvent: suspend (AgentEvent) -> Unit = {},
         onDone: suspend (stopped: Boolean) -> Unit = {},
         runner: suspend () -> AgentRun,
     ): Run {
         // Reserve the Session before anything suspends, so two sends can't both start a run in it.
         val reservation = Job()
-        active.block { runs ->
-            check(agent.id !in closed) { "Agent '${agent.id}' is being deleted" }
-            check(sessionId !in runs) { "A run is already active in this session" }
-            runs[sessionId] = reservation
+        while (true) {
+            val previous = active.block { runs ->
+                check(agent.id !in closed) { "Agent '${agent.id}' is being deleted" }
+                val previous = runs[sessionId]
+                check(queued || previous == null) { "A run is already active in this session" }
+                if (previous == null) runs[sessionId] = reservation
+                previous
+            }
+            if (previous == null) break
+            previous.join()
         }
         // Counted from the reservation, while the runner is still being prepared; completing it releases the count once.
         val counted = Job().also { activity.update { a -> a.copy(runs = a.runs + 1) } }
@@ -90,7 +98,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
             val job = scope.launch(start = CoroutineStart.LAZY) {
                 var stopped = false
                 try {
-                    r.run(sessionId, message, activation, runId, attachments, voice, action).collect {
+                    r.run(sessionId, message, activation, runId, attachments, voice, action, report).collect {
                         onEvent(it); log.publish(agent.id, sessionId, it); activity.update { a -> a.copy(steps = a.steps + 1) }
                     }
                 } catch (e: CancellationException) {

@@ -8,6 +8,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class VoiceAgentProgressTest {
+    @Test fun nativeIgnoresToolOutput() {
+        val updates = NativeVoiceProgress()
+        assertTrue(updates.update(AgentEvent.ToolCallResult("call", "raw output", false)).isEmpty())
+    }
+
     @Test fun snapshotsDeduplicateRequestsAndTextWithoutInventingApprovalDecisions() {
         val updates = VoiceAgentProgress(ExecutionSnapshot("s"))
         val waiting = ExecutionSnapshot("s", ExecutionPhase.RequiresAction,

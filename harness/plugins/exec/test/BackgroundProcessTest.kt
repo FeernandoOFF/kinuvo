@@ -1,5 +1,10 @@
 package kinuvo.harness.exec
 
+import kotlinx.coroutines.withTimeout
+import kinuvo.protocol.SessionEntry
+import kinuvo.harness.core.tools.ToolExecutor
+import kinuvo.harness.core.tools.ToolReports
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.buildJsonObject
@@ -7,13 +12,59 @@ import kotlinx.serialization.json.put
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertTrue
+import kinuvo.protocol.AgentEvent
 
 class BackgroundProcessTest {
+    @Test fun watchTimeoutKeepsOutput() = runBlocking {
+        val executor = ToolExecutor(listOf(ShellTool(backend)))
+        try {
+            val result = executor.call(SessionEntry.ToolCall("watch", "shell", """{"command":"echo partial; sleep 30","watch":true,"timeout":1}"""))
+            assertTrue("[timed out after 1s]" in result.output && "partial" in result.output, result.output)
+        } finally { backend.close() }
+    }
+
+    @Test fun killedBackgroundReportsOnce() = runBlocking {
+        val reports = Channel<SessionEntry.ToolReport>(Channel.UNLIMITED)
+        val executor = ToolExecutor(execTools(backend), reports = ToolReports(this) { reports.send(it) })
+        try {
+            executor.call(SessionEntry.ToolCall("start", "shell", """{"command":"echo partial; sleep 30","background":true}"""))
+            delay(200)
+            executor.call(SessionEntry.ToolCall("kill", "process_kill", """{"id":"bg1"}"""))
+            val report = withTimeout(10000) { reports.receive() }
+            assertTrue("killed" in report.content, report.content)
+            assertTrue(report.callId == "start")
+            delay(1200)
+            assertTrue(reports.tryReceive().isFailure)
+        } finally { backend.close() }
+    }
+
+    @Test fun shellReportsCompletionThroughTheGenericRun() = runBlocking {
+        val reports = Channel<SessionEntry.ToolReport>(1)
+        val reporter = ToolReports(this) { reports.send(it) }
+        val executor = ToolExecutor(listOf(ShellTool(backend)), reports = reporter)
+        try {
+            val result = executor.call(SessionEntry.ToolCall("call", "shell", """{"command":"echo completed; exit 7","background":true}"""))
+            assertTrue(result.output.startsWith("Started"))
+            val report = withTimeout(10000) { reports.receive() }
+            assertTrue("exit 7" in report.content && "completed" in report.content, report.content)
+        } finally { backend.close() }
+    }
+
     private val backend = HostBackend(listOf(Files.createTempDirectory("bg").toFile()))
     private val tools = execTools(backend).associateBy { it.descriptor.name }
     private suspend fun call(tool: String, vararg pairs: Pair<String, Any>) = tools.getValue(tool).execute(buildJsonObject {
         pairs.forEach { (k, v) -> when (v) { is Boolean -> put(k, v); else -> put(k, v.toString()) } }
     })
+
+    @Test fun watchShowsOutputAndReturnsTheFinalResult() = runBlocking {
+        val events = mutableListOf<AgentEvent>()
+        val executor = ToolExecutor(listOf(ShellTool(backend)), emit = { events += it })
+        try {
+            val result = executor.call(SessionEntry.ToolCall("watch", "shell", """{"command":"echo watching; sleep 1.2; echo done","watch":true}"""))
+            assertTrue("exit 0" in result.output && "done" in result.output)
+            assertTrue(events.filterIsInstance<AgentEvent.ToolCallResult>().any { "watching" in it.content && "done" !in it.content })
+        } finally { backend.close() }
+    }
 
     @Test
     fun startCheckAndKill() = runBlocking {

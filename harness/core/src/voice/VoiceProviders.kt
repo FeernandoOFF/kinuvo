@@ -1,6 +1,7 @@
 package kinuvo.harness.core.voice
 
 import kinuvo.protocol.VoiceSetup
+import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.ReceiveChannel
 
 /** Audio the Server exchanges with providers and Devices; never written to disk. */
@@ -35,6 +36,7 @@ interface SpeechToSpeech {
     /** What the model hears and speaks, e.g. 16 kHz in and 24 kHz out; Devices convert to it. */
     val input: AudioFormat.Pcm16
     val output: AudioFormat.Pcm16
+    suspend fun notify(text: String, input: SendChannel<VoiceInput>) { input.send(VoiceInput.Notify(text)) }
     suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String)
 }
 
@@ -49,6 +51,7 @@ sealed interface VoiceInput {
     data class Played(val item: String, val millis: Int) : VoiceInput
     /** The user cut reply [item] short after hearing [millis] of it; providers that detect interruptions themselves may ignore it. */
     data class Interrupt(val item: String, val millis: Int) : VoiceInput
+    class Notify(val text: String) : VoiceInput
     data object Pause : VoiceInput
     data object Resume : VoiceInput
 }

@@ -111,6 +111,16 @@ class ScreenshotTest {
         }
     }
 
+    @Test fun backgroundReportInChat() {
+        val report = ChatItem.ToolReport("report", "shell", "call", "[bg1 exit 0] ./kotlin test -m core -p jvm\n[ 277 tests successful ]\n[ 0 tests failed ]")
+        render("chat-tool-report", 420, 620) {
+            HarnessTheme(dark = true) {
+                ChatContent(state.copy(items = listOf(ChatItem.User("user", "Run the core tests"), ChatItem.Assistant("started", "Started the tests in the background."), report,
+                    ChatItem.Assistant("done", "All 277 core tests passed.")), running = false), ConnectionState.Connected("x"), null, ChatActions())
+            }
+        }
+    }
+
     @Test fun generatingImageInChat() {
         val item = ChatItem.ToolCall("image", "image", "generate_image", "{}")
         render("chat-generating-image", 420, 860) {

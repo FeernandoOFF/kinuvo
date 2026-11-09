@@ -136,6 +136,10 @@ fun List<Tool>.indexedTools(): Map<String, Tool> = associateBy { it.descriptor.n
 /** The run a tool call is part of: its other tools, called as the model would, under the same Approvals. */
 interface ToolRun {
     val tools: List<ToolDescriptor>
+    /** Replaces this call's live output; the returned result is still the durable final output. */
+    suspend fun progress(content: String) {}
+    /** Runs work under Server ownership, reporting once even after this run ends. */
+    fun background(started: String, work: suspend () -> String): String = error("Background reports are unavailable in this run")
     /** Runs [name] with [args], a JSON object; denials and failures come back as an error result. */
     suspend fun call(name: String, args: String): SessionEntry.ToolResult
     /** Shows the model the file [name] with [bytes] alongside this call's result. */

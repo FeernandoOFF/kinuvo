@@ -58,6 +58,7 @@ import kinuvo.harness.core.tools.MemoryTool
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.indexedTools
 import kinuvo.harness.core.tools.Toolsets
+import kinuvo.harness.core.tools.ToolReports
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.ToolCatalog
 import kinuvo.harness.core.effective
@@ -295,7 +296,7 @@ open class HarnessRuntime(
      * Session it runs in; [routine] is set for a Routine's run, which follows the Routine's approval mode.
      */
     suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
-        scope: ToolScope = ToolScope.All): AgentRun {
+        scope: ToolScope = ToolScope.All, reports: ToolReports? = null): AgentRun {
         val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs, scope = scope)
         val e = prepared.effective
         val agent = e.agent
@@ -326,6 +327,7 @@ open class HarnessRuntime(
                 }
             },
             routine = routine,
+            reports = reports,
             profile = e.profile,
             questions = questions,
             attach = { name, bytes -> attachments.upload(UploadAttachmentParams(name, Base64.encode(bytes))) },
