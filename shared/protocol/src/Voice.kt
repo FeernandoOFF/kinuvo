@@ -94,4 +94,4 @@ sealed interface LiveVoiceOutput {
 
 /** Whether the Server can hold live speech-to-speech calls, and whether the owner turned them on. */
 @Serializable
-data class LiveVoiceSettings(val available: Boolean = false, val enabled: Boolean = false)
+data class LiveVoiceSettings(val available: Boolean = false, val enabled: Boolean = true)

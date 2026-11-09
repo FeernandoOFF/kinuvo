@@ -35,6 +35,7 @@ interface HarnessPlugin {
                 configurable.flatMap { it.hostAccess.secrets }.toSet()))
     }
     val features: Set<ServerFeature> get() = emptySet()
+    val customEndpoints: CustomEndpoints? get() = null
     val modelProviders: List<ModelProvider> get() = emptyList()
     val taskProviders: List<TaskProvider> get() = emptyList()
     val knowledgeSources: List<KnowledgeSource> get() = emptyList()
@@ -95,4 +96,9 @@ data class InstructionSection(val title: String, val body: String)
 interface McpApps {
     suspend fun resource(agentId: String, ref: McpAppRef): McpAppResource
     suspend fun tool(agentId: String, ref: McpAppRef, name: String): Tool
+}
+
+interface CustomEndpoints {
+    suspend fun discover(params: CustomEndpointParams): List<ModelInfo>
+    suspend fun save(params: CustomEndpointParams): ProviderRef
 }

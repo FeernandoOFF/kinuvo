@@ -4,6 +4,7 @@ import kinuvo.app.connection.*
 import kinuvo.app.device.*
 
 import kinuvo.ui.screen.AndroidBrowserRuntime
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -49,6 +50,12 @@ private class HapticNotifier(context: Context) : Notifier {
 internal actual val platformModule = module {
     System.setProperty("kotlin-logging-to-android-native", "true")
     System.setProperty("kotlin-logging.logStartupMessage", "false")
+    single<OnDeviceSupport> {
+        val manager = androidContext().getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val memory = ActivityManager.MemoryInfo().also(manager::getMemoryInfo)
+        val supported = OnDeviceSupport.android(memory.totalMem, manager.isLowRamDevice, "arm64-v8a" in Build.SUPPORTED_64_BIT_ABIS)
+        OnDeviceSupport { it != "local" || supported }
+    }
     single { AndroidSpeech(androidContext()) } bind SpeechEngine::class
     single { AndroidBrowserRuntime(androidContext()) }
     single<EmbeddedServer> { AndroidEmbeddedServer(androidContext(), get()) }

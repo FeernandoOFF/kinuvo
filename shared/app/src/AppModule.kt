@@ -25,7 +25,7 @@ val appModule = module {
     single { LiveCalls() }
     single { AiConsent(get(), getOrNull<MobileTestMode>()?.let { it.override == null } == true) }
     single { DeviceAccess(get(), get(), getOrNull()) }
-    single { ConnectedServer(get(), get(), getOrNull()) }
+    single { ConnectedServer(get(), get(), getOrNull(), getOrNull() ?: OnDeviceSupport.All) }
     single { get<ConnectedServer>().surfaceImages }
     single { get<ConnectedServer>().sessions }
     single { get<ConnectedServer>().routines }
@@ -34,6 +34,7 @@ val appModule = module {
     single { get<ConnectedServer>().board }
     single { get<ConnectedServer>().knowledge }
     single { get<ConnectedServer>().devices }
+    viewModel { EndpointViewModel(get<ConfigRepository>()) }
     viewModel { ServerVoiceViewModel(get()) }
     viewModel { OnboardingViewModel(get(), getOrNull() ?: NotificationPermission.None) }
     viewModel { AppViewModel(get(), get(), get(), get(), getOrNull() ?: ClientCache.None, getOrNull() ?: NotificationPermission.None, getOrNull<UiCatalogs>()?.all.orEmpty()) }

@@ -223,7 +223,7 @@ internal fun RowScope.ComposerSettings(
             ListRow(false, { onRefreshModels() }) { Text("Refresh models", Modifier.weight(1f)) }
             ListRow(false, { customOpen = !customOpen }) { Text("Custom model…", Modifier.weight(1f)) }
             if (customOpen) Column(Modifier.padding(Spacing.space8), verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-                Picker((models.providers.map { it.id } + provider).distinct(), customProvider,
+                Picker(models.providers.map { it.id }, customProvider,
                     { id -> models.providers.firstOrNull { it.id == id }?.name ?: id }, { customProvider = it })
                 TextField(custom, placeholder = { Text("Model ID") })
                 Button(onClick = {

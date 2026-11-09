@@ -77,3 +77,6 @@ data class ProviderApiKeyStatus(val configured: Boolean, val storage: String, va
 
 @Serializable
 data class SetProviderApiKeyParams(val provider: String, val value: String)
+
+@Serializable
+data class CustomEndpointParams(val id: String = "endpoint", val baseUrl: String, val apiKey: String = "", val model: String = "")

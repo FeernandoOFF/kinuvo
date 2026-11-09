@@ -37,6 +37,12 @@ import kinuvo.protocol.ModelInfo
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.*
 import kinuvo.protocol.PluginDefinition
+import kinuvo.protocol.CustomEndpointParams
+import kinuvo.protocol.ProviderRef
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 fun compatibleProviders(files: AgentFiles, secrets: Secrets = Secrets(), attachments: ((Attachment) -> ByteArray)? = null): List<HarnessPlugin> {
     val configured = files.config().providers
@@ -44,7 +50,7 @@ fun compatibleProviders(files: AgentFiles, secrets: Secrets = Secrets(), attachm
         require(id.matches(Regex("[a-z][a-z0-9-]{0,63}"))) { "Invalid model provider ID: $id" }
         endpoint(options.baseUrl.orEmpty())
     }
-    return configured.map { (id, options) -> CompatibleProvider(id, options, files, secrets, attachments) }
+    return listOf(CompatibleEndpoints(files, secrets, attachments))
 }
 
 /** A custom provider's key, apart from built-in providers' keys; one saved under its bare ID before is moved on first read. */
@@ -91,13 +97,7 @@ internal class CompatibleProvider(
 
     override suspend fun models(): List<ModelInfo> {
         if (options.models.isNotEmpty()) return options.models
-        val response = http.get("models")
-        check(response.status.isSuccess()) { "$name model discovery failed (${response.status.value})" }
-        return Json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("data").jsonArray
-            .map { val m = it.jsonObject; val architecture = m["architecture"] as? JsonObject
-                ModelInfo(m.getValue("id").jsonPrimitive.content,
-                    input = (architecture?.get("input_modalities") as? JsonArray)?.map { it.jsonPrimitive.content },
-                    output = (architecture?.get("output_modalities") as? JsonArray)?.map { it.jsonPrimitive.content }) }.distinctBy { it.id }.sortedBy { it.id }
+        return discoverCompatibleModels(http)
     }
 
     override fun fileTypes(model: ModelInfo?): Set<String> = emptySet()
@@ -156,3 +156,43 @@ private fun Prompt.groupAssistants() = withMessages { messages -> buildList {
         } else add(message)
     }
 } }
+
+private suspend fun discoverCompatibleModels(http: HttpClient): List<ModelInfo> {
+    val response = http.get("models")
+    check(response.status.isSuccess()) { "Model discovery failed (${response.status.value})" }
+    return Json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("data").jsonArray
+        .map { val m = it.jsonObject; val architecture = m["architecture"] as? JsonObject
+            ModelInfo(m.getValue("id").jsonPrimitive.content,
+                input = (architecture?.get("input_modalities") as? JsonArray)?.map { it.jsonPrimitive.content },
+                output = (architecture?.get("output_modalities") as? JsonArray)?.map { it.jsonPrimitive.content }) }.distinctBy { it.id }.sortedBy { it.id }
+}
+
+private class CompatibleEndpoints(private val files: AgentFiles, private val secrets: Secrets,
+    private val attachments: ((Attachment) -> ByteArray)?) : HarnessPlugin, CustomEndpoints {
+    override val definition = PluginDefinition("kinuvo.custom-endpoints", "Custom providers")
+    override val customEndpoints get() = this
+    private val lock = Mutex()
+    override val modelProviders get() = installed.value
+    private val installed = MutableStateFlow(files.config().providers.map { (id, options) -> CompatibleProvider(id, options, files, secrets, attachments) })
+
+    override suspend fun discover(params: CustomEndpointParams): List<ModelInfo> {
+        val http = providerHttpClient(endpoint(params.baseUrl), { params.apiKey.takeIf { it.isNotBlank() } }, false, providerEngine())
+        return try { withTimeoutOrNull(15_000) { discoverCompatibleModels(http) } ?: error("Model discovery timed out") } finally { http.close() }
+    }
+
+    override suspend fun save(params: CustomEndpointParams): ProviderRef = lock.withLock {
+        require(params.id.matches(Regex("[a-z][a-z0-9-]{0,63}"))) { "Use a lowercase provider ID, letters, numbers and hyphens." }
+        require(files.config().providers[params.id] == null) { "That provider ID is already in use." }
+        val options = ModelProviderConfig(name = params.id, baseUrl = endpoint(params.baseUrl), apiKeyRequired = params.apiKey.isNotBlank(),
+            models = params.model.takeIf { it.isNotBlank() }?.let { listOf(ModelInfo(it)) }.orEmpty())
+        val provider = CompatibleProvider(params.id, options, files, secrets, attachments)
+        try {
+            if (params.apiKey.isNotBlank()) provider.apiKey?.save(params.apiKey)
+            files.updateConfig { it.copy(providers = it.providers + (params.id to options)) }
+            installed.value += provider
+        } catch (e: Throwable) { provider.close(); throw e }
+        ProviderRef(provider.id)
+    }
+
+    override suspend fun close() { installed.value.forEach { it.close() } }
+}

@@ -12,8 +12,24 @@ import kinuvo.protocol.TrustRules
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 class ServerConfigTest {
+    @Test
+    fun liveVoiceDefaultsOnAndExplicitOffSurvivesOtherSaves() {
+        val files = TestHome().files
+        assertTrue(files.config().liveVoiceEnabled)
+        files.updateConfig { it.copy(timezone = "Europe/Dublin") }
+        assertTrue(files.config().liveVoiceEnabled)
+        files.updateConfig { it.copy(liveVoiceEnabled = false) }
+        assertFalse(files.config().liveVoiceEnabled)
+        files.updateConfig { it.copy(timezone = "UTC") }
+        assertFalse(files.config().liveVoiceEnabled)
+        files.updateConfig { it.copy(liveVoiceEnabled = true) }
+        assertTrue(files.config().liveVoiceEnabled)
+    }
+
     @Test
     fun eachSectionSavesWithoutTouchingTheOthers() {
         val files = TestHome().files
