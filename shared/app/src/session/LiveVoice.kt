@@ -15,6 +15,8 @@ import kotlin.math.sqrt
 /** Streaming microphone and speaker for live calls, in mono PCM16. Callbacks may arrive on any thread. */
 interface LiveAudio {
     fun onEndRequested(end: () -> Unit) {}
+    fun onInputMuteChanged(changed: (Boolean) -> Unit) {}
+    fun setInputMuted(muted: Boolean) {}
     val liveAudioSupported: Boolean get() = true
     /** Whether the microphone hears the speaker, so capture is muted while a reply plays. */
     val echoes: Boolean
@@ -100,7 +102,16 @@ class LiveVoiceChat(
             callId = started.callId
             bytesPerMilli = started.sampleRate * 2 / 1000
             val microphone = Channel<ByteArray>(Channel.UNLIMITED)
+            val epoch = generation
+            audio.onInputMuteChanged { muted ->
+                server.scope.launch {
+                    if (generation == epoch && ownsAudio) {
+                        if (muted) pause() else resume()
+                    }
+                }
+            }
             audio.startLive(started.sampleRate, { microphone.trySend(it) }, { microphone.close(IllegalStateException(it)) })
+            audio.setInputMuted(state.value.paused)
             launch {
                 for (pcm in microphone) {
                     state.update { it.copy(inputLevel = if (it.paused) 0f else pcmLevel(pcm)) }
@@ -171,6 +182,7 @@ class LiveVoiceChat(
         callId = null; discardReply(); interrupted.clear()
         call?.cancel(); call = null
         if (ownsAudio) {
+            audio.onInputMuteChanged {}
             audio.stopLive()
             if (endedCue) audio.playCue(VoiceCue.Ended.pcm(24_000), 24_000)
             audio.onEndRequested {}
@@ -185,15 +197,17 @@ class LiveVoiceChat(
 
     /** Mutes the microphone only; the Agent's replies keep playing. */
     override fun pause() {
-        if (state.value.phase == VoicePhase.Off) return
+        if (state.value.phase == VoicePhase.Off || state.value.paused) return
+        state.update { it.copy(paused = true, inputLevel = 0f) }
+        audio.setInputMuted(true)
         send { LiveVoiceInput.Pause(it) }
-        state.update { it.copy(paused = true) }
     }
 
     override fun resume() {
         if (!state.value.paused) return
-        send { LiveVoiceInput.Resume(it) }
         state.update { it.copy(paused = false) }
+        audio.setInputMuted(false)
+        send { LiveVoiceInput.Resume(it) }
     }
 
     /** The model hears turns itself, so holding only cuts the reply short. */
