@@ -38,6 +38,8 @@ fun stopLocalRuns(completion: () -> Unit) {
 
 fun installAppleLanguageModel(model: AppleLanguageModel) { appleModel = model }
 
+internal val iosOnDeviceSupport = OnDeviceSupport { provider -> provider != "apple" || appleModel?.unavailableCode("system") == null && appleModel != null }
+
 internal class IosEmbeddedServer : EmbeddedServer {
     private val lock = Mutex()
     private var server: EmbeddedServerHost? = null

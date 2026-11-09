@@ -25,7 +25,7 @@ val appModule = module {
     single { LiveCalls() }
     single { AiConsent(get(), getOrNull<MobileTestMode>()?.let { it.override == null } == true) }
     single { DeviceAccess(get(), get(), getOrNull()) }
-    single { ConnectedServer(get(), get(), getOrNull()) }
+    single { ConnectedServer(get(), get(), getOrNull(), getOrNull() ?: OnDeviceSupport.All) }
     single { get<ConnectedServer>().surfaceImages }
     single { get<ConnectedServer>().sessions }
     single { get<ConnectedServer>().routines }

@@ -42,6 +42,7 @@ private class HapticNotifier : Notifier {
 }
 
 internal actual val platformModule = module {
+    single<OnDeviceSupport> { iosOnDeviceSupport }
     single { iosTestMode() }
     single<EmbeddedServer> { IosEmbeddedServer() }
     single<DeviceReader> { IosDeviceReader() }

@@ -343,7 +343,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
 
     fun loadModels(refresh: Boolean = false) {
         viewModelScope.launch { attempt {
-            val models = client.call(Api.Models, ModelsParams(refresh))
+            val models = repo.connection.config.models(refresh)
             state.update { it.copy(models = models) }
         } }
     }

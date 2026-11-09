@@ -164,7 +164,7 @@ private fun AgentForm(d: AgentDetails, p: Pane, section: SettingsSection) {
                 FormField("Soul (SOUL.md)", "The principles, tone and rules it follows.") { TextArea(soul, lines = 6) }
                 DetailGroup("Model") {
                     DetailRow("Provider") {
-                        Picker((catalog.providers.map { it.id } + s.provider).distinct(), provider,
+                        Picker(catalog.providers.map { it.id }, provider,
                             { id -> catalog.providers.firstOrNull { it.id == id }?.name ?: id }, { id ->
                                 provider = id
                                 catalog.providers.firstOrNull { it.id == id }?.chatModels?.firstOrNull()?.let {

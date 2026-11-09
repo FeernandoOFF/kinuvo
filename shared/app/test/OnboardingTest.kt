@@ -11,6 +11,13 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class OnboardingTest {
+    @Test fun androidModelsNeedThreeGigabytesAndArm64() {
+        assertTrue(OnDeviceSupport.android(OnDeviceSupport.MinimumAndroidRam, false, true))
+        assertFalse(OnDeviceSupport.android(OnDeviceSupport.MinimumAndroidRam - 1, false, true))
+        assertFalse(OnDeviceSupport.android(8_000_000_000, true, true))
+        assertFalse(OnDeviceSupport.android(8_000_000_000, false, false))
+    }
+
     @Test fun unfinishedSetupSurvivesConnectionAndRestart() {
         val prefs = MemoryPreferences()
         val servers = Servers(prefs, credentials = prefs.credentials)

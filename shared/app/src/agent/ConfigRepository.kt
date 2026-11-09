@@ -36,12 +36,12 @@ class ConfigRepository(internal val connection: ConnectedServer) {
     internal fun attach(client: KinuvoClient) {
         clear()
         attached = scope.launch {
-            launch { client.events(Api.ProvidersChanged).collect { providers.value = it } }
+            launch { client.events(Api.ProvidersChanged).collect { providers.value = offered(it) } }
             client.state.collect {
                 connected.value = it is ConnectionState.Connected
                 if (it is ConnectionState.Connected) {
                     state.value.keys.forEach(::load)
-                    catching { client.call(Api.Providers, Unit) }.onSuccess { providers.value = it }
+                    catching { client.call(Api.Providers, Unit) }.onSuccess { providers.value = offered(it) }
                 }
             }
         }
@@ -67,9 +67,13 @@ class ConfigRepository(internal val connection: ConnectedServer) {
 
     suspend fun details(agentId: String) = call { it.call(Api.Agent, AgentRef(agentId)) }
 
-    suspend fun providerAccounts() = call { it.call(Api.Providers, Unit) }
+    private fun offered(providers: List<ProviderInfo>) = providers.filter { connection.offers(it.id) }
 
-    suspend fun models(refresh: Boolean = false) = call { it.call(Api.Models, ModelsParams(refresh)) }
+    suspend fun providerAccounts() = offered(call { it.call(Api.Providers, Unit) })
+
+    suspend fun models(refresh: Boolean = false) = call { it.call(Api.Models, ModelsParams(refresh)) }.let { catalog ->
+        catalog.copy(providers = catalog.providers.filter { connection.offers(it.id) })
+    }
 
     suspend fun createAgent(params: CreateAgentParams) = call { it.call(Api.CreateAgent, params) }
 

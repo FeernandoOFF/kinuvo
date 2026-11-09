@@ -155,8 +155,8 @@ class OnboardingViewModel(private val config: ConfigRepository, private val noti
             val details = config.details(agent.id)
             val catalog = config.models()
             val providers = config.providerAccounts()
-            edit { it.copy(details = details, catalog = catalog, providers = providers, provider = details.settings.provider,
-                model = details.settings.model, agentName = if (identity) details.info.name else it.agentName,
+            edit { it.copy(details = details, catalog = catalog, providers = providers, provider = details.settings.provider.takeIf { id -> catalog.providers.any { it.id == id } }.orEmpty(),
+                model = details.settings.model.takeIf { catalog.providers.any { it.id == details.settings.provider } }.orEmpty(), agentName = if (identity) details.info.name else it.agentName,
                 avatar = if (identity && !keepLook) AvatarArtboards.indexOf(details.info.avatarArtboard).coerceAtLeast(0) else it.avatar) }
         }
     }
