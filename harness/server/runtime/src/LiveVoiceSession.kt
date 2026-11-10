@@ -9,6 +9,7 @@ import kinuvo.harness.core.voice.VoiceOutput
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import kotlin.concurrent.Volatile
 import kotlin.io.encoding.Base64
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlin.time.Clock
@@ -37,7 +38,8 @@ internal class LiveVoiceSession(
     private var dropped = 0L
     private var droppedReported = 0L
     private var reported = TimeSource.Monotonic.markNow()
-    val active get() = job?.isActive == true
+    @Volatile private var ended = false
+    val active get() = !ended && job?.isActive == true
 
     suspend fun notify(text: String) {
         if (!active) return
@@ -88,6 +90,7 @@ internal class LiveVoiceSession(
                         if (error == null) error = "The call transcript couldn't be saved."
                     } finally {
                         log.info { "Live voice $id ended; heard ${heard / 1024} KiB, said ${said / 1024} KiB, dropped $dropped packets" }
+                        ended = true
                         input.close()
                         emit(LiveVoiceOutput.Ended(id, error))
                     }
