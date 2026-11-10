@@ -13,7 +13,8 @@ import kinuvo.harness.core.tools.MemoryTool
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolService
 import kinuvo.harness.core.tools.toDescriptor
-import kinuvo.harness.execution.api.ToolTurn
+import kinuvo.harness.execution.api.ReflectionStep
+import kinuvo.harness.execution.api.ReflectionTurn
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
 import kinuvo.harness.core.tools.string
@@ -34,30 +35,13 @@ class Reflection(
     private val tracing: AgentTracing? = null,
     private val today: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
 ) {
+    /** The staged Reflection of [entries], for a harness to run stage by stage. */
+    suspend fun turn(agent: Agent, sessionId: String, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, review: ReflectionRevision? = null): ReflectionRun =
+        ReflectionRun(agent, sessionId, entries, prompt, knowledge, docs, skills, denied, today, review).also { it.gather() }
+
     suspend fun reflect(agent: Agent, model: AgentModel, sessionId: String, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, review: ReflectionRevision? = null): ReflectionResult {
-        val run = ReflectionRun(agent, model, sessionId, entries, prompt, knowledge, docs, skills, denied, today, review)
-        run.gather()
-        for (stage in review?.let { listOf(it.stage) } ?: ReflectionStage.entries) {
-            val runId = Uuid.random().toString()
-            val koog = AIAgent(
-                id = agent.id,
-                promptExecutor = model.executor,
-                agentConfig = AIAgentConfig(Prompt.Empty, model.model, STAGE_ITERATIONS),
-                strategy = reflectionStrategy(run, stage),
-            ) {
-                install(ToolLoopFeature) { requests = run.requests; response = run.response }
-                tracing?.install(this, agent.id, sessionId, runId, RequestKind.Reflection)
-            }
-            try {
-                withContext(TokenUsageCapture()) { koog.run(Unit, runId) }
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                run.error(if (e is AIAgentMaxNumberOfIterationsReachedException) "${stage.name} stopped at the iteration limit" else model.failure(e).message ?: e.toString())
-            } finally {
-                koog.close()
-            }
-        }
+        val run = turn(agent, sessionId, entries, prompt, review)
+        runReflection(run, agent, model, sessionId, tracing)
         return run.result().also { review?.validate(it) }
     }
 }
@@ -68,9 +52,8 @@ internal enum class ReflectionStage(val instructions: String) {
     Skills("""A Skill is how to do a kind of task for this user. Signals: the user corrected your approach or style for a kind of work, a technique or fix worked and will recur, or a Skill used here proved wrong or incomplete. Improve the Skill used here first, then another matching one, and only then propose a new Skill named for the kind of task. Read a Skill before changing it. Write steps with decision points and the checks that proved them, and attach each pitfall to its step with one clause of why. Each rule stands without the incident behind it (no dates, ticket IDs or error logs). Record procedures that ended in success; when a tool failed because of setup, the lesson is the fix. Done when each signal lives in exactly one Skill, or reply "Nothing to save.""""),
 }
 
-internal class ReflectionRun(
+class ReflectionRun internal constructor(
     private val agent: Agent,
-    val model: AgentModel,
     private val sessionId: String,
     private val entries: List<SessionEntry>,
     private val instructions: String,
@@ -80,10 +63,7 @@ internal class ReflectionRun(
     private val denied: suspend (Agent) -> DenyRules,
     private val today: () -> LocalDate,
     private val review: ReflectionRevision? = null,
-) {
-    val messages = SessionMessages(model)
-    val response = StreamResponse()
-    val requests = ModelRequests(agent.config, { RequestKind.Reflection }) { measurements += it }
+) : ReflectionTurn {
     private var transcript = ""
     private lateinit var changes: ReflectionChanges
     private lateinit var policy: ApprovalPolicy
@@ -91,15 +71,10 @@ internal class ReflectionRun(
     private var memory = 0
     private var userNotes = 0
     private val errors = mutableListOf<String>()
-    val measurements = mutableListOf<RequestMetrics>()
-    var tools: List<Tool> = emptyList()
-        private set
-    private lateinit var service: ToolService
-    lateinit var calls: ToolCalls
-        private set
-    val advertised get() = service.advertised.map { it.toDescriptor() }
+    private val measurements = mutableListOf<RequestMetrics>()
+    override val stages = (review?.let { listOf(it.stage) } ?: ReflectionStage.entries).map { it.name }
 
-    suspend fun gather() {
+    internal suspend fun gather() {
         transcript = entries.mapIndexedNotNull { index, entry -> when (entry) {
             is SessionEntry.UserMessage -> "[user-$index] User: ${entry.modelText.take(600)}"
             is SessionEntry.AssistantMessage -> "[assistant-$index] Assistant: ${entry.text.take(600)}"
@@ -130,8 +105,10 @@ internal class ReflectionRun(
         }
     }
 
-    suspend fun prepare(stage: ReflectionStage): Prompt? {
-        tools = if (transcript.isBlank() && review == null) emptyList() else when (stage) {
+    override suspend fun prepare(stage: String): ReflectionStep? = prepare(ReflectionStage.valueOf(stage))
+
+    private suspend fun prepare(stage: ReflectionStage): ReflectionStep? {
+        val tools = if (transcript.isBlank() && review == null) emptyList() else when (stage) {
             ReflectionStage.Memory -> if (ToolNames.MEMORY in agent.config.tools) listOf(MemoryTool(agent, memoryDocs)) else emptyList()
             ReflectionStage.Knowledge -> if (ToolNames.KNOWLEDGE in agent.config.tools) listOf(changes.staging(KnowledgeTool(knowledge, ChangeSource(agent.id, sessionId)))) else emptyList()
             ReflectionStage.Skills -> if (ToolNames.SKILLS in agent.config.tools && skills != null) listOf(
@@ -145,8 +122,7 @@ internal class ReflectionRun(
             PluginTools(listOf(tool)).ownedBy(PluginInstanceId(owner)).tools
         }.withModelNames().filter { !policy.refuses(it) }
         if (tools.isEmpty()) return null
-        service = ToolService(tools, approvals = Approvals(policy, ApprovalBroker()))
-        calls = ToolCalls(service, service, ToolTurn())
+        val service = ToolService(tools, approvals = Approvals(policy, ApprovalBroker()))
         val context = when (stage) {
             ReflectionStage.Memory -> "Current Memory:\n${docs.read(agent.id, AgentDoc.Memory)}\n\nCurrent User Notes:\n${docs.read(agent.id, AgentDoc.UserNotes)}"
             ReflectionStage.Knowledge -> "How the user organizes it:\n${knowledge.conventions().trim()}\n\n${knowledge.schema().describe()}"
@@ -154,9 +130,10 @@ internal class ReflectionRun(
         }
         val review = "$instructions\n\nToday is ${today()}.\n\n$context\n\n${stage.instructions}\n\n${review?.prompt().orEmpty()}${docs.reflectionFeedback(agent.id, stage)}${savedEarlier()}" +
             "Review these source entries:\n$transcript"
-        return messages.prompt("", listOf(SessionEntry.UserMessage(
+        return ReflectionStep(
             "Background Reflection instructions:\n$review\n\nPerform only the ${stage.name} stage. Use only these tools: ${tools.joinToString { it.descriptor.name }}. All other tools are blocked.",
-        )))
+            service, service,
+        )
     }
 
     private fun savedEarlier(): String {
@@ -178,7 +155,9 @@ internal class ReflectionRun(
             "Keep one home per fact: extend earlier work with distinct details, and skip what it already covers. Proposals still await the user's Approval.\n\n"
     }
 
-    fun error(message: String) { errors += message }
+    override fun failed(message: String) { errors += message }
+
+    override fun measured(metrics: RequestMetrics) { measurements += metrics }
 
     fun result() = ReflectionResult(memory = memory, userNotes = userNotes, proposals = if (::changes.isInitialized) changes.proposals.toList() else emptyList(),
         measurements = measurements.toList(), memoryChanges = memoryChanges.toList(), error = errors.takeIf { it.isNotEmpty() }?.joinToString("\n"))

@@ -7,6 +7,7 @@ import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
+import kinuvo.harness.execution.api.RoutineTurn
 import kinuvo.harness.core.tools.string
 import kinuvo.protocol.Routine
 import kinuvo.protocol.RoutineRef
@@ -20,24 +21,25 @@ import kotlin.time.Clock
  * [notify] tells the user about a report.
  */
 class RoutineRun(
-    val routine: Routine,
+    override val routine: Routine,
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
-    val notify: suspend (SessionEntry.Outcome) -> Unit = {},
-) {
-    val ref = RoutineRef(routine.id, routine.name)
-    var outcome: SessionEntry.Outcome? = null
-    /** Tool calls nobody approved in time. */
-    val skipped = mutableListOf<String>()
+    private val notified: suspend (SessionEntry.Outcome) -> Unit = {},
+) : RoutineTurn {
+    override val ref = RoutineRef(routine.id, routine.name)
+    override var outcome: SessionEntry.Outcome? = null
+    override val skipped = mutableListOf<String>()
+
+    override suspend fun notify(outcome: SessionEntry.Outcome) = notified(outcome)
 
     /** The run's first message: when it runs, how the last run ended, then [prompt]. */
-    fun message(prompt: String) = listOfNotNull(
+    override fun message(prompt: String) = listOfNotNull(
         "Run at ${formatTime(clock(), routine.timeZone)} (${routine.timeZone}), ${routine.scheduleText()}.",
         previous(),
         "\n$prompt\n\n$INSTRUCTIONS",
     ).joinToString("\n")
 
     /** Settles the outcome: what the Agent reported, else its [reply]; skipped calls always reach the user. */
-    fun decide(reply: String) {
+    override fun decide(reply: String) {
         val reported = outcome ?: SessionEntry.Outcome(true, reply.trim().ifEmpty { "Finished without a summary." })
         outcome = if (skipped.isEmpty()) reported
         else SessionEntry.Outcome(true, "${reported.summary}\nSkipped, no Approval: ${skipped.joinToString()}".trim())
@@ -63,7 +65,7 @@ class RoutineRun(
 }
 
 /** How the Agent ends a Routine run: report to the user, or nothing new. */
-class RoutineReportTool(private val run: RoutineRun) : CoreTool {
+class RoutineReportTool(private val run: RoutineTurn) : CoreTool {
     override val descriptor = ToolDescriptor(
         name = ToolNames.ROUTINE_REPORT,
         description = "End this Routine run: report when something is new or needs the user, whose summary is their notification, " +

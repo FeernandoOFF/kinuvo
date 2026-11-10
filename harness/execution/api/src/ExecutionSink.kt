@@ -12,7 +12,13 @@ interface ExecutionSink {
     suspend fun commit(entries: List<SessionEntry>)
 }
 
-data class ExecutionInput(val text: String, val attachments: List<AttachmentData> = emptyList(), val action: SurfaceAction? = null)
+data class ExecutionInput(
+    val text: String,
+    val attachments: List<AttachmentData> = emptyList(),
+    val action: SurfaceAction? = null,
+    val kind: RunKind = RunKind.Chat(),
+    val runId: String? = null,
+)
 
 /** Source insertion identity; null means unavailable, never rejection or foreground completion. */
 data class ExecutionAcceptance(val messageId: String? = null)

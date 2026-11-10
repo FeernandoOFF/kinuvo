@@ -11,7 +11,7 @@ import kinuvo.harness.core.ModelProfile
 import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.ToolReports
+import kinuvo.harness.execution.api.ToolReports
 import kinuvo.harness.core.tools.ToolService
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.ModelTier

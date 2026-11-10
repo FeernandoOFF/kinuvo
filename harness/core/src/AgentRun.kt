@@ -4,8 +4,8 @@ import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.agent.exception.AIAgentMaxNumberOfIterationsReachedException
 import ai.koog.prompt.Prompt
-import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.harness.core.routines.routineStrategy
+import kinuvo.harness.execution.api.RoutineTurn
 import kinuvo.harness.execution.api.SessionStorage
 import kinuvo.harness.core.tools.toDescriptor
 import kinuvo.harness.execution.api.ToolGate
@@ -36,7 +36,7 @@ class AgentRun(
     private val requestKind: RequestKind = RequestKind.Chat,
     private val tracing: AgentTracing? = null,
     private val traceSessionId: String? = null,
-    private val routine: RoutineRun? = null,
+    private val routine: RoutineTurn? = null,
     private val profile: ModelProfile = ModelProfile.of(ModelTier.Frontier),
 ) {
     fun run(

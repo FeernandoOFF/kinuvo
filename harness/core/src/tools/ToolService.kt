@@ -5,6 +5,7 @@ import kinuvo.harness.core.*
 import kinuvo.harness.core.plugin.*
 import kinuvo.harness.execution.api.ToolGate
 import kinuvo.harness.execution.api.ToolProvider
+import kinuvo.harness.execution.api.ToolReports
 import kinuvo.harness.execution.api.ToolTurn
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision

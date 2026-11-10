@@ -56,7 +56,7 @@ import kinuvo.harness.core.tools.MemoryTool
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.indexedTools
 import kinuvo.harness.core.tools.Toolsets
-import kinuvo.harness.core.tools.ToolReports
+import kinuvo.harness.execution.api.ToolReports
 import kinuvo.harness.core.tools.ToolService
 import kinuvo.harness.execution.api.ToolTurn
 import kinuvo.harness.core.tools.ToolNames

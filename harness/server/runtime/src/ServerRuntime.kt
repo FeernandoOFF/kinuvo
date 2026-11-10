@@ -8,7 +8,7 @@ import co.touchlab.stately.collections.ConcurrentMutableSet
 import co.touchlab.stately.concurrency.Lock
 import co.touchlab.stately.concurrency.withLock
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kinuvo.harness.core.tools.ToolReports
+import kinuvo.harness.execution.api.ToolReports
 import kinuvo.harness.core.Agent
 import kinuvo.harness.server.execution.*
 import kinuvo.harness.execution.api.*

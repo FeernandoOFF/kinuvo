@@ -4,7 +4,7 @@ import kotlinx.coroutines.withTimeout
 import kinuvo.protocol.SessionEntry
 import kinuvo.harness.core.tools.ToolService
 import kinuvo.harness.execution.api.ToolTurn
-import kinuvo.harness.core.tools.ToolReports
+import kinuvo.harness.execution.api.ToolReports
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay

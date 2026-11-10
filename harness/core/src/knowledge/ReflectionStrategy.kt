@@ -6,16 +6,16 @@ import ai.koog.agents.core.dsl.builder.subgraph
 import kinuvo.harness.core.ToolLoop
 import kinuvo.protocol.SessionEntry
 
-internal fun reflectionStrategy(run: ReflectionRun, stage: ReflectionStage) = strategy<Unit, Unit>("kinuvoReflection${stage.name}") {
+internal fun reflectionStrategy(run: ReflectionStageRun, stage: String) = strategy<Unit, Unit>("kinuvoReflection$stage") {
     val review by reflectionStage(run, stage)
     edge(nodeStart forwardTo review)
     edge(review forwardTo nodeFinish)
 }
 
-private fun reflectionStage(run: ReflectionRun, stage: ReflectionStage) = subgraph<Unit, Unit>(stage.name) {
+private fun reflectionStage(run: ReflectionStageRun, stage: String) = subgraph<Unit, Unit>(stage) {
     var enabled = false
     val loop = ToolLoop(run.messages, run.response, { run.calls },
-        toolName = { name -> name.takeIf { run.tools.any { it.descriptor.name == name } } ?: "unknown" },
+        toolName = { name -> name.takeIf { run.callable(name) } ?: "unknown" },
         repeated = { call -> SessionEntry.ToolResult(call.id, call.name, "This exact call already failed. Don't repeat it; try something else.", isError = true) },
         onResult = { if (it.isError) run.error(it.output) },
     )

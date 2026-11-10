@@ -2,6 +2,7 @@ package kinuvo.harness.core
 
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.harness.core.tools.*
+import kinuvo.harness.execution.api.ToolReports
 import kinuvo.harness.execution.api.ToolTurn
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.SessionEntry
