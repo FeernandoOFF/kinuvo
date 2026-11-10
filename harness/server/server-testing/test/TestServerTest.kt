@@ -20,10 +20,24 @@ import kinuvo.protocol.TaskStatus
 import kinuvo.protocol.TasksParams
 import kinuvo.protocol.KnowledgeSearchParams
 import kinuvo.protocol.CatchUpParams
+import kinuvo.protocol.ExecutionAnswer
+import kinuvo.protocol.HistoryParams
+import kinuvo.protocol.ModelsParams
+import kinuvo.protocol.SessionParams
+import kinuvo.protocol.ExecutionCapabilities
+import kinuvo.protocol.ExecutionPhase
+import kinuvo.protocol.ExecutionRef
+import kinuvo.protocol.ExecutionRequestKind
+import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.Question
+import kinuvo.protocol.QuestionKind
+import kotlinx.serialization.json.JsonObject
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.Dispatchers
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -193,6 +207,72 @@ class TestServerTest {
                 assertEquals(listOf("default"), client.call(Api.Agents, Unit).map { it.id })
                 assertEquals(0, server.spy.count(Api.Agents))
                 client.close()
+            }
+        }
+    }
+
+    @Test
+    fun anExternalHarnessAsksAQuestionThatAClientAnswers() = runTest {
+        val harness = FakeHarness("fake") { prompt ->
+            say("Working on $prompt")
+            askQuestions("Pick a limit", Question("limit", "Limit", QuestionKind.Number))
+            reply("Limit accepted")
+        }
+        val server = TestServer.start(harnesses = listOf(harness), scenario = { externalAgent(harness, "ext", "External") })
+        server.use {
+            withContext(Dispatchers.Default) {
+                val session = server.startSession("ext", "Start", title = "External run")
+                val client = server.client().also { it.connect() }
+                assertEquals(true, client.call(Api.ProbeHarnessConnection, harness.connection).readiness.online)
+                val pending = withTimeout(5_000) {
+                    var found = client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).pending
+                    while (found.isEmpty()) { delay(10); found = client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).pending }
+                    found.single()
+                }
+                assertEquals(ExecutionRequestKind.Question, pending.kind)
+                assertEquals(ExecutionPhase.RequiresAction, client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).phase)
+                assertTrue(client.call(Api.ExecutionAnswer, ExecutionAnswer(session.id, pending.id, JsonObject(emptyMap()))))
+                withTimeout(5_000) { while (client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).phase != ExecutionPhase.Idle) delay(10) }
+                val entries = client.call(Api.History, HistoryParams("ext", session.id, 100)).map { it.entry }
+                assertEquals(listOf("Working on Start", "Limit accepted"), entries.filterIsInstance<SessionEntry.AssistantMessage>().map { it.text })
+                assertEquals("External run", client.call(Api.Session, SessionParams("ext", session.id)).title)
+                assertEquals(1, server.spy.count(Api.ExecutionAnswer))
+                assertEquals(0, server.spy.count(Api.Send))
+            }
+        }
+    }
+
+    @Test
+    fun aLostExternalSessionKeepsItsTranscriptAndAnInterruptedDraft() = runTest {
+        val harness = FakeHarness("fake", capabilities = ExecutionCapabilities(supportedMimeTypes = setOf("text/plain")))
+        val server = TestServer.start(harnesses = listOf(harness), scenario = {
+            externalAgent(harness, "ext", "External")
+            lostExternalSession("ext", title = "Lost run", draft = "Half an answer", support = harness.capabilities) { user("Start"); assistant("Saved reply") }
+        })
+        server.use {
+            withContext(Dispatchers.Default) {
+                val client = server.client().also { it.connect() }
+                val session = client.call(Api.Sessions, SessionsParams("ext")).sessions.single()
+                assertEquals("Lost run", session.title)
+                assertEquals(ExecutionPhase.Lost, client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).phase)
+                val notice = client.call(Api.History, HistoryParams("ext", session.id, 100)).map { it.entry }.filterIsInstance<SessionEntry.Notice>().single()
+                assertEquals("Half an answer", (notice.draft.single() as SessionEntry.AssistantMessage).text)
+            }
+        }
+    }
+
+    @Test
+    fun listsFakeModelProvidersWithTheirModels() = runTest {
+        val models = FakeModels(FakeModelProvider("fake", "Fake models", listOf(ModelInfo("m1")), signedIn = true), FakeModelProvider("keyed", "Keyed", needsKey = true))
+        val server = TestServer.start(plugins = listOf(models))
+        server.use {
+            withContext(Dispatchers.Default) {
+                val client = server.client().also { it.connect() }
+                val providers = client.call(Api.Providers, Unit)
+                assertEquals(setOf("fake", "keyed"), providers.map { it.id }.toSet())
+                assertEquals(true, providers.single { it.id == "fake" }.account?.signedIn)
+                assertEquals(false, providers.single { it.id == "keyed" }.apiKey?.configured)
+                assertEquals(listOf("m1"), client.call(Api.Models, ModelsParams()).providers.single { it.id == "fake" }.models.map { it.id })
             }
         }
     }
