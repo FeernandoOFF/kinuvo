@@ -1,0 +1,11 @@
+# Test-only: a real WebSocket Server with seeded fixture data, for Maestro device flows. Not part of the `kinuvo` CLI.
+product: jvm/app
+
+dependencies:
+  - ../server-testing
+
+settings:
+  jvm:
+    mainClass: kinuvo.harness.server.fixture.MainKt
+  kotlin:
+    compileIncrementally: true

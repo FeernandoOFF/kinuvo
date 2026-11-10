@@ -113,11 +113,11 @@ class TestServer private constructor(
         return if (title == null) session else manager.call(Api.UpdateSession, UpdateSessionParams(agentId, session.id, title = title))
     }
 
-    /** Starts listening on a loopback port and returns the WebSocket URL; clients on it are not seen by [spy]. */
-    suspend fun listen(): String {
+    /** Starts listening on loopback, on [port] if it is free and otherwise any port, and returns the WebSocket URL; clients on it are not seen by [spy]. */
+    suspend fun listen(port: Int? = null): String {
         val network = listener ?: NetworkListener(runtime, auth).also { listener = it }
-        val port = network.start("127.0.0.1", emptyList())
-        return "ws://127.0.0.1:$port/ws"
+        val bound = network.start("127.0.0.1", listOfNotNull(port))
+        return "ws://127.0.0.1:$bound/ws"
     }
 
     suspend fun stop() {

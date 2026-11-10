@@ -29,6 +29,7 @@ modules:
   - harness/providers/litert
   - harness/providers/voice
   - harness/server/embedded
+  - harness/server/fixture-server
   - harness/server/jvm
   - harness/server/runtime
   - harness/server/server-testing
