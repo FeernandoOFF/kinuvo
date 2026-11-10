@@ -50,6 +50,7 @@ class ServerRuntime(
     private val security: ConnectionSecurity = ConnectionSecurity(),
     executionRegistry: ExecutionRegistry = ExecutionRegistry(),
     private val executionFactory: ExecutionFactory? = null,
+    nativeFactory: ExecutionFactory = harness.native,
     private val executionStorage: ExecutionRecoveryStore = MemoryExecutionRecovery(),
     val remoteLinks: RemoteLinks = RemoteLinks(),
     private val prepareAttachment: (UploadAttachmentParams) -> UploadAttachmentParams = { it },
@@ -73,12 +74,13 @@ class ServerRuntime(
     }
     private val remoteGateway = RemoteGateway(remoteLinks,
         { admin.agents() + externalAgents() },
-        { id -> createSession(id).let { sourceSnapshot(id, it.id) } },
-        { agent, id -> sourceSnapshot(agent, id) },
-        { agent, id, text, action -> send(SendParams(agent, id, text, action = action)); Unit },
-        { _, id -> stop(id) },
-        { agent, answer -> execution(agent).answer(answer) },
-        { _, id -> if (external.owns(id)) external.discard(id) else stop(id) })
+        { id -> dispatch.create(id).let { dispatch.snapshot(id, it.id) } },
+        { agent, id -> dispatch.snapshot(agent, id) },
+        { agent, id, text, action -> dispatch.send(SendParams(agent, id, text, action = action)); Unit },
+        { _, id -> dispatch.stop(id) },
+        { _, answer -> dispatch.answer(answer) },
+        { _, id -> if (external.owns(id)) external.discard(id) else dispatch.stop(id) })
+    private val executionManagement = Mutex()
     private val external = ExecutionCoordinator(executions, installedFactory, scope, harness.log, executionStorage,
         resolve = { harness.attachments.download(it) }, readinessChanged = { catalogChanged() })
     suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData): Attachment {
@@ -90,16 +92,7 @@ class ServerRuntime(
     }
     private val screenBudget = ScreenBudget()
     private val clients = ConcurrentMutableSet<Client>()
-    private val runs = Runs(harness.log, scope)
-    private val nativeExecution = NativeExecutionDispatch(
-        { harness.newSession(agent(it)) },
-        { agentId, id ->
-            val snapshot = harness.log.executionSnapshot(agent(agentId), id)
-            if (snapshot.phase == ExecutionPhase.Idle && runs.isActive(id)) snapshot.copy(phase = ExecutionPhase.Running) else snapshot
-        },
-        { answer -> answerNative(answer) },
-        { sendNative(it) }, runs::stop,
-    )
+    private val runs = Runs(harness.log, scope, nativeFactory)
     private val devicePush = devicePush(auth, harness.serverId)
     private val notifications = Notifications(harness, scope, runs::routine, { external.registrationOrArchived(it)?.name }, devicePush)
     private val scheduler = Scheduler(harness, runs, scope, onRan = { broadcast(Api.RoutineRan, it); notifications.routineRan(it) })
@@ -107,6 +100,10 @@ class ServerRuntime(
     private val reflectionReview = ReflectionReview(harness)
     private val logins = ProviderLogins(harness.modelProviders, scope) { broadcast(Api.ProvidersChanged, it); changedCapabilities() }
     private val reflector = Reflector(harness, scope, runs::isActive)
+    private val dispatch = AgentExecution(executions, external,
+        NativeExecution(harness, runs, scope, admin::agent, { capabilities }, reflector::ran) { sessionId, text ->
+            clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveVoice?.notify(text) }
+        }, executionManagement)
     private val dispatcher = TaskDispatcher(harness, runs, scope)
     private val seq = AtomicLong(0)
     private val voice = VoiceRequests(harness, ::changedCapabilities)
@@ -117,7 +114,6 @@ class ServerRuntime(
     private var started = false
     private var closed = false
     private val lifecycle = Mutex()
-    private val executionManagement = Mutex()
 
     val capabilities get() = ServerCapabilities(harness.serverId, harness.features + setOf(ServerFeature.Screens) + (if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet()) + (if (devicePush != null) setOf(ServerFeature.Push) else emptySet()),
         if (foregroundOnly) ExecutionLifetime.Foreground else ExecutionLifetime.Continuous,
@@ -141,7 +137,7 @@ class ServerRuntime(
             check("browser" in agent(owner.agentId).config.tools) { "Browser is disabled for this Agent" }
         }
         harness.log.onDelete = { a, id -> external.delete(a, id) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
-        if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) scope.launch { stop(it.id) } }
+        if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) scope.launch { dispatch.stop(it.id) } }
     }
 
     private fun unwatched() = clients.block { it.none { c -> c.watching } }
@@ -442,7 +438,7 @@ class ServerRuntime(
             val provider = checkNotNull(voice.providers.speechToSpeech) { "Live voice is unavailable or disabled on this Server" }
             val registration = executions.registration(p.agentId)
             val name = registration?.let { externalInfo(it).name } ?: agent(p.agentId).name
-            sourceSnapshot(p.agentId, p.sessionId)
+            dispatch.snapshot(p.agentId, p.sessionId)
             client.voiceSessionId = p.sessionId
             LiveVoiceSession(provider, client.callScope, voiceContext(name, harness.store.entries(p.agentId, p.sessionId)),
                 client::offerLiveVoice,
@@ -451,13 +447,13 @@ class ServerRuntime(
                         try {
                             return@LiveVoiceSession withTimeout(300_000) {
                                 val before = harness.store.entries(p.agentId, p.sessionId).size
-                                val updates = VoiceAgentProgress(sourceSnapshot(p.agentId, p.sessionId))
-                                send(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true))
-                                var snapshot = sourceSnapshot(p.agentId, p.sessionId)
+                                val updates = VoiceAgentProgress(dispatch.snapshot(p.agentId, p.sessionId))
+                                dispatch.send(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true))
+                                var snapshot = dispatch.snapshot(p.agentId, p.sessionId)
                                 updates.update(snapshot).forEach { progress(it) }
                                 while (snapshot.phase == ExecutionPhase.Running || snapshot.phase == ExecutionPhase.RequiresAction) {
                                     delay(100)
-                                    snapshot = sourceSnapshot(p.agentId, p.sessionId)
+                                    snapshot = dispatch.snapshot(p.agentId, p.sessionId)
                                     updates.update(snapshot).forEach { progress(it) }
                                 }
                                 if (snapshot.phase == ExecutionPhase.Lost) "The Agent could not finish the request."
@@ -472,7 +468,7 @@ class ServerRuntime(
                     var reply = "The Agent finished without a reply."
                     var failure: String? = null
                     val updates = NativeVoiceProgress()
-                    sendNative(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true)) {
+                    dispatch.send(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true), null) {
                         updates.update(it).forEach { update -> progress(update) }
                         when (it) {
                             is AgentEvent.TextMessageEnd -> reply = it.text
@@ -495,7 +491,7 @@ class ServerRuntime(
         Api.ProbeHarnessConnection.name -> respond(r, Api.ProbeHarnessConnection) { checkHarness(it) }
         Api.ResumeExecution.name -> respond(r, Api.ResumeExecution) { executionManagement.withLock { external.resume(it.id) } }
         Api.CloseExecution.name -> respond(r, Api.CloseExecution) { executionManagement.withLock { external.closeExecution(it.id) } }
-        Api.ExecutionSnapshot.name -> respond(r, Api.ExecutionSnapshot) { if (external.owns(it.id)) external.snapshot(it.id) else nativeExecution.snapshot(nativeOwner(it.id) ?: error("Unknown Session"), it.id) }
+        Api.ExecutionSnapshot.name -> respond(r, Api.ExecutionSnapshot) { dispatch.snapshot(it.id) }
         Api.Respond.name -> respond(r, Api.Respond) {
             // Deciding any Approval takes management access, however the answer is shaped.
             if (!client.authenticated(auth::management)) {
@@ -504,7 +500,7 @@ class ServerRuntime(
                     pending.any { p -> p.id == it.requestId && (p is PendingInteraction.Approval || p is PendingInteraction.HarnessApproval) }
                 if (approving) error("This action requires management access")
             }
-            dispatchFor(it.sessionId).answer(it)
+            dispatch.answer(it)
         }
         Api.GrantExecution.name -> respond(r, Api.GrantExecution) { p ->
             require(p.agentIds.all { id -> if (executions.registration(id) != null) executions.configured(id).connection !is ExecutionConnection.Remote else harness.store.agents().any { it.id == id } }) { "Only installed source execution Agents may be exposed" }
@@ -542,7 +538,7 @@ class ServerRuntime(
         Api.CatchUp.name -> respond(r, Api.CatchUp) { harness.log.subscribe(it.agentId, it.sessionId, it.after, it.limit.coerceIn(1, MAX_PAGE), client) }
         Api.Unsubscribe.name -> respond(r, Api.Unsubscribe) { harness.log.unsubscribe(it.sessionId, client) }
         Api.History.name -> respond(r, Api.History) { harness.log.history(it.agentId, it.sessionId, it.before, it.limit.coerceIn(1, MAX_PAGE)) }
-        Api.CreateSession.name -> respond(r, Api.CreateSession) { createSession(it.agentId) }
+        Api.CreateSession.name -> respond(r, Api.CreateSession) { dispatch.create(it.agentId) }
         Api.ConfigureSession.name -> respond(r, Api.ConfigureSession) { p ->
             val agent = agent(p.agentId)
             check(harness.store.entries(agent.id, p.sessionId).isNotEmpty()) { "No session '${p.sessionId}'" }
@@ -558,8 +554,8 @@ class ServerRuntime(
         Api.AppResource.name -> respond(r, Api.AppResource) { harness.appResource(it) }
         Api.AppCallTool.name -> respond(r, Api.AppCallTool) { harness.appCallTool(agent(it.app.agentId), it) }
         Api.Attachment.name -> respond(r, Api.Attachment) { withContext(Dispatchers.Default) { harness.attachments.download(it.id) } }
-        Api.Send.name -> respond(r, Api.Send) { send(it, client) }
-        Api.Stop.name -> respond(r, Api.Stop) { stop(it.sessionId) }
+        Api.Send.name -> respond(r, Api.Send) { dispatch.send(it, harness.uiCatalogs.forRun(client)) }
+        Api.Stop.name -> respond(r, Api.Stop) { dispatch.stop(it.sessionId) }
         Api.ReviewReflection.name -> respond(r, Api.ReviewReflection) { reflectionReview.respond(agent(it.agentId), it.sessionId, it.proposalId, it.approve, it.note) }
         Api.Artifacts.name -> respond(r, Api.Artifacts) { harness.artifacts.list() }
         Api.Artifact.name -> respond(r, Api.Artifact) { harness.artifacts.get(it.id) }
@@ -634,81 +630,12 @@ class ServerRuntime(
         }
     }
 
-    private suspend fun execution(agentId: String): ExecutionDispatch =
-        if (executions.registration(agentId) != null) external else nativeExecution
-
-    private suspend fun createSession(agentId: String): SessionInfo =
-        if (executions.registration(agentId) != null) executionManagement.withLock { execution(agentId).create(agentId) }
-        else execution(agentId).create(agentId)
-
-    private suspend fun sourceSnapshot(agentId: String, sessionId: String) = execution(agentId).snapshot(agentId, sessionId)
-
-    /** Native and external Sessions each run through their own [ExecutionDispatch]; this picks the one that owns [sessionId]. */
-    private suspend fun dispatchFor(sessionId: String): ExecutionDispatch = if (external.owns(sessionId)) external else nativeExecution
-
-    private suspend fun nativeOwner(sessionId: String) = harness.store.agents().firstOrNull { a -> harness.store.sessions(a.id).any { it.id == sessionId } }?.id
-
-    private suspend fun answerNative(answer: RespondParams): Boolean {
-        nativeOwner(answer.sessionId) ?: return false
-        val pending = harness.log.pending(answer.sessionId).firstOrNull { it.id == answer.requestId } ?: return false
-        val given = answer.answer
-        return when {
-            pending is PendingInteraction.Approval && given is InteractionAnswer.Approval -> harness.approvals.respond(pending.id, given.decision)
-            pending is PendingInteraction.Approval && given is InteractionAnswer.Harness -> {
-                val option = (given.answer as? JsonObject)?.get("optionId")?.jsonPrimitive?.content
-                require(option == null || pending.forHarness().options.any { it.id == option })
-                harness.approvals.respond(pending.id, approvalDecision(option))
-            }
-            pending is PendingInteraction.Questions && given is InteractionAnswer.Questions -> harness.questions.respond(pending.id, given.answers)
-            else -> false
-        }
-    }
-
     private suspend fun browserOwner(owner: BrowserOwner) {
         check(executions.registration(owner.agentId) == null) {
             "Browser is managed by this Agent's harness and isn't available in Kinuvo"
         }
         agent(owner.agentId)
     }
-
-    private suspend fun send(p: SendParams, client: Client? = null): SendResult {
-        val isExternal = executions.registration(p.agentId) != null
-        val execution = execution(p.agentId)
-        return if (isExternal) executionManagement.withLock { execution.send(p) } else sendNative(p, harness.uiCatalogs.forRun(client))
-    }
-
-    private suspend fun sendNative(p: SendParams, catalogs: List<UiCatalog> = harness.uiCatalogs.forRun()): SendResult = sendNative(p, catalogs) {}
-
-    private suspend fun sendNative(p: SendParams, catalogs: List<UiCatalog> = harness.uiCatalogs.forRun(), onEvent: suspend (AgentEvent) -> Unit): SendResult {
-        val agent = agent(p.agentId)
-        require(p.text.isNotBlank() || p.attachments.isNotEmpty()) { "Add a message or attachment" }
-        check(p.attachments.isEmpty() || ServerFeature.Attachments in capabilities.features) { "Attachments are not available on this Server" }
-        require(p.attachments.size <= MAX_ATTACHMENTS && p.attachments.distinct().size == p.attachments.size) { "Attach up to 4 different files" }
-        val attachments = withContext(Dispatchers.Default) { p.attachments.map(harness.attachments::get) }
-        require(attachments.sumOf { it.size } <= MAX_ATTACHMENT_TOTAL_BYTES) { "Attachments must total 20 MB or less" }
-        val sessionId = p.sessionId?.also { id ->
-            check(harness.store.sessions(agent.id).any { it.id == id }) { "No session '$id' for agent '${agent.id}'" }
-        } ?: harness.newSession(agent).id
-        val effective = harness.capabilities(agent, sessionId, null, capabilities)
-        effective.chat.requireReady()
-        attachments.forEach { attachment -> effective.attachment(attachment.mimeType).requireReady() }
-        val (activation, message) = (if (ServerFeature.Skills in capabilities.features) harness.slashActivation(agent, p.text) else null) ?: (null to p.text)
-        val run = runs.start(agent, sessionId, message, activation, attachments = attachments, voice = p.voice, action = p.action, onEvent = onEvent, onDone = { reflector.ran(agent, sessionId) }) { harness.runner(agent, sessionId, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs)) }
-        return SendResult(sessionId, run.id, message, activation)
-    }
-
-    private fun toolReports(agent: Agent, sessionId: String, catalogs: List<UiCatalog>): ToolReports = ToolReports(scope) { report ->
-        try {
-            runs.start(agent, sessionId, "", report = report, queued = true, onEvent = { event ->
-                if (event is AgentEvent.TextMessageEnd) {
-                    clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveVoice?.notify(event.text) }
-                }
-            }) { harness.runner(agent, sessionId, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs)) }
-        } catch (e: CancellationException) { throw e }
-        catch (e: Exception) { log.warn(e) { "Background report could not start in Session $sessionId" } }
-    }
-
-    private suspend fun stop(sessionId: String) = dispatchFor(sessionId).stop(sessionId)
 
     private suspend fun checkHarness(config: HarnessConnection): ExecutionProbe {
         val probe = try {

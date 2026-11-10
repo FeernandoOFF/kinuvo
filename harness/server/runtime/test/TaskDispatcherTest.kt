@@ -6,6 +6,13 @@ import ai.koog.prompt.message.Message
 
 import kinuvo.harness.core.plugin.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
+import kinuvo.harness.execution.api.ExecutionBroker
+import kinuvo.harness.execution.api.ExecutionFactory
+import kinuvo.harness.execution.api.ExecutionInput
+import kinuvo.harness.execution.api.ExecutionSession
+import kinuvo.harness.execution.api.ExecutionState
+import kinuvo.protocol.AgentRegistration
+import kinuvo.protocol.HarnessConnection
 import kinuvo.protocol.TaskStatus
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
@@ -45,7 +52,7 @@ class TaskDispatcherTest {
     }
     private val harness = runBlocking { HarnessRuntime(ServerInstallation.assemble(AgentFiles(home)), modelFactory = { model }) }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    private val runs = Runs(harness.log, scope)
+    private val runs = Runs(harness.log, scope, harness.native)
     private val dispatcher = TaskDispatcher(harness, runs, scope)
 
     @Test
@@ -90,12 +97,16 @@ class TaskDispatcherTest {
         val agent = harness.store.agents().first()
         val session = harness.newSession(agent)
         val preparing = kotlinx.coroutines.CompletableDeferred<Unit>()
-        val started = scope.async {
-            kotlin.runCatching { runs.start(agent, session.id, "hi") { preparing.await(); error("no runner") } }
+        val failing = object : ExecutionFactory {
+            override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession { preparing.await(); error("no session") }
         }
-        awaitCondition("the run to be counted", 5.seconds) { runs.activity.value.runs == 1 }
+        val failingRuns = Runs(harness.log, scope, failing)
+        val started = scope.async {
+            kotlin.runCatching { failingRuns.start(agent, session.id, ExecutionInput("hi")) }
+        }
+        awaitCondition("the run to be counted", 5.seconds) { failingRuns.activity.value.runs == 1 }
         preparing.complete(Unit)
         assertTrue(started.await().isFailure)
-        assertEquals(0, runs.activity.value.runs)
+        assertEquals(0, failingRuns.activity.value.runs)
     }
 }

@@ -3,7 +3,11 @@ package kinuvo.harness.server
 import kinuvo.harness.testing.AgentRun
 
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.AgentRun
+import kinuvo.harness.core.NativeExecutionFactory
+import kinuvo.harness.core.NativeHarnessHost
+import kinuvo.harness.core.ReflectionModel
+import kinuvo.harness.execution.api.ExecutionInput
+import kinuvo.harness.execution.api.RunKind
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.CompletableDeferred
@@ -24,12 +28,15 @@ class ToolReportRunTest {
             if (calls == 1) release.await()
             emit(StreamFrame.End())
         } }
-        val runs = Runs(SessionLog(fixture.store), this)
-        fun runner() = AgentRun(fixture.agent, fixture.store, model, emptyList())
-        val first = runs.start(fixture.agent, session.id, "start", runner = ::runner)
+        val host = object : NativeHarnessHost {
+            override suspend fun run(agentId: String, sessionId: String, input: ExecutionInput) = AgentRun(fixture.agent, fixture.store, model, emptyList())
+            override suspend fun reflection(agentId: String, sessionId: String): ReflectionModel = error("No Reflection")
+        }
+        val runs = Runs(SessionLog(fixture.store), this, NativeExecutionFactory(host))
+        val first = runs.start(fixture.agent, session.id, ExecutionInput("start"))
         runCurrent()
         val report = SessionEntry.ToolReport("shell", "call", "exit 0: done")
-        val second = async { runs.start(fixture.agent, session.id, "", report = report, queued = true, runner = ::runner) }
+        val second = async { runs.start(fixture.agent, session.id, ExecutionInput("", kind = RunKind.Chat(report = report)), queued = true) }
         runCurrent()
         assertFalse(second.isCompleted)
         assertEquals(1, calls)

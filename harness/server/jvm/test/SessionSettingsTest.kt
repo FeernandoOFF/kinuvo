@@ -46,7 +46,7 @@ class SessionSettingsTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         var harness = Harness(Path(home.path), plugins = plugins)
         try {
-            val admin = Admin(harness, Runs(harness.log, scope)) {}
+            val admin = Admin(harness, Runs(harness.log, scope, harness.native)) {}
             admin.update(UpdateAgentParams("default", provider = "first", model = "shared-id"))
             val agent = harness.store.agents().single()
             val session = harness.newSession(agent).id

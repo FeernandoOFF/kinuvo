@@ -4,6 +4,8 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import kinuvo.harness.core.Agent
 import kinuvo.harness.core.routines.RoutineRun
+import kinuvo.harness.execution.api.ExecutionInput
+import kinuvo.harness.execution.api.RunKind
 import kinuvo.harness.core.routines.Schedule
 import kinuvo.harness.core.routines.formatTime
 import kinuvo.protocol.AgentEvent
@@ -132,7 +134,7 @@ class Scheduler(
         var report: String? = null
         val routineRun = RoutineRun(routine, clock) { onRan(RoutineRan(agent.id, ref, RunStatus.Ok, sessionId, summary = it.summary)) }
         // Cleans up while the Session is still reserved, so truncating can't take a turn that starts right after.
-        val run = try { runs.start(agent, sessionId, prompt, routine = ref, onEvent = { if (it is AgentEvent.RunError) error = it.message }, onDone = { stopped ->
+        val run = try { runs.start(agent, sessionId, ExecutionInput(prompt, kind = RunKind.Routine(routineRun)), reserved = { record(agent, routine, RunStatus.Running, null, startedAt, sessionId) }, onEvent = { if (it is AgentEvent.RunError) error = it.message }, onDone = { stopped ->
             val added = harness.store.entries(agent.id, sessionId).drop(before)
             val outcome = added.filterIsInstance<SessionEntry.Outcome>().lastOrNull()
             report = outcome?.summary?.takeIf { outcome.report }
@@ -149,10 +151,7 @@ class Scheduler(
                 kept = null
                 harness.store.deleteSession(agent.id, sessionId)
             }
-        }) {
-            record(agent, routine, RunStatus.Running, null, startedAt, sessionId)
-            harness.runner(agent, sessionId, routineRun)
-        } } catch (_: Runs.StoppedBeforeStart) { null }
+        }) } catch (_: Runs.StoppedBeforeStart) { null }
         run?.job?.join()
         record(agent, routine, status, error, startedAt, kept)
         harness.routines.update(agent, routine.id) { it.copy(lastReport = report, lastSessionId = if (kept == null) routine.lastSessionId else it.lastSessionId) }

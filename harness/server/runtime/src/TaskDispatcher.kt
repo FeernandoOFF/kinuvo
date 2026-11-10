@@ -2,6 +2,8 @@ package kinuvo.harness.server
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import co.touchlab.stately.collections.ConcurrentMutableSet
+import kinuvo.harness.execution.api.ExecutionInput
+import kinuvo.harness.execution.api.RunKind
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.TaskInfo
 import kinuvo.protocol.taskPrompt
@@ -63,7 +65,7 @@ class TaskDispatcher(private val harness: HarnessRuntime, private val runs: Runs
             log.info { "Task ${task.id}: starting Agent ${agent.id}, Session ${session.id}" }
             var reply: String? = null
             var completed = false
-            runs.start(agent, session.id, prompt(task), onEvent = { event ->
+            runs.start(agent, session.id, ExecutionInput(prompt(task), kind = RunKind.Chat(taskId = task.id)), onEvent = { event ->
                 when (event) {
                     is AgentEvent.TextMessageEnd -> reply = event.text
                     is AgentEvent.ToolCallStart -> reply = null
@@ -78,7 +80,7 @@ class TaskDispatcher(private val harness: HarnessRuntime, private val runs: Runs
                 } finally {
                     done(task.id)
                 }
-            }) { harness.runner(agent, session.id, taskId = task.id) }
+            })
             started = true
         } catch (e: Exception) {
             currentCoroutineContext().ensureActive()

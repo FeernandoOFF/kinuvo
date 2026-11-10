@@ -62,7 +62,7 @@ class TaskDispatcherTimeoutTest {
         val harness = HarnessRuntime(ServerInstallation.assemble(files, plugins = listOf(plugin)), modelFactory = {
             scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("Result"), StreamFrame.End()) }
         })
-        val runs = Runs(harness.log, backgroundScope)
+        val runs = Runs(harness.log, backgroundScope, harness.native)
         val dispatcher = TaskDispatcher(harness, runs, backgroundScope)
         try {
             var task = if (timeoutAtStartup) harness.tasks.create("Research", assignee = "default") else null

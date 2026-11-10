@@ -42,7 +42,7 @@ class Reflection(
     suspend fun reflect(agent: Agent, model: AgentModel, sessionId: String, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, review: ReflectionRevision? = null): ReflectionResult {
         val run = turn(agent, sessionId, entries, prompt, review)
         runReflection(run, agent, model, sessionId, tracing)
-        return run.result().also { review?.validate(it) }
+        return run.finish()
     }
 }
 
@@ -159,7 +159,10 @@ class ReflectionRun internal constructor(
 
     override fun measured(metrics: RequestMetrics) { measurements += metrics }
 
-    fun result() = ReflectionResult(memory = memory, userNotes = userNotes, proposals = if (::changes.isInitialized) changes.proposals.toList() else emptyList(),
+    /** What the Reflection saved and proposed, once its stages have run. */
+    fun finish(): ReflectionResult = result().also { review?.validate(it) }
+
+    private fun result() = ReflectionResult(memory = memory, userNotes = userNotes, proposals = if (::changes.isInitialized) changes.proposals.toList() else emptyList(),
         measurements = measurements.toList(), memoryChanges = memoryChanges.toList(), error = errors.takeIf { it.isNotEmpty() }?.joinToString("\n"))
 }
 

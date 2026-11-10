@@ -1,10 +1,15 @@
 package kinuvo.harness.server
 
-import kinuvo.protocol.SurfaceAction
-
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import kinuvo.harness.core.Agent
-import kinuvo.harness.core.AgentRun
+import kinuvo.harness.core.BUILT_IN_HARNESS
+import kinuvo.harness.core.builtInRegistration
+import kinuvo.harness.execution.api.ExecutionBroker
+import kinuvo.harness.execution.api.ExecutionFactory
+import kinuvo.harness.execution.api.ExecutionInput
+import kinuvo.harness.execution.api.ExecutionSink
+import kinuvo.harness.execution.api.ExecutionState
+import kinuvo.harness.execution.api.RunKind
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.SessionEntry
@@ -20,13 +25,12 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
 import kotlin.uuid.Uuid
-import kinuvo.protocol.Attachment
 
 /** How many runs are going and how many events they've produced, e.g. for a host keeping them alive in the background. */
 data class RunActivity(val runs: Int = 0, val steps: Long = 0)
 
 /** The active runs, at most one per Session. They belong to the server: they outlive the client that started them. */
-class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
+class Runs(private val log: SessionLog, private val scope: CoroutineScope, private val factory: ExecutionFactory) {
     class Run(val id: String, val job: Job)
 
     val activity: StateFlow<RunActivity>
@@ -57,23 +61,18 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
     fun routine(sessionId: String): RoutineRef? = routines[sessionId]
 
     /**
-     * Starts a run in [sessionId], or fails when one is already active there. [onEvent] sees every event of the run;
-     * [onDone] runs once it ends, [stopped] or not, while the Session is still reserved.
+     * Starts a run of [input] in [sessionId], or fails when one is already active there. [onEvent] sees every event of the
+     * run; [onDone] runs once it ends, [stopped] or not, while the Session is still reserved. [reserved] runs once the
+     * Session is reserved, before the run is set up.
      */
     suspend fun start(
         agent: Agent,
         sessionId: String,
-        message: String,
-        activation: SessionEntry.Activation? = null,
-        routine: RoutineRef? = null,
-        attachments: List<Attachment> = emptyList(),
-        voice: Boolean = false,
+        input: ExecutionInput,
         queued: Boolean = false,
-        action: SurfaceAction? = null,
-        report: SessionEntry.ToolReport? = null,
+        reserved: suspend () -> Unit = {},
         onEvent: suspend (AgentEvent) -> Unit = {},
         onDone: suspend (stopped: Boolean) -> Unit = {},
-        runner: suspend () -> AgentRun,
     ): Run {
         // Reserve the Session before anything suspends, so two sends can't both start a run in it.
         val reservation = Job()
@@ -88,28 +87,33 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope) {
             if (previous == null) break
             previous.join()
         }
-        // Counted from the reservation, while the runner is still being prepared; completing it releases the count once.
+        // Counted from the reservation, while the session is still being opened; completing it releases the count once.
         val counted = Job().also { activity.update { a -> a.copy(runs = a.runs + 1) } }
         counted.invokeOnCompletion { activity.update { a -> a.copy(runs = a.runs - 1) } }
         try {
-            val r = runner()
-            val runId = Uuid.random().toString()
+            reserved()
+            val sink = object : ExecutionSink {
+                override suspend fun publish(event: AgentEvent) {
+                    onEvent(event); log.publish(agent.id, sessionId, event); activity.update { a -> a.copy(steps = a.steps + 1) }
+                }
+                override suspend fun commit(entries: List<SessionEntry>) { log.appendAll(agent.id, sessionId, entries) }
+            }
+            val state = ExecutionState(sessionId, sink = sink)
+            val session = factory.open(BUILT_IN_HARNESS, builtInRegistration(agent), state, ExecutionBroker(state), scope)
+            val runId = input.runId ?: Uuid.random().toString()
             if (!reservation.isActive) stoppedEarly(sessionId, reservation, onDone)
             val job = scope.launch(start = CoroutineStart.LAZY) {
                 var stopped = false
                 try {
-                    r.run(sessionId, message, activation, runId, attachments, voice, action, report).collect {
-                        onEvent(it); log.publish(agent.id, sessionId, it); activity.update { a -> a.copy(steps = a.steps + 1) }
-                    }
+                    session.prompt(input.copy(runId = runId))
                 } catch (e: CancellationException) {
                     stopped = true
-                    withContext(NonCancellable) { log.publish(agent.id, sessionId, AgentEvent.RunFinished(runId)) }
                     throw e
                 } finally {
-                    withContext(NonCancellable) { onDone(stopped) }
+                    withContext(NonCancellable) { try { session.close() } finally { onDone(stopped) } }
                 }
             }
-            routine?.let { routines[sessionId] = it }
+            (input.kind as? RunKind.Routine)?.let { routines[sessionId] = it.turn.ref }
             job.invokeOnCompletion { routines.remove(sessionId); active.removeExact(sessionId, job); counted.complete() }
             val installed = active.block { runs -> (reservation.isActive && runs[sessionId] == reservation).also { if (it) runs[sessionId] = job } }
             if (!installed) {

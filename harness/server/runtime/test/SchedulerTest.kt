@@ -56,7 +56,7 @@ class SchedulerTest {
     private val agent = runBlocking { harness.store.agents().single() }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val ran = mutableListOf<RoutineRan>()
-    private val runs = Runs(harness.log, scope)
+    private val runs = Runs(harness.log, scope, harness.native)
     private val scheduler = Scheduler(harness, runs, scope, onRan = { ran += it }, clock = { now })
 
     @AfterTest

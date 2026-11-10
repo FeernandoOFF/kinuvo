@@ -2,7 +2,7 @@ package kinuvo.cli
 
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import kinuvo.harness.execution.api.NativeExecutionDispatch
+import kinuvo.harness.execution.api.ExecutionDispatch
 import kinuvo.protocol.*
 
 internal class AcpCommand : ServerCommand("acp", "Expose one native Agent over ACP v2 stdio through the running Server.") {
@@ -14,10 +14,12 @@ internal class AcpCommand : ServerCommand("acp", "Expose one native Agent over A
     }
 }
 
-internal fun kinuvo.client.KinuvoClient.acpDispatch() = NativeExecutionDispatch(
-    { call(Api.CreateSession, AgentRef(it)) },
-    { _, id -> call(Api.ExecutionSnapshot, ExecutionRef(id)) },
-    { call(Api.Respond, it) },
-    { call(Api.Send, it) },
-    { call(Api.Stop, StopParams(it)) },
-)
+internal fun kinuvo.client.KinuvoClient.acpDispatch(): ExecutionDispatch = ClientDispatch(this)
+
+private class ClientDispatch(private val client: kinuvo.client.KinuvoClient) : ExecutionDispatch {
+    override suspend fun create(agentId: String) = client.call(Api.CreateSession, AgentRef(agentId))
+    override suspend fun snapshot(agentId: String, sessionId: String) = client.call(Api.ExecutionSnapshot, ExecutionRef(sessionId))
+    override suspend fun answer(answer: RespondParams) = client.call(Api.Respond, answer)
+    override suspend fun send(params: SendParams) = client.call(Api.Send, params)
+    override suspend fun stop(sessionId: String) = client.call(Api.Stop, StopParams(sessionId))
+}
