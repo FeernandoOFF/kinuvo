@@ -4,4 +4,4 @@ appId: ${APP_ID}
 - tapOn:
     text: "E2E Agent"
     above: "New agent"
-- tapOn: "E2E chat"
+- tapOn: "Hello from Maestro"

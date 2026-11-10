@@ -19,13 +19,6 @@ private const val SCALE = 2f
 internal fun runPhoneTest(block: suspend ComposeUiTest.() -> Unit): TestResult =
     runSkikoComposeUiTest(Size(390 * SCALE, 844 * SCALE), Density(SCALE)) { block() }
 
-private val wiremock: File by lazy {
-    generateSequence(File("").absoluteFile) { it.parentFile }.map { File(it, ".maestro/wiremock") }.first { it.isDirectory }
-}
-
-/** Reads a Mockstro WireMock fixture, relative to `.maestro/wiremock/`. */
-internal fun fixture(path: String) = File(wiremock, path).readText()
-
 /** Saves the screen to `build/screens/flows/<name>.png`. */
 @OptIn(ExperimentalTestApi::class)
 internal fun ComposeUiTest.saveScreenshot(name: String) {

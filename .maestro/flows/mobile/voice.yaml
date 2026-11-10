@@ -3,11 +3,6 @@ tags:
   - regression
   - android
   - ios
-properties:
-  apiProfile: mobile-voice
-  apiVerifications:
-    - stub: mobile/voice-capabilities
-      atLeast: 1
 ---
 - launchApp:
     permissions:

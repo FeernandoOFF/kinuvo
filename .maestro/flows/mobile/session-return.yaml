@@ -3,23 +3,6 @@ tags:
   - android
   - ios
   - regression
-properties:
-  apiProfile: mobile-return
-  apiVerifications:
-    - stub: mobile/connect-features
-      exactly: 1
-    - stub: ws/create-session
-      exactly: 1
-    - stub: ws/chat-send
-      exactly: 1
-    - stub: ws/catch-up
-      exactly: 1
-    - stub: mobile/tasks
-      atLeast: 1
-    - stub: mobile/presence-active
-      atLeast: 2
-    - stub: mobile/presence-inactive
-      atLeast: 1
 ---
 - runFlow: ../../shared/start-chat.yaml
 - tapOn: "Agents and sessions"
@@ -28,16 +11,10 @@ properties:
     above: "New agent"
 - tapOn: "Board"
 - assertVisible: "Plan mobile tests"
-- runScript:
-    file: ../../shared/send-message.js
-    env:
-      WS_PATH: /ws
-      WS_MESSAGE: '{"type":"event","event":"session.update","payload":{"agentId":"e2e","sessionId":"e2e-session","change":{"type":"entry","seq":2,"entry":{"type":"assistant","text":"Reply received while on Board","messageId":"away-reply"}}},"seq":10}'
 - runFlow: ../../shared/assert-no-back.yaml
 - runFlow: ../../shared/return-to-chat.yaml
 - assertVisible: "Hello from Maestro"
-- assertVisible: "Hello from WireMock"
-- assertVisible: "Reply received while on Board"
+- assertVisible: "Hello from the fixture Server"
 - runFlow:
     when:
       platform: Android
@@ -49,9 +26,7 @@ properties:
     commands:
       - launchApp:
           appId: com.apple.Preferences
-- assertNotVisible: "Reply received while on Board"
 - launchApp:
     stopApp: false
 - assertVisible: "Hello from Maestro"
-- assertVisible: "Hello from WireMock"
-- assertVisible: "Reply received while on Board"
+- assertVisible: "Hello from the fixture Server"

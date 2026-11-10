@@ -4,13 +4,11 @@ tags:
   - ios
   - smoke
   - regression
-properties:
-  apiProfile: showcase
 ---
 - runFlow:
     file: ../../shared/review-pair.yaml
     env:
-      PAIRING_CODE: "123456"
+      PAIRING_CODE: ${PAIRING_CODE}
 - extendedWaitUntil:
     visible: "Agents and sessions"
     timeout: 30000

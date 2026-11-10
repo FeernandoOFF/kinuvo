@@ -1,8 +1,0 @@
-{
-  "mappings": [
-    "ws/upgrade",
-    "mobile/connect-rejected",
-    "ws/surface-catalogs",
-    "ws/execution-catalog"
-  ]
-}
