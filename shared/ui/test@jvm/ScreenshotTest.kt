@@ -111,6 +111,16 @@ class ScreenshotTest {
         }
     }
 
+    @Test fun backgroundReportInChat() {
+        val report = ChatItem.ToolReport("report", "shell", "call", "[bg1 exit 0] ./kotlin test -m core -p jvm\n[ 277 tests successful ]\n[ 0 tests failed ]")
+        render("chat-tool-report", 420, 620) {
+            HarnessTheme(dark = true) {
+                ChatContent(state.copy(items = listOf(ChatItem.User("user", "Run the core tests"), ChatItem.Assistant("started", "Started the tests in the background."), report,
+                    ChatItem.Assistant("done", "All 277 core tests passed.")), running = false), ConnectionState.Connected("x"), null, ChatActions())
+            }
+        }
+    }
+
     @Test fun generatingImageInChat() {
         val item = ChatItem.ToolCall("image", "image", "generate_image", "{}")
         render("chat-generating-image", 420, 860) {
@@ -1009,6 +1019,17 @@ class ScreenshotTest {
     }
 
     @Test
+    fun renderMarkdownImage() {
+        render("markdown-image", 390, 260) {
+            HarnessTheme(dark = false) {
+                Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
+                    Markdown("Here is the chart:\n\n![Chart](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAHgAAAA8CAIAAAAiz+n/AAAAhklEQVR4nO3QAQkAIADAMOMY0dhGsIXCHTzA2dhr6kLj+cEngQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K1Ag24FGnQr0KBbgQbdCjToVqBBtwINuhVo0K0O/6L0hoP34ewAAAAASUVORK5CYII=)\n\n![Kotlin logo](https://example.com/kotlin.svg)\n\nDone.")
+                }
+            }
+        }
+    }
+
+    @Test
     fun renderWideTable() {
         render("markdown-wide-table", 390, 260) {
             HarnessTheme(dark = true) {
@@ -1077,6 +1098,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         call("live-call-thinking-dark", VoiceChatState(VoicePhase.Thinking, live = true))
         call("live-call-long-caption-dark", speaking.copy(caption = List(12) { "Then at ${it + 1} there's another meeting about the roadmap, budgets and hiring." }.joinToString(" ") + " Last words."), captions = true)
         call("live-call-muted-dark", listening.copy(paused = true))
+        call("live-call-holding-dark", listening.copy(holding = true))
         render("live-call-light", 390, 844) { HarnessTheme(dark = false) { LiveCallScreen("Kinuvo", AvatarInk[2], listening, 75, false, {}, {}, {}, {}, {}, time = 3f) } }
         val event = AgentEvent.ApprovalRequested("ap", "t", "calendar_update", """{"event":"Dentist","start":"2026-11-07T10:00"}""", reason = "Dentist → Friday, 10:00")
         render("live-call-approval-dark", 390, 844) {

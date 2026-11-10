@@ -58,6 +58,7 @@ import kinuvo.harness.core.tools.MemoryTool
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.indexedTools
 import kinuvo.harness.core.tools.Toolsets
+import kinuvo.harness.core.tools.ToolReports
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.ToolCatalog
 import kinuvo.harness.core.effective
@@ -80,6 +81,9 @@ import kinuvo.protocol.SessionCapabilities
 import kinuvo.protocol.ServerCapabilities
 import kinuvo.protocol.Platform
 import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.ProviderModelRef
+import kinuvo.protocol.imageModels
+import kinuvo.protocol.resolveImageModel
 import kinuvo.protocol.ModelInfo
 import kotlinx.coroutines.flow.StateFlow
 import kinuvo.protocol.PluginInstanceId
@@ -128,9 +132,10 @@ open class HarnessRuntime(
     val computers = Computers(log) { questions }
     private val plugins = (listOf(KnowledgePlugin(knowledge), TasksPlugin(tasks), devices, computers) + external).also { it.checkPluginInstances() }
     private val reflection = Reflection(knowledge, docs, skills, { trustRules.effective(it.id).deny }, tracing = dependencies.tracing) { Clock.System.todayIn(timeZone) }
-    private val providers = dependencies.modelProviders.associateBy { it.id }
+    private val providers get() = dependencies.modelProviders.associateBy { it.id }
     suspend fun modelCatalog(refresh: Boolean = false) = dependencies.modelCatalog(refresh)
-    val modelProviders get() = providers.values.toList()
+    val modelProviders get() = dependencies.modelProviders
+    val customEndpoints get() = dependencies.plugins.firstNotNullOfOrNull { it.customEndpoints } ?: error("Custom providers are unavailable on this Server")
     fun requireModelProvider(id: String) { require(providerId(id) in providers) { "No model provider '$id'" } }
     /** A custom provider's bare ID, as agent.yaml named it before custom IDs were prefixed, still finds it. */
     fun providerId(id: String) = if (id !in providers && CUSTOM_PROVIDERS + id in providers) CUSTOM_PROVIDERS + id else id
@@ -292,7 +297,7 @@ open class HarnessRuntime(
      * Session it runs in; [routine] is set for a Routine's run, which follows the Routine's approval mode.
      */
     suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineRun? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
-        scope: ToolScope = ToolScope.All): AgentRun {
+        scope: ToolScope = ToolScope.All, reports: ToolReports? = null): AgentRun {
         val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs, scope = scope)
         val e = prepared.effective
         val agent = e.agent
@@ -323,6 +328,7 @@ open class HarnessRuntime(
                 }
             },
             routine = routine,
+            reports = reports,
             profile = e.profile,
             questions = questions,
             attach = { name, bytes -> attachments.upload(UploadAttachmentParams(name, Base64.encode(bytes))) },
@@ -404,10 +410,13 @@ open class HarnessRuntime(
     private suspend fun toolsFor(e: Effective, sessionId: String?, routine: RoutineRun?, catalogs: List<UiCatalog>): List<Tool> {
         val agent = e.agent
         val search = if (ToolNames.WEB_FETCH in agent.config.tools) webSearch() else null
-        val selected = imageModel
-        val provider = selected?.let { providers[it.provider] }
-        val imageTool = if (selected != null && sessionId != null && provider?.images != null &&
-            provider.availability(selected.model).actionable) GenerateImageTool(provider.images!!, selected.model, {
+        val available = modelCatalog().imageModels().filter { ref ->
+            val candidate = providers[ref.provider]
+            candidate?.images != null && candidate.availability(ref.model).actionable
+        }
+        val selected = resolveImageModel(ProviderModelRef(agent.config.provider, agent.config.model), imageModel, available)
+        val images = selected?.let { providers[it.provider]?.images }
+        val imageTool = if (selected != null && images != null && sessionId != null) GenerateImageTool(images, selected.model, {
                 store.entries(agent.id, sessionId).flatMap { entry -> when (entry) {
                     is SessionEntry.UserMessage -> entry.attachments
                     is SessionEntry.ToolResult -> entry.attachments

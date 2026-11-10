@@ -13,6 +13,7 @@ import io.ktor.http.content.OutgoingContent
 import kinuvo.harness.core.*
 import kinuvo.harness.core.store.*
 import kinuvo.harness.core.tools.RawSchemaToolDescriptor
+import kinuvo.protocol.CustomEndpointParams
 import kinuvo.protocol.ModelInfo
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.test.runTest
@@ -122,6 +123,22 @@ class CompatibleProviderTest {
                 assertTrue(local.availability("local").actionable)
             } finally { providers.forEach { it.close() } }
         } finally { home.deleteRecursively() }
+    }
+
+    @Test
+    fun newEndpointsAreSavedAndAvailableWithoutRestart() = runTest {
+        val home = Files.createTempDirectory("koog-endpoint").toFile()
+        val files = AgentFiles(Path(home.path))
+        val plugins = compatibleProviders(files)
+        try {
+            val endpoints = assertNotNull(plugins.single().customEndpoints)
+            val params = CustomEndpointParams(id = "studio", baseUrl = "http://localhost:1234/v1", model = "my-model")
+            val ref = endpoints.save(params)
+            assertEquals("custom/studio", ref.provider)
+            assertEquals(listOf("my-model"), plugins.flatMap { it.modelProviders }.single().models().map { it.id })
+            assertEquals("http://localhost:1234/v1/", files.config().providers["studio"]?.baseUrl)
+            assertFailsWith<IllegalArgumentException> { endpoints.save(params) }
+        } finally { plugins.forEach { it.close() }; home.deleteRecursively() }
     }
 
     @Test

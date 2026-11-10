@@ -36,7 +36,7 @@ class CodexRealtimeLiveTest {
                             is VoiceOutput.Done -> answered = true
                             else -> println(out)
                         }
-                    }) { task ->
+                    }) { task, _ ->
                         tasks += task
                         "Paris right now: 18 degrees Celsius, sunny, light wind."
                     }
@@ -65,7 +65,7 @@ class CodexRealtimeLiveTest {
         runBlocking {
             val ready = CompletableDeferred<Unit>()
             val call = launch {
-                realtime.converse(VoiceContext("You are a friendly voice assistant."), input, { if (it == VoiceOutput.Ready) ready.complete(Unit) }) { "" }
+                realtime.converse(VoiceContext("You are a friendly voice assistant."), input, { if (it == VoiceOutput.Ready) ready.complete(Unit) }) { _, _ -> "" }
             }
             withTimeout(30_000) { ready.await() }
             repeat(100) { input.trySend(VoiceInput.Audio(ByteArray(480))); delay(10) }

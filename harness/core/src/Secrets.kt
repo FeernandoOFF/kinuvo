@@ -89,9 +89,13 @@ class Secrets(val providers: List<SecretProvider> = emptyList(), private val ttl
     fun redacting(tool: Tool): Tool = object : Tool by tool {
         override suspend fun execute(args: JsonObject) = redacted { tool.execute(args) }
         override suspend fun execute(args: JsonObject, callId: String) = redacted { tool.execute(args, callId) }
-        override suspend fun execute(args: JsonObject, callId: String, run: ToolRun) = redacted { tool.execute(args, callId, run) }
-        override suspend fun executeResult(args: JsonObject, callId: String, run: ToolRun) = failing { tool.executeResult(args, callId, run) }.let {
+        override suspend fun execute(args: JsonObject, callId: String, run: ToolRun) = redacted { tool.execute(args, callId, reporting(run)) }
+        override suspend fun executeResult(args: JsonObject, callId: String, run: ToolRun) = failing { tool.executeResult(args, callId, reporting(run)) }.let {
             it.copy(output = redact(it.output), appResult = it.appResult?.let { value -> redact(value) as JsonObject })
+        }
+        private fun reporting(run: ToolRun) = object : ToolRun by run {
+            override suspend fun progress(content: String) = run.progress(redact(content))
+            override fun background(started: String, work: suspend () -> String) = run.background(started) { redacted(work) }
         }
         private suspend fun redacted(block: suspend () -> String) = redact(failing(block))
         private suspend fun <T> failing(block: suspend () -> T) = try {

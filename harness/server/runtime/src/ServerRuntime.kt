@@ -8,6 +8,7 @@ import co.touchlab.stately.collections.ConcurrentMutableSet
 import co.touchlab.stately.concurrency.Lock
 import co.touchlab.stately.concurrency.withLock
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kinuvo.harness.core.tools.ToolReports
 import kinuvo.harness.core.Agent
 import kinuvo.harness.server.execution.*
 import kinuvo.harness.execution.api.*
@@ -205,6 +206,7 @@ class ServerRuntime(
 
     private inner class Client(private val connection: FrameConnection) : SessionLog.Subscriber {
         var liveVoice: LiveVoiceSession? = null
+        var voiceSessionId: String? = null
         var callScope: CoroutineScope = scope
         val browser = connection.credential != null
         val outbox = Channel<Frame>(OUTBOX_SIZE)
@@ -441,18 +443,22 @@ class ServerRuntime(
             val registration = executions.registration(p.agentId)
             val name = registration?.let { externalInfo(it).name } ?: agent(p.agentId).name
             sourceSnapshot(p.agentId, p.sessionId)
+            client.voiceSessionId = p.sessionId
             LiveVoiceSession(provider, client.callScope, voiceContext(name, harness.store.entries(p.agentId, p.sessionId)),
                 client::offerLiveVoice,
-                askAgent = { task ->
+                askAgent = { task, progress ->
                     if (registration != null) {
                         try {
                             return@LiveVoiceSession withTimeout(300_000) {
                                 val before = harness.store.entries(p.agentId, p.sessionId).size
+                                val updates = VoiceAgentProgress(sourceSnapshot(p.agentId, p.sessionId))
                                 send(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true))
                                 var snapshot = sourceSnapshot(p.agentId, p.sessionId)
+                                updates.update(snapshot).forEach { progress(it) }
                                 while (snapshot.phase == ExecutionPhase.Running || snapshot.phase == ExecutionPhase.RequiresAction) {
                                     delay(100)
                                     snapshot = sourceSnapshot(p.agentId, p.sessionId)
+                                    updates.update(snapshot).forEach { progress(it) }
                                 }
                                 if (snapshot.phase == ExecutionPhase.Lost) "The Agent could not finish the request."
                                 else harness.store.entries(p.agentId, p.sessionId).drop(before)
@@ -465,7 +471,9 @@ class ServerRuntime(
                     runs.join(p.sessionId)
                     var reply = "The Agent finished without a reply."
                     var failure: String? = null
+                    val updates = NativeVoiceProgress()
                     sendNative(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true)) {
+                        updates.update(it).forEach { update -> progress(update) }
                         when (it) {
                             is AgentEvent.TextMessageEnd -> reply = it.text
                             is AgentEvent.RunError -> failure = "The Agent could not finish the request"
@@ -673,7 +681,7 @@ class ServerRuntime(
 
     private suspend fun sendNative(p: SendParams, catalogs: List<UiCatalog> = harness.uiCatalogs.forRun()): SendResult = sendNative(p, catalogs) {}
 
-    private suspend fun sendNative(p: SendParams, catalogs: List<UiCatalog> = harness.uiCatalogs.forRun(), onEvent: (AgentEvent) -> Unit): SendResult {
+    private suspend fun sendNative(p: SendParams, catalogs: List<UiCatalog> = harness.uiCatalogs.forRun(), onEvent: suspend (AgentEvent) -> Unit): SendResult {
         val agent = agent(p.agentId)
         require(p.text.isNotBlank() || p.attachments.isNotEmpty()) { "Add a message or attachment" }
         check(p.attachments.isEmpty() || ServerFeature.Attachments in capabilities.features) { "Attachments are not available on this Server" }
@@ -687,8 +695,19 @@ class ServerRuntime(
         effective.chat.requireReady()
         attachments.forEach { attachment -> effective.attachment(attachment.mimeType).requireReady() }
         val (activation, message) = (if (ServerFeature.Skills in capabilities.features) harness.slashActivation(agent, p.text) else null) ?: (null to p.text)
-        val run = runs.start(agent, sessionId, message, activation, attachments = attachments, voice = p.voice, action = p.action, onEvent = onEvent, onDone = { reflector.ran(agent, sessionId) }) { harness.runner(agent, sessionId, catalogs = catalogs) }
+        val run = runs.start(agent, sessionId, message, activation, attachments = attachments, voice = p.voice, action = p.action, onEvent = onEvent, onDone = { reflector.ran(agent, sessionId) }) { harness.runner(agent, sessionId, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs)) }
         return SendResult(sessionId, run.id, message, activation)
+    }
+
+    private fun toolReports(agent: Agent, sessionId: String, catalogs: List<UiCatalog>): ToolReports = ToolReports(scope) { report ->
+        try {
+            runs.start(agent, sessionId, "", report = report, queued = true, onEvent = { event ->
+                if (event is AgentEvent.TextMessageEnd) {
+                    clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveVoice?.notify(event.text) }
+                }
+            }) { harness.runner(agent, sessionId, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs)) }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { log.warn(e) { "Background report could not start in Session $sessionId" } }
     }
 
     private suspend fun stop(sessionId: String) = dispatchFor(sessionId).stop(sessionId)

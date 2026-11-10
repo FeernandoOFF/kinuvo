@@ -66,6 +66,8 @@ sealed interface ChatItem {
     data class Error(override val id: String, val message: String) : ChatItem
     data class Reflection(override val id: String, val result: ReflectionResult? = null, val reviews: Map<String, Boolean> = emptyMap(), val revised: Set<String> = emptySet()) : ChatItem
     data class Compaction(override val id: String, val summary: String) : ChatItem
+    data class ToolReport(override val id: String, val tool: String, val callId: String?, val content: String) : ChatItem
+
     data class Activation(override val id: String, val name: String, val content: String) : ChatItem
 }
 
@@ -343,7 +345,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
 
     fun loadModels(refresh: Boolean = false) {
         viewModelScope.launch { attempt {
-            val models = client.call(Api.Models, ModelsParams(refresh))
+            val models = repo.connection.config.models(refresh)
             state.update { it.copy(models = models) }
         } }
     }

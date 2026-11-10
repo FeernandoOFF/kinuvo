@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.voice.AgentProgress
 import kinuvo.harness.core.voice.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.channels.Channel
@@ -17,14 +18,14 @@ class LiveVoiceSessionTest {
         val provider = object : SpeechToSpeech {
             override val input = AudioFormat.Pcm16(24000)
             override val output = AudioFormat.Pcm16(24000)
-            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String) -> String) {
+            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) {
                 captured = input
                 output(VoiceOutput.Transcript("u1", "hello", true))
             }
         }
         val call = LiveVoiceSession(provider, backgroundScope, VoiceContext("Agent"), {
             events += it; Delivery.Queued
-        }, { "reply" }, { error("store unavailable") }, { AutoCloseable { released = true } })
+        }, { _, _ -> "reply" }, { error("store unavailable") }, { AutoCloseable { released = true } })
         call.start()
         runCurrent()
         assertTrue(released)
@@ -40,7 +41,7 @@ class LiveVoiceSessionTest {
         val provider = object : SpeechToSpeech {
             override val input = AudioFormat.Pcm16(24000)
             override val output = AudioFormat.Pcm16(24000)
-            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String) -> String) {
+            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) {
                 turns.forEachIndexed { i, turn ->
                     output(VoiceOutput.Transcript("$i", turn.text.take(2), turn.user, final = false))
                     output(VoiceOutput.Transcript("$i", turn.text, turn.user))
@@ -48,7 +49,7 @@ class LiveVoiceSessionTest {
                 for (value in input) Unit
             }
         }
-        val call = LiveVoiceSession(provider, backgroundScope, VoiceContext("Agent"), { Delivery.Queued }, { "reply" }, { saved += it })
+        val call = LiveVoiceSession(provider, backgroundScope, VoiceContext("Agent"), { Delivery.Queued }, { _, _ -> "reply" }, { saved += it })
         call.start()
         runCurrent()
         assertTrue(saved.isEmpty())
@@ -63,7 +64,7 @@ class LiveVoiceSessionTest {
         val provider = object : SpeechToSpeech {
             override val input = AudioFormat.Pcm16(24000)
             override val output = AudioFormat.Pcm16(24000)
-            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String) -> String) {
+            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) {
                 repeat(3) { output(VoiceOutput.Audio("reply", byteArrayOf(1, 0))) }
                 output(VoiceOutput.Done("reply"))
                 output(VoiceOutput.Listening)
@@ -73,7 +74,7 @@ class LiveVoiceSessionTest {
         val call = LiveVoiceSession(provider, backgroundScope, VoiceContext("Agent"), {
             events += it
             if (it is LiveVoiceOutput.Audio || it is LiveVoiceOutput.Listening) Delivery.Dropped else Delivery.Queued
-        }, { "reply" })
+        }, { _, _ -> "reply" })
         call.start()
         runCurrent()
         assertEquals(3, events.count { it is LiveVoiceOutput.Audio })
@@ -93,6 +94,10 @@ class LiveVoiceSessionTest {
         assertEquals(listOf(VoiceMessage(true, "hello"), VoiceMessage(false, "hi")), context.history)
         assertTrue(context.instructions.contains("Ada"))
         assertTrue(context.instructions.contains("Delegate"))
+        assertTrue(context.instructions.contains("acknowledge the request aloud before delegating"))
+        assertTrue(context.instructions.contains("short spoken updates"))
+        assertTrue(context.instructions.contains("never by voice"))
+        assertTrue(context.instructions.contains("when results come back"))
         assertTrue(context.instructions.contains("latest"))
         assertFalse(context.instructions.contains("old"))
     }
@@ -114,7 +119,7 @@ class LiveVoiceSessionTest {
         val provider = object : SpeechToSpeech {
             override val input = AudioFormat.Pcm16(24000)
             override val output = AudioFormat.Pcm16(48000)
-            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String) -> String) {
+            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) {
                 try {
                     output(VoiceOutput.Ready)
                     output(VoiceOutput.Audio("reply", byteArrayOf(1, 0, 2, 0)))
@@ -122,7 +127,7 @@ class LiveVoiceSessionTest {
                 } finally { stopped = true }
             }
         }
-        val call = LiveVoiceSession(provider, backgroundScope, VoiceContext("Agent"), { events.add(it); Delivery.Queued }, { "reply" })
+        val call = LiveVoiceSession(provider, backgroundScope, VoiceContext("Agent"), { events.add(it); Delivery.Queued }, { _, _ -> "reply" })
         val ref = call.start()
         runCurrent()
         assertIs<LiveVoiceOutput.Ready>(events.first())
@@ -131,6 +136,9 @@ class LiveVoiceSessionTest {
         runCurrent()
         assertContentEquals(byteArrayOf(1, 0, 2, 0), (received.receive() as VoiceInput.Audio).pcm)
         assertFailsWith<IllegalArgumentException> { call.accept(LiveVoiceInput.Audio(ref.callId, "A".repeat(65540))) }
+        call.notify("background finished")
+        runCurrent()
+        assertEquals("background finished", (received.receive() as VoiceInput.Notify).text)
         call.close()
         runCurrent()
         assertTrue(stopped)

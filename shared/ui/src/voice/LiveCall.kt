@@ -8,7 +8,18 @@ import androidx.compose.ui.layout.LookaheadScope
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.onClick
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -72,7 +83,8 @@ import kotlinx.coroutines.launch
 
 /**
  * A live call, full screen: the Agent's orb, what it's doing, and the call's controls. [captions] shows the current
- * exchange in place of the space around the orb. [time] pins the orb's animation, e.g. for screenshots.
+ * exchange in place of the space around the orb. Tapping the orb cuts a reply short, or else mutes; holding it talks,
+ * muted or not, until let go. [time] pins the orb's animation, e.g. for screenshots.
  */
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
@@ -88,6 +100,8 @@ fun LiveCallScreen(
     onSpeaker: (Boolean) -> Unit,
     onEnd: () -> Unit,
     modifier: Modifier = Modifier,
+    onInterrupt: () -> Unit = {},
+    onHold: (Boolean) -> Unit = {},
     time: Float? = null,
 ) {
     val error = voice.error
@@ -114,7 +128,9 @@ fun LiveCallScreen(
                         }
                     }
                     val size = when { error != null -> 200.dp; shown -> 132.dp; else -> 280.dp }
-                    AgentOrb(tint, if (error != null) OrbMood.Idle else mood(voice), level(voice), Modifier.animateBounds(this@LookaheadScope, Modifier.size(size)), time)
+                    val orb = Modifier.animateBounds(this@LookaheadScope, Modifier.size(size))
+                    if (error != null) AgentOrb(tint, OrbMood.Idle, 0f, orb, time)
+                    else OrbControl(voice, onMute, onInterrupt, onHold, orb) { AgentOrb(tint, mood(voice), level(voice), Modifier.fillMaxSize(), time) }
                     if (!shown) Spacer(Modifier.weight(1f))
                     if (error != null) Failure(error, Modifier.padding(vertical = Spacing.space20)) else Status(voice, Modifier.padding(vertical = Spacing.space16))
                 }
@@ -161,6 +177,51 @@ fun RowScope.CallStrip(agentName: String, ink: Color, voice: VoiceChatState, dur
     )
     RoundIcon(Lucide.X, if (error != null) "Close" else "End call", size = 36, background = if (error != null) color(onBackgroundColor).copy(alpha = 0.10f) else color(destructiveColor),
         tint = if (error != null) null else Color.White, onClick = onEnd)
+}
+
+@Composable
+private fun OrbControl(voice: VoiceChatState, onMute: (Boolean) -> Unit, onInterrupt: () -> Unit, onHold: (Boolean) -> Unit, modifier: Modifier, orb: @Composable () -> Unit) {
+    val haptics = LocalHapticFeedback.current
+    val current by rememberUpdatedState(voice)
+    val mute by rememberUpdatedState(onMute)
+    val interrupt by rememberUpdatedState(onInterrupt)
+    val hold by rememberUpdatedState(onHold)
+    var pressed by remember { mutableStateOf(false) }
+    val press by animateFloatAsState(when {
+        voice.holding -> 1.06f
+        pressed -> 0.95f
+        else -> 1f
+    }, Motion.voicePressSpring())
+    fun tap() {
+        haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+        if (current.phase == VoicePhase.Speaking) interrupt() else mute(!current.paused)
+    }
+    val label = when {
+        voice.phase == VoicePhase.Speaking -> "Interrupt"
+        voice.paused -> "Unmute"
+        else -> "Mute"
+    }
+    Box(modifier.scale(press).semantics {
+        role = Role.Button
+        contentDescription = label
+        onClick { tap(); true }
+        customActions = listOf(CustomAccessibilityAction(if (voice.paused) "Unmute" else "Mute") { mute(!current.paused); true })
+    }.pointerInput(Unit) {
+        coroutineScope {
+            detectTapGestures(onPress = {
+                pressed = true
+                val held = launch {
+                    delay(250)
+                    haptics.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
+                    hold(true)
+                }
+                val up = tryAwaitRelease()
+                pressed = false
+                if (!held.isActive) { hold(false); haptics.performHapticFeedback(HapticFeedbackType.GestureEnd) }
+                else { held.cancel(); if (up) tap() }
+            })
+        }
+    }) { orb() }
 }
 
 @Composable
@@ -221,7 +282,7 @@ private fun mood(voice: VoiceChatState) = when {
 
 private fun level(voice: VoiceChatState) = if (voice.phase == VoicePhase.Speaking) voice.outputLevel else voice.inputLevel
 
-private fun status(voice: VoiceChatState) = when (voice.phase) {
+private fun status(voice: VoiceChatState) = if (voice.holding) "Listening · let go when done" else when (voice.phase) {
     VoicePhase.Off, VoicePhase.Starting -> "Connecting…"
     VoicePhase.Listening -> if (voice.paused) "Muted" else "Listening"
     VoicePhase.Thinking -> if (voice.paused) "Working on it · muted" else "Working on it"
@@ -251,12 +312,30 @@ fun LiveCallHost(agents: List<AgentInfo>) {
     val live = repo.sessions[shown.sessionId]?.live
     val approval = live?.approval
     val external = live?.pending?.firstNotNullOfOrNull { it.displayPrompt() as? ExecutionPrompt.Approval }
+    val haptics = LocalHapticFeedback.current
+    val request = approval?.approvalId ?: external?.id
+    LaunchedEffect(request) {
+        if (request == null) return@LaunchedEffect
+        calls.attention()
+        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+    }
+    val phase = shown.voice.phase
+    var lastPhase by remember { mutableStateOf(phase) }
+    LaunchedEffect(phase) {
+        when {
+            lastPhase == VoicePhase.Starting && phase == VoicePhase.Listening -> haptics.performHapticFeedback(HapticFeedbackType.Confirm)
+            phase == VoicePhase.Thinking || phase == VoicePhase.Speaking -> if (lastPhase != phase) haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+            else -> {}
+        }
+        lastPhase = phase
+    }
     NavigationBackHandler(rememberNavigationEventState(NavigationEventInfo.None), isBackEnabled = !minimized) { minimized = true }
     AnimatedVisibility(!minimized, enter = slideInVertically { it / 3 } + fadeIn(), exit = slideOutVertically { it / 3 } + fadeOut()) {
         LiveCallScreen(shown.agentName, ink, shown.voice, shown.durationSeconds, captions,
             onMinimize = { minimized = true }, onMute = calls::mute,
             onCaptions = { captions = it; prefs[CaptionsKey] = if (it) "on" else null },
             onSpeaker = calls::speaker, onEnd = calls::end,
+            onInterrupt = calls::interrupt, onHold = calls::hold,
             // An open request is modal: screen readers and keyboards stay on it, not the call behind.
             modifier = if (approval != null || external != null) Modifier.clearAndSetSemantics {} else Modifier)
     }

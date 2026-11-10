@@ -23,6 +23,8 @@ class ToolExecutor(
     private val maxItems: Int? = null,
     private val callsPerTurn: Int? = null,
     private val emit: suspend (AgentEvent) -> Unit = {},
+    private val reports: ToolReports? = null,
+    private val progress: suspend (AgentEvent.ToolCallResult) -> Unit = { emit(it) },
 ) {
     // Sessions recorded before a tool got its short name still call it by its alias.
     private val toolsByName = tools.indexedTools().let { named -> named + tools.mapNotNull { t -> t.identity?.modelAlias()?.let { it to t } }.filter { it.first !in named } }
@@ -118,6 +120,11 @@ class ToolExecutor(
     /** What [call]'s tool may call: the run's other tools, each shown as its own call and answered like one. */
     private fun toolRun(call: SessionEntry.ToolCall, approvalId: String, stopped: (String) -> Unit,
                                                   attached: MutableList<Attachment>) = object : ToolRun {
+        override suspend fun progress(content: String) { progress(AgentEvent.ToolCallResult(call.id, content, false, call.identity)) }
+        override fun background(started: String, work: suspend () -> String): String {
+            requireNotNull(reports) { "Background reports are unavailable in this run" }.start(call.name, call.id, work)
+            return started
+        }
         private var count = 0
         override val tools = callable.filter { it.name != call.name }
         override suspend fun call(name: String, args: String): SessionEntry.ToolResult {

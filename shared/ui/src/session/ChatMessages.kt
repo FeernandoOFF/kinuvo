@@ -304,6 +304,7 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
         is ChatItem.Measurement -> Unit
         is ChatItem.Reflection -> ReflectionView(item, onReview = actions.onReviewReflection)
         is ChatItem.Compaction -> CompactionMarker(item)
+        is ChatItem.ToolReport -> ToolReportView(item)
         is ChatItem.Activation -> Expandable(Lucide.BookOpen, item.name, subtitle = "skill") { Markdown(item.content) }
     }
 }
@@ -490,6 +491,17 @@ private fun ToolCallView(item: ChatItem.ToolCall, border: Boolean = true, action
             item.result?.let { CodeBlock(it, language = if (item.isError) "Error" else "Result", previewChars = 4000, error = item.isError) }
             ToolAttachments(item.attachments, actions)
         }
+    }
+}
+
+/** Background work a tool started, reported when it finished; its first line summarizes it. */
+@Composable
+private fun ToolReportView(item: ChatItem.ToolReport) {
+    val summary = item.content.substringBefore('\n').trim()
+    val output = item.content.substringAfter('\n', "").trim()
+    Expandable(Lucide.Hourglass, item.tool, summary.ifBlank { null }, titleStyle = MonoStyle, subtitleStyle = MonoStyle.copy(fontSize = 12.sp),
+        status = { Pill("Finished") }) {
+        CodeBlock(output.ifBlank { summary }, language = "Output", previewChars = 4000)
     }
 }
 

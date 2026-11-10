@@ -104,6 +104,9 @@ sealed interface SessionEntry {
     @Serializable @SerialName("activation")
     data class Activation(val name: String, val content: String, override val writtenAt: Long? = null) : SessionEntry
 
+    @Serializable @SerialName("tool_report")
+    data class ToolReport(val tool: String, val callId: String?, val content: String, override val writtenAt: Long? = null) : SessionEntry
+
     /** The Session's settings from here on; the model doesn't see it. */
     @Serializable @SerialName("settings")
     data class Settings(val settings: SessionSettings, override val writtenAt: Long? = null) : SessionEntry
@@ -156,6 +159,7 @@ fun SessionEntry.withWrittenAt(at: Long?): SessionEntry = when (this) {
     is SessionEntry.Reflection -> copy(writtenAt = at)
     is SessionEntry.ReflectionReview -> copy(writtenAt = at)
     is SessionEntry.Activation -> copy(writtenAt = at)
+    is SessionEntry.ToolReport -> copy(writtenAt = at)
     is SessionEntry.Settings -> copy(writtenAt = at)
     is SessionEntry.Details -> copy(writtenAt = at)
     is SessionEntry.Outcome -> copy(writtenAt = at)

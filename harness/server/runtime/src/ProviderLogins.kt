@@ -22,6 +22,8 @@ class ProviderLogins(private val providers: List<ModelProvider>, private val sco
 
     suspend fun list() = providers.map { ProviderInfo(it.id, it.name, it.auth?.account(), errors[it.id], it.apiKey?.status(), it.downloads?.state()) }
 
+    suspend fun refresh() { changed(list()) }
+
     suspend fun login(id: String): DeviceCode {
         val auth = provider(id).auth ?: error("${provider(id).name} needs no sign-in")
         val code = CompletableDeferred<DeviceCode>()

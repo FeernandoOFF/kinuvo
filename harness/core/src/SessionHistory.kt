@@ -73,6 +73,7 @@ fun List<SessionEntry>.estimatedTokens(instructions: String, tools: List<ToolDes
             is SessionEntry.ToolResult -> it.output.length + it.attachments.estimatedChars()
             is SessionEntry.Compaction -> it.history.estimatedTokens("") * 4
             is SessionEntry.Activation -> it.content.length
+            is SessionEntry.ToolReport -> it.tool.length + (it.callId?.length ?: 0) + it.content.length
             is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Reflection, is SessionEntry.ReflectionReview, is SessionEntry.Measurement, is SessionEntry.Outcome, is SessionEntry.Notice -> 0
         }
     }) / 4

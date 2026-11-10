@@ -11,10 +11,14 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlin.io.encoding.Base64
 import kotlin.math.sqrt
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.TimeSource
 
 /** Streaming microphone and speaker for live calls, in mono PCM16. Callbacks may arrive on any thread. */
 interface LiveAudio {
     fun onEndRequested(end: () -> Unit) {}
+    fun onInputMuteChanged(changed: (Boolean) -> Unit) {}
+    fun setInputMuted(muted: Boolean) {}
     val liveAudioSupported: Boolean get() = true
     /** Whether the microphone hears the speaker, so capture is muted while a reply plays. */
     val echoes: Boolean
@@ -40,6 +44,7 @@ interface LiveAudio {
 class LiveVoiceChat(
     private val server: ConnectedServer,
     private val audio: LiveAudio,
+    private val clock: TimeSource = TimeSource.Monotonic,
     /** The Agent and Session the call joins, starting a new Session if needed. */
     private val openSession: suspend () -> Pair<String, String>?,
 ) : VoiceChat {
@@ -61,6 +66,12 @@ class LiveVoiceChat(
     private var connecting: Job? = null
     private var ready = false
     private var bytesPerMilli = 48
+    private var sampleRate = 24_000
+    /** A cue queued on the live player, cut when a reply starts. */
+    private var cueQueued = false
+    /** Until when the microphone stays unsent, so the model doesn't hear a cue. */
+    private var quietUntil = clock.markNow()
+    private var heldFromMute = false
 
     override fun start() {
         if (state.value.phase != VoicePhase.Off || !DeviceAudio.acquire(audio, this)) return
@@ -99,13 +110,34 @@ class LiveVoiceChat(
             val started = client.call(Api.LiveVoiceStart, LiveVoiceParams(agentId, sessionId))
             callId = started.callId
             bytesPerMilli = started.sampleRate * 2 / 1000
+            sampleRate = started.sampleRate
             val microphone = Channel<ByteArray>(Channel.UNLIMITED)
+            val epoch = generation
+            audio.onInputMuteChanged { muted ->
+                server.scope.launch {
+                    if (generation == epoch && ownsAudio) {
+                        mute(muted, fromSystem = true)
+                    }
+                }
+            }
             audio.startLive(started.sampleRate, { microphone.trySend(it) }, { microphone.close(IllegalStateException(it)) })
+            audio.setInputMuted(state.value.paused)
             launch {
                 for (pcm in microphone) {
                     state.update { it.copy(inputLevel = if (it.paused) 0f else pcmLevel(pcm)) }
-                    if (!ready || state.value.paused || (audio.echoes && audio.queuedMillis() > 0)) continue
+                    if (!ready || state.value.paused || quietUntil.hasNotPassedNow() || (audio.echoes && audio.queuedMillis() > 0)) continue
                     client.emit(Api.LiveVoiceInput, LiveVoiceInput.Audio(started.callId, Base64.encode(pcm)))
+                }
+            }
+            // Played on the live player, whose echo cancellation keeps it from the model.
+            if (!audio.echoes) launch {
+                state.map { it.phase == VoicePhase.Thinking }.distinctUntilChanged().collectLatest { thinking ->
+                    if (!thinking) return@collectLatest
+                    delay(700)
+                    while (true) {
+                        if (state.value.speaker && audio.queuedMillis() == 0) { audio.playLive(VoiceCue.Thinking.pcm(started.sampleRate)); cueQueued = true }
+                        delay(1_600)
+                    }
                 }
             }
             launch {
@@ -137,6 +169,7 @@ class LiveVoiceChat(
                     is LiveVoiceOutput.Listening -> state.update { if (it.phase == VoicePhase.Speaking && (audio.queuedMillis() > 0 || buffered.isNotEmpty())) it else it.copy(phase = VoicePhase.Listening) }
                     is LiveVoiceOutput.Thinking -> state.update { it.copy(phase = VoicePhase.Thinking) }
                     is LiveVoiceOutput.Audio -> if (state.value.speaker && output.item !in interrupted) {
+                        if (cueQueued) { cueQueued = false; if (reply == null) audio.flushLive() }
                         if (reply != output.item) { drainBuffer(); reply = output.item; queued = 0; levels.clear(); if (finished != output.item) finished = null }
                         val pcm = Base64.decode(output.base64)
                         queued += pcm.size
@@ -168,9 +201,10 @@ class LiveVoiceChat(
         stopConnecting()
         generation++
         val id = callId
-        callId = null; discardReply(); interrupted.clear()
+        callId = null; discardReply(); interrupted.clear(); cueQueued = false; heldFromMute = false
         call?.cancel(); call = null
         if (ownsAudio) {
+            audio.onInputMuteChanged {}
             audio.stopLive()
             if (endedCue) audio.playCue(VoiceCue.Ended.pcm(24_000), 24_000)
             audio.onEndRequested {}
@@ -184,26 +218,45 @@ class LiveVoiceChat(
     }
 
     /** Mutes the microphone only; the Agent's replies keep playing. */
-    override fun pause() {
-        if (state.value.phase == VoicePhase.Off) return
-        send { LiveVoiceInput.Pause(it) }
-        state.update { it.copy(paused = true) }
+    override fun pause() = mute(true, fromSystem = false)
+
+    override fun resume() = mute(false, fromSystem = false)
+
+    /** The system plays its own cue when it mutes, e.g. from AirPods. */
+    private fun mute(muted: Boolean, fromSystem: Boolean) {
+        if (state.value.phase == VoicePhase.Off || state.value.paused == muted) return
+        heldFromMute = false
+        state.update { it.copy(paused = muted, holding = false, inputLevel = 0f) }
+        if (!fromSystem) { audio.setInputMuted(muted); cue(if (muted) VoiceCue.Muted else VoiceCue.Unmuted) }
+        send { if (muted) LiveVoiceInput.Pause(it) else LiveVoiceInput.Resume(it) }
     }
 
-    override fun resume() {
-        if (!state.value.paused) return
-        send { LiveVoiceInput.Resume(it) }
-        state.update { it.copy(paused = false) }
-    }
-
-    /** The model hears turns itself, so holding only cuts the reply short. */
+    /** The model hears turns itself, so holding cuts the reply short and, while muted, unmutes until [letGo]. */
     override fun hold() {
-        if (state.value.phase in setOf(VoicePhase.Off, VoicePhase.Starting)) return
+        if (state.value.phase in setOf(VoicePhase.Off, VoicePhase.Starting) || state.value.holding) return
         cutIn()
-        state.update { it.copy(phase = VoicePhase.Listening, holding = true) }
+        val muted = state.value.paused
+        state.update { it.copy(phase = VoicePhase.Listening, holding = true, paused = false) }
+        heldFromMute = muted
+        if (muted) { audio.setInputMuted(false); send { LiveVoiceInput.Resume(it) } }
     }
 
-    override fun letGo() = state.update { it.copy(holding = false) }
+    override fun letGo() {
+        if (!state.value.holding) return
+        val muted = heldFromMute
+        heldFromMute = false
+        state.update { it.copy(holding = false, paused = muted) }
+        if (muted) { audio.setInputMuted(true); send { LiveVoiceInput.Pause(it) } }
+    }
+
+    override fun interrupt() {
+        if (reply == null) return
+        cutIn()
+        cue(VoiceCue.Interrupt)
+        state.update { it.copy(phase = VoicePhase.Listening) }
+    }
+
+    override fun attention() = cue(VoiceCue.Attention)
 
     override fun background() {}
     override fun foreground() {}
@@ -211,6 +264,12 @@ class LiveVoiceChat(
     override fun speaker(on: Boolean) {
         state.update { it.copy(speaker = on) }
         if (!on && ownsAudio) { audio.stopCue(); cutIn(); audio.flushLive() }
+    }
+
+    private fun cue(cue: VoiceCue) {
+        if (!ownsAudio || !ready || !state.value.speaker) return
+        quietUntil = clock.markNow() + (cue.millis() + 80).milliseconds
+        audio.playCue(cue.pcm(sampleRate), sampleRate)
     }
 
     private fun stopConnecting() {
@@ -290,6 +349,8 @@ class PickedVoiceChat(
     override fun resume() = active.resume()
     override fun hold() = active.hold()
     override fun letGo() = active.letGo()
+    override fun interrupt() = active.interrupt()
+    override fun attention() = active.attention()
     override fun speaker(on: Boolean) { speech.speaker(on); live?.speaker(on) }
     override fun background() = active.background()
     override fun foreground() = active.foreground()

@@ -6,6 +6,11 @@ import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.harness.core.ShellCommand
 import kinuvo.harness.core.tools.Tool
+import kinuvo.harness.core.tools.ToolRun
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.delay
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
 import kinuvo.harness.core.tools.string
@@ -36,15 +41,47 @@ class ShellTool(private val backend: ExecBackend) : CoreTool {
             "Use cwd instead of cd. Output is truncated to the start and end when long.",
         requiredParameters = listOf(ToolParameterDescriptor("command", "The bash command", ToolParameterType.String)),
         optionalParameters = listOf(
+            ToolParameterDescriptor("watch", "Stream output while waiting for completion", ToolParameterType.Boolean),
             ToolParameterDescriptor("cwd", "Working directory inside the workspace", ToolParameterType.String),
             ToolParameterDescriptor("timeout", "Seconds before the command is killed (default 120, max 600)", ToolParameterType.Integer),
             ToolParameterDescriptor(
                 "background",
-                "Start a long-running process (server, emulator) and return immediately; check it with the process output tool",
+                "Start a long-running process (server, emulator) and return immediately; completion is reported automatically",
                 ToolParameterType.Boolean,
             ),
         ),
     )
+
+    override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {
+        if (args["watch"]?.jsonPrimitive?.booleanOrNull == true && args["background"]?.jsonPrimitive?.booleanOrNull != true) {
+            val p = backend.startBackground(args.requireString("command"), args.string("cwd"))
+            var finished = false
+            val timeout = (args.int("timeout") ?: 120).coerceIn(1, 600).seconds
+            try {
+                return withTimeoutOrNull(timeout) {
+                    var previous = ""
+                    while (true) {
+                        val status = backend.status(p, 8000)
+                        if (status.output != previous) { run.progress(status.output); previous = status.output }
+                        if (!status.running) { finished = true; break }
+                        delay(1000)
+                    }
+                    val status = backend.status(p, 8000)
+                    "[exit ${status.exit ?: "unknown"}]\n${status.output}"
+                } ?: "[timed out after $timeout]\n${backend.status(p, 8000).output}"
+            } finally { if (!finished) withContext(NonCancellable) { backend.kill(p) } }
+        }
+        if (args["background"]?.jsonPrimitive?.booleanOrNull != true) return execute(args)
+        val p = backend.startBackground(args.requireString("command"), args.string("cwd"))
+        return run.background("Started background process ${p.id} (pid ${p.pid}), log ${p.log}.") {
+            var status = backend.status(p, 8000)
+            while (status.running) {
+                delay(1000)
+                status = backend.status(p, 8000)
+            }
+            "[${p.id} ${status.exit?.let { if (it == "killed") "killed" else "exit $it" } ?: "stopped"}] ${p.command}\n${status.output}"
+        }
+    }
 
     override suspend fun execute(args: JsonObject): String {
         if (args["background"]?.jsonPrimitive?.booleanOrNull == true) {

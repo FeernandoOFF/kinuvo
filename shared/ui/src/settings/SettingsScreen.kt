@@ -322,7 +322,7 @@ internal fun SettingsSection.icon(): ImageVector = when (this) {
     SettingsSection.Mcp -> Lucide.Plug
     SettingsSection.Tasks -> Lucide.SquareKanban
     SettingsSection.Knowledge -> Lucide.Library
-    SettingsSection.Providers -> Lucide.Sparkles
+    SettingsSection.Providers, SettingsSection.Images -> Lucide.Sparkles
     SettingsSection.Harnesses -> Lucide.SquareTerminal
     SettingsSection.Hub -> Lucide.Wrench
     SettingsSection.Secrets -> Lucide.KeyRound
@@ -337,7 +337,7 @@ private fun SettingsSection.count(ui: SettingsUi): Int? = when (this) {
     SettingsSection.Routines -> ui.state.routines?.count { it.enabled }
     SettingsSection.Skills -> ui.config.skills?.count { it.active }
     SettingsSection.Mcp -> ui.config.mcp?.count { it.active }
-    SettingsSection.Connection, SettingsSection.Providers, SettingsSection.Harnesses, SettingsSection.Hub, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications -> null
+    SettingsSection.Connection, SettingsSection.Images, SettingsSection.Providers, SettingsSection.Harnesses, SettingsSection.Hub, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications -> null
 }
 
 @Composable
@@ -360,6 +360,7 @@ private fun SectionPane(
         return when (section) {
             SettingsSection.Connection -> ConnectionSettingsPane(pane)
             SettingsSection.Providers -> ProvidersSettingsPane(pane)
+            SettingsSection.Images -> ImageGenerationSettingsPane(pane)
             SettingsSection.Harnesses -> HarnessesPane(pane)
             SettingsSection.Tasks -> TasksSettingsPane(pane)
             SettingsSection.Knowledge -> KnowledgeSettingsPane(pane)
@@ -405,7 +406,7 @@ private fun SettingsSection.noun() = when (this) {
     SettingsSection.Skills -> "a skill"
     SettingsSection.Mcp -> "an MCP server"
     SettingsSection.Hub -> "a set of tools"
-    SettingsSection.Connection, SettingsSection.Providers, SettingsSection.Harnesses, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications, SettingsSection.DeviceTools, SettingsSection.LocalVoice -> "a setting"
+    SettingsSection.Connection, SettingsSection.Images, SettingsSection.Providers, SettingsSection.Harnesses, SettingsSection.Tasks, SettingsSection.Knowledge, SettingsSection.Secrets, SettingsSection.Search, SettingsSection.Notifications, SettingsSection.DeviceTools, SettingsSection.LocalVoice -> "a setting"
 }
 @Composable
 private fun NothingSelected(text: String) {

@@ -58,6 +58,7 @@ internal class RunSession(
     private val latestTurnOnly: Boolean,
     val profile: ModelProfile,
     val emit: suspend (AgentEvent) -> Unit,
+    private val voice: Boolean = false,
 ) {
     val messages = SessionMessages(model, tools.any { it.name == ToolNames.GENERATE_IMAGE })
     private val callablePaging = callable.filter { it.coreMetadata?.paging == true }.map { it.descriptor.name }.toSet()
@@ -89,6 +90,7 @@ internal class RunSession(
     suspend fun load(): Prompt {
         val entries = store.entries(agent.id, sessionId)
         instructions = if (profile.prompt == PromptStyle.Full) entries.filterIsInstance<SessionEntry.Started>().firstOrNull()?.instructions.orEmpty() else ""
+        if (voice) instructions += "\n\n$liveVoiceInstructions"
         val history = entries.activeHistory().withoutBlockedRepeats().let { if (latestTurnOnly) it.latestTurn() else it }
         val prompt = messages.limitedPrompt(instructions, history.recentScreens(), profile.resultLimits, callablePaging)
         return earlierQuestions(entries.activeHistory())?.let { note ->

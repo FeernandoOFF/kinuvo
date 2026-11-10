@@ -1,6 +1,7 @@
 package kinuvo.harness.core.voice
 
 import kinuvo.protocol.VoiceSetup
+import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.ReceiveChannel
 
 /** Audio the Server exchanges with providers and Devices; never written to disk. */
@@ -35,7 +36,8 @@ interface SpeechToSpeech {
     /** What the model hears and speaks, e.g. 16 kHz in and 24 kHz out; Devices convert to it. */
     val input: AudioFormat.Pcm16
     val output: AudioFormat.Pcm16
-    suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (task: String) -> String)
+    suspend fun notify(text: String, input: SendChannel<VoiceInput>) { input.send(VoiceInput.Notify(text)) }
+    suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String)
 }
 
 /** What a conversation starts from: who the model speaks for, and the Session so far, oldest first. */
@@ -49,6 +51,7 @@ sealed interface VoiceInput {
     data class Played(val item: String, val millis: Int) : VoiceInput
     /** The user cut reply [item] short after hearing [millis] of it; providers that detect interruptions themselves may ignore it. */
     data class Interrupt(val item: String, val millis: Int) : VoiceInput
+    class Notify(val text: String) : VoiceInput
     data object Pause : VoiceInput
     data object Resume : VoiceInput
 }
@@ -76,4 +79,11 @@ class VoiceProviders(
     val speechToSpeech: SpeechToSpeech? = null,
 ) {
     val setup get() = VoiceSetup(transcriber != null, processor != null, synthesizer != null, speechToSpeech != null)
+}
+
+sealed interface AgentProgress {
+    data class ApprovalRequested(val tool: String, val summary: String) : AgentProgress
+    data class ApprovalResolved(val allowed: Boolean?) : AgentProgress
+    data class Question(val text: String) : AgentProgress
+    data class Text(val text: String) : AgentProgress
 }

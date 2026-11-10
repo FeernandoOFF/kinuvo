@@ -78,3 +78,5 @@ suspend fun basicContextFor(agent: Agent, docs: AgentDocs, tools: List<Tool>, to
     if (tools.any { it.identity?.localId == ToolNames.MEMORY }) append(" To remember something about the user, use the memory tool.")
     append("\nToday is $today.\n")
 }
+
+val liveVoiceInstructions = "This request comes from voice: reply briefly and speakably; for slow commands (builds, tests, servers), use shell with background=true and report that it started rather than blocking. Only report completion after checking the result."

@@ -1,5 +1,6 @@
 package kinuvo.harness.codex
 
+import kinuvo.harness.core.voice.AgentProgress
 import kinuvo.harness.core.voice.VoiceOutput
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -11,6 +12,18 @@ import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 class CodexRealtimeTest {
+    @Test fun notificationUsesADeveloperConversationItem() {
+        assertEquals("""{"type":"conversation.item.create","item":{"type":"message","role":"developer","content":[{"type":"input_text","text":"finished"}]}}""", notificationItem("finished").toString())
+    }
+
+    @Test fun progressKeepsApprovalsOnScreenAndBoundsDetails() {
+        val text = AgentProgress.ApprovalRequested("shell", "x".repeat(5000)).voiceText()
+        assertTrue(text.contains("never by voice"))
+        assertTrue(text.length < 600)
+        assertTrue(AgentProgress.ApprovalResolved(false).voiceText().contains("denied"))
+        assertTrue(AgentProgress.ApprovalResolved(null).voiceText().contains("do not assume"))
+    }
+
     @Test fun unsupportedPlatformsNeverLoadNatives() {
         for ((os, arch) in listOf("Linux" to "aarch64", "Windows 11" to "amd64", "Mac OS X" to "x86_64")) {
             assertFalse(realtimeAvailable(os, arch) { error("Must not probe unsupported platforms") })

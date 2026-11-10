@@ -133,9 +133,8 @@ class BrowserRuntimeTest {
             frame = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Click, tab, frame.revision, change.ref)))
             val message = frame.elements.first { it.label == "Message" }
             kotlinx.coroutines.delay(1500)
-            assertFailsWith<IllegalStateException> {
-                runtime.command(BrowserCommand(owner, BrowserAction.Type, tab, frame.revision, message.ref, "overwrite"))
-            }
+            frame = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Type, tab, frame.revision, message.ref, "overwrite")))
+            assertEquals("overwrite", frame.elements.first { it.label == "Message" }.value)
             frame = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Capture, tab)))
             val password = frame.elements.first { it.label.startsWith("Password") }
             assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Type, tab, frame.revision, password.ref, "fixture-value")))

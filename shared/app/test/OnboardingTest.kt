@@ -2,6 +2,9 @@ package kinuvo.app
 
 import kinuvo.app.connection.*
 import kinuvo.app.agent.*
+import kinuvo.app.device.DeviceAccess
+import kinuvo.app.device.DeviceReader
+import kinuvo.client.KinuvoClient
 import kinuvo.app.onboarding.*
 
 import kinuvo.protocol.*
@@ -11,6 +14,31 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class OnboardingTest {
+    @Test fun androidModelsNeedThreeGigabytesAndArm64() {
+        assertTrue(OnDeviceSupport.android(OnDeviceSupport.MinimumAndroidRam, false, true))
+        assertFalse(OnDeviceSupport.android(OnDeviceSupport.MinimumAndroidRam - 1, false, true))
+        assertFalse(OnDeviceSupport.android(8_000_000_000, true, true))
+        assertFalse(OnDeviceSupport.android(8_000_000_000, false, false))
+    }
+
+    @Test fun capabilityFilteringOnlyAppliesToTheLocalServer() {
+        val reader = object : DeviceReader {
+            override val kinds = emptyList<String>()
+            override fun authorize(kind: String, completion: (String?) -> Unit) = completion(null)
+            override fun read(requestJson: String, completion: (String) -> Unit) {}
+        }
+        val connection = ConnectedServer(Notifications(emptyList()), DeviceAccess(MemoryPreferences(), reader),
+            onDevice = OnDeviceSupport { it != "apple" && it != "local" })
+        connection.open(KinuvoClient("local://kinuvo", "token"), "local://kinuvo")
+        assertFalse(connection.offers("apple"))
+        assertFalse(connection.offers("local"))
+        assertTrue(connection.offers("codex"))
+        connection.open(KinuvoClient("ws://server/ws", "token"), "ws://server/ws")
+        assertTrue(connection.offers("apple"))
+        assertTrue(connection.offers("local"))
+        connection.close()
+    }
+
     @Test fun unfinishedSetupSurvivesConnectionAndRestart() {
         val prefs = MemoryPreferences()
         val servers = Servers(prefs, credentials = prefs.credentials)
@@ -24,8 +52,9 @@ class OnboardingTest {
 
     @Test fun modelSelectionNeedsAvailableModelAndProviderAccess() {
         val details = AgentDetails(AgentInfo("main", "Kinuvo", "none"), AgentSettings("model", "medium", "default", "none"), "", "")
-        val state = OnboardingState(details = details, provider = "codex", model = "model")
+        val state = OnboardingState(details = details, provider = "codex", model = "model", providers = listOf(ProviderInfo("codex", "Codex")))
         assertTrue(state.modelReady)
+        assertFalse(state.copy(providers = emptyList()).modelReady)
         assertFalse(state.copy(providers = listOf(ProviderInfo("codex", "Codex", account = ProviderAccount(false)))).modelReady)
         assertFalse(state.copy(providers = listOf(ProviderInfo("codex", "Codex", apiKey = ProviderApiKeyStatus(false, "server")))).modelReady)
         assertFalse(state.copy(catalog = ModelsCatalog(listOf(ProviderModels("codex", "Codex", listOf(ModelInfo("model", state = CapabilityState.unavailable("Not installed"))))))).modelReady)

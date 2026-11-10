@@ -100,6 +100,7 @@ private fun MarkdownContent(text: String, modifier: Modifier, style: TextStyle, 
     }
     val components = markdownComponents(
         table = { MarkdownTable(it.content, it.node, it.typography.table) },
+        image = { MarkdownImageBlock(it.content, it.node) },
         checkbox = { model ->
             MarkdownCheckBox(model.content, model.node, model.typography.list) { checked, indicator ->
                 val ink = if (checked) accent else colors.text
@@ -129,12 +130,12 @@ private fun MarkdownContent(text: String, modifier: Modifier, style: TextStyle, 
             LaunchedEffect(text) {
                 if (text.startsWith(state.content)) state.append(text.substring(state.content.length)) else generation++
             }
-            RenderMarkdown(state, colors, typography, modifier, padding = padding, dimens = dimens, components = components, annotator = annotator, extendedSpans = spans,
+            RenderMarkdown(state, colors, typography, modifier, padding = padding, dimens = dimens, components = components, imageTransformer = MarkdownImages, annotator = annotator, extendedSpans = spans,
                 success = { snapshot, components, modifier -> MarkdownBlocks(snapshot.stableAst + snapshot.unstableAstTail, state.content.toString(), components, modifier) })
         }
     } else {
         RenderMarkdown(text, colors, typography, modifier, flavour = KinuvoMarkdown.flavour, parser = KinuvoMarkdown.parser,
-            immediate = true, retainState = true, padding = padding, dimens = dimens, components = components, annotator = annotator, extendedSpans = spans,
+            immediate = true, retainState = true, padding = padding, dimens = dimens, components = components, imageTransformer = MarkdownImages, annotator = annotator, extendedSpans = spans,
             success = { state, components, modifier -> MarkdownBlocks(state.node.children, state.content, components, modifier) })
     }
 }
