@@ -10,7 +10,6 @@ import dev.kdriver.core.browser.defaultBrowserSearchConfig
 import dev.kdriver.core.connection.Connection
 import dev.kdriver.core.tab.Tab
 import java.io.File
-import java.net.ServerSocket
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.UUID
@@ -28,8 +27,10 @@ import kotlinx.io.files.Path
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.*
-import java.net.InetAddress
 import kotlinx.coroutines.channels.Channel
+
+private const val BROWSER_START_TIMEOUT_MILLIS = 30_000L
+private const val BROWSER_START_ATTEMPTS = 2
 
 class BrowserRuntime(private val home: File) : BrowserService {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -80,11 +81,8 @@ class BrowserRuntime(private val home: File) : BrowserService {
             ?: defaultBrowserSearchConfig().findChromeExecutable()?.let { File(it.toString()) }
             ?: error("Set KINUVO_BROWSER_EXECUTABLE to a Chrome or Chromium executable")
         require(executable.canExecute()) { "Browser executable is unavailable" }
-        val port = ServerSocket(0, 1, InetAddress.getLoopbackAddress()).use { it.localPort }
-        val args = mutableListOf(executable.path, "--user-data-dir=${directory.absolutePath}", "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=$port", "--no-first-run", "--no-default-browser-check", "--window-size=1280,800", "about:blank")
         val presentation = presentations[agent] ?: BrowserPresentation()
-        if (presentation.headless) args.add(1, "--headless=new")
-        val process = ProcessBuilder(args).redirectErrorStream(true).redirectOutput(File(directory, "chrome.log")).start()
+        val (process, port) = launchChrome(directory, executable, presentation.headless)
         val job = SupervisorJob(scope.coroutineContext[Job])
         val browserScope = CoroutineScope(scope.coroutineContext + job)
         try {
@@ -122,6 +120,36 @@ class BrowserRuntime(private val home: File) : BrowserService {
         } catch (e: Exception) {
             job.cancel(); process.destroy(); throw e
         }
+    }
+
+    /** Chrome picks its own debugging port, so no other process can claim it between choosing and binding. */
+    private suspend fun launchChrome(directory: File, executable: File, headless: Boolean): Pair<Process, Int> {
+        var failure: Exception? = null
+        repeat(BROWSER_START_ATTEMPTS) {
+            val portFile = File(directory, "DevToolsActivePort").apply { delete() }
+            val args = mutableListOf(executable.path, "--user-data-dir=${directory.absolutePath}", "--remote-debugging-address=127.0.0.1", "--remote-debugging-port=0", "--no-first-run", "--no-default-browser-check", "--window-size=1280,800", "about:blank")
+            if (headless) args.add(1, "--headless=new")
+            val log = File(directory, "chrome.log")
+            val process = ProcessBuilder(args).redirectErrorStream(true).redirectOutput(log).start()
+            try {
+                val port = withTimeoutOrNull(BROWSER_START_TIMEOUT_MILLIS) {
+                    var port: Int? = null
+                    while (port == null) {
+                        check(process.isAlive) { "The browser exited while starting" }
+                        port = runCatching { portFile.readLines().first().trim().toInt() }.getOrNull()
+                        if (port == null) delay(100)
+                    }
+                    port
+                } ?: error("The browser did not start in time")
+                return process to port
+            } catch (e: CancellationException) {
+                process.destroy(); throw e
+            } catch (e: Exception) {
+                process.destroy()
+                failure = IllegalStateException("${e.message}: ${runCatching { log.readText().takeLast(500) }.getOrDefault("")}", e)
+            }
+        }
+        throw failure!!
     }
 
     private suspend fun register(owner: BrowserOwner, page: Tab, id: String = UUID.randomUUID().toString(), control: ScreenControl = ScreenControl()): Entry {
