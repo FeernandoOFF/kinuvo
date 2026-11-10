@@ -8,7 +8,7 @@ import ai.koog.agents.core.feature.pipeline.AIAgentGraphPipeline
 import ai.koog.prompt.Prompt
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.RequestMetaInfo
-import kinuvo.harness.core.store.Store
+import kinuvo.harness.execution.api.SessionStorage
 import kinuvo.harness.core.tools.toDescriptor
 import kinuvo.harness.execution.api.ToolProvider
 import kinuvo.harness.core.tools.ToolNames
@@ -48,7 +48,7 @@ class SessionFeature private constructor() {
 
 internal class RunSession(
     private val agent: Agent,
-    private val store: Store,
+    private val store: SessionStorage,
     private val sessionId: String,
     private val runId: String,
     private val model: AgentModel,

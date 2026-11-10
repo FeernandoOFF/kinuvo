@@ -6,7 +6,7 @@ import ai.koog.agents.core.agent.exception.AIAgentMaxNumberOfIterationsReachedEx
 import ai.koog.prompt.Prompt
 import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.harness.core.routines.routineStrategy
-import kinuvo.harness.core.store.Store
+import kinuvo.harness.execution.api.SessionStorage
 import kinuvo.harness.core.tools.toDescriptor
 import kinuvo.harness.execution.api.ToolGate
 import kinuvo.harness.execution.api.ToolProvider
@@ -26,7 +26,7 @@ internal const val STAGE_ITERATIONS = 50
 /** One turn of an Agent, with a fresh Koog graph and a durable Session. */
 class AgentRun(
     private val agent: Agent,
-    private val store: Store,
+    private val store: SessionStorage,
     private val model: AgentModel,
     private val tools: ToolProvider,
     private val gate: ToolGate,
