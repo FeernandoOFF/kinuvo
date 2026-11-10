@@ -14,9 +14,9 @@ import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.UUID
 import java.util.concurrent.TimeUnit
-import kinuvo.harness.core.plugin.BrowserService
-import kinuvo.harness.core.plugin.ScreenGate
-import kinuvo.harness.core.plugin.ScreenSource
+import kinuvo.server.plugin.BrowserService
+import kinuvo.server.plugin.ScreenGate
+import kinuvo.server.plugin.ScreenSource
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*

@@ -1,6 +1,8 @@
 package kinuvo.harness.firecrawl
 
-import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.PluginGrants
+import kinuvo.server.plugin.PluginHosts
+import kinuvo.server.plugin.instance
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -8,12 +10,11 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
-import kinuvo.harness.core.tools.SearchRegion
-import kinuvo.harness.core.tools.WebSearchTool
+import kinuvo.server.plugin.SearchRegion
+import kinuvo.server.plugin.WebResult
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*
-import kinuvo.harness.core.*
 import kinuvo.protocol.*
 
 class FirecrawlTest {
@@ -31,7 +32,7 @@ class FirecrawlTest {
 
     @AfterTest fun close() { hosts.forEach { it.close() }; http.close() }
 
-    private fun firecrawl(options: Map<String, String>, expand: suspend (String) -> String = { it }): kinuvo.harness.core.tools.WebSearch {
+    private fun firecrawl(options: Map<String, String>, expand: suspend (String) -> String = { it }): kinuvo.server.plugin.WebSearch {
         val plugin = FirecrawlPlugin()
         val provider = plugin.webSearch.single()
         provider.checkOptions(options)
@@ -58,8 +59,7 @@ class FirecrawlTest {
     @Test
     fun searchesTheWebAndNews() = runTest {
         reply = """{"success":true,"data":{"web":[{"title":"Kotlin","url":"https://kotlinlang.org","description":"A language"}]}}"""
-        val out = WebSearchTool(firecrawl).execute(buildJsonObject { put("query", "kotlin"); put("limit", 3) })
-        assertEquals("1. Kotlin\n   https://kotlinlang.org\n   A language", out)
+        assertEquals(listOf(WebResult("Kotlin", "https://kotlinlang.org", "A language")), firecrawl.search("kotlin", 3, false))
         assertEquals("https://api.firecrawl.dev/v2/search", requests.last().first)
         assertEquals("""{"query":"kotlin","limit":3,"sources":["web"]}""", requests.last().second.toString())
 

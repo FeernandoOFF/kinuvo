@@ -3,7 +3,7 @@ package kinuvo.harness.anytype
 import kotlinx.serialization.json.*
 
 /**
- * Anytype blocks as a Note's Markdown body and [kinuvo.harness.core.knowledge.BodyEdit]s as block changes. Mentions and
+ * Anytype blocks as a Note's Markdown body and [kinuvo.server.plugin.BodyEdit]s as block changes. Mentions and
  * object links read `[[id|label]]`; `[[id|label]]` in new text becomes a mention.
  */
 internal object AnytypeBody {

@@ -1,11 +1,18 @@
 package kinuvo.harness.browser
 
-import kinuvo.harness.core.plugin.*
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.*
-import kinuvo.harness.core.tools.*
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.harness.execution.api.Agent
+import kinuvo.server.plugin.BrowserService
+import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.InstructionSection
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
+import kinuvo.server.plugin.ToolRun
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.string
 import kinuvo.protocol.*
 import kotlinx.serialization.json.*
 import kotlin.io.encoding.Base64
@@ -28,12 +35,12 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
     }
 
     private inner class ListTabs(val owner: BrowserOwner) : CoreTool {
-        override val descriptor = ToolDescriptor("browser_tabs", "List this Agent's browser tabs and who controls them.", emptyList())
+        override val descriptor = toolSpec("browser_tabs", "List this Agent's browser tabs and who controls them.", emptyList())
         override suspend fun execute(args: JsonObject) = ProtocolJson.encodeToString(browser.tabs(owner).map { it.copy(thumbnail = null) })
     }
 
     private inner class BrowserTool(val owner: BrowserOwner, val action: BrowserAction) : CoreTool {
-        override val descriptor = ToolDescriptor("browser_${action.name.lowercase()}", when (action) {
+        override val descriptor = toolSpec("browser_${action.name.lowercase()}", when (action) {
             BrowserAction.Open -> "Open a tab shared by this Agent's Sessions. text is an HTTP(S) URL, a bare host or a Google search; private hosts are allowed."
             BrowserAction.Capture -> "Capture the tab's visible semantic elements, revision and screenshot."
             BrowserAction.Navigate -> "Navigate tab to text: an HTTP(S) URL, a bare host or a Google search."
@@ -49,7 +56,7 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
             if (action != BrowserAction.Open) add(parameter("tab", "Tab id"))
             if (action in setOf(BrowserAction.Click, BrowserAction.Type)) { add(parameter("revision", "Capture revision")); add(parameter("ref", "Element ref")) }
             if (action in setOf(BrowserAction.Open, BrowserAction.Navigate, BrowserAction.Type)) add(parameter("text", "URL or text"))
-        }, optionalParameters = if (action in setOf(BrowserAction.Scroll, BrowserAction.Wait)) listOf(ToolParameterDescriptor("pixels", "Pixels to scroll or milliseconds to wait", ToolParameterType.Integer)) else emptyList())
+        }, optionalParameters = if (action in setOf(BrowserAction.Scroll, BrowserAction.Wait)) listOf(ToolParameter("pixels", "Pixels to scroll or milliseconds to wait", ParameterType.Integer)) else emptyList())
         override suspend fun bind(args: JsonObject): suspend () -> Unit {
             val gate = if (action == BrowserAction.Open) browser.openingGate(owner) else browser.gate(owner, args.requireString("tab"))
             val generation = gate.state.value.generation
@@ -68,7 +75,7 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
     override suspend fun close() = browser.close()
 
     companion object {
-        private fun parameter(name: String, description: String) = ToolParameterDescriptor(name, description, ToolParameterType.String)
+        private fun parameter(name: String, description: String) = ToolParameter(name, description, ParameterType.String)
         private fun render(frame: BrowserFrame?): String = frame?.let { ProtocolJson.encodeToString(BrowserFrame.serializer(), it.copy(screenshot = null, tab = it.tab.copy(thumbnail = null))) } ?: "Tab closed"
     }
 }

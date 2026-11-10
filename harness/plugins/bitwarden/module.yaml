@@ -2,7 +2,7 @@
 product: jvm/lib
 
 dependencies:
-  - ../../core: exported
+  - ../../../server/plugin-api: exported
 
 test-dependencies:
   - $kotlin.test

@@ -1,6 +1,6 @@
 package kinuvo.harness.reminders
 
-import kinuvo.harness.core.tasks.TaskChange
+import kinuvo.server.plugin.TaskChange
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import java.io.File

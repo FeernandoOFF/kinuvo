@@ -10,11 +10,11 @@ import kotlinx.io.readByteArray
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.http.content.TextContent
-import kinuvo.harness.core.knowledge.BodyEdit
-import kinuvo.harness.core.knowledge.KnowledgeSource
-import kinuvo.harness.core.knowledge.NoteEdit
-import kinuvo.harness.core.knowledge.NoteFile
-import kinuvo.harness.core.knowledge.Written
+import kinuvo.server.plugin.BodyEdit
+import kinuvo.server.plugin.KnowledgeSource
+import kinuvo.server.plugin.NoteEdit
+import kinuvo.server.plugin.NoteFile
+import kinuvo.server.plugin.Written
 import kinuvo.protocol.KnowledgeSchema
 import kinuvo.protocol.Note
 import kinuvo.protocol.NoteProperty
@@ -28,7 +28,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
-import kinuvo.harness.core.sha256
+import kinuvo.server.plugin.sha256
 import io.ktor.http.parseUrl
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeSource

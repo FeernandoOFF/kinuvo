@@ -1,7 +1,6 @@
 package kinuvo.harness.mcp
 
-import kinuvo.harness.core.sha256
-
+import kinuvo.server.plugin.sha256
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import co.touchlab.stately.collections.ConcurrentMutableSet
 import kotlin.io.encoding.Base64

@@ -1,20 +1,18 @@
 package kinuvo.harness.mcp
 
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.AgentConfig
-import kinuvo.harness.core.plugin.McpManagement
-import kinuvo.harness.core.Secrets
-import kinuvo.harness.core.store.AgentFiles
-import kinuvo.harness.core.store.exists
-import kinuvo.harness.core.store.loadEnv
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.server.plugin.McpManagement
+import kinuvo.server.plugin.SecretResolver
+import kinuvo.server.plugin.PluginStorage
 import kinuvo.protocol.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /** MCP servers from the Agents' `mcp.json` files, signing in through the [McpPlugin]'s [auth]. */
-internal class McpServersManagement(private val files: AgentFiles, private val secrets: Secrets, private val auth: McpAuth) : McpManagement {
+internal class McpServersManagement(private val files: PluginStorage, private val secrets: SecretResolver, private val auth: McpAuth) : McpManagement {
     private val lock = Mutex()
-    private fun agent(id: String) = Agent(id, id, AgentConfig()).also { check(files.config(id).exists()) { "No Agent '$id'" } }
+    private fun agent(id: String) = Agent(id, id, AgentConfig()).also { check(files.agentExists(id)) { "No Agent '$id'" } }
     override suspend fun removeAgent(id: String) {
         auth.signIns.removeAll(McpPlugin.signInScope(id, ConfigScope.Agent))
         lock.withLock {

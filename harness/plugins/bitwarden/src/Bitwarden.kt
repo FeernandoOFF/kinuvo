@@ -1,7 +1,7 @@
 package kinuvo.harness.bitwarden
 
-import kinuvo.harness.core.CliSecretProvider
-import kinuvo.harness.core.Keychain
+import kinuvo.server.plugin.CliSecretProvider
+import kinuvo.server.plugin.Keychain
 import kinuvo.protocol.SecretEntry
 import kinuvo.protocol.secretPath
 import kotlinx.serialization.json.Json
@@ -20,7 +20,7 @@ import java.io.File
  */
 class Bitwarden internal constructor(home: File, private val env: () -> Map<String, String>, keychain: Keychain?, cli: String) :
     CliSecretProvider(home, cli, keychain, env) {
-    constructor(home: File, env: () -> Map<String, String>) : this(home, env, Keychain.system("kinuvo", "bitwarden"),
+    constructor(home: File, env: () -> Map<String, String>, keychain: Keychain?) : this(home, env, keychain,
         executable("bws", "${System.getProperty("user.home")}/.cargo/bin/bws", "/opt/homebrew/bin/bws", "/usr/local/bin/bws"))
 
     override val scheme = "bws"

@@ -1,11 +1,12 @@
 package kinuvo.harness.mcp
 
 import io.modelcontextprotocol.kotlin.sdk.shared.Transport
-import kinuvo.harness.core.store.AgentFiles
+import kinuvo.server.plugin.Keychain
+import kinuvo.server.plugin.PluginStorage
 
 internal expect fun secureRandomBytes(count: Int): ByteArray
 
-internal expect fun defaultSignIns(files: AgentFiles): McpSignInStore
+internal expect fun defaultSignIns(files: PluginStorage, keychain: Keychain?): McpSignInStore
 
 /** A local MCP server process, spoken to over its stdin and stdout. */
 internal interface StdioProcess {

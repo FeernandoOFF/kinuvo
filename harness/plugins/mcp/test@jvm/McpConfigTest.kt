@@ -1,11 +1,13 @@
 package kinuvo.harness.mcp
 
+import kinuvo.server.plugin.PluginStorage
+
 import kotlinx.serialization.json.*
 import kotlinx.io.files.Path
 import java.io.File
 import java.nio.file.Files
-import kinuvo.harness.core.Secrets
-import kinuvo.harness.core.plugin.modelAlias
+import kinuvo.server.plugin.SecretResolver
+import kinuvo.server.plugin.modelAlias
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,7 +29,7 @@ class McpConfigTest {
             }}""")
         val agent = file("agent.json", """{"mcpServers": {"fs": {"command": "fs-local", "excludeTools": ["delete"]}}}""")
 
-        val (servers, errors) = McpConfig.load(listOf(shared, agent, Path(dir.path, "absent.json"))) { _, v -> Secrets().expand(v, mapOf("HOME_DIR" to "/h", "API_KEY" to "k"), "test") }
+        val (servers, errors) = McpConfig.load(listOf(shared, agent, Path(dir.path, "absent.json"))) { _, v -> SecretResolver.None.expand(v, mapOf("HOME_DIR" to "/h", "API_KEY" to "k"), "test") }
 
         val byName = servers.associateBy { it.name }
         assertEquals(McpServerConfig.Stdio("fs", "fs-local", excludeTools = listOf("delete")), byName["fs"])
@@ -40,7 +42,7 @@ class McpConfigTest {
 
     @Test
     fun envDefaultsAndStdioInference() = runBlocking {
-        val cfg = McpConfig.parse("s", Json.parseToJsonElement("""{"command":"run","env":{"A":"${'$'}{A:-dflt}"}}""").jsonObject) { Secrets().expand(it, emptyMap(), "test") }
+        val cfg = McpConfig.parse("s", Json.parseToJsonElement("""{"command":"run","env":{"A":"${'$'}{A:-dflt}"}}""").jsonObject) { SecretResolver.None.expand(it, emptyMap(), "test") }
         assertEquals(McpServerConfig.Stdio("s", "run", env = mapOf("A" to "dflt")), cfg)
     }
 
@@ -84,10 +86,18 @@ class McpConfigTest {
     }
 
     @Test fun removingAnAgentDropsItFromSharedServers() = runBlocking {
-        val files = kinuvo.harness.core.store.AgentFiles(Path(dir.path))
+        val files = TestStorage(Path(dir.path))
         val shared = McpFiles(files.sharedMcp, kinuvo.protocol.ConfigScope.Shared)
         shared.save(kinuvo.protocol.McpServerInfo("work", kinuvo.protocol.ConfigScope.Shared, url = "https://w/mcp", agents = listOf("main", "old")))
         McpPlugin(files).mcp.removeAgent("old")
         assertEquals(listOf("main"), shared.get("work")?.agents)
     }
+}
+
+private class TestStorage(override val home: Path) : PluginStorage {
+    override val sharedMcp = Path(home, "mcp.json")
+    override fun mcp(agentId: String) = Path(home, "agents", agentId, "mcp.json")
+    override fun agentExists(id: String) = true
+    override fun loadEnv(agentId: String?, process: Map<String, String>) = process
+    override fun knowledgeOptions() = emptyMap<String, String>()
 }

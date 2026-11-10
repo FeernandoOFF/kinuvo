@@ -2,7 +2,8 @@ package kinuvo.harness.mcp
 
 import io.modelcontextprotocol.kotlin.sdk.client.StdioClientTransport
 import io.modelcontextprotocol.kotlin.sdk.shared.Transport
-import kinuvo.harness.core.store.AgentFiles
+import kinuvo.server.plugin.Keychain
+import kinuvo.server.plugin.PluginStorage
 import kotlinx.io.asSink
 import kotlinx.io.asSource
 import kotlinx.io.buffered
@@ -15,7 +16,7 @@ private val random = SecureRandom()
 
 internal actual fun secureRandomBytes(count: Int) = ByteArray(count).also(random::nextBytes)
 
-internal actual fun defaultSignIns(files: AgentFiles): McpSignInStore = McpSignIns(File(files.home.toString(), "mcp-auth"))
+internal actual fun defaultSignIns(files: PluginStorage, keychain: Keychain?): McpSignInStore = McpSignIns(File(files.home.toString(), "mcp-auth"), keychain)
 
 internal actual val stdioSupported: Boolean = true
 

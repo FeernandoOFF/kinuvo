@@ -1,7 +1,7 @@
 package kinuvo.harness.mcp
 
-import ai.koog.agents.core.tools.ToolDescriptor
-import kinuvo.harness.core.tools.ToolRun
+import kinuvo.harness.execution.api.ToolSpec
+import kinuvo.server.plugin.ToolRun
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
@@ -12,7 +12,7 @@ import kotlin.test.*
 
 class McpAppTest {
     private val run = object : ToolRun {
-        override val tools = emptyList<ToolDescriptor>()
+        override val tools = emptyList<ToolSpec>()
         override suspend fun call(name: String, args: String) = SessionEntry.ToolResult(name, name, "", isError = true)
     }
 
@@ -60,6 +60,7 @@ class McpAppTest {
     private companion object {
         val SERVER = """
 import json, sys
+
 init = sys.argv[1]
 reads = 0
 def reply(i, result): print(json.dumps({"jsonrpc": "2.0", "id": i, "result": result}), flush=True)

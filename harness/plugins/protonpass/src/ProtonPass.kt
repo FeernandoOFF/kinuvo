@@ -1,7 +1,7 @@
 package kinuvo.harness.protonpass
 
-import kinuvo.harness.core.CliSecretProvider
-import kinuvo.harness.core.Keychain
+import kinuvo.server.plugin.CliSecretProvider
+import kinuvo.server.plugin.Keychain
 import kinuvo.protocol.SecretEntry
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -23,8 +23,8 @@ import java.io.File
  */
 class ProtonPass internal constructor(home: File, env: () -> Map<String, String>, keychain: Keychain?, cli: String) :
     CliSecretProvider(home, cli, keychain, env) {
-    constructor(home: File, env: () -> Map<String, String>) :
-        this(home, env, Keychain.system("kinuvo", "protonpass"), executable("pass-cli",
+    constructor(home: File, env: () -> Map<String, String>, keychain: Keychain?) :
+        this(home, env, keychain, executable("pass-cli",
             "${System.getProperty("user.home")}/.local/bin/pass-cli", "/opt/homebrew/bin/pass-cli", "/usr/local/bin/pass-cli"))
 
     override val scheme = "pass"

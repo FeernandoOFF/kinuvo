@@ -1,15 +1,15 @@
 package kinuvo.harness.executor
 
-import kinuvo.harness.core.tools.CoreTool
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.plugin.PluginTools
-import kinuvo.harness.core.plugin.RunContext
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.ToolRun
-import kinuvo.harness.core.tools.requireString
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.ToolRun
+import kinuvo.server.plugin.requireString
 import kinuvo.protocol.Risk
 import kotlinx.serialization.json.JsonObject
 import kinuvo.protocol.Integration
@@ -25,14 +25,14 @@ class ExecutorPlugin(private val limits: Limits = Limits()) : HarnessPlugin {
 
 /** Runs a Script; its own Risk is Low since every tool it calls goes through its own Approval. */
 class RunCodeTool(private val limits: Limits = Limits()) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         ToolNames.RUN_CODE,
         "Run a JavaScript Script to chain, loop over or filter many tool calls in one step. The code is the body of an async " +
             "function: call your other tools as `await tools.<name>({...args})` (results are parsed JSON or text; a failed or " +
             "denied call throws) and `return` what you need; only the return value, console output and a list of the calls come " +
             "back. No files, network or timers except through tools. Limits: ${limits.calls} tool calls, ${limits.timeout} of JavaScript, " +
             "${limits.output} characters of output.",
-        requiredParameters = listOf(ToolParameterDescriptor("code", "The async function body; use the exact advertised tool names as properties of tools", ToolParameterType.String)),
+        requiredParameters = listOf(ToolParameter("code", "The async function body; use the exact advertised tool names as properties of tools", ParameterType.String)),
     )
 
     override suspend fun execute(args: JsonObject): String = error("A Script needs a run to call tools in")

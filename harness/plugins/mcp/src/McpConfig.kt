@@ -1,9 +1,10 @@
 package kinuvo.harness.mcp
 
-import kinuvo.harness.core.Secrets
+import kinuvo.server.plugin.SecretReferences
+import kinuvo.server.plugin.SecretResolver
 import kinuvo.protocol.McpOAuthClient
 import kotlinx.serialization.json.*
-import kinuvo.harness.core.store.readTextOrNull
+import kinuvo.server.plugin.readTextOrNull
 import kotlinx.io.files.Path
 
 /** One entry of a Claude Code-style `mcpServers` config. */
@@ -81,7 +82,7 @@ object McpConfig {
         suspend fun str(key: String) = obj[key]?.jsonPrimitive?.content?.let { expand(it) }
         suspend fun list(key: String) = obj[key]?.jsonArray?.map { expand(it.jsonPrimitive.content) }
         listOfNotNull(obj["command"]?.jsonPrimitive?.content).plus(obj["args"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty())
-            .forEach { require(!Secrets.hasSecret(it)) { "Secret references can't go in command or args, where other processes can see them; put them in env" } }
+            .forEach { require(!SecretReferences.hasSecret(it)) { "Secret references can't go in command or args, where other processes can see them; put them in env" } }
         suspend fun map(key: String) = obj[key]?.jsonObject?.mapValues { expand(it.value.jsonPrimitive.content) }.orEmpty()
         val include = obj["includeTools"]?.jsonArray?.map { it.jsonPrimitive.content }
         val exclude = obj["excludeTools"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
@@ -107,5 +108,5 @@ object McpConfig {
         )
     }
 
-    private suspend fun systemEnv(server: String, value: String) = Secrets().expand(value, kinuvo.harness.core.store.processEnv(), "Kinuvo: MCP server $server")
+    private suspend fun systemEnv(server: String, value: String) = SecretResolver.None.expand(value, kinuvo.server.plugin.processEnv(), "Kinuvo: MCP server $server")
 }

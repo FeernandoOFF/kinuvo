@@ -1,7 +1,10 @@
 package kinuvo.harness.ntfy
 
-import kinuvo.harness.core.plugin.*
-import kinuvo.harness.core.*
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.Notification
+import kinuvo.server.plugin.NotificationProvider
+import kinuvo.server.plugin.Notifier
+import kinuvo.server.plugin.PluginHost
 import kinuvo.protocol.*
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.addJsonObject

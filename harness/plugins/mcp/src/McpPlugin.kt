@@ -1,15 +1,15 @@
 package kinuvo.harness.mcp
 
-import kinuvo.harness.core.plugin.modelAlias
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.plugin.McpApps
+import kinuvo.server.plugin.modelAlias
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.Keychain
+import kinuvo.server.plugin.McpApps
 import kinuvo.protocol.McpAppRef
-import kinuvo.harness.core.plugin.McpManagement
-import kinuvo.harness.core.plugin.PluginTools
-import kinuvo.harness.core.plugin.RunContext
-import kinuvo.harness.core.Secrets
-import kinuvo.harness.core.store.AgentFiles
-import kinuvo.harness.core.store.loadEnv
+import kinuvo.server.plugin.McpManagement
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
+import kinuvo.server.plugin.SecretResolver
+import kinuvo.server.plugin.PluginStorage
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kinuvo.protocol.ConfigScope
@@ -25,9 +25,10 @@ import kinuvo.protocol.Support
 
 /** Each Agent's MCP servers (the shared ones it uses, then its own) as tools; servers connect on first use. */
 class McpPlugin(
-    private val files: AgentFiles,
-    private val secrets: Secrets = Secrets(),
-    val auth: McpAuth = McpAuth(defaultSignIns(files)),
+    private val files: PluginStorage,
+    private val secrets: SecretResolver = SecretResolver.None,
+    keychain: Keychain? = null,
+    val auth: McpAuth = McpAuth(defaultSignIns(files, keychain)),
 ) : HarnessPlugin {
     override val definition = PluginDefinition("kinuvo.mcp", "MCP")
     override val features = setOf(ServerFeature.Mcp)

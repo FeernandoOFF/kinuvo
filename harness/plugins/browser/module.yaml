@@ -6,7 +6,7 @@ aliases:
   - jvmAndAndroid: [jvm, android]
 
 dependencies:
-  - ../../core: exported
+  - ../../../server/plugin-api: exported
 
 dependencies@jvm:
   - dev.kdriver:core:0.6.1

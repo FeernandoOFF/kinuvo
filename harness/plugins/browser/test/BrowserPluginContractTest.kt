@@ -1,8 +1,12 @@
 package kinuvo.harness.browser
 
-import kinuvo.harness.core.plugin.*
-import kinuvo.harness.core.*
-import kinuvo.harness.core.tools.*
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.server.plugin.BrowserService
+import kinuvo.server.plugin.RunContext
+import kinuvo.server.plugin.ScreenGate
+import kinuvo.server.plugin.instance
+import kinuvo.server.plugin.ownedBy
 import kinuvo.protocol.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*

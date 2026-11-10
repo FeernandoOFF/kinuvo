@@ -1,6 +1,6 @@
 package kinuvo.harness.onepassword
 
-import kinuvo.harness.core.Keychain
+import kinuvo.server.plugin.Keychain
 import kinuvo.protocol.SecretEntry
 import kotlinx.coroutines.test.runTest
 import java.io.File

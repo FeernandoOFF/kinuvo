@@ -4,7 +4,7 @@ import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import io.ktor.http.Url
 import io.ktor.http.parseQueryString
-import kinuvo.harness.core.Keychain
+import kinuvo.server.plugin.Keychain
 import kinuvo.protocol.ConfigScope
 import kinuvo.protocol.McpAuthStatus
 import kinuvo.protocol.McpParams

@@ -1,6 +1,9 @@
 package kinuvo.harness.reminders
 
-import kinuvo.harness.core.tasks.*
+import kinuvo.server.plugin.ProviderTask
+import kinuvo.server.plugin.TaskApp
+import kinuvo.server.plugin.TaskChange
+import kinuvo.server.plugin.TaskList
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope

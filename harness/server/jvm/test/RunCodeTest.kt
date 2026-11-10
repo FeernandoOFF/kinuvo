@@ -1,22 +1,22 @@
 package kinuvo.harness.executor
 
+import kinuvo.server.plugin.toolSpec
 import kinuvo.harness.testing.*
 
-import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.AgentRun
 import kinuvo.harness.core.ApprovalBroker
 import kinuvo.harness.core.ApprovalPolicy
 import kinuvo.harness.core.Approvals
-import kinuvo.harness.core.plugin.RunContext
+import kinuvo.server.plugin.RunContext
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.FileStore
 import kinuvo.harness.core.store.FileTrustRules
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.plugin.ownedBy
-import kinuvo.harness.core.plugin.withModelNames
-import kinuvo.harness.core.tools.ToolRun
+import kinuvo.server.plugin.Tool
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.ownedBy
+import kinuvo.server.plugin.withModelNames
+import kinuvo.server.plugin.ToolRun
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.approval
 import kinuvo.protocol.ApprovalDecision
@@ -42,7 +42,7 @@ class RunCodeTest {
     private class FakeTool(name: String, override val risk: Risk, val output: (JsonObject) -> String) : Tool {
         val calls = mutableListOf<JsonObject>()
         override val identity get() = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), descriptor.name)
-        override val descriptor = ToolDescriptor(name, "fake")
+        override val descriptor = toolSpec(name, "fake")
         override suspend fun execute(args: JsonObject) = output(args).also { calls += args }
     }
 
@@ -62,7 +62,7 @@ class RunCodeTest {
     @Test
     fun capsCombinedOutputIncludingErrorsAndCallSummary() = runBlocking {
         val run = object : ToolRun {
-            override val tools = listOf(ToolDescriptor("echo", "echo"))
+            override val tools = listOf(toolSpec("echo", "echo"))
             override suspend fun call(name: String, args: String) = SessionEntry.ToolResult("inner", name, "ok")
         }
         val tool = RunCodeTool(Limits(output = 300))

@@ -8,21 +8,27 @@ import io.ktor.client.plugins.plugin
 import io.ktor.client.request.*
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
-import kinuvo.harness.core.knowledge.BodyEdit
-import kinuvo.harness.core.knowledge.NoteEdit
-import kinuvo.harness.core.store.AgentFiles
-import kinuvo.harness.core.store.knowledgeConfig
+import kinuvo.server.plugin.BodyEdit
+import kinuvo.server.plugin.NoteEdit
+import com.charleskorn.kaml.Yaml
+import com.charleskorn.kaml.YamlMap
+import com.charleskorn.kaml.yamlMap
+import com.charleskorn.kaml.yamlScalar
+import java.io.File
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
-import kotlinx.io.files.Path
 import kotlinx.serialization.json.*
 import java.util.UUID
 import kotlin.test.*
 
 /** Runs against the Anytype space in `~/.kinuvo/config.yaml`; see the README. */
 class LiveAnytypeTest {
-    private val options by lazy { AgentFiles(Path(System.getProperty("user.home"), ".kinuvo")).knowledgeConfig().options }
+    private val options by lazy {
+        val config = Yaml.default.parseToYamlNode(File(System.getProperty("user.home"), ".kinuvo/config.yaml").readText()).yamlMap
+        config.get<YamlMap>("knowledge")?.get<YamlMap>("options")?.entries.orEmpty()
+            .entries.associate { (key, value) -> key.content to value.yamlScalar.content }
+    }
 
     @Test
     fun readsConfiguredSpace() = runBlocking {

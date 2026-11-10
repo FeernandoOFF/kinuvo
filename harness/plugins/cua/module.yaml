@@ -2,7 +2,7 @@
 product: jvm/lib
 
 dependencies:
-  - ../../core: exported
+  - ../../../server/plugin-api: exported
   - io.modelcontextprotocol:kotlin-sdk-client:0.15.0
 
 test-dependencies:

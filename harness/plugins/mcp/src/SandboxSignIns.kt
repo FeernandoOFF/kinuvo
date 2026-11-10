@@ -1,8 +1,8 @@
 package kinuvo.harness.mcp
 
-import kinuvo.harness.core.store.deleteTree
-import kinuvo.harness.core.store.readTextOrNull
-import kinuvo.harness.core.store.writeAtomically
+import kinuvo.server.plugin.deleteTree
+import kinuvo.server.plugin.readTextOrNull
+import kinuvo.server.plugin.writeAtomically
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 import kotlinx.serialization.json.Json

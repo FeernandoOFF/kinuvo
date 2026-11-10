@@ -1,8 +1,8 @@
 package kinuvo.harness.exec
 
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.AgentConfig
-import kinuvo.harness.core.store.AgentFiles
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.server.plugin.PluginStorage
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import java.io.File
@@ -14,7 +14,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ExecCheckTest {
-    private val files = AgentFiles(Path(Files.createTempDirectory("harness-test").toFile().path))
+    private val files = TestStorage(Path(Files.createTempDirectory("harness-test").toFile().path))
     private val check = assertNotNull(ExecPlugin(files).execCheck)
     private val root = Files.createTempDirectory("ws").toFile().canonicalFile
 
@@ -35,4 +35,12 @@ class ExecCheckTest {
         assertTrue("does not exist" in missing.error.orEmpty())
         assertTrue("ssh" in check.check(Agent("main", "Kinuvo", AgentConfig(exec = "ssh", workspace = listOf("/tmp"))), null).error.orEmpty())
     }
+}
+
+private class TestStorage(override val home: Path) : PluginStorage {
+    override val sharedMcp = Path(home, "mcp.json")
+    override fun mcp(agentId: String) = Path(home, "agents", agentId, "mcp.json")
+    override fun agentExists(id: String) = true
+    override fun loadEnv(agentId: String?, process: Map<String, String>) = process
+    override fun knowledgeOptions() = emptyMap<String, String>()
 }

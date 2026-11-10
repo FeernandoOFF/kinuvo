@@ -1,6 +1,6 @@
 package kinuvo.harness.exec
 
-import kinuvo.harness.core.plugin.InstructionSection
+import kinuvo.server.plugin.InstructionSection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.withContext

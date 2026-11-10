@@ -1,7 +1,7 @@
 package kinuvo.harness.reminders
 
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.tasks.TaskProvider
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.TaskProvider
 import kinuvo.protocol.Platform
 import kinuvo.protocol.currentPlatform
 import kinuvo.protocol.PluginDefinition

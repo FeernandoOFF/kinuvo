@@ -1,7 +1,7 @@
 package kinuvo.harness.mcp
 
-import kinuvo.harness.core.store.readTextOrNull
-import kinuvo.harness.core.store.writeAtomically
+import kinuvo.server.plugin.readTextOrNull
+import kinuvo.server.plugin.writeAtomically
 import kinuvo.protocol.ConfigScope
 import kinuvo.protocol.McpOAuthClient
 import kinuvo.protocol.McpParams

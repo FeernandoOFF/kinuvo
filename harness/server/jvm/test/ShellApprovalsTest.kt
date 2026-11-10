@@ -9,7 +9,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import java.io.File
 import java.nio.file.Files
-import kinuvo.harness.core.plugin.ownedBy
+import kinuvo.server.plugin.ownedBy
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -22,7 +22,7 @@ class ShellApprovalsTest {
         val store = FileStore(files)
         val base = store.agents().single()
         val policy = ApprovalPolicy(base, FileTrustRules(files))
-        val shell = kinuvo.harness.core.plugin.PluginTools(listOf(ShellTool(HostBackend(listOf(File(files.agent(base.id).toString()))))))
+        val shell = kinuvo.server.plugin.PluginTools(listOf(ShellTool(HostBackend(listOf(File(files.agent(base.id).toString()))))))
             .ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.exec")).tools.single()
         val args = """{"command":"./kotlin test -m core"}"""
 

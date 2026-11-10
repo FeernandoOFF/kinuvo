@@ -1,16 +1,16 @@
 package kinuvo.harness.exec
 
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.plugin.InstructionSection
-import kinuvo.harness.core.plugin.PluginTools
-import kinuvo.harness.core.plugin.RunContext
-import kinuvo.harness.core.artifacts.Artifacts
-import kinuvo.harness.core.Secrets
-import kinuvo.harness.core.store.AgentFiles
+import kinuvo.harness.execution.api.Agent
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.InstructionSection
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
+import kinuvo.server.plugin.ARTIFACT_MAX_CHARS
+import kinuvo.server.plugin.SecretResolver
+import kinuvo.server.plugin.PluginStorage
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kinuvo.harness.core.plugin.ExecCheck
+import kinuvo.server.plugin.ExecCheck
 import kinuvo.protocol.CapabilityState
 import kinuvo.protocol.ExecTestResult
 import kinuvo.protocol.ExecutionLocation
@@ -24,7 +24,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 
 /** Shell, file and process tools on each Agent's exec backend, started on first use. */
-class ExecPlugin(private val files: AgentFiles, private val secrets: Secrets = Secrets()) : HarnessPlugin {
+class ExecPlugin(private val files: PluginStorage, private val secrets: SecretResolver = SecretResolver.None) : HarnessPlugin {
     override val definition = PluginDefinition("kinuvo.exec", "Shell and files")
     override val features = setOf(ServerFeature.Shell)
     private val lock = Mutex()
@@ -79,7 +79,7 @@ class ExecPlugin(private val files: AgentFiles, private val secrets: Secrets = S
 
     override suspend fun instructions(agent: Agent): InstructionSection? = runCatching { backend(agent)?.instructions }.getOrNull()
 
-    override suspend fun readFile(agent: Agent, path: String): String? = backend(agent)?.read(path, Artifacts.MAX_CHARS, whole = true)
+    override suspend fun readFile(agent: Agent, path: String): String? = backend(agent)?.read(path, ARTIFACT_MAX_CHARS, whole = true)
 
     override suspend fun release(agentId: String) {
         lock.withLock { states.remove(agentId); backends.remove(agentId) }?.close()

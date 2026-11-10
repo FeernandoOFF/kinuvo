@@ -7,8 +7,8 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.*
 import io.ktor.http.content.TextContent
-import kinuvo.harness.core.knowledge.BodyEdit
-import kinuvo.harness.core.knowledge.NoteEdit
+import kinuvo.server.plugin.BodyEdit
+import kinuvo.server.plugin.NoteEdit
 import kinuvo.protocol.MAX_ATTACHMENT_BYTES
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*

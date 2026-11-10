@@ -1,6 +1,7 @@
 package kinuvo.harness.mcp
 
-import kinuvo.harness.core.store.AgentFiles
+import kinuvo.server.plugin.Keychain
+import kinuvo.server.plugin.PluginStorage
 import kotlinx.io.files.Path
 import java.security.SecureRandom
 
@@ -8,7 +9,7 @@ private val random = SecureRandom()
 
 internal actual fun secureRandomBytes(count: Int) = ByteArray(count).also(random::nextBytes)
 
-internal actual fun defaultSignIns(files: AgentFiles): McpSignInStore = SandboxSignIns(Path(files.home, "mcp-auth"))
+internal actual fun defaultSignIns(files: PluginStorage, keychain: Keychain?): McpSignInStore = SandboxSignIns(Path(files.home, "mcp-auth"))
 
 internal actual val stdioSupported: Boolean = false
 

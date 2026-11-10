@@ -1,17 +1,17 @@
 package kinuvo.harness.caldav
 
+import kinuvo.server.plugin.SecretReferences
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.Url
 import io.ktor.http.decodeURLPart
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.plugin.PluginHost
-import kinuvo.harness.core.Secrets
-import kinuvo.harness.core.plugin.httpServiceUrl
-import kinuvo.harness.core.tasks.ProviderTask
-import kinuvo.harness.core.tasks.TaskChange
-import kinuvo.harness.core.tasks.TaskApp
-import kinuvo.harness.core.tasks.TaskList
-import kinuvo.harness.core.tasks.TaskProvider
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.PluginHost
+import kinuvo.server.plugin.httpServiceUrl
+import kinuvo.server.plugin.ProviderTask
+import kinuvo.server.plugin.TaskChange
+import kinuvo.server.plugin.TaskApp
+import kinuvo.server.plugin.TaskList
+import kinuvo.server.plugin.TaskProvider
 import kinuvo.protocol.PluginAccess
 import kinuvo.protocol.PluginDefinition
 import kinuvo.protocol.PluginHttpRequest
@@ -45,7 +45,7 @@ object CalDavProvider : TaskProvider {
     /** The URL is needed as written: the server's paths are matched against it. */
     override fun checkOptions(options: Map<String, String>) {
         super.checkOptions(options)
-        require(!Secrets.hasReferences(options[URL].orEmpty())) { "Write the Server URL itself, not a reference" }
+        require(!SecretReferences.hasReferences(options[URL].orEmpty())) { "Write the Server URL itself, not a reference" }
     }
 
     override fun configured(options: Map<String, String>, host: PluginHost) = CalDav(host, Url(httpServiceUrl(options.getValue(URL))))

@@ -1,7 +1,7 @@
 package kinuvo.harness.onepassword
 
-import kinuvo.harness.core.CliSecretProvider
-import kinuvo.harness.core.Keychain
+import kinuvo.server.plugin.CliSecretProvider
+import kinuvo.server.plugin.Keychain
 import kinuvo.protocol.SecretEntry
 import kinuvo.protocol.secretPath
 import kotlinx.serialization.json.Json
@@ -23,8 +23,8 @@ import java.nio.file.attribute.PosixFilePermissions
  */
 class OnePassword internal constructor(home: File, env: () -> Map<String, String>, keychain: Keychain?, cli: String) :
     CliSecretProvider(home, cli, keychain, env) {
-    constructor(home: File, env: () -> Map<String, String>) :
-        this(home, env, Keychain.system("kinuvo", "1password"), executable("op", "/opt/homebrew/bin/op", "/usr/local/bin/op", "/usr/bin/op"))
+    constructor(home: File, env: () -> Map<String, String>, keychain: Keychain?) :
+        this(home, env, keychain, executable("op", "/opt/homebrew/bin/op", "/usr/local/bin/op", "/usr/bin/op"))
 
     override val scheme = "op"
     override val name = "1Password"

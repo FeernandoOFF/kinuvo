@@ -4,7 +4,8 @@ product:
   platforms: [jvm, android, iosArm64, iosSimulatorArm64]
 
 dependencies:
-  - ../../core: exported
+  - ../../../server/plugin-api: exported
+  - io.github.oshai:kotlin-logging:8.0.4
   - io.modelcontextprotocol:kotlin-sdk-client:0.15.0
   - io.ktor:ktor-client-auth:3.6.0
   - co.touchlab:stately-concurrent-collections:2.1.0

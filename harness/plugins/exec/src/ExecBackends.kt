@@ -1,15 +1,14 @@
 package kinuvo.harness.exec
 
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.ExecModes
-import kinuvo.harness.core.Secrets
-import kinuvo.harness.core.store.AgentFiles
-import kinuvo.harness.core.store.loadEnv
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.ExecModes
+import kinuvo.server.plugin.SecretResolver
+import kinuvo.server.plugin.PluginStorage
 import java.io.File
 
 object ExecBackends {
     /** The Agent's backend, or null when `exec: none`; a [check] backend gets its own container and SSH connection. */
-    suspend fun create(agent: Agent, files: AgentFiles, secrets: Secrets = Secrets(), check: Boolean = false): ExecBackend? {
+    suspend fun create(agent: Agent, files: PluginStorage, secrets: SecretResolver = SecretResolver.None, check: Boolean = false): ExecBackend? {
         val cfg = agent.config
         if (cfg.exec == ExecModes.NONE) return null
         val workspace = cfg.workspace.map(::expandHome)

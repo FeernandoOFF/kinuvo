@@ -5,7 +5,7 @@ import com.dokar.quickjs.QuickJsException
 import com.dokar.quickjs.QuickJsInterruptedException
 import com.dokar.quickjs.binding.AsyncFunctionBinding
 import com.dokar.quickjs.binding.FunctionBinding
-import kinuvo.harness.core.takeWhole
+import kinuvo.server.plugin.takeWhole
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred

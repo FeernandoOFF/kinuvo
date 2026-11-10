@@ -4,7 +4,7 @@ product:
   platforms: [jvm, android, iosArm64, iosSimulatorArm64]
 
 dependencies:
-  - ../../core: exported
+  - ../../../server/plugin-api: exported
 
 test-dependencies:
   - $kotlin.test

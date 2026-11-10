@@ -1,6 +1,6 @@
 package kinuvo.harness.mcp
 
-import kinuvo.harness.core.sha256
+import kinuvo.server.plugin.sha256
 import kinuvo.protocol.McpAppRef
 import kinuvo.protocol.McpAppResource
 import kinuvo.protocol.ProtocolJson

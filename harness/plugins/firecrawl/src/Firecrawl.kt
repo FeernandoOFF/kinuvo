@@ -1,11 +1,11 @@
 package kinuvo.harness.firecrawl
 
-import kinuvo.harness.core.plugin.*
-import kinuvo.harness.core.*
-import kinuvo.harness.core.tools.SearchRegion
-import kinuvo.harness.core.tools.WebResult
-import kinuvo.harness.core.tools.WebSearch
-import kinuvo.harness.core.tools.WebSearchProvider
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.PluginHost
+import kinuvo.server.plugin.SearchRegion
+import kinuvo.server.plugin.WebResult
+import kinuvo.server.plugin.WebSearch
+import kinuvo.server.plugin.WebSearchProvider
 import kinuvo.protocol.*
 import kotlinx.serialization.json.*
 

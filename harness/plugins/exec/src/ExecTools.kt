@@ -1,19 +1,19 @@
 package kinuvo.harness.exec
 
-import kinuvo.harness.core.tools.CoreTool
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.ShellCommand
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.ToolRun
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.ShellCommand
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.ToolRun
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.requireString
-import kinuvo.harness.core.tools.string
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.string
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
@@ -35,19 +35,19 @@ private fun JsonObject.int(key: String) = get(key)?.jsonPrimitive?.intOrNull
 class ShellTool(private val backend: ExecBackend) : CoreTool {
     override fun assess(args: JsonObject) = args.string("command")?.let { ShellCommand.parse(it).assess(backend.roots) } ?: super.assess(args)
 
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.SHELL,
         description = "Run a bash command (fresh process each call; cd/export don't persist). Runs on ${backend.label}. " +
             "Use cwd instead of cd. Output is truncated to the start and end when long.",
-        requiredParameters = listOf(ToolParameterDescriptor("command", "The bash command", ToolParameterType.String)),
+        requiredParameters = listOf(ToolParameter("command", "The bash command", ParameterType.String)),
         optionalParameters = listOf(
-            ToolParameterDescriptor("watch", "Stream output while waiting for completion", ToolParameterType.Boolean),
-            ToolParameterDescriptor("cwd", "Working directory inside the workspace", ToolParameterType.String),
-            ToolParameterDescriptor("timeout", "Seconds before the command is killed (default 120, max 600)", ToolParameterType.Integer),
-            ToolParameterDescriptor(
+            ToolParameter("watch", "Stream output while waiting for completion", ParameterType.Boolean),
+            ToolParameter("cwd", "Working directory inside the workspace", ParameterType.String),
+            ToolParameter("timeout", "Seconds before the command is killed (default 120, max 600)", ParameterType.Integer),
+            ToolParameter(
                 "background",
                 "Start a long-running process (server, emulator) and return immediately; completion is reported automatically",
-                ToolParameterType.Boolean,
+                ParameterType.Boolean,
             ),
         ),
     )
@@ -96,13 +96,13 @@ class ShellTool(private val backend: ExecBackend) : CoreTool {
 }
 
 class ReadFileTool(private val backend: ExecBackend) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = "read_file",
         description = "Read a text file from the workspace. offset/limit select lines (1-based).",
-        requiredParameters = listOf(ToolParameterDescriptor("path", "File path (relative to the first workspace folder or absolute)", ToolParameterType.String)),
+        requiredParameters = listOf(ToolParameter("path", "File path (relative to the first workspace folder or absolute)", ParameterType.String)),
         optionalParameters = listOf(
-            ToolParameterDescriptor("offset", "First line to return", ToolParameterType.Integer),
-            ToolParameterDescriptor("limit", "Number of lines (default 2000)", ToolParameterType.Integer),
+            ToolParameter("offset", "First line to return", ParameterType.Integer),
+            ToolParameter("limit", "Number of lines (default 2000)", ParameterType.Integer),
         ),
     )
 
@@ -116,12 +116,12 @@ class ReadFileTool(private val backend: ExecBackend) : CoreTool {
 }
 
 class WriteFileTool(private val backend: ExecBackend) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = "write_file",
         description = "Create or overwrite a file in the workspace with the given content.",
         requiredParameters = listOf(
-            ToolParameterDescriptor("path", "File path", ToolParameterType.String),
-            ToolParameterDescriptor("content", "Full file content", ToolParameterType.String),
+            ToolParameter("path", "File path", ParameterType.String),
+            ToolParameter("content", "Full file content", ParameterType.String),
         ),
     )
 
@@ -133,13 +133,13 @@ class WriteFileTool(private val backend: ExecBackend) : CoreTool {
 }
 
 class EditFileTool(private val backend: ExecBackend) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = "edit_file",
         description = "Replace one exact, unique occurrence of old with new in a workspace file.",
         requiredParameters = listOf(
-            ToolParameterDescriptor("path", "File path", ToolParameterType.String),
-            ToolParameterDescriptor("old", "Exact text to replace (must occur exactly once)", ToolParameterType.String),
-            ToolParameterDescriptor("new", "Replacement text", ToolParameterType.String),
+            ToolParameter("path", "File path", ParameterType.String),
+            ToolParameter("old", "Exact text to replace (must occur exactly once)", ParameterType.String),
+            ToolParameter("new", "Replacement text", ParameterType.String),
         ),
     )
 
@@ -157,12 +157,12 @@ class EditFileTool(private val backend: ExecBackend) : CoreTool {
 }
 
 class ListFilesTool(private val backend: ExecBackend) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = "list_files",
         description = "List files under a workspace folder (skips .git, build, node_modules), optionally filtered by a glob like **/*.kt.",
         optionalParameters = listOf(
-            ToolParameterDescriptor("path", "Folder (default: first workspace folder)", ToolParameterType.String),
-            ToolParameterDescriptor("glob", "Glob on paths relative to the folder", ToolParameterType.String),
+            ToolParameter("path", "Folder (default: first workspace folder)", ParameterType.String),
+            ToolParameter("glob", "Glob on paths relative to the folder", ParameterType.String),
         ),
     )
 
@@ -171,11 +171,11 @@ class ListFilesTool(private val backend: ExecBackend) : CoreTool {
 }
 
 class ProcessOutputTool(private val backend: ExecBackend) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = "process_output",
         description = "Check a background process started with shell(background=true): running state, exit code and the end of its output.",
-        requiredParameters = listOf(ToolParameterDescriptor("id", "Background process id, e.g. bg1", ToolParameterType.String)),
-        optionalParameters = listOf(ToolParameterDescriptor("tail_chars", "How much of the output end to return (default 8000)", ToolParameterType.Integer)),
+        requiredParameters = listOf(ToolParameter("id", "Background process id, e.g. bg1", ParameterType.String)),
+        optionalParameters = listOf(ToolParameter("tail_chars", "How much of the output end to return (default 8000)", ParameterType.Integer)),
     )
 
     override suspend fun execute(args: JsonObject): String {
@@ -187,10 +187,10 @@ class ProcessOutputTool(private val backend: ExecBackend) : CoreTool {
 }
 
 class ProcessKillTool(private val backend: ExecBackend) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = "process_kill",
         description = "Stop a background process started with shell(background=true).",
-        requiredParameters = listOf(ToolParameterDescriptor("id", "Background process id", ToolParameterType.String)),
+        requiredParameters = listOf(ToolParameter("id", "Background process id", ParameterType.String)),
     )
 
     override suspend fun execute(args: JsonObject): String {

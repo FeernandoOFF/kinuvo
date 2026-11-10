@@ -1,12 +1,12 @@
 package kinuvo.harness.mcp
 
-import kinuvo.harness.core.tools.RawSchemaToolDescriptor
-import kinuvo.harness.core.plugin.modelAlias
+import kinuvo.server.plugin.rawSchemaSpec
+import kinuvo.server.plugin.modelAlias
 import kinuvo.protocol.PluginInstanceId
 import kinuvo.protocol.ToolIdentity
 
 import kinuvo.protocol.Risk
-import kinuvo.harness.core.tools.Tool
+import kinuvo.server.plugin.Tool
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.ImageContent
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
@@ -15,7 +15,7 @@ import kinuvo.protocol.McpAppRef
 import kinuvo.protocol.McpAppResource
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.SessionEntry
-import kinuvo.harness.core.tools.ToolRun
+import kinuvo.server.plugin.ToolRun
 import kotlinx.serialization.json.*
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.JsonArray
@@ -31,7 +31,7 @@ class McpTool(
 ) : Tool {
     override val identity = identity(server.config, toolName)
     override val displayName = toolName
-    override val descriptor = RawSchemaToolDescriptor(identity.modelAlias(), description, schema)
+    override val descriptor = rawSchemaSpec(identity.modelAlias(), description, schema)
     override val risk = when (server.config.approval) {
         "auto" -> Risk.Low
         "ask" -> Risk.Medium

@@ -1,12 +1,12 @@
 package kinuvo.harness.todoist
 
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.plugin.PluginHost
-import kinuvo.harness.core.tasks.ProviderTask
-import kinuvo.harness.core.tasks.TaskChange
-import kinuvo.harness.core.tasks.TaskApp
-import kinuvo.harness.core.tasks.TaskList
-import kinuvo.harness.core.tasks.TaskProvider
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.PluginHost
+import kinuvo.server.plugin.ProviderTask
+import kinuvo.server.plugin.TaskChange
+import kinuvo.server.plugin.TaskApp
+import kinuvo.server.plugin.TaskList
+import kinuvo.server.plugin.TaskProvider
 import kinuvo.protocol.PluginAccess
 import kinuvo.protocol.PluginDefinition
 import kinuvo.protocol.PluginHttpRequest

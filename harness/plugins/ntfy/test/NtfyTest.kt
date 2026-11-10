@@ -1,16 +1,18 @@
 package kinuvo.harness.ntfy
 
-import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.Notifier
+import kinuvo.server.plugin.PluginGrants
+import kinuvo.server.plugin.PluginHosts
+import kinuvo.server.plugin.instance
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
-import kinuvo.harness.core.plugin.Notification
+import kinuvo.server.plugin.Notification
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
-import kinuvo.harness.core.*
 import kinuvo.protocol.*
 
 class NtfyTest {

@@ -1,7 +1,7 @@
 package kinuvo.harness.mcp
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kinuvo.harness.core.Keychain
+import kinuvo.server.plugin.Keychain
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -23,7 +23,7 @@ private val log = KotlinLogging.logger("kinuvo.mcp.signins")
  * MCP sign-ins, one file per server under [dir], encrypted with a key kept in the OS keychain (whose entries are too
  * small for tokens). Without a keychain they are plain JSON readable only by the user.
  */
-class McpSignIns(private val dir: File, private val keychain: Keychain? = Keychain.system("kinuvo", "mcp-oauth")) : McpSignInStore {
+class McpSignIns(private val dir: File, private val keychain: Keychain?) : McpSignInStore {
     private val mutex = Mutex()
     private var key: SecretKeySpec? = null
     private var keyless = false
