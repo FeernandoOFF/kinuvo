@@ -1,0 +1,36 @@
+package kinuvo.harness.server.testing
+
+import ai.koog.agents.core.tools.ToolDescriptor
+import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.harness.core.plugin.PluginTools
+import kinuvo.harness.core.plugin.RunContext
+import kinuvo.harness.core.tools.Action
+import kinuvo.harness.core.tools.Assessment
+import kinuvo.harness.core.tools.Tool
+import kinuvo.protocol.PluginDefinition
+import kinuvo.protocol.Risk
+import kotlinx.serialization.json.JsonObject
+
+/**
+ * A tool a script can call. At a [risk] above the Agent's tolerance a call waits for an Approval showing [reason]; a
+ * [run] that throws becomes an error result.
+ */
+class FakeTool(
+    name: String,
+    override val risk: Risk = Risk.Low,
+    private val reason: String? = null,
+    private val run: suspend (JsonObject) -> String = { "ok" },
+) : Tool {
+    override val descriptor = ToolDescriptor(name, "Fake $name")
+
+    override fun assess(args: JsonObject) = Assessment(listOf(Action(risk, listOf(descriptor.name), reason)))
+
+    override suspend fun execute(args: JsonObject) = run(args)
+}
+
+/** Offers [tools] to every Agent's runs. */
+class FakeTools(private vararg val tools: FakeTool) : HarnessPlugin {
+    override val definition = PluginDefinition("test.tools", "Test tools")
+
+    override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(tools.toList())
+}

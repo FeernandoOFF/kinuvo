@@ -11,6 +11,10 @@ import kinuvo.harness.server.NetworkListener
 import kinuvo.harness.server.ServerInstallation
 import kinuvo.harness.server.ServerRuntime
 import kinuvo.harness.testing.ModelScript
+import kinuvo.protocol.ComputerRequest
+import kinuvo.protocol.ComputerResult
+import kinuvo.protocol.DeviceToolKind
+import kinuvo.protocol.DeviceToolStatus
 import kinuvo.protocol.Frame
 import kinuvo.protocol.FrameConnection
 import kotlinx.coroutines.CoroutineScope
@@ -70,9 +74,15 @@ class TestServer private constructor(
     }
 
     /** A client over [connect] that pairs with [pairingCode], or authenticates with [token]; call `connect()` on it. */
-    fun client(device: String = "test-device", token: String? = null): KinuvoClient =
+    fun client(
+        device: String = "test-device",
+        token: String? = null,
+        deviceTools: () -> Set<DeviceToolKind> = { emptySet() },
+        computer: suspend (ComputerRequest) -> ComputerResult = { ComputerResult(DeviceToolStatus.Unsupported) },
+    ): KinuvoClient =
         KinuvoClient("memory://test-server", device, token = token, pairingCode = if (token == null) pairingCode else null,
-            timeZone = "UTC", connection = { connect() }).also { synchronized(clients) { clients += it } }
+            timeZone = "UTC", deviceTools = deviceTools, computer = computer, connection = { connect() })
+            .also { synchronized(clients) { clients += it } }
 
     /** Starts listening on a loopback port and returns the WebSocket URL; clients on it are not seen by [spy]. */
     suspend fun listen(): String {

@@ -5,7 +5,13 @@ import app.cash.turbine.test
 import kinuvo.client.AuthException
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.AgentRef
+import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.Api
+import kinuvo.protocol.ApprovalDecision
+import kinuvo.protocol.ApprovalParams
+import kinuvo.protocol.BrowserOwner
+import kinuvo.protocol.BrowserTab
+import kinuvo.protocol.Risk
 import kinuvo.protocol.SendParams
 import kinuvo.protocol.SessionChange
 import kinuvo.protocol.SessionEntry
@@ -22,6 +28,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class TestServerTest {
     private fun KinuvoClient.entries(sessionId: String) =
@@ -127,6 +134,49 @@ class TestServerTest {
                 client.close()
                 assertFailsWith<AuthException> {
                     KinuvoClient("memory://test-server", "bad", pairingCode = "000000", connection = { server.connect() }).connect()
+                }
+            }
+        }
+    }
+
+    @Test
+    fun listsFakeBrowserTabsAndPairedComputersAsScreens() = runTest {
+        val tab = BrowserTab("tab", "default", "Private site", "http://lab.internal")
+        val server = TestServer.start(plugins = listOf(FakeBrowserPlugin(FakeBrowser(listOf(tab)))))
+        server.use {
+            withContext(Dispatchers.Default) {
+                val client = server.client().also { it.connect() }
+                server.computer("Pixel")
+                val screens = client.call(Api.Screens, null)
+                assertEquals(setOf("Pixel", "Private site"), screens.map { it.title }.toSet())
+                assertEquals(listOf("default"), client.call(Api.Screens, BrowserOwner("default")).mapNotNull { it.ref.owner?.agentId })
+            }
+        }
+    }
+
+    @Test
+    fun aFakeToolAboveTheToleranceWaitsForAnApproval() = runTest {
+        val server = TestServer.start(
+            plugins = listOf(FakeTools(FakeTool("shell", Risk.Medium, reason = "Runs a test command") { "test" })),
+            script = { on("run") { toolCall("shell"); reply("Done") } },
+        )
+        server.use {
+            withContext(Dispatchers.Default) {
+                val client = server.client().also { it.connect() }
+                val session = client.call(Api.CreateSession, AgentRef("default"))
+                val approvals = client.events(Api.Update).mapNotNull { ((it.change as? SessionChange.Event)?.event as? AgentEvent.ApprovalRequested) }
+                approvals.test {
+                    client.call(Api.CatchUp, CatchUpParams("default", session.id))
+                    client.call(Api.Send, SendParams("default", session.id, "please run it"))
+                    val request = awaitItem()
+                    assertEquals("Runs a test command", request.reason)
+                    client.entries(session.id).test {
+                        assertTrue(client.call(Api.Approve, ApprovalParams(request.approvalId, ApprovalDecision.AllowOnce)))
+                        assertEquals("test", awaitEntry<SessionEntry.ToolResult>().output)
+                        assertEquals("Done", awaitEntry<SessionEntry.AssistantMessage>().text)
+                        cancelAndIgnoreRemainingEvents()
+                    }
+                    cancelAndIgnoreRemainingEvents()
                 }
             }
         }
