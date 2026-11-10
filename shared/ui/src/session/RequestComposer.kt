@@ -43,7 +43,7 @@ import com.composables.icons.lucide.X
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.app.session.*
-import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.Question
 import kinuvo.protocol.Risk
@@ -197,7 +197,7 @@ private fun PendingRequest.detail(): String? = when (this) {
     else -> null
 }
 
-private fun AgentEvent.ApprovalRequested.isShell() = identity?.instance?.pluginId == "kinuvo.exec" && identity?.localId == "shell"
+private fun PendingInteraction.Approval.isShell() = identity?.instance?.pluginId == "kinuvo.exec" && identity?.localId == "shell"
 
 @Composable
 private fun RequestHeader(request: PendingRequest, count: Int, onClose: (() -> Unit)?) {
@@ -241,7 +241,7 @@ private fun Actions(wide: Boolean, primary: @Composable (Modifier) -> Unit, othe
 }
 
 @Composable
-private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInput, wide: Boolean, onDecision: (ApprovalDecision) -> Unit) {
+private fun ApprovalBody(event: PendingInteraction.Approval, input: RequestInput, wide: Boolean, onDecision: (ApprovalDecision) -> Unit) {
     val identity = event.identity
     // The title already names a tool without an identity.
     val label = identity?.let { "${it.instance.pluginId} › ${it.instance.instanceId} › ${it.localId}" }
@@ -290,8 +290,8 @@ private fun ApprovalBody(event: AgentEvent.ApprovalRequested, input: RequestInpu
 }
 
 @Composable
-private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, Map<String, List<String>>>, input: RequestInput, wide: Boolean, actions: ChatActions) {
-    val answers = asked.questions.associate { it.id to it.default } + drafts[asked.questionsId].orEmpty()
+private fun QuestionsBody(asked: PendingInteraction.Questions, drafts: Map<String, Map<String, List<String>>>, input: RequestInput, wide: Boolean, actions: ChatActions) {
+    val answers = asked.questions.associate { it.id to it.default } + drafts[asked.id].orEmpty()
     fun ready(q: Question) = !q.required || answers[q.id].orEmpty().any(String::isNotBlank)
     val stepped = !wide && asked.questions.size > 1
     val step = input.step.coerceIn(0, maxOf(asked.questions.lastIndex, 0))
@@ -305,7 +305,7 @@ private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, 
             Text("Question ${step + 1} of ${asked.questions.size}", style = TextStyles.caption, color = color(mutedColor))
         }
         Column(Modifier.bleed(FocusRing).heightIn(max = BodyMaxHeight).verticalScroll(rememberScrollState()).padding(FocusRing), verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
-            shown.forEach { q -> key(asked.questionsId, q.id) { QuestionField(q, answers[q.id].orEmpty()) { actions.onEditAnswer(asked.questionsId, q.id, it) } } }
+            shown.forEach { q -> key(asked.id, q.id) { QuestionField(q, answers[q.id].orEmpty()) { actions.onEditAnswer(asked.id, q.id, it) } } }
         }
         Actions(wide,
             primary = {
@@ -319,7 +319,7 @@ private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, 
                 if (stepped && current != null && !current.required) {
                     val skipped = answers + (current.id to emptyList())
                     Button(onClick = {
-                        actions.onEditAnswer(asked.questionsId, current.id, emptyList())
+                        actions.onEditAnswer(asked.id, current.id, emptyList())
                         if (last) actions.onAnswer(skipped) else input.step = step + 1
                     }, modifier = it, enabled = !last || asked.questions.all { q -> q == current || ready(q) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip question") }
                 }
@@ -328,7 +328,7 @@ private fun QuestionsBody(asked: AgentEvent.QuestionsAsked, drafts: Map<String, 
 }
 
 @Composable
-private fun TakeoverBody(asked: AgentEvent.QuestionsAsked, input: RequestInput, wide: Boolean, actions: ChatActions) {
+private fun TakeoverBody(asked: PendingInteraction.Questions, input: RequestInput, wide: Boolean, actions: ChatActions) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
         Text("Hand back in Live view when finished. Answering or skipping keeps Takeover paused.", style = TextStyles.caption, color = color(mutedColor))
         Actions(wide,

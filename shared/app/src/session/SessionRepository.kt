@@ -167,14 +167,11 @@ class SessionRepository(private val notifications: Notifications, internal val c
 
     suspend fun close(sessionId: String) = call { it.call(Api.CloseExecution, ExecutionRef(sessionId)) }
 
-    suspend fun answer(sessionId: String, requestId: String, answer: JsonElement): Boolean =
-        call { it.call(Api.ExecutionAnswer, ExecutionAnswer(sessionId, requestId, answer)) }
+    /** Answers the pending request [requestId]; false when another Device answered first or it is gone. */
+    suspend fun respond(sessionId: String, requestId: String, answer: InteractionAnswer): Boolean =
+        call { it.call(Api.Respond, RespondParams(sessionId, requestId, answer)) }
 
     suspend fun stop(sessionId: String) = call { it.call(Api.Stop, StopParams(sessionId)) }
-
-    suspend fun approve(approvalId: String, decision: ApprovalDecision) = call { it.call(Api.Approve, ApprovalParams(approvalId, decision)) }
-
-    suspend fun answer(questionsId: String, answers: Map<String, List<String>>?) = call { it.call(Api.Answer, QuestionsParams(questionsId, answers)) }
 
     private suspend fun <T> call(block: suspend (KinuvoClient) -> T): T =
         connection.call(block)
@@ -338,15 +335,20 @@ private fun SessionData.chatItems(): List<ChatItem> {
             is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Context, is SessionEntry.Outcome -> Unit
         }
     }
-    live.approval?.let { approval ->
-        val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == approval.toolCallId && it.result == null }
-        if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(approval = approval)
-        // An MCP App's own tool call asks outside a run, with no call in the list yet.
-        else items += ChatItem.ToolCall(key("approval-${approval.approvalId}", -4), approval.toolCallId, approval.toolCallName, approval.args, approval = approval, identity = approval.identity)
-    }
-    live.questions?.let { questions ->
-        val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == questions.toolCallId && it.result == null }
-        if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(questions = questions)
+    live.pending.forEach { request ->
+        when (request) {
+            is PendingInteraction.Approval -> {
+                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
+                if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(approval = request)
+                // An MCP App's own tool call asks outside a run, with no call in the list yet.
+                else items += ChatItem.ToolCall(key("approval-${request.id}", -4), request.toolCallId, request.toolCallName, request.args, approval = request, identity = request.identity)
+            }
+            is PendingInteraction.Questions -> {
+                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
+                if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(questions = request)
+            }
+            else -> Unit
+        }
     }
     if (live.reasoning.isNotEmpty() && "reasoning-${live.messageId}" !in keys) items += ChatItem.Reasoning(key("reasoning-${live.messageId}", -1), live.reasoning)
     if (live.text.isNotEmpty() && "text-${live.messageId}" !in keys) items += ChatItem.Assistant(key("text-${live.messageId}", -2), live.text)

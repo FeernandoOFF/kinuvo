@@ -67,11 +67,11 @@ import kinuvo.ui.design.*
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.AgentInfo
 import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.ExecutionPrompt
+import kinuvo.protocol.InteractionAnswer
+import kinuvo.protocol.PendingInteraction
 import kinuvo.app.agent.ApprovalOptionStyle
 import kinuvo.app.agent.approvalOptionStyle
 import kinuvo.app.session.approvalAnswer
-import kinuvo.app.session.displayPrompt
 import kinuvo.protocol.Risk
 import kinuvo.ui.session.commandOf
 import kinuvo.ui.session.prettyJson
@@ -310,10 +310,10 @@ fun LiveCallHost(agents: List<AgentInfo>) {
     val shown = call ?: return
     val ink = agents.firstOrNull { it.id == shown.agentId }?.ink ?: color(accentColor)
     val live = repo.sessions[shown.sessionId]?.live
-    val approval = live?.approval
-    val external = live?.pending?.firstNotNullOfOrNull { it.displayPrompt() as? ExecutionPrompt.Approval }
+    val approval = live?.pending?.firstNotNullOfOrNull { it as? PendingInteraction.Approval }
+    val external = live?.pending?.firstNotNullOfOrNull { it as? PendingInteraction.HarnessApproval }
     val haptics = LocalHapticFeedback.current
-    val request = approval?.approvalId ?: external?.id
+    val request = approval?.id ?: external?.id
     LaunchedEffect(request) {
         if (request == null) return@LaunchedEffect
         calls.attention()
@@ -341,12 +341,12 @@ fun LiveCallHost(agents: List<AgentInfo>) {
     }
     AnimatedVisibility(!minimized && approval != null, enter = fadeIn(), exit = fadeOut()) {
         approval?.let { a ->
-            CallApprovalSheet(shown.agentName, a, onDecision = { d -> scope.launch { runCatching { sessions.approve(a.approvalId, d) } } }, onEnd = calls::end)
+            CallApprovalSheet(shown.agentName, a, onDecision = { d -> scope.launch { runCatching { sessions.respond(shown.sessionId, a.id, InteractionAnswer.Approval(d)) } } }, onEnd = calls::end)
         }
     }
     AnimatedVisibility(!minimized && approval == null && external != null, enter = fadeIn(), exit = fadeOut()) {
         external?.let { p ->
-            CallExternalApprovalSheet(shown.agentName, p, onOption = { o -> scope.launch { runCatching { sessions.answer(shown.sessionId, p.id, approvalAnswer(o)) } } }, onEnd = calls::end)
+            CallExternalApprovalSheet(shown.agentName, p, onOption = { o -> scope.launch { runCatching { sessions.respond(shown.sessionId, p.id, approvalAnswer(o)) } } }, onEnd = calls::end)
         }
     }
     if (minimized) Strip("live-call", if (shown.voice.error != null) color(mutedColor) else ink, onClick = { minimized = false }, priority = 100) {
@@ -361,12 +361,12 @@ private const val CaptionsKey = "live.captions"
  * raw arguments and "Allow for this Session" behind Show details. Approving by voice is deliberately not offered.
  */
 @Composable
-fun CallApprovalSheet(agentName: String, event: AgentEvent.ApprovalRequested, onDecision: (ApprovalDecision) -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
+fun CallApprovalSheet(agentName: String, event: PendingInteraction.Approval, onDecision: (ApprovalDecision) -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
     val shell = event.identity?.instance?.pluginId == "kinuvo.exec" && event.identity?.localId == "shell"
     val command = if (shell) commandOf(event.args)?.let { "$ $it" } else null
     val tone = when (event.risk) { Risk.High -> color(destructiveColor); Risk.Medium -> color(warningColor); Risk.Low -> color(accentColor) }
     CallRequestSheet(
-        event.approvalId, if (shell) Lucide.SquareTerminal else Lucide.ShieldAlert, tone,
+        event.id, if (shell) Lucide.SquareTerminal else Lucide.ShieldAlert, tone,
         if (shell) "$agentName wants to run a command" else "$agentName wants to use ${event.identity?.localId ?: event.toolCallName}",
         command ?: event.reason ?: event.trustHint, mono = command != null,
         buttons = listOfNotNull(
@@ -384,7 +384,7 @@ fun CallApprovalSheet(agentName: String, event: AgentEvent.ApprovalRequested, on
 
 /** An external Agent's harness asking permission during a call, with the harness's own options; declining ones last. */
 @Composable
-fun CallExternalApprovalSheet(agentName: String, prompt: ExecutionPrompt.Approval, onOption: (String) -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
+fun CallExternalApprovalSheet(agentName: String, prompt: PendingInteraction.HarnessApproval, onOption: (String) -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
     val choices = prompt.options.sortedBy { approvalOptionStyle(it.kind) == ApprovalOptionStyle.Destructive }
         .map { o -> SheetChoice(o.label, filled = approvalOptionStyle(o.kind) != ApprovalOptionStyle.Destructive) { onOption(o.id) } }
     CallRequestSheet(prompt.id, if (prompt.site != null) Lucide.ExternalLink else Lucide.ShieldAlert, color(warningColor), "$agentName wants to: ${prompt.title}",

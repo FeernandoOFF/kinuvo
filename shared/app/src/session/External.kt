@@ -3,18 +3,13 @@ package kinuvo.app.session
 import kinuvo.protocol.*
 import kotlinx.serialization.json.*
 
-fun ExecutionRequest.displayPrompt(): ExecutionPrompt = prompt ?: ExecutionPrompt.Unsupported(id, "Unsupported request")
-
-fun approvalAnswer(optionId: String?): JsonElement = optionId?.let {
+fun approvalAnswer(optionId: String?): InteractionAnswer = InteractionAnswer.Harness(optionId?.let {
     buildJsonObject { put("optionId", it) }
-} ?: JsonNull
+} ?: JsonNull)
 
-fun openLinkAnswer(opened: Boolean): JsonElement = buildJsonObject { put("opened", opened) }
+fun openLinkAnswer(opened: Boolean): InteractionAnswer = InteractionAnswer.Harness(buildJsonObject { put("opened", opened) })
 
-fun questionsAnswer(prompt: ExecutionPrompt, answers: Map<String, List<String>>?): JsonElement =
-    if (answers == null || prompt !is ExecutionPrompt.Questions) JsonNull else buildJsonObject {
-        putJsonObject("answers") { answers.forEach { (id, values) -> put(id, JsonArray(values.map(::JsonPrimitive))) } }
-    }
+val declineAnswer: InteractionAnswer = InteractionAnswer.Harness(JsonNull)
 
 fun resumeOnSend(phase: ExecutionPhase?, capabilities: SessionCapabilities?): Boolean =
     capabilities?.execution?.resume == true && capabilities.chat.reasonCode in setOf(null, "session_lost") &&

@@ -3,7 +3,9 @@ package kinuvo.ui.session
 import kinuvo.app.agent.*
 import kinuvo.ui.settings.*
 import kinuvo.app.session.*
-import kinuvo.protocol.ExecutionPrompt
+import kinuvo.protocol.ExecutionKind
+import kinuvo.protocol.InteractionAnswer
+import kinuvo.protocol.PendingInteraction
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*
@@ -37,14 +39,15 @@ internal fun ExternalPrompts(state: ChatState, actions: ChatActions, modifier: M
         state.prompts.forEach { prompt ->
             key(prompt.id) {
                 when (prompt) {
-                    is ExecutionPrompt.Approval -> ExternalApprovalCard(prompt, harness, actions)
-                    is ExecutionPrompt.Questions -> QuestionsCard(prompt.asked, state.answers, actions.onEditAnswer, { actions.onExternal(prompt, questionsAnswer(prompt, it)) }, skip = if (prompt.native) "Dismiss" else "Decline", attached = true)
-                    is ExecutionPrompt.OpenLink -> RequestCard(Lucide.ExternalLink, "Open ${prompt.site}", prompt.message) {
+                    is PendingInteraction.HarnessApproval -> ExternalApprovalCard(prompt, harness, actions)
+                    is PendingInteraction.Questions -> QuestionsCard(prompt, state.answers, actions.onEditAnswer, { actions.onExternal(prompt, InteractionAnswer.Questions(it)) }, skip = if (agent.executionKind == ExecutionKind.Remote) "Dismiss" else "Decline", attached = true)
+                    is PendingInteraction.OpenLink -> RequestCard(Lucide.ExternalLink, "Open ${prompt.site}", prompt.message) {
                         Button({ uri.openUri(prompt.url); actions.onExternal(prompt, openLinkAnswer(true)) }) { Text("Open page") }
                         Button({ actions.onExternal(prompt, openLinkAnswer(false)) }, style = ButtonStyle.Ghost) { Text("Decline") }
                     }
-                    is ExecutionPrompt.Unsupported -> RequestCard(Lucide.MessageCircleQuestionMark, prompt.message, "Kinuvo can't show this request. Answer it in $harness on $host, or decline it.") {
-                        Button(onClick = { actions.onExternal(prompt, questionsAnswer(prompt, null)) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Decline") }
+                    is PendingInteraction.Approval -> Unit
+                    is PendingInteraction.Unsupported -> RequestCard(Lucide.MessageCircleQuestionMark, prompt.message, "Kinuvo can't show this request. Answer it in $harness on $host, or decline it.") {
+                        Button(onClick = { actions.onExternal(prompt, declineAnswer) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Decline") }
                     }
                 }
             }
@@ -54,7 +57,7 @@ internal fun ExternalPrompts(state: ChatState, actions: ChatActions, modifier: M
 
 /** A harness's permission request: what it's about, then one button per option it offered, with its own labels. */
 @Composable
-private fun ExternalApprovalCard(prompt: ExecutionPrompt.Approval, harness: String, actions: ChatActions) {
+private fun ExternalApprovalCard(prompt: PendingInteraction.HarnessApproval, harness: String, actions: ChatActions) {
     RequestCard(Lucide.ShieldAlert, "$harness wants to: ${prompt.title}", prompt.description, prompt.origin, if (prompt.site != null) Lucide.ExternalLink else Lucide.Plug) {
         prompt.options.forEach { option ->
             val answer = { actions.onExternal(prompt, approvalAnswer(option.id)) }

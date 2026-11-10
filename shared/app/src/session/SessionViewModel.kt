@@ -47,8 +47,8 @@ sealed interface ChatItem {
         val args: String,
         val result: String? = null,
         val isError: Boolean = false,
-        val approval: AgentEvent.ApprovalRequested? = null,
-        val questions: AgentEvent.QuestionsAsked? = null,
+        val approval: PendingInteraction.Approval? = null,
+        val questions: PendingInteraction.Questions? = null,
         val identity: ToolIdentity? = null,
         val attachments: List<Attachment> = emptyList(),
         /** The MCP App this call shows, with the tool's full result for it. */
@@ -161,11 +161,9 @@ data class ChatState(
     val preview: AttachmentPreview? = null,
     /** Half-filled `ask_user` forms, as in [SessionState.answers]. */
     val answers: Map<String, Map<String, List<String>>> = emptyMap(),
-    /** The Approval and form the run waits on, which [respond][SessionViewModel.respond] and [answer][SessionViewModel.answer] act on. */
-    val approval: AgentEvent.ApprovalRequested? = null,
-    val questions: AgentEvent.QuestionsAsked? = null,
-    /** What an external Agent's harness waits on: its permission requests and forms; [harness] names it. */
-    val prompts: List<ExecutionPrompt> = emptyList(),
+    /** What the Session waits on: Approvals and forms for [respond][SessionViewModel.respond] and [answer][SessionViewModel.answer], or an external Agent's harness requests. */
+    val pending: List<PendingInteraction> = emptyList(),
+    /** Names an external Agent's harness. */
     val harness: String? = null,
     /** The external Session's phase as its harness reports it; null when this Device can't see it. */
     val phase: ExecutionPhase? = null,
@@ -179,7 +177,9 @@ data class ChatState(
     val ended get() = if (external && selected != null && capabilities?.chat?.reasonCode != "archived") SessionEnd.of(phase, capabilities?.chat, resume) else null
     val resumeOnSend get() = external && resumeOnSend(phase, capabilities)
     /** Everything the open Session waits on from the user, oldest first. */
-    val requests get() = pendingRequests(items, approval, questions, prompts)
+    val requests get() = pendingRequests(items, pending, external)
+    /** The requests of an external Agent's harness, shown above its composer. */
+    val prompts get() = if (external) pending else emptyList()
     val canStop get() = !external || capabilities?.execution?.cancel == true
     val skills get() = capabilities?.server.supports(ServerFeature.Skills)
     /** Why nothing can be sent, or null when chat works. */
@@ -230,7 +230,7 @@ data class SessionState(
     /** A message waiting for permission to reach its third-party model provider. */
     val aiConsent: AiConsentRequest? = null,
 ) {
-    val prompts get() = data?.live?.pending.orEmpty().map { it.displayPrompt() }
+    val pending get() = data?.live?.pending.orEmpty()
     val phase get() = data?.live?.executionPhase
     val loaded get() = !resolving && (route.sessionId == null || data?.loaded == true)
     val resumeOnSend get() = resumeOnSend(phase, capabilities)
@@ -503,8 +503,9 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     }
 
     fun respond(decision: ApprovalDecision) {
-        val approval = state.value.data?.live?.approval ?: return
-        viewModelScope.launch { attempt { repo.approve(approval.approvalId, decision) } }
+        val sessionId = route.sessionId ?: return
+        val approval = state.value.pending.filterIsInstance<PendingInteraction.Approval>().firstOrNull() ?: return
+        viewModelScope.launch { attempt { repo.respond(sessionId, approval.id, InteractionAnswer.Approval(decision)) } }
     }
 
     fun reviewReflection(proposalId: String, approve: Boolean, note: String? = null) {
@@ -534,10 +535,11 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
 
     /** Sends the open `ask_user` form's [answers]; null skips it. */
     fun answer(answers: Map<String, List<String>>?) {
-        val questions = state.value.data?.live?.questions ?: return
+        val sessionId = route.sessionId ?: return
+        val questions = state.value.pending.filterIsInstance<PendingInteraction.Questions>().firstOrNull() ?: return
         viewModelScope.launch { attempt {
-            repo.answer(questions.questionsId, answers)
-            state.update { it.copy(answers = it.answers - questions.questionsId) }
+            repo.respond(sessionId, questions.id, InteractionAnswer.Questions(answers))
+            state.update { it.copy(answers = it.answers - questions.id) }
         } }
     }
 
@@ -566,11 +568,11 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         } }
     }
 
-    /** Answers the harness's request [prompt]: [answer] is its own JSON response. The first Device to answer wins. */
-    fun answerExternal(prompt: ExecutionPrompt, answer: JsonElement) {
+    /** Answers the harness's request [prompt]; the first Device to answer wins. */
+    fun answerExternal(prompt: PendingInteraction, answer: InteractionAnswer) {
         val sessionId = route.sessionId ?: return
         viewModelScope.launch { attempt {
-            if (!repo.answer(sessionId, prompt.id, answer)) state.update { it.copy(errors = it.errors + "Already answered, or the harness stopped waiting.") }
+            if (!repo.respond(sessionId, prompt.id, answer)) state.update { it.copy(errors = it.errors + "Already answered, or the harness stopped waiting.") }
             else state.update { it.copy(answers = it.answers - prompt.id) }
         } }
     }

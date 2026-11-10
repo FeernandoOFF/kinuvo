@@ -53,7 +53,8 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import kinuvo.client.ConnectionState
-import kinuvo.protocol.ExecutionPrompt
+import kinuvo.protocol.InteractionAnswer
+import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.AgentSettings
 import kinuvo.protocol.SessionSettings
@@ -146,9 +147,7 @@ fun ChatScreen(
                 ?: current.items.attachment(id)?.let { AttachmentPreview(it, null) }
         },
         answers = current.answers,
-        approval = current.data?.live?.approval,
-        questions = current.data?.live?.questions,
-        prompts = current.prompts,
+        pending = current.pending,
         phase = current.phase,
         resume = current.capabilities?.execution?.resume,
         resuming = current.resuming,
@@ -257,7 +256,7 @@ class ChatActions(
     val onDictate: (() -> Unit)? = null,
     val onDiscardDictation: () -> Unit = {},
     /** Answers an external Agent's harness with its own JSON response. */
-    val onExternal: (ExecutionPrompt, kotlinx.serialization.json.JsonElement) -> Unit = { _, _ -> },
+    val onExternal: (PendingInteraction, InteractionAnswer) -> Unit = { _, _ -> },
     val onCheckHarness: () -> Unit = {},
     /** Reopens an external Session whose harness process ended. */
     /** Ends an external Session's harness process; its transcript stays. */
@@ -428,7 +427,7 @@ fun ChatContent(
                         val over = state.ended?.takeIf { it.resume == false && !state.resumeOnSend }
                         if (over != null) EndedComposer(over.blocked, actions.onNew, Modifier.widthIn(max = ContentWidth))
                         // A harness's questions take the composer's place, like the Agent's own requests.
-                        else if (state.external && state.ended == null && state.prompts.isNotEmpty() && state.prompts.all { it is ExecutionPrompt.Questions })
+                        else if (state.external && state.ended == null && state.prompts.isNotEmpty() && state.prompts.all { it is PendingInteraction.Questions })
                             Column(Modifier.widthIn(max = ContentWidth).fillMaxWidth().clip(RoundedCornerShape(Radius.composer)).background(color(fieldColor))
                                 .border(1.dp, color(accentColor).copy(alpha = 0.55f), RoundedCornerShape(Radius.composer)).padding(horizontal = Spacing.space18, vertical = Spacing.space14)) {
                                 ExternalPrompts(state, actions)

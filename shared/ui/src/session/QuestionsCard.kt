@@ -17,16 +17,16 @@ import com.composables.icons.lucide.MessageCircleQuestionMark
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
-import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.Question
 import kinuvo.protocol.QuestionKind
 import kinuvo.ui.design.*
 
 /** [skip] names the button that answers null. */
 @Composable
-internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String, Map<String, List<String>>>,
+internal fun QuestionsCard(asked: PendingInteraction.Questions, drafts: Map<String, Map<String, List<String>>>,
     onEdit: (questionsId: String, questionId: String, value: List<String>) -> Unit, onAnswer: (Map<String, List<String>>?) -> Unit, skip: String = "Dismiss", attached: Boolean = false) {
-    val answers = asked.questions.associate { it.id to it.default } + drafts[asked.questionsId].orEmpty()
+    val answers = asked.questions.associate { it.id to it.default } + drafts[asked.id].orEmpty()
     val ready = asked.questions.none { it.required && answers[it.id].orEmpty().none(String::isNotBlank) }
     Panel(
         Modifier.fillMaxWidth(),
@@ -40,7 +40,7 @@ internal fun QuestionsCard(asked: AgentEvent.QuestionsAsked, drafts: Map<String,
                 Icon(Lucide.MessageCircleQuestionMark, Modifier.size(18.dp), tint = color(accentColor))
                 Text(asked.title ?: "Questions for you", fontWeight = FontWeight.Normal)
             }
-            asked.questions.forEach { q -> key(q.id) { QuestionField(q, answers[q.id].orEmpty()) { onEdit(asked.questionsId, q.id, it) } } }
+            asked.questions.forEach { q -> key(q.id) { QuestionField(q, answers[q.id].orEmpty()) { onEdit(asked.id, q.id, it) } } }
             // Laid out like the Agent's own requests: the two answers side by side.
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 Button(onClick = { onAnswer(answers) }, modifier = Modifier.weight(1f), enabled = ready, style = ButtonStyle.Primary) { Text(if (asked.questions.isEmpty()) "Check again" else "Submit") }
