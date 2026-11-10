@@ -17,8 +17,8 @@ import kinuvo.app.connection.Device
 import kinuvo.app.connection.DeviceCredentials
 import kinuvo.app.connection.Preferences
 import kinuvo.app.connection.Servers
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.harness.execution.api.Agent
+import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.harness.server.testing.FakeHarness
 import kinuvo.harness.server.testing.Scenario
 import kinuvo.harness.server.testing.TestServer

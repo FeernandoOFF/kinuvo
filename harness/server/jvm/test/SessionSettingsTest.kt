@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.plugin.ModelProviderPlugin
 import kinuvo.harness.testing.*
 import ai.koog.prompt.message.Message
 
@@ -9,8 +10,7 @@ import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.core.AgentModel
 import kinuvo.harness.core.plugin.ModelProvider
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.protocol.UpdateAgentParams
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.SessionSettings
@@ -33,7 +33,7 @@ class SessionSettingsTest {
     @Test
     fun modelPairsRouteAcrossPluginsAndSurviveRestart() = runBlocking {
         val used = mutableListOf<String>()
-        fun plugin(id: String) = object : HarnessPlugin, ModelProvider {
+        fun plugin(id: String) = object : ModelProviderPlugin, ModelProvider {
             override val definition = kinuvo.protocol.PluginDefinition("test.$id", "Test")
             override val id = id
             override val modelProviders get() = listOf(this)

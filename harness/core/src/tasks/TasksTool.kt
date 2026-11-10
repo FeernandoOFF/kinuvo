@@ -1,13 +1,13 @@
 package kinuvo.harness.core.tasks
 
-import kinuvo.harness.core.tools.CoreTool
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.requireString
-import kinuvo.harness.core.tools.string
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.server.plugin.CoreTool
+import kinuvo.harness.execution.api.Agent
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.string
 import kinuvo.protocol.TaskInfo
 import kinuvo.protocol.TaskStatus
 import kotlinx.datetime.LocalDate
@@ -16,7 +16,7 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /** The user's Tasks on the Board, for the Agent to list, create and update. */
 class TasksTool(private val tasks: Tasks, private val agent: Agent, private val taskId: String? = null) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.TASKS,
         description = taskId?.let {
             "Your assigned Task $it. list shows this Task; update changes its title, due date, assignee or status. " +
@@ -26,17 +26,17 @@ class TasksTool(private val tasks: Tasks, private val agent: Agent, private val 
             "done). When you finish a task, set it done; " +
             "when you need something from the user, set it waiting and explain what in your reply."),
         requiredParameters = listOf(
-            ToolParameterDescriptor("action", if (taskId == null) "list | create | update" else "list | update", ToolParameterType.Enum(if (taskId == null) arrayOf("list", "create", "update") else arrayOf("list", "update"))),
+            ToolParameter("action", if (taskId == null) "list | create | update" else "list | update", ParameterType.Enum(if (taskId == null) arrayOf("list", "create", "update") else arrayOf("list", "update"))),
         ),
         optionalParameters = listOf(
-            ToolParameterDescriptor("id", "Task id (update)", ToolParameterType.String),
-            ToolParameterDescriptor("mine", "true to list only tasks assigned to you", ToolParameterType.String),
-            ToolParameterDescriptor("title", "Task title (create, update)", ToolParameterType.String),
-            ToolParameterDescriptor("list", "List name (create); defaults to the user's default list", ToolParameterType.String),
-            ToolParameterDescriptor("notes", "Notes (create)", ToolParameterType.String),
-            ToolParameterDescriptor("due", "Due date, YYYY-MM-DD; \"none\" removes it (create, update)", ToolParameterType.String),
-            ToolParameterDescriptor("assignee", "Agent id to assign; \"none\" unassigns (create, update)", ToolParameterType.String),
-            ToolParameterDescriptor("status", "todo | in_progress | waiting | done (update)", ToolParameterType.String),
+            ToolParameter("id", "Task id (update)", ParameterType.String),
+            ToolParameter("mine", "true to list only tasks assigned to you", ParameterType.String),
+            ToolParameter("title", "Task title (create, update)", ParameterType.String),
+            ToolParameter("list", "List name (create); defaults to the user's default list", ParameterType.String),
+            ToolParameter("notes", "Notes (create)", ParameterType.String),
+            ToolParameter("due", "Due date, YYYY-MM-DD; \"none\" removes it (create, update)", ParameterType.String),
+            ToolParameter("assignee", "Agent id to assign; \"none\" unassigns (create, update)", ParameterType.String),
+            ToolParameter("status", "todo | in_progress | waiting | done (update)", ParameterType.String),
         ),
     )
 

@@ -1,5 +1,11 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.harness.execution.api.AgentDoc
+import kinuvo.harness.execution.api.AgentDocs
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.Notifier
 import kinuvo.harness.core.plugin.*
 import kinuvo.harness.core.*
 import kinuvo.harness.core.artifacts.*
@@ -9,9 +15,9 @@ import kinuvo.harness.core.skills.*
 import kinuvo.harness.core.store.InMemoryStore
 import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.tasks.*
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.WebSearch
-import kinuvo.harness.core.voice.VoiceProviders
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.WebSearch
+import kinuvo.server.plugin.VoiceProviders
 import kinuvo.harness.testing.*
 import kinuvo.protocol.*
 import kotlinx.datetime.LocalDate

@@ -1,6 +1,9 @@
 package kinuvo.harness.core.tools
 
-import ai.koog.agents.core.tools.ToolDescriptor
+import kinuvo.server.plugin.rawSchemaSpec
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.ToolRun
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -12,7 +15,7 @@ import kotlin.test.assertTrue
 
 class ToolCatalogTest {
     private fun tool(name: String, description: String) = object : Tool {
-        override val descriptor = RawSchemaToolDescriptor(name, description, buildJsonObject { put("type", JsonPrimitive("object")) })
+        override val descriptor = rawSchemaSpec(name, description, buildJsonObject { put("type", JsonPrimitive("object")) })
         override suspend fun execute(args: JsonObject) = name
     }
     private val catalogued = listOf(tool("linear__create_issue", "Create an issue"), tool("notion__search", "Search pages"))

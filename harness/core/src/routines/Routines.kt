@@ -1,8 +1,8 @@
 package kinuvo.harness.core.routines
 
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.AgentDoc
-import kinuvo.harness.core.AgentDocs
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentDoc
+import kinuvo.harness.execution.api.AgentDocs
 import kinuvo.harness.core.update
 import kinuvo.protocol.ActiveHours
 import kinuvo.protocol.Routine

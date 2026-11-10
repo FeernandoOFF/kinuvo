@@ -1,6 +1,6 @@
 package kinuvo.harness.core
 
-import kinuvo.harness.core.tools.string
+import kinuvo.server.plugin.string
 import kinuvo.harness.execution.api.ToolGate
 import kinuvo.harness.execution.api.ToolProvider
 import kinuvo.harness.execution.api.ToolSpec

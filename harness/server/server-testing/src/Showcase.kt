@@ -1,6 +1,6 @@
 package kinuvo.harness.server.testing
 
-import kinuvo.harness.core.Agent
+import kinuvo.harness.execution.api.Agent
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.ConfigScope
 import kinuvo.protocol.SessionEntry

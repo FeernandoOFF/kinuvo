@@ -1,7 +1,9 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.plugin.ModelProviderPlugin
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.deleteTree
 import kinuvo.harness.core.plugin.*
-import kinuvo.harness.core.*
 import kinuvo.harness.core.store.*
 import kinuvo.harness.core.voice.VoiceConfig
 import kinuvo.harness.core.voice.VoiceProviderConfig
@@ -42,7 +44,7 @@ class ServerInstallationTest {
     @Test
     fun failedAssemblyClosesInstalledPluginsOnce() = runTest {
         var closes = 0
-        val plugin = object : HarnessPlugin {
+        val plugin = object : ModelProviderPlugin {
             override val definition = kinuvo.protocol.PluginDefinition("test.serverinstallationtest.2", "Test")
             override val modelProviders: List<ModelProvider> get() = error("Assembly failed")
             override suspend fun close() { closes++ }

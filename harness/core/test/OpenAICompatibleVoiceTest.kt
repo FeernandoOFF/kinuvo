@@ -1,5 +1,7 @@
 package kinuvo.harness.core
 
+import kinuvo.server.plugin.Audio
+import kinuvo.server.plugin.AudioFormat
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.*
 import io.ktor.client.request.forms.MultiPartFormDataContent

@@ -1,8 +1,14 @@
 package kinuvo.harness.core.tools
 
-import ai.koog.agents.core.tools.ToolDescriptor
+import kinuvo.harness.execution.api.ToolSpec
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.ToolKind
+import kinuvo.server.plugin.ToolRun
+import kinuvo.server.plugin.indexedTools
+import kinuvo.server.plugin.modelAlias
+import kinuvo.server.plugin.policyKey
+import kinuvo.server.plugin.string
 import kinuvo.harness.core.*
-import kinuvo.harness.core.plugin.*
 import kinuvo.harness.execution.api.ToolGate
 import kinuvo.harness.execution.api.ToolProvider
 import kinuvo.harness.execution.api.ToolReports
@@ -25,7 +31,7 @@ import kotlinx.serialization.json.jsonObject
  */
 class ToolService(
     tools: List<Tool>,
-    advertisedTools: List<ToolDescriptor> = tools.map { it.descriptor },
+    advertisedTools: List<ToolSpec> = tools.map { it.descriptor },
     private val approvals: Approvals = Approvals.none(),
     private val questions: Broker<Map<String, List<String>>?>? = null,
     private val attach: ((String, ByteArray) -> Attachment)? = null,
@@ -41,7 +47,7 @@ class ToolService(
     override val advertised = advertisedTools
         .map { d -> d.withItemLimits(tools.firstOrNull { it.descriptor.name == d.name }?.itemLimits(maxItems).orEmpty()) }
         .sortedBy { it.name }
-        .map { it.toSpec(toolsByName[it.name]) }
+        .map { toolsByName[it.name]?.spec(it) ?: it }
 
     override suspend fun invoke(call: SessionEntry.ToolCall, turn: ToolTurn): SessionEntry.ToolResult =
         invoke(call.copy(identity = toolsByName[call.name]?.identity), call.id, turn)

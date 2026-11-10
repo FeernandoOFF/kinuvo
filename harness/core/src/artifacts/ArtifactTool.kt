@@ -1,13 +1,13 @@
 package kinuvo.harness.core.artifacts
 
-import kinuvo.harness.core.tools.CoreTool
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.requireString
-import kinuvo.harness.core.tools.string
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.server.plugin.CoreTool
+import kinuvo.harness.execution.api.Agent
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.string
 import kinuvo.protocol.ArtifactInfo
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -19,21 +19,21 @@ class ArtifactTool(
     private val artifacts: Artifacts,
     private val readWorkspace: suspend (String) -> String,
 ) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.ARTIFACT,
         description = "Make something for the user to open from the chat and keep: a self-contained HTML page (reports, " +
             "charts, small interactive tools; inline CSS/JS or load them from https CDNs, no fetch/XHR), SVG, Markdown, CSV, " +
             "JSON or text. create returns its id; update replaces its content (only the latest is kept). Artifacts are " +
             "shared by all agents; list and read find earlier ones.",
-        requiredParameters = listOf(ToolParameterDescriptor("action", "create | update | list | read", ToolParameterType.Enum(arrayOf("create", "update", "list", "read")))),
+        requiredParameters = listOf(ToolParameter("action", "create | update | list | read", ParameterType.Enum(arrayOf("create", "update", "list", "read")))),
         optionalParameters = listOf(
-            ToolParameterDescriptor("id", "The artifact, for update and read", ToolParameterType.String),
-            ToolParameterDescriptor("title", "Name shown to the user; required for create", ToolParameterType.String),
-            ToolParameterDescriptor("type", Artifacts.TYPES.joinToString(" | ") + "; for create, unless from_path has an extension", ToolParameterType.String),
-            ToolParameterDescriptor("content", "The full content", ToolParameterType.String),
-            ToolParameterDescriptor("from_path", "Copy the content from this workspace file instead", ToolParameterType.String),
-            ToolParameterDescriptor("old", "For update: exact text to replace, instead of content", ToolParameterType.String),
-            ToolParameterDescriptor("new", "Replacement for old", ToolParameterType.String),
+            ToolParameter("id", "The artifact, for update and read", ParameterType.String),
+            ToolParameter("title", "Name shown to the user; required for create", ParameterType.String),
+            ToolParameter("type", Artifacts.TYPES.joinToString(" | ") + "; for create, unless from_path has an extension", ParameterType.String),
+            ToolParameter("content", "The full content", ParameterType.String),
+            ToolParameter("from_path", "Copy the content from this workspace file instead", ParameterType.String),
+            ToolParameter("old", "For update: exact text to replace, instead of content", ParameterType.String),
+            ToolParameter("new", "Replacement for old", ParameterType.String),
         ),
     )
 

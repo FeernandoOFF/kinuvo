@@ -3,8 +3,8 @@ package kinuvo.harness.core.tools
 import kinuvo.harness.testing.*
 
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.plugin.PluginTools
-import kinuvo.harness.core.plugin.ownedBy
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.ownedBy
 import kinuvo.protocol.PluginInstanceId
 import kinuvo.harness.core.AgentRun
 import kinuvo.harness.core.ApprovalPolicy

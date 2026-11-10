@@ -2,7 +2,7 @@ package kinuvo.harness.server
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import co.touchlab.stately.collections.ConcurrentMutableSet
-import kinuvo.harness.core.plugin.Notification
+import kinuvo.server.plugin.Notification
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.RoutineRan

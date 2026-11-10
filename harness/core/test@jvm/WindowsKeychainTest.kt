@@ -1,5 +1,7 @@
 package kinuvo.harness.core
 
+import kinuvo.server.plugin.Keychain
+import kinuvo.server.plugin.ProcessOutput
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import kinuvo.protocol.Platform

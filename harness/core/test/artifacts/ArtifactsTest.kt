@@ -2,7 +2,7 @@ package kinuvo.harness.core.artifacts
 
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.store.FileArtifacts
-import kinuvo.harness.core.store.isFile
+import kinuvo.server.plugin.isFile
 import kinuvo.protocol.ArtifactChange
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path

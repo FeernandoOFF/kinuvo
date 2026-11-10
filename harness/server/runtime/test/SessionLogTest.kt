@@ -1,7 +1,7 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.core.store.Store
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.SessionChange

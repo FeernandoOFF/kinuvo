@@ -1,5 +1,9 @@
 package kinuvo.harness.core.tools
 
+import kinuvo.protocol.ToolGroup
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.CoreToolRegistry
+import kinuvo.server.plugin.Tool
 import kinuvo.harness.core.Tolerance
 
 /**

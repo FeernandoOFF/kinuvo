@@ -1,16 +1,16 @@
 package kinuvo.harness.core.skills
 
-import kinuvo.harness.core.tools.CoreTool
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.server.plugin.CoreTool
 import kinuvo.protocol.SessionEntry
 
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.requireString
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.requireString
 import kotlinx.serialization.json.JsonObject
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.takeWhole
+import kinuvo.harness.execution.api.Agent
+import kinuvo.server.plugin.takeWhole
 import kinuvo.protocol.ConfigScope
 
 /** Renders a Skill for the model, per the agentskills activation format. */
@@ -26,11 +26,11 @@ suspend fun SkillRepository.activationText(skill: Skill): String = buildString {
 
 /** Looks Skills up when called, so one the Agent created during the run can be activated right away. */
 class ActivateSkillTool(private val agent: Agent, private val repo: SkillRepository) : CoreTool {
-    override val descriptor get() = ToolDescriptor(
+    override val descriptor get() = toolSpec(
         name = ToolNames.ACTIVATE_SKILL,
         description = "Load a Skill's full instructions. Use it when a task matches a Skill's description.",
         requiredParameters = listOf(
-            ToolParameterDescriptor("name", "Skill name, as listed under Skills", ToolParameterType.String)
+            ToolParameter("name", "Skill name, as listed under Skills", ParameterType.String)
         ),
     )
 
@@ -43,12 +43,12 @@ class ActivateSkillTool(private val agent: Agent, private val repo: SkillReposit
 }
 
 class ReadSkillFileTool(private val agent: Agent, private val repo: SkillRepository, private val maxChars: Int = 50_000) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.READ_SKILL_FILE,
         description = "Read a file bundled with a Skill (paths as listed in <skill_resources>).",
         requiredParameters = listOf(
-            ToolParameterDescriptor("name", "Skill name", ToolParameterType.String),
-            ToolParameterDescriptor("path", "Path relative to the skill directory", ToolParameterType.String),
+            ToolParameter("name", "Skill name", ParameterType.String),
+            ToolParameter("path", "Path relative to the skill directory", ParameterType.String),
         ),
     )
 
@@ -62,19 +62,19 @@ class ReadSkillFileTool(private val agent: Agent, private val repo: SkillReposit
 
 /** Lets the Agent create, edit or delete Skills in its own skills dir only. */
 class SkillManageTool(private val agent: Agent, private val repo: SkillRepository) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.SKILL_MANAGE,
         description = "Create, edit or delete one of your own Skills. content is the full SKILL.md, starting with " +
             "frontmatter (---, name, description, ---) followed by the instructions. Shared Skills are read-only; " +
             "to change one, create your own Skill with the same name. New Skills appear in the catalog on the next turn; the Skill activation tool can load them immediately.",
         requiredParameters = listOf(
-            ToolParameterDescriptor("action", "create | edit | delete", ToolParameterType.Enum(arrayOf("create", "edit", "delete"))),
-            ToolParameterDescriptor("name", "Skill name (lowercase letters, digits, hyphens)", ToolParameterType.String),
+            ToolParameter("action", "create | edit | delete", ParameterType.Enum(arrayOf("create", "edit", "delete"))),
+            ToolParameter("name", "Skill name (lowercase letters, digits, hyphens)", ParameterType.String),
         ),
         optionalParameters = listOf(
-            ToolParameterDescriptor("content", "Full SKILL.md for create/edit", ToolParameterType.String),
-            ToolParameterDescriptor("reason", "Reason for a background Reflection proposal", ToolParameterType.String),
-            ToolParameterDescriptor("evidence", "Source identifiers supporting a background Reflection proposal", ToolParameterType.String),
+            ToolParameter("content", "Full SKILL.md for create/edit", ParameterType.String),
+            ToolParameter("reason", "Reason for a background Reflection proposal", ParameterType.String),
+            ToolParameter("evidence", "Source identifiers supporting a background Reflection proposal", ParameterType.String),
         ),
     )
 

@@ -1,15 +1,17 @@
 package kinuvo.harness.core.knowledge
 
+import kinuvo.server.plugin.BodyEdit
+import kinuvo.server.plugin.KnowledgeSource
+import kinuvo.server.plugin.NoteEdit
 import kinuvo.harness.testing.*
 import ai.koog.prompt.message.Message
 
-import kinuvo.harness.core.plugin.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.store.FileKnowledgeChangeLog
 import kinuvo.harness.core.store.MarkdownKnowledgeSource
-import kinuvo.harness.core.store.readText
-import kinuvo.harness.core.store.writeAtomically
+import kinuvo.server.plugin.readText
+import kinuvo.server.plugin.writeAtomically
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ReflectionResult
 import kinuvo.protocol.KnowledgeChange
@@ -228,7 +230,7 @@ class KnowledgeTest {
         val plugin = KnowledgePlugin(knowledge)
         val agent = home.agent.copy(config = home.agent.config.copy(tools = listOf("knowledge")))
         assertTrue(conventions in plugin.instructions(agent)!!.body)
-        val tools = plugin.prepare(kinuvo.harness.core.plugin.RunContext(agent, "s1"), activate = true).tools.associateBy { it.descriptor.name }
+        val tools = plugin.prepare(kinuvo.server.plugin.RunContext(agent, "s1"), activate = true).tools.associateBy { it.descriptor.name }
         val tool = tools.getValue("knowledge")
         tool.execute(buildJsonObject { put("action", "create"); put("type", "person"); put("title", "Ana"); put("set", """{"email":"a@x.com"}""") })
         tool.execute(buildJsonObject { put("action", "update"); put("ref", "Ana"); put("append", "- Met at work"); put("under", "Timeline") })

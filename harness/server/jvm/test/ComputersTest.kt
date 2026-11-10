@@ -3,9 +3,9 @@ package kinuvo.harness.server
 import kotlin.time.Duration.Companion.seconds
 import kinuvo.harness.testing.*
 
-import kinuvo.harness.core.plugin.RunContext
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.ToolRun
+import kinuvo.server.plugin.RunContext
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.ToolRun
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.io.files.Path
@@ -20,7 +20,7 @@ class ComputersTest {
     private val phone = ToolDevice("phone", "Pixel", setOf(DeviceToolKind.Computer))
     private val attached = mutableListOf<String>()
     private val run = object : ToolRun {
-        override val tools = emptyList<ai.koog.agents.core.tools.ToolDescriptor>()
+        override val tools = emptyList<kinuvo.harness.execution.api.ToolSpec>()
         override suspend fun call(name: String, args: String) = error("No tools")
         override suspend fun attach(name: String, bytes: ByteArray): Attachment { attached += name; return Attachment(name, name, "image/jpeg", bytes.size) }
     }
@@ -32,7 +32,7 @@ class ComputersTest {
     @AfterTest
     fun cleanup() { home.deleteRecursively() }
 
-    private suspend fun tools(): Map<String, kinuvo.harness.core.tools.Tool> {
+    private suspend fun tools(): Map<String, kinuvo.server.plugin.Tool> {
         val default = harness.store.agents().single()
         harness.store.saveConfig(default, default.config.copy(tools = default.config.tools + ToolNames.COMPUTER))
         val agent = harness.store.agents().single()

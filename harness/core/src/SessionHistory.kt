@@ -1,8 +1,8 @@
 package kinuvo.harness.core
 
-import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.instance
 import kinuvo.protocol.SessionEntry
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.protocol.ToolNames
 import kinuvo.harness.core.tools.RawSchemaToolDescriptor
 import ai.koog.agents.core.tools.ToolDescriptor
 

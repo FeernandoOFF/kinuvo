@@ -1,6 +1,9 @@
 package kinuvo.harness.core
 
-import ai.koog.agents.core.tools.ToolDescriptor
+import kinuvo.server.plugin.rawSchemaSpec
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.Tool
 import ai.koog.prompt.message.MessagePart
 import kinuvo.harness.core.tools.*
 import kinuvo.harness.testing.scriptedModel
@@ -49,7 +52,7 @@ class ResultLimitsTest {
     @Test fun executorClampsCoreAndMcpCalls() = runTest {
         var received = 0
         val core = object : CoreTool {
-            override val descriptor = ToolDescriptor("contacts_lookup", "Contacts")
+            override val descriptor = toolSpec("contacts_lookup", "Contacts")
             override suspend fun execute(args: JsonObject): String {
                 received = args.getValue("limit").jsonPrimitive.int
                 return "ok"
@@ -62,7 +65,7 @@ class ResultLimitsTest {
         assertEquals(3, received)
         for (parameter in listOf("limit", "max_results")) {
             val external = object : Tool {
-                override val descriptor = RawSchemaToolDescriptor("mcp_search", "Search", buildJsonObject {
+                override val descriptor = rawSchemaSpec("mcp_search", "Search", buildJsonObject {
                     putJsonObject("properties") { putJsonObject(parameter) { put("type", "integer") } }
                 })
                 override suspend fun execute(args: JsonObject): String {
@@ -92,19 +95,19 @@ class ResultLimitsTest {
 
     @Test fun coreAndMcpItemLimits() {
         val core = object : CoreTool {
-            override val descriptor = ToolDescriptor("web_search", "Search")
+            override val descriptor = toolSpec("web_search", "Search")
             override suspend fun execute(args: JsonObject) = ""
         }
         assertEquals(mapOf("limit" to 3), core.itemLimits(3))
-        assertTrue("default 3, max 3" in core.descriptor.withItemLimits(core.itemLimits(3)).optionalParameters.single().description)
+        assertTrue("default 3, max 3" in core.descriptor.withItemLimits(core.itemLimits(3)).toDescriptor().optionalParameters.single().description)
         val lines = object : CoreTool {
-            override val descriptor = ToolDescriptor("read_file", "Read")
+            override val descriptor = toolSpec("read_file", "Read")
             override suspend fun execute(args: JsonObject) = ""
         }
         assertTrue(lines.itemLimits(3).isEmpty())
         for (parameter in listOf("limit", "max_results")) {
             val tool = object : Tool {
-                override val descriptor = RawSchemaToolDescriptor("mcp_search", "Search", buildJsonObject {
+                override val descriptor = rawSchemaSpec("mcp_search", "Search", buildJsonObject {
                     putJsonObject("properties") { putJsonObject(parameter) { put("type", "integer"); put("maximum", 10) } }
                 })
                 override suspend fun execute(args: JsonObject) = ""
@@ -112,11 +115,11 @@ class ResultLimitsTest {
             val limits = tool.itemLimits(3)
             assertEquals(3, JsonObject(emptyMap()).clampItems(limits)[parameter]?.jsonPrimitive?.int)
             assertEquals(3, buildJsonObject { put(parameter, 99) }.clampItems(limits)[parameter]?.jsonPrimitive?.int)
-            assertTrue("default 3, max 3" in (tool.descriptor.withItemLimits(limits) as RawSchemaToolDescriptor).schema.toString())
+            assertTrue("default 3, max 3" in tool.descriptor.withItemLimits(limits).schema.toString())
             assertTrue(tool.itemLimits(null).isEmpty())
         }
         val counted = object : Tool {
-            override val descriptor = RawSchemaToolDescriptor("mcp_create", "Create", buildJsonObject {
+            override val descriptor = rawSchemaSpec("mcp_create", "Create", buildJsonObject {
                 putJsonObject("properties") { putJsonObject("count") { put("type", "integer") } }
             })
             override suspend fun execute(args: JsonObject) = ""

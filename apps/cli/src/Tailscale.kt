@@ -1,8 +1,8 @@
 package kinuvo.cli
 
 import com.github.ajalt.clikt.core.CliktError
-import kinuvo.harness.core.ProcessOutput
-import kinuvo.harness.core.runProcess
+import kinuvo.server.plugin.ProcessOutput
+import kinuvo.server.plugin.runProcess
 import kinuvo.protocol.Platform
 import kinuvo.protocol.currentPlatform
 import kotlinx.coroutines.withTimeoutOrNull

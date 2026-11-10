@@ -1,11 +1,11 @@
 package kinuvo.harness.core.knowledge
 
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.plugin.InstructionSection
-import kinuvo.harness.core.plugin.PluginTools
-import kinuvo.harness.core.plugin.RunContext
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.harness.execution.api.Agent
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.InstructionSection
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
+import kinuvo.protocol.ToolNames
 import kinuvo.protocol.PluginDefinition
 
 /** The knowledge tools for Agents that have `knowledge` in their tools, and the user's conventions in their instructions. */

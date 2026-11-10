@@ -1,5 +1,6 @@
 package kinuvo.harness.core
 
+import kinuvo.server.plugin.takeWhole
 import ai.koog.agents.core.agent.session.AIAgentLLMWriteSession
 import ai.koog.agents.core.dsl.extension.HistoryCompressionStrategy
 import ai.koog.prompt.message.Message

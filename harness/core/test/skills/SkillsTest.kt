@@ -3,9 +3,9 @@ package kinuvo.harness.core.skills
 import kinuvo.protocol.SessionEntry
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.activations
-import kinuvo.harness.core.store.exists
-import kinuvo.harness.core.store.writeAtomically
-import kinuvo.harness.core.tools.Tool
+import kinuvo.server.plugin.exists
+import kinuvo.server.plugin.writeAtomically
+import kinuvo.server.plugin.Tool
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.buildJsonObject

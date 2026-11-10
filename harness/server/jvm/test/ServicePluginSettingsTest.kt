@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.server.plugin.writeAtomically
 import kinuvo.harness.core.Secrets
 import kinuvo.harness.core.store.*
 import kinuvo.harness.firecrawl.FirecrawlPlugin

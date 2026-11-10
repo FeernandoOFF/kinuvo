@@ -2,7 +2,7 @@ package kinuvo.harness.server.reflection
 
 import kinuvo.harness.server.*
 import co.touchlab.stately.collections.ConcurrentMutableMap
-import kinuvo.harness.core.Agent
+import kinuvo.harness.execution.api.Agent
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ReflectionResult

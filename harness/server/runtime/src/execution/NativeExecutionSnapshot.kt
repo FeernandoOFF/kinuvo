@@ -2,7 +2,7 @@ package kinuvo.harness.server.execution
 
 import kinuvo.harness.core.modelText
 
-import kinuvo.harness.core.Agent
+import kinuvo.harness.execution.api.Agent
 import kinuvo.harness.server.SessionLog
 import kinuvo.protocol.*
 

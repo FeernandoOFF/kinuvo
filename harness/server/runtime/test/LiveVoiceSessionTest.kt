@@ -1,7 +1,12 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.voice.AgentProgress
-import kinuvo.harness.core.voice.*
+import kinuvo.server.plugin.AudioFormat
+import kinuvo.server.plugin.SpeechToSpeech
+import kinuvo.server.plugin.VoiceContext
+import kinuvo.server.plugin.VoiceInput
+import kinuvo.server.plugin.VoiceMessage
+import kinuvo.server.plugin.VoiceOutput
+import kinuvo.server.plugin.AgentProgress
 import kinuvo.protocol.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel

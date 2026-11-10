@@ -38,7 +38,7 @@ Where today's `harness/core` code goes (the plugin-facing contract goes to plugi
 | Approvals, Instructions, tool registry, Toolsets, Tool scope, all built-in tools, store, Knowledge, Routines, Tasks, Artifacts, secrets and Keychain storage | `server/core` |
 | Deterministic JSON | `protocol` |
 
-Plugin-facing contracts still to extract from implementation code: plugin config and storage access replacing direct `AgentFiles` use (anytype, exec, mcp), the `CoreTool` default metadata lookup, and the `Keychain`/`SecretProvider` interfaces.
+Plugin-facing contracts extracted from implementation code: `PluginStorage` replaces plugins' direct `AgentFiles` use, `SecretResolver`, `SecretProvider` and `Keychain` are interfaces (core keeps `Secrets` and the OS keychains; hosts hand plugins a `Keychain`), and the core tool metadata table that `CoreTool` defaults to lives in plugin-api beside `CoreToolEntry`. `Agent` and `AgentConfig` moved to `harness/execution/api`, and tool names and groups to `protocol`.
 
 ## Consequences
 

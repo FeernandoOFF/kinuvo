@@ -1,10 +1,13 @@
 package kinuvo.harness.core.tools
 
-import kinuvo.harness.core.takeWhole
-
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.WebSearch
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.takeWhole
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
@@ -18,10 +21,10 @@ class WebFetchTool(
     private val maxChars: Int = 20_000,
     private val reader: WebSearch? = null,
 ) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.WEB_FETCH,
         description = "Fetch a URL over HTTP(S) and return its text content (HTML is reduced to plain text).",
-        requiredParameters = listOf(ToolParameterDescriptor("url", "Absolute http(s) URL", ToolParameterType.String)),
+        requiredParameters = listOf(ToolParameter("url", "Absolute http(s) URL", ParameterType.String)),
     )
 
     override suspend fun execute(args: JsonObject): String {

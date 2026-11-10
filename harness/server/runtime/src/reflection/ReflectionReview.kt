@@ -1,13 +1,13 @@
 package kinuvo.harness.server.reflection
 
 import kinuvo.harness.server.*
-import kinuvo.harness.core.Agent
+import kinuvo.harness.execution.api.Agent
 import kinuvo.harness.core.knowledge.ChangeSource
 import kinuvo.harness.core.knowledge.ReflectionRevision
 import kinuvo.harness.core.knowledge.rememberReflectionReview
 import kinuvo.harness.core.knowledge.KnowledgeTool
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.requireString
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.requireString
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex

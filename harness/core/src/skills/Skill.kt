@@ -3,7 +3,7 @@ package kinuvo.harness.core.skills
 import com.charleskorn.kaml.Yaml
 import com.charleskorn.kaml.YamlMap
 import com.charleskorn.kaml.YamlScalar
-import kinuvo.harness.core.Agent
+import kinuvo.harness.execution.api.Agent
 import kinuvo.protocol.ConfigScope
 
 /**

@@ -1,10 +1,11 @@
 package kinuvo.harness.core.tools
 
+import kinuvo.server.plugin.Tool
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.plugin.modelAlias
 import kinuvo.harness.execution.api.ToolSpec
+import kinuvo.server.plugin.modelAlias
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -22,6 +23,12 @@ fun ToolDescriptor.toSpec(tool: Tool? = null) = ToolSpec(
     description = description,
     schema = (this as? RawSchemaToolDescriptor)?.schema ?: toSchema(),
     verbatim = this is RawSchemaToolDescriptor,
+).withMetadata(tool)
+
+/** [descriptor] with [this] tool's identity and flags. */
+fun Tool.spec(descriptor: ToolSpec = this.descriptor) = descriptor.withMetadata(this)
+
+private fun ToolSpec.withMetadata(tool: Tool?) = copy(
     identity = tool?.identity,
     aliases = listOfNotNull(tool?.identity?.modelAlias()),
     repeatable = tool?.repeatable ?: true,
@@ -29,8 +36,6 @@ fun ToolDescriptor.toSpec(tool: Tool? = null) = ToolSpec(
     search = tool?.coreMetadata?.search == true,
     paging = tool?.coreMetadata?.paging == true,
 )
-
-fun Tool.spec(descriptor: ToolDescriptor = this.descriptor) = descriptor.toSpec(this)
 
 fun ToolSpec.toDescriptor(): ToolDescriptor {
     if (verbatim) return RawSchemaToolDescriptor(name, description, schema)

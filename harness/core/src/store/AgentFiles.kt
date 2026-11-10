@@ -1,21 +1,27 @@
 package kinuvo.harness.core.store
 
+import kinuvo.server.plugin.exists
+import kinuvo.server.plugin.readText
+import kinuvo.server.plugin.readTextOrNull
+import kinuvo.server.plugin.writeAtomically
 import co.touchlab.stately.concurrency.Lock
 import co.touchlab.stately.concurrency.withLock
 import com.charleskorn.kaml.Yaml
-import kinuvo.harness.core.AgentConfig
-import kinuvo.harness.core.AgentDoc
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.harness.execution.api.AgentDoc
 import kinuvo.protocol.ServiceKind
 import kinuvo.protocol.ServiceSettings
 import kotlinx.io.files.Path
 import kinuvo.harness.core.knowledge.KnowledgeConfig
+import kinuvo.harness.core.parseDotEnv
+import kinuvo.server.plugin.PluginStorage
 import kinuvo.harness.core.tasks.TasksConfig
 
 /** Where everything lives under the Kinuvo home folder. The one place that knows the on-disk layout. */
-class AgentFiles(val home: Path) {
+class AgentFiles(override val home: Path) : PluginStorage {
     val agents = Path(home, "agents")
     val sharedSkills = Path(home, "skills")
-    val sharedMcp = Path(home, MCP_FILE)
+    override val sharedMcp = Path(home, MCP_FILE)
     val sharedEnv = Path(home, ENV_FILE)
     val serverConfig = Path(home, "config.yaml")
     val knowledgeChanges = Path(home, "knowledge-changes.jsonl")
@@ -35,8 +41,16 @@ class AgentFiles(val home: Path) {
     fun sessions(id: String) = Path(agent(id), "sessions")
     fun routines(id: String) = Path(agent(id), "routines.json")
     fun skills(id: String) = Path(agent(id), "skills")
-    fun mcp(id: String) = Path(agent(id), MCP_FILE)
+    override fun mcp(id: String) = Path(agent(id), MCP_FILE)
     fun env(id: String) = Path(agent(id), ENV_FILE)
+
+    override fun agentExists(id: String) = config(id).exists()
+
+    /** Variables for `${VAR}` expansion: `<home>/.env`, then the Agent's `.env`, then the process environment (strongest). */
+    override fun loadEnv(agentId: String?, process: Map<String, String>): Map<String, String> =
+        dotEnv(sharedEnv) + agentId?.let { dotEnv(env(it)) }.orEmpty() + process
+
+    override fun knowledgeOptions() = knowledgeConfig().options
 
     companion object {
         const val CONFIG_FILE = "agent.yaml"
@@ -53,6 +67,8 @@ class AgentFiles(val home: Path) {
         }
     }
 }
+
+private fun dotEnv(file: Path) = file.readTextOrNull()?.let(::parseDotEnv).orEmpty()
 
 fun AgentFiles.knowledgeConfig() = config().knowledge
 

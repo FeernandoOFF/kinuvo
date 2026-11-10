@@ -2,7 +2,7 @@ package kinuvo.harness.server.testing
 
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.core.NativeExecutionFactory
-import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.knowledgeConfig
 import kinuvo.harness.core.store.saveKnowledgeConfig

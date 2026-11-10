@@ -1,5 +1,7 @@
 package kinuvo.harness.core
 
+import kinuvo.server.plugin.toolSpec
+import kinuvo.harness.execution.api.AgentDoc
 import kinuvo.harness.testing.*
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
@@ -12,9 +14,8 @@ import kinuvo.protocol.withWrittenAt
 
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.tools.MemoryTool
-import ai.koog.agents.core.tools.ToolDescriptor
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.ToolRun
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.ToolRun
 import kinuvo.protocol.Attachment
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
@@ -34,7 +35,7 @@ class AgentRunTest {
             val home = TestHome()
             val session = home.store.createSession(home.agent.id, "")
             val tool = object : Tool {
-                override val descriptor = ToolDescriptor("read", "Read")
+                override val descriptor = toolSpec("read", "Read")
                 override suspend fun execute(args: JsonObject) = "found"
             }
             var requests = 0
@@ -79,7 +80,7 @@ class AgentRunTest {
                 var calls = 0
                 var executed = 0
                 val tool = object : Tool {
-                    override val descriptor = ToolDescriptor("read", "Read")
+                    override val descriptor = toolSpec("read", "Read")
                     override suspend fun execute(args: JsonObject): String { executed++; return "OK" }
                 }
                 val model = scriptedModel { _, offered ->
@@ -110,7 +111,7 @@ class AgentRunTest {
             val session = home.store.createSession(home.agent.id, "")
             var calls = 0
             val tool = object : Tool {
-                override val descriptor = ToolDescriptor("read", "Read")
+                override val descriptor = toolSpec("read", "Read")
                 override suspend fun execute(args: JsonObject) = "OK"
             }
             val model = scriptedModel { _, offered ->
@@ -131,7 +132,7 @@ class AgentRunTest {
         var executed = 0
         var requests = 0
         val tool = object : Tool {
-            override val descriptor = ToolDescriptor("read", "Read")
+            override val descriptor = toolSpec("read", "Read")
             override suspend fun execute(args: JsonObject): String { executed++; return "OK" }
         }
         val model = scriptedModel { _, _ ->
@@ -172,7 +173,7 @@ class AgentRunTest {
     fun filesToolsAttachAreKeptWithTheirResult() = runTest {
         val session = store.createSession(agent.id, "")
         val tool = object : Tool {
-            override val descriptor = ToolDescriptor("look", "Look")
+            override val descriptor = toolSpec("look", "Look")
             override suspend fun execute(args: JsonObject) = error("needs a run")
             override suspend fun execute(args: JsonObject, callId: String, run: ToolRun) = "Attached ${run.attach("photo.png", byteArrayOf(1)).name}"
         }
@@ -196,7 +197,7 @@ class AgentRunTest {
         var executed = 0
         var calls = 0
         val open = object : Tool {
-            override val descriptor = ToolDescriptor("open", "Open a tab")
+            override val descriptor = toolSpec("open", "Open a tab")
             override val repeatable = false
             override suspend fun execute(args: JsonObject): String { executed++; return "Tab opened" }
         }
@@ -218,7 +219,7 @@ class AgentRunTest {
     fun repeatedFailingCallsAreNotRunAgainAndEndTheRun() = runTest {
         var runs = 0
         val failing = object : Tool {
-            override val descriptor = ToolDescriptor("read", "Read")
+            override val descriptor = toolSpec("read", "Read")
             override suspend fun execute(args: JsonObject): String { runs++; error("No such file") }
         }
         var step = 0
@@ -296,7 +297,7 @@ class AgentRunTest {
     @Test
     fun stoppingMidToolCallRecordsCancelledResult() = runTest {
         val slowTool = object : Tool {
-            override val descriptor = ToolDescriptor("slow", "never finishes")
+            override val descriptor = toolSpec("slow", "never finishes")
             override suspend fun execute(args: JsonObject): String = awaitCancellation()
         }
         val model = scriptedModel { _, _ -> flowOf(StreamFrame.ToolCallComplete("c1", "slow", "{}"), StreamFrame.End()) }

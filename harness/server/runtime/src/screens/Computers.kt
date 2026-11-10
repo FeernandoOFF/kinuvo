@@ -1,10 +1,24 @@
 package kinuvo.harness.server.screens
 
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.harness.execution.api.Agent
+import kinuvo.server.plugin.Action
+import kinuvo.server.plugin.Assessment
+import kinuvo.server.plugin.BrowserService
+import kinuvo.server.plugin.Computer
+import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.InstructionSection
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
+import kinuvo.server.plugin.ScreenGate
+import kinuvo.server.plugin.ScreenSource
+import kinuvo.server.plugin.ToolRun
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.string
 import kinuvo.harness.server.*
-import kinuvo.harness.core.plugin.*
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.*
 import kinuvo.protocol.*
@@ -295,7 +309,7 @@ class Computers(
     }
 
     private inner class ListTool : CoreTool {
-        override val descriptor = ToolDescriptor(ToolNames.COMPUTER_LIST, "List the Computers you can control (paired phones and computers) and whether each is available.", emptyList())
+        override val descriptor = toolSpec(ToolNames.COMPUTER_LIST, "List the Computers you can control (paired phones and computers) and whether each is available.", emptyList())
         override suspend fun execute(args: JsonObject): String {
             all().filter { it.available }.forEach { probe(it) }
             return ProtocolJson.encodeToString(ListSerializer(ComputerInfo.serializer()), list())
@@ -304,10 +318,10 @@ class Computers(
 
     private inner class ReadTool(private val windowList: Boolean, private val windows: MutableMap<String, List<ComputerWindow>>) : CoreTool {
         private val action = if (windowList) ComputerActionKind.ListWindows else ComputerActionKind.ListApps
-        override val descriptor = ToolDescriptor(if (windowList) "computer_windows" else "computer_apps",
+        override val descriptor = toolSpec(if (windowList) "computer_windows" else "computer_apps",
             if (windowList) "List windows with ids, apps and frames in desktop points for set_window_frame."
             else "List installed apps with names, bundle/package ids and running/frontmost flags. Sensitive apps need Approval to open. Android only knows the frontmost app is running.",
-            optionalParameters = listOf(ToolParameterDescriptor("computer", "Id from computer_list", ToolParameterType.String)))
+            optionalParameters = listOf(ToolParameter("computer", "Id from computer_list", ParameterType.String)))
         override suspend fun execute(args: JsonObject): String {
             val computer = choose(args)
             require(action in computer.actions) { "${action.action} is not supported on ${computer.name}" }
@@ -326,11 +340,11 @@ class Computers(
     }
 
     private inner class CaptureTool(private val seen: MutableMap<String, ComputerScreen>) : CoreTool {
-        override val descriptor = ToolDescriptor(
+        override val descriptor = toolSpec(
             "computer_capture", "See a Computer's screen: its foreground app, numbered elements and a screenshot.",
             optionalParameters = listOf(
-                ToolParameterDescriptor("computer", "Id from the Computer list tool; needed when several are available", ToolParameterType.String),
-                ToolParameterDescriptor("screenshot", "Include a screenshot (default true); false gives elements only", ToolParameterType.Boolean),
+                ToolParameter("computer", "Id from the Computer list tool; needed when several are available", ParameterType.String),
+                ToolParameter("screenshot", "Include a screenshot (default true); false gives elements only", ParameterType.Boolean),
             ),
         )
         override suspend fun execute(args: JsonObject): String = error("Computer use needs a run")
@@ -359,28 +373,28 @@ class Computers(
             return Triple(action, app, action in setOf(ComputerActionKind.Type, ComputerActionKind.SetValue) && element?.password == true)
         }
 
-        override val descriptor = ToolDescriptor(
+        override val descriptor = toolSpec(
             "computer_act", "Act on a Computer's screen, then see the result. Use element numbers from the latest capture.",
-            requiredParameters = listOf(ToolParameterDescriptor("action", "What to do", ToolParameterType.Enum(ACTIONS.filterValues { it in supported }.keys.toTypedArray()))),
+            requiredParameters = listOf(ToolParameter("action", "What to do", ParameterType.Enum(ACTIONS.filterValues { it in supported }.keys.toTypedArray()))),
             optionalParameters = listOf(
-                ToolParameterDescriptor("computer", "Id from the Computer list tool; needed when several are available", ToolParameterType.String),
-                ToolParameterDescriptor("element", "Element number to tap, type into, set_value or scroll", ToolParameterType.Integer),
-                ToolParameterDescriptor("x", "Screen x in screenshot pixels; zoom crop left; set_window_frame: desktop points", ToolParameterType.Integer),
-                ToolParameterDescriptor("y", "Screen y in screenshot pixels; zoom crop top; set_window_frame: desktop points", ToolParameterType.Integer),
-                ToolParameterDescriptor("to_x", "Swipe end x", ToolParameterType.Integer),
-                ToolParameterDescriptor("to_y", "Swipe end y", ToolParameterType.Integer),
-                ToolParameterDescriptor("text", "Text to type, set_value (replaces value), or clipboard_write (may be empty)", ToolParameterType.String),
-                ToolParameterDescriptor("key", "Key to press: back, home, recents, notifications, enter, or a combination like cmd+c on a desktop", ToolParameterType.String),
-                ToolParameterDescriptor("direction", "Scroll direction: up, down, left or right", ToolParameterType.String),
-                ToolParameterDescriptor("app", "App to open or kill: its name, or package/bundle id", ToolParameterType.String),
-                ToolParameterDescriptor("path", "invoke_menu: exact menu labels, e.g. [File, New] in the front app", ToolParameterType.List(ToolParameterType.String)),
-                ToolParameterDescriptor("window", "set_window_frame: id from computer_windows; list windows first", ToolParameterType.Integer),
-                ToolParameterDescriptor("width", "zoom: crop width in screenshot pixels; set_window_frame: width in desktop points", ToolParameterType.Integer),
-                ToolParameterDescriptor("height", "zoom: crop height in screenshot pixels; set_window_frame: height in desktop points", ToolParameterType.Integer),
-                ToolParameterDescriptor("role", "verify_state: exact element role (case-insensitive), optionally with text; text is a case-insensitive substring in the same element", ToolParameterType.String),
-                ToolParameterDescriptor("front_app", "verify_state: exact foreground app as reported by computer_capture (case-insensitive)", ToolParameterType.String),
-                ToolParameterDescriptor("duration_ms", "Hold or wait time in milliseconds", ToolParameterType.Integer),
-                ToolParameterDescriptor("screenshot", "Include a screenshot of the result (default true)", ToolParameterType.Boolean),
+                ToolParameter("computer", "Id from the Computer list tool; needed when several are available", ParameterType.String),
+                ToolParameter("element", "Element number to tap, type into, set_value or scroll", ParameterType.Integer),
+                ToolParameter("x", "Screen x in screenshot pixels; zoom crop left; set_window_frame: desktop points", ParameterType.Integer),
+                ToolParameter("y", "Screen y in screenshot pixels; zoom crop top; set_window_frame: desktop points", ParameterType.Integer),
+                ToolParameter("to_x", "Swipe end x", ParameterType.Integer),
+                ToolParameter("to_y", "Swipe end y", ParameterType.Integer),
+                ToolParameter("text", "Text to type, set_value (replaces value), or clipboard_write (may be empty)", ParameterType.String),
+                ToolParameter("key", "Key to press: back, home, recents, notifications, enter, or a combination like cmd+c on a desktop", ParameterType.String),
+                ToolParameter("direction", "Scroll direction: up, down, left or right", ParameterType.String),
+                ToolParameter("app", "App to open or kill: its name, or package/bundle id", ParameterType.String),
+                ToolParameter("path", "invoke_menu: exact menu labels, e.g. [File, New] in the front app", ParameterType.List(ParameterType.String)),
+                ToolParameter("window", "set_window_frame: id from computer_windows; list windows first", ParameterType.Integer),
+                ToolParameter("width", "zoom: crop width in screenshot pixels; set_window_frame: width in desktop points", ParameterType.Integer),
+                ToolParameter("height", "zoom: crop height in screenshot pixels; set_window_frame: height in desktop points", ParameterType.Integer),
+                ToolParameter("role", "verify_state: exact element role (case-insensitive), optionally with text; text is a case-insensitive substring in the same element", ParameterType.String),
+                ToolParameter("front_app", "verify_state: exact foreground app as reported by computer_capture (case-insensitive)", ParameterType.String),
+                ToolParameter("duration_ms", "Hold or wait time in milliseconds", ParameterType.Integer),
+                ToolParameter("screenshot", "Include a screenshot of the result (default true)", ParameterType.Boolean),
             ),
         )
 
@@ -476,11 +490,11 @@ class Computers(
     }
 
     private inner class TakeoverTool(private val context: RunContext) : CoreTool {
-        override val descriptor = ToolDescriptor(
+        override val descriptor = toolSpec(
             "request_takeover", "Ask the user to take over a Computer for a step only they should do (sign-in, one-time code, CAPTCHA, payment, " +
                 "permission dialog) and wait until they hand it back or skip.",
-            requiredParameters = listOf(ToolParameterDescriptor("reason", "What the user should do, briefly", ToolParameterType.String)),
-            optionalParameters = listOf(ToolParameterDescriptor("computer", "Id from the Computer list tool; needed when several are available", ToolParameterType.String), ToolParameterDescriptor("tab", "Browser tab id in this Session", ToolParameterType.String)),
+            requiredParameters = listOf(ToolParameter("reason", "What the user should do, briefly", ParameterType.String)),
+            optionalParameters = listOf(ToolParameter("computer", "Id from the Computer list tool; needed when several are available", ParameterType.String), ToolParameter("tab", "Browser tab id in this Session", ParameterType.String)),
         )
         override suspend fun execute(args: JsonObject): String = error("A Takeover needs a Session")
         override suspend fun execute(args: JsonObject, callId: String): String {

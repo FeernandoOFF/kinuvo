@@ -1,10 +1,15 @@
 package kinuvo.harness.core.tools
 
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.plugin.GeneratedImage
-import kinuvo.harness.core.plugin.ImageGeneration
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.ToolRun
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.string
+import kinuvo.server.plugin.GeneratedImage
+import kinuvo.server.plugin.ImageGeneration
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.MAX_ATTACHMENT_BYTES
 import kotlinx.serialization.json.*
@@ -15,13 +20,13 @@ class GenerateImageTool(
     private val references: suspend () -> List<Attachment>,
     private val bytes: (Attachment) -> ByteArray,
 ) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.GENERATE_IMAGE,
         description = "Generate or edit images. For edits, pass reference attachment IDs from this Session. Returned images can be used as references in later calls.",
-        requiredParameters = listOf(ToolParameterDescriptor("prompt", "Describe the image or edits", ToolParameterType.String)),
+        requiredParameters = listOf(ToolParameter("prompt", "Describe the image or edits", ParameterType.String)),
         optionalParameters = listOf(
-            ToolParameterDescriptor("references", "Image attachment IDs from this Session", ToolParameterType.List(ToolParameterType.String)),
-            ToolParameterDescriptor("size", "Requested size, if supported by the image model", ToolParameterType.String),
+            ToolParameter("references", "Image attachment IDs from this Session", ParameterType.List(ParameterType.String)),
+            ToolParameter("size", "Requested size, if supported by the image model", ParameterType.String),
         ),
     )
     override suspend fun execute(args: JsonObject): String = error("Image generation needs a tool run")

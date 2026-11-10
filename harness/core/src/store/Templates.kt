@@ -1,7 +1,7 @@
 package kinuvo.harness.core.store
 
-import kinuvo.harness.core.AgentDoc
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.harness.execution.api.AgentDoc
+import kinuvo.protocol.ToolNames
 
 /** What a new Agent starts with. */
 internal object Templates {

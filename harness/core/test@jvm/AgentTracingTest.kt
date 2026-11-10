@@ -1,5 +1,9 @@
 package kinuvo.harness.core
 
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.children
+import kinuvo.server.plugin.deleteTree
+import kinuvo.server.plugin.readText
 import kinuvo.harness.testing.AgentRun
 
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -7,7 +11,7 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.knowledge.Knowledge
 import kinuvo.harness.core.knowledge.Reflection
 import kinuvo.harness.core.store.*
-import kinuvo.harness.core.tools.Tool
+import kinuvo.server.plugin.Tool
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.SessionEntry
@@ -36,7 +40,7 @@ class AgentTracingTest {
     fun streamedTurnExportsRelatedAgentLlmAndToolSpansWithoutPayloads() = runBlocking {
         val session = home.store.createSession(home.agent.id, "private-system-secret")
         val tool = object : Tool {
-            override val descriptor = ToolDescriptor("read", "private-description-secret")
+            override val descriptor = toolSpec("read", "private-description-secret")
             override suspend fun execute(args: JsonObject) = "private-tool-result-secret"
         }
         var step = 0
@@ -95,7 +99,7 @@ class AgentTracingTest {
             for (cancel in listOf(false, true)) {
                 val session = home.store.createSession(home.agent.id, "")
                 val tool = object : Tool {
-                    override val descriptor = ToolDescriptor("read", "Read")
+                    override val descriptor = toolSpec("read", "Read")
                     override suspend fun execute(args: JsonObject): String =
                         if (cancel) awaitCancellation() else error("private-tool-exception-secret")
                 }

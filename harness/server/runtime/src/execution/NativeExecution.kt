@@ -1,7 +1,7 @@
 package kinuvo.harness.server.execution
 
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kinuvo.harness.core.Agent
+import kinuvo.harness.execution.api.Agent
 import kinuvo.harness.execution.api.ExecutionDispatch
 import kinuvo.harness.execution.api.ExecutionInput
 import kinuvo.harness.execution.api.RunKind

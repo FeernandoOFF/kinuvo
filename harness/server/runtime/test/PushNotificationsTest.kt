@@ -1,6 +1,6 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.plugin.Notification
+import kinuvo.server.plugin.Notification
 import kinuvo.protocol.*
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest

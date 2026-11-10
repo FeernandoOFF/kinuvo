@@ -3,8 +3,7 @@ package kinuvo.harness.server
 import kinuvo.harness.testing.*
 
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.plugin.modelAlias
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.protocol.ToolNames
 import kotlin.time.Duration.Companion.milliseconds
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.approval
@@ -60,7 +59,7 @@ class SchedulerTest {
     private val scheduler = Scheduler(harness, runs, scope, onRan = { ran += it }, clock = { now })
 
     @AfterTest
-    fun tearDown() = runBlocking { scope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin(); harness.close(); kinuvo.harness.core.store.deleteTree(home) }
+    fun tearDown() = runBlocking { scope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin(); harness.close(); kinuvo.server.plugin.deleteTree(home) }
 
     private fun nothingNew() { toolCall = ToolNames.ROUTINE_REPORT to """{"outcome":"nothing_new"}""" }
     private fun report(summary: String) { toolCall = ToolNames.ROUTINE_REPORT to """{"outcome":"report","summary":"$summary"}""" }

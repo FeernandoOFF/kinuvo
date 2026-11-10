@@ -1,18 +1,21 @@
 package kinuvo.harness.core.tools
 
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.AgentDoc
-import kinuvo.harness.core.AgentDocs
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.requireString
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentDoc
+import kinuvo.harness.execution.api.AgentDocs
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 
 /** Edits Memory (MEMORY.md) and User Notes (USER.md) as bullet entries. Changes refresh in personal context on the next turn. */
 class MemoryTool(private val agent: Agent, private val docs: AgentDocs, private val memoryCap: Int = 4000, private val userCap: Int = 2000) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.MEMORY,
         description = "Persist concise, durable information across Sessions. target=memory for verified lessons useful across many tasks; " +
             "target=user for confirmed facts and preferences about the user. Keep task-specific procedures in Skills and detailed world records in Knowledge. " +
@@ -20,20 +23,20 @@ class MemoryTool(private val agent: Agent, private val docs: AgentDocs, private 
             "add appends an entry; replace/remove match an existing entry by a unique substring (old_text). " +
             "Changes are saved immediately and refreshed in personal context on the next turn, including in this Session.",
         requiredParameters = listOf(
-            ToolParameterDescriptor("target", "memory | user", ToolParameterType.Enum(arrayOf("memory", "user"))),
+            ToolParameter("target", "memory | user", ParameterType.Enum(arrayOf("memory", "user"))),
         ),
         optionalParameters = listOf(
-            ToolParameterDescriptor("operations", "All changes to this target, in order", ToolParameterType.List(ToolParameterType.Object(
+            ToolParameter("operations", "All changes to this target, in order", ParameterType.List(ParameterType.Object(
                 properties = listOf(
-                    ToolParameterDescriptor("action", "add | replace | remove", ToolParameterType.Enum(arrayOf("add", "replace", "remove"))),
-                    ToolParameterDescriptor("content", "Entry text for add/replace", ToolParameterType.String),
-                    ToolParameterDescriptor("old_text", "Unique substring of the entry to replace/remove", ToolParameterType.String),
+                    ToolParameter("action", "add | replace | remove", ParameterType.Enum(arrayOf("add", "replace", "remove"))),
+                    ToolParameter("content", "Entry text for add/replace", ParameterType.String),
+                    ToolParameter("old_text", "Unique substring of the entry to replace/remove", ParameterType.String),
                 ),
                 requiredProperties = listOf("action"),
             ))),
-            ToolParameterDescriptor("action", "Single operation, when operations is omitted", ToolParameterType.Enum(arrayOf("add", "replace", "remove"))),
-            ToolParameterDescriptor("content", "Entry text for add/replace", ToolParameterType.String),
-            ToolParameterDescriptor("old_text", "Unique substring of the entry to replace/remove", ToolParameterType.String),
+            ToolParameter("action", "Single operation, when operations is omitted", ParameterType.Enum(arrayOf("add", "replace", "remove"))),
+            ToolParameter("content", "Entry text for add/replace", ParameterType.String),
+            ToolParameter("old_text", "Unique substring of the entry to replace/remove", ParameterType.String),
         ),
     )
 

@@ -1,6 +1,6 @@
 package kinuvo.harness.core.tools
 
-import kinuvo.harness.core.AgentDoc
+import kinuvo.harness.execution.api.AgentDoc
 import kinuvo.harness.core.TestHome
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json

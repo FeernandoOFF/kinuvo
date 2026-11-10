@@ -1,15 +1,15 @@
 package kinuvo.harness.server.testing
 
-import ai.koog.agents.core.tools.ToolDescriptor
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.plugin.McpApps
-import kinuvo.harness.core.plugin.PluginTools
-import kinuvo.harness.core.plugin.instance
-import kinuvo.harness.core.plugin.ownedBy
-import kinuvo.harness.core.plugin.RunContext
-import kinuvo.harness.core.tools.Action
-import kinuvo.harness.core.tools.Assessment
-import kinuvo.harness.core.tools.Tool
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.McpApps
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.instance
+import kinuvo.server.plugin.ownedBy
+import kinuvo.server.plugin.RunContext
+import kinuvo.server.plugin.Action
+import kinuvo.server.plugin.Assessment
+import kinuvo.server.plugin.Tool
 import kinuvo.protocol.Integration
 import kinuvo.protocol.McpAppRef
 import kinuvo.protocol.McpAppResource
@@ -28,7 +28,7 @@ class FakeTool(
     private val reason: String? = null,
     private val run: suspend (JsonObject) -> String = { "ok" },
 ) : Tool {
-    override val descriptor = ToolDescriptor(name, "Fake $name")
+    override val descriptor = toolSpec(name, "Fake $name")
 
     override fun assess(args: JsonObject) = Assessment(listOf(Action(risk, listOf(descriptor.name), reason)))
 

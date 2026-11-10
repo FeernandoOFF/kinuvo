@@ -1,7 +1,7 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.store.readText
-import kinuvo.harness.core.store.writeAtomically
+import kinuvo.server.plugin.readText
+import kinuvo.server.plugin.writeAtomically
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 import kotlinx.serialization.Serializable

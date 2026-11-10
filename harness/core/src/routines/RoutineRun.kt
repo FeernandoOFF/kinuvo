@@ -1,14 +1,13 @@
 package kinuvo.harness.core.routines
 
-import kinuvo.harness.core.tools.CoreTool
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.requireString
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.server.plugin.CoreTool
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.requireString
 import kinuvo.harness.execution.api.RoutineTurn
-import kinuvo.harness.core.tools.string
+import kinuvo.server.plugin.string
 import kinuvo.protocol.Routine
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.RunStatus
@@ -66,12 +65,12 @@ class RoutineRun(
 
 /** How the Agent ends a Routine run: report to the user, or nothing new. */
 class RoutineReportTool(private val run: RoutineTurn) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.ROUTINE_REPORT,
         description = "End this Routine run: report when something is new or needs the user, whose summary is their notification, " +
             "or nothing_new when nothing does, which sends none. Call it once, after the work.",
-        requiredParameters = listOf(ToolParameterDescriptor("outcome", "report | nothing_new", ToolParameterType.Enum(arrayOf("report", "nothing_new")))),
-        optionalParameters = listOf(ToolParameterDescriptor("summary", "With report: one or two sentences, what's new first", ToolParameterType.String)),
+        requiredParameters = listOf(ToolParameter("outcome", "report | nothing_new", ParameterType.Enum(arrayOf("report", "nothing_new")))),
+        optionalParameters = listOf(ToolParameter("summary", "With report: one or two sentences, what's new first", ParameterType.String)),
     )
 
     override suspend fun execute(args: JsonObject): String {

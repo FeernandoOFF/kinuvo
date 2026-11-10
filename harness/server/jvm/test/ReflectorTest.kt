@@ -4,7 +4,6 @@ import kinuvo.harness.server.reflection.*
 import kinuvo.harness.testing.*
 import ai.koog.prompt.message.Message
 
-import kinuvo.harness.core.plugin.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.codex.CodexAuth
 import kinuvo.harness.core.PrivateFile
@@ -104,7 +103,7 @@ class ReflectorTest {
         val settings = initial.copy(reflectionPrompt = custom, conventions = mapOf("markdown" to "People are person notes."))
         assertEquals(custom, harness.saveKnowledgeSettings(settings).settings.reflectionPrompt)
         assertEquals(custom, harness.files.knowledgeConfig().reflectionPrompt)
-        harness.docs.write(agent.id, kinuvo.harness.core.AgentDoc.Memory, "- Use concrete examples\n")
+        harness.docs.write(agent.id, kinuvo.harness.execution.api.AgentDoc.Memory, "- Use concrete examples\n")
         harness.reflect(agent, "s1", listOf(SessionEntry.UserMessage("I prefer concise replies")))
         val instructions = instructionsSeen.last()
         assertTrue(instructions.startsWith(custom))

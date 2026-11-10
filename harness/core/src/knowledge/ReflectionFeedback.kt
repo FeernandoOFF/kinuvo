@@ -1,8 +1,8 @@
 package kinuvo.harness.core.knowledge
 
-import kinuvo.harness.core.AgentDoc
-import kinuvo.harness.core.AgentDocs
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.harness.execution.api.AgentDoc
+import kinuvo.harness.execution.api.AgentDocs
+import kinuvo.protocol.ToolNames
 import kinuvo.protocol.ReflectionProposal
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer

@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.execution.api.AgentDocs
+import kinuvo.server.plugin.McpManagement
 import kinuvo.harness.core.plugin.*
 import kinuvo.harness.core.*
 import kinuvo.harness.core.artifacts.Artifacts
@@ -8,9 +10,9 @@ import kinuvo.harness.core.routines.Routines
 import kinuvo.harness.core.skills.SkillRepository
 import kinuvo.harness.core.store.*
 import kinuvo.harness.core.tasks.Tasks
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.WebSearch
-import kinuvo.harness.core.voice.VoiceProviders
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.WebSearch
+import kinuvo.server.plugin.VoiceProviders
 import kinuvo.protocol.*
 import kotlin.time.Clock
 import kotlinx.coroutines.flow.MutableStateFlow

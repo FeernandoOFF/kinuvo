@@ -1,6 +1,6 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.server.plugin.HarnessPlugin
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

@@ -1,12 +1,12 @@
 package kinuvo.harness.core
 
+import kinuvo.server.plugin.toolSpec
 import ai.koog.prompt.message.Message
 import kinuvo.protocol.ModelTier
 import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.testing.*
-import kinuvo.harness.core.tools.Tool
-import ai.koog.agents.core.tools.ToolDescriptor
+import kinuvo.server.plugin.Tool
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.RequestKind
@@ -181,9 +181,9 @@ class CompactionTest {
         val session = home.store.createSession(agent.id, "")
         val photo = Attachment("photo", "photo.png", "image/png", 1)
         val tool = object : Tool {
-            override val descriptor = ToolDescriptor("read", "Read")
+            override val descriptor = toolSpec("read", "Read")
             override suspend fun execute(args: JsonObject) = "x".repeat(20000)
-            override suspend fun execute(args: JsonObject, callId: String, run: kinuvo.harness.core.tools.ToolRun): String {
+            override suspend fun execute(args: JsonObject, callId: String, run: kinuvo.server.plugin.ToolRun): String {
                 run.attach("photo.png", byteArrayOf(1))
                 return execute(args)
             }

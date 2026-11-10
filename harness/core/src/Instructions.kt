@@ -1,8 +1,11 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentDoc
+import kinuvo.harness.execution.api.AgentDocs
 import kinuvo.harness.core.skills.Skill
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.server.plugin.Tool
+import kinuvo.protocol.ToolNames
 
 /** Builds the instructions snapshot frozen into a new Session. */
 suspend fun instructionsFor(

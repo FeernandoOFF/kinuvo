@@ -1,14 +1,14 @@
 package kinuvo.harness.core.routines
 
-import kinuvo.harness.core.AgentDoc
+import kinuvo.harness.execution.api.AgentDoc
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.ApprovalPolicy
-import kinuvo.harness.core.plugin.PluginTools
+import kinuvo.server.plugin.PluginTools
 import kinuvo.harness.core.Tolerance
 import kinuvo.harness.core.Verdict
-import kinuvo.harness.core.plugin.ownedBy
+import kinuvo.server.plugin.ownedBy
 import kinuvo.protocol.PluginInstanceId
-import kinuvo.harness.core.store.readText
+import kinuvo.server.plugin.readText
 import kinuvo.protocol.RoutineApprovals
 import kinuvo.protocol.Trigger
 import kotlinx.coroutines.test.runTest

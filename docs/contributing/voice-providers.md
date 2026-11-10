@@ -9,7 +9,7 @@ Voice chat turns speech into a user message (`voice = true`), runs the Session's
 
 Audio never passes through `Model.stream`: Agents stay text, and voice providers are separate from model providers. The Server owns endpoints and keys in the `voice` section of `config.yaml`. Optional API keys support environment and Secret references. Configuration is read at Server startup; restart to apply changes.
 
-- **Server**: `VoiceProviders` (`harness/core/src/voice/`) holds the configured parts. Missing parts stay on the Device. Downloaded models come from a plugin's `HarnessPlugin.voice` (`ServerVoice`; `DownloadedVoice` on JVM hosts) and take precedence.
+- **Server**: `VoiceProviders` (`server/plugin-api/src/`) holds the configured parts. Missing parts stay on the Device. Downloaded models come from a plugin's `HarnessPlugin.voice` (`ServerVoice`; `DownloadedVoice` on JVM hosts) and take precedence.
 - **Protocol**: `ServerCapabilities.voice` advertises a `VoiceSetup`, without endpoints or keys. Older Servers default to Device speech. Paired Devices use the authenticated `voice.transcribe` and `voice.synthesize` RPCs.
 - **Device**: `ServerSpeech` (`shared/app/src/session/`) selects each advertised part when Voice chat starts and owns requests through `ConnectedServer`. `VoiceAudio` supplies WAV recording and playback on iOS, macOS and Windows. Dictation uses the selected Server transcription when configured, with Device speech for an unset part.
 

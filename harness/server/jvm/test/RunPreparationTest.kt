@@ -1,13 +1,20 @@
 package kinuvo.harness.server
 
+import ai.koog.agents.core.tools.ToolDescriptor
+import kinuvo.server.plugin.SecretProvider
+import kinuvo.server.plugin.toolSpec
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
 import kinuvo.harness.core.plugin.*
 import kinuvo.harness.testing.*
 
-import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
 import kinuvo.harness.core.store.AgentFiles
-import kinuvo.harness.core.tools.Tool
+import kinuvo.server.plugin.Tool
 import kinuvo.harness.exec.ExecPlugin
 import kinuvo.harness.executor.ExecutorPlugin
 import kinuvo.harness.mcp.McpServerConfig
@@ -232,7 +239,7 @@ class RunPreparationTest {
             override val catalogued = true
             override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools((1..45).map { i ->
                 object : Tool {
-                    override val descriptor = ToolDescriptor("item_$i", "Item number $i")
+                    override val descriptor = toolSpec("item_$i", "Item number $i")
                     override suspend fun execute(args: JsonObject) = "item $i"
                 }
             })

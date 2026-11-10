@@ -1,5 +1,6 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.execution.api.Agent
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.FileAgentDocs
 import kinuvo.harness.core.store.FileRoutineRepository

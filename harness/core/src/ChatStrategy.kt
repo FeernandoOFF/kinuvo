@@ -3,7 +3,7 @@
 package kinuvo.harness.core
 
 import kinuvo.protocol.ModelTier
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.protocol.ToolNames
 import ai.koog.agents.core.agent.entity.AIAgentNodeBase
 import ai.koog.agents.core.dsl.builder.AIAgentSubgraphBuilderBase
 import ai.koog.agents.core.dsl.builder.node

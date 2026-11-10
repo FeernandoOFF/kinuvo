@@ -2,7 +2,7 @@ package kinuvo.harness.server
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import co.touchlab.stately.collections.ConcurrentMutableMap
-import kinuvo.harness.core.Agent
+import kinuvo.harness.execution.api.Agent
 import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.harness.execution.api.ExecutionInput
 import kinuvo.harness.execution.api.RunKind

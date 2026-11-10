@@ -1,11 +1,13 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.harness.execution.api.AgentDoc
 import kinuvo.harness.server.reflection.*
 import kinuvo.harness.core.plugin.*
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
 import kinuvo.harness.core.store.ReflectionConfig
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.protocol.ToolNames
 import kinuvo.harness.testing.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.flow.flowOf

@@ -1,17 +1,24 @@
 package kinuvo.harness.server
 
+import ai.koog.agents.core.tools.ToolDescriptor
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.harness.execution.api.AgentDoc
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
 import kinuvo.harness.core.plugin.*
 import kinuvo.harness.testing.*
 import ai.koog.prompt.message.Message
 
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.ToolGroup
+import kinuvo.server.plugin.Tool
+import kinuvo.protocol.ToolNames
+import kinuvo.protocol.ToolGroup
 import kinuvo.harness.core.tools.ToolScope
 import kinuvo.protocol.*
 import kinuvo.client.KinuvoClient
@@ -55,8 +62,8 @@ class RunPreparationRuntimeTest {
             override val definition = PluginDefinition("test.scoped", "Scoped")
             override val catalogued = true
             override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(object : Tool {
-                override val descriptor = ToolDescriptor("mcp_read", "Read", optionalParameters = listOf(
-                    ToolParameterDescriptor("nested", "Nested", ToolParameterType.List(ToolParameterType.List(ToolParameterType.String)))))
+                override val descriptor = toolSpec("mcp_read", "Read", optionalParameters = listOf(
+                    ToolParameter("nested", "Nested", ParameterType.List(ParameterType.List(ParameterType.String)))))
                 override val risk = Risk.Low
                 override suspend fun execute(args: JsonObject): String { executed = true; return "read" }
             }))
@@ -228,7 +235,7 @@ class RunPreparationRuntimeTest {
             override val definition = PluginDefinition("example.ping", "Ping")
             override val instanceId = instance
             override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(object : Tool {
-                override val descriptor = ToolDescriptor("ping", "Ping")
+                override val descriptor = toolSpec("ping", "Ping")
                 override val risk = Risk.Low
                 override suspend fun execute(args: JsonObject) = instance.also { executed += it }
             }))
@@ -280,7 +287,7 @@ class RunPreparationRuntimeTest {
 
     @Test fun duplicateToolsCannotReplaceEachOtherDuringInspectionOrExecution() = runBlocking {
         val tool = object : Tool {
-            override val descriptor = ToolDescriptor("ping", "Ping")
+            override val descriptor = toolSpec("ping", "Ping")
             override suspend fun execute(args: JsonObject) = "pong"
         }
         val plugin = object : HarnessPlugin {
@@ -394,8 +401,8 @@ class RunPreparationRuntimeTest {
                 modes += activate
                 assertEquals("strict", run.agent.config.approvals)
                 return PluginTools(listOf(object : Tool {
-                    override val descriptor = ToolDescriptor("ping", "Ping", requiredParameters = listOf(
-                        ToolParameterDescriptor("message", "Message", ToolParameterType.String)))
+                    override val descriptor = toolSpec("ping", "Ping", requiredParameters = listOf(
+                        ToolParameter("message", "Message", ParameterType.String)))
                     override suspend fun execute(args: JsonObject) = "pong"
                 }))
             }

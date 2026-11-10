@@ -3,7 +3,7 @@ package kinuvo.harness.server
 import kinuvo.harness.codex.CodexAuth
 import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.codex.OpenAIProvider
-import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.FileAttachments

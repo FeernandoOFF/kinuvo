@@ -2,7 +2,7 @@ package kinuvo.harness.core
 
 import kinuvo.harness.core.knowledge.KnowledgeConfig
 import kinuvo.harness.core.store.config
-import kinuvo.harness.core.store.readText
+import kinuvo.server.plugin.readText
 import kinuvo.harness.core.store.saveKnowledgeConfig
 import kinuvo.harness.core.store.saveServiceConfig
 import kinuvo.harness.core.store.updateConfig

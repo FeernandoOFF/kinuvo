@@ -1,43 +1,32 @@
 package kinuvo.harness.core.tools
 
-import kinuvo.harness.core.takeWhole
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.SearchRegion
+import kinuvo.server.plugin.WebSearch
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.takeWhole
 import kinuvo.harness.core.queryWords
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
-import kinuvo.harness.core.plugin.ConfigurableProvider
-import kinuvo.harness.core.plugin.PluginHost
-
-/** A web search service, e.g. Firecrawl; set up in `config.yaml`. */
-interface WebSearchProvider : ConfigurableProvider {
-    /** The provider with [options], whose values may hold `${…}` references; fails when a required one is missing. */
-    fun configured(options: Map<String, String>, host: PluginHost): WebSearch
-}
-
-interface WebSearch {
-    suspend fun search(query: String, limit: Int, news: Boolean, region: SearchRegion? = null): List<WebResult>
-    /** The page at [url] as Markdown, for `web_fetch`; null when the service doesn't read pages. */
-    suspend fun read(url: String): String? = null
-}
-
-data class WebResult(val title: String, val url: String, val snippet: String, val date: String? = null)
 
 class WebSearchTool(private val provider: WebSearch, private val compact: Boolean = false, private val region: SearchRegion? = null) : CoreTool {
     fun compact() = WebSearchTool(provider, compact = true, region = region)
 
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.WEB_SEARCH,
         description = "Search the web. Returns titles, URLs and snippets; read a result with web_fetch.",
-        requiredParameters = listOf(ToolParameterDescriptor("query", "What to search for", ToolParameterType.String)),
+        requiredParameters = listOf(ToolParameter("query", "What to search for", ParameterType.String)),
         optionalParameters = listOf(
-            ToolParameterDescriptor("limit", "Number of results (default 5, max $MAX)", ToolParameterType.Integer),
-            ToolParameterDescriptor("news", "Search recent news instead of the web (default false)", ToolParameterType.Boolean),
+            ToolParameter("limit", "Number of results (default 5, max $MAX)", ParameterType.Integer),
+            ToolParameter("news", "Search recent news instead of the web (default false)", ParameterType.Boolean),
         ),
     )
 

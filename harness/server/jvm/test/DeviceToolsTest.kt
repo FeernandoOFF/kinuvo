@@ -3,7 +3,7 @@ package kinuvo.harness.server
 import kinuvo.harness.server.devices.*
 import kinuvo.harness.testing.*
 
-import kinuvo.harness.core.plugin.RunContext
+import kinuvo.server.plugin.RunContext
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -18,7 +18,7 @@ class DeviceToolsTest {
     private val device = ToolDevice("phone", "iPhone", setOf(DeviceToolKind.Contacts))
     private val events = Channel<AgentEvent>(Channel.UNLIMITED)
 
-    private suspend fun tool(): kinuvo.harness.core.tools.Tool {
+    private suspend fun tool(): kinuvo.server.plugin.Tool {
         val agent = harness.store.agents().single()
         val session = harness.newSession(agent)
         harness.log.onEvent { _, _, event -> events.trySend(event) }

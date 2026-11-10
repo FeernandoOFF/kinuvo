@@ -1,8 +1,10 @@
 package kinuvo.harness.core.tools
 
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.CoreTool
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.Question
 import kinuvo.protocol.QuestionKind
@@ -13,30 +15,30 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /** Shows the user a form and waits for the answers; the runner does the asking, since only it can reach the user. */
 class AskUserTool(routine: Boolean = false) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.ASK_USER,
         description = "Ask the user one or more questions as a form and wait for their answers. Use it when you need " +
             "choices, details or confirmation you can't infer; group related questions in one call. Returns the answers " +
             "as JSON by question id, or says the user skipped." +
             (if (routine) " This is a Routine run: the user is notified and the run waits until they answer, so ask only when you can't go on without them." else ""),
         requiredParameters = listOf(
-            ToolParameterDescriptor(
+            ToolParameter(
                 "questions", "The form's fields, in order",
-                ToolParameterType.List(ToolParameterType.Object(
+                ParameterType.List(ParameterType.Object(
                     properties = listOf(
-                        ToolParameterDescriptor("id", "Unique key for the answer", ToolParameterType.String),
-                        ToolParameterDescriptor("label", "The question", ToolParameterType.String),
-                        ToolParameterDescriptor("kind", "single/multi pick from options; yes_no; text, long_text, number, date (YYYY-MM-DD)", ToolParameterType.Enum(KINDS)),
-                        ToolParameterDescriptor("options", "Choices for single and multi", ToolParameterType.List(ToolParameterType.String)),
-                        ToolParameterDescriptor("required", "Must be answered (default false)", ToolParameterType.Boolean),
-                        ToolParameterDescriptor("placeholder", "Hint shown in empty text fields", ToolParameterType.String),
-                        ToolParameterDescriptor("default", "Prefilled answer; for multi, any of the options", ToolParameterType.List(ToolParameterType.String)),
+                        ToolParameter("id", "Unique key for the answer", ParameterType.String),
+                        ToolParameter("label", "The question", ParameterType.String),
+                        ToolParameter("kind", "single/multi pick from options; yes_no; text, long_text, number, date (YYYY-MM-DD)", ParameterType.Enum(KINDS)),
+                        ToolParameter("options", "Choices for single and multi", ParameterType.List(ParameterType.String)),
+                        ToolParameter("required", "Must be answered (default false)", ParameterType.Boolean),
+                        ToolParameter("placeholder", "Hint shown in empty text fields", ParameterType.String),
+                        ToolParameter("default", "Prefilled answer; for multi, any of the options", ParameterType.List(ParameterType.String)),
                     ),
                     requiredProperties = listOf("id", "label", "kind"),
                 )),
             ),
         ),
-        optionalParameters = listOf(ToolParameterDescriptor("title", "Heading for the form", ToolParameterType.String)),
+        optionalParameters = listOf(ToolParameter("title", "Heading for the form", ParameterType.String)),
     )
 
     override suspend fun execute(args: JsonObject): String = error("ask_user runs through the runner")

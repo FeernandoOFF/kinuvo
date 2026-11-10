@@ -1,15 +1,21 @@
 package kinuvo.harness.core.store
 
+import kinuvo.server.plugin.children
+import kinuvo.server.plugin.exists
+import kinuvo.server.plugin.isDirectory
+import kinuvo.server.plugin.isInside
+import kinuvo.server.plugin.readTextOrNull
+import kinuvo.server.plugin.writeAtomically
 import com.charleskorn.kaml.Yaml
 import com.charleskorn.kaml.YamlList
 import com.charleskorn.kaml.YamlMap
 import com.charleskorn.kaml.YamlNode
 import com.charleskorn.kaml.YamlScalar
 import kinuvo.harness.core.knowledge.KnowledgeConfig
-import kinuvo.harness.core.knowledge.KnowledgeSource
+import kinuvo.server.plugin.KnowledgeSource
 import kinuvo.harness.core.knowledge.MarkdownBody
-import kinuvo.harness.core.knowledge.NoteEdit
-import kinuvo.harness.core.knowledge.Written
+import kinuvo.server.plugin.NoteEdit
+import kinuvo.server.plugin.Written
 import kinuvo.harness.core.skills.splitFrontmatter
 import kinuvo.protocol.KnowledgeSchema
 import kinuvo.protocol.Note

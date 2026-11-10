@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.core.plugin.*
 import kinuvo.harness.testing.*
 
@@ -17,12 +18,12 @@ import kotlin.test.*
 class ModelCatalogTest {
     private val home = Path(SystemTemporaryDirectory, "model-catalog-${Uuid.random()}")
     @AfterTest
-    fun cleanup() = kinuvo.harness.core.store.deleteTree(home)
+    fun cleanup() = kinuvo.server.plugin.deleteTree(home)
     @Test
     fun runnerPassesResolvedMetadataToTheProvider() = runBlocking {
         val expected = ModelInfo("resolved", reasoning = emptyList(), input = listOf("text"), tools = false, context = 8192)
         var received: ModelInfo? = null
-        val plugin = object : ModelProvider, HarnessPlugin {
+        val plugin = object : ModelProvider, ModelProviderPlugin {
             override val definition = kinuvo.protocol.PluginDefinition("test.modelcatalogtest.1", "Test")
             override val id = "test"
             override val modelProviders get() = listOf(this)

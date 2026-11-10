@@ -1,8 +1,8 @@
 package kinuvo.harness.core.routines
 
+import kinuvo.server.plugin.toolSpec
 import kinuvo.harness.testing.AgentRun
 
-import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.AgentRun
@@ -13,7 +13,7 @@ import kinuvo.harness.core.ModelProfile
 import kinuvo.protocol.ModelTier
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.Tolerance
-import kinuvo.harness.core.tools.Tool
+import kinuvo.server.plugin.Tool
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.harness.testing.toolResults
 import kinuvo.protocol.AgentEvent
@@ -56,7 +56,7 @@ class RoutineRunTest {
         var calls = 0
         override val risk = risk
         override val identity = ToolIdentity(PluginInstanceId("test.tools"), "deploy")
-        override val descriptor = ToolDescriptor("deploy", "Deploys")
+        override val descriptor = toolSpec("deploy", "Deploys")
         override suspend fun execute(args: JsonObject): String { calls++; return "deployed" }
     }
 
@@ -174,7 +174,7 @@ class RoutineRunTest {
         val run = run()
         val session = store.createSession(agent.id, "", run.ref)
         val slow = object : Tool {
-            override val descriptor = ToolDescriptor("slow", "never finishes")
+            override val descriptor = toolSpec("slow", "never finishes")
             override suspend fun execute(args: JsonObject): String = kotlinx.coroutines.awaitCancellation()
         }
         val stuck = scriptedModel { _, _ -> flowOf(StreamFrame.ToolCallComplete("c1", "slow", "{}"), StreamFrame.End()) }

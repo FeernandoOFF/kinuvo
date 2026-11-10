@@ -1,16 +1,19 @@
 package kinuvo.harness.server
 
+import kinuvo.server.plugin.toolSpec
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.harness.execution.api.AgentDoc
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.McpManagement
 import kinuvo.harness.server.devices.*
 import kinuvo.harness.server.reflection.*
 import kinuvo.harness.core.plugin.*
 import kinuvo.harness.testing.*
 import ai.koog.prompt.message.Message
 
-import kinuvo.harness.core.plugin.modelAlias
-import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
-import kinuvo.harness.core.tools.Tool
+import kinuvo.server.plugin.Tool
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flowOf
@@ -27,7 +30,7 @@ class RuntimeDependenciesTest {
         fixture.documents[AgentDoc.Soul] = "Injected soul"
         var fetched = false
         fixture.fetch = { object : Tool {
-            override val descriptor = ToolDescriptor("web_fetch", "Injected fetch")
+            override val descriptor = toolSpec("web_fetch", "Injected fetch")
             override suspend fun execute(args: JsonObject): String { fetched = true; return "Injected page" }
         } }
         val model = scriptedModel { prompt, tools ->

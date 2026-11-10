@@ -1,5 +1,7 @@
 package kinuvo.harness.core.artifacts
 
+import kinuvo.server.plugin.ARTIFACT_MAX_CHARS
+
 import kinuvo.protocol.ArtifactChange
 import kinuvo.protocol.ArtifactData
 import kinuvo.protocol.ArtifactInfo
@@ -69,7 +71,7 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
 
     companion object {
         val TYPES = listOf("html", "svg", "md", "csv", "json", "txt")
-        const val MAX_CHARS = 5_000_000
+        const val MAX_CHARS = ARTIFACT_MAX_CHARS
 
         fun checkedType(type: String) = type.lowercase().removePrefix(".").let { t ->
             when (t) {

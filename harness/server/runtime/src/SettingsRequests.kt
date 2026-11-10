@@ -1,6 +1,6 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.Agent
+import kinuvo.harness.execution.api.Agent
 import kinuvo.protocol.*
 
 /** The Server's settings: Secret reference providers, services, model provider sign-ins and MCP servers. */

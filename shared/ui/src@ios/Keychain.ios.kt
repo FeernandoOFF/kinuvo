@@ -2,7 +2,7 @@ package kinuvo.ui
 
 import kinuvo.app.connection.*
 
-import kinuvo.harness.core.Keychain
+import kinuvo.server.plugin.Keychain
 import kinuvo.harness.core.iosKeychain
 
 /** Generic passwords in the iOS Keychain, implemented in Swift. */

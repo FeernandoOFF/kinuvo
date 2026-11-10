@@ -3,13 +3,12 @@ package kinuvo.harness.core.knowledge
 import kinuvo.harness.testing.*
 import ai.koog.prompt.message.Message
 
-import kinuvo.harness.core.plugin.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.AgentDoc
+import kinuvo.harness.execution.api.AgentDoc
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.store.FileKnowledgeChangeLog
 import kinuvo.harness.core.store.MarkdownKnowledgeSource
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.protocol.ToolNames
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ReflectionResult
 import kinuvo.protocol.ReflectionMemoryChange

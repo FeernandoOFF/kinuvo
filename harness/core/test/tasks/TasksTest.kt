@@ -1,5 +1,6 @@
 package kinuvo.harness.core.tasks
 
+import kinuvo.server.plugin.TaskProvider
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.store.FileBoard
 import kinuvo.harness.core.store.LocalTaskApp

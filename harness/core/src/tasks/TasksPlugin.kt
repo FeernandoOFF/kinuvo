@@ -1,9 +1,9 @@
 package kinuvo.harness.core.tasks
 
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.plugin.PluginTools
-import kinuvo.harness.core.plugin.RunContext
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
+import kinuvo.protocol.ToolNames
 import kinuvo.protocol.PluginDefinition
 
 /** Task runs can manage their assigned Task even without general access to the Board. */

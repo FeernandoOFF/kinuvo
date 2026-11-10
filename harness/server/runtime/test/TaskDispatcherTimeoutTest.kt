@@ -1,13 +1,13 @@
 package kinuvo.harness.server
 
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.LocalTaskApp
-import kinuvo.harness.core.store.deleteTree
+import kinuvo.server.plugin.deleteTree
 import kinuvo.harness.core.store.saveTasksConfig
-import kinuvo.harness.core.tasks.TaskApp
-import kinuvo.harness.core.tasks.TaskProvider
+import kinuvo.server.plugin.TaskApp
+import kinuvo.server.plugin.TaskProvider
 import kinuvo.harness.core.tasks.TasksConfig
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.protocol.PluginDefinition

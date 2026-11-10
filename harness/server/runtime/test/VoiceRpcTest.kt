@@ -1,7 +1,14 @@
 package kinuvo.harness.server
 
+import kinuvo.server.plugin.Audio
+import kinuvo.server.plugin.AudioFormat
+import kinuvo.server.plugin.SpeechToSpeech
+import kinuvo.server.plugin.VoiceContext
+import kinuvo.server.plugin.VoiceInput
+import kinuvo.server.plugin.VoiceOutput
+import kinuvo.server.plugin.VoiceProviders
 import kinuvo.harness.core.liveVoiceInstructions
-import kinuvo.harness.core.voice.AgentProgress
+import kinuvo.server.plugin.AgentProgress
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.execution.api.*
 import kinuvo.harness.server.execution.ExecutionRegistry

@@ -1,8 +1,13 @@
 package kinuvo.harness.core.knowledge
 
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentDoc
+import kinuvo.harness.execution.api.AgentDocs
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.ownedBy
+import kinuvo.server.plugin.withModelNames
 import kinuvo.harness.core.modelText
 
-import kinuvo.harness.core.plugin.*
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.agent.exception.AIAgentMaxNumberOfIterationsReachedException
@@ -10,14 +15,14 @@ import ai.koog.prompt.Prompt
 import kinuvo.harness.core.*
 import kinuvo.harness.core.skills.*
 import kinuvo.harness.core.tools.MemoryTool
-import kinuvo.harness.core.tools.Tool
+import kinuvo.server.plugin.Tool
 import kinuvo.harness.core.tools.ToolService
 import kinuvo.harness.core.tools.toDescriptor
 import kinuvo.harness.execution.api.ReflectionStep
 import kinuvo.harness.execution.api.ReflectionTurn
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.requireString
-import kinuvo.harness.core.tools.string
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.string
 import kinuvo.protocol.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext

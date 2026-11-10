@@ -1,16 +1,19 @@
 package kinuvo.harness.core.knowledge
 
-import kinuvo.harness.core.tools.CoreTool
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
+import kinuvo.harness.execution.api.ToolSpec
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.server.plugin.BodyEdit
+import kinuvo.server.plugin.NoteEdit
+import kinuvo.server.plugin.CoreTool
 import kinuvo.protocol.Risk
-import kinuvo.harness.core.tools.Assessment
-import kinuvo.harness.core.tools.Action
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.ToolRun
-import kinuvo.harness.core.tools.requireString
-import kinuvo.harness.core.tools.string
+import kinuvo.server.plugin.Assessment
+import kinuvo.server.plugin.Action
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.ToolRun
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.string
 import kinuvo.protocol.KnowledgeSchema
 import kinuvo.protocol.Note
 import kotlinx.serialization.builtins.MapSerializer
@@ -22,7 +25,7 @@ import kotlinx.serialization.json.JsonPrimitive
 
 /** Reads and adds to the user's Knowledge, in their system's own types and properties; every change can be undone. */
 class KnowledgeTool(private val knowledge: Knowledge, private val source: ChangeSource) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.KNOWLEDGE,
         description = "The user's knowledge base (their own note system). Follow the user's conventions in your instructions. " +
             "schema lists its note types, properties and templates; search finds notes; read shows one with its body; create makes a " +
@@ -31,21 +34,21 @@ class KnowledgeTool(private val knowledge: Knowledge, private val source: Change
             "Link to other notes in Markdown with [[note title]]. Search before " +
             "creating so you don't make duplicates. The user sees every change and can undo it.",
         requiredParameters = listOf(
-            ToolParameterDescriptor("action", "schema | search | read | file | create | update", ToolParameterType.Enum(ACTIONS)),
+            ToolParameter("action", "schema | search | read | file | create | update", ParameterType.Enum(ACTIONS)),
         ),
         optionalParameters = listOf(
-            ToolParameterDescriptor("reason", "Reason for a background Reflection proposal", ToolParameterType.String),
-            ToolParameterDescriptor("evidence", "Source identifiers supporting a background Reflection proposal", ToolParameterType.String),
-            ToolParameterDescriptor("query", "Text to search for (search)", ToolParameterType.String),
-            ToolParameterDescriptor("type", "Note type key or name (search, create)", ToolParameterType.String),
-            ToolParameterDescriptor("ref", "Note ref or exact title (read, update), or a file's ref (file)", ToolParameterType.String),
-            ToolParameterDescriptor("title", "Note title (create, or rename on update)", ToolParameterType.String),
-            ToolParameterDescriptor("set", "JSON object of property values by key or name; null clears one (create, update)", ToolParameterType.String),
-            ToolParameterDescriptor("append", "Markdown to add to the body (create, update)", ToolParameterType.String),
-            ToolParameterDescriptor("under", "Heading to append under, created when missing (create, update)", ToolParameterType.String),
-            ToolParameterDescriptor("template", "Name of one of the type's templates to start from (create)", ToolParameterType.String),
-            ToolParameterDescriptor("link_text", "Text already in the body to turn into a link (update)", ToolParameterType.String),
-            ToolParameterDescriptor("link_to", "Ref or title of the note link_text should point to (update)", ToolParameterType.String),
+            ToolParameter("reason", "Reason for a background Reflection proposal", ParameterType.String),
+            ToolParameter("evidence", "Source identifiers supporting a background Reflection proposal", ParameterType.String),
+            ToolParameter("query", "Text to search for (search)", ParameterType.String),
+            ToolParameter("type", "Note type key or name (search, create)", ParameterType.String),
+            ToolParameter("ref", "Note ref or exact title (read, update), or a file's ref (file)", ParameterType.String),
+            ToolParameter("title", "Note title (create, or rename on update)", ParameterType.String),
+            ToolParameter("set", "JSON object of property values by key or name; null clears one (create, update)", ParameterType.String),
+            ToolParameter("append", "Markdown to add to the body (create, update)", ParameterType.String),
+            ToolParameter("under", "Heading to append under, created when missing (create, update)", ParameterType.String),
+            ToolParameter("template", "Name of one of the type's templates to start from (create)", ParameterType.String),
+            ToolParameter("link_text", "Text already in the body to turn into a link (update)", ParameterType.String),
+            ToolParameter("link_to", "Ref or title of the note link_text should point to (update)", ParameterType.String),
         ),
     )
 
@@ -56,7 +59,7 @@ class KnowledgeTool(private val knowledge: Knowledge, private val source: Change
     }
 
     override suspend fun execute(args: JsonObject): String = execute(args, "", object : ToolRun {
-        override val tools = emptyList<ToolDescriptor>()
+        override val tools = emptyList<ToolSpec>()
         override suspend fun call(name: String, args: String) = error("No tools in this run")
     })
 
@@ -109,14 +112,14 @@ class KnowledgeTool(private val knowledge: Knowledge, private val source: Change
 
 /** Replaces text in a note's body; it needs the user's Approval, since it changes what they wrote. */
 class KnowledgeRewriteTool(private val knowledge: Knowledge, private val source: ChangeSource) : CoreTool {
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.KNOWLEDGE_REWRITE,
         description = "Replace text in the body of a note in the user's knowledge base, e.g. to correct a fact. old must occur " +
             "exactly once. Prefer the knowledge tool's update to add information; use this only to change existing text.",
         requiredParameters = listOf(
-            ToolParameterDescriptor("ref", "Note ref or exact title", ToolParameterType.String),
-            ToolParameterDescriptor("old", "The exact text to replace", ToolParameterType.String),
-            ToolParameterDescriptor("new", "The replacement Markdown", ToolParameterType.String),
+            ToolParameter("ref", "Note ref or exact title", ParameterType.String),
+            ToolParameter("old", "The exact text to replace", ParameterType.String),
+            ToolParameter("new", "The replacement Markdown", ParameterType.String),
         ),
     )
 

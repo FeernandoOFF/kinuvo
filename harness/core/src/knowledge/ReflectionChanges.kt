@@ -1,14 +1,16 @@
 package kinuvo.harness.core.knowledge
 
+import kinuvo.harness.core.tools.toDescriptor
+import kinuvo.harness.core.tools.toSpec
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.Agent
+import kinuvo.harness.execution.api.Agent
 import kinuvo.harness.core.skills.Skill
 import kinuvo.harness.core.skills.SkillRepository
 import kinuvo.harness.core.skills.load
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.requireString
+import kinuvo.server.plugin.Tool
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.requireString
 import kinuvo.protocol.ConfigScope
 import kinuvo.protocol.ReflectionProposal
 import kotlinx.serialization.json.JsonObject
@@ -21,13 +23,13 @@ class ReflectionChanges(private val agent: Agent, private val knowledge: Knowled
 
     fun staging(tool: Tool): Tool = object : Tool {
         override val risk = tool.risk
-        override val descriptor = tool.descriptor.copy(
+        override val descriptor = tool.descriptor.toDescriptor().copy(
             description = tool.descriptor.description + " Writes only stage a proposal for the user's Approval; nothing is applied or activated. Include reason and evidence on writes.",
-            optionalParameters = tool.descriptor.optionalParameters.filterNot { it.name in listOf("reason", "evidence") } + listOf(
+            optionalParameters = tool.descriptor.toDescriptor().optionalParameters.filterNot { it.name in listOf("reason", "evidence") } + listOf(
                 ToolParameterDescriptor("reason", "Why this durable change is worth keeping", ToolParameterType.String),
                 ToolParameterDescriptor("evidence", "Source identifiers and what they establish; use user-N or tool call IDs from the transcript", ToolParameterType.String),
             ),
-        )
+        ).toSpec()
 
         override suspend fun execute(args: JsonObject): String {
             val action = args.requireString("action")

@@ -1,13 +1,15 @@
 package kinuvo.harness.server
 
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.PluginHost
+import kinuvo.server.plugin.deleteTree
 import kinuvo.harness.core.*
-import kinuvo.harness.core.plugin.*
 import kinuvo.harness.core.store.*
-import kinuvo.harness.core.tasks.ProviderTask
-import kinuvo.harness.core.tasks.TaskChange
-import kinuvo.harness.core.tasks.TaskList
-import kinuvo.harness.core.tasks.TaskApp
-import kinuvo.harness.core.tasks.TaskProvider
+import kinuvo.server.plugin.ProviderTask
+import kinuvo.server.plugin.TaskChange
+import kinuvo.server.plugin.TaskList
+import kinuvo.server.plugin.TaskApp
+import kinuvo.server.plugin.TaskProvider
 import kinuvo.protocol.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate

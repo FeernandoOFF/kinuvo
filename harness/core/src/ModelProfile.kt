@@ -1,7 +1,7 @@
 package kinuvo.harness.core
 
-import kinuvo.harness.core.tools.ToolGroup
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.protocol.ToolGroup
+import kinuvo.protocol.ToolNames
 import kinuvo.protocol.ModelTier
 
 enum class PromptStyle {

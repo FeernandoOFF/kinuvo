@@ -1,5 +1,12 @@
 package kinuvo.harness.core
 
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.server.plugin.rawSchemaSpec
+import kinuvo.server.plugin.toolSpec
+import kinuvo.protocol.ToolGroup
+import kinuvo.server.plugin.CoreToolRegistry
+import kinuvo.server.plugin.Tool
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -14,14 +21,14 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ModelProfileTest {
-    private fun tool(name: String, group: ToolGroup, vararg required: ToolParameterDescriptor) = object : Tool {
+    private fun tool(name: String, group: ToolGroup, vararg required: ToolParameter) = object : Tool {
         override val coreMetadata = CoreToolRegistry[name]
         override val group = group
-        override val descriptor = ToolDescriptor(name, name, required.toList())
+        override val descriptor = toolSpec(name, name, required.toList())
         override suspend fun execute(args: JsonObject) = name
     }
-    private val text = ToolParameterDescriptor("q", "Query", ToolParameterType.String)
-    private val nested = ToolParameterDescriptor("filter", "Filter", ToolParameterType.Object(listOf(text)))
+    private val text = ToolParameter("q", "Query", ParameterType.String)
+    private val nested = ToolParameter("filter", "Filter", ParameterType.Object(listOf(text)))
     private fun names(tools: List<Tool>) = tools.map { it.descriptor.name }
 
     private val everything = listOf(
@@ -119,12 +126,12 @@ class ModelProfileTest {
         assertEquals(listOf("nested"), names(oneLevel.select(listOf(withNested))))
         val optionalNested = object : Tool {
             override val group = ToolGroup.Core
-            override val descriptor = ToolDescriptor("opt", "opt", listOf(text), listOf(nested))
+            override val descriptor = toolSpec("opt", "opt", listOf(text), listOf(nested))
             override suspend fun execute(args: JsonObject) = ""
         }
-        assertEquals(emptyList(), optionalNested.descriptor.simplified(SchemaLevel.Flat)?.optionalParameters)
-        assertEquals(listOf(nested), optionalNested.descriptor.simplified(SchemaLevel.OneLevel)?.optionalParameters)
-        assertNull(RawSchemaToolDescriptor("raw", "", JsonObject(emptyMap())).simplified(SchemaLevel.Flat))
+        assertEquals(emptyList(), optionalNested.descriptor.simplified(SchemaLevel.Flat)?.toDescriptor()?.optionalParameters)
+        assertEquals(listOf("filter"), optionalNested.descriptor.simplified(SchemaLevel.OneLevel)?.toDescriptor()?.optionalParameters?.map { it.name })
+        assertNull(rawSchemaSpec("raw", "", JsonObject(emptyMap())).simplified(SchemaLevel.Flat))
     }
 
     @Test fun providerFilterRunsBeforeTheCap() {

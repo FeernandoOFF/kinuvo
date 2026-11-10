@@ -1,11 +1,13 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.server.screens.*
-import kinuvo.harness.core.plugin.*
-import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
+import kinuvo.harness.core.tools.toDescriptor
+import kinuvo.harness.execution.api.ToolSpec
+import kinuvo.server.plugin.RunContext
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.ToolRun
+import kinuvo.harness.server.screens.*
 import kinuvo.harness.core.*
-import kinuvo.harness.core.tools.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.runBlocking
@@ -30,7 +32,7 @@ class ComputerToolsTest {
         ComputerElement(2, "TextField", "Secret", 0, 10, 20, 10, password = true),
     ), platform = "macOS", actions = ComputerActionKind.mac)
     private val run = object : ToolRun {
-        override val tools = emptyList<ToolDescriptor>()
+        override val tools = emptyList<ToolSpec>()
         override suspend fun call(name: String, args: String): SessionEntry.ToolResult = error("No tools")
         override suspend fun attach(name: String, bytes: ByteArray): Attachment {
             attachments += bytes
@@ -81,7 +83,7 @@ class ComputerToolsTest {
         assertTrue("computer_apps" in tools)
         assertFalse("computer_windows" in tools)
         val act = tools.getValue("computer_act")
-        val offered = act.descriptor.requiredParameters.single().type as ToolParameterType.Enum
+        val offered = act.descriptor.toDescriptor().requiredParameters.single().type as ToolParameterType.Enum
         assertContains(offered.entries.toList(), "set_value")
         assertFalse("right_click" in offered.entries)
         assertTrue("verify_state" in computers.list().single().actions)
@@ -96,7 +98,7 @@ class ComputerToolsTest {
         computers.paired = { listOf("mac", "phone", "offline").map { ToolDevice(it, it, setOf(DeviceToolKind.Computer)) } }
         computers.connect("phone") { ComputerResult(DeviceToolStatus.Ready, screen = screen.copy(actions = setOf(ComputerActionKind.RightClick))) }
         val tools = computers.prepare(RunContext(agent, null), true).tools.associateBy { it.descriptor.name }
-        val offered = tools.getValue("computer_act").descriptor.requiredParameters.single().type as ToolParameterType.Enum
+        val offered = tools.getValue("computer_act").descriptor.toDescriptor().requiredParameters.single().type as ToolParameterType.Enum
         assertContains(offered.entries.toList(), "right_click")
         assertFalse("kill_app" in offered.entries)
         assertFailsWith<IllegalArgumentException> {

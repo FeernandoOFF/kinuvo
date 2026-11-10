@@ -10,7 +10,7 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.HttpStatusCode
 import kinuvo.client.WebPush
-import kinuvo.harness.core.plugin.Notification
+import kinuvo.server.plugin.Notification
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.PushMessage
 import kinuvo.protocol.PushSubscription

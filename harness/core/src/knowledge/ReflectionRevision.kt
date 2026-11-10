@@ -1,11 +1,11 @@
 package kinuvo.harness.core.knowledge
 
-import kinuvo.harness.core.tools.CoreTool
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.requireString
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.server.plugin.CoreTool
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.requireString
 import kinuvo.protocol.ReflectionProposal
 import kinuvo.protocol.ReflectionResult
 import kotlinx.serialization.json.Json
@@ -32,8 +32,8 @@ ${Json.encodeToString(ReflectionProposal.serializer(), proposal)}
 """
 
     internal fun decisionTool() = object : CoreTool {
-        override val descriptor = ToolDescriptor(ToolNames.REFLECTION_FEEDBACK, "Classify this review note before finishing.", requiredParameters = listOf(
-            ToolParameterDescriptor("lasting", "Whether the note states a rule useful beyond this proposal", ToolParameterType.Boolean),
+        override val descriptor = toolSpec(ToolNames.REFLECTION_FEEDBACK, "Classify this review note before finishing.", requiredParameters = listOf(
+            ToolParameter("lasting", "Whether the note states a rule useful beyond this proposal", ParameterType.Boolean),
         ))
         override suspend fun execute(args: JsonObject): String {
             val decision = requireNotNull(args["lasting"]).jsonPrimitive.boolean
@@ -57,9 +57,9 @@ ${Json.encodeToString(ReflectionProposal.serializer(), proposal)}
 }
 
 internal fun conventionsTool() = object : CoreTool {
-    override val descriptor = ToolDescriptor(ToolNames.CONVENTIONS, "Propose how the user organizes Knowledge, preserving their other Conventions.", requiredParameters = listOf(
-        ToolParameterDescriptor("action", "edit", ToolParameterType.String),
-        ToolParameterDescriptor("content", "The complete revised Conventions", ToolParameterType.String),
+    override val descriptor = toolSpec(ToolNames.CONVENTIONS, "Propose how the user organizes Knowledge, preserving their other Conventions.", requiredParameters = listOf(
+        ToolParameter("action", "edit", ParameterType.String),
+        ToolParameter("content", "The complete revised Conventions", ParameterType.String),
     ))
     override suspend fun execute(args: JsonObject): String = error("Conventions edits need Approval")
 }

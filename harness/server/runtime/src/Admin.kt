@@ -1,11 +1,11 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.AgentDoc
-import kinuvo.harness.core.ExecModes
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentDoc
+import kinuvo.harness.execution.api.ExecModes
 import kinuvo.harness.core.Tolerance
 import kinuvo.harness.core.skills.Skill
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.protocol.ToolNames
 import kinuvo.protocol.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

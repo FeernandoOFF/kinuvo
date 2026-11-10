@@ -1,5 +1,6 @@
 package kinuvo.harness.core.store
 
+import kinuvo.server.plugin.isFile
 import kinuvo.protocol.TrustRules
 import kinuvo.harness.core.TrustRulesRepository
 

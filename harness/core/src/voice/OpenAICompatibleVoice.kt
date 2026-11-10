@@ -1,5 +1,10 @@
 package kinuvo.harness.core.voice
 
+import kinuvo.server.plugin.Audio
+import kinuvo.server.plugin.AudioFormat
+import kinuvo.server.plugin.Synthesizer
+import kinuvo.server.plugin.Transcriber
+import kinuvo.server.plugin.VoiceProviders
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.*

@@ -1,7 +1,7 @@
 package kinuvo.harness.server
 
 import co.touchlab.stately.collections.ConcurrentMutableMap
-import kinuvo.harness.core.Agent
+import kinuvo.harness.execution.api.Agent
 import kinuvo.harness.core.BUILT_IN_HARNESS
 import kinuvo.harness.core.builtInRegistration
 import kinuvo.harness.execution.api.ExecutionBroker

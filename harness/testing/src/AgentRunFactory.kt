@@ -1,17 +1,17 @@
 package kinuvo.harness.testing
 
-import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.harness.core.AgentModel
 import kinuvo.harness.core.AgentRun
 import kinuvo.harness.core.AgentTracing
 import kinuvo.harness.core.Approvals
-import kinuvo.harness.core.Agent
+import kinuvo.harness.execution.api.Agent
 import kinuvo.harness.core.Broker
 import kinuvo.harness.core.ModelProfile
 import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.harness.core.store.Store
-import kinuvo.harness.core.tools.Tool
+import kinuvo.server.plugin.Tool
 import kinuvo.harness.execution.api.ToolReports
+import kinuvo.harness.execution.api.ToolSpec
 import kinuvo.harness.core.tools.ToolService
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.ModelTier
@@ -27,7 +27,7 @@ fun AgentRun(
     context: String = "",
     approvals: Approvals = Approvals.none(),
     questions: Broker<Map<String, List<String>>?>? = null,
-    advertisedTools: List<ToolDescriptor> = tools.map { it.descriptor },
+    advertisedTools: List<ToolSpec> = tools.map { it.descriptor },
     contextTokens: Int? = null,
     requestKind: RequestKind = RequestKind.Chat,
     attach: ((String, ByteArray) -> Attachment)? = null,

@@ -1,8 +1,8 @@
 package kinuvo.harness.server.testing
 
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.AgentConfig
-import kinuvo.harness.core.AgentDoc
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.harness.execution.api.AgentDoc
 import kinuvo.harness.server.HarnessRuntime
 import kinuvo.harness.server.execution.ExecutionRecovery
 import kinuvo.harness.server.execution.ExecutionRegistry

@@ -1,13 +1,15 @@
 package kinuvo.harness.core
 
-import kinuvo.harness.core.tools.Action
-import kinuvo.harness.core.tools.Assessment
-import kinuvo.harness.core.tools.Tool
+import kinuvo.harness.execution.api.Agent
+import kinuvo.server.plugin.ShellCommand
+import kinuvo.server.plugin.Action
+import kinuvo.server.plugin.Assessment
+import kinuvo.server.plugin.Tool
 import kinuvo.harness.core.tools.ToolScope
-import kinuvo.harness.core.tools.ToolKind
-import kinuvo.harness.core.tools.string
-import kinuvo.harness.core.tools.policyKey
-import kinuvo.harness.core.tools.withToolKey
+import kinuvo.server.plugin.ToolKind
+import kinuvo.server.plugin.string
+import kinuvo.server.plugin.policyKey
+import kinuvo.server.plugin.withToolKey
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.Risk
 import kinuvo.protocol.TrustRules

@@ -1,18 +1,17 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.core.plugin.ModelProviderPlugin
+import kinuvo.server.plugin.toolSpec
 import kinuvo.harness.testing.*
 
-import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.plugin.modelAlias
-import kinuvo.harness.core.Agent
-import kinuvo.harness.core.AgentConfig
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.plugin.InstructionSection
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.server.plugin.InstructionSection
 import kinuvo.harness.core.plugin.ModelProvider
-import kinuvo.harness.core.plugin.PluginTools
-import kinuvo.harness.core.plugin.RunContext
-import kinuvo.harness.core.tools.Tool
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
+import kinuvo.server.plugin.Tool
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.*
 import kinuvo.client.KinuvoClient
@@ -29,7 +28,7 @@ import kotlin.test.assertTrue
 class PluginsTest {
     private val released = mutableListOf<String>()
 
-    private val plugin = object : HarnessPlugin, ModelProvider {
+    private val plugin = object : ModelProviderPlugin, ModelProvider {
         override val definition = kinuvo.protocol.PluginDefinition("test.pluginstest.1", "Test")
         override val id = "fake"
         override val modelProviders get() = listOf(this)
@@ -38,7 +37,7 @@ class PluginsTest {
             flowOf(StreamFrame.TextDelta(tools.joinToString { it.name }), StreamFrame.End())
         }
         override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(object : Tool {
-            override val descriptor = ToolDescriptor("ping", "ping")
+            override val descriptor = toolSpec("ping", "ping")
             override suspend fun execute(args: JsonObject) = "pong"
         }), listOf("half up"))
         override suspend fun instructions(agent: Agent) = InstructionSection("Fake", "Plugin section")

@@ -1,10 +1,10 @@
 package kinuvo.harness.core
 
+import kinuvo.server.plugin.toolSpec
 import kinuvo.harness.testing.AgentRun
 
-import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.tools.Tool
+import kinuvo.server.plugin.Tool
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.approval
@@ -29,7 +29,7 @@ class SessionFeatureTest {
             else flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
         }
         val tool = object : Tool {
-            override val descriptor = ToolDescriptor("read", "Read")
+            override val descriptor = toolSpec("read", "Read")
             override suspend fun execute(args: JsonObject) = "OK"
         }
         AgentRun(home.agent, home.store, model, listOf(tool)).run(session.id, "go").collect { event ->
@@ -60,7 +60,7 @@ class SessionFeatureTest {
         val session = home.store.createSession(home.agent.id, "")
         var executed = 0
         val tool = object : Tool {
-            override val descriptor = ToolDescriptor("read", "Read")
+            override val descriptor = toolSpec("read", "Read")
             override val identity = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), "read")
             override suspend fun execute(args: JsonObject): String { executed++; return "OK" }
         }

@@ -9,6 +9,7 @@ aliases:
 
 dependencies:
   - ../execution/api: exported
+  - ../../server/plugin-api: exported
   - ../../shared/protocol: exported
   - ai.koog:agents-tools:1.3.0: exported
   - ai.koog:agents-core:1.3.0: exported

@@ -4,7 +4,6 @@ import kotlin.time.Duration.Companion.seconds
 import kinuvo.harness.testing.*
 import ai.koog.prompt.message.Message
 
-import kinuvo.harness.core.plugin.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.execution.api.ExecutionBroker
 import kinuvo.harness.execution.api.ExecutionFactory
@@ -33,7 +32,7 @@ import kotlin.test.assertTrue
 
 class TaskDispatcherTest {
     @kotlin.test.AfterTest
-    fun cleanup() = runBlocking { scope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin(); harness.close(); kinuvo.harness.core.store.deleteTree(home) }
+    fun cleanup() = runBlocking { scope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin(); harness.close(); kinuvo.server.plugin.deleteTree(home) }
     private val home = Path(SystemTemporaryDirectory, "harness-tasks-${Uuid.random()}")
     private var finish = true
     private var fail = false

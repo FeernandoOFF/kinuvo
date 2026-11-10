@@ -1,17 +1,17 @@
 package kinuvo.harness.core.routines
 
-import kinuvo.harness.core.tools.CoreTool
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.harness.core.Agent
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.server.plugin.CoreTool
+import kinuvo.harness.execution.api.Agent
 import kinuvo.protocol.Risk
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.Action
-import kinuvo.harness.core.tools.Assessment
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.requireString
-import kinuvo.harness.core.tools.string
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.Action
+import kinuvo.server.plugin.Assessment
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.string
 import kinuvo.protocol.Routine
 import kinuvo.protocol.RoutineApprovals
 import kinuvo.protocol.RoutineSpec
@@ -52,7 +52,7 @@ class ScheduleTool(
         }, trustable = risk != Risk.High)))
     }
 
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.SCHEDULE,
         description = "Manage your Routines: prompts you run on a schedule, each in a fresh Session by default. " +
             "Use them for reminders, recurring reports and checks. A run sees only your instructions, Memory and the prompt, " +
@@ -61,22 +61,22 @@ class ScheduleTool(
             "Now: ${now()}. The user's time zone: ${defaultZone().id}." +
             (routine?.let { " You are running as the routine '${it.name}' (id ${it.id}): you can only list routines or remove this one." } ?: ""),
         requiredParameters = listOf(
-            ToolParameterDescriptor("action", "create | list | update | pause | resume | run | remove", ToolParameterType.Enum(ACTIONS)),
+            ToolParameter("action", "create | list | update | pause | resume | run | remove", ParameterType.Enum(ACTIONS)),
         ),
         optionalParameters = listOf(
-            ToolParameterDescriptor("id", "Routine id, for every action but create and list", ToolParameterType.String),
-            ToolParameterDescriptor("name", "Short name, e.g. 'Morning brief'", ToolParameterType.String),
-            ToolParameterDescriptor("prompt", "What to do on each run, self-contained", ToolParameterType.String),
-            ToolParameterDescriptor("at", "One-shot: local date-time, e.g. 2026-05-01T09:00", ToolParameterType.String),
-            ToolParameterDescriptor("every", "Recurring interval, e.g. 30m, 2h, 1d", ToolParameterType.String),
-            ToolParameterDescriptor("cron", "Recurring cron expression: minute hour day month weekday, e.g. '0 9 * * MON-FRI'", ToolParameterType.String),
-            ToolParameterDescriptor("time_zone", "IANA time zone for at/cron/active_hours; defaults to the user's", ToolParameterType.String),
-            ToolParameterDescriptor("active_hours", "Only fire between these local times, e.g. 08:00-22:00; none to clear", ToolParameterType.String),
-            ToolParameterDescriptor("session", "new: a fresh Session per run (the default); attach: continue one Session every run", ToolParameterType.String),
-            ToolParameterDescriptor("session_id", "Session to continue with session=attach; defaults to the current one", ToolParameterType.String),
-            ToolParameterDescriptor(
+            ToolParameter("id", "Routine id, for every action but create and list", ParameterType.String),
+            ToolParameter("name", "Short name, e.g. 'Morning brief'", ParameterType.String),
+            ToolParameter("prompt", "What to do on each run, self-contained", ParameterType.String),
+            ToolParameter("at", "One-shot: local date-time, e.g. 2026-05-01T09:00", ParameterType.String),
+            ToolParameter("every", "Recurring interval, e.g. 30m, 2h, 1d", ParameterType.String),
+            ToolParameter("cron", "Recurring cron expression: minute hour day month weekday, e.g. '0 9 * * MON-FRI'", ParameterType.String),
+            ToolParameter("time_zone", "IANA time zone for at/cron/active_hours; defaults to the user's", ParameterType.String),
+            ToolParameter("active_hours", "Only fire between these local times, e.g. 08:00-22:00; none to clear", ParameterType.String),
+            ToolParameter("session", "new: a fresh Session per run (the default); attach: continue one Session every run", ParameterType.String),
+            ToolParameter("session_id", "Session to continue with session=attach; defaults to the current one", ParameterType.String),
+            ToolParameter(
                 "approvals", "Tool calls that need an Approval during a run: inherit (notify and wait for the user) or deny (also no ask_user). " +
-                    "Only the user can set auto, in Settings", ToolParameterType.String,
+                    "Only the user can set auto, in Settings", ParameterType.String,
             ),
         ),
     )

@@ -1,5 +1,7 @@
 package kinuvo.harness.core
 
+import kinuvo.server.plugin.Keychain
+
 /** The iOS Keychain, which the app implements in Swift and sets at launch. */
 var iosKeychain: ((service: String, account: String) -> Keychain)? = null
 

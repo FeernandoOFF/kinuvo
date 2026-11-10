@@ -1,9 +1,9 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.voice.Audio
-import kinuvo.harness.core.voice.AudioFormat
+import kinuvo.server.plugin.Audio
+import kinuvo.server.plugin.AudioFormat
 import kinuvo.harness.core.voice.MAX_RECORDING_BYTES
-import kinuvo.harness.core.voice.VoiceProviders
+import kinuvo.server.plugin.VoiceProviders
 import kinuvo.protocol.*
 import kotlin.io.encoding.Base64
 

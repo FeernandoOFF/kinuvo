@@ -1,6 +1,8 @@
 package kinuvo.harness.core
 
-import ai.koog.agents.core.tools.ToolDescriptor
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.ToolRun
 import kinuvo.harness.core.tools.*
 import kinuvo.harness.execution.api.ToolReports
 import kinuvo.harness.execution.api.ToolTurn
@@ -18,7 +20,7 @@ class ToolReportsTest {
         val reports = mutableListOf<SessionEntry.ToolReport>()
         val events = mutableListOf<AgentEvent>()
         val tool = object : Tool {
-            override val descriptor = ToolDescriptor("worker", "Work")
+            override val descriptor = toolSpec("worker", "Work")
             override suspend fun execute(args: JsonObject) = "regular"
             override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {
                 run.progress("first")

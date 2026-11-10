@@ -1,6 +1,12 @@
 package kinuvo.harness.core
 
-import ai.koog.agents.core.tools.ToolDescriptor
+import kinuvo.server.plugin.toolSpec
+import kinuvo.protocol.ToolGroup
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.CoreToolRegistry
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.policyKey
 import kinuvo.harness.core.tools.*
 import kinuvo.protocol.PluginInstanceId
 import kinuvo.protocol.ToolIdentity
@@ -13,7 +19,7 @@ import kotlin.test.*
 class CoreToolRegistryTest {
     private fun tool(name: String) = object : CoreTool {
         override val identity = ToolIdentity(PluginInstanceId("kinuvo.core"), name)
-        override val descriptor = ToolDescriptor(name, name)
+        override val descriptor = toolSpec(name, name)
         override suspend fun execute(args: JsonObject) = name
     }
 
@@ -27,7 +33,7 @@ class CoreToolRegistryTest {
         val external = object : Tool {
             override val identity = ToolIdentity(PluginInstanceId("mcp.test"), "memory")
             override val group = ToolGroup.Internal
-            override val descriptor = ToolDescriptor("memory", "External memory")
+            override val descriptor = toolSpec("memory", "External memory")
             override suspend fun execute(args: JsonObject) = "OK"
         }
         assertFalse(ToolScope.only("memory").allows(external))
@@ -35,7 +41,7 @@ class CoreToolRegistryTest {
         assertTrue(ModelProfile.of(kinuvo.protocol.ModelTier.Micro).tools.select(listOf(external)).isEmpty())
         val other = object : Tool {
             override val identity = ToolIdentity(PluginInstanceId("mcp.other"), "memory")
-            override val descriptor = ToolDescriptor("memory", "Other memory")
+            override val descriptor = toolSpec("memory", "Other memory")
             override suspend fun execute(args: JsonObject) = "OK"
         }
         val keyed = ToolScope(names = setOf(external.identity.key), ask = setOf(external.identity.key))
@@ -63,7 +69,7 @@ class CoreToolRegistryTest {
         assertEquals(setOf("web_fetch", "web_search"), Toolsets.Core.resolve("web_fetch"))
         assertTrue(ToolScope.only("skills").allows(tool("activate_skill")))
         val plugin = object : Tool {
-            override val descriptor = ToolDescriptor("memory", "Plugin tool")
+            override val descriptor = toolSpec("memory", "Plugin tool")
             override suspend fun execute(args: JsonObject) = ""
         }
         assertEquals(ToolGroup.External, plugin.group)

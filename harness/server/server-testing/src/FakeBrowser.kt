@@ -1,9 +1,9 @@
 package kinuvo.harness.server.testing
 
-import kinuvo.harness.core.plugin.BrowserService
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.plugin.ScreenGate
-import kinuvo.harness.core.plugin.ScreenSource
+import kinuvo.server.plugin.BrowserService
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ScreenGate
+import kinuvo.server.plugin.ScreenSource
 import kinuvo.protocol.BrowserCommand
 import kinuvo.protocol.BrowserFrame
 import kinuvo.protocol.BrowserOwner

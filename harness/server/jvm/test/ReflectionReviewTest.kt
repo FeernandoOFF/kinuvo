@@ -4,7 +4,6 @@ import kinuvo.harness.server.reflection.*
 import kinuvo.harness.testing.*
 
 import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.plugin.modelAlias
 import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.core.knowledge.ChangeSource
@@ -105,7 +104,7 @@ class ReflectionReviewTest {
         original.log.append(agent.id, session, SessionEntry.Reflection("r1", 0, ReflectionResult(proposals = listOf(proposal))))
         val restarted = harness()
         val review = ReflectionReview(restarted)
-        restarted.knowledge.update(note.ref, body = listOf(kinuvo.harness.core.knowledge.BodyEdit.Append("Concurrent edit")))
+        restarted.knowledge.update(note.ref, body = listOf(kinuvo.server.plugin.BodyEdit.Append("Concurrent edit")))
         assertFailsWith<IllegalStateException> { review.respond(agent, session, proposal.id, true) }
         assertTrue("Accepted decision" !in restarted.knowledge.find(note.ref)!!.body)
         review.respond(agent, session, proposal.id, false)

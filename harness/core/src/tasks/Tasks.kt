@@ -1,7 +1,11 @@
 package kinuvo.harness.core.tasks
 
-import kinuvo.harness.core.plugin.NoPluginHost
-import kinuvo.harness.core.plugin.PluginHost
+import kinuvo.server.plugin.ProviderTask
+import kinuvo.server.plugin.TaskApp
+import kinuvo.server.plugin.TaskChange
+import kinuvo.server.plugin.TaskProvider
+import kinuvo.server.plugin.NoPluginHost
+import kinuvo.server.plugin.PluginHost
 import kinuvo.harness.core.update
 import kinuvo.protocol.TaskInfo
 import kinuvo.protocol.TaskListInfo

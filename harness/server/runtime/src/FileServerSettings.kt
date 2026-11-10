@@ -1,13 +1,23 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.ConfigurableProvider
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.NoPluginHost
+import kinuvo.server.plugin.Notification
+import kinuvo.server.plugin.NotificationProvider
+import kinuvo.server.plugin.Notifier
+import kinuvo.server.plugin.PluginHost
+import kinuvo.server.plugin.PluginHosts
+import kinuvo.server.plugin.SecretReferences
+import kinuvo.server.plugin.instance
+import kinuvo.server.plugin.maskedOptions
 import kinuvo.harness.core.*
 import kinuvo.harness.core.knowledge.Knowledge
 import kinuvo.harness.core.store.AgentFiles
-import kinuvo.harness.core.store.createDirectories
+import kinuvo.server.plugin.createDirectories
 import kinuvo.harness.core.store.saveKnowledgeConfig
 import kinuvo.harness.core.store.saveTasksConfig
-import kinuvo.harness.core.tasks.TaskProvider
+import kinuvo.server.plugin.TaskProvider
 import kinuvo.harness.core.tasks.TasksConfig
 import kinuvo.protocol.ProviderModelRef
 import kinuvo.protocol.Integration
@@ -31,9 +41,8 @@ import kinuvo.harness.core.store.knowledgeConfig
 import kinuvo.harness.core.store.knowledgeConventions
 import kinuvo.harness.core.store.knowledgeRoot
 import kinuvo.harness.core.store.Store
-import kinuvo.harness.core.store.readTextOrNull
-import kinuvo.harness.core.store.writeAtomically
-import kinuvo.harness.core.tools.WebSearch
+import kinuvo.server.plugin.writeAtomically
+import kinuvo.server.plugin.WebSearch
 import kinuvo.protocol.ServiceKind
 import kinuvo.protocol.ServiceSettings
 import kinuvo.protocol.ServiceSetup
@@ -47,7 +56,7 @@ import kinuvo.harness.core.store.config
 import kinuvo.harness.core.store.updateConfig
 import kotlinx.datetime.TimeZone
 import kotlinx.io.files.Path
-import kinuvo.harness.core.tools.WebSearchProvider
+import kinuvo.server.plugin.WebSearchProvider
 import kinuvo.protocol.DEFAULT_REFLECTION_PROMPT
 import kotlin.concurrent.Volatile
 
@@ -276,7 +285,7 @@ internal class FileServerSettings(
         require(it.size == size) { "Duplicate service provider IDs" }
     }
 
-    private fun masked(option: String, value: String) = if (secret(option) && value.isNotEmpty() && !Secrets.isReference(value)) KnowledgeSettings.SECRET else value
+    private fun masked(option: String, value: String) = if (secret(option) && value.isNotEmpty() && !SecretReferences.isReference(value)) KnowledgeSettings.SECRET else value
 
     private fun knowledgeSource(id: String) =
         knowledgeSources.firstOrNull { it.id == id } ?: error("No knowledge provider '$id'; available: ${knowledgeSources.joinToString { it.id }}")

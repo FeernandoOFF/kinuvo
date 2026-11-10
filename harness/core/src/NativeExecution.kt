@@ -1,5 +1,6 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.execution.api.Agent
 import kinuvo.harness.core.knowledge.runReflection
 import kinuvo.harness.execution.api.ExecutionAcceptance
 import kinuvo.harness.execution.api.ExecutionBroker

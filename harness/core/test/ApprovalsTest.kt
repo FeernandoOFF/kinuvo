@@ -1,6 +1,9 @@
 package kinuvo.harness.core
 
-import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.toolSpec
+import kinuvo.harness.execution.api.Agent
+import kinuvo.server.plugin.ScreenGate
+import kinuvo.server.plugin.ShellCommand
 import kinuvo.harness.testing.*
 
 import kinuvo.protocol.AgentEvent
@@ -11,17 +14,16 @@ import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.DenyRules
 import kinuvo.protocol.TrustRules
 
-import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.protocol.Risk
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.string
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.string
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
-import kinuvo.harness.core.store.readText
+import kinuvo.server.plugin.readText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -38,7 +40,7 @@ class ApprovalsTest {
     private class FakeTool(name: String, override val risk: Risk) : Tool {
         var calls = 0
         override val identity get() = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), descriptor.name)
-        override val descriptor = ToolDescriptor(name, "fake")
+        override val descriptor = toolSpec(name, "fake")
         override suspend fun execute(args: JsonObject): String { calls++; return "ran" }
     }
 
@@ -47,7 +49,7 @@ class ApprovalsTest {
         var ran = false
         val tool = object : Tool {
             override val identity = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), "screen")
-            override val descriptor = ToolDescriptor("screen", "screen action")
+            override val descriptor = toolSpec("screen", "screen action")
             override val risk = Risk.High
             override suspend fun bind(args: JsonObject): suspend () -> Unit {
                 val generation = gate.state.value.generation
@@ -73,9 +75,9 @@ class ApprovalsTest {
     fun mandatoryApprovalsIgnoreFullToleranceAndTrustRules() = runTest {
         val tool = object : Tool {
             override val identity = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), "private")
-            override val descriptor = ToolDescriptor("private", "fake")
-            override fun assess(args: JsonObject) = kinuvo.harness.core.tools.Assessment(listOf(
-                kinuvo.harness.core.tools.Action(Risk.High, listOf("private"), alwaysAsk = true)))
+            override val descriptor = toolSpec("private", "fake")
+            override fun assess(args: JsonObject) = kinuvo.server.plugin.Assessment(listOf(
+                kinuvo.server.plugin.Action(Risk.High, listOf("private"), alwaysAsk = true)))
             override suspend fun execute(args: JsonObject) = "ran"
         }
         home.trustRules.update(base.id) { it.copy(trusted = listOf(tool.identity.key)) }
@@ -92,9 +94,9 @@ class ApprovalsTest {
     fun computerActionsAreTrustedPerAppNeverForTheWholeTool() = runTest {
         val act = object : Tool {
             override val identity get() = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), descriptor.name)
-        override val descriptor = ToolDescriptor(kinuvo.harness.core.tools.ToolNames.COMPUTER_ACT, "fake")
-            override val kind = kinuvo.harness.core.tools.ToolKind.ComputerAction
-            override fun assess(args: JsonObject) = kinuvo.harness.core.tools.Assessment(listOf(kinuvo.harness.core.tools.Action(
+        override val descriptor = toolSpec(kinuvo.protocol.ToolNames.COMPUTER_ACT, "fake")
+            override val kind = kinuvo.server.plugin.ToolKind.ComputerAction
+            override fun assess(args: JsonObject) = kinuvo.server.plugin.Assessment(listOf(kinuvo.server.plugin.Action(
                 Risk.High, listOf(descriptor.name, args.string("app")!!), exact = true)))
             override suspend fun execute(args: JsonObject) = "ran"
         }
@@ -187,9 +189,9 @@ class ApprovalsTest {
     }
 
     private class FakeShell : Tool {
-        override val kind = kinuvo.harness.core.tools.ToolKind.Shell
+        override val kind = kinuvo.server.plugin.ToolKind.Shell
         override val identity get() = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), descriptor.name)
-        override val descriptor = ToolDescriptor("shell", "fake")
+        override val descriptor = toolSpec("shell", "fake")
         override fun assess(args: JsonObject) = ShellCommand.parse(args.string("command")!!).assess(listOf("/work"))
         override suspend fun execute(args: JsonObject) = "ran"
     }

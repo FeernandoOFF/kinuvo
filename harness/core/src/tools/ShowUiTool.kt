@@ -1,8 +1,10 @@
 package kinuvo.harness.core.tools
 
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.CoreTool
 import dev.ynagai.a2ui.core.protocol.A2uiJson
 import dev.ynagai.a2ui.core.protocol.AgentToRendererMessage
 import dev.ynagai.a2ui.core.protocol.CatalogDefinition
@@ -25,7 +27,7 @@ class ShowUiTool(catalogs: List<UiCatalog>) : CoreTool {
         A2uiJson.lenient.decodeFromJsonElement(CatalogDefinition.serializer(), ProtocolJson.encodeToJsonElement(UiCatalog.serializer(), it))
     })
 
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         name = ToolNames.SHOW_UI,
         description = "Show native interactive Surfaces using A2UI v1.0. Use the advertised catalog schemas. " +
             "Start with createSurface(surfaceId,catalogId,components,dataModel); components are flat, with id root and child/children references. " +
@@ -42,8 +44,8 @@ class ShowUiTool(catalogs: List<UiCatalog>) : CoreTool {
             "Checks use {condition:{call,args},message}. Each call creates independent Surfaces.\n\nCatalogs:\n" +
             catalogs.joinToString("\n\n") { catalogSummary(it) },
         requiredParameters = listOf(
-            ToolParameterDescriptor("messages", "A2UI messages, e.g. [{\"createSurface\": {...}}]",
-                ToolParameterType.List(ToolParameterType.Object(emptyList(), additionalProperties = true))),
+            ToolParameter("messages", "A2UI messages, e.g. [{\"createSurface\": {...}}]",
+                ParameterType.List(ParameterType.Object(emptyList(), additionalProperties = true))),
         ),
     )
 

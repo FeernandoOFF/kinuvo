@@ -1,5 +1,7 @@
 package kinuvo.harness.core.tools
 
+import kinuvo.harness.execution.api.ToolSpec
+import kinuvo.server.plugin.Tool
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -10,15 +12,18 @@ private val limitNames = setOf("limit", "max_results", "maxResults", "top_k", "p
 fun Tool.itemLimits(maxItems: Int?): Map<String, Int> {
     if (maxItems == null) return emptyMap()
     coreMetadata?.let { entry -> return entry.itemLimit?.takeUnless { it.lines }?.let { mapOf(it.parameter to minOf(it.max, maxItems)) }.orEmpty() }
-    val raw = descriptor as? RawSchemaToolDescriptor
-    if (raw != null) return (raw.schema["properties"] as? JsonObject).orEmpty().mapNotNull { (name, value) ->
+    if (descriptor.verbatim) return (descriptor.schema["properties"] as? JsonObject).orEmpty().mapNotNull { (name, value) ->
         val property = value as? JsonObject ?: return@mapNotNull null
         if (name !in limitNames || property["type"]?.jsonPrimitive?.content != "integer") null
         else name to minOf(maxItems, property["maximum"]?.jsonPrimitive?.intOrNull ?: maxItems)
     }.toMap()
-    return (descriptor.requiredParameters + descriptor.optionalParameters).filter { it.name in limitNames && it.type == ToolParameterType.Integer }
+    val koog = descriptor.toDescriptor()
+    return (koog.requiredParameters + koog.optionalParameters).filter { it.name in limitNames && it.type == ToolParameterType.Integer }
         .associate { it.name to maxItems }
 }
+
+fun ToolSpec.withItemLimits(limits: Map<String, Int>): ToolSpec =
+    if (limits.isEmpty()) this else copy(schema = toDescriptor().withItemLimits(limits).toSpec().schema)
 
 fun ToolDescriptor.withItemLimits(limits: Map<String, Int>): ToolDescriptor {
     if (limits.isEmpty()) return this

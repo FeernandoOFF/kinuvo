@@ -1,5 +1,8 @@
 package kinuvo.harness.core.store
 
+import kinuvo.server.plugin.appendText
+import kinuvo.server.plugin.readTextOrNull
+import kinuvo.server.plugin.writeAtomically
 import kinuvo.harness.core.knowledge.KnowledgeChangeLog
 import kinuvo.protocol.KnowledgeChange
 import kotlinx.coroutines.sync.Mutex

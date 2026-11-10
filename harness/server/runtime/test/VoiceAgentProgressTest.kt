@@ -1,6 +1,6 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.voice.AgentProgress
+import kinuvo.server.plugin.AgentProgress
 import kinuvo.protocol.*
 import kotlinx.serialization.json.JsonNull
 import kotlin.test.Test

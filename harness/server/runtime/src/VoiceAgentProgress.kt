@@ -1,6 +1,6 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.voice.AgentProgress
+import kinuvo.server.plugin.AgentProgress
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ExecutionSnapshot
 import kinuvo.protocol.PendingInteraction

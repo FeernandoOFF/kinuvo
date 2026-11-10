@@ -1,5 +1,6 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.execution.api.AgentConfig
 import ai.koog.prompt.streaming.StreamFrame
 import ai.koog.prompt.message.Message
 import kinuvo.protocol.RequestKind

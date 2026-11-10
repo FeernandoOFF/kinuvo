@@ -1,5 +1,7 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.execution.api.Agent
+import kinuvo.server.plugin.takeWhole
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.agent.entity.createStorageKey
 import ai.koog.agents.core.feature.AIAgentGraphFeature
@@ -11,7 +13,7 @@ import ai.koog.prompt.message.RequestMetaInfo
 import kinuvo.harness.execution.api.SessionStorage
 import kinuvo.harness.core.tools.toDescriptor
 import kinuvo.harness.execution.api.ToolProvider
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.protocol.ToolNames
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.RequestKind
 import kinuvo.protocol.SessionEntry

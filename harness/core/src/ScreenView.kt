@@ -1,6 +1,6 @@
 package kinuvo.harness.core
 
-import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.ScreenGate
 import kinuvo.protocol.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

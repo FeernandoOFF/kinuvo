@@ -1,5 +1,10 @@
 package kinuvo.harness.server
 
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.PluginHosts
+import kinuvo.server.plugin.checkPluginInstances
+import kinuvo.server.plugin.readTextOrNull
+import kinuvo.server.plugin.writeAtomically
 import kinuvo.harness.core.plugin.*
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
@@ -44,7 +49,7 @@ object ServerInstallation {
             val installedStore = store ?: FileStore(files, clock)
             val docs = FileAgentDocs(files)
             val providers = object : AbstractList<ModelProvider>() {
-                private fun current() = (modelProviders + plugins.flatMap { it.modelProviders }).distinctBy { it.id }
+                private fun current() = (modelProviders + plugins.filterIsInstance<ModelProviderPlugin>().flatMap { it.modelProviders }).distinctBy { it.id }
                 override val size get() = current().size
                 override fun get(index: Int) = current()[index]
             }

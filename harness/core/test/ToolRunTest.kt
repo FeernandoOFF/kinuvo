@@ -1,12 +1,13 @@
 package kinuvo.harness.core
 
+import kinuvo.server.plugin.toolSpec
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.testing.*
 
-import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.ToolNames
-import kinuvo.harness.core.tools.ToolRun
+import kinuvo.server.plugin.Tool
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.ToolRun
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.approval
 import kinuvo.protocol.PendingInteraction
@@ -36,13 +37,13 @@ class ToolRunTest {
     private var calls = 0
     private val target = object : Tool {
         override val identity get() = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), descriptor.name)
-        override val descriptor = ToolDescriptor("change", "Change something")
+        override val descriptor = toolSpec("change", "Change something")
         override val risk = Risk.Medium
         override suspend fun execute(args: JsonObject): String { calls++; return "changed" }
     }
     private val bridge = object : Tool {
         override val identity get() = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), descriptor.name)
-        override val descriptor = ToolDescriptor("bridge", "Call another tool")
+        override val descriptor = toolSpec("bridge", "Call another tool")
         override val risk = Risk.Low
         override suspend fun execute(args: JsonObject): String = error("Needs a run")
         override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {

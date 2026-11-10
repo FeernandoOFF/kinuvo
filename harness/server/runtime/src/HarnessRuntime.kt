@@ -1,5 +1,15 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.server.plugin.CUSTOM_PROVIDERS
+import kinuvo.server.plugin.McpManagement
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
+import kinuvo.server.plugin.checkPluginInstances
+import kinuvo.server.plugin.instance
+import kinuvo.server.plugin.ownedBy
+import kinuvo.server.plugin.withModelNames
 import kinuvo.harness.server.devices.*
 import kinuvo.harness.server.screens.*
 import kinuvo.harness.core.plugin.*
@@ -22,7 +32,7 @@ import kinuvo.harness.core.knowledge.KnowledgePlugin
 import kinuvo.harness.core.knowledge.Reflection
 import kinuvo.harness.core.knowledge.ReflectionRevision
 import kinuvo.harness.core.tasks.TasksPlugin
-import kinuvo.harness.core.voice.VoiceProviders
+import kinuvo.server.plugin.VoiceProviders
 import kotlinx.datetime.todayIn
 import kotlin.time.Clock
 import kotlin.time.Duration
@@ -42,10 +52,11 @@ import kinuvo.protocol.McpAppRef
 import kinuvo.protocol.McpAppRequest
 import kinuvo.protocol.McpAppResource
 import kinuvo.protocol.McpAppToolRequest
-import kinuvo.harness.core.plugin.McpApps
-import kinuvo.harness.core.tools.ToolRun
-import kinuvo.harness.core.tools.ToolGroup
+import kinuvo.server.plugin.McpApps
+import kinuvo.server.plugin.ToolRun
 import kinuvo.harness.core.tools.simplified
+import kinuvo.harness.core.tools.toDescriptor
+import kinuvo.harness.execution.api.with
 import kinuvo.harness.core.tools.ToolScope
 import kinuvo.harness.core.tools.select
 import kinuvo.protocol.ModelTier
@@ -54,8 +65,8 @@ import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.artifacts.ArtifactTool
 import kinuvo.harness.core.tools.AskUserTool
 import kinuvo.harness.core.tools.MemoryTool
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.indexedTools
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.indexedTools
 import kinuvo.harness.core.tools.Toolsets
 import kinuvo.harness.execution.api.ToolReports
 import kinuvo.harness.core.tools.ToolService
@@ -66,11 +77,11 @@ import kinuvo.harness.execution.api.ExecutionState
 import kinuvo.harness.execution.api.RoutineTurn
 import kinuvo.harness.execution.api.RunKind
 import kinuvo.harness.execution.api.ToolTurn
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.protocol.ToolNames
 import kinuvo.harness.core.tools.ToolCatalog
 import kinuvo.harness.core.effective
-import kinuvo.harness.core.tools.WebSearch
-import kinuvo.harness.core.tools.SearchRegion
+import kinuvo.server.plugin.WebSearch
+import kinuvo.server.plugin.SearchRegion
 import kinuvo.harness.core.tools.WebSearchTool
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.RoutineApprovals
@@ -259,7 +270,7 @@ open class HarnessRuntime(
     private fun usable(e: Effective, tools: List<Tool>, scope: ToolScope = ToolScope.All): Set<String> {
         if (e.profile.tier == ModelTier.NoTools || e.info?.tools == false) return emptySet()
         val listed = tools.filter { t -> e.info?.toolIds?.let { t.identity?.key in it } != false }
-        return e.profile.tools.select(listed, scope) { e.provider?.accepts(e.agent.config.model, it.descriptor) != false }.map { it.descriptor.name }.toSet()
+        return e.profile.tools.select(listed, scope) { e.provider?.accepts(e.agent.config.model, it.descriptor.toDescriptor()) != false }.map { it.descriptor.name }.toSet()
     }
 
     /** [tools] can all be called; the model is sent only [advertised], with catalogued tools behind the catalog's. */

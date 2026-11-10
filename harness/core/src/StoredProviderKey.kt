@@ -1,8 +1,9 @@
 package kinuvo.harness.core
 
-import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.Keychain
+import kinuvo.server.plugin.ProviderApiKey
+import kinuvo.server.plugin.SecretReferences
 import kinuvo.harness.core.store.AgentFiles
-import kinuvo.harness.core.store.loadEnv
 import kinuvo.protocol.ProviderApiKeyStatus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -34,7 +35,7 @@ class StoredProviderKey(
         val value = reference ?: stored ?: env()[environmentKey]?.takeIf { it.isNotBlank() }
         ProviderApiKeyStatus(value != null,
             if (reference != null) "${references.name} (reference only)" else if (stored != null) store.name else "$environmentKey in the Server environment or .env",
-            reference != null || stored != null, value?.takeIf { Secrets.isReference(it) })
+            reference != null || stored != null, value?.takeIf { SecretReferences.isReference(it) })
     }
 
     override suspend fun save(value: String) = lock.withLock {
@@ -42,7 +43,7 @@ class StoredProviderKey(
         require(trimmed.length <= 8192) { "API key or reference is too long" }
         when {
             trimmed.isEmpty() -> { references.delete(); store.delete() }
-            Secrets.isReference(trimmed) -> {
+            SecretReferences.isReference(trimmed) -> {
                 secrets.expand(trimmed, env(), "Kinuvo: configuring $name")
                 references.write(trimmed)
                 store.delete()

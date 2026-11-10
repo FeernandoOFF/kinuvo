@@ -1,7 +1,6 @@
 package kinuvo.harness.core
 
-import kinuvo.harness.core.store.loadEnv
-import kinuvo.harness.core.store.writeAtomically
+import kinuvo.server.plugin.writeAtomically
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals

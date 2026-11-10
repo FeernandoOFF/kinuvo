@@ -1,7 +1,7 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.plugin.Notifier
-import kinuvo.harness.core.tools.WebSearch
+import kinuvo.server.plugin.Notifier
+import kinuvo.server.plugin.WebSearch
 import kinuvo.protocol.*
 import kotlinx.datetime.TimeZone
 import kinuvo.harness.core.store.ReflectionConfig

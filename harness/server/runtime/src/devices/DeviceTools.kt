@@ -1,11 +1,18 @@
 package kinuvo.harness.server.devices
 
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.harness.execution.api.Agent
+import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.InstructionSection
+import kinuvo.server.plugin.PluginTools
+import kinuvo.server.plugin.RunContext
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.string
 import kinuvo.harness.server.*
-import kinuvo.harness.core.plugin.*
 import co.touchlab.stately.concurrency.Lock
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.*
 import kinuvo.protocol.*
@@ -72,7 +79,7 @@ class DeviceTools(
         if (run.sessionId == null || ToolNames.DEVICE_TOOLS !in run.agent.config.tools) return PluginTools()
         return PluginTools(listOf(
             object : CoreTool {
-                override val descriptor = ToolDescriptor(ToolNames.DEVICE_TOOLS, "List paired Devices, enabled read tools and foreground availability. Use the id to choose a Device when several have the same tool.", emptyList())
+                override val descriptor = toolSpec(ToolNames.DEVICE_TOOLS, "List paired Devices, enabled read tools and foreground availability. Use the id to choose a Device when several have the same tool.", emptyList())
                 override suspend fun execute(args: JsonObject) = ProtocolJson.encodeToString(ListSerializer(ToolDevice.serializer()), devices())
             },
             readTool(run, DeviceToolKind.Contacts, "contacts_lookup", "Find Contacts by name, phone number or email. Returns only matching names, phone numbers and emails, up to 20 results."),
@@ -82,13 +89,13 @@ class DeviceTools(
     }
 
     private fun readTool(run: RunContext, kind: DeviceToolKind, name: String, description: String) = object : CoreTool {
-        override val descriptor = ToolDescriptor(
+        override val descriptor = toolSpec(
             name, "$description Requires an enabled paired Device. If it cannot answer, the run waits for it to open, or for the user to Skip. Never infer data from an unavailable result.",
             requiredParameters = if (kind == DeviceToolKind.Contacts) listOf(parameter("query", "Name, phone number or email to find")) else listOf(
                 parameter("start_date", "First date, YYYY-MM-DD"), parameter("end_date", "Last date inclusive, YYYY-MM-DD; at most 31 days"),
             ),
             optionalParameters = listOf(parameter("device_id", "Id from device_tools; required when multiple Devices have this tool")) +
-                if (kind == DeviceToolKind.Contacts || kind == DeviceToolKind.Workouts) listOf(ToolParameterDescriptor("limit", "Result limit (default 20, max 20)", ToolParameterType.Integer)) else emptyList(),
+                if (kind == DeviceToolKind.Contacts || kind == DeviceToolKind.Workouts) listOf(ToolParameter("limit", "Result limit (default 20, max 20)", ParameterType.Integer)) else emptyList(),
         )
         override suspend fun execute(args: JsonObject): String = error("Device reads need a Session tool call")
         override suspend fun execute(args: JsonObject, callId: String): String {
@@ -153,6 +160,6 @@ class DeviceTools(
         }
     }
 
-    private fun parameter(name: String, description: String) = ToolParameterDescriptor(name, description, ToolParameterType.String)
+    private fun parameter(name: String, description: String) = ToolParameter(name, description, ParameterType.String)
     private fun result(status: DeviceToolStatus, message: String) = ProtocolJson.encodeToString(DeviceToolResult.serializer(), DeviceToolResult(status, message = message))
 }

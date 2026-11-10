@@ -1,11 +1,11 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.core.AgentModel
 import kinuvo.harness.core.plugin.ModelProvider
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.FileStore
-import kinuvo.harness.core.store.deleteTree
+import kinuvo.server.plugin.deleteTree
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemTemporaryDirectory

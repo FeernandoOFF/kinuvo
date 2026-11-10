@@ -1,5 +1,7 @@
 package kinuvo.harness.core.knowledge
 
+import kinuvo.server.plugin.BodyEdit
+
 /** [BodyEdit]s on Markdown text, for sources that keep note bodies as Markdown. */
 object MarkdownBody {
     fun apply(body: String, edits: List<BodyEdit>, link: (target: String, text: String) -> String = { t, x -> "[[$t|$x]]" }): String =

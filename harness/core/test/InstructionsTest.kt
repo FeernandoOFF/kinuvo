@@ -1,7 +1,10 @@
 package kinuvo.harness.core
 
-import ai.koog.agents.core.tools.ToolDescriptor
-import kinuvo.harness.core.tools.CoreTool
+import kinuvo.server.plugin.toolSpec
+import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.harness.execution.api.AgentDoc
+import kinuvo.server.plugin.CoreTool
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.*
@@ -30,7 +33,7 @@ class InstructionsTest {
     fun skillGuidanceUsesAvailableToolsRatherThanConfiguredOrAssumedTools() {
         val agent = Agent("a", "A", AgentConfig())
         fun tool(name: String) = object : CoreTool {
-            override val descriptor = ToolDescriptor(name, "test")
+            override val descriptor = toolSpec(name, "test")
             override suspend fun execute(args: JsonObject) = error("Not executed")
         }
         val disabled = capabilitiesFor(agent, emptyList())

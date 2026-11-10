@@ -9,7 +9,6 @@ import kotlin.test.assertNotNull
 
 import kinuvo.harness.testing.*
 
-import kinuvo.harness.core.plugin.modelAlias
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.AuthException
 import kinuvo.client.KinuvoClient
@@ -17,7 +16,7 @@ import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.harness.server.Harness
 import kinuvo.harness.core.store.AgentFiles
-import kinuvo.harness.core.store.exists
+import kinuvo.server.plugin.exists
 import kinuvo.harness.core.store.FileStore
 import kinuvo.harness.core.store.Store
 import kinuvo.protocol.SessionEntry

@@ -1,6 +1,6 @@
 package kinuvo.ui.e2e
 
-import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.harness.server.testing.FakeTool
 import kinuvo.harness.server.testing.FakeTools
 import kinuvo.protocol.Api

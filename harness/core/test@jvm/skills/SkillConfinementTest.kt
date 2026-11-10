@@ -1,7 +1,7 @@
 package kinuvo.harness.core.skills
 
 import kinuvo.harness.core.TestHome
-import kinuvo.harness.core.store.writeAtomically
+import kinuvo.server.plugin.writeAtomically
 import kinuvo.protocol.ConfigScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path

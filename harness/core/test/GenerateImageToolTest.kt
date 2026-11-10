@@ -1,10 +1,10 @@
 package kinuvo.harness.core
 
-import ai.koog.agents.core.tools.ToolDescriptor
-import kinuvo.harness.core.plugin.GeneratedImage
-import kinuvo.harness.core.plugin.ImageGeneration
+import kinuvo.harness.execution.api.ToolSpec
+import kinuvo.server.plugin.GeneratedImage
+import kinuvo.server.plugin.ImageGeneration
 import kinuvo.harness.core.tools.GenerateImageTool
-import kinuvo.harness.core.tools.ToolRun
+import kinuvo.server.plugin.ToolRun
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.test.runTest
@@ -25,7 +25,7 @@ class GenerateImageToolTest {
         }
         val tool = GenerateImageTool(generator, "image-model", { listOf(reference) }, { byteArrayOf(7) })
         val run = object : ToolRun {
-            override val tools = emptyList<ToolDescriptor>()
+            override val tools = emptyList<ToolSpec>()
             override suspend fun call(name: String, args: String): SessionEntry.ToolResult = error("unused")
             override suspend fun attach(name: String, bytes: ByteArray): Attachment =
                 Attachment("generated-${attached.size}", name, if (name.endsWith("jpg")) "image/jpeg" else "image/png", bytes.size).also(attached::add)

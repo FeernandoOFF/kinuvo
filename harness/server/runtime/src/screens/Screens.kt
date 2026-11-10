@@ -1,6 +1,8 @@
 package kinuvo.harness.server.screens
 
-import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.BrowserService
+import kinuvo.server.plugin.ScreenGate
+import kinuvo.server.plugin.ScreenSource
 import kinuvo.harness.core.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.*

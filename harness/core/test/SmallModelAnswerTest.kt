@@ -1,16 +1,17 @@
 package kinuvo.harness.core
 
+import kinuvo.server.plugin.toolSpec
+import kinuvo.harness.execution.api.AgentDoc
 import kinuvo.harness.testing.AgentRun
 
 import ai.koog.prompt.streaming.StreamFrame
-import ai.koog.agents.core.tools.ToolDescriptor
-import kinuvo.harness.core.tools.Tool
+import kinuvo.server.plugin.Tool
 import kotlinx.serialization.json.JsonObject
-import kinuvo.harness.core.tools.SearchRegion
+import kinuvo.server.plugin.SearchRegion
 import kinuvo.harness.core.tools.relevantPassages
 import kotlinx.coroutines.delay
-import kinuvo.harness.core.tools.WebResult
-import kinuvo.harness.core.tools.WebSearch
+import kinuvo.server.plugin.WebResult
+import kinuvo.server.plugin.WebSearch
 import kinuvo.harness.core.tools.WebSearchTool
 import kinuvo.harness.core.tools.MemoryTool
 import kinuvo.harness.core.tools.cleanSnippet
@@ -81,7 +82,7 @@ class SmallModelAnswerTest {
             val session = home.store.createSession(home.agent.id, "")
             var requests = 0
             val tool = object : Tool {
-                override val descriptor = ToolDescriptor("read", "Read")
+                override val descriptor = toolSpec("read", "Read")
                 override suspend fun execute(args: JsonObject) = "result"
             }
             val model = scriptedModel { prompt, _ ->

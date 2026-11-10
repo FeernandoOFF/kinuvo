@@ -1,6 +1,6 @@
 package kinuvo.harness.core
 
-import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.ScreenGate
 import kinuvo.protocol.*
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*

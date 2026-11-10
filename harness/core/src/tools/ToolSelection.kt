@@ -1,10 +1,12 @@
 package kinuvo.harness.core.tools
 
+import kinuvo.server.plugin.Tool
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.harness.core.SchemaLevel
 import kinuvo.harness.core.ToolPolicy
+import kinuvo.harness.execution.api.ToolSpec
 
 /**
  * The tools a run offers, narrowed in turn by [scope], the policy's groups and schema level, the provider's
@@ -17,6 +19,14 @@ fun ToolPolicy.select(tools: List<Tool>, scope: ToolScope = ToolScope.All, accep
     if (cap == null) return tools.filter { it in internal || it in allowed }
     val order = compareBy<Tool> { !scope.named(it) }.thenBy { preferred.indexOf(it.localName).let { i -> if (i < 0) preferred.size else i } }.thenBy { it.localName }
     return internal + allowed.sortedWith(order).take(cap)
+}
+
+fun ToolSpec.simplified(level: SchemaLevel): ToolSpec? {
+    if (level == SchemaLevel.Full) return this
+    if (verbatim) return null
+    val full = toDescriptor()
+    val flat = full.simplified(level) ?: return null
+    return if (flat === full) this else copy(schema = flat.toSpec().schema)
 }
 
 /** [this] as sent to a model that takes schemas up to [level]: parameters beyond it are dropped, and null when a required one is. */

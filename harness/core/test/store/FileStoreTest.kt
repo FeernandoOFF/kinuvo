@@ -1,5 +1,9 @@
 package kinuvo.harness.core.store
 
+import kinuvo.server.plugin.appendText
+import kinuvo.server.plugin.exists
+import kinuvo.server.plugin.readText
+import kinuvo.server.plugin.writeAtomically
 import kinuvo.harness.core.TestHome
 import kinuvo.harness.core.activeHistory
 import kinuvo.protocol.SessionEntry
@@ -168,11 +172,11 @@ class FileStoreTest {
     @Test
     fun clonesSettingsButNotMemory() = runTest {
         val home = TestHome()
-        home.docs.write("default", kinuvo.harness.core.AgentDoc.Memory, "- secret")
+        home.docs.write("default", kinuvo.harness.execution.api.AgentDoc.Memory, "- secret")
         writeAtomically(Path(home.files.skills("default"), "notes", "SKILL.md"), "x")
         val clone = home.store.createAgent("work", home.agent)
         assertEquals("Kinuvo", clone.name)
-        assertEquals("", home.docs.read("work", kinuvo.harness.core.AgentDoc.Memory))
+        assertEquals("", home.docs.read("work", kinuvo.harness.execution.api.AgentDoc.Memory))
         assertEquals("x", Path(home.files.skills("work"), "notes", "SKILL.md").readText())
     }
 

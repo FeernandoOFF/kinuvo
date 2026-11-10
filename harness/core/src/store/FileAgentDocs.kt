@@ -1,7 +1,9 @@
 package kinuvo.harness.core.store
 
-import kinuvo.harness.core.AgentDoc
-import kinuvo.harness.core.AgentDocs
+import kinuvo.server.plugin.readTextOrNull
+import kinuvo.server.plugin.writeAtomically
+import kinuvo.harness.execution.api.AgentDoc
+import kinuvo.harness.execution.api.AgentDocs
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 

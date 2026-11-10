@@ -3,7 +3,6 @@ package kinuvo.harness.core.knowledge
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.TestHome
-import kinuvo.harness.core.plugin.modelAlias
 import kinuvo.harness.core.skills.load
 import kinuvo.harness.core.store.FileKnowledgeChangeLog
 import kinuvo.harness.core.store.MarkdownKnowledgeSource

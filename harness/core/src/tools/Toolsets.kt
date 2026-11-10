@@ -1,5 +1,8 @@
 package kinuvo.harness.core.tools
 
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.CoreToolRegistry
+
 data class Toolset(val name: String, val tools: Set<String> = emptySet(), val includes: Set<String> = emptySet())
 
 class Toolsets(val entries: List<Toolset>) {

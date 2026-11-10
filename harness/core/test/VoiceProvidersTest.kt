@@ -1,6 +1,6 @@
 package kinuvo.harness.core
 
-import kinuvo.harness.core.voice.VoiceProviders
+import kinuvo.server.plugin.VoiceProviders
 import kinuvo.protocol.VoiceSetup
 import kotlin.test.Test
 import kotlin.test.assertEquals

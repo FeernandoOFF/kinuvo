@@ -1,5 +1,6 @@
 package kinuvo.harness.core
 
+import kinuvo.server.plugin.takeWhole
 import kinuvo.protocol.ModelTier
 
 data class ResultLimits(val maxTokens: Int, val maxItems: Int?, val olderShare: Double = 0.25) {

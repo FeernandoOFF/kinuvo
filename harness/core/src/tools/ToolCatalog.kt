@@ -1,8 +1,14 @@
 package kinuvo.harness.core.tools
 
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
+import kinuvo.server.plugin.toolSpec
+import kinuvo.server.plugin.ParameterType
+import kinuvo.server.plugin.ToolParameter
+import kinuvo.protocol.ToolNames
+import kinuvo.server.plugin.CoreTool
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.ToolRun
+import kinuvo.server.plugin.requireString
+import kinuvo.server.plugin.string
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
@@ -32,11 +38,11 @@ private fun List<Tool>.named(name: String) = requireNotNull(firstOrNull { it.des
 private class FindTools(private val catalogued: List<Tool>) : CoreTool {
     override val catalogTargets get() = catalogued
     private val sources = catalogued.mapNotNull { it.identity?.instance?.instanceId?.substringAfterLast('/') }.distinct()
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         ToolNames.FIND_TOOLS,
         "Search ${catalogued.size} more tools (from ${sources.joinToString()}) by what you need; returns names and descriptions. " +
             "Read one's parameters with the catalog's describe tool, then run it with its call tool or as `tools.<name>` in a Script.",
-        requiredParameters = listOf(ToolParameterDescriptor("query", "Words describing the tool, e.g. \"create issue\"; empty lists them all", ToolParameterType.String)),
+        requiredParameters = listOf(ToolParameter("query", "Words describing the tool, e.g. \"create issue\"; empty lists them all", ParameterType.String)),
     )
 
     override suspend fun execute(args: JsonObject): String {
@@ -52,9 +58,9 @@ private class FindTools(private val catalogued: List<Tool>) : CoreTool {
 
 private class DescribeTool(private val catalogued: List<Tool>) : CoreTool {
     override val catalogTargets get() = catalogued
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         ToolNames.DESCRIBE_TOOL, "A catalogued tool's description and parameters (JSON Schema).",
-        requiredParameters = listOf(ToolParameterDescriptor("name", "The tool's exact name from the catalog search", ToolParameterType.String)),
+        requiredParameters = listOf(ToolParameter("name", "The tool's exact name from the catalog search", ParameterType.String)),
     )
 
     override suspend fun execute(args: JsonObject): String {
@@ -62,13 +68,14 @@ private class DescribeTool(private val catalogued: List<Tool>) : CoreTool {
         return buildJsonObject {
             put("name", d.name)
             put("description", d.description)
-            if (d is RawSchemaToolDescriptor) put("parameters", d.schema) else putJsonObject("parameters") {
+            if (d.verbatim) put("parameters", d.schema) else putJsonObject("parameters") {
+                val koog = d.toDescriptor()
                 putJsonObject("properties") {
-                    (d.requiredParameters + d.optionalParameters).forEach { p ->
+                    (koog.requiredParameters + koog.optionalParameters).forEach { p ->
                         putJsonObject(p.name) { put("type", p.type.name.lowercase()); put("description", p.description) }
                     }
                 }
-                put("required", buildJsonArray { d.requiredParameters.forEach { add(JsonPrimitive(it.name)) } })
+                put("required", buildJsonArray { koog.requiredParameters.forEach { add(JsonPrimitive(it.name)) } })
             }
         }.toString()
     }
@@ -76,11 +83,11 @@ private class DescribeTool(private val catalogued: List<Tool>) : CoreTool {
 
 private class CallTool(private val catalogued: List<Tool>) : CoreTool {
     override val catalogTargets get() = catalogued
-    override val descriptor = ToolDescriptor(
+    override val descriptor = toolSpec(
         ToolNames.CALL_TOOL, "Run a catalogued tool; it asks for Approval like the tool itself would.",
         requiredParameters = listOf(
-            ToolParameterDescriptor("name", "The tool's exact name", ToolParameterType.String),
-            ToolParameterDescriptor("arguments", "Its arguments as a JSON object string, following its described parameters", ToolParameterType.String),
+            ToolParameter("name", "The tool's exact name", ParameterType.String),
+            ToolParameter("arguments", "Its arguments as a JSON object string, following its described parameters", ParameterType.String),
         ),
     )
 

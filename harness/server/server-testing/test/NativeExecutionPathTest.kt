@@ -3,7 +3,7 @@ package kinuvo.harness.server.testing
 import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
 import kinuvo.client.KinuvoClient
-import kinuvo.harness.core.AgentDoc
+import kinuvo.harness.execution.api.AgentDoc
 import kinuvo.harness.execution.api.RunKind
 import kinuvo.harness.testing.awaitCondition
 import kinuvo.protocol.AgentRef

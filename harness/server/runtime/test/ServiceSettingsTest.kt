@@ -1,6 +1,10 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.NotificationProvider
+import kinuvo.server.plugin.Notifier
+import kinuvo.server.plugin.deleteTree
+import kinuvo.server.plugin.readTextOrNull
 import kinuvo.harness.core.*
 import kinuvo.harness.core.store.*
 import kinuvo.protocol.*
@@ -26,7 +30,7 @@ class ServiceSettingsTest {
         override val id = id
         override val name = "Provider $id"
         override val settings = schema
-        override fun configured(options: Map<String, String>, host: kinuvo.harness.core.plugin.PluginHost): Notifier {
+        override fun configured(options: Map<String, String>, host: kinuvo.server.plugin.PluginHost): Notifier {
             configured++
             return Notifier { sentOptions = options }
         }

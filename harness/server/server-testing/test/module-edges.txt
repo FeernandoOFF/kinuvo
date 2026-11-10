@@ -15,38 +15,42 @@ apps/ios -> shared/ui
 apps/web -> shared/ui
 harness/core -> harness/execution/api
 harness/core -> harness/testing [test]
+harness/core -> server/plugin-api
 harness/core -> shared/app [test]
 harness/core -> shared/protocol
 harness/execution/acp -> harness/execution/api
 harness/execution/acp -> harness/server/runtime [test]
 harness/execution/api -> shared/protocol
 harness/models -> shared/protocol
-harness/plugins/anytype -> harness/core
-harness/plugins/bitwarden -> harness/core
-harness/plugins/browser -> harness/core
-harness/plugins/caldav -> harness/core
-harness/plugins/cua -> harness/core
-harness/plugins/exec -> harness/core
-harness/plugins/executor -> harness/core
-harness/plugins/executor -> harness/testing [test]
-harness/plugins/firecrawl -> harness/core
-harness/plugins/mcp -> harness/core
-harness/plugins/ntfy -> harness/core
-harness/plugins/onepassword -> harness/core
-harness/plugins/protonpass -> harness/core
-harness/plugins/reminders -> harness/core
-harness/plugins/todoist -> harness/core
+harness/plugins/anytype -> server/plugin-api
+harness/plugins/bitwarden -> server/plugin-api
+harness/plugins/browser -> server/plugin-api
+harness/plugins/caldav -> server/plugin-api
+harness/plugins/cua -> server/plugin-api
+harness/plugins/exec -> server/plugin-api
+harness/plugins/executor -> server/plugin-api
+harness/plugins/firecrawl -> server/plugin-api
+harness/plugins/mcp -> server/plugin-api
+harness/plugins/ntfy -> server/plugin-api
+harness/plugins/onepassword -> server/plugin-api
+harness/plugins/protonpass -> server/plugin-api
+harness/plugins/reminders -> server/plugin-api
+harness/plugins/todoist -> server/plugin-api
+harness/plugins/voice -> harness/models
+harness/plugins/voice -> server/plugin-api
 harness/providers/apple -> harness/core
 harness/providers/apple -> harness/testing [test]
+harness/providers/apple -> server/plugin-api
 harness/providers/codex -> harness/core
 harness/providers/codex -> harness/testing [test]
+harness/providers/codex -> server/plugin-api
 harness/providers/koog -> harness/core
 harness/providers/koog -> harness/testing [test]
+harness/providers/koog -> server/plugin-api
 harness/providers/litert -> harness/core
 harness/providers/litert -> harness/models
 harness/providers/litert -> harness/testing [test]
-harness/providers/voice -> harness/core
-harness/providers/voice -> harness/models
+harness/providers/litert -> server/plugin-api
 harness/server/embedded -> harness/plugins/anytype
 harness/server/embedded -> harness/plugins/caldav
 harness/server/embedded -> harness/plugins/executor
@@ -76,11 +80,11 @@ harness/server/jvm -> harness/plugins/onepassword
 harness/server/jvm -> harness/plugins/protonpass
 harness/server/jvm -> harness/plugins/reminders
 harness/server/jvm -> harness/plugins/todoist
+harness/server/jvm -> harness/plugins/voice
 harness/server/jvm -> harness/providers/apple
 harness/server/jvm -> harness/providers/codex
 harness/server/jvm -> harness/providers/koog
 harness/server/jvm -> harness/providers/litert
-harness/server/jvm -> harness/providers/voice
 harness/server/jvm -> harness/server/runtime
 harness/server/jvm -> harness/testing [test]
 harness/server/jvm -> shared/client [test]
@@ -93,6 +97,8 @@ harness/server/server-testing -> harness/server/runtime
 harness/server/server-testing -> harness/testing
 harness/server/server-testing -> shared/client
 harness/testing -> harness/core
+server/plugin-api -> harness/execution/api
+server/plugin-api -> shared/protocol
 shared/app -> shared/client
 shared/client -> shared/protocol
 shared/ui -> harness/plugins/browser
