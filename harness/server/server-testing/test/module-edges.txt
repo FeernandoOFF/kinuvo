@@ -1,0 +1,102 @@
+apps/android -> shared/ui
+apps/android -> shared/ui/android-computer
+apps/android-play -> shared/ui
+apps/cli -> harness/execution/acp
+apps/cli -> harness/execution/api
+apps/cli -> harness/plugins/cua
+apps/cli -> harness/providers/codex [test]
+apps/cli -> harness/server/jvm
+apps/cli -> harness/testing [test]
+apps/cli -> shared/client
+apps/desktop -> harness/plugins/cua
+apps/desktop -> harness/server/jvm
+apps/desktop -> shared/ui
+apps/ios -> shared/ui
+apps/web -> shared/ui
+harness/core -> harness/testing [test]
+harness/core -> shared/app [test]
+harness/core -> shared/protocol
+harness/execution/acp -> harness/execution/api
+harness/execution/acp -> harness/server/runtime [test]
+harness/execution/api -> shared/protocol
+harness/models -> shared/protocol
+harness/plugins/anytype -> harness/core
+harness/plugins/bitwarden -> harness/core
+harness/plugins/browser -> harness/core
+harness/plugins/caldav -> harness/core
+harness/plugins/cua -> harness/core
+harness/plugins/exec -> harness/core
+harness/plugins/executor -> harness/core
+harness/plugins/executor -> harness/testing [test]
+harness/plugins/firecrawl -> harness/core
+harness/plugins/mcp -> harness/core
+harness/plugins/ntfy -> harness/core
+harness/plugins/onepassword -> harness/core
+harness/plugins/protonpass -> harness/core
+harness/plugins/reminders -> harness/core
+harness/plugins/todoist -> harness/core
+harness/providers/apple -> harness/core
+harness/providers/apple -> harness/testing [test]
+harness/providers/codex -> harness/core
+harness/providers/codex -> harness/testing [test]
+harness/providers/koog -> harness/core
+harness/providers/koog -> harness/testing [test]
+harness/providers/litert -> harness/core
+harness/providers/litert -> harness/models
+harness/providers/litert -> harness/testing [test]
+harness/providers/voice -> harness/core
+harness/providers/voice -> harness/models
+harness/server/embedded -> harness/plugins/anytype
+harness/server/embedded -> harness/plugins/caldav
+harness/server/embedded -> harness/plugins/executor
+harness/server/embedded -> harness/plugins/firecrawl
+harness/server/embedded -> harness/plugins/mcp
+harness/server/embedded -> harness/plugins/ntfy
+harness/server/embedded -> harness/plugins/todoist
+harness/server/embedded -> harness/providers/codex
+harness/server/embedded -> harness/providers/koog
+harness/server/embedded -> harness/providers/litert
+harness/server/embedded -> harness/server/runtime
+harness/server/embedded -> harness/testing [test]
+harness/server/embedded -> shared/client [test]
+harness/server/fixture-server -> harness/server/server-testing
+harness/server/jvm -> harness/core
+harness/server/jvm -> harness/execution/acp
+harness/server/jvm -> harness/plugins/anytype
+harness/server/jvm -> harness/plugins/bitwarden
+harness/server/jvm -> harness/plugins/browser
+harness/server/jvm -> harness/plugins/caldav
+harness/server/jvm -> harness/plugins/exec
+harness/server/jvm -> harness/plugins/executor
+harness/server/jvm -> harness/plugins/firecrawl
+harness/server/jvm -> harness/plugins/mcp
+harness/server/jvm -> harness/plugins/ntfy
+harness/server/jvm -> harness/plugins/onepassword
+harness/server/jvm -> harness/plugins/protonpass
+harness/server/jvm -> harness/plugins/reminders
+harness/server/jvm -> harness/plugins/todoist
+harness/server/jvm -> harness/providers/apple
+harness/server/jvm -> harness/providers/codex
+harness/server/jvm -> harness/providers/koog
+harness/server/jvm -> harness/providers/litert
+harness/server/jvm -> harness/providers/voice
+harness/server/jvm -> harness/server/runtime
+harness/server/jvm -> harness/testing [test]
+harness/server/jvm -> shared/client [test]
+harness/server/runtime -> harness/core
+harness/server/runtime -> harness/execution/api
+harness/server/runtime -> harness/testing [test]
+harness/server/runtime -> shared/client
+harness/server/runtime -> shared/client [test]
+harness/server/server-testing -> harness/server/runtime
+harness/server/server-testing -> harness/testing
+harness/server/server-testing -> shared/client
+harness/testing -> harness/core
+shared/app -> shared/client
+shared/client -> shared/protocol
+shared/ui -> harness/plugins/browser
+shared/ui -> harness/providers/apple
+shared/ui -> harness/server/embedded
+shared/ui -> harness/server/server-testing [test]
+shared/ui -> shared/app
+shared/ui/android-computer -> shared/app
