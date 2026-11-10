@@ -242,7 +242,7 @@ internal fun searchWords(args: String): Set<String> = runCatching {
     queryWords(query)
 }.getOrDefault(emptySet())
 
-internal fun queryWords(query: String): Set<String> =
+fun queryWords(query: String): Set<String> =
     query.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))
         .filter { it.isNotBlank() && it !in setOf("a", "an", "the", "is", "who", "what", "of", "in", "on", "for", "to", "and") }.toSet()
 

@@ -15,8 +15,6 @@ apps/ios -> shared/ui
 apps/web -> shared/ui
 harness/core -> harness/execution/api
 harness/core -> harness/testing [test]
-harness/core -> server/plugin-api
-harness/core -> shared/app [test]
 harness/core -> shared/protocol
 harness/execution/acp -> harness/execution/api
 harness/execution/acp -> harness/server/runtime [test]
@@ -39,16 +37,21 @@ harness/plugins/todoist -> server/plugin-api
 harness/plugins/voice -> harness/models
 harness/plugins/voice -> server/plugin-api
 harness/providers/apple -> harness/core
+harness/providers/apple -> harness/server/runtime
 harness/providers/apple -> harness/testing [test]
 harness/providers/apple -> server/plugin-api
 harness/providers/codex -> harness/core
+harness/providers/codex -> harness/server/runtime
+harness/providers/codex -> harness/server/server-testing [test]
 harness/providers/codex -> harness/testing [test]
 harness/providers/codex -> server/plugin-api
 harness/providers/koog -> harness/core
+harness/providers/koog -> harness/server/runtime
 harness/providers/koog -> harness/testing [test]
 harness/providers/koog -> server/plugin-api
 harness/providers/litert -> harness/core
 harness/providers/litert -> harness/models
+harness/providers/litert -> harness/server/runtime
 harness/providers/litert -> harness/testing [test]
 harness/providers/litert -> server/plugin-api
 harness/server/embedded -> harness/plugins/anytype
@@ -86,11 +89,15 @@ harness/server/jvm -> harness/providers/codex
 harness/server/jvm -> harness/providers/koog
 harness/server/jvm -> harness/providers/litert
 harness/server/jvm -> harness/server/runtime
+harness/server/jvm -> harness/server/server-testing [test]
 harness/server/jvm -> harness/testing [test]
 harness/server/jvm -> shared/client [test]
 harness/server/runtime -> harness/core
 harness/server/runtime -> harness/execution/api
+harness/server/runtime -> harness/server/server-testing [test]
 harness/server/runtime -> harness/testing [test]
+harness/server/runtime -> server/plugin-api
+harness/server/runtime -> shared/app [test]
 harness/server/runtime -> shared/client
 harness/server/runtime -> shared/client [test]
 harness/server/server-testing -> harness/server/runtime

@@ -25,7 +25,7 @@ import kotlinx.coroutines.withContext
 import kotlin.uuid.Uuid
 
 /** Runs each of [turn]'s stages as its own Koog run with the Reflection strategy; the Server owns what each stage may call. */
-internal suspend fun runReflection(turn: ReflectionTurn, agent: Agent, model: AgentModel, sessionId: String, tracing: AgentTracing?) {
+suspend fun runReflection(turn: ReflectionTurn, agent: Agent, model: AgentModel, sessionId: String, tracing: AgentTracing?) {
     for (stage in turn.stages) {
         val runId = Uuid.random().toString()
         val run = ReflectionStageRun(turn, agent, model)

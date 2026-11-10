@@ -45,7 +45,7 @@ object ServerInstallation {
         val resources = ServerResources(plugins) { try { tracing?.close() } finally { voice?.close(); hosts?.close(); http?.close() } }
         try {
             plugins.checkPluginInstances()
-            tracing = if (files.config().tracing) localTracing(files) else null
+            tracing = if (files.config().tracing) localTracing(files.traces) else null
             val installedStore = store ?: FileStore(files, clock)
             val docs = FileAgentDocs(files)
             val providers = object : AbstractList<ModelProvider>() {

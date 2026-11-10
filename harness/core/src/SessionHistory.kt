@@ -1,6 +1,5 @@
 package kinuvo.harness.core
 
-import kinuvo.server.plugin.instance
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ToolNames
 import kinuvo.harness.core.tools.RawSchemaToolDescriptor

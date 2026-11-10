@@ -1,6 +1,5 @@
 package kinuvo.harness.core
 
-import kinuvo.server.plugin.string
 import kinuvo.harness.execution.api.ToolGate
 import kinuvo.harness.execution.api.ToolProvider
 import kinuvo.harness.execution.api.ToolSpec
@@ -8,6 +7,7 @@ import kinuvo.harness.execution.api.ToolTurn
 import kinuvo.protocol.SessionEntry
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 /** What the loop knows of a turn's tools, and its only way to run them: through the [ToolGate]. */
 internal class ToolCalls(provider: ToolProvider, private val gate: ToolGate, private val turn: ToolTurn) {
@@ -19,7 +19,7 @@ internal class ToolCalls(provider: ToolProvider, private val gate: ToolGate, pri
 
     fun search(name: String, args: String): Boolean {
         if (specs[name]?.search != true) return false
-        val action = runCatching { Json.parseToJsonElement(args).jsonObject.string("action") }.getOrNull()
+        val action = runCatching { Json.parseToJsonElement(args).jsonObject["action"]?.jsonPrimitive?.content }.getOrNull()
         return action == null || action == "search"
     }
 

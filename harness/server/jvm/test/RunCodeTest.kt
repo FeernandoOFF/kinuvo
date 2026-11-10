@@ -1,6 +1,7 @@
 package kinuvo.harness.executor
 
 import kinuvo.server.plugin.toolSpec
+import kinuvo.harness.server.testing.AgentRun
 import kinuvo.harness.testing.*
 
 import ai.koog.prompt.streaming.StreamFrame

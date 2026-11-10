@@ -12,10 +12,10 @@ import io.opentelemetry.sdk.common.CompletableResultCode
 import io.opentelemetry.sdk.trace.data.SpanData
 import io.opentelemetry.sdk.trace.data.StatusData
 import io.opentelemetry.sdk.trace.export.SpanExporter
-import kinuvo.harness.core.store.AgentFiles
 import kinuvo.protocol.RequestKind
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kotlinx.io.files.Path
 import java.nio.file.Files
 import java.nio.file.Paths
 import java.nio.file.attribute.PosixFilePermissions
@@ -26,10 +26,10 @@ import java.util.logging.LogRecord
 import java.util.logging.Logger
 import java.util.logging.Filter
 
-actual fun localTracing(files: AgentFiles): AgentTracing = FileTracing(files)
+actual fun localTracing(traces: Path): AgentTracing = FileTracing(traces)
 
 @OptIn(io.opentelemetry.kotlin.ExperimentalApi::class)
-internal class FileTracing(private val files: AgentFiles, private val limit: Int = 4 * 1024 * 1024) : AgentTracing {
+class FileTracing(private val traces: Path, private val limit: Int = 4 * 1024 * 1024) : AgentTracing {
     private var sink: FileHandler? = null
     private var exporter: SpanExporter? = null
     private var closed = false
@@ -38,7 +38,7 @@ internal class FileTracing(private val files: AgentFiles, private val limit: Int
     private fun exporter(): SpanExporter {
         check(!closed) { "Tracing is closed" }
         return exporter ?: run {
-            val directory = Paths.get(files.traces.toString())
+            val directory = Paths.get(traces.toString())
             if (directory.fileSystem.supportedFileAttributeViews().contains("posix")) {
                 val permissions = PosixFilePermissions.fromString("rwx------")
                 Files.createDirectories(directory, PosixFilePermissions.asFileAttribute(permissions))

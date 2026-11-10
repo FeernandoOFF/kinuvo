@@ -16,4 +16,4 @@ Also preserve:
 
 Restore into a stopped home with the same intended version, confirm paths and access dependencies, then start one Server. Check Agents and Sessions, Knowledge access, provider sign-in and Device pairing. Reconnect integrations when their OS-bound credentials are unavailable.
 
-There is no dedicated backup/restore CLI command. For checkout isolation and testing older versions, read [local testing](../local-testing.md). Sources: [file layout](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/core/src/store/AgentFiles.kt), [MCP OAuth storage](../adr/0007-mcp-oauth-server-owned-flow.md), [credential storage](../guides/public-hosting.md#credential-storage).
+There is no dedicated backup/restore CLI command. For checkout isolation and testing older versions, read [local testing](../local-testing.md). Sources: [file layout](https://github.com/FeernandoOFF/kinuvo/blob/main/harness/server/runtime/src/store/AgentFiles.kt), [MCP OAuth storage](../adr/0007-mcp-oauth-server-owned-flow.md), [credential storage](../guides/public-hosting.md#credential-storage).

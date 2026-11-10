@@ -1,10 +1,10 @@
 package kinuvo.harness.core
 
 import ai.koog.agents.core.agent.GraphAIAgent
-import kinuvo.harness.core.store.AgentFiles
 import kinuvo.protocol.RequestKind
+import kotlinx.io.files.Path
 
-actual fun localTracing(files: AgentFiles): AgentTracing = object : AgentTracing {
+actual fun localTracing(traces: Path): AgentTracing = object : AgentTracing {
     override fun install(context: GraphAIAgent.FeatureContext, agentId: String, sessionId: String, runId: String, kind: RequestKind) {}
     override fun close() {}
 }

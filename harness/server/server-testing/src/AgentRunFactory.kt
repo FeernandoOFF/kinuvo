@@ -1,4 +1,4 @@
-package kinuvo.harness.testing
+package kinuvo.harness.server.testing
 
 import kinuvo.harness.core.AgentModel
 import kinuvo.harness.core.AgentRun

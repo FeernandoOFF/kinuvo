@@ -1,11 +1,9 @@
 package kinuvo.harness.core.tools
 
-import kinuvo.server.plugin.Tool
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.harness.execution.api.ToolSpec
-import kinuvo.server.plugin.modelAlias
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -17,24 +15,12 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 
-/** [this] as the run's neutral spec, with [tool]'s metadata; Koog stays on this side of the boundary. */
-fun ToolDescriptor.toSpec(tool: Tool? = null) = ToolSpec(
+/** [this] as the run's neutral spec; Koog stays on this side of the boundary. */
+fun ToolDescriptor.toSpec() = ToolSpec(
     name = name,
     description = description,
     schema = (this as? RawSchemaToolDescriptor)?.schema ?: toSchema(),
     verbatim = this is RawSchemaToolDescriptor,
-).withMetadata(tool)
-
-/** [descriptor] with [this] tool's identity and flags. */
-fun Tool.spec(descriptor: ToolSpec = this.descriptor) = descriptor.withMetadata(this)
-
-private fun ToolSpec.withMetadata(tool: Tool?) = copy(
-    identity = tool?.identity,
-    aliases = listOfNotNull(tool?.identity?.modelAlias()),
-    repeatable = tool?.repeatable ?: true,
-    internal = tool?.internal ?: false,
-    search = tool?.coreMetadata?.search == true,
-    paging = tool?.coreMetadata?.paging == true,
 )
 
 fun ToolSpec.toDescriptor(): ToolDescriptor {

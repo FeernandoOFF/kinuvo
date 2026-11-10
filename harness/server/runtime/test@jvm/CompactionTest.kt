@@ -1,5 +1,6 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.server.testing.AgentRun
 import kinuvo.server.plugin.toolSpec
 import ai.koog.prompt.message.Message
 import kinuvo.protocol.ModelTier

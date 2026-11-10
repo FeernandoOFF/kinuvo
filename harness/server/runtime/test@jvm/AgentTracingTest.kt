@@ -4,7 +4,7 @@ import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.children
 import kinuvo.server.plugin.deleteTree
 import kinuvo.server.plugin.readText
-import kinuvo.harness.testing.AgentRun
+import kinuvo.harness.server.testing.AgentRun
 
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
@@ -48,7 +48,7 @@ class AgentTracingTest {
             if (step++ == 0) flowOf(StreamFrame.ToolCallComplete("c1", "read", """{"key":"private-argument-secret"}"""), StreamFrame.End())
             else flowOf(StreamFrame.TextDelta("private-response-secret"), StreamFrame.End())
         }
-        localTracing(home.files).use { tracing ->
+        localTracing(home.files.traces).use { tracing ->
             val events = AgentRun(home.agent, home.store, model, listOf(tool), tracing = tracing)
                 .run(session.id, "private-message-secret", runId = "run-1").toList()
             assertIs<AgentEvent.RunFinished>(events.last())
@@ -77,7 +77,7 @@ class AgentTracingTest {
 
     @Test
     fun failuresAndCancellationKeepStatusWithoutExceptionText() = runBlocking {
-        localTracing(home.files).use { tracing ->
+        localTracing(home.files.traces).use { tracing ->
             val session = home.store.createSession(home.agent.id, "")
             val model = scriptedModel { _, _ -> flow { emit(StreamFrame.TextDelta("private-partial-secret")); error("private-exception-secret") } }
             val events = AgentRun(home.agent, home.store, model, emptyList(), tracing = tracing).run(session.id, "private-message-secret").toList()
@@ -95,7 +95,7 @@ class AgentTracingTest {
 
     @Test
     fun failedAndCancelledToolsKeepErrorStatusWithoutPayloads() = runBlocking {
-        localTracing(home.files).use { tracing ->
+        localTracing(home.files.traces).use { tracing ->
             for (cancel in listOf(false, true)) {
                 val session = home.store.createSession(home.agent.id, "")
                 val tool = object : Tool {
@@ -120,7 +120,7 @@ class AgentTracingTest {
     @Test
     fun reflectionUsesTheSourceSessionIdentity() = runBlocking {
         val knowledge = Knowledge({ MarkdownKnowledgeSource(Path(home.files.home, "vault")) }, FileKnowledgeChangeLog(home.files.knowledgeChanges))
-        localTracing(home.files).use { tracing ->
+        localTracing(home.files.traces).use { tracing ->
             val model = scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("private-reflection-secret"), StreamFrame.End()) }
             val result = Reflection(knowledge, home.docs, tracing = tracing).reflect(home.agent, model, "source-session",
                 listOf(SessionEntry.UserMessage("private-memory-secret")))
@@ -135,7 +135,7 @@ class AgentTracingTest {
     @Test
     fun rotationStaysBoundedAcrossConcurrentRunsAndRestarts() = runBlocking {
         repeat(2) {
-            FileTracing(home.files, limit = 1024).use { tracing ->
+            FileTracing(home.files.traces, limit = 1024).use { tracing ->
                 val model = scriptedModel { _, _ -> flowOf(StreamFrame.End()) }
                 coroutineScope {
                     (1..8).map { async {

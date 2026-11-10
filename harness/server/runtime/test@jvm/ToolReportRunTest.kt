@@ -1,6 +1,6 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.testing.AgentRun
+import kinuvo.harness.server.testing.AgentRun
 
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.NativeExecutionFactory

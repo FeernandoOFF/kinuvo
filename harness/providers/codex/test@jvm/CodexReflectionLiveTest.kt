@@ -6,7 +6,7 @@ import kinuvo.harness.execution.api.AgentDoc
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.deleteTree
 import kinuvo.server.plugin.ownedBy
-import kinuvo.harness.testing.AgentRun
+import kinuvo.harness.server.testing.AgentRun
 
 import kinuvo.harness.core.*
 import kinuvo.harness.core.knowledge.*

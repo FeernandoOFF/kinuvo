@@ -27,6 +27,7 @@ dependencies:
 
 test-dependencies:
   - ../../testing
+  - ../server-testing
   - $kotlin.test
   - ../../../shared/client
   - io.ktor:ktor-server-cio:3.6.0

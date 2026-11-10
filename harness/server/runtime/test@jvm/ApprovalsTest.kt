@@ -1,5 +1,6 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.server.testing.AgentRun
 import kinuvo.server.plugin.toolSpec
 import kinuvo.harness.execution.api.Agent
 import kinuvo.server.plugin.ScreenGate

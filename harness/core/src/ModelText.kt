@@ -14,3 +14,6 @@ val SessionEntry.UserMessage.modelText: String
 private const val VOICE_NOTE = "[Voice chat: the user said this aloud and your reply will be read aloud. Reply briefly and conversationally, " +
     "in a few plain sentences, without Markdown, lists, tables, code or links unless they ask. This is a speech transcription, " +
     "so words may be misheard: infer what they most likely meant, and ask briefly if it's unclear.]"
+
+/** What a voice request adds to the instructions. */
+val liveVoiceInstructions = "This request comes from voice: reply briefly and speakably; for slow commands (builds, tests, servers), use shell with background=true and report that it started rather than blocking. Only report completion after checking the result."

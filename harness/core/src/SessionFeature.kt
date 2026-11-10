@@ -1,7 +1,6 @@
 package kinuvo.harness.core
 
 import kinuvo.harness.execution.api.Agent
-import kinuvo.server.plugin.takeWhole
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.agent.entity.createStorageKey
 import ai.koog.agents.core.feature.AIAgentGraphFeature

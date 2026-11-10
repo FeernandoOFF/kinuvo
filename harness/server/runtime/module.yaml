@@ -9,6 +9,10 @@ dependencies:
   - ../../execution/api: exported
   - ../../../shared/client
   - ../../core: exported
+  - ../../../server/plugin-api: exported
+  - com.charleskorn.kaml:kaml:0.104.0
+  - co.touchlab:stately-concurrency:2.1.0
+  - dev.ynagai.a2ui:a2ui-core:0.3.0
   - co.touchlab:stately-concurrent-collections:2.1.0
 
 dependencies@jvmAndAndroid:
@@ -26,10 +30,12 @@ settings:
     serialization: json
 
 test-dependencies@jvm:
-  - io.ktor:ktor-client-mock:3.6.0
+  - ../server-testing
 
 test-dependencies:
   - ../../testing
   - ../../../shared/client
+  - ../../../shared/app
+  - io.ktor:ktor-client-mock:3.6.0
   - $kotlin.test
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0

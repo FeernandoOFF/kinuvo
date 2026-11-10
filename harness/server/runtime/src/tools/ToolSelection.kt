@@ -16,9 +16,9 @@ import kinuvo.harness.execution.api.ToolSpec
 fun ToolPolicy.select(tools: List<Tool>, scope: ToolScope = ToolScope.All, accepts: (Tool) -> Boolean = { true }): List<Tool> {
     val (internal, rest) = tools.filter(scope::allows).partition { it.internal }
     val allowed = rest.filter { (it.group in groups && it.coreMetadata?.name !in excluded || scope.named(it)) && it.descriptor.simplified(schema) != null && accepts(it) }
-    if (cap == null) return tools.filter { it in internal || it in allowed }
+    val limit = cap ?: return tools.filter { it in internal || it in allowed }
     val order = compareBy<Tool> { !scope.named(it) }.thenBy { preferred.indexOf(it.localName).let { i -> if (i < 0) preferred.size else i } }.thenBy { it.localName }
-    return internal + allowed.sortedWith(order).take(cap)
+    return internal + allowed.sortedWith(order).take(limit)
 }
 
 fun ToolSpec.simplified(level: SchemaLevel): ToolSpec? {

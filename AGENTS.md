@@ -4,7 +4,7 @@ Self-hosted personal AI assistant. Terms: `CONTEXT.md`. Decisions: `docs/adr/`.
 
 ## Layout
 
-- `harness/`: runs Agents: `core` (KMP), `execution/` (`api` contracts, `acp` external harnesses), `models` (verified model downloads), `plugins/` (anytype, bitwarden, browser, caldav, exec, executor, firecrawl, mcp, ntfy, onepassword, protonpass, reminders, todoist, voice; `cua` is the desktop Computer driver), `providers/` (apple, codex, koog, litert), `server/` (`runtime` KMP, `jvm` host, `embedded` on-device, with each phone's plugin list, `server-testing` real in-process Server fixtures, `fixture-server` Maestro launcher), `testing`.
+- `harness/`: runs Agents: `core` (KMP, the built-in harness: no Server dependencies), `execution/` (`api` contracts, `acp` external harnesses), `models` (verified model downloads), `plugins/` (anytype, bitwarden, browser, caldav, exec, executor, firecrawl, mcp, ntfy, onepassword, protonpass, reminders, todoist, voice; `cua` is the desktop Computer driver), `providers/` (apple, codex, koog, litert), `server/` (`runtime` KMP, `jvm` host, `embedded` on-device, with each phone's plugin list, `server-testing` real in-process Server fixtures, `fixture-server` Maestro launcher), `testing`.
 - `server/plugin-api`: the Server plugin SPI (`kinuvo.server.plugin`, KMP, Koog-free): contracts and pure helpers; plugins depend on it, never on `harness/core`.
 - `shared/`: KMP, used by clients: `protocol`, `client`, `app` (Compose-free feature logic), `ui` (Compose Multiplatform, matching feature packages).
 - `apps/`: platform shells (desktop, android, ios, web) and `cli`, the `kinuvo` command (headless server + management commands).
