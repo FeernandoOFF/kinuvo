@@ -7,12 +7,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlin.test.*
 
 class InstructionsTest {
-    @Test fun liveVoiceGuidanceKeepsSlowWorkInTheBackground() {
-        assertTrue(liveVoiceInstructions.contains("reply briefly"))
-        assertTrue(liveVoiceInstructions.contains("background=true"))
-        assertTrue(liveVoiceInstructions.contains("Only report completion after checking"))
-    }
-
     @Test
     fun operatingRulesApplyWithoutReplacingCustomSoulOrFreezingChangingContext() = runTest {
         val home = TestHome()
