@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.io.files.Path
 import java.io.File
@@ -157,7 +158,9 @@ class TestServer private constructor(
                 val runtime = ServerRuntime(harness, auth, "Test Server", executionRegistry = registry, executionStorage = recovery,
                     executionFactory = harnesses.takeIf { it.isNotEmpty() }?.let(::FakeHarnesses))
                 runtime.start(schedule = false)
-                withTimeout(5_000) { while (registry.catalog().connections.any { it.readiness.reasonCode == "checking" }) delay(10) }
+                withContext(Dispatchers.Default) {
+                    withTimeout(5_000) { while (registry.catalog().connections.any { it.readiness.reasonCode == "checking" }) delay(10) }
+                }
                 return TestServer(directory, harness, runtime, auth, modelScript, harnesses, temporary = home == null)
             } catch (e: Throwable) {
                 try { harness.close() } catch (cleanup: Throwable) { e.addSuppressed(cleanup) }
