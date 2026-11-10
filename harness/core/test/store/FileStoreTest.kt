@@ -9,13 +9,15 @@ import kotlinx.io.files.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
+import kotlin.random.Random
 
 class FileStoreTest {
     @Test
     fun writeTimesSurviveReloadAndReplayWhileLegacyEntriesStayUnknown() = runTest {
         val home = TestHome()
         var now = 100L
-        val store = FileStore(home.files) { now }
+        val store = FileStore(home.files, { now })
         val session = store.createSession(home.agent.id, "instructions")
         val reply = SessionEntry.AssistantMessage("reply", "reply")
         now = 200L
@@ -104,6 +106,27 @@ class FileStoreTest {
         val entries = home.store.entries(home.agent.id, session.id)
         assertEquals(4, entries.size)
         assertEquals(listOf(SessionEntry.UserMessage("next")), entries.activeHistory().map { it.withWrittenAt(null) })
+    }
+
+    @Test
+    fun newSessionNeverReusesAnIdTakenByAnotherAgent() = runTest {
+        val home = TestHome()
+        val other = home.store.createAgent("other")
+        val clock = { 1_700_000_000_000L }
+        val suffixes = ArrayDeque(listOf(0x1234, 0x1234, 0x5678, 0x5678, 0x9abc))
+        val random = object : Random() {
+            override fun nextBits(bitCount: Int) = 0
+            override fun nextInt(from: Int, until: Int) = suffixes.removeFirst()
+        }
+        val store = FileStore(home.files, clock, random)
+        val first = store.createSession(other.id, "instructions")
+        val second = store.createSession(home.agent.id, "instructions")
+        val third = store.createSession(home.agent.id, "instructions")
+        assertTrue(first.id.endsWith("-1234"))
+        assertEquals(first.id.dropLast(4) + "5678", second.id)
+        assertEquals(first.id.dropLast(4) + "9abc", third.id)
+        assertEquals(setOf(second.id, third.id), store.sessions(home.agent.id).map { it.id }.toSet())
+        assertEquals(listOf(first.id), store.sessions(other.id).map { it.id })
     }
 
     @Test
