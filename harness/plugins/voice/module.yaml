@@ -2,7 +2,7 @@
 product: jvm/lib
 
 dependencies:
-  - ../../core: exported
+  - ../../../server/plugin-api: exported
   - ../../models: exported
   - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0
 

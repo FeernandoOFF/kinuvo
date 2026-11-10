@@ -1,8 +1,13 @@
 package kinuvo.harness.voice
 
-import kinuvo.harness.core.plugin.HarnessPlugin
-import kinuvo.harness.core.store.writeAtomically
-import kinuvo.harness.core.voice.*
+import kinuvo.server.plugin.Audio
+import kinuvo.server.plugin.AudioFormat
+import kinuvo.server.plugin.ServerVoice
+import kinuvo.server.plugin.Synthesizer
+import kinuvo.server.plugin.Transcriber
+import kinuvo.server.plugin.VoiceProviders
+import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.writeAtomically
 import kinuvo.harness.models.voiceEngine
 import kinuvo.protocol.*
 import kotlinx.coroutines.*

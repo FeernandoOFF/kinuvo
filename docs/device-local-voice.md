@@ -57,7 +57,7 @@ this is not a learned speech detector. Dictation ends when toggled again or afte
 
 ## Native Server worker
 
-The `harness/providers/voice` JVM plugin (`DownloadedVoice`) owns verified storage and inference.
+The `harness/plugins/voice` JVM plugin (`DownloadedVoice`) owns verified storage and inference.
 The C worker uses sherpa-onnx 1.13.8 and ONNX Runtime on CPU, two threads, with
 one worker per inference. It unloads weights on exit, has a two-minute deadline,
 and is killed on cancellation. Server inference is serialized to bound memory.
