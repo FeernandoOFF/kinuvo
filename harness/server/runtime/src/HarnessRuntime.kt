@@ -31,9 +31,6 @@ import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.Uuid
 import kinuvo.protocol.AgentEvent
 import kotlinx.coroutines.NonCancellable
-import kinuvo.protocol.PendingInteraction
-import ai.koog.agents.core.tools.ToolDescriptor
-import kotlinx.coroutines.withTimeoutOrNull
 import kinuvo.protocol.SessionStatus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -61,6 +58,7 @@ import kinuvo.harness.core.tools.indexedTools
 import kinuvo.harness.core.tools.Toolsets
 import kinuvo.harness.core.tools.ToolReports
 import kinuvo.harness.core.tools.ToolService
+import kinuvo.harness.execution.api.ToolTurn
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.ToolCatalog
 import kinuvo.harness.core.effective
@@ -359,49 +357,58 @@ open class HarnessRuntime(
 
     suspend fun appResource(request: McpAppRequest): McpAppResource = app(request).let { (apps, ref) -> apps.resource(request.agentId, ref) }
 
-    /** Runs a tool of the app's own MCP server for the app, under the Session's Approvals, asked in its Session. */
+    /** Runs a tool of the app's own MCP server for the app, through the tool service: the Session's Approvals, asked in its Session. */
     suspend fun appCallTool(agent: Agent, request: McpAppToolRequest): JsonObject {
         val (apps, ref) = app(request.app)
         val sessionId = request.app.sessionId
         val asked = secrets.redacting(apps.tool(agent.id, ref, request.name))
-        val policy = ApprovalPolicy(agent.with(store.session(agent.id, sessionId).settings), trustRules, session = sessionTrust.scope(sessionId))
-        val args = request.arguments.toString()
-        when (val verdict = policy.decide(asked, args)) {
-            is Verdict.Block -> error(verdict.reason)
-            // One Approval card at a time: a Session shows a single pending Approval.
-            is Verdict.Ask -> appApprovalLock(sessionId).withLock {
-                check(log.status(sessionId) == SessionStatus.Idle) { "The Agent is busy; try '${request.name}' again when it finishes" }
-                val callId = "app-${request.app.callId}-${Uuid.random()}"
-                val pending = approvals.register()
-                var decision: ApprovalDecision? = null
-                try {
-                    log.publish(agent.id, sessionId, AgentEvent.InteractionRequested(PendingInteraction.Approval(pending.id, callId, request.name, args, null,
-                        verdict.assessment.risk, verdict.assessment.reason, verdict.trustKeys.isNotEmpty(), asked.identity)))
-                    decision = withTimeoutOrNull(APP_APPROVAL_WAIT) { pending.await() }
-                } finally {
-                    pending.close()
-                    val allowed = decision != null && decision !is ApprovalDecision.Deny
-                    withContext(NonCancellable) { log.publish(agent.id, sessionId, AgentEvent.InteractionResolved(pending.id, allowed)) }
-                }
-                when (decision) {
-                    null -> error("No answer to the Approval for '${request.name}'")
-                    is ApprovalDecision.Deny -> error("The user denied '${request.name}'")
-                    ApprovalDecision.AlwaysAllow -> policy.trust(asked, verdict.trustKeys)
-                    ApprovalDecision.AllowForSession -> policy.trustForSession(asked, verdict.trustKeys)
-                    else -> Unit
-                }
-            }
-            Verdict.Run -> Unit
+        // Checked again once the Approval is answered: the server or tool may have been removed meanwhile.
+        val tool = object : Tool by asked {
+            override suspend fun executeResult(args: JsonObject, callId: String, run: ToolRun) =
+                secrets.redacting(apps.tool(agent.id, ref, request.name)).executeResult(args, callId, run)
         }
-        // Checked again: the server or tool may have been removed while the Approval waited.
-        val tool = secrets.redacting(apps.tool(agent.id, ref, request.name))
-        val result = tool.executeResult(request.arguments, "app-${request.app.callId}", object : ToolRun {
-            override val tools = emptyList<ToolDescriptor>()
-            override suspend fun call(name: String, args: String) = SessionEntry.ToolResult(name, name, "Unavailable to MCP Apps", isError = true)
-        })
+        val policy = ApprovalPolicy(agent.with(store.session(agent.id, sessionId).settings), trustRules, session = sessionTrust.scope(sessionId))
+        val service = ToolService(listOf(tool), approvals = Approvals(policy, approvals, wait = APP_APPROVAL_WAIT))
+        val call = SessionEntry.ToolCall("app-${request.app.callId}-${Uuid.random()}", tool.descriptor.name, request.arguments.toString(), tool.identity)
+        val result = withAppApproval(agent, sessionId, request.name) { turn -> service.invoke(call, turn) }
         return result.appResult ?: buildJsonObject {
             put("content", buildJsonArray { add(buildJsonObject { put("type", "text"); put("text", result.output) }) })
             put("isError", result.isError)
+        }
+    }
+
+    /** Shows only the Approval a call needs, in its Session and one at a time: a Session shows a single pending Approval. */
+    private suspend fun <T> withAppApproval(agent: Agent, sessionId: String, name: String, call: suspend (ToolTurn) -> T): T {
+        val lock = appApprovalLock(sessionId)
+        var pending: String? = null
+        val turn = ToolTurn(emit = { event ->
+            when (event) {
+                is AgentEvent.InteractionRequested -> {
+                    lock.lock()
+                    try {
+                        check(log.status(sessionId) == SessionStatus.Idle) { "The Agent is busy; try '$name' again when it finishes" }
+                        log.publish(agent.id, sessionId, event)
+                        pending = event.interaction.id
+                    } catch (e: Throwable) {
+                        lock.unlock()
+                        throw e
+                    }
+                }
+                is AgentEvent.InteractionResolved -> if (pending != null) {
+                    pending = null
+                    try { log.publish(agent.id, sessionId, event) } finally { lock.unlock() }
+                }
+                else -> Unit
+            }
+        })
+        try {
+            return call(turn)
+        } finally {
+            pending?.let { id ->
+                withContext(NonCancellable) {
+                    try { log.publish(agent.id, sessionId, AgentEvent.InteractionResolved(id, false)) } finally { lock.unlock() }
+                }
+            }
         }
     }
 
