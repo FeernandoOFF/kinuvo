@@ -30,13 +30,14 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.Uuid
 import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.PendingInteraction
 import kotlinx.coroutines.NonCancellable
+import kinuvo.protocol.PendingInteraction
+import ai.koog.agents.core.tools.ToolDescriptor
+import kotlinx.coroutines.withTimeoutOrNull
 import kinuvo.protocol.SessionStatus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import kinuvo.protocol.ReflectionResult
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.McpAppRef
@@ -50,7 +51,6 @@ import kinuvo.harness.core.tools.simplified
 import kinuvo.harness.core.tools.ToolScope
 import kinuvo.harness.core.tools.select
 import kinuvo.protocol.ModelTier
-import ai.koog.agents.core.tools.ToolDescriptor
 import kotlinx.serialization.json.*
 import kinuvo.harness.core.store.Store
 import kinuvo.harness.core.artifacts.ArtifactTool
@@ -60,6 +60,7 @@ import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.indexedTools
 import kinuvo.harness.core.tools.Toolsets
 import kinuvo.harness.core.tools.ToolReports
+import kinuvo.harness.core.tools.ToolService
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.ToolCatalog
 import kinuvo.harness.core.effective
@@ -310,16 +311,9 @@ open class HarnessRuntime(
         else personalContextFor(agent, docs) + "\n" + capabilitiesFor(agent, advertised) + "\nServer platform: $platformDescription. Today is ${Clock.System.todayIn(timeZone)} ($timeZone).\n" + sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
             if (advertised.any { it.descriptor.name == ToolNames.ACTIVATE_SKILL }) "\n\nCurrent Skills:\n" + skillCatalogFor(skills.load(agent)) else ""
         val model = model(e)
-        return AgentRun(
-            agent = agent,
-            store = store,
-            model = model,
-            contextTokens = e.info?.context,
-            tracing = dependencies.tracing,
+        val service = ToolService(
             tools = tools,
             advertisedTools = advertised.mapNotNull { it.descriptor.simplified(e.profile.tools.schema) },
-            context = secrets.redact(context),
-            warnings = prepared.warnings.map { secrets.redact(it) },
             approvals = sessionId?.let(sessionTrust::scope).let { session ->
                 when (routine?.routine?.approvals) {
                     null -> Approvals(ApprovalPolicy(agent, trustRules, session = session, scope = scope), approvals)
@@ -328,11 +322,24 @@ open class HarnessRuntime(
                     RoutineApprovals.Inherit -> Approvals(ApprovalPolicy(agent, trustRules, routineTolerance(agent), session, scope), approvals, wait = routineApprovalWait, skipped = { routine.skipped += it })
                 }
             },
-            routine = routine,
-            reports = reports,
-            profile = e.profile,
             questions = questions,
             attach = { name, bytes -> attachments.upload(UploadAttachmentParams(name, Base64.encode(bytes))) },
+            maxItems = e.profile.resultLimits.maxItems,
+            callsPerTurn = e.profile.tools.callsPerTurn,
+            reports = reports,
+        )
+        return AgentRun(
+            agent = agent,
+            store = store,
+            model = model,
+            tools = service,
+            gate = service,
+            contextTokens = e.info?.context,
+            tracing = dependencies.tracing,
+            context = secrets.redact(context),
+            warnings = prepared.warnings.map { secrets.redact(it) },
+            routine = routine,
+            profile = e.profile,
         )
     }
 

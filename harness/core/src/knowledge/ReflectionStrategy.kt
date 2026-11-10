@@ -14,7 +14,7 @@ internal fun reflectionStrategy(run: ReflectionRun, stage: ReflectionStage) = st
 
 private fun reflectionStage(run: ReflectionRun, stage: ReflectionStage) = subgraph<Unit, Unit>(stage.name) {
     var enabled = false
-    val loop = ToolLoop(run.messages, run.response, { run.executor },
+    val loop = ToolLoop(run.messages, run.response, { run.calls },
         toolName = { name -> name.takeIf { run.tools.any { it.descriptor.name == name } } ?: "unknown" },
         repeated = { call -> SessionEntry.ToolResult(call.id, call.name, "This exact call already failed. Don't repeat it; try something else.", isError = true) },
         onResult = { if (it.isError) run.error(it.output) },

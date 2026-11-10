@@ -56,14 +56,14 @@ class ApprovalsTest {
             override suspend fun execute(args: JsonObject): String { ran = true; return "ran" }
         }
         val broker = Broker<ApprovalDecision>()
-        val executor = kinuvo.harness.core.tools.ToolExecutor(listOf(tool), approvals = Approvals(policy(agent()), broker), emit = { event ->
+        val executor = kinuvo.harness.core.tools.ToolService(listOf(tool), approvals = Approvals(policy(agent()), broker))
+        val result = executor.invoke(SessionEntry.ToolCall("call", "screen", "{}"), kinuvo.harness.execution.api.ToolTurn(emit = { event ->
             if (event.approval != null) {
                 val held = gate.acquire("device", 0)
                 gate.release("device", held.generation)
                 broker.respond(event.approval!!.id, ApprovalDecision.AllowOnce)
             }
-        })
-        val result = executor.call(SessionEntry.ToolCall("call", "screen", "{}"))
+        }))
         assertTrue(result.isError)
         assertTrue(result.output.contains("capture again"))
         assertFalse(ran)

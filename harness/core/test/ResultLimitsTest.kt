@@ -55,10 +55,10 @@ class ResultLimitsTest {
                 return "ok"
             }
         }
-        val executor = ToolExecutor(listOf(core), maxItems = 3)
-        assertFalse(executor.call(SessionEntry.ToolCall("call", "contacts_lookup", "{\"limit\":20}")).isError)
+        val executor = ToolService(listOf(core), maxItems = 3)
+        assertFalse(executor.invoke(SessionEntry.ToolCall("call", "contacts_lookup", "{\"limit\":20}")).isError)
         assertEquals(3, received)
-        executor.call(SessionEntry.ToolCall("default", "contacts_lookup", "{}"))
+        executor.invoke(SessionEntry.ToolCall("default", "contacts_lookup", "{}"))
         assertEquals(3, received)
         for (parameter in listOf("limit", "max_results")) {
             val external = object : Tool {
@@ -70,8 +70,8 @@ class ResultLimitsTest {
                     return "ok"
                 }
             }
-            val mcp = ToolExecutor(listOf(external), maxItems = 3)
-            assertFalse(mcp.call(SessionEntry.ToolCall(parameter, "mcp_search", "{\"$parameter\":99}")).isError)
+            val mcp = ToolService(listOf(external), maxItems = 3)
+            assertFalse(mcp.invoke(SessionEntry.ToolCall(parameter, "mcp_search", "{\"$parameter\":99}")).isError)
             assertEquals(3, received)
         }
     }

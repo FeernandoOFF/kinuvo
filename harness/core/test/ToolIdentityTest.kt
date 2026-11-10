@@ -62,7 +62,7 @@ class ToolIdentityTest {
     @Test fun callsRecordedUnderAnAliasStillReachTheRenamedTool() = runTest {
         val forecast = listOf(bound()).withModelNames().single()
         assertEquals("forecast", forecast.descriptor.name)
-        val result = ToolExecutor(listOf(forecast)).call(SessionEntry.ToolCall("c1", bound().descriptor.name, "{}"))
+        val result = ToolService(listOf(forecast)).invoke(SessionEntry.ToolCall("c1", bound().descriptor.name, "{}"))
         assertEquals("sunny", result.output)
         assertFalse(result.isError)
     }

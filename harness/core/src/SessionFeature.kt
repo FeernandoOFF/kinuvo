@@ -9,7 +9,8 @@ import ai.koog.prompt.Prompt
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.RequestMetaInfo
 import kinuvo.harness.core.store.Store
-import kinuvo.harness.core.tools.Tool
+import kinuvo.harness.core.tools.toDescriptor
+import kinuvo.harness.execution.api.ToolProvider
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.RequestKind
@@ -51,8 +52,7 @@ internal class RunSession(
     private val sessionId: String,
     private val runId: String,
     private val model: AgentModel,
-    val tools: List<ai.koog.agents.core.tools.ToolDescriptor>,
-    callable: List<Tool>,
+    provider: ToolProvider,
     private val kind: RequestKind,
     private val contextTokens: Int?,
     private val latestTurnOnly: Boolean,
@@ -60,9 +60,10 @@ internal class RunSession(
     val emit: suspend (AgentEvent) -> Unit,
     private val voice: Boolean = false,
 ) {
+    val tools = provider.advertised.map { it.toDescriptor() }
     val messages = SessionMessages(model, tools.any { it.name == ToolNames.GENERATE_IMAGE })
-    private val callablePaging = callable.filter { it.coreMetadata?.paging == true }.map { it.descriptor.name }.toSet()
-    private val identities = callable.associate { it.descriptor.name to it.identity }
+    private val callablePaging = provider.tools.filter { it.paging }.map { it.name }.toSet()
+    private val identities = provider.tools.associate { it.name to it.identity }
     fun toolName(name: String) = name.takeIf { it in identities } ?: "unknown"
     private var instructions = ""
     private var request = 0

@@ -1,5 +1,7 @@
 package kinuvo.harness.core
 
+import kinuvo.harness.testing.AgentRun
+
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.knowledge.Knowledge

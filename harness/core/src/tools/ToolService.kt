@@ -1,21 +1,28 @@
 package kinuvo.harness.core.tools
 
-import kinuvo.harness.core.plugin.*
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.harness.core.*
-import kinuvo.protocol.ProtocolJson
+import kinuvo.harness.core.plugin.*
+import kinuvo.harness.execution.api.ToolGate
+import kinuvo.harness.execution.api.ToolProvider
+import kinuvo.harness.execution.api.ToolTurn
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.PendingInteraction
+import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
-/** One run's controlled execution path, shared by the chat strategy and Scripts. */
-class ToolExecutor(
+/**
+ * The one tool invocation path: every call from the built-in harness, Reflection and MCP Apps is checked and run here,
+ * under the same Tool scope, Deny and Trust rules, Approvals, result limits and Tool-call budget. Scripts call the run's
+ * other tools back through it.
+ */
+class ToolService(
     tools: List<Tool>,
     advertisedTools: List<ToolDescriptor> = tools.map { it.descriptor },
     private val approvals: Approvals = Approvals.none(),
@@ -23,41 +30,33 @@ class ToolExecutor(
     private val attach: ((String, ByteArray) -> Attachment)? = null,
     private val maxItems: Int? = null,
     private val callsPerTurn: Int? = null,
-    private val emit: suspend (AgentEvent) -> Unit = {},
     private val reports: ToolReports? = null,
-    private val progress: suspend (AgentEvent.ToolCallResult) -> Unit = { emit(it) },
-) {
+) : ToolProvider, ToolGate {
     // Sessions recorded before a tool got its short name still call it by its alias.
     private val toolsByName = tools.indexedTools().let { named -> named + tools.mapNotNull { t -> t.identity?.modelAlias()?.let { it to t } }.filter { it.first !in named } }
     private val callable = (advertisedTools + tools.map { it.descriptor.withItemLimits(it.itemLimits(maxItems)) }).distinctBy { it.name }
 
-    var executedCalls: Int = 0
-        private set
+    override val tools = tools.map { it.spec() }
+    override val advertised = advertisedTools
+        .map { d -> d.withItemLimits(tools.firstOrNull { it.descriptor.name == d.name }?.itemLimits(maxItems).orEmpty()) }
+        .sortedBy { it.name }
+        .map { it.toSpec(toolsByName[it.name]) }
 
-    fun search(name: String, args: String): Boolean {
-        if (toolsByName[name]?.coreMetadata?.search != true) return false
-        val action = runCatching { Json.parseToJsonElement(args).jsonObject.string("action") }.getOrNull()
-        return action == null || action == "search"
-    }
-    fun internal(name: String) = toolsByName[name]?.coreMetadata?.group == ToolGroup.Internal
+    override suspend fun invoke(call: SessionEntry.ToolCall, turn: ToolTurn): SessionEntry.ToolResult =
+        invoke(call.copy(identity = toolsByName[call.name]?.identity), call.id, turn)
 
-    fun repeatable(name: String) = toolsByName[name]?.repeatable ?: true
-
-    suspend fun call(call: SessionEntry.ToolCall, stopped: (String) -> Unit = {}): SessionEntry.ToolResult =
-        invoke(call.copy(identity = toolsByName[call.name]?.identity), call.id, stopped)
-
-    private suspend fun invoke(call: SessionEntry.ToolCall, approvalId: String, stopped: (String) -> Unit): SessionEntry.ToolResult {
-        emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
-        val result = perform(call, approvalId, stopped)
-        emit(AgentEvent.ToolCallResult(call.id, result.output, result.isError, result.identity))
+    private suspend fun invoke(call: SessionEntry.ToolCall, approvalId: String, turn: ToolTurn): SessionEntry.ToolResult {
+        turn.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
+        val result = perform(call, approvalId, turn)
+        turn.emit(AgentEvent.ToolCallResult(call.id, result.output, result.isError, result.identity))
         return result
     }
 
     /**
      * Runs [call] once its Approval allows it. [approvalId] is the stored call the Approval shows on: [call]'s own, or
-     * the Script's for a call made from one. [stopped] is told what to record if the run is cancelled meanwhile.
+     * the Script's for a call made from one.
      */
-    private suspend fun perform(call: SessionEntry.ToolCall, approvalId: String, stopped: (String) -> Unit): SessionEntry.ToolResult {
+    private suspend fun perform(call: SessionEntry.ToolCall, approvalId: String, turn: ToolTurn): SessionEntry.ToolResult {
         val tool = toolsByName[call.name]
         val verdict = tool?.let { approvals.policy?.decide(it, call.args) } ?: Verdict.Run
         val binding = try { if (verdict is Verdict.Block) null else tool?.bind(ProtocolJson.parseToJsonElement(call.args).jsonObject) }
@@ -68,7 +67,7 @@ class ToolExecutor(
             verdict !is Verdict.Ask -> ApprovalDecision.AllowOnce
             approvals.unattended != null -> approvals.unattended
             else -> {
-                stopped("Denied (stopped)")
+                turn.stopped("Denied (stopped)")
                 val pending = approvals.broker.register()
                 try {
                     val a = verdict.assessment
@@ -77,11 +76,11 @@ class ToolExecutor(
                         ToolKind.ComputerAction -> verdict.trustKeys.joinToString(", ") { it.removePrefix("${tool.policyKey} ") }
                         else -> ""
                     }.ifEmpty { null }
-                    emit(AgentEvent.InteractionRequested(PendingInteraction.Approval(pending.id, approvalId, call.name, call.args, hint, a.risk, a.reason, verdict.trustKeys.isNotEmpty(), tool?.identity)))
+                    turn.emit(AgentEvent.InteractionRequested(PendingInteraction.Approval(pending.id, approvalId, call.name, call.args, hint, a.risk, a.reason, verdict.trustKeys.isNotEmpty(), tool?.identity)))
                     val wait = approvals.wait
                     val answer = if (wait == null) pending.await() else withTimeoutOrNull(wait) { pending.await() }
-                    stopped("Cancelled by user")
-                    emit(AgentEvent.InteractionResolved(pending.id, answer != null && answer !is ApprovalDecision.Deny))
+                    turn.stopped("Cancelled by user")
+                    turn.emit(AgentEvent.InteractionResolved(pending.id, answer != null && answer !is ApprovalDecision.Deny))
                     if (answer == null) {
                         approvals.skipped(tool?.displayName ?: call.name)
                         return SessionEntry.ToolResult(call.id, call.name, "No answer within ${wait?.inWholeMinutes} minutes; skipped", isError = true, identity = tool?.identity)
@@ -108,20 +107,19 @@ class ToolExecutor(
                     ApprovalDecision.AllowForSession -> approvals.policy?.trustForSession(tool, verdict.trustKeys)
                     else -> {}
                 }
-                if (tool != null && !internal(call.name)) {
-                    if (callsPerTurn?.let { executedCalls >= it } == true)
+                if (tool != null && !tool.internal) {
+                    if (callsPerTurn?.let { turn.executedCalls >= it } == true)
                         return SessionEntry.ToolResult(call.id, call.name, "Tool-call budget spent; answer from the results above.", isError = true)
-                    executedCalls++
+                    turn.executedCalls++
                 }
-                if (tool?.kind == ToolKind.AskUser) ask(call, approvalId) else execute(call, approvalId, stopped)
+                if (tool?.kind == ToolKind.AskUser) ask(call, turn, approvalId) else execute(call, approvalId, turn)
             }
         }.copy(identity = tool?.identity)
     }
 
     /** What [call]'s tool may call: the run's other tools, each shown as its own call and answered like one. */
-    private fun toolRun(call: SessionEntry.ToolCall, approvalId: String, stopped: (String) -> Unit,
-                                                  attached: MutableList<Attachment>) = object : ToolRun {
-        override suspend fun progress(content: String) { progress(AgentEvent.ToolCallResult(call.id, content, false, call.identity)) }
+    private fun toolRun(call: SessionEntry.ToolCall, approvalId: String, turn: ToolTurn, attached: MutableList<Attachment>) = object : ToolRun {
+        override suspend fun progress(content: String) { turn.progress(AgentEvent.ToolCallResult(call.id, content, false, call.identity)) }
         override fun background(started: String, work: suspend () -> String): String {
             requireNotNull(reports) { "Background reports are unavailable in this run" }.start(call.name, call.id, work)
             return started
@@ -131,13 +129,13 @@ class ToolExecutor(
         override suspend fun call(name: String, args: String): SessionEntry.ToolResult {
             val inner = SessionEntry.ToolCall("${call.id}-${++count}", name, args, toolsByName[name]?.identity)
             if (tools.none { it.name == name }) return SessionEntry.ToolResult(inner.id, name, "Unknown tool '$name'", isError = true)
-            return invoke(inner, approvalId, stopped).also { attached += it.attachments }
+            return invoke(inner, approvalId, turn).also { attached += it.attachments }
         }
         override suspend fun attach(name: String, bytes: ByteArray) =
             requireNotNull(attach) { "Files can't be shown to the model in this run" }(name, bytes).also { attached += it }
     }
 
-    private suspend fun ask(call: SessionEntry.ToolCall, formId: String = call.id): SessionEntry.ToolResult {
+    private suspend fun ask(call: SessionEntry.ToolCall, turn: ToolTurn, formId: String = call.id): SessionEntry.ToolResult {
         val broker = questions ?: return SessionEntry.ToolResult(call.id, call.name, "There's no user to ask in this run.", isError = true)
         val (title, list) = try {
             val args = Json.parseToJsonElement(call.args.ifBlank { "{}" }).jsonObject
@@ -147,22 +145,22 @@ class ToolExecutor(
         }
         val pending = broker.register()
         try {
-            emit(AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, formId, title, list)))
+            turn.emit(AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, formId, title, list)))
             val answers = pending.await()
-            emit(AgentEvent.InteractionResolved(pending.id))
+            turn.emit(AgentEvent.InteractionResolved(pending.id))
             return SessionEntry.ToolResult(call.id, call.name, AskUserTool.result(list, answers))
         } finally {
             pending.close()
         }
     }
 
-    private suspend fun execute(call: SessionEntry.ToolCall, approvalId: String, stopped: (String) -> Unit): SessionEntry.ToolResult {
+    private suspend fun execute(call: SessionEntry.ToolCall, approvalId: String, turn: ToolTurn): SessionEntry.ToolResult {
         val tool = toolsByName[call.name]
             ?: return SessionEntry.ToolResult(call.id, call.name, "Unknown tool '${call.name}'", isError = true)
         val attached = mutableListOf<Attachment>()
         return try {
             val args = Json.parseToJsonElement(call.args.ifBlank { "{}" }).jsonObject
-            val result = tool.executeResult(args.clampItems(tool.itemLimits(maxItems)), call.id, toolRun(call, approvalId, stopped, attached))
+            val result = tool.executeResult(args.clampItems(tool.itemLimits(maxItems)), call.id, toolRun(call, approvalId, turn, attached))
             result.copy(name = call.name, attachments = attached + result.attachments)
         } catch (e: CancellationException) {
             throw e

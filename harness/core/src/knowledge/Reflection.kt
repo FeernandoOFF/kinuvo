@@ -11,7 +11,9 @@ import kinuvo.harness.core.*
 import kinuvo.harness.core.skills.*
 import kinuvo.harness.core.tools.MemoryTool
 import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.ToolExecutor
+import kinuvo.harness.core.tools.ToolService
+import kinuvo.harness.core.tools.toDescriptor
+import kinuvo.harness.execution.api.ToolTurn
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.requireString
 import kinuvo.harness.core.tools.string
@@ -84,7 +86,7 @@ internal class ReflectionRun(
     val requests = ModelRequests(agent.config, { RequestKind.Reflection }) { measurements += it }
     private var transcript = ""
     private lateinit var changes: ReflectionChanges
-    private var deny = DenyRules()
+    private lateinit var policy: ApprovalPolicy
     private val memoryChanges = mutableListOf<ReflectionMemoryChange>()
     private var memory = 0
     private var userNotes = 0
@@ -92,9 +94,10 @@ internal class ReflectionRun(
     val measurements = mutableListOf<RequestMetrics>()
     var tools: List<Tool> = emptyList()
         private set
-    lateinit var executor: ToolExecutor
+    private lateinit var service: ToolService
+    lateinit var calls: ToolCalls
         private set
-    val advertised get() = tools.map { it.descriptor }.sortedBy { it.name }
+    val advertised get() = service.advertised.map { it.toDescriptor() }
 
     suspend fun gather() {
         transcript = entries.mapIndexedNotNull { index, entry -> when (entry) {
@@ -110,7 +113,11 @@ internal class ReflectionRun(
             else -> null
         } }.toMap()
         changes = ReflectionChanges(agent, knowledge, skills, evidence + (review?.let { mapOf("review-note" to it.note, "proposal" to it.proposal.evidence) } ?: emptyMap()), review)
-        deny = denied(agent)
+        val deny = denied(agent)
+        policy = ApprovalPolicy(agent, object : TrustRulesRepository {
+            override suspend fun get(agentId: String) = TrustRules(deny = deny)
+            override suspend fun update(agentId: String, transform: (TrustRules) -> TrustRules) = error("Reflection can't save Trust rules")
+        }, Tolerance.Full)
     }
 
     private val memoryDocs = object : AgentDocs by docs {
@@ -136,9 +143,10 @@ internal class ReflectionRun(
         }.flatMap { tool ->
             val owner = if (tool.descriptor.name in listOf(ToolNames.KNOWLEDGE, ToolNames.CONVENTIONS)) "kinuvo.knowledge" else "kinuvo.core"
             PluginTools(listOf(tool)).ownedBy(PluginInstanceId(owner)).tools
-        }.withModelNames().filter { deny.blockedTool(it.identity) == null }
+        }.withModelNames().filter { !policy.refuses(it) }
         if (tools.isEmpty()) return null
-        executor = ToolExecutor(tools)
+        service = ToolService(tools, approvals = Approvals(policy, ApprovalBroker()))
+        calls = ToolCalls(service, service, ToolTurn())
         val context = when (stage) {
             ReflectionStage.Memory -> "Current Memory:\n${docs.read(agent.id, AgentDoc.Memory)}\n\nCurrent User Notes:\n${docs.read(agent.id, AgentDoc.UserNotes)}"
             ReflectionStage.Knowledge -> "How the user organizes it:\n${knowledge.conventions().trim()}\n\n${knowledge.schema().describe()}"

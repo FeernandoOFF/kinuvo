@@ -1,5 +1,7 @@
 package kinuvo.harness.codex
 
+import kinuvo.harness.testing.AgentRun
+
 import kinuvo.harness.core.plugin.*
 import kinuvo.harness.core.*
 import kinuvo.harness.core.knowledge.*

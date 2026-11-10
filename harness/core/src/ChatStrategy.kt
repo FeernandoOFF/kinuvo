@@ -10,17 +10,16 @@ import ai.koog.agents.core.dsl.builder.node
 import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.core.dsl.extension.nodeLLMCompressHistory
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.tools.ToolExecutor
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.SessionEntry
 
-internal fun chatStrategy(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit) = strategy<Unit, Unit>("kinuvoChat") {
-    edge(nodeStart forwardTo chatTurn(session, executor, stopped, nodeFinish))
+internal fun chatStrategy(session: RunSession, calls: ToolCalls) = strategy<Unit, Unit>("kinuvoChat") {
+    edge(nodeStart forwardTo chatTurn(session, calls, nodeFinish))
 }
 
 /** The Session's history, compaction and the tool loop, ending at [finish]; returns the node to start from. */
-internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession, executor: ToolExecutor, stopped: (String) -> Unit, finish: AIAgentNodeBase<Unit, *>): AIAgentNodeBase<Unit, Unit> {
-    val loop = ToolLoop(session.messages, response = session.response, executor = { executor }, toolName = session::toolName,
+internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession, calls: ToolCalls, finish: AIAgentNodeBase<Unit, *>): AIAgentNodeBase<Unit, Unit> {
+    val loop = ToolLoop(session.messages, response = session.response, calls = { calls }, toolName = session::toolName,
         callsPerTurn = session.profile.tools.callsPerTurn, answerNudge = session.profile.tools.callsPerTurn != null,
         answerAfterSearch = session.profile.tier == ModelTier.Micro,
         hidden = { if (session.profile.tools.callsPerTurn != null && !REMEMBER.containsMatchIn(session.latestUserText())) setOf(ToolNames.MEMORY) else emptySet() },
@@ -31,7 +30,7 @@ internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession
             session.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
             SessionEntry.ToolResult(call.id, call.name, "This exact call already failed in this turn. Don't repeat it; try something else or answer the user.", isError = true, identity = call.identity)
         },
-        repeatable = executor::repeatable,
+        repeatable = calls::repeatable,
         skipped = { call, text, error ->
             session.toolStarted(call.id)
             session.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
@@ -54,7 +53,6 @@ internal fun AIAgentSubgraphBuilderBase<Unit, Unit>.chatTurn(session: RunSession
             is StreamFrame.ReasoningDelta -> (frame.summary ?: frame.text)?.let { session.emit(AgentEvent.ThinkingContent(session.messageId, it)) }
             else -> Unit
         } },
-        stopped = stopped,
     )
     val checkHistory by node<Unit, Unit> {
         loop.checkRepeats()

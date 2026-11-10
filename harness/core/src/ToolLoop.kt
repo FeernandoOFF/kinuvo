@@ -16,7 +16,6 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import ai.koog.prompt.streaming.requireEndFrame
 import ai.koog.serialization.JSONObject
-import kinuvo.harness.core.tools.ToolExecutor
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ToolIdentity
 import kotlinx.coroutines.NonCancellable
@@ -58,7 +57,7 @@ internal class StreamResponse(private val identity: (String) -> ToolIdentity? = 
 internal class ToolLoop(
     private val messages: SessionMessages,
     private val response: StreamResponse,
-    private val executor: () -> ToolExecutor,
+    private val calls: () -> ToolCalls,
     private val toolName: (String) -> String,
     private val repeated: suspend (SessionEntry.ToolCall) -> SessionEntry.ToolResult,
     private val repeatable: (String) -> Boolean = { true },
@@ -71,7 +70,6 @@ internal class ToolLoop(
     private val onResponse: suspend () -> Unit = {},
     private val onResult: suspend (SessionEntry.ToolResult) -> Unit = {},
     private val onFrame: suspend (StreamFrame) -> Unit = {},
-    private val stopped: (String) -> Unit = {},
     private val maxRequests: Int = Int.MAX_VALUE,
     private val parallelCalls: Boolean = true,
     private val callsPerTurn: Int? = null,
@@ -96,7 +94,7 @@ internal class ToolLoop(
 
     val request by node<Unit, Unit>("streamResponse") {
         checkRepeats()
-        val finalAnswer = requests++ >= maxRequests || forceAnswer || answerNudge && repeats > 0 || callsPerTurn?.let { executor().executedCalls >= it } == true
+        val finalAnswer = requests++ >= maxRequests || forceAnswer || answerNudge && repeats > 0 || callsPerTurn?.let { calls().executedCalls >= it } == true
         val hide = if (finalAnswer) emptySet() else hidden()
         llm.writeSession {
             var answering = finalAnswer
@@ -107,7 +105,7 @@ internal class ToolLoop(
             if (finalAnswer) answerNow()
             else {
                 if (hide.isNotEmpty()) tools = tools.filterNot { it.name in hide }
-                if (answerNudge && executor().executedCalls > 0) prompt = prompt.withMessages { it + Message.System(ANSWER_NUDGE, RequestMetaInfo.Empty) }
+                if (answerNudge && calls().executedCalls > 0) prompt = prompt.withMessages { it + Message.System(ANSWER_NUDGE, RequestMetaInfo.Empty) }
             }
             try { requestLLMStreaming().requireEndFrame().collect { onFrame(it) } }
             catch (e: CancellationException) { throw e }
@@ -134,18 +132,18 @@ internal class ToolLoop(
         val key = call.name to canonical(call.args)
         val result = toolCall(call, toolName(call.name)) {
             if (key == lastSuccessful && !repeatable(call.name)) { repeats++; repeatedSuccess = true; completed(call) }
-            else if (key in failed && !executor().search(call.name, call.args)) { repeats++; repeated(call) }
+            else if (key in failed && !calls().search(call.name, call.args)) { repeats++; repeated(call) }
             else {
-                val query = if (executor().search(call.name, call.args)) searchWords(call.args) else emptySet()
+                val query = if (calls().search(call.name, call.args)) searchWords(call.args) else emptySet()
                 val previous = searches.getOrPut(call.name) { mutableListOf() }
                 val refusal = refuse(call)
                 if (refusal != null) skipped(call, refusal, true)
                 else if (query.isNotEmpty() && previous.any { similarSearch(it, query) })
                     skipped(call, SEARCHED, false).also { forceAnswer = true }
-                else if (callsPerTurn?.let { executor().executedCalls >= it } == true && !executor().internal(call.name)) skipped(call, SKIPPED_CALL, true)
+                else if (callsPerTurn?.let { calls().executedCalls >= it } == true && !calls().internal(call.name)) skipped(call, SKIPPED_CALL, true)
                 else {
                     if (query.isNotEmpty()) previous += query
-                    executor().call(call, stopped = stopped).also { if (answerAfterSearch && query.isNotEmpty() && !it.isError) forceAnswer = true }
+                    calls().call(call).also { if (answerAfterSearch && query.isNotEmpty() && !it.isError) forceAnswer = true }
                 }
             }
         }

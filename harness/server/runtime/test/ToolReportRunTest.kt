@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kinuvo.harness.testing.AgentRun
+
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.AgentRun
 import kinuvo.harness.testing.scriptedModel

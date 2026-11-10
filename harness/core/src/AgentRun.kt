@@ -3,16 +3,14 @@ package kinuvo.harness.core
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.agent.exception.AIAgentMaxNumberOfIterationsReachedException
-import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.prompt.Prompt
 import kinuvo.harness.core.routines.RoutineRun
 import kinuvo.harness.core.routines.routineStrategy
 import kinuvo.harness.core.store.Store
-import kinuvo.harness.core.tools.Tool
-import kinuvo.harness.core.tools.itemLimits
-import kinuvo.harness.core.tools.withItemLimits
-import kinuvo.harness.core.tools.ToolReports
-import kinuvo.harness.core.tools.ToolExecutor
+import kinuvo.harness.core.tools.toDescriptor
+import kinuvo.harness.execution.api.ToolGate
+import kinuvo.harness.execution.api.ToolProvider
+import kinuvo.harness.execution.api.ToolTurn
 import kinuvo.protocol.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -30,23 +28,17 @@ class AgentRun(
     private val agent: Agent,
     private val store: Store,
     private val model: AgentModel,
-    private val tools: List<Tool>,
+    private val tools: ToolProvider,
+    private val gate: ToolGate,
     private val warnings: List<String> = emptyList(),
     private val context: String = "",
-    private val approvals: Approvals = Approvals.none(),
-    private val questions: Broker<Map<String, List<String>>?>? = null,
-    advertisedTools: List<ToolDescriptor> = tools.map { it.descriptor },
     private val contextTokens: Int? = null,
     private val requestKind: RequestKind = RequestKind.Chat,
-    private val attach: ((String, ByteArray) -> Attachment)? = null,
     private val tracing: AgentTracing? = null,
     private val traceSessionId: String? = null,
     private val routine: RoutineRun? = null,
-    private val reports: ToolReports? = null,
     private val profile: ModelProfile = ModelProfile.of(ModelTier.Frontier),
 ) {
-    private val advertisedTools = advertisedTools.map { d -> d.withItemLimits(tools.firstOrNull { it.descriptor.name == d.name }?.itemLimits(profile.resultLimits.maxItems).orEmpty()) }.sortedBy { it.name }
-
     fun run(
         sessionId: String,
         userText: String,
@@ -59,13 +51,18 @@ class AgentRun(
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.RunStarted(runId))
         warnings.forEach { send(AgentEvent.Warning(it)) }
-        val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, profile.history.latestTurnOnly, profile, { send(it) }, voice = voice)
+        val session = RunSession(agent, store, sessionId, runId, model, tools, requestKind, contextTokens, profile.history.latestTurnOnly, profile, { send(it) }, voice = voice)
         var stopped = "Cancelled by user"
         var cancelled = false
-        val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, maxItems = profile.resultLimits.maxItems, callsPerTurn = profile.tools.callsPerTurn, reports = reports, progress = { send(it) }, emit = { event ->
-            if (event is AgentEvent.ToolCallStart) session.toolStarted(event.toolCallId)
-            if (event !is AgentEvent.ToolCallResult || session.calls.none { it.id == event.toolCallId }) send(event)
-        })
+        val turn = ToolTurn(
+            progress = { send(it) },
+            stopped = { stopped = it },
+            emit = { event ->
+                if (event is AgentEvent.ToolCallStart) session.toolStarted(event.toolCallId)
+                if (event !is AgentEvent.ToolCallResult || session.calls.none { it.id == event.toolCallId }) send(event)
+            },
+        )
+        val calls = ToolCalls(tools, gate, turn)
         val result: AgentEvent = try {
             if (context.isNotBlank() && store.entries(agent.id, sessionId).activeHistory().filterIsInstance<SessionEntry.Context>().lastOrNull()?.content != context)
                 session.append(SessionEntry.Context(context))
@@ -76,7 +73,7 @@ class AgentRun(
                 id = agent.id,
                 promptExecutor = model.executor,
                 agentConfig = AIAgentConfig(Prompt.Empty, model.model, Int.MAX_VALUE),
-                strategy = routine?.let { routineStrategy(session, executor, it, userText) { stopped = it } } ?: chatStrategy(session, executor) { stopped = it },
+                strategy = routine?.let { routineStrategy(session, calls, it, userText) } ?: chatStrategy(session, calls),
             ) {
                 install(ToolLoopFeature) {
                     requests = session.requests

@@ -2,6 +2,7 @@ package kinuvo.harness.core
 
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.harness.core.tools.*
+import kinuvo.harness.execution.api.ToolTurn
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.CompletableDeferred
@@ -24,9 +25,9 @@ class ToolReportsTest {
                 return run.background("started") { done.await() }
             }
         }
-        val executor = ToolExecutor(listOf(tool), emit = { events += it }, reports = ToolReports(this) { reports += it })
+        val executor = ToolService(listOf(tool), reports = ToolReports(this) { reports += it })
         assertEquals("regular", tool.execute(JsonObject(emptyMap())))
-        assertEquals("started", executor.call(SessionEntry.ToolCall("1", "worker", "{}")).output)
+        assertEquals("started", executor.invoke(SessionEntry.ToolCall("1", "worker", "{}"), ToolTurn(emit = { events += it })).output)
         runCurrent()
         assertTrue(reports.isEmpty())
         assertEquals(listOf("first", "second", "started"), events.filterIsInstance<AgentEvent.ToolCallResult>().map { it.content })

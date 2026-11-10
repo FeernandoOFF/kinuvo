@@ -87,6 +87,9 @@ class ApprovalPolicy(
         return if (pending.isEmpty()) Verdict.Run else ask(assessment, pending.takeIf { p -> p.none { !it.trustable || trusted(it) } }.orEmpty())
     }
 
+    /** Whether a Deny rule or the run's scope refuses [tool] whatever its arguments, e.g. to leave it out of what a run offers. */
+    suspend fun refuses(tool: Tool): Boolean = blocked(tool, null, rules()) != null || !scope.allows(tool)
+
     private fun ask(assessment: Assessment, pending: List<Action>) = Verdict.Ask(assessment, pending.map { ShellCommand.quote(it.key) }.distinct())
 
     private fun blocked(tool: Tool, command: ShellCommand?, rules: TrustRules): String? {
