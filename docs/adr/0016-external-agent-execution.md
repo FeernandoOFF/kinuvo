@@ -3,7 +3,7 @@ title: "External Agents use Server-owned execution connections"
 description: "Separate external harness execution from Server-owned registration and synchronization."
 ---
 
-Status: Accepted
+Status: Accepted. Superseded in part by [ADR 0030](0030-server-owned-tools-and-pending-interactions.md): Kinuvo tools and their policy are Server-owned.
 
 ## Context
 
