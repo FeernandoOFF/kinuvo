@@ -2,12 +2,17 @@ package kinuvo.harness.server.testing
 
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.harness.core.plugin.McpApps
 import kinuvo.harness.core.plugin.PluginTools
+import kinuvo.harness.core.plugin.instance
+import kinuvo.harness.core.plugin.ownedBy
 import kinuvo.harness.core.plugin.RunContext
 import kinuvo.harness.core.tools.Action
 import kinuvo.harness.core.tools.Assessment
 import kinuvo.harness.core.tools.Tool
 import kinuvo.protocol.Integration
+import kinuvo.protocol.McpAppRef
+import kinuvo.protocol.McpAppResource
 import kinuvo.protocol.IntegrationOptions
 import kinuvo.protocol.PluginDefinition
 import kinuvo.protocol.Risk
@@ -30,11 +35,17 @@ class FakeTool(
     override suspend fun execute(args: JsonObject) = run(args)
 }
 
-/** Offers [tools] to every Agent's runs. */
+/** Offers [tools] to every Agent's runs, and to the MCP Apps that call them by name. */
 class FakeTools(private vararg val tools: FakeTool) : HarnessPlugin {
     override val definition = PluginDefinition("test.tools", "Test tools")
 
     override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(tools.toList())
+
+    override val apps = object : McpApps {
+        override suspend fun resource(agentId: String, ref: McpAppRef) = McpAppResource("<html></html>")
+        override suspend fun tool(agentId: String, ref: McpAppRef, name: String) =
+            PluginTools(tools.filter { it.descriptor.name == name }).ownedBy(instance).tools.single()
+    }
 }
 
 /** Offers Agents a host to run shell and files on, so their Workspace settings are available; it has no tools. */
