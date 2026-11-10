@@ -5,10 +5,12 @@ import kinuvo.protocol.SessionEntry
 import kinuvo.harness.core.tools.ToolExecutor
 import kinuvo.harness.core.tools.ToolReports
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -50,19 +52,26 @@ class BackgroundProcessTest {
         } finally { backend.close() }
     }
 
-    private val backend = HostBackend(listOf(Files.createTempDirectory("bg").toFile()))
+    private val root = Files.createTempDirectory("bg").toFile()
+    private val backend = HostBackend(listOf(root))
     private val tools = execTools(backend).associateBy { it.descriptor.name }
     private suspend fun call(tool: String, vararg pairs: Pair<String, Any>) = tools.getValue(tool).execute(buildJsonObject {
         pairs.forEach { (k, v) -> when (v) { is Boolean -> put(k, v); else -> put(k, v.toString()) } }
     })
 
     @Test fun watchShowsOutputAndReturnsTheFinalResult() = runBlocking {
-        val events = mutableListOf<AgentEvent>()
-        val executor = ToolExecutor(listOf(ShellTool(backend)), emit = { events += it })
+        val events = Channel<AgentEvent>(Channel.UNLIMITED)
+        val executor = ToolExecutor(listOf(ShellTool(backend)), emit = { events.trySend(it) })
         try {
-            val result = executor.call(SessionEntry.ToolCall("watch", "shell", """{"command":"echo watching; sleep 1.2; echo done","watch":true}"""))
-            assertTrue("exit 0" in result.output && "done" in result.output)
-            assertTrue(events.filterIsInstance<AgentEvent.ToolCallResult>().any { "watching" in it.content && "done" !in it.content })
+            val call = async { executor.call(SessionEntry.ToolCall("watch", "shell", """{"command":"echo watching; while [ ! -e release ]; do sleep 0.05; done; echo done","watch":true}""")) }
+            withTimeout(30000) {
+                do {
+                    val shown = events.receive().let { it is AgentEvent.ToolCallResult && "watching" in it.content }
+                } while (!shown)
+            }
+            File(root, "release").createNewFile()
+            val result = withTimeout(30000) { call.await() }
+            assertTrue("exit 0" in result.output && "done" in result.output, result.output)
         } finally { backend.close() }
     }
 
