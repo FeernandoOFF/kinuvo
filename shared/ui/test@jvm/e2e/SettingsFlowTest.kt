@@ -3,9 +3,9 @@ package kinuvo.ui.e2e
 import kotlin.test.Test
 
 class SettingsFlowTest {
-    private suspend fun AppTest.dismissSheet() = swipe(50, 14, 50, 85)
+    private suspend fun MockedAppTest.dismissSheet() = swipe(50, 14, 50, 85)
 
-    @Test fun settingsJourney() = appTest("settings-journey", "mobile-settings-journey") {
+    @Test fun settingsJourney() = mockedAppTest("settings-journey", "mobile-settings-journey") {
         startChat()
         screenshot("chat")
         tap("Ask before acting in this Session: .*")

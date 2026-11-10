@@ -57,6 +57,7 @@ test-dependencies:
 
 test-dependencies@jvm:
   - $compose.desktop.currentOs
+  - ../../harness/server/server-testing
 
 settings:
   compose:

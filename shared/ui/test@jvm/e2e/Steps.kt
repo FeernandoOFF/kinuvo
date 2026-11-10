@@ -2,7 +2,7 @@ package kinuvo.ui.e2e
 
 /** Shared steps mirroring `.maestro/shared/`. */
 
-internal suspend fun AppTest.openPairing(code: String) {
+internal suspend fun AppDriver.openPairing(code: String) {
     await("Your agents, on your own Server.")
     if (visible("Enter address and code")) tap("Enter address and code")
     if (!visible("Code from the Server")) tap("Connect to a Server")
@@ -12,28 +12,32 @@ internal suspend fun AppTest.openPairing(code: String) {
     tap("Connect")
 }
 
-internal suspend fun AppTest.pair() {
-    openPairing("123456")
+internal suspend fun AppDriver.pair() {
+    openPairing(pairingCode)
     await("Start a Session with E2E Agent")
 }
 
-internal suspend fun AppTest.startChat() {
+internal suspend fun AppDriver.sendFirstMessage() {
     pair()
     tap("Message")
     type("Hello from Maestro")
     tap("Send")
-    await("Hello from WireMock")
 }
 
-internal suspend fun AppTest.openHome() {
+internal suspend fun AppDriver.startChat() {
+    sendFirstMessage()
+    await(reply)
+}
+
+internal suspend fun AppDriver.openHome() {
     tap("Agents and sessions")
     tap("Home")
 }
 
-internal suspend fun AppTest.returnToChat() {
+internal suspend fun AppDriver.returnToChat() {
     tap("Home and agents")
     tapAbove("E2E Agent", "New agent")
-    tap("E2E chat")
+    tap(sessionTitle)
 }
 
 internal fun sessionEvent(seq: Int, event: String) =

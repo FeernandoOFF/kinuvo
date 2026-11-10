@@ -4,12 +4,12 @@ import kotlin.test.Test
 
 /** Screens with dense, realistic data from the `showcase` profile, for reviewing layouts rather than behavior. */
 class ShowcaseFlowTest {
-    private suspend fun AppTest.connect() {
+    private suspend fun AppDriver.connect() {
         openPairing("123456")
         await("Agents and sessions", 20_000)
     }
 
-    @Test fun drawerWithManySessions() = appTest("showcase-drawer", "showcase") {
+    @Test fun drawerWithManySessions() = mockedAppTest("showcase-drawer", "showcase") {
         connect()
         tap("Agents and sessions")
         await("Release notes review for the 2.0 launch.*")
@@ -21,7 +21,7 @@ class ShowcaseFlowTest {
         screenshot("long-agent-name")
     }
 
-    @Test fun todayFullyPopulated() = appTest("showcase-today", "showcase") {
+    @Test fun todayFullyPopulated() = mockedAppTest("showcase-today", "showcase") {
         connect()
         openHome()
         tap("Today")
@@ -31,7 +31,7 @@ class ShowcaseFlowTest {
         screenshot("today-scrolled")
     }
 
-    @Test fun boardWithEveryStatus() = appTest("showcase-board", "showcase") {
+    @Test fun boardWithEveryStatus() = mockedAppTest("showcase-board", "showcase") {
         connect()
         openHome()
         tap("Board")
@@ -43,7 +43,7 @@ class ShowcaseFlowTest {
         screenshot("task-with-runs")
     }
 
-    @Test fun richChatTranscript() = appTest("showcase-chat", "showcase") {
+    @Test fun richChatTranscript() = mockedAppTest("showcase-chat", "showcase") {
         connect()
         tap("Agents and sessions")
         tap("Release notes review for the 2.0 launch.*")
@@ -57,7 +57,7 @@ class ShowcaseFlowTest {
         screenshot("browser-tab")
     }
 
-    @Test fun knowledgeResultsAndLongNote() = appTest("showcase-knowledge", "showcase") {
+    @Test fun knowledgeResultsAndLongNote() = mockedAppTest("showcase-knowledge", "showcase") {
         connect()
         openHome()
         tap("Knowledge")
@@ -73,7 +73,7 @@ class ShowcaseFlowTest {
         screenshot("note-links")
     }
 
-    @Test fun routinesAndSkills() = appTest("showcase-routines", "showcase") {
+    @Test fun routinesAndSkills() = mockedAppTest("showcase-routines", "showcase") {
         connect()
         openHome()
         tap("Routines")
@@ -89,7 +89,7 @@ class ShowcaseFlowTest {
         screenshot("skills")
     }
 
-    @Test fun computersWithSeveralScreens() = appTest("showcase-computers", "showcase") {
+    @Test fun computersWithSeveralScreens() = mockedAppTest("showcase-computers", "showcase") {
         connect()
         openHome()
         tap("Computers")

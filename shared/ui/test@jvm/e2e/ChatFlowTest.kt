@@ -1,20 +1,24 @@
 package kinuvo.ui.e2e
 
+import kinuvo.protocol.Api
+import kinuvo.protocol.SendParams
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class ChatFlowTest {
-    @Test fun pairsStartsASessionAndShowsTheReply() = appTest("chat", "chat") {
+    @Test fun pairsStartsASessionAndShowsTheReply() = appTest("chat", script = { on("Hello from Maestro") { reply(REPLY) } }) {
         screenshot("pairing")
         pair()
         screenshot("new-session")
         tap("Message")
         type("Hello from Maestro")
         tap("Send")
-        await("Hello from WireMock")
+        await(REPLY)
         screenshot("reply")
-        requestsAtLeast("ws/connect")
-        requestsAtLeast("ws/agents")
-        requests("ws/create-session", 1)
-        requests("ws/chat-send", 1)
+        requestsAtLeast(Api.Connect)
+        requestsAtLeast(Api.Agents)
+        requests(Api.CreateSession, 1)
+        requests(Api.Send, 1)
+        assertEquals(listOf("Hello from Maestro"), server.spy.params(Api.Send).map(SendParams::text))
     }
 }

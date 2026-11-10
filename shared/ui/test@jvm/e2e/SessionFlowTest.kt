@@ -1,19 +1,29 @@
 package kinuvo.ui.e2e
 
 import androidx.compose.ui.test.isEnabled
+import kinuvo.harness.server.testing.FakeBrowser
+import kinuvo.harness.server.testing.FakeBrowserPlugin
+import kinuvo.harness.server.testing.computer
+import kinuvo.protocol.Api
+import kinuvo.protocol.BrowserTab
+import kinuvo.protocol.ComputerActionKind
+import kinuvo.protocol.SendParams
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class SessionFlowTest {
-    @Test fun expiredPairingCodeStaysOnTheConnectScreen() = appTest("pairing-rejected", "mobile-rejected") {
+    @Test fun expiredPairingCodeStaysOnTheConnectScreen() = appTest("pairing-rejected") {
         openPairing("000000")
-        await("Pairing code expired")
+        await("Invalid or expired pairing code")
         await("Connect to a Server")
         gone("Start a Session with E2E Agent")
         screenshot("rejected")
-        requests("mobile/connect-rejected", 1)
+        requests(Api.Connect, 1)
+        requests(Api.Agents, 0)
     }
 
-    @Test fun favoritesAndRenamesTheOpenSession() = appTest("session-details", "mobile-session-details") {
+    @Test fun favoritesAndRenamesTheOpenSession() = appTest("session-details") {
         startChat()
         tap("More")
         gone("Settings")
@@ -32,40 +42,46 @@ class SessionFlowTest {
         await("FAVORITES")
         screenshot("favorites")
         tap("Trip plans")
-        await("Hello from WireMock")
-        requests("ws/create-session", 1)
-        requests("ws/chat-send", 1)
-        requests("mobile/session-favorite", 1)
-        requests("mobile/session-rename", 1)
+        await(REPLY)
+        requests(Api.CreateSession, 1)
+        requests(Api.Send, 1)
+        requests(Api.UpdateSession, 2)
+        assertEquals(listOf(true to null, null to "Trip plans"), server.spy.params(Api.UpdateSession).map { it.favorite to it.title })
     }
 
     /** Background and resume use the lifecycle; the OS-level Home press and process retention stay in Maestro. */
-    @Test fun replyReceivedElsewhereSurvivesReturnAndResume() = appTest("session-return", "mobile-return") {
+    @Test fun replyReceivedElsewhereSurvivesReturnAndResume() = appTest("session-return",
+        script = { on("From the laptop") { reply("Reply received while on Board") } },
+        scenario = { task("Plan mobile tests") },
+    ) {
         startChat()
         openHome()
         tap("Board")
         await("Plan mobile tests")
-        push(sessionEntry(10, 2, """{"type":"assistant","text":"Reply received while on Board","messageId":"away-reply"}"""))
+        val laptop = server.client("Laptop").also { it.connect() }
+        val session = server.harness.store.sessions("e2e").single()
+        laptop.call(Api.Send, SendParams("e2e", session.id, "From the laptop"))
         returnToChat()
         await("Hello from Maestro")
         await("Reply received while on Board")
         screenshot("returned")
         background()
-        requestsAtLeast("mobile/presence-inactive")
+        requestsAtLeast(Api.Presence, 2)
+        assertEquals(false, server.spy.params(Api.Presence).last().active)
         foreground()
         await("Hello from Maestro")
-        await("Hello from WireMock")
+        await(REPLY)
         await("Reply received while on Board")
-        requests("mobile/connect-features", 1)
-        requests("ws/create-session", 1)
-        requests("ws/chat-send", 1)
-        requests("ws/catch-up", 1)
-        requestsAtLeast("mobile/tasks")
-        requestsAtLeast("mobile/presence-active", 2)
+        requests(Api.CreateSession, 1)
+        requestsAtLeast(Api.Tasks)
+        until("the app to be active again") { server.spy.params(Api.Presence).last().active }
+        assertTrue(server.spy.params(Api.Presence).count { it.active } >= 2)
+        assertEquals(1, server.spy.params(Api.Send).count { it.text == "Hello from Maestro" })
     }
 
-    @Test fun computerLiveViewTakeOverAndHandBack() = appTest("computers", "mobile-computers") {
+    @Test fun computerLiveViewTakeOverAndHandBack() = appTest("computers") {
         pair()
+        val pixel = server.computer("Pixel")
         openHome()
         tap("Computers")
         gone("Back")
@@ -74,9 +90,6 @@ class SessionFlowTest {
         tap("Pixel")
         await("Watching")
         tap("Take over")
-        computerHolder("e2e-device", priority = 1)
-        push("""{"type":"event","event":"screens.changed","payload":null,"seq":100}""")
-        push("""{"type":"event","event":"screens.frame","seq":102,"payload":{"screen":{"source":"computer","id":"phone"},"subscription":"computer-sub","epoch":"computer-epoch","sequence":2,"sample":{"image":"iVBORw0KGgoAAAANSUhEUgAAAIAAAABQCAIAAABeYuqzAAAAqElEQVR4nO3RsQkAMAzAsPz/bIdC556RwQIfYNCc+7TYrB/EAwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2AAC0AwCgHQAA7QAAaAcAQDsAANoBANAOAIB2H2laxqC4EjqVAAAAAElFTkSuQmCC","width":128,"height":80,"geometry":"fixture"}}}""")
         await("In control")
         await(label("Switch apps").and(isEnabled()))
         screenshot("in-control")
@@ -84,25 +97,18 @@ class SessionFlowTest {
         screenshot("keys")
         tap("Home")
         tap("Hand back")
-        computerHolder(null, priority = 0)
-        push("""{"type":"event","event":"screens.changed","payload":null,"seq":101}""")
         await("Watching")
-        requestsAtLeast("mobile/computers")
-        requestsAtLeast("mobile/computer-watch")
-        requests("mobile/computer-take", 1)
-        requests("mobile/computer-home", 1)
-        requests("mobile/computer-hand-back", 1)
+        requestsAtLeast(Api.Screens)
+        requestsAtLeast(Api.ScreenWatch)
+        requests(Api.ScreenControl, 2)
+        assertEquals(listOf(true, false), server.spy.params(Api.ScreenControl).map { it.take })
+        requests(Api.ScreenInput, 1)
+        assertTrue(pixel.requests.any { it.action?.kind == ComputerActionKind.Key && it.action?.key.equals("home", ignoreCase = true) })
     }
 
-    /** Swaps the `screens.list` answer to report who holds control, as the Server would after a takeover. */
-    private fun AppTest.computerHolder(holder: String?, priority: Int) {
-        val control = if (holder != null) """{"generation":1,"holder":"$holder"}""" else """{"generation":2}"""
-        server.stub("mobile/computers-${if (holder != null) "held" else "released"}", "screens.list",
-            """[{"ref":{"source":"computer","id":"phone"},"title":"Pixel","status":"Ready","active":false,"control":$control,""" +
-                """"capabilities":{"delivery":"Continuous","inputs":["tap","type","key","scroll"],"keys":["Back","Home","Recents"]}}]""", priority)
-    }
-
-    @Test fun browserDockShowsTheLiveScreen() = appTest("browser", "mobile-browser") {
+    @Test fun browserDockShowsTheLiveScreen() = appTest("browser",
+        plugins = listOf(FakeBrowserPlugin(FakeBrowser(listOf(BrowserTab("browser-tab", "e2e", "Private site", "http://lab.internal"))))),
+    ) {
         startChat()
         tap("Browser")
         await("Private site")
@@ -110,17 +116,14 @@ class SessionFlowTest {
         await("Take over")
         screenshot("browser")
         tap("Take over")
-        server.stub("mobile/browser-held", "screens.list",
-            """[{"ref":{"source":"browser","id":"browser-tab","owner":{"agentId":"e2e","sessionId":"e2e-session"}},"title":"Private site","currentUrl":"http://lab.internal",""" +
-                """"status":"Ready","capabilities":{"delivery":"Continuous","inputs":["tap","type","key","scroll"],"tabs":true,"navigation":true},"control":{"generation":1,"holder":"e2e-device"}}]""", 1)
-        push("""{"type":"event","event":"screens.changed","payload":null,"seq":100}""")
         await("In control")
         await("Tabs & address")
         screenshot("in-control")
         tap("Back")
-        await("Hello from WireMock")
-        requestsAtLeast("mobile/browser-tabs")
-        requestsAtLeast("mobile/browser-frame")
-        requestsAtLeast("mobile/browser-ack")
+        await(REPLY)
+        requestsAtLeast(Api.Screens)
+        requestsAtLeast(Api.ScreenWatch)
+        requestsAtLeast(Api.ScreenAck)
+        assertEquals(true, server.spy.params(Api.ScreenControl).first().take)
     }
 }

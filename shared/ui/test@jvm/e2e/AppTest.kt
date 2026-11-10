@@ -17,11 +17,19 @@ import kinuvo.app.connection.Device
 import kinuvo.app.connection.DeviceCredentials
 import kinuvo.app.connection.Preferences
 import kinuvo.app.connection.Servers
+import kinuvo.harness.core.Agent
+import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.harness.server.testing.Scenario
+import kinuvo.harness.server.testing.TestServer
+import kinuvo.harness.testing.ModelScript
+import kinuvo.protocol.FrameConnection
+import kinuvo.protocol.Method
 import kinuvo.ui.KinuvoApp
 import kinuvo.ui.design.LocalBackdropBlur
 import kinuvo.ui.design.LocalForcedInteractionMode
 import kinuvo.ui.kinuvoApplication
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.koin.compose.KoinIsolatedContext
@@ -32,16 +40,49 @@ import kotlin.time.TimeSource
 
 private const val TIMEOUT = 15_000L
 
-/** Address the pairing screen offers, as in Mockstro runs; [MockServer] answers it in-process. */
+/** Address the pairing screen offers, as in Mockstro runs; the Server is reached in-process whatever it says. */
 private const val SERVER_URL = "ws://127.0.0.1:18081/ws"
 
 /**
- * Runs the whole app on a phone-sized touch layout against [profile], like a Maestro flow under Mockstro: fresh in-memory
- * preferences and credentials, onboarding skipped, pairing with the WireMock fixtures. Screenshots go to `build/screens/flows/<flow>/`.
+ * Runs the whole app on a phone-sized touch layout against a real in-process [TestServer], like a Maestro flow under
+ * Mockstro: fresh in-memory preferences and credentials, onboarding skipped, pairing with the Server's code. The Server
+ * starts with the Agent "E2E Agent" (id `e2e`) and what [scenario] adds; the model answers [REPLY] unless [script] says
+ * otherwise, and [plugins] add what the Server can do beyond its built-ins. Screenshots go to `build/screens/flows/<flow>/`.
  */
 @OptIn(ExperimentalTestApi::class)
-internal fun appTest(flow: String, profile: String, block: suspend AppTest.() -> Unit) = runPhoneTest {
+internal fun appTest(
+    flow: String,
+    plugins: List<HarnessPlugin> = emptyList(),
+    script: ModelScript.() -> Unit = {},
+    scenario: suspend Scenario.(Agent) -> Unit = {},
+    block: suspend AppTest.() -> Unit,
+) = runPhoneTest {
+    val server = withContext(Dispatchers.Default) {
+        TestServer.start(plugins = plugins, script = { reply(REPLY); script() }, scenario = {
+            val agent = agent("e2e", "E2E Agent")
+            withoutDefaultAgent()
+            scenario(agent)
+        })
+    }
+    try {
+        runApp({ server.connect() }, AppTest(this, server, flow), block)
+    } finally {
+        withContext(Dispatchers.Default + NonCancellable) { server.stop() }
+    }
+}
+
+/** What the scripted model answers unless a test scripts more. */
+internal const val REPLY = "Hello from the scripted model"
+
+/** Like [appTest], but answered by the WireMock fixtures of Mockstro profile [profile] through [MockServer]. */
+@OptIn(ExperimentalTestApi::class)
+internal fun mockedAppTest(flow: String, profile: String, block: suspend MockedAppTest.() -> Unit) = runPhoneTest {
     val server = MockServer(profile)
+    runApp(server::connect, MockedAppTest(this, server, flow), block)
+}
+
+@OptIn(ExperimentalTestApi::class)
+private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (String) -> FrameConnection, app: T, block: suspend T.() -> Unit) {
     val values = mutableMapOf<String, String>()
     val tokens = mutableMapOf<String, String>()
     val preferences = object : Preferences {
@@ -58,9 +99,8 @@ internal fun appTest(flow: String, profile: String, block: suspend AppTest.() ->
         single<Preferences> { preferences }
         single<DeviceCredentials> { credentials }
         single { Device("Test phone", "UTC", SERVER_URL) }
-        single { Servers(get(), null, get(), server::connect).apply { onboardingComplete = true } }
+        single { Servers(get(), null, get(), connect).apply { onboardingComplete = true } }
     })
-    val app = AppTest(this, server, flow)
     mainClock.autoAdvance = false
     try {
         setContent {
@@ -82,7 +122,19 @@ internal fun appTest(flow: String, profile: String, block: suspend AppTest.() ->
 }
 
 @OptIn(ExperimentalTestApi::class)
-internal class AppTest(val ui: ComposeUiTest, val server: MockServer, private val flow: String) : LifecycleOwner {
+internal abstract class AppDriver(val ui: ComposeUiTest, private val flow: String) : LifecycleOwner {
+    /** What the pairing screen takes. */
+    abstract val pairingCode: String
+
+    /** What the Agent answers to the first message of [startChat]. */
+    abstract val reply: String
+
+    /** What the Session [startChat] opens is called in the Sessions list. */
+    abstract val sessionTitle: String
+
+    /** What a timed-out wait adds to its failure, e.g. what the Server saw. */
+    protected abstract fun diagnostics(): String
+
     override val lifecycle = LifecycleRegistry.createUnsafe(this).apply { currentState = Lifecycle.State.RESUMED }
     val viewModels = object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() }
     private var shots = 0
@@ -119,7 +171,7 @@ internal class AppTest(val ui: ComposeUiTest, val server: MockServer, private va
             if (condition()) return
             if (start.elapsedNow().inWholeMilliseconds > timeout) {
                 runCatching { ui.saveScreenshot("$flow/failure") }
-                throw AssertionError("Timed out waiting for $description; unmatched requests: ${server.unmatched.value}\n" +
+                throw AssertionError("Timed out waiting for $description; ${diagnostics()}\n" +
                     ui.onRoot().printToString(Int.MAX_VALUE))
             }
             withContext(Dispatchers.Default) { delay(20) }
@@ -186,6 +238,44 @@ internal class AppTest(val ui: ComposeUiTest, val server: MockServer, private va
         await(text, 1_000)
     }
 
+    suspend fun background() { ui.runOnUiThread { lifecycle.currentState = Lifecycle.State.CREATED }; settle() }
+
+    suspend fun foreground() { ui.runOnUiThread { lifecycle.currentState = Lifecycle.State.RESUMED }; settle() }
+
+    suspend fun screenshot(name: String) {
+        settle()
+        ui.saveScreenshot("$flow/${(++shots).toString().padStart(2, '0')}-$name")
+    }
+}
+
+@OptIn(ExperimentalTestApi::class)
+internal class AppTest(ui: ComposeUiTest, val server: TestServer, flow: String) : AppDriver(ui, flow) {
+    override val pairingCode get() = server.pairingCode
+    override val reply = REPLY
+    override val sessionTitle = "Hello from Maestro"
+
+    override fun diagnostics() = "requests seen: ${server.spy.methods}"
+
+    /** Asserts the Server got exactly [count] requests of [method], waiting briefly for in-flight ones. */
+    suspend fun requests(method: Method<*, *>, count: Int) {
+        runCatching { until("${method.name} x$count", 3_000) { server.spy.count(method) == count } }
+        assertEquals(count, server.spy.count(method), "requests of ${method.name}; ${diagnostics()}")
+    }
+
+    suspend fun requestsAtLeast(method: Method<*, *>, count: Int = 1) {
+        runCatching { until("${method.name} x$count+", 3_000) { server.spy.count(method) >= count } }
+        assertTrue(server.spy.count(method) >= count, "requests of ${method.name}: ${server.spy.count(method)} < $count; ${diagnostics()}")
+    }
+}
+
+@OptIn(ExperimentalTestApi::class)
+internal class MockedAppTest(ui: ComposeUiTest, val server: MockServer, flow: String) : AppDriver(ui, flow) {
+    override val pairingCode = "123456"
+    override val reply = "Hello from WireMock"
+    override val sessionTitle = "E2E chat"
+
+    override fun diagnostics() = "unmatched requests: ${server.unmatched.value}"
+
     suspend fun push(json: String) { server.push(json); settle() }
 
     /** Asserts the Server got exactly [count] requests matching [stub], waiting briefly for in-flight ones. */
@@ -197,14 +287,5 @@ internal class AppTest(val ui: ComposeUiTest, val server: MockServer, private va
     suspend fun requestsAtLeast(stub: String, count: Int = 1) {
         runCatching { until("$stub x$count+", 3_000) { server.hits(stub) >= count } }
         assertTrue(server.hits(stub) >= count, "requests matching $stub: ${server.hits(stub)} < $count")
-    }
-
-    suspend fun background() { ui.runOnUiThread { lifecycle.currentState = Lifecycle.State.CREATED }; settle() }
-
-    suspend fun foreground() { ui.runOnUiThread { lifecycle.currentState = Lifecycle.State.RESUMED }; settle() }
-
-    suspend fun screenshot(name: String) {
-        settle()
-        ui.saveScreenshot("$flow/${(++shots).toString().padStart(2, '0')}-$name")
     }
 }

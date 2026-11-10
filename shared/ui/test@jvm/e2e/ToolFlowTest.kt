@@ -1,68 +1,72 @@
 package kinuvo.ui.e2e
 
+import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.harness.server.testing.FakeTool
+import kinuvo.harness.server.testing.FakeTools
+import kinuvo.protocol.Api
+import kinuvo.protocol.ApprovalDecision
+import kinuvo.protocol.Risk
+import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 class ToolFlowTest {
-    private val shellCall = """{"type":"tool_call","id":"e2e-tool","name":"shell","identity":{"instance":{"pluginId":"kinuvo.exec","instanceId":"default"},"localId":"shell"},"args":"{\"command\":\"echo test\"}"}"""
-    private val approval = """{"type":"APPROVAL_REQUESTED","approvalId":"e2e-approval","toolCallId":"e2e-tool","toolCallName":"shell","identity":{"instance":{"pluginId":"kinuvo.exec","instanceId":"default"},"localId":"shell"},"args":"{\"command\":\"echo test\"}","reason":"Test approval from WireMock","trustable":false}"""
+    private val tools: List<HarnessPlugin> = listOf(FakeTools(
+        FakeTool("read_file") { args ->
+            when (val path = args.getValue("path").jsonPrimitive.content) {
+                "notes.txt" -> "Fixture file contents"
+                else -> error("Fixture permission denied for $path")
+            }
+        },
+        FakeTool("shell", Risk.Medium, reason = "Runs a test command") { "test" },
+    ))
 
-    private suspend fun AppTest.toolRun(output: String, error: Boolean, reply: String) {
-        push(sessionEvent(5, """{"type":"RUN_STARTED","runId":"tool-run"}"""))
-        push(sessionEntry(6, 2, """{"type":"tool_call","id":"read-tool","name":"read_file","args":"{\"path\":\"notes.txt\"}"}"""))
-        push(sessionEntry(7, 3, """{"type":"tool_result","id":"read-tool","name":"read_file","output":"$output","isError":$error}"""))
-        push(sessionEntry(8, 4, """{"type":"assistant","text":"$reply","messageId":"tool-reply"}"""))
-        push(sessionEvent(9, """{"type":"RUN_FINISHED","runId":"tool-run"}"""))
-    }
-
-    @Test fun toolSuccessShowsItsResult() = appTest("tool-success", "chat") {
-        startChat()
-        toolRun("Fixture file contents", error = false, reply = "File read completed")
+    @Test fun toolSuccessShowsItsResult() = appTest("tool-success", tools, script = {
+        on("Hello from Maestro") { toolCall("read_file", """{"path":"notes.txt"}"""); reply("File read completed") }
+    }) {
+        sendFirstMessage()
         await("File read completed")
         scrollTo("read_file")
         tap("read_file")
         await("Fixture file contents")
         screenshot("tool-result")
-        requests("ws/chat-send", 1)
-        requests("ws/catch-up", 1)
+        requests(Api.Send, 1)
+        requests(Api.CatchUp, 1)
     }
 
-    @Test fun toolErrorShowsTheFailure() = appTest("tool-error", "chat") {
-        startChat()
-        toolRun("Fixture permission denied", error = true, reply = "Could not read the file")
+    @Test fun toolErrorShowsTheFailure() = appTest("tool-error", tools, script = {
+        on("Hello from Maestro") { toolCall("read_file", """{"path":"locked.txt"}"""); reply("Could not read the file") }
+    }) {
+        sendFirstMessage()
         await("Could not read the file")
         scrollTo("read_file")
         tap("read_file")
-        await("Fixture permission denied")
+        await(".*Fixture permission denied for locked.txt.*")
         screenshot("tool-error")
-        requests("ws/catch-up", 1)
+        requests(Api.CatchUp, 1)
     }
 
-    @Test fun approvalStreamsAndAllowsOnce() = appTest("approval-streaming", "mobile-approval") {
-        startChat()
-        push(sessionEvent(5, """{"type":"RUN_STARTED","runId":"approval-run"}"""))
-        push(sessionEvent(6, """{"type":"TEXT_MESSAGE_CONTENT","messageId":"approval-reply","delta":"Streaming draft"}"""))
-        await("Streaming draft")
-        screenshot("streaming")
-        push(sessionEntry(7, 2, shellCall))
-        push(sessionEvent(8, approval))
-        scrollTo("Run this command\\?")
-        await("Test approval from WireMock")
+    @Test fun approvalAllowsOnce() = appTest("approval", tools, script = {
+        on("Hello from Maestro") { toolCall("shell", """{"command":"echo test"}"""); reply("Approved action completed") }
+    }) {
+        sendFirstMessage()
+        scrollTo("Allow shell\\?")
+        await("Runs a test command")
         screenshot("approval")
         tap("Allow once")
         await("Approved action completed")
         gone("Allow once")
-        gone("Streaming draft")
         screenshot("approved")
-        requests("ws/chat-send", 1)
-        requests("mobile/approval-allow", 1)
+        requests(Api.Send, 1)
+        requests(Api.Approve, 1)
+        assertEquals(ApprovalDecision.AllowOnce, server.spy.params(Api.Approve).single().decision)
     }
 
-    @Test fun approvalDenySendsTheNote() = appTest("approval-deny", "mobile-denial") {
-        startChat()
-        push(sessionEvent(5, """{"type":"RUN_STARTED","runId":"approval-run"}"""))
-        push(sessionEntry(7, 2, shellCall))
-        push(sessionEvent(8, approval))
-        scrollTo("Run this command\\?")
+    @Test fun approvalDenySendsTheNote() = appTest("approval-deny", tools, script = {
+        on("Hello from Maestro") { toolCall("shell", """{"command":"echo test"}"""); reply("Action was denied") }
+    }) {
+        sendFirstMessage()
+        scrollTo("Allow shell\\?")
         tap("Add a note for the Agent")
         tap("What to do instead")
         type("Do not run this command")
@@ -71,11 +75,11 @@ class ToolFlowTest {
         await("Action was denied")
         gone("Allow once")
         screenshot("denied")
-        requests("ws/connect", 1)
-        requests("ws/create-session", 1)
-        requests("ws/chat-send", 1)
-        requests("ws/catch-up", 1)
-        requests("mobile/approval-deny", 1)
-        requests("mobile/approval-allow", 0)
+        requests(Api.Connect, 1)
+        requests(Api.CreateSession, 1)
+        requests(Api.Send, 1)
+        requests(Api.CatchUp, 1)
+        requests(Api.Approve, 1)
+        assertEquals(ApprovalDecision.Deny("Do not run this command"), server.spy.params(Api.Approve).single().decision)
     }
 }

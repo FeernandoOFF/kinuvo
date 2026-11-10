@@ -6,14 +6,14 @@ import kotlin.test.Test
 
 /** External harness Sessions and attachment gating; the native pickers themselves stay in Maestro. */
 class ExternalFlowTest {
-    private suspend fun AppTest.openExternalSession() {
+    private suspend fun AppDriver.openExternalSession() {
         openPairing("123456")
         await("Agents and sessions", 20_000)
         tap("Agents and sessions")
         tap("External regression")
     }
 
-    @Test fun externalSessionAnswersAndContinues() = appTest("external-session", "mobile-external") {
+    @Test fun externalSessionAnswersAndContinues() = mockedAppTest("external-session", "mobile-external") {
         openExternalSession()
         await("Choose a retry limit")
         await("3")
@@ -35,7 +35,7 @@ class ExternalFlowTest {
         requests("mobile/external-send", 1)
     }
 
-    @Test fun lostExternalSessionKeepsItsTranscript() = appTest("external-session-lost", "mobile-external-lost") {
+    @Test fun lostExternalSessionKeepsItsTranscript() = mockedAppTest("external-session-lost", "mobile-external-lost") {
         openExternalSession()
         await("Start a new Session to keep chatting.")
         gone("Session ended")
@@ -49,7 +49,7 @@ class ExternalFlowTest {
         requestsAtLeast("mobile/external-lost-capabilities")
     }
 
-    @Test fun imageModelsOfferPhotosAndFiles() = appTest("attachment-picker", "mobile-attachments") {
+    @Test fun imageModelsOfferPhotosAndFiles() = mockedAppTest("attachment-picker", "mobile-attachments") {
         pair()
         tap("Attach")
         await(label("Photos").and(isEnabled()))
@@ -58,7 +58,7 @@ class ExternalFlowTest {
         requestsAtLeast("mobile/attachment-capabilities")
     }
 
-    @Test fun externalHarnessOffersPhotosAndFiles() = appTest("external-attachments", "mobile-external-attachments") {
+    @Test fun externalHarnessOffersPhotosAndFiles() = mockedAppTest("external-attachments", "mobile-external-attachments") {
         pair()
         tap("Attach")
         await(label("Photos").and(isEnabled()))
@@ -66,7 +66,7 @@ class ExternalFlowTest {
         requestsAtLeast("mobile/external-attachment-capabilities")
     }
 
-    @Test fun textOnlyHarnessDisablesPhotos() = appTest("external-text-attachments", "mobile-external-text") {
+    @Test fun textOnlyHarnessDisablesPhotos() = mockedAppTest("external-text-attachments", "mobile-external-text") {
         pair()
         tap("Attach")
         await(label("Photos").and(isNotEnabled()))
