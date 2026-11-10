@@ -13,7 +13,7 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.*
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.protocol.*
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest

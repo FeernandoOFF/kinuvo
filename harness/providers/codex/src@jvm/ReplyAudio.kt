@@ -1,6 +1,6 @@
 package kinuvo.harness.codex
 
-import kinuvo.harness.core.voice.VoiceOutput
+import kinuvo.server.plugin.VoiceOutput
 import java.io.ByteArrayOutputStream
 
 /**

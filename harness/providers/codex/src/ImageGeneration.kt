@@ -9,8 +9,8 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.*
 import io.ktor.utils.io.readUTF8Line
-import kinuvo.harness.core.plugin.GeneratedImage
-import kinuvo.harness.core.plugin.ImageGeneration
+import kinuvo.server.plugin.GeneratedImage
+import kinuvo.server.plugin.ImageGeneration
 import kotlinx.serialization.json.*
 import kotlin.io.encoding.Base64
 

@@ -8,14 +8,14 @@ import ai.koog.agents.core.tools.ToolParameterType
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.RequestMetaInfo
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.core.ModelProfile
 import kinuvo.protocol.ModelTier
-import kinuvo.harness.core.tools.ToolNames
+import kinuvo.protocol.ToolNames
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ToolIdentity
 import kinuvo.protocol.PluginInstanceId
-import kinuvo.harness.core.plugin.modelAlias
+import kinuvo.server.plugin.modelAlias
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonArray

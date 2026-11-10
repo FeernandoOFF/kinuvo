@@ -1,8 +1,8 @@
 package kinuvo.harness.codex
 
-import kinuvo.harness.core.voice.VoiceContext
-import kinuvo.harness.core.voice.VoiceInput
-import kinuvo.harness.core.voice.VoiceOutput
+import kinuvo.server.plugin.VoiceContext
+import kinuvo.server.plugin.VoiceInput
+import kinuvo.server.plugin.VoiceOutput
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel

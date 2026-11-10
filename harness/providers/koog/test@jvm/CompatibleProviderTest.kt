@@ -1,5 +1,7 @@
 package kinuvo.harness.koog
 
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.server.plugin.readText
 import ai.koog.prompt.dsl.prompt
 import ai.koog.prompt.llm.LLMCapability
 import ai.koog.prompt.message.MessagePart

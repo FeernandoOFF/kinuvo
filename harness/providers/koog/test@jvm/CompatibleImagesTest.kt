@@ -6,7 +6,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.http.*
 import io.ktor.http.content.TextContent
-import kinuvo.harness.core.plugin.GeneratedImage
+import kinuvo.server.plugin.GeneratedImage
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*

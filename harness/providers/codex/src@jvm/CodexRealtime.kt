@@ -1,6 +1,6 @@
 package kinuvo.harness.codex
 
-import kinuvo.harness.core.voice.AgentProgress
+import kinuvo.server.plugin.AgentProgress
 import dev.onvoid.webrtc.PeerConnectionFactory
 import dev.onvoid.webrtc.media.audio.AudioTrackSource
 import dev.onvoid.webrtc.media.audio.CustomAudioSource
@@ -28,11 +28,11 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.utils.io.ExperimentalKtorApi
-import kinuvo.harness.core.voice.AudioFormat
-import kinuvo.harness.core.voice.SpeechToSpeech
-import kinuvo.harness.core.voice.VoiceContext
-import kinuvo.harness.core.voice.VoiceInput
-import kinuvo.harness.core.voice.VoiceOutput
+import kinuvo.server.plugin.AudioFormat
+import kinuvo.server.plugin.SpeechToSpeech
+import kinuvo.server.plugin.VoiceContext
+import kinuvo.server.plugin.VoiceInput
+import kinuvo.server.plugin.VoiceOutput
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException

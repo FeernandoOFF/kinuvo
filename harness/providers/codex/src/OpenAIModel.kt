@@ -1,5 +1,6 @@
 package kinuvo.harness.codex
 
+import kinuvo.harness.execution.api.AgentConfig
 import ai.koog.prompt.executor.clients.LLMClient
 import ai.koog.prompt.executor.clients.openai.OpenAIResponsesParams
 import ai.koog.prompt.executor.clients.openai.base.models.ReasoningEffort

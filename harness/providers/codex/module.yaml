@@ -5,6 +5,7 @@ product:
 
 dependencies:
   - ../../core: exported
+  - ../../../server/plugin-api: exported
   - ai.koog:prompt-executor-openai-client:1.3.0
   - ai.koog:http-client-ktor:1.3.0
   - io.ktor:ktor-client-content-negotiation:3.6.0

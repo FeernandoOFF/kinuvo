@@ -19,7 +19,7 @@ import com.google.ai.edge.litertlm.ThinkingConfig
 import com.google.ai.edge.litertlm.ToolCall
 import com.google.ai.edge.litertlm.tool
 import kinuvo.harness.core.TokenUsageCapture
-import kinuvo.harness.core.takeWhole
+import kinuvo.server.plugin.takeWhole
 import kinuvo.harness.core.tools.RawSchemaToolDescriptor
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.flow.*

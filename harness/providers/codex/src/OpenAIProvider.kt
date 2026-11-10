@@ -1,5 +1,8 @@
 package kinuvo.harness.codex
 
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.server.plugin.ImageGeneration
+import kinuvo.server.plugin.ProviderApiKey
 import kinuvo.harness.core.plugin.*
 import ai.koog.http.client.KoogHttpClient
 import ai.koog.http.client.ktor.fromKtorClient
@@ -34,7 +37,7 @@ class OpenAIProvider(
     private val attachments: ((Attachment) -> ByteArray)? = null,
     private val http: HttpClient = openAIHttpClient(keyValue),
     override val apiKey: ProviderApiKey? = null,
-) : ModelProvider, HarnessPlugin {
+) : ModelProvider, ModelProviderPlugin {
     override val definition = PluginDefinition("kinuvo.openai", "OpenAI API")
     constructor(files: AgentFiles, secrets: Secrets = Secrets(), attachments: ((Attachment) -> ByteArray)? = null) :
         this(OpenAIKey(files, secrets), attachments)

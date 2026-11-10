@@ -1,67 +1,36 @@
 package kinuvo.harness.core.plugin
 
-import kinuvo.harness.core.*
+import kinuvo.server.plugin.HarnessPlugin
 import ai.koog.agents.core.tools.ToolDescriptor
-import kinuvo.protocol.*
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
-
-/** Prefix of the model providers the owner configures, so they never take a built-in provider's ID. */
-const val CUSTOM_PROVIDERS = "custom/"
+import kinuvo.harness.core.*
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.PluginManifest
+import kinuvo.protocol.PluginProviderDefinition
+import kinuvo.protocol.PluginProviderKind
+import kinuvo.server.plugin.ProviderAdmin
 
 /** Builds the [AgentModel] an Agent's config asks for; [id] is what `provider:` names in agent.yaml. */
-interface ModelProvider {
+interface ModelSource {
     val id: String
-    val name: String get() = id
-    /** Provider key in Models.dev, for optional metadata enrichment. */
-    val catalogId: String? get() = null
-    suspend fun models(): List<ModelInfo> = emptyList()
-    suspend fun availability(model: String): CapabilityState = CapabilityState()
-    /** Native file MIME types accepted by this endpoint, separately from model input modalities. */
-    fun fileTypes(model: ModelInfo?): Set<String> = if (model?.input.orEmpty().any { it == "file" || it == "document" })
-        ATTACHMENT_MIME_TYPES.filter { attachmentInput(it) == "file" }.toSet() else emptySet()
     fun model(config: AgentConfig): AgentModel
     fun model(config: AgentConfig, info: ModelInfo?): AgentModel = model(config)
-    /** Plan usage, for providers that report it. */
-    val usage: StateFlow<Usage?>? get() = null
     /** [model]'s [base] profile as this provider runs it, e.g. with a lower tool cap. */
     fun profile(model: String, base: ModelProfile): ModelProfile = base
     /** Whether [model] can be offered [tool], beyond what its profile allows. */
     fun accepts(model: String, tool: ToolDescriptor): Boolean = true
-    /** Signs in to the provider's account; null when it needs no sign-in. */
-    val auth: ProviderAuth? get() = null
-    val apiKey: ProviderApiKey? get() = null
-    val downloads: ModelDownloads? get() = null
-    val images: ImageGeneration? get() = null
 }
 
-/** API keys or Secret references, configured on the Server without exposing saved values. */
-interface ProviderApiKey {
-    suspend fun status(): ProviderApiKeyStatus
-    /** An empty [value] removes the saved setting. */
-    suspend fun save(value: String)
+/** A model provider as a Server runs it: the models it builds, and what the Server manages of it. */
+interface ModelProvider : ModelSource, ProviderAdmin {
+    override val id: String
 }
 
-/** Models a provider runs from files it downloads to the Server, one download at a time; [changes] follows [state]. */
-interface ModelDownloads {
-    val changes: Flow<ProviderDownloads>
-    fun state(): ProviderDownloads
-    fun download(model: String)
-    fun cancel()
-    suspend fun remove(model: String)
-}
+/** A plugin that brings model providers; hosts register them with the Server, outside the plugin SPI. */
+interface ModelProviderPlugin : HarnessPlugin {
+    val modelProviders: List<ModelProvider>
 
-/** A model provider's account sign-in, done with a device code so it works from any client or a headless Server. */
-interface ProviderAuth {
-    suspend fun account(): ProviderAccount
-    /** Signs in, handing the URL and code to enter to [show]; returns once signed in, or throws when it fails or expires. */
-    suspend fun login(show: (DeviceCode) -> Unit)
-    suspend fun logout()
-}
-
-
-data class GeneratedImage(val bytes: ByteArray, val mimeType: String = "image/png")
-
-interface ImageGeneration {
-    suspend fun generate(model: String, prompt: String, references: List<GeneratedImage> = emptyList(), size: String? = null): List<GeneratedImage>
+    override val manifest: PluginManifest get() = super.manifest.let { base ->
+        base.copy(providers = modelProviders.map { PluginProviderDefinition(it.id, it.name, PluginProviderKind.Model) } + base.providers)
+    }
 }

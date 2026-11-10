@@ -1,7 +1,7 @@
 package kinuvo.harness.codex
 
-import kinuvo.harness.core.voice.AgentProgress
-import kinuvo.harness.core.voice.VoiceOutput
+import kinuvo.server.plugin.AgentProgress
+import kinuvo.server.plugin.VoiceOutput
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.test.Test

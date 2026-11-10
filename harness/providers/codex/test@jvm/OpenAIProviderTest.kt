@@ -11,7 +11,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.*
 import io.ktor.http.content.TextContent
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.protocol.ModelInfo
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.flow.toList

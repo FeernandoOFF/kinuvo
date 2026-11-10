@@ -1,5 +1,11 @@
 package kinuvo.harness.koog
 
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.server.plugin.CUSTOM_PROVIDERS
+import kinuvo.server.plugin.CustomEndpoints
+import kinuvo.server.plugin.ImageGeneration
+import kinuvo.server.plugin.Keychain
+import kinuvo.server.plugin.ProviderApiKey
 import kinuvo.harness.core.plugin.*
 import ai.koog.http.client.KoogHttpClient
 import ai.koog.http.client.ktor.fromKtorClient
@@ -44,7 +50,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-fun compatibleProviders(files: AgentFiles, secrets: Secrets = Secrets(), attachments: ((Attachment) -> ByteArray)? = null): List<HarnessPlugin> {
+fun compatibleProviders(files: AgentFiles, secrets: Secrets = Secrets(), attachments: ((Attachment) -> ByteArray)? = null): List<ModelProviderPlugin> {
     val configured = files.config().providers
     configured.forEach { (id, options) ->
         require(id.matches(Regex("[a-z][a-z0-9-]{0,63}"))) { "Invalid model provider ID: $id" }
@@ -81,7 +87,7 @@ internal class CompatibleProvider(
     private val attachments: ((Attachment) -> ByteArray)?,
     engine: HttpClientEngine = providerEngine(),
     private val key: StoredProviderKey = customKey(configId, options, files, secrets),
-) : ModelProvider, HarnessPlugin {
+) : ModelProvider, ModelProviderPlugin {
     override val images: ImageGeneration get() = CompatibleImages(http)
     override val id = CUSTOM_PROVIDERS + configId
     override val name = options.name ?: configId
@@ -168,7 +174,7 @@ private suspend fun discoverCompatibleModels(http: HttpClient): List<ModelInfo> 
 }
 
 private class CompatibleEndpoints(private val files: AgentFiles, private val secrets: Secrets,
-    private val attachments: ((Attachment) -> ByteArray)?) : HarnessPlugin, CustomEndpoints {
+    private val attachments: ((Attachment) -> ByteArray)?) : ModelProviderPlugin, CustomEndpoints {
     override val definition = PluginDefinition("kinuvo.custom-endpoints", "Custom providers")
     override val customEndpoints get() = this
     private val lock = Mutex()

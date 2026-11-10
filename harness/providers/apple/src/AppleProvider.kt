@@ -1,9 +1,9 @@
 package kinuvo.harness.apple
 
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.core.plugin.*
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
-import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.simplified
 import kinuvo.protocol.CapabilityState
 import kinuvo.protocol.ModelInfo
@@ -61,7 +61,7 @@ const val SYSTEM = "system"
 const val PRIVATE_CLOUD = "private-cloud"
 
 class AppleProvider(private val native: AppleLanguageModel, private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
-    private val estimateTokens: (suspend (Prompt, List<ToolDescriptor>) -> Int)? = null) : ModelProvider, HarnessPlugin {
+    private val estimateTokens: (suspend (Prompt, List<ToolDescriptor>) -> Int)? = null) : ModelProvider, ModelProviderPlugin {
     override val definition = PluginDefinition("kinuvo.apple", "Apple")
     override val id = "apple"
     override val name = "Apple"

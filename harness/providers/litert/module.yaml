@@ -5,6 +5,7 @@ product:
 
 dependencies:
   - ../../core: exported
+  - ../../../server/plugin-api: exported
   - ../../models
   - ai.koog:prompt-executor-openai-client:1.3.0
 

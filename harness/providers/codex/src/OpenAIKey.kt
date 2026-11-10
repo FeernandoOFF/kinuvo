@@ -1,8 +1,8 @@
 package kinuvo.harness.codex
 
+import kinuvo.server.plugin.Keychain
 import kinuvo.harness.core.*
 import kinuvo.harness.core.store.AgentFiles
-import kinuvo.harness.core.store.loadEnv
 import kotlinx.io.files.Path
 
 internal fun OpenAIKey(

@@ -5,7 +5,7 @@ import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.protocol.SessionEntry
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.testing.request
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList

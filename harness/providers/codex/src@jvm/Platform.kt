@@ -1,7 +1,7 @@
 package kinuvo.harness.codex
 
 import io.ktor.client.engine.java.Java
-import kinuvo.harness.core.Keychain
+import kinuvo.server.plugin.Keychain
 import kinuvo.harness.core.PrivateFile
 import kotlinx.io.files.Path
 

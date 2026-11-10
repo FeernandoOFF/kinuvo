@@ -1,6 +1,6 @@
 package kinuvo.harness.codex
 
-import kinuvo.harness.core.plugin.GeneratedImage
+import kinuvo.server.plugin.GeneratedImage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import java.io.File

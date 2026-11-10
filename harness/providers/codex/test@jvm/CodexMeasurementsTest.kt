@@ -10,9 +10,9 @@ import ai.koog.prompt.streaming.StreamFrame
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.core.TokenUsageCapture
-import kinuvo.harness.core.Agent
+import kinuvo.harness.execution.api.Agent
 import kinuvo.harness.core.AgentModel
 import kinuvo.harness.core.AgentRun
 import kinuvo.harness.core.store.InMemoryStore

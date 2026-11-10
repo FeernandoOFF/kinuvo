@@ -5,7 +5,7 @@ import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.message.RequestMetaInfo
 import ai.koog.prompt.message.ResponseMetaInfo
 import com.google.ai.edge.litertlm.Content
-import kinuvo.harness.core.takeWhole
+import kinuvo.server.plugin.takeWhole
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.io.ByteArrayOutputStream

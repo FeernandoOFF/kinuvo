@@ -3,7 +3,7 @@ package kinuvo.harness.litert
 import kinuvo.harness.core.ModelProfile
 import kinuvo.protocol.ModelTier
 import kotlinx.coroutines.test.runTest
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.AgentConfig
 import java.nio.file.Files
 import kotlin.test.*
 

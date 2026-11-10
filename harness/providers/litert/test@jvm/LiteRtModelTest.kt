@@ -7,7 +7,7 @@ import ai.koog.prompt.dsl.prompt
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.message.RequestMetaInfo
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.models.ModelFiles
 import kotlinx.coroutines.runBlocking
 import java.io.File

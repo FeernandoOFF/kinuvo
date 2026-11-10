@@ -4,6 +4,7 @@ product:
 
 dependencies:
   - ../../core: exported
+  - ../../../server/plugin-api: exported
 
 test-dependencies:
   - ../../testing

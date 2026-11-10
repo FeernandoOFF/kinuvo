@@ -13,11 +13,11 @@ import io.ktor.http.isSuccess
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kinuvo.harness.core.plugin.ProviderAuth
+import kinuvo.server.plugin.ProviderAuth
 import kinuvo.protocol.DeviceCode
 import kinuvo.protocol.ProviderAccount
 import kotlinx.serialization.json.*
-import kinuvo.harness.core.Keychain
+import kinuvo.server.plugin.Keychain
 import kotlin.io.encoding.Base64
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes

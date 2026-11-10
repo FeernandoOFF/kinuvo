@@ -1,5 +1,7 @@
 package kinuvo.harness.litert
 
+import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.server.plugin.ModelDownloads
 import kinuvo.harness.core.plugin.*
 import ai.koog.prompt.llm.LLMProvider
 import kinuvo.harness.core.*
@@ -14,7 +16,7 @@ import java.io.File
 internal object LiteRt : LLMProvider("local", "On this device")
 
 /** Open models the Server downloads into [home] and runs on its own machine with LiteRT-LM. */
-class LiteRtProvider(home: File) : ModelProvider, HarnessPlugin {
+class LiteRtProvider(home: File) : ModelProvider, ModelProviderPlugin {
     override val definition = PluginDefinition("kinuvo.litert", "On this device")
     override val id = "local"
     override val name = "On this device"

@@ -1,12 +1,12 @@
 package kinuvo.harness.server.testing
 
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.core.AgentModel
-import kinuvo.harness.core.plugin.CustomEndpoints
-import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.server.plugin.CustomEndpoints
 import kinuvo.harness.core.plugin.ModelProvider
-import kinuvo.harness.core.plugin.ProviderApiKey
-import kinuvo.harness.core.plugin.ProviderAuth
+import kinuvo.harness.core.plugin.ModelProviderPlugin
+import kinuvo.server.plugin.ProviderApiKey
+import kinuvo.server.plugin.ProviderAuth
 import kinuvo.protocol.CustomEndpointParams
 import kinuvo.protocol.DeviceCode
 import kinuvo.protocol.ModelInfo
@@ -46,7 +46,7 @@ class FakeModelProvider(
 }
 
 /** Gives a Server the model [providers], and custom endpoints that discover no models, as a Server with none reachable does. */
-class FakeModels(private vararg val providers: FakeModelProvider) : HarnessPlugin {
+class FakeModels(private vararg val providers: FakeModelProvider) : ModelProviderPlugin {
     override val definition = PluginDefinition("test.models", "Test models")
     override val modelProviders: List<ModelProvider> get() = providers.toList()
     val discovered = CopyOnWriteArrayList<CustomEndpointParams>()

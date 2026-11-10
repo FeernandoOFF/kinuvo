@@ -2,7 +2,7 @@ package kinuvo.harness.apple
 
 import ai.koog.prompt.streaming.StreamFrame
 import ai.koog.agents.core.tools.ToolDescriptor
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.testing.request
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.toList

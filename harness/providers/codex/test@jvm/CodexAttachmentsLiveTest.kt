@@ -2,7 +2,7 @@ package kinuvo.harness.codex
 
 import kinuvo.harness.testing.*
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.harness.core.AgentConfig
+import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.protocol.*
 import kotlinx.coroutines.runBlocking
 import java.awt.Color
