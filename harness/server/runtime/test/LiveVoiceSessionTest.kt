@@ -35,6 +35,23 @@ class LiveVoiceSessionTest {
         assertEquals(1, events.count { it is LiveVoiceOutput.Ended })
     }
 
+    @Test fun callIsNoLongerActiveWhenItsEndIsAnnounced() = runTest {
+        var activeAtEnd: Boolean? = null
+        lateinit var call: LiveVoiceSession
+        val provider = object : SpeechToSpeech {
+            override val input = AudioFormat.Pcm16(24000)
+            override val output = AudioFormat.Pcm16(24000)
+            override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) = Unit
+        }
+        call = LiveVoiceSession(provider, backgroundScope, VoiceContext("Agent"), {
+            if (it is LiveVoiceOutput.Ended) activeAtEnd = call.active
+            Delivery.Queued
+        }, { _, _ -> "reply" })
+        call.start()
+        runCurrent()
+        assertEquals(false, activeAtEnd)
+    }
+
     @Test fun recordsOneBlockWhenDisconnectedAndSeedsLaterCalls() = runTest {
         val turns = listOf(VoiceTurn(true, "hello"), VoiceTurn(false, "hi"))
         val saved = mutableListOf<SessionEntry.VoiceCall>()
