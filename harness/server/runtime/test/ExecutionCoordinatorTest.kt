@@ -25,7 +25,7 @@ class ExecutionCoordinatorTest {
                     override val capabilities = ExecutionCapabilities(cancel = true)
                     override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance { prompts++; return ExecutionAcceptance("accepted") }
                     override suspend fun cancel() {}
-                    override suspend fun answer(requestId: String, answer: JsonElement) {}
+                    override suspend fun answer(requestId: String, answer: InteractionAnswer) {}
                 }
             }
         }
@@ -84,7 +84,7 @@ class ExecutionCoordinatorTest {
                         oldFailure.await(); error("Late old prompt failure")
                     }
                     override suspend fun cancel() { assertTrue(promptStarted); cancellations++ }
-                    override suspend fun answer(requestId: String, answer: JsonElement) {}
+                    override suspend fun answer(requestId: String, answer: InteractionAnswer) {}
                 }
             }
         }

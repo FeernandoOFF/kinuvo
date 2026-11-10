@@ -496,7 +496,13 @@ class ServerRuntime(
         Api.ResumeExecution.name -> respond(r, Api.ResumeExecution) { executionManagement.withLock { external.resume(it.id) } }
         Api.CloseExecution.name -> respond(r, Api.CloseExecution) { executionManagement.withLock { external.closeExecution(it.id) } }
         Api.ExecutionSnapshot.name -> respond(r, Api.ExecutionSnapshot) { if (external.owns(it.id)) external.snapshot(it.id) else nativeExecution.snapshot(nativeOwner(it.id) ?: error("Unknown Session"), it.id) }
-        Api.ExecutionAnswer.name -> respond(r, Api.ExecutionAnswer) { dispatchFor(it.sessionId).answer(it) }
+        Api.Respond.name -> respond(r, Api.Respond) {
+            // Deciding a Kinuvo Approval takes management access, however the answer is shaped.
+            val approving = it.answer is InteractionAnswer.Approval ||
+                (!external.owns(it.sessionId) && harness.log.pending(it.sessionId).any { p -> p.id == it.requestId && p is PendingInteraction.Approval })
+            if (approving && !client.authenticated(auth::management)) error("This action requires management access")
+            dispatchFor(it.sessionId).answer(it)
+        }
         Api.GrantExecution.name -> respond(r, Api.GrantExecution) { p ->
             require(p.agentIds.all { id -> if (executions.registration(id) != null) executions.configured(id).connection !is ExecutionConnection.Remote else harness.store.agents().any { it.id == id } }) { "Only installed source execution Agents may be exposed" }
             remoteLinks.grant(p)
@@ -552,8 +558,6 @@ class ServerRuntime(
         Api.Send.name -> respond(r, Api.Send) { send(it, client) }
         Api.Stop.name -> respond(r, Api.Stop) { stop(it.sessionId) }
         Api.ReviewReflection.name -> respond(r, Api.ReviewReflection) { reflectionReview.respond(agent(it.agentId), it.sessionId, it.proposalId, it.approve, it.note) }
-        Api.Approve.name -> respond(r, Api.Approve) { harness.approvals.respond(it.approvalId, it.decision) }
-        Api.Answer.name -> respond(r, Api.Answer) { harness.questions.respond(it.questionsId, it.answers) }
         Api.Artifacts.name -> respond(r, Api.Artifacts) { harness.artifacts.list() }
         Api.Artifact.name -> respond(r, Api.Artifact) { harness.artifacts.get(it.id) }
         Api.SaveArtifact.name -> respond(r, Api.SaveArtifact) { harness.artifacts.replace(it.id, it.content) }
@@ -641,28 +645,19 @@ class ServerRuntime(
 
     private suspend fun nativeOwner(sessionId: String) = harness.store.agents().firstOrNull { a -> harness.store.sessions(a.id).any { it.id == sessionId } }?.id
 
-    private suspend fun answerNative(answer: ExecutionAnswer): Boolean {
-        val agentId = nativeOwner(answer.sessionId) ?: return false
-
-        val pending = nativeExecution.snapshot(agentId, answer.sessionId).pending.firstOrNull { it.id == answer.requestId }
-        return when (pending?.kind) {
-            ExecutionRequestKind.Approval -> {
-                val option = (answer.answer as? JsonObject)?.get("optionId")?.jsonPrimitive?.content
-                require(option == null || pending.options.any { it.id == option })
-                harness.approvals.respond(answer.requestId, when (option) {
-                    "allow_once" -> ApprovalDecision.AllowOnce
-                    "allow_session" -> ApprovalDecision.AllowForSession
-                    "always_allow" -> ApprovalDecision.AlwaysAllow
-                    else -> ApprovalDecision.Deny()
-                })
+    private suspend fun answerNative(answer: RespondParams): Boolean {
+        nativeOwner(answer.sessionId) ?: return false
+        val pending = harness.log.pending(answer.sessionId).firstOrNull { it.id == answer.requestId } ?: return false
+        val given = answer.answer
+        return when {
+            pending is PendingInteraction.Approval && given is InteractionAnswer.Approval -> harness.approvals.respond(pending.id, given.decision)
+            pending is PendingInteraction.Approval && given is InteractionAnswer.Harness -> {
+                val option = (given.answer as? JsonObject)?.get("optionId")?.jsonPrimitive?.content
+                require(option == null || pending.forHarness().options.any { it.id == option })
+                harness.approvals.respond(pending.id, approvalDecision(option))
             }
-            ExecutionRequestKind.Question -> {
-                val answers = (answer.answer as? JsonObject)?.get("answers")?.let {
-                    ProtocolJson.decodeFromJsonElement(MapSerializer(serializer<String>(), ListSerializer(serializer<String>())), it)
-                }.orEmpty()
-                harness.questions.respond(answer.requestId, answers)
-            }
-            null -> false
+            pending is PendingInteraction.Questions && given is InteractionAnswer.Questions -> harness.questions.respond(pending.id, given.answers)
+            else -> false
         }
     }
 

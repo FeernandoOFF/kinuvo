@@ -7,6 +7,7 @@ import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.Attachment
+import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
@@ -76,11 +77,11 @@ class ToolExecutor(
                         ToolKind.ComputerAction -> verdict.trustKeys.joinToString(", ") { it.removePrefix("${tool.policyKey} ") }
                         else -> ""
                     }.ifEmpty { null }
-                    emit(AgentEvent.ApprovalRequested(pending.id, approvalId, call.name, call.args, hint, a.risk, a.reason, verdict.trustKeys.isNotEmpty(), tool?.identity))
+                    emit(AgentEvent.InteractionRequested(PendingInteraction.Approval(pending.id, approvalId, call.name, call.args, hint, a.risk, a.reason, verdict.trustKeys.isNotEmpty(), tool?.identity)))
                     val wait = approvals.wait
                     val answer = if (wait == null) pending.await() else withTimeoutOrNull(wait) { pending.await() }
                     stopped("Cancelled by user")
-                    emit(AgentEvent.ApprovalResolved(approvalId, answer != null && answer !is ApprovalDecision.Deny))
+                    emit(AgentEvent.InteractionResolved(pending.id, answer != null && answer !is ApprovalDecision.Deny))
                     if (answer == null) {
                         approvals.skipped(tool?.displayName ?: call.name)
                         return SessionEntry.ToolResult(call.id, call.name, "No answer within ${wait?.inWholeMinutes} minutes; skipped", isError = true, identity = tool?.identity)
@@ -146,9 +147,9 @@ class ToolExecutor(
         }
         val pending = broker.register()
         try {
-            emit(AgentEvent.QuestionsAsked(pending.id, formId, title, list))
+            emit(AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, formId, title, list)))
             val answers = pending.await()
-            emit(AgentEvent.QuestionsAnswered(formId))
+            emit(AgentEvent.InteractionResolved(pending.id))
             return SessionEntry.ToolResult(call.id, call.name, AskUserTool.result(list, answers))
         } finally {
             pending.close()

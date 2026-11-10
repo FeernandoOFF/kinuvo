@@ -2,9 +2,8 @@ package kinuvo.harness.server
 
 import kinuvo.harness.core.voice.AgentProgress
 import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.ExecutionPrompt
-import kinuvo.protocol.ExecutionRequestKind
 import kinuvo.protocol.ExecutionSnapshot
+import kinuvo.protocol.PendingInteraction
 
 /** A native run's progress; a message is reported only once more work follows it, since the last one is the reply. */
 internal class NativeVoiceProgress {
@@ -15,9 +14,15 @@ internal class NativeVoiceProgress {
         when (event) {
             is AgentEvent.TextMessageEnd -> { flush(); text = event.text.takeIf { it.isNotBlank() } }
             is AgentEvent.ToolCallStart -> flush()
-            is AgentEvent.ApprovalRequested -> { flush(); add(AgentProgress.ApprovalRequested(event.toolCallName, event.trustHint ?: event.reason ?: "Review the action's details in the app")) }
-            is AgentEvent.ApprovalResolved -> add(AgentProgress.ApprovalResolved(event.allowed))
-            is AgentEvent.QuestionsAsked -> { flush(); add(AgentProgress.Question(event.questions.joinToString("; ") { it.label }.take(600))) }
+            is AgentEvent.InteractionRequested -> {
+                flush()
+                when (val interaction = event.interaction) {
+                    is PendingInteraction.Approval -> add(AgentProgress.ApprovalRequested(interaction.toolCallName, interaction.trustHint ?: interaction.reason ?: "Review the action's details in the app"))
+                    is PendingInteraction.Questions -> add(AgentProgress.Question(interaction.questions.joinToString("; ") { it.label }.take(600)))
+                    else -> {}
+                }
+            }
+            is AgentEvent.InteractionResolved -> event.allowed?.let { add(AgentProgress.ApprovalResolved(it)) }
             else -> {}
         }
     }
@@ -33,15 +38,18 @@ internal class VoiceAgentProgress(initial: ExecutionSnapshot) {
         val asking = current.keys.any { it !in pending }
         val settled = if (asking) snapshot.messages else snapshot.messages.dropLast(1)
         settled.filter { it.role == "assistant" && it.text.isNotBlank() && reported.add(it.id) }.forEach { add(AgentProgress.Text(it.text)) }
-        pending.values.filter { it.id !in current && it.kind == ExecutionRequestKind.Approval }
+        pending.values.filter { it.id !in current && it.isApproval() }
             .forEach { add(AgentProgress.ApprovalResolved(null)) }
         current.values.filter { it.id !in pending }.forEach { request ->
-            val prompt = request.prompt
-            if (request.kind == ExecutionRequestKind.Approval) {
-                val approval = prompt as? ExecutionPrompt.Approval
-                add(AgentProgress.ApprovalRequested(approval?.title ?: "Agent action", approval?.description ?: "Review the action's details in the app"))
-            } else add(AgentProgress.Question((prompt as? ExecutionPrompt.Questions)?.asked?.questions.orEmpty().joinToString("; ") { it.label }.take(600)))
+            when (request) {
+                is PendingInteraction.HarnessApproval -> add(AgentProgress.ApprovalRequested(request.title, request.description ?: "Review the action's details in the app"))
+                is PendingInteraction.Approval -> add(AgentProgress.ApprovalRequested(request.toolCallName, request.trustHint ?: request.reason ?: "Review the action's details in the app"))
+                is PendingInteraction.Questions -> add(AgentProgress.Question(request.questions.joinToString("; ") { it.label }.take(600)))
+                else -> add(AgentProgress.Question(""))
+            }
         }
         pending = current
     }
 }
+
+private fun PendingInteraction.isApproval() = this is PendingInteraction.Approval || this is PendingInteraction.HarnessApproval

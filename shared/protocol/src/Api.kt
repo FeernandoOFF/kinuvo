@@ -2,7 +2,6 @@ package kinuvo.protocol
 
 import kinuvo.protocol.SurfaceImage as SurfaceImageResult
 import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.SessionInfo
 import kotlinx.serialization.KSerializer
@@ -44,7 +43,7 @@ class EventType<T>(val name: String, val payload: KSerializer<T>)
 data class AgentInfo(val id: String, val name: String, val exec: String, val avatar: String? = null, val executionKind: ExecutionKind = ExecutionKind.Native, val connectionId: String? = null, val host: String? = null, val readiness: ExecutionReadiness = ExecutionReadiness(true, true))
 
 object ProtocolVersion {
-    const val Current = 6
+    const val Current = 7
     const val Mismatch = "protocol_mismatch: Update the Server and Device to matching versions"
     fun requireCompatible(version: Int) { require(version == Current) { Mismatch } }
 }
@@ -99,9 +98,6 @@ data class UpdateSessionParams(val agentId: String, val sessionId: String, val t
 
 @Serializable
 data class StopParams(val sessionId: String)
-
-@Serializable
-data class ApprovalParams(val approvalId: String, val decision: ApprovalDecision)
 
 /** [before] is the last Session ID of the previous page. Lists the user's Sessions, or with [routineId] that Routine's. */
 @Serializable
@@ -263,8 +259,7 @@ object Api {
     val Send = Method("chat.send", SendParams.serializer(), SendResult.serializer())
     val Stop = Method("chat.stop", StopParams.serializer(), Unit.serializer())
     val ReviewReflection = Method("reflection.review", ReviewReflectionParams.serializer(), Unit.serializer())
-    val Approve = Method("approval.respond", ApprovalParams.serializer(), Boolean.serializer())
-    val Answer = Method("questions.respond", QuestionsParams.serializer(), Boolean.serializer())
+    val Respond = Method("session.respond", RespondParams.serializer(), Boolean.serializer())
     /** Every Artifact, newest first. */
     val Artifacts = Method("artifacts.list", Unit.serializer(), ListSerializer(ArtifactInfo.serializer()))
     val Artifact = Method("artifact.get", ArtifactRef.serializer(), ArtifactData.serializer())
@@ -312,7 +307,6 @@ object Api {
     val ResumeExecution = Method("execution.resume", ExecutionRef.serializer(), kinuvo.protocol.ExecutionSnapshot.serializer())
     val CloseExecution = Method("execution.close", ExecutionRef.serializer(), Unit.serializer())
     val ExecutionSnapshot = Method("execution.snapshot", ExecutionRef.serializer(), kinuvo.protocol.ExecutionSnapshot.serializer())
-    val ExecutionAnswer = Method("execution.answer", kinuvo.protocol.ExecutionAnswer.serializer(), Boolean.serializer())
     val ExecutionChanged = EventType("execution.changed", kinuvo.protocol.ExecutionSnapshot.serializer())
     val SaveRemoteLink = Method("execution.remote.save", kinuvo.protocol.SaveRemoteLink.serializer(), Unit.serializer())
     val GrantExecution = Method("execution.exposure.grant", ExposureGrant.serializer(), String.serializer())

@@ -4,6 +4,8 @@ import kinuvo.harness.core.plugin.*
 import kinuvo.harness.testing.*
 
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.approval
+import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.DenyRules
@@ -55,10 +57,10 @@ class ApprovalsTest {
         }
         val broker = Broker<ApprovalDecision>()
         val executor = kinuvo.harness.core.tools.ToolExecutor(listOf(tool), approvals = Approvals(policy(agent()), broker), emit = { event ->
-            if (event is AgentEvent.ApprovalRequested) {
+            if (event.approval != null) {
                 val held = gate.acquire("device", 0)
                 gate.release("device", held.generation)
-                broker.respond(event.approvalId, ApprovalDecision.AllowOnce)
+                broker.respond(event.approval!!.id, ApprovalDecision.AllowOnce)
             }
         })
         val result = executor.call(SessionEntry.ToolCall("call", "screen", "{}"))
@@ -132,18 +134,18 @@ class ApprovalsTest {
         val broker = ApprovalBroker()
         val runner = AgentRun(a, store, model, listOf(tool), approvals = Approvals(policy(a), broker))
         val sessions = List(2) { store.createSession(a.id, "").id }
-        val requests = Channel<Pair<String, AgentEvent.ApprovalRequested>>(Channel.UNLIMITED)
+        val requests = Channel<Pair<String, PendingInteraction.Approval>>(Channel.UNLIMITED)
         val jobs = sessions.map { id -> launch {
-            runner.run(id, "go").collect { if (it is AgentEvent.ApprovalRequested) requests.send(id to it) }
+            runner.run(id, "go").collect { it.approval?.let { approval -> requests.send(id to approval) } }
         } }
         val (firstSession, first) = requests.receive()
         val (secondSession, second) = requests.receive()
         assertEquals("same", store.entries(a.id, firstSession).filterIsInstance<SessionEntry.ToolCall>().single().id)
         assertEquals("same", store.entries(a.id, secondSession).filterIsInstance<SessionEntry.ToolCall>().single().id)
-        assertTrue(first.approvalId != second.approvalId)
+        assertTrue(first.id != second.id)
         assertFalse(broker.respond("same", ApprovalDecision.AllowOnce))
-        assertTrue(broker.respond(first.approvalId, ApprovalDecision.Deny()))
-        assertTrue(broker.respond(second.approvalId, ApprovalDecision.AllowOnce))
+        assertTrue(broker.respond(first.id, ApprovalDecision.Deny()))
+        assertTrue(broker.respond(second.id, ApprovalDecision.AllowOnce))
         jobs.forEach { it.join() }
         assertTrue(store.entries(a.id, firstSession).filterIsInstance<SessionEntry.ToolResult>().single().isError)
         assertFalse(store.entries(a.id, secondSession).filterIsInstance<SessionEntry.ToolResult>().single().isError)
@@ -240,9 +242,10 @@ class ApprovalsTest {
         while (true) {
             val e = events.receive()
             seen += e
-            if (e is AgentEvent.ApprovalRequested) {
+            val approval = e.approval
+            if (approval != null) {
                 if (decision == null) { job.cancel(); break }
-                broker.respond(e.approvalId, decision)
+                broker.respond(approval.id, decision)
             }
             if (e is AgentEvent.RunFinished || e is AgentEvent.RunError) break
         }
@@ -257,9 +260,9 @@ class ApprovalsTest {
     fun allowOnceRunsAndAsksAgainNextTime() = runTest {
         val tool = FakeTool("cua__click", Risk.Medium)
         val first = turn(tool, ApprovalDecision.AllowOnce)
-        assertTrue(first.any { it is AgentEvent.ApprovalResolved && it.allowed })
+        assertTrue(first.any { it is AgentEvent.InteractionResolved && it.allowed == true })
         assertEquals(1, tool.calls)
-        assertTrue(turn(tool, ApprovalDecision.AllowOnce).any { it is AgentEvent.ApprovalRequested })
+        assertTrue(turn(tool, ApprovalDecision.AllowOnce).any { it.approval != null })
         assertEquals(2, tool.calls)
     }
 
@@ -268,7 +271,7 @@ class ApprovalsTest {
         val tool = FakeTool("cua__click", Risk.Medium)
         turn(tool, ApprovalDecision.AlwaysAllow)
         val second = turn(tool, ApprovalDecision.Deny("should not be asked"))
-        assertTrue(second.none { it is AgentEvent.ApprovalRequested })
+        assertTrue(second.none { it.approval != null })
         assertEquals(2, tool.calls)
     }
 
@@ -294,7 +297,7 @@ class ApprovalsTest {
     @Test
     fun autoRiskToolsNeverAsk() = runTest {
         val tool = FakeTool("memory", Risk.Low)
-        assertTrue(turn(tool, ApprovalDecision.Deny()).none { it is AgentEvent.ApprovalRequested })
+        assertTrue(turn(tool, ApprovalDecision.Deny()).none { it.approval != null })
         assertEquals(1, tool.calls)
     }
 }

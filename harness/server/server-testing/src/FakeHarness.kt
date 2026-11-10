@@ -11,12 +11,11 @@ import kinuvo.protocol.AgentRegistration
 import kinuvo.protocol.ExecutionCapabilities
 import kinuvo.protocol.ExecutionConnection
 import kinuvo.protocol.ExecutionPhase
-import kinuvo.protocol.ExecutionPrompt
 import kinuvo.protocol.ExecutionProbe
 import kinuvo.protocol.ExecutionReadiness
-import kinuvo.protocol.ExecutionRequest
-import kinuvo.protocol.ExecutionRequestKind
 import kinuvo.protocol.ExternalApprovalOption
+import kinuvo.protocol.InteractionAnswer
+import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.HarnessConnection
 import kinuvo.protocol.Question
 import kinuvo.protocol.SessionEntry
@@ -107,7 +106,7 @@ class FakeExternalSession internal constructor(
         if (state.snapshot().phase != ExecutionPhase.Idle) finish("cancelled")
     }
 
-    override suspend fun answer(requestId: String, answer: JsonElement) {}
+    override suspend fun answer(requestId: String, answer: InteractionAnswer) {}
 
     /** Commits an assistant message to the Session's transcript. */
     suspend fun say(text: String) {
@@ -120,7 +119,7 @@ class FakeExternalSession internal constructor(
     suspend fun reply(text: String) = say(text)
 
     /** Waits for a client's answer to [request], which is shown pending meanwhile. */
-    suspend fun ask(request: ExecutionRequest): JsonElement {
+    suspend fun ask(request: PendingInteraction): JsonElement {
         sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.RequiresAction))
         val answer = broker.ask(request)
         sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
@@ -130,15 +129,13 @@ class FakeExternalSession internal constructor(
     /** Asks a form of [questions], like an `ask_user` call. */
     suspend fun askQuestions(title: String, vararg questions: Question): JsonElement {
         val id = "request-${requests.incrementAndGet()}"
-        return ask(ExecutionRequest(id, ExecutionRequestKind.Question, JsonObject(emptyMap()),
-            prompt = ExecutionPrompt.Questions(id, AgentEvent.QuestionsAsked(id, id, title, questions.toList()))))
+        return ask(PendingInteraction.Questions(id, id, title, questions.toList()))
     }
 
     /** Asks the user to pick one of [options] for [title], like a permission request. */
     suspend fun askApproval(title: String, description: String? = null, options: List<ExternalApprovalOption> = listOf(ExternalApprovalOption("allow", "Allow", "allow_once"))): JsonElement {
         val id = "request-${requests.incrementAndGet()}"
-        return ask(ExecutionRequest(id, ExecutionRequestKind.Approval, JsonObject(emptyMap()), options,
-            ExecutionPrompt.Approval(id, title, description, options)))
+        return ask(PendingInteraction.HarnessApproval(id, title, description, options))
     }
 
     private suspend fun finish(reason: String) {

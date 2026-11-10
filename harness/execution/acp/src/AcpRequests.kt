@@ -17,9 +17,14 @@ private fun host(url: String) = url.takeIf { "://" in it }?.let { runCatching { 
 /** Shows only the host of any address in [text]. */
 private fun withoutAddresses(text: String) = Regex("""[a-zA-Z][a-zA-Z0-9+.-]*://\S+""").replace(text) { host(it.value) ?: "a link" }
 
-internal fun ExecutionRequest.decodePrompt(): ExecutionPrompt {
+internal enum class AcpRequestKind { Approval, Question }
+
+/** A request as [interaction] for Devices, with what only the ACP answer encoding needs. */
+internal class AcpPrompt(val interaction: PendingInteraction, val types: Map<String, String> = emptyMap(), val values: Map<String, Map<String, String>> = emptyMap())
+
+internal fun decodePrompt(id: String, kind: AcpRequestKind, payload: JsonElement, options: List<ExternalApprovalOption> = emptyList()): AcpPrompt {
     val body = payload as? JsonObject ?: JsonObject(emptyMap())
-    if (kind == ExecutionRequestKind.Approval) {
+    if (kind == AcpRequestKind.Approval) {
         // A linked Kinuvo Server forwards its own Approval: the tool and its arguments. ACP names the tool call it's about as its subject.
         val call = ((body["subject"] as? JsonObject)?.get("toolCall") ?: body["toolCall"]) as? JsonObject
         val input = call?.get("rawInput") as? JsonObject
@@ -27,10 +32,7 @@ internal fun ExecutionRequest.decodePrompt(): ExecutionPrompt {
         val title = body["title"].shown() ?: call?.get("title").shown() ?: body["toolCallName"].shown() ?: "Wants to act"
         val description = (body["description"].shown() ?: body["reason"].shown())?.let(::withoutAddresses) ?: body["args"].shown()?.let(::withoutAddresses)
             ?: (input?.get("description").shown() ?: content ?: call?.get("title").shown()?.takeIf { it != title })?.let(::withoutAddresses)
-        return ExecutionPrompt.Approval(id, withoutAddresses(title), description, options.map { it.copy(label = withoutAddresses(it.label)) }, input?.get("url").text()?.let(::host), input?.get("serverName").shown()?.let(::withoutAddresses))
-    }
-    if ("questionsId" in body && "questions" in body) runCatching { ProtocolJson.decodeFromJsonElement(AgentEvent.QuestionsAsked.serializer(), body) }.getOrNull()?.let {
-        return ExecutionPrompt.Questions(id, it.copy(questionsId = id), native = true)
+        return AcpPrompt(PendingInteraction.HarnessApproval(id, withoutAddresses(title), description, options.map { it.copy(label = withoutAddresses(it.label)) }, input?.get("url").text()?.let(::host), input?.get("serverName").shown()?.let(::withoutAddresses)))
     }
     val message = body["message"].text() ?: "Questions for you"
     if (body["mode"].text() == "url") {
@@ -38,16 +40,16 @@ internal fun ExecutionRequest.decodePrompt(): ExecutionPrompt {
             val uri = URI(value)
             uri.scheme in setOf("https", "http") && !uri.host.isNullOrBlank() && uri.rawUserInfo == null
         }.getOrDefault(false) }
-        val site = url?.let(::host) ?: return ExecutionPrompt.Unsupported(id, withoutAddresses(message))
-        return ExecutionPrompt.OpenLink(id, withoutAddresses(message), url, site)
+        val site = url?.let(::host) ?: return AcpPrompt(PendingInteraction.Unsupported(id, withoutAddresses(message)))
+        return AcpPrompt(PendingInteraction.OpenLink(id, withoutAddresses(message), url, site))
     }
-    val schema = body["requestedSchema"] as? JsonObject ?: return ExecutionPrompt.Unsupported(id, withoutAddresses(message))
-    val properties = schema["properties"] as? JsonObject ?: return ExecutionPrompt.Unsupported(id, withoutAddresses(message))
+    val schema = body["requestedSchema"] as? JsonObject ?: return AcpPrompt(PendingInteraction.Unsupported(id, withoutAddresses(message)))
+    val properties = schema["properties"] as? JsonObject ?: return AcpPrompt(PendingInteraction.Unsupported(id, withoutAddresses(message)))
     if (properties.values.any { value ->
         val property = value as? JsonObject
         property?.get("type").text() !in setOf("string", "number", "integer", "boolean", "array") ||
             (property?.get("type").text() == "array" && ((property?.get("items") as? JsonObject)?.get("type").text() !in setOf(null, "string")))
-    }) return ExecutionPrompt.Unsupported(id, withoutAddresses(message))
+    }) return AcpPrompt(PendingInteraction.Unsupported(id, withoutAddresses(message)))
     val required = (schema["required"] as? JsonArray)?.mapNotNull { it.text() }.orEmpty()
     val types = mutableMapOf<String, String>()
     val values = mutableMapOf<String, Map<String, String>>()
@@ -69,7 +71,7 @@ internal fun ExecutionRequest.decodePrompt(): ExecutionPrompt {
             .map { v -> choices.entries.firstOrNull { it.value == v }?.key ?: if (kind == QuestionKind.YesNo) (if (v == "true") "Yes" else "No") else v }
         Question(key, withoutAddresses(p["title"].text() ?: key), kind, choices.keys.toList(), key in required, p["description"].text()?.let(::withoutAddresses), default)
     }
-    return ExecutionPrompt.Questions(id, AgentEvent.QuestionsAsked(id, id, withoutAddresses(message), questions), types, values)
+    return AcpPrompt(PendingInteraction.Questions(id, id, withoutAddresses(message), questions), types, values)
 }
 
 /** Option label to value, from `enum` (label = value) or titled `oneOf`/`anyOf` options. */
@@ -85,27 +87,27 @@ private fun choices(p: JsonObject?): Map<String, String> {
     return (p["enum"] as? JsonArray)?.mapNotNull { it.text() }?.associateWith { it }.orEmpty()
 }
 
-internal fun ExecutionPrompt.encodeAnswer(answer: JsonElement): JsonElement {
-    if (this is ExecutionPrompt.Approval) return buildJsonObject {
+internal fun AcpPrompt.encodeAnswer(answer: JsonElement): JsonElement {
+    if (interaction is PendingInteraction.HarnessApproval) return buildJsonObject {
         val option = if (answer == JsonNull) null else answer.jsonObject["optionId"]?.jsonPrimitive?.content
-        require(answer == JsonNull || options.any { it.id == option }) { "Unknown Approval option" }
+        require(answer == JsonNull || interaction.options.any { it.id == option }) { "Unknown Approval option" }
         putJsonObject("outcome") {
             put("outcome", if (option == null) "cancelled" else "selected")
             option?.let { put("optionId", it) }
         }
     }
     if (answer == JsonNull) return buildJsonObject { put("action", "decline") }
-    return when (this) {
-        is ExecutionPrompt.OpenLink -> buildJsonObject {
+    return when (interaction) {
+        is PendingInteraction.OpenLink -> buildJsonObject {
             val opened = requireNotNull(answer.jsonObject["opened"]?.jsonPrimitive?.booleanOrNull)
             put("action", if (opened) "accept" else "decline")
         }
-        is ExecutionPrompt.Questions -> buildJsonObject {
+        is PendingInteraction.Questions -> buildJsonObject {
             val answers = requireNotNull(answer.jsonObject["answers"] as? JsonObject)
-            require(answers.keys.all { key -> asked.questions.any { it.id == key } }) { "Unknown question" }
+            require(answers.keys.all { key -> interaction.questions.any { it.id == key } }) { "Unknown question" }
             put("action", "accept")
             putJsonObject("content") {
-                asked.questions.forEach { q ->
+                interaction.questions.forEach { q ->
                     val raw = (answers[q.id] as? JsonArray).orEmpty().map {
                         require(it is JsonPrimitive && it.isString) { "Answers must be strings" }; it.content
                     }.filter { it.isNotBlank() }
@@ -132,10 +134,10 @@ internal class AcpRequests(private val broker: ExecutionBroker) {
     private val lock = Mutex()
     private val waiting = mutableSetOf<Job>()
 
-    suspend fun ask(source: ExecutionRequest, prompt: ExecutionPrompt): JsonElement = coroutineScope {
+    suspend fun ask(prompt: AcpPrompt): JsonElement = coroutineScope {
         val job = currentCoroutineContext().job
         lock.withLock { waiting.add(job) }
-        try { broker.ask(source) { prompt.encodeAnswer(it) } }
+        try { broker.ask(prompt.interaction) { prompt.encodeAnswer(it) } }
         finally { withContext(NonCancellable) { lock.withLock { waiting.remove(job) } } }
     }
 

@@ -22,7 +22,7 @@ class LatestNotificationsTest {
         repeat(5000) { token ->
             notifications.offer("s", ExecutionSnapshot("s", ExecutionPhase.Running, history + ExecutionMessage("stream", "assistant", "$token")))
         }
-        val pending = ExecutionSnapshot("s", ExecutionPhase.RequiresAction, history + ExecutionMessage("stream", "assistant", "4999"), listOf(ExecutionRequest("approval", ExecutionRequestKind.Approval, kotlinx.serialization.json.JsonNull)))
+        val pending = ExecutionSnapshot("s", ExecutionPhase.RequiresAction, history + ExecutionMessage("stream", "assistant", "4999"), listOf(PendingInteraction.Unsupported("approval", "Unsupported")))
         notifications.offer("s", pending)
         gate.complete(Unit)
         runCurrent()

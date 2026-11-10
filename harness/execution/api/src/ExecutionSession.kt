@@ -3,7 +3,6 @@ package kinuvo.harness.execution.api
 import kinuvo.protocol.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.serialization.json.JsonElement
 import kotlin.uuid.Uuid
 
 /** Implementations are native in-process, JVM ACP, or an explicitly selected remote Agent. */
@@ -12,8 +11,8 @@ interface ExecutionSession {
     suspend fun close() {}
     suspend fun prompt(input: ExecutionInput): ExecutionAcceptance
     suspend fun cancel()
-    suspend fun respond(requestId: String, answer: JsonElement): Boolean? = null
-    suspend fun answer(requestId: String, answer: JsonElement)
+    suspend fun respond(requestId: String, answer: InteractionAnswer): Boolean? = null
+    suspend fun answer(requestId: String, answer: InteractionAnswer)
 }
 
 /** Execution-owned reducer. Client disconnection never changes execution state or pending requests. */
@@ -61,11 +60,11 @@ class ExecutionState(
         changed(state)
     }
 
-    suspend fun request(request: ExecutionRequest) = lock.withLock {
+    suspend fun request(request: PendingInteraction) = lock.withLock {
         check(state.phase != ExecutionPhase.Lost) { "Execution connection was lost" }
         if (request.id !in resolved && state.pending.none { it.id == request.id }) {
             state = state.copy(pending = state.pending + request)
-            val event = AgentEvent.ExecutionRequested(request)
+            val event = AgentEvent.InteractionRequested(request)
             live = live.on(event)
             sink?.publish(event)
             changed(state)
@@ -77,7 +76,7 @@ class ExecutionState(
         if (state.phase == ExecutionPhase.Lost || state.pending.none { it.id == id } || !resolved.add(id)) false
         else {
             state = state.copy(pending = state.pending.filterNot { it.id == id })
-            val event = AgentEvent.ExecutionResolved(id)
+            val event = AgentEvent.InteractionResolved(id)
             live = live.on(event)
             sink?.publish(event)
             changed(state)

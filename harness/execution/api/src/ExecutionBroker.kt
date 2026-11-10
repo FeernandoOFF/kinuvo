@@ -15,9 +15,9 @@ class ExecutionBroker(private val state: ExecutionState) {
     private val sourceIds = mutableSetOf<String>()
     private var closed = false
 
-    suspend fun ask(request: ExecutionRequest, validate: (JsonElement) -> Unit = {}): JsonElement {
+    suspend fun ask(request: PendingInteraction, validate: (JsonElement) -> Unit = {}): JsonElement {
         val id = Uuid.random().toString()
-        val normalized = request.copy(id = id, prompt = request.prompt?.withId(id))
+        val normalized = request.withId(id)
         val answer = lock.withLock {
             check(!closed) { "Execution connection was lost" }
             check(sourceIds.add(request.id)) { "Duplicate request ID" }

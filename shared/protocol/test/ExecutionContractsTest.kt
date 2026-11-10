@@ -1,6 +1,5 @@
 package kinuvo.protocol
 
-import kotlinx.serialization.json.JsonNull
 import kotlin.test.*
 
 class ExecutionContractsTest {
@@ -9,15 +8,16 @@ class ExecutionContractsTest {
             SessionEntry.UserMessage("", submissionId = "s"), SessionEntry.AssistantMessage("draft", "m"),
         ))
         assertEquals(notice, ProtocolJson.decodeFromString(SessionEntry.serializer(), ProtocolJson.encodeToString(SessionEntry.serializer(), notice)))
-        val prompts = listOf(
-            ExecutionPrompt.Approval("a", "Allow", null, listOf(ExternalApprovalOption("once", "Once", "allow_once"))),
-            ExecutionPrompt.Questions("q", AgentEvent.QuestionsAsked("q", "tool", "Form", listOf(Question("x", "X")))),
-            ExecutionPrompt.OpenLink("u", "Sign in", "https://example.com/", "example.com"),
-            ExecutionPrompt.Unsupported("x", "Unsupported"),
+        val interactions = listOf(
+            PendingInteraction.Approval("p", "tool", "shell", "{}", risk = Risk.High),
+            PendingInteraction.Questions("q", "tool", "Form", listOf(Question("x", "X"))),
+            PendingInteraction.HarnessApproval("a", "Allow", null, listOf(ExternalApprovalOption("once", "Once", "allow_once"))),
+            PendingInteraction.OpenLink("u", "Sign in", "https://example.com/", "example.com"),
+            PendingInteraction.Unsupported("x", "Unsupported"),
         )
-        prompts.forEach { prompt ->
-            val request = ExecutionRequest(prompt.id, ExecutionRequestKind.Question, JsonNull, prompt = prompt)
-            assertEquals(request, ProtocolJson.decodeFromString(ExecutionRequest.serializer(), ProtocolJson.encodeToString(ExecutionRequest.serializer(), request)))
+        interactions.forEach { interaction ->
+            val snapshot = ExecutionSnapshot("s", pending = listOf(interaction))
+            assertEquals(snapshot, ProtocolJson.decodeFromString(ExecutionSnapshot.serializer(), ProtocolJson.encodeToString(ExecutionSnapshot.serializer(), snapshot)))
         }
         assertNull(ProtocolJson.decodeFromString(SessionEntry.UserMessage.serializer(), """{"text":"old"}""").submissionId)
     }
@@ -49,12 +49,12 @@ class ExecutionContractsTest {
     }
 
     @Test fun pendingRequestsAreIndependentAndLossClearsThem() {
-        val a = ExecutionRequest("a", ExecutionRequestKind.Question, JsonNull)
+        val a = PendingInteraction.Unsupported("a", "Unsupported")
         val b = a.copy(id = "b")
         val live = LiveState().on(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
-            .on(AgentEvent.ExecutionRequested(a)).on(AgentEvent.ExecutionRequested(b))
+            .on(AgentEvent.InteractionRequested(a)).on(AgentEvent.InteractionRequested(b))
         assertEquals(SessionStatus.Waiting, live.status)
-        assertEquals(listOf(b), live.on(AgentEvent.ExecutionResolved("a")).pending)
+        assertEquals(listOf(b), live.on(AgentEvent.InteractionResolved("a")).pending)
         assertEquals(emptyList(), live.on(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Lost)).pending)
         assertEquals(SessionStatus.Idle, live.on(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Lost)).status)
     }

@@ -39,15 +39,6 @@ data class ExecutionRef(val id: String)
 @Serializable
 enum class ExecutionPhase { Idle, Running, RequiresAction, Lost }
 
-@Serializable
-enum class ExecutionRequestKind { Approval, Question }
-
-@Serializable
-data class ExecutionRequest(val id: String, val kind: ExecutionRequestKind, val payload: JsonElement, val options: List<ExternalApprovalOption> = emptyList(), val prompt: ExecutionPrompt? = null)
-
-@Serializable
-data class ExecutionAnswer(val sessionId: String, val requestId: String, val answer: JsonElement)
-
 /** Complete keyed messages, rather than append-only deltas, make replay idempotent. */
 @Serializable
 data class ExecutionMessage(val id: String, val role: String, val text: String, val payload: JsonElement? = null)
@@ -57,7 +48,7 @@ data class ExecutionSnapshot(
     val sessionId: String,
     val phase: ExecutionPhase = ExecutionPhase.Idle,
     val messages: List<ExecutionMessage> = emptyList(),
-    val pending: List<ExecutionRequest> = emptyList(),
+    val pending: List<PendingInteraction> = emptyList(),
     val stopReason: String? = null,
     val externalSessionId: String? = null,
 )
@@ -74,6 +65,6 @@ data class SaveRemoteLink(val id: String, val url: String, val token: String)
 @Serializable
 data class ExposureGrant(val id: String, val agentIds: Set<String>)
 @Serializable
-data class RemoteExecutionCall(val agentId: String? = null, val sessionId: String? = null, val action: String = "list", val text: String? = null, val requestId: String? = null, val answer: JsonElement? = null, val surfaceAction: SurfaceAction? = null)
+data class RemoteExecutionCall(val agentId: String? = null, val sessionId: String? = null, val action: String = "list", val text: String? = null, val requestId: String? = null, val answer: InteractionAnswer? = null, val surfaceAction: SurfaceAction? = null)
 @Serializable
 data class RemoteExecutionResult(val agents: List<AgentInfo> = emptyList(), val snapshot: ExecutionSnapshot? = null, val accepted: Boolean = true)

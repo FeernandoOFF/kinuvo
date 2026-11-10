@@ -30,6 +30,7 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.Uuid
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.PendingInteraction
 import kotlinx.coroutines.NonCancellable
 import kinuvo.protocol.SessionStatus
 import kotlinx.coroutines.sync.Mutex
@@ -367,13 +368,13 @@ open class HarnessRuntime(
                 val pending = approvals.register()
                 var decision: ApprovalDecision? = null
                 try {
-                    log.publish(agent.id, sessionId, AgentEvent.ApprovalRequested(pending.id, callId, request.name, args, null,
-                        verdict.assessment.risk, verdict.assessment.reason, verdict.trustKeys.isNotEmpty(), asked.identity))
+                    log.publish(agent.id, sessionId, AgentEvent.InteractionRequested(PendingInteraction.Approval(pending.id, callId, request.name, args, null,
+                        verdict.assessment.risk, verdict.assessment.reason, verdict.trustKeys.isNotEmpty(), asked.identity)))
                     decision = withTimeoutOrNull(APP_APPROVAL_WAIT) { pending.await() }
                 } finally {
                     pending.close()
                     val allowed = decision != null && decision !is ApprovalDecision.Deny
-                    withContext(NonCancellable) { log.publish(agent.id, sessionId, AgentEvent.ApprovalResolved(callId, allowed)) }
+                    withContext(NonCancellable) { log.publish(agent.id, sessionId, AgentEvent.InteractionResolved(pending.id, allowed)) }
                 }
                 when (decision) {
                     null -> error("No answer to the Approval for '${request.name}'")

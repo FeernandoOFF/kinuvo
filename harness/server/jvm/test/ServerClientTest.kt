@@ -45,7 +45,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 private fun KinuvoClient.approvals() =
-    events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event as? AgentEvent.ApprovalRequested }
+    events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }
 
 private fun KinuvoClient.statuses(sessionId: String) = events(Api.SessionChanged).filter { it.id == sessionId }.map { it.status }
 
@@ -338,7 +338,7 @@ class ServerClientTest {
                     val approval = approvalRequest.awaitItem()
                     approvalRequest.cancel()
                     assertEquals("c1", approval.toolCallId)
-                    assertTrue(client.call(Api.Approve, ApprovalParams(approval.approvalId, ApprovalDecision.AllowOnce)))
+                    assertTrue(client.call(Api.Respond, RespondParams(sessionId, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
                     val streamedChanges = streamed.awaitUntil { (it as? SessionChange.Event)?.event is AgentEvent.RunFinished }
                     streamed.cancel()
                     statuses.awaitUntil { it == SessionStatus.Idle }
@@ -390,7 +390,7 @@ class ServerClientTest {
 
                 val reconnected = KinuvoClient(url, "phone", token = token).also { it.connect() }
                 val (_, entries, live) = reconnected.catchUp(first)
-                assertEquals(LiveState(running = true, approval = approval), live)
+                assertEquals(LiveState(running = true, pending = listOf(approval)), live)
                 val message = entries.filterIsInstance<SessionEntry.UserMessage>().single()
                 assertTrue(message.writtenAt != null)
                 assertEquals(SessionEntry.UserMessage("make skill", writtenAt = message.writtenAt), message)
@@ -398,7 +398,7 @@ class ServerClientTest {
                 assertEquals(listOf(entries.last()), reconnected.catchUp(first, after = entries.size - 1).entries)
                 assertEquals(SessionStatus.Waiting, reconnected.call(Api.Sessions, SessionsParams("default")).sessions.single { it.id == first }.status)
                 val idle = async(start = CoroutineStart.UNDISPATCHED) { reconnected.statuses(first).first { it == SessionStatus.Idle } }
-                assertTrue(reconnected.call(Api.Approve, ApprovalParams(approval.approvalId, ApprovalDecision.AllowOnce)))
+                assertTrue(reconnected.call(Api.Respond, RespondParams(first, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
                 idle.await()
                 assertEquals(LiveState(), reconnected.catchUp(first).live)
 
@@ -407,11 +407,11 @@ class ServerClientTest {
                 val secondRequest = async(start = CoroutineStart.UNDISPATCHED) { reconnected.approvals().first() }
                 reconnected.call(Api.Send, SendParams("default", second, "stop me"))
                 val secondApproval = secondRequest.await()
-                assertTrue(secondApproval.approvalId != approval.approvalId)
+                assertTrue(secondApproval.id != approval.id)
                 reconnected.close()
 
                 val afterStop = KinuvoClient(url, "phone", token = token).also { it.connect() }
-                assertEquals(secondApproval, afterStop.catchUp(second).live.approval)
+                assertEquals(listOf(secondApproval), afterStop.catchUp(second).live.pending)
                 val stopped = async(start = CoroutineStart.UNDISPATCHED) { afterStop.statuses(second).first { it == SessionStatus.Idle } }
                 afterStop.call(Api.Stop, StopParams(second))
                 stopped.await()

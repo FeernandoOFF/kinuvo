@@ -52,24 +52,25 @@ suspend fun SessionLog.executionSnapshot(agent: String, id: String): ExecutionSn
         if (live.text.isNotEmpty()) messages.add(ExecutionMessage("assistant:${live.messageId ?: "live"}", "assistant", live.text))
         if (live.reasoning.isNotEmpty()) messages.add(ExecutionMessage("reasoning:${live.messageId ?: "live"}", "reasoning", live.reasoning))
     }
-    val requests = buildList {
-        addAll(live.pending)
-        live.approval?.let { add(ExecutionRequest(it.approvalId, ExecutionRequestKind.Approval, ProtocolJson.encodeToJsonElement(AgentEvent.ApprovalRequested.serializer(), it), buildList {
-            add(ExternalApprovalOption("allow_once", "Allow once", "allow_once"))
-            if (it.trustable) add(ExternalApprovalOption("allow_session", "Allow for this Session", "allow_always"))
-            if (it.trustable) add(ExternalApprovalOption("always_allow", "Always allow", "allow_always"))
-            add(ExternalApprovalOption("deny", "Deny", "reject_once"))
-        }, ExecutionPrompt.Approval(it.approvalId, it.toolCallName, it.reason, buildList {
-            add(ExternalApprovalOption("allow_once", "Allow once", "allow_once"))
-            if (it.trustable) add(ExternalApprovalOption("allow_session", "Allow for this Session", "allow_always"))
-            if (it.trustable) add(ExternalApprovalOption("always_allow", "Always allow", "allow_always"))
-            add(ExternalApprovalOption("deny", "Deny", "reject_once"))
-        }))) }
-        live.questions?.let { add(ExecutionRequest(it.questionsId, ExecutionRequestKind.Question, ProtocolJson.encodeToJsonElement(AgentEvent.QuestionsAsked.serializer(), it), prompt = ExecutionPrompt.Questions(it.questionsId, it, native = true))) }
-    }
+    val requests = live.pending.map { if (it is PendingInteraction.Approval) it.forHarness() else it }
     return ExecutionSnapshot(id, live.executionPhase ?: if (requests.isNotEmpty()) ExecutionPhase.RequiresAction else if (live.running) ExecutionPhase.Running else ExecutionPhase.Idle, messages, requests, stopReason = when(val terminal = completion(id)) {
         is AgentEvent.RunError -> "error:${terminal.message}"
         is AgentEvent.RunFinished -> "completed"
         else -> null
     })
+}
+
+/** A linked Server and harness clients see an Approval as a harness permission request with Kinuvo's own options. */
+internal fun PendingInteraction.Approval.forHarness() = PendingInteraction.HarnessApproval(id, toolCallName, reason, buildList {
+    add(ExternalApprovalOption("allow_once", "Allow once", "allow_once"))
+    if (trustable) add(ExternalApprovalOption("allow_session", "Allow for this Session", "allow_always"))
+    if (trustable) add(ExternalApprovalOption("always_allow", "Always allow", "allow_always"))
+    add(ExternalApprovalOption("deny", "Deny", "reject_once"))
+})
+
+internal fun approvalDecision(optionId: String?) = when (optionId) {
+    "allow_once" -> ApprovalDecision.AllowOnce
+    "allow_session" -> ApprovalDecision.AllowForSession
+    "always_allow" -> ApprovalDecision.AlwaysAllow
+    else -> ApprovalDecision.Deny()
 }

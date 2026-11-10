@@ -17,7 +17,7 @@ internal class AcpCommand : ServerCommand("acp", "Expose one native Agent over A
 internal fun kinuvo.client.KinuvoClient.acpDispatch() = NativeExecutionDispatch(
     { call(Api.CreateSession, AgentRef(it)) },
     { _, id -> call(Api.ExecutionSnapshot, ExecutionRef(id)) },
-    { call(Api.ExecutionAnswer, it) },
+    { call(Api.Respond, it) },
     { call(Api.Send, it) },
     { call(Api.Stop, StopParams(it)) },
 )

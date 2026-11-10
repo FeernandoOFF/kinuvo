@@ -128,7 +128,7 @@ class NotificationsTest {
         val notifications = Notifications(harness, this, routineOf = { routine })
         notifications.on(agent.id, session, AgentEvent.RunFinished("r1"))
         assertNull(withTimeoutOrNull(500) { sent.receive() })
-        notifications.on(agent.id, session, AgentEvent.QuestionsAsked("q1", "f1", "Which flight?", emptyList()))
+        notifications.on(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Questions("q1", "f1", "Which flight?", emptyList())))
         assertEquals(listOf("Kinuvo has questions", "Which flight?"), withTimeout(5_000) { sent.receive() }.let { listOf(it.title, it.body) })
         routine = null
         notifications.on(agent.id, session, AgentEvent.RunFinished("r2"))

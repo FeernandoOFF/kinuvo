@@ -5,6 +5,7 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.approval
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -66,7 +67,7 @@ class SessionFeatureTest {
         val seen = mutableListOf<AgentEvent>()
         AgentRun(home.agent, home.store, model, listOf(tool),
             approvals = Approvals(ApprovalPolicy(home.agent, home.trustRules, Tolerance.Strict), ApprovalBroker()))
-            .run(session.id, "go").first { seen += it; it is AgentEvent.ApprovalRequested }
+            .run(session.id, "go").first { seen += it; it.approval != null }
         val results = home.store.entries(home.agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>()
         assertEquals(0, executed)
         assertEquals(listOf("Denied (stopped)", "Not run: the turn was cancelled"), results.map { it.output })

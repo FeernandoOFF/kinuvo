@@ -52,7 +52,7 @@ class RemoteExecutionFactory(private val links: RemoteLinks, private val serverI
             val queue = Mutex()
             val commands = Mutex()
             val committed = mutableMapOf<String, ExecutionMessage>()
-            var pending = emptyList<ExecutionRequest>()
+            var pending = emptyList<PendingInteraction>()
             var activeTurn = false
             suspend fun reconcile(snapshot: ExecutionSnapshot) = queue.withLock {
                 require(committed.keys.all { key -> snapshot.messages.any { it.id == key } }) { "Remote committed history disappeared" }
@@ -124,12 +124,12 @@ class RemoteExecutionFactory(private val links: RemoteLinks, private val serverI
                     ExecutionAcceptance()
                 }
                 override suspend fun cancel() { commands.withLock { client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "cancel")) } }
-                override suspend fun respond(requestId: String, answer: JsonElement): Boolean {
+                override suspend fun respond(requestId: String, answer: InteractionAnswer): Boolean {
                     val accepted = client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "answer", requestId = requestId, answer = answer)).accepted
                     if (accepted) state.resolve(requestId)
                     return accepted
                 }
-                override suspend fun answer(requestId: String, answer: JsonElement) { respond(requestId, answer) }
+                override suspend fun answer(requestId: String, answer: InteractionAnswer) { respond(requestId, answer) }
                 override suspend fun close() { polling.cancelAndJoin(); client.close() }
             }
         } catch (e: Throwable) { client.close(); throw e }

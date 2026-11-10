@@ -18,11 +18,11 @@ class PushNotificationsTest {
 
     @Test fun pushesOnlyWhileTurnedOn() = runTest {
         val notifications = Notifications(fixture.runtime(), this, routineOf = { null }, devices = push)
-        notifications.on(fixture.agent.id, "s1", AgentEvent.QuestionsAsked("q1", "f1", "Which flight?", emptyList()))
+        notifications.on(fixture.agent.id, "s1", AgentEvent.InteractionRequested(PendingInteraction.Questions("q1", "f1", "Which flight?", emptyList())))
         advanceUntilIdle()
         assertEquals(listOf("Which flight?"), pushed.map { it.body })
         fixture.push = false
-        notifications.on(fixture.agent.id, "s1", AgentEvent.QuestionsAsked("q2", "f2", "Which seat?", emptyList()))
+        notifications.on(fixture.agent.id, "s1", AgentEvent.InteractionRequested(PendingInteraction.Questions("q2", "f2", "Which seat?", emptyList())))
         advanceUntilIdle()
         assertEquals(1, pushed.size)
     }

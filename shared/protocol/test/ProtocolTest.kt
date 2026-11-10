@@ -3,6 +3,9 @@ package kinuvo.protocol
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.SessionEntry
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -31,15 +34,23 @@ class ProtocolTest {
 
     @Test
     fun framesAndPayloadsRoundTrip() {
-        val event = SessionUpdate("default", "s1", SessionChange.Event(AgentEvent.ApprovalRequested("a1", "c1", "shell", "{}", "git status")))
+        val event = SessionUpdate("default", "s1", SessionChange.Event(AgentEvent.InteractionRequested(PendingInteraction.Approval("a1", "c1", "shell", "{}", "git status"))))
         val frame = Frame.Event(Api.Update.name, ProtocolJson.encodeToJsonElement(Api.Update.payload, event), 7)
         val text = ProtocolJson.encodeToString(Frame.serializer(), frame)
         val decoded = ProtocolJson.decodeFromString(Frame.serializer(), text) as Frame.Event
         assertEquals(event, ProtocolJson.decodeFromJsonElement(Api.Update.payload, decoded.payload))
         assertEquals(7, decoded.seq)
 
-        val params = ApprovalParams("c1", ApprovalDecision.Deny("no"))
-        assertEquals(params, ProtocolJson.decodeFromString(ApprovalParams.serializer(), ProtocolJson.encodeToString(ApprovalParams.serializer(), params)))
+        listOf(
+            InteractionAnswer.Approval(ApprovalDecision.Deny("no")),
+            InteractionAnswer.Questions(mapOf("a" to listOf("x"))),
+            InteractionAnswer.Questions(null),
+            InteractionAnswer.Harness(JsonObject(mapOf("optionId" to JsonPrimitive("once")))),
+            InteractionAnswer.Harness(JsonNull),
+        ).forEach { answer ->
+            val params = RespondParams("s1", "c1", answer)
+            assertEquals(params, ProtocolJson.decodeFromString(RespondParams.serializer(), ProtocolJson.encodeToString(RespondParams.serializer(), params)))
+        }
         val entry = SessionUpdate("default", "s1", SessionChange.Entry(3, SessionEntry.Activation("tdd", "x")))
         assertEquals(entry, ProtocolJson.decodeFromJsonElement(Api.Update.payload, ProtocolJson.encodeToJsonElement(Api.Update.payload, entry)))
         val usage = Usage("codex", listOf(Usage.Window("primary", 42.0, 300)))
@@ -60,16 +71,16 @@ class ProtocolTest {
 
     @Test
     fun openFormMakesTheSessionWait() {
-        val asked = AgentEvent.QuestionsAsked("q1", "c1", null, listOf(Question("a", "A")))
+        val asked = AgentEvent.InteractionRequested(PendingInteraction.Questions("q1", "c1", null, listOf(Question("a", "A"))))
         val live = LiveState().on(AgentEvent.RunStarted("r1")).on(asked)
         assertEquals(SessionStatus.Waiting, live.status)
-        assertEquals(SessionStatus.Running, live.on(AgentEvent.QuestionsAnswered("c1")).status)
-        assertEquals(null, live.on(AgentEvent.RunFinished("r1")).questions)
+        assertEquals(SessionStatus.Running, live.on(AgentEvent.InteractionResolved("q1")).status)
+        assertEquals(emptyList(), live.on(AgentEvent.RunFinished("r1")).pending)
     }
 
     @Test
     fun liveStateFoldsDeltasAndClearsAsEntriesLand() {
-        val approval = AgentEvent.ApprovalRequested("a1", "c1", "shell", "{}", null)
+        val approval = AgentEvent.InteractionRequested(PendingInteraction.Approval("a1", "c1", "shell", "{}", null))
         val live = listOf(
             AgentEvent.RunStarted("r1"),
             AgentEvent.ThinkingContent("m1", "hm"),
@@ -77,8 +88,8 @@ class ProtocolTest {
             AgentEvent.TextMessageContent("m1", "llo"),
             approval,
         ).fold(LiveState()) { s, e -> s.on(e) }
-        assertEquals(LiveState(running = true, messageId = "m1", text = "hello", reasoning = "hm", approval = approval), live)
-        assertEquals(LiveState(running = true, messageId = "m1", approval = approval), live.on(SessionEntry.Reasoning("hm")).on(SessionEntry.AssistantMessage("hello")))
+        assertEquals(LiveState(running = true, messageId = "m1", text = "hello", reasoning = "hm", pending = listOf(approval.interaction)), live)
+        assertEquals(LiveState(running = true, messageId = "m1", pending = listOf(approval.interaction)), live.on(SessionEntry.Reasoning("hm")).on(SessionEntry.AssistantMessage("hello")))
         assertEquals(LiveState(messageId = "m1", text = "hello", reasoning = "hm"), live.on(AgentEvent.RunFinished("r1")))
     }
 

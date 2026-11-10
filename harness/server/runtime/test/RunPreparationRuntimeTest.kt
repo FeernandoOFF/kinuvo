@@ -190,14 +190,14 @@ class RunPreparationRuntimeTest {
         })
         try {
             val agent = fixture.agent.copy(config = fixture.agent.config.copy(tools = listOf("schedule"), approvals = "relaxed"))
-            suspend fun attempt(tolerance: String, decision: ApprovalDecision): AgentEvent.ApprovalRequested {
+            suspend fun attempt(tolerance: String, decision: ApprovalDecision): PendingInteraction.Approval {
                 val session = harness.newSession(agent)
                 harness.configure(agent, session.id, SessionSettings(approvals = tolerance))
-                val requests = mutableListOf<AgentEvent.ApprovalRequested>()
+                val requests = mutableListOf<PendingInteraction.Approval>()
                 harness.runner(agent, session.id).run(session.id, "schedule").collect { event ->
-                    if (event is AgentEvent.ApprovalRequested) {
-                        requests += event
-                        assertTrue(harness.approvals.respond(event.approvalId, decision))
+                    event.approval?.let { approval ->
+                        requests += approval
+                        assertTrue(harness.approvals.respond(approval.id, decision))
                     }
                 }
                 return requests.single()

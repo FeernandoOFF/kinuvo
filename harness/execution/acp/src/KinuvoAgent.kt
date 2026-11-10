@@ -16,13 +16,12 @@ import com.agentclientprotocol.rpc.ACPJson
 import kinuvo.harness.execution.api.ExecutionDispatch
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.QuestionKind
-import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.SendParams
 import kinuvo.protocol.ExecutionPhase
-import kinuvo.protocol.ExecutionRequest
-import kinuvo.protocol.ExecutionRequestKind
-import kinuvo.protocol.ExecutionAnswer
+import kinuvo.protocol.InteractionAnswer
+import kinuvo.protocol.PendingInteraction
+import kinuvo.protocol.RespondParams
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -83,13 +82,12 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
                             }
                         }
                         for (request in snapshot.pending) if (answered.add(request.id)) launch {
-                            val answer = when (request.kind) {
-                                ExecutionRequestKind.Approval -> ACPJson.encodeToJsonElement(RequestPermissionResponse.serializer(), client.requestPermission("Kinuvo Approval", request.options.map {
-                                    PermissionOption(PermissionOptionId(it.id), it.label, ACPJson.decodeFromJsonElement(PermissionOptionKind.serializer(), JsonPrimitive(it.kind)))
-                                }, description = request.payload.toString()))
-                                ExecutionRequestKind.Question -> answerQuestions(request)
+                            val answer = when (request) {
+                                is PendingInteraction.HarnessApproval -> approve(request)
+                                is PendingInteraction.Questions -> answerQuestions(request)
+                                else -> InteractionAnswer.Harness(JsonNull)
                             }
-                            dispatch.answer(ExecutionAnswer(id, request.id, answer))
+                            dispatch.answer(RespondParams(id, request.id, answer))
                         }
                         delay(100)
                     }
@@ -98,8 +96,17 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
             }
         }
 
-        private suspend fun answerQuestions(request: ExecutionRequest): JsonElement {
-            val asked = ProtocolJson.decodeFromJsonElement(AgentEvent.QuestionsAsked.serializer(), request.payload)
+        private suspend fun approve(request: PendingInteraction.HarnessApproval): InteractionAnswer {
+            val options = request.options.map {
+                PermissionOption(PermissionOptionId(it.id), it.label, ACPJson.decodeFromJsonElement(PermissionOptionKind.serializer(), JsonPrimitive(it.kind)))
+            }
+            val response = client.requestPermission("Kinuvo Approval", options, description = listOfNotNull(request.title, request.description).joinToString(": "))
+            val outcome = ACPJson.encodeToJsonElement(RequestPermissionResponse.serializer(), response).jsonObject["outcome"] as? JsonObject
+            val option = outcome?.takeIf { it["outcome"]?.jsonPrimitive?.content == "selected" }?.get("optionId")
+            return InteractionAnswer.Harness(option?.let { buildJsonObject { put("optionId", it) } } ?: JsonNull)
+        }
+
+        private suspend fun answerQuestions(asked: PendingInteraction.Questions): InteractionAnswer {
             val schema = buildJsonObject {
                 put("type", "object")
                 put("properties", buildJsonObject { asked.questions.forEach { q -> put(q.id, buildJsonObject {
@@ -121,8 +128,10 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
             val mode = ElicitationMode.Form(ElicitationScope.Session(sessionId), ACPJson.decodeFromJsonElement(ElicitationSchema.serializer(), schema))
             val response = client.createElicitation(asked.title ?: "Kinuvo questions", mode)
             val raw = ACPJson.encodeToJsonElement(CreateElicitationResponse.serializer(), response).jsonObject
-            val answers = if (raw["action"]?.jsonPrimitive?.content == "accept") raw["content"]?.jsonObject?.let { values -> JsonObject(values.mapValues { (_, value) -> if (value is JsonArray) value else JsonArray(listOf(value)) }) } else JsonNull
-            return buildJsonObject { put("questionsId", asked.questionsId); put("answers", answers ?: JsonNull) }
+            val answers = if (raw["action"]?.jsonPrimitive?.content == "accept") raw["content"]?.jsonObject?.mapValues { (_, value) ->
+                (value as? JsonArray ?: JsonArray(listOf(value))).map { (it as? JsonPrimitive)?.content.orEmpty() }
+            } else null
+            return InteractionAnswer.Questions(answers)
         }
     }
 }

@@ -7,6 +7,7 @@ import kinuvo.harness.core.plugin.modelAlias
 import kinuvo.harness.core.tools.ToolNames
 import kotlin.time.Duration.Companion.milliseconds
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.approval
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.RoutineApprovals
 import kinuvo.protocol.RoutineRan
@@ -151,7 +152,7 @@ class SchedulerTest {
     @Test
     fun approvalAnsweredInTimeRunsTheCall() = runBlocking {
         toolCall = "skill_manage" to """{"action":"create","name":"x","content":"---\nname: x\ndescription: d\n---\nbody"}"""
-        harness.log.onEvent { _, _, event -> if (event is AgentEvent.ApprovalRequested) harness.approvals.respond(event.approvalId, ApprovalDecision.AllowOnce) }
+        harness.log.onEvent { _, _, event -> event.approval?.let { harness.approvals.respond(it.id, ApprovalDecision.AllowOnce) } }
         val r = harness.routines.create(agent, "Attended", "Make a skill", Trigger.Every(60))
         now += 60 * 60_000
         tickAndWait()

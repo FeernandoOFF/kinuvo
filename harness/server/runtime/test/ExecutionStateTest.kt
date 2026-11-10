@@ -36,19 +36,19 @@ class ExecutionStateTest {
 
     @Test fun reconnectRetainsQuestionsAndOnlyOneClientClaimsAnswer() = runTest {
         val state = ExecutionState("s")
-        state.request(ExecutionRequest("q", ExecutionRequestKind.Question, JsonNull))
+        state.request(PendingInteraction.Unsupported("q", "Unsupported"))
         state.update(ExecutionPhase.RequiresAction)
         assertEquals("q", state.snapshot().pending.single().id)
         val claims = List(10) { async { state.resolve("q") } }.awaitAll()
         assertEquals(1, claims.count { it })
-        state.request(ExecutionRequest("q", ExecutionRequestKind.Question, JsonNull))
+        state.request(PendingInteraction.Unsupported("q", "Unsupported"))
         assertTrue(state.snapshot().pending.isEmpty())
     }
 
     @Test fun brokerSurvivesDeviceReconnectAndResolvesOnce() = runTest {
         val state = ExecutionState("s")
         val broker = ExecutionBroker(state)
-        val waiting = async { broker.ask(ExecutionRequest("a", ExecutionRequestKind.Approval, JsonNull)) }
+        val waiting = async { broker.ask(PendingInteraction.Unsupported("a", "Unsupported")) }
         testScheduler.runCurrent()
         val token = state.snapshot().pending.single().id
         assertNotEquals("a", token)
@@ -56,13 +56,13 @@ class ExecutionStateTest {
         assertFalse(broker.answer(token, JsonNull))
         assertEquals(JsonNull, waiting.await())
         broker.lost()
-        assertFailsWith<IllegalStateException> { broker.ask(ExecutionRequest("b", ExecutionRequestKind.Question, JsonNull)) }
+        assertFailsWith<IllegalStateException> { broker.ask(PendingInteraction.Unsupported("b", "Unsupported")) }
     }
 
     @Test fun lossNeverFinishesSuccessfullyOrAcceptsStaleAnswers() = runTest {
         val state = ExecutionState("s")
         state.update(ExecutionPhase.Running)
-        state.request(ExecutionRequest("a", ExecutionRequestKind.Approval, JsonNull))
+        state.request(PendingInteraction.Unsupported("a", "Unsupported"))
         state.lost()
         assertEquals(ExecutionPhase.Lost, state.snapshot().phase)
         assertNull(state.snapshot().stopReason)

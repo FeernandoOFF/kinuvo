@@ -89,19 +89,19 @@ class RemoteServerTest {
             val otherSession = requireNotNull(other.call(Api.RemoteExecution, RemoteExecutionCall("exposed", action = "create")).snapshot).sessionId
             val sourceSession = requireNotNull(snapshot().externalSessionId)
             assertFails { other.call(Api.RemoteExecution, RemoteExecutionCall("exposed", sourceSession, "snapshot")) }
-            assertFails { other.call(Api.RemoteExecution, RemoteExecutionCall("exposed", sourceSession, "answer", requestId = approval.id, answer = kotlinx.serialization.json.JsonNull)) }
+            assertFails { other.call(Api.RemoteExecution, RemoteExecutionCall("exposed", sourceSession, "answer", requestId = approval.id, answer = InteractionAnswer.Harness(kotlinx.serialization.json.JsonNull))) }
             assertFails { scoped.call(Api.RemoteExecution, RemoteExecutionCall("exposed", otherSession, "snapshot")) }
             assertFails { scoped.call(Api.RemoteExecution, RemoteExecutionCall("exposed", otherSession, "cancel")) }
-            assertEquals("Allow", approval.options.single().label)
-            val answer = ExecutionAnswer(id, approval.id, kotlinx.serialization.json.Json.parseToJsonElement("""{"optionId":"yes"}"""))
-            assertFails { destination.call(Api.ExecutionAnswer, answer.copy(answer = kotlinx.serialization.json.Json.parseToJsonElement("""{"optionId":"not-offered"}"""))) }
-            assertTrue(destination.call(Api.ExecutionAnswer, answer))
-            assertFalse(destination.call(Api.ExecutionAnswer, answer))
+            assertEquals("Allow", (approval as PendingInteraction.HarnessApproval).options.single().label)
+            val answer = RespondParams(id, approval.id, InteractionAnswer.Harness(kotlinx.serialization.json.Json.parseToJsonElement("""{"optionId":"yes"}""")))
+            assertFails { destination.call(Api.Respond, answer.copy(answer = InteractionAnswer.Harness(kotlinx.serialization.json.Json.parseToJsonElement("""{"optionId":"not-offered"}""")))) }
+            assertTrue(destination.call(Api.Respond, answer))
+            assertFalse(destination.call(Api.Respond, answer))
             waitFor { it.phase == ExecutionPhase.Idle }
             destination.call(Api.Send, SendParams("alias", id, "question"))
             waitFor { it.pending.isNotEmpty() }
             val question = snapshot().pending.single()
-            assertTrue(destination.call(Api.ExecutionAnswer, ExecutionAnswer(id, question.id, kotlinx.serialization.json.JsonNull)))
+            assertTrue(destination.call(Api.Respond, RespondParams(id, question.id, InteractionAnswer.Harness(kotlinx.serialization.json.JsonNull))))
             waitFor { it.phase == ExecutionPhase.Idle }
             assertTrue(destination.call(Api.History, HistoryParams("alias", id, 100)).isNotEmpty())
             val nativeHistory = destination.call(Api.History, HistoryParams("native-alias", nativeId, 100)).map { it.entry }

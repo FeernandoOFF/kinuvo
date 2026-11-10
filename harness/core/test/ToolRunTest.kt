@@ -8,6 +8,8 @@ import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.core.tools.ToolNames
 import kinuvo.harness.core.tools.ToolRun
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.approval
+import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.DenyRules
 import kinuvo.protocol.Risk
@@ -19,6 +21,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.test.assertFailsWith
 
@@ -62,13 +65,13 @@ class ToolRunTest {
         val broker = ApprovalBroker()
         val runner = AgentRun(agent, home.store, model, listOf(bridge, target),
             approvals = Approvals(ApprovalPolicy(agent, home.trustRules), broker))
-        val requests = mutableListOf<AgentEvent.ApprovalRequested>()
+        val requests = mutableListOf<PendingInteraction.Approval>()
         repeat(2) {
             val session = home.store.createSession(agent.id, "")
             runner.run(session.id, "go").collect { event ->
-                if (event is AgentEvent.ApprovalRequested) {
-                    requests += event
-                    broker.respond(event.approvalId, ApprovalDecision.AlwaysAllow)
+                event.approval?.let { approval ->
+                    requests += approval
+                    broker.respond(approval.id, ApprovalDecision.AlwaysAllow)
                 }
             }
         }
@@ -79,7 +82,7 @@ class ToolRunTest {
 
         home.trustRules.update(agent.id) { it.copy(deny = DenyRules(tools = listOf(target.identity.key))) }
         val session = home.store.createSession(agent.id, "")
-        runner.run(session.id, "go").collect { assertFalse(it is AgentEvent.ApprovalRequested) }
+        runner.run(session.id, "go").collect { assertNull(it.approval) }
         assertEquals(2, calls)
         assertTrue(home.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>().single().output.contains("Deny rule"))
     }
@@ -89,7 +92,7 @@ class ToolRunTest {
         val session = home.store.createSession(agent.id, "")
         AgentRun(agent, home.store, model, listOf(bridge, target),
             approvals = Approvals(ApprovalPolicy(agent, home.trustRules), ApprovalBroker()))
-            .run(session.id, "go").first { it is AgentEvent.ApprovalRequested }
+            .run(session.id, "go").first { it.approval != null }
         assertEquals(0, calls)
         assertEquals("Denied (stopped)", home.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>().single().output)
     }

@@ -1,7 +1,6 @@
 package kinuvo.harness.server.execution
 
 import kinuvo.protocol.*
-import kotlinx.serialization.json.JsonNull
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
@@ -13,7 +12,7 @@ class RemoteGateway(
     private val snapshot: suspend (String, String) -> ExecutionSnapshot,
     private val send: suspend (String, String, String, SurfaceAction?) -> Unit,
     private val cancel: suspend (String, String) -> Unit,
-    private val answer: suspend (String, ExecutionAnswer) -> Boolean,
+    private val answer: suspend (String, RespondParams) -> Boolean,
     private val discard: suspend (String, String) -> Unit = cancel,
 ) {
     suspend fun call(token: String, p: RemoteExecutionCall): RemoteExecutionResult {
@@ -39,7 +38,7 @@ class RemoteGateway(
             "snapshot" -> RemoteExecutionResult(snapshot = current)
             "send" -> { send(agentId, sessionId, requireNotNull(p.text), p.surfaceAction); RemoteExecutionResult() }
             "cancel" -> { cancel(agentId, sessionId); RemoteExecutionResult() }
-            "answer" -> RemoteExecutionResult(accepted = answer(agentId, ExecutionAnswer(sessionId, requireNotNull(p.requestId), p.answer ?: JsonNull)))
+            "answer" -> RemoteExecutionResult(accepted = answer(agentId, RespondParams(sessionId, requireNotNull(p.requestId), requireNotNull(p.answer))))
             else -> error("Unsupported remote operation")
         }
     }

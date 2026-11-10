@@ -112,17 +112,16 @@ class ExternalServerTest {
             assertFails { responder.call(Api.ExecutionCatalog, Unit) }
             assertFails { responder.call(Api.SaveHarnessConnection, connection) }
             val approval = responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.single()
-            assertEquals("Allow", approval.options.single().label)
-            val answer = ExecutionAnswer(id, approval.id, kotlinx.serialization.json.Json.parseToJsonElement("""{"optionId":"yes"}"""))
-            assertTrue(responder.call(Api.ExecutionAnswer, answer))
-            assertFalse(responder.call(Api.ExecutionAnswer, answer))
+            assertEquals("Allow", (approval as PendingInteraction.HarnessApproval).options.single().label)
+            val answer = RespondParams(id, approval.id, InteractionAnswer.Harness(kotlinx.serialization.json.Json.parseToJsonElement("""{"optionId":"yes"}""")))
+            assertTrue(responder.call(Api.Respond, answer))
+            assertFalse(responder.call(Api.Respond, answer))
             awaitCondition("the run to go idle", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase == ExecutionPhase.Idle }
             responder.call(Api.Send, SendParams("external", id, "question"))
             awaitCondition("a pending question", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.isNotEmpty() }
             val question = responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.single()
-            assertEquals(ExecutionRequestKind.Question, question.kind)
-            assertTrue(question.payload.toString().contains("https://example.test/sign-in"))
-            assertTrue(responder.call(Api.ExecutionAnswer, ExecutionAnswer(id, question.id, kotlinx.serialization.json.Json.parseToJsonElement("""{"opened":false}"""))))
+            assertEquals("example.test", (question as PendingInteraction.OpenLink).site)
+            assertTrue(responder.call(Api.Respond, RespondParams(id, question.id, InteractionAnswer.Harness(kotlinx.serialization.json.Json.parseToJsonElement("""{"opened":false}""")))))
             awaitCondition("the run to go idle", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase == ExecutionPhase.Idle }
             responder.close()
             server.stop()

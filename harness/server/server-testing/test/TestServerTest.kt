@@ -11,7 +11,10 @@ import kinuvo.protocol.AgentRef
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.Api
 import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.ApprovalParams
+import kinuvo.protocol.InteractionAnswer
+import kinuvo.protocol.PendingInteraction
+import kinuvo.protocol.RespondParams
+import kinuvo.protocol.approval
 import kinuvo.protocol.BrowserOwner
 import kinuvo.protocol.BrowserTab
 import kinuvo.protocol.Risk
@@ -23,14 +26,12 @@ import kinuvo.protocol.TaskStatus
 import kinuvo.protocol.TasksParams
 import kinuvo.protocol.KnowledgeSearchParams
 import kinuvo.protocol.CatchUpParams
-import kinuvo.protocol.ExecutionAnswer
 import kinuvo.protocol.HistoryParams
 import kinuvo.protocol.ModelsParams
 import kinuvo.protocol.SessionParams
 import kinuvo.protocol.ExecutionCapabilities
 import kinuvo.protocol.ExecutionPhase
 import kinuvo.protocol.ExecutionRef
-import kinuvo.protocol.ExecutionRequestKind
 import kinuvo.protocol.ModelInfo
 import kinuvo.protocol.Question
 import kinuvo.protocol.QuestionKind
@@ -45,6 +46,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class TestServerTest {
@@ -181,14 +183,14 @@ class TestServerTest {
             withContext(Dispatchers.Default) {
                 val client = server.client().also { it.connect() }
                 val session = client.call(Api.CreateSession, AgentRef("default"))
-                val approvals = client.events(Api.Update).mapNotNull { ((it.change as? SessionChange.Event)?.event as? AgentEvent.ApprovalRequested) }
+                val approvals = client.events(Api.Update).mapNotNull { ((it.change as? SessionChange.Event)?.event?.approval) }
                 approvals.test {
                     client.call(Api.CatchUp, CatchUpParams("default", session.id))
                     client.call(Api.Send, SendParams("default", session.id, "please run it"))
                     val request = awaitItem()
                     assertEquals("Runs a test command", request.reason)
                     client.entries(session.id).test {
-                        assertTrue(client.call(Api.Approve, ApprovalParams(request.approvalId, ApprovalDecision.AllowOnce)))
+                        assertTrue(client.call(Api.Respond, RespondParams(session.id, request.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
                         assertEquals("test", awaitEntry<SessionEntry.ToolResult>().output)
                         assertEquals("Done", awaitEntry<SessionEntry.AssistantMessage>().text)
                         cancelAndIgnoreRemainingEvents()
@@ -228,14 +230,14 @@ class TestServerTest {
                 val client = server.client().also { it.connect() }
                 assertEquals(true, client.call(Api.ProbeHarnessConnection, harness.connection).readiness.online)
                 val pending = awaitValue("a pending request", 5.seconds) { client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).pending.takeIf { it.isNotEmpty() } }.single()
-                assertEquals(ExecutionRequestKind.Question, pending.kind)
+                assertIs<PendingInteraction.Questions>(pending)
                 assertEquals(ExecutionPhase.RequiresAction, client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).phase)
-                assertTrue(client.call(Api.ExecutionAnswer, ExecutionAnswer(session.id, pending.id, JsonObject(emptyMap()))))
+                assertTrue(client.call(Api.Respond, RespondParams(session.id, pending.id, InteractionAnswer.Questions(emptyMap()))))
                 awaitCondition("the run to go idle", 5.seconds) { client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).phase == ExecutionPhase.Idle }
                 val entries = client.call(Api.History, HistoryParams("ext", session.id, 100)).map { it.entry }
                 assertEquals(listOf("Working on Start", "Limit accepted"), entries.filterIsInstance<SessionEntry.AssistantMessage>().map { it.text })
                 assertEquals("External run", client.call(Api.Session, SessionParams("ext", session.id)).title)
-                assertEquals(1, server.spy.count(Api.ExecutionAnswer))
+                assertEquals(1, server.spy.count(Api.Respond))
                 assertEquals(0, server.spy.count(Api.Send))
             }
         }

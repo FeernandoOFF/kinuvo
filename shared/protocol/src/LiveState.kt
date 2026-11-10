@@ -14,15 +14,13 @@ data class LiveState(
     val messageId: String? = null,
     val text: String = "",
     val reasoning: String = "",
-    val approval: AgentEvent.ApprovalRequested? = null,
-    val questions: AgentEvent.QuestionsAsked? = null,
-    val pending: List<ExecutionRequest> = emptyList(),
+    val pending: List<PendingInteraction> = emptyList(),
     val executionPhase: ExecutionPhase? = null,
     val entries: List<SessionEntry> = emptyList(),
 ) {
     fun on(event: AgentEvent): LiveState = when (event) {
-        is AgentEvent.ExecutionRequested -> copy(pending = pending.filterNot { it.id == event.request.id } + event.request)
-        is AgentEvent.ExecutionResolved -> copy(pending = pending.filterNot { it.id == event.requestId })
+        is AgentEvent.InteractionRequested -> copy(pending = pending.filterNot { it.id == event.interaction.id } + event.interaction)
+        is AgentEvent.InteractionResolved -> copy(pending = pending.filterNot { it.id == event.id })
         is AgentEvent.ExecutionPhaseChanged -> copy(
             executionPhase = event.phase,
             running = event.phase == ExecutionPhase.Running || event.phase == ExecutionPhase.RequiresAction,
@@ -45,18 +43,14 @@ data class LiveState(
                 val previous = entries.filterIsInstance<SessionEntry.Reasoning>().firstOrNull { it.messageId == event.messageId }
                 on(AgentEvent.ExecutionEntryChanged(SessionEntry.Reasoning(previous?.text.orEmpty() + event.delta, messageId = event.messageId)))
             }
-        is AgentEvent.ApprovalRequested -> copy(approval = event)
-        is AgentEvent.ApprovalResolved -> copy(approval = null)
-        is AgentEvent.QuestionsAsked -> copy(questions = event)
-        is AgentEvent.QuestionsAnswered -> copy(questions = null)
-        is AgentEvent.RunFinished, is AgentEvent.RunError -> copy(running = false, approval = null, questions = null, pending = emptyList())
+        is AgentEvent.RunFinished, is AgentEvent.RunError -> copy(running = false, pending = emptyList())
         else -> this
     }
 
     val status: SessionStatus
         get() = when {
             !running -> SessionStatus.Idle
-            approval != null || questions != null || pending.isNotEmpty() -> SessionStatus.Waiting
+            pending.isNotEmpty() -> SessionStatus.Waiting
             else -> SessionStatus.Running
         }
 

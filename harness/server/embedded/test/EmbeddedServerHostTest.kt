@@ -148,7 +148,7 @@ class EmbeddedServerHostTest {
                 client.call(Api.ConfigureSession, ConfigureSessionParams("default", id, SessionSettings(approvals = "strict")))
                 client.call(Api.CatchUp, CatchUpParams("default", id))
                 val request = async(start = CoroutineStart.UNDISPATCHED) {
-                    client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event as? AgentEvent.ApprovalRequested }.first()
+                    client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }.first()
                 }
                 client.call(Api.Send, SendParams("default", id, "remember tea"))
                 val approval = request.await()
@@ -157,12 +157,12 @@ class EmbeddedServerHostTest {
                 client.close()
                 client = client(server)
                 assertEquals(SessionStatus.Waiting, client.call(Api.Session, SessionParams("default", id)).status)
-                assertTrue(client.call(Api.Approve, ApprovalParams(approval.approvalId, ApprovalDecision.AllowOnce)))
+                assertTrue(client.call(Api.Respond, RespondParams(id, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
                 // An approved run doesn't wait on anyone, so leaving the app lets it finish.
                 client.call(Api.Presence, PresenceParams(false))
                 awaitCondition("the run to finish") { client.call(Api.Session, SessionParams("default", id)).status == SessionStatus.Idle }
                 assertTrue(server.runtime.runActivity.value.steps > 0)
-                assertFalse(client.call(Api.Approve, ApprovalParams(approval.approvalId, ApprovalDecision.AllowOnce)))
+                assertFalse(client.call(Api.Respond, RespondParams(id, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
             } finally { client.close(); server.close() }
         }
     }
@@ -177,7 +177,7 @@ class EmbeddedServerHostTest {
                 client.call(Api.ConfigureSession, ConfigureSessionParams("default", id, SessionSettings(approvals = "strict")))
                 client.call(Api.CatchUp, CatchUpParams("default", id))
                 val waiting = async(start = CoroutineStart.UNDISPATCHED) {
-                    client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event as? AgentEvent.ApprovalRequested }.first()
+                    client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }.first()
                 }
                 client.call(Api.Send, SendParams("default", id, "remember tea"))
                 waiting.await()

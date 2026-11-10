@@ -3,6 +3,7 @@ package kinuvo.harness.server
 import kinuvo.harness.core.store.Store
 import kinuvo.protocol.AgentEvent
 import kinuvo.protocol.LiveState
+import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.RoutineRef
 import kinuvo.protocol.SessionChange
 import kinuvo.protocol.SessionEntry
@@ -59,6 +60,8 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
 
     /** Whether a client in the foreground is subscribed to [sessionId]. */
     suspend fun watched(sessionId: String): Boolean = lock.withLock { subscribers[sessionId].orEmpty().any { it.watching } }
+
+    suspend fun pending(sessionId: String): List<PendingInteraction> = lock.withLock { live[sessionId]?.pending.orEmpty() }
 
     suspend fun status(sessionId: String): SessionStatus = lock.withLock { statusOf(sessionId) }
 
@@ -146,7 +149,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         counts[sessionId] = seq + 1
         live[sessionId]?.let {
             val state = it.on(entry)
-            if (state.running || state.approval != null || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty())
+            if (state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
         }
         deliver(SessionUpdate(agentId, sessionId, SessionChange.Entry(seq, entry)))
@@ -166,7 +169,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         }
         val before = statusOf(sessionId)
         val state = (live[sessionId] ?: LiveState()).on(event)
-        if (state.running || state.approval != null || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty())
+        if (state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
         if (event.isLive) deliver(SessionUpdate(agentId, sessionId, SessionChange.Event(event)))
         eventListeners.load().forEach { it(agentId, sessionId, event) }

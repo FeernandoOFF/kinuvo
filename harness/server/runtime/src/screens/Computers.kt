@@ -491,8 +491,8 @@ class Computers(
             val pending = questions().register()
             control(computer.id) { it.copy(request = reason) }
             try {
-                log.publish(context.agent.id, sessionId, AgentEvent.QuestionsAsked(pending.id, callId, "Take over ${computer.name}: $reason. Open Computers to watch and act, then hand it back.",
-                    listOf(Question("note", "Note for the Agent (optional)", placeholder = "Done, or what happened")), ScreenRef("computer", computer.id)))
+                log.publish(context.agent.id, sessionId, AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, callId, "Take over ${computer.name}: $reason. Open Computers to watch and act, then hand it back.",
+                    listOf(Question("note", "Note for the Agent (optional)", placeholder = "Done, or what happened")), ScreenRef("computer", computer.id))))
                 val outcome = coroutineScope {
                     val answer = async { pending.await() }
                     val handedBack = async {
@@ -515,7 +515,7 @@ class Computers(
             } finally {
                 control(computer.id) { it.copy(request = null) }
                 pending.close()
-                withContext(NonCancellable) { log.publish(context.agent.id, sessionId, AgentEvent.QuestionsAnswered(callId)) }
+                withContext(NonCancellable) { log.publish(context.agent.id, sessionId, AgentEvent.InteractionResolved(pending.id)) }
             }
         }
     }
@@ -528,8 +528,8 @@ class Computers(
         val before = gate.state.value.generation
         val pending = questions().register()
         try {
-            log.publish(context.agent.id, sessionId, AgentEvent.QuestionsAsked(pending.id, callId,
-                "Take over Browser: ${reason.take(300)}", listOf(Question("note", "Note for the Agent (optional)")), ScreenRef("browser", tab, owner)))
+            log.publish(context.agent.id, sessionId, AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, callId,
+                "Take over Browser: ${reason.take(300)}", listOf(Question("note", "Note for the Agent (optional)")), ScreenRef("browser", tab, owner))))
             return coroutineScope {
                 val answer = async { pending.await() }
                 val handback = async {
@@ -545,7 +545,7 @@ class Computers(
             }
         } finally {
             pending.close()
-            withContext(NonCancellable) { log.publish(context.agent.id, sessionId, AgentEvent.QuestionsAnswered(callId)) }
+            withContext(NonCancellable) { log.publish(context.agent.id, sessionId, AgentEvent.InteractionResolved(pending.id)) }
         }
     }
 

@@ -43,11 +43,12 @@ class KinuvoAgentTest {
                 session.prompt(listOf(ContentBlock.Text("hello")))
                 backend.started.await()
                 assertEquals(ExecutionPhase.Running, backend.state.phase)
-                backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(ExecutionRequest("approval", ExecutionRequestKind.Approval, JsonObject(emptyMap()), listOf(ExternalApprovalOption("allow_once", "Allow once", "allow_once")))))
+                backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(PendingInteraction.HarnessApproval("approval", "Run", null, listOf(ExternalApprovalOption("allow_once", "Allow once", "allow_once")))))
                 backend.approval.await()
-                backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(ExecutionRequest("form", ExecutionRequestKind.Question, ProtocolJson.encodeToJsonElement(AgentEvent.QuestionsAsked.serializer(), AgentEvent.QuestionsAsked("form", "tool", "Name", listOf(Question("name", "Name")))))))
+                backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(PendingInteraction.Questions("form", "tool", "Name", listOf(Question("name", "Name")))))
                 backend.form.await()
-                assertEquals("Ada", backend.answers.last().answer.jsonObject["answers"]!!.jsonObject["name"]!!.jsonArray.single().jsonPrimitive.content)
+                assertEquals(mapOf("name" to listOf("Ada")), (backend.answers.last().answer as InteractionAnswer.Questions).answers)
+                assertEquals(InteractionAnswer.Harness(buildJsonObject { put("optionId", "allow_once") }), backend.answers.first().answer)
                 backend.state = ExecutionSnapshot("s", messages = listOf(ExecutionMessage("u", "user", "hello"), ExecutionMessage("a", "assistant", "reply"), ExecutionMessage("t", "tool", "tool", ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), SessionEntry.ToolCall("t", "tool", "{}")))))
                 val received = mutableListOf<SessionUpdate>()
                 do { val update = updates.receive(); received.add(update) } while (update !is SessionUpdate.StateUpdate || update.state !is StateUpdate.Idle)
@@ -70,7 +71,7 @@ class KinuvoAgentTest {
 
     private class FakeExecution : ExecutionDispatch {
         @Volatile var state = ExecutionSnapshot("s")
-        val answers = mutableListOf<ExecutionAnswer>()
+        val answers = mutableListOf<RespondParams>()
         val stopped = mutableListOf<String>()
         val started = CompletableDeferred<Unit>()
         val approval = CompletableDeferred<Unit>()
@@ -79,7 +80,7 @@ class KinuvoAgentTest {
         override suspend fun snapshot(agentId: String, sessionId: String) = state
         override suspend fun send(params: SendParams): SendResult { state = state.copy(phase = ExecutionPhase.Running); started.complete(Unit); return SendResult("s", "run", "accepted") }
         override suspend fun stop(sessionId: String) { stopped.add(sessionId); state = state.copy(phase = ExecutionPhase.Idle) }
-        override suspend fun answer(answer: ExecutionAnswer): Boolean {
+        override suspend fun answer(answer: RespondParams): Boolean {
             answers.add(answer); state = state.copy(phase = ExecutionPhase.Running, pending = emptyList())
             if (answer.requestId == "approval") approval.complete(Unit) else form.complete(Unit)
             return true

@@ -1,12 +1,12 @@
 package kinuvo.harness.server
 
-import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.PendingInteraction
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /** An Approval's Notification title and body: the command for shell calls, else the tool and its reason or main argument, never raw JSON. */
-internal fun approvalText(agent: String, event: AgentEvent.ApprovalRequested): Pair<String, String> {
+internal fun approvalText(agent: String, event: PendingInteraction.Approval): Pair<String, String> {
     val tool = event.identity?.localId ?: event.toolCallName
     val args = runCatching { Json.parseToJsonElement(event.args) as? JsonObject }.getOrNull()
     val strings = args?.values?.mapNotNull { (it as? JsonPrimitive)?.takeIf { p -> p.isString }?.content?.trim()?.ifEmpty { null } }.orEmpty()

@@ -17,7 +17,7 @@ class VoiceAgentProgressTest {
         val updates = VoiceAgentProgress(ExecutionSnapshot("s"))
         val waiting = ExecutionSnapshot("s", ExecutionPhase.RequiresAction,
             messages = listOf(ExecutionMessage("m", "assistant", "Checking")),
-            pending = listOf(ExecutionRequest("r", ExecutionRequestKind.Approval, JsonNull)))
+            pending = listOf(PendingInteraction.HarnessApproval("r", "Agent action", null, emptyList())))
         assertEquals(2, updates.update(waiting).size)
         assertTrue(updates.update(waiting).isEmpty())
         assertEquals(listOf(AgentProgress.ApprovalResolved(null)), updates.update(waiting.copy(pending = emptyList())))
@@ -38,6 +38,6 @@ class VoiceAgentProgressTest {
         assertTrue(updates.update(AgentEvent.TextMessageEnd("m", "Let me run the tests")).isEmpty())
         assertEquals(listOf<AgentProgress>(AgentProgress.Text("Let me run the tests")), updates.update(AgentEvent.ToolCallStart("t", "shell", "{}")))
         assertTrue(updates.update(AgentEvent.TextMessageEnd("r", "All green")).isEmpty(), "The reply is not progress")
-        assertEquals(listOf<AgentProgress>(AgentProgress.ApprovalResolved(false)), updates.update(AgentEvent.ApprovalResolved("call", false)))
+        assertEquals(listOf<AgentProgress>(AgentProgress.ApprovalResolved(false)), updates.update(AgentEvent.InteractionResolved("call", false)))
     }
 }

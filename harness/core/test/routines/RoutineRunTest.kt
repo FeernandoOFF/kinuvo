@@ -15,6 +15,7 @@ import kinuvo.harness.core.tools.Tool
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.harness.testing.toolResults
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.approval
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.PluginInstanceId
 import kinuvo.protocol.Risk
@@ -141,8 +142,8 @@ class RoutineRunTest {
 
         assertIs<AgentEvent.RunFinished>(events.last(), events.last().toString())
         assertEquals(0, deploy.calls)
-        assertTrue(events.any { it is AgentEvent.ApprovalRequested })
-        assertEquals(AgentEvent.ApprovalResolved("c0", false), events.filterIsInstance<AgentEvent.ApprovalResolved>().single())
+        assertTrue(events.any { it.approval != null })
+        assertEquals(false, events.filterIsInstance<AgentEvent.InteractionResolved>().single().allowed)
         val result = entries().filterIsInstance<SessionEntry.ToolResult>().first()
         assertTrue(result.isError && result.output.startsWith("No answer within") && result.output.endsWith("; skipped"), result.output)
         assertEquals(listOf(SessionEntry.Outcome(true, "Skipped, no Approval: deploy")), notified)
@@ -157,7 +158,7 @@ class RoutineRunTest {
         val session = store.createSession(agent.id, "", run.ref)
         val model = model("deploy" to "{}", "routine_report" to """{"outcome":"nothing_new"}""")
         AgentRun(agent, store, model, listOf(deploy, RoutineReportTool(run).bound()), approvals = approvals, routine = run).run(session.id, "go").collect {
-            if (it is AgentEvent.ApprovalRequested) assertTrue(broker.respond(it.approvalId, ApprovalDecision.AllowOnce))
+            it.approval?.let { approval -> assertTrue(broker.respond(approval.id, ApprovalDecision.AllowOnce)) }
         }
 
         assertEquals(1, deploy.calls)

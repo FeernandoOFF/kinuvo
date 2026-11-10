@@ -58,7 +58,7 @@ class JournalWorkflowTest {
                 }
                 harness.timeZone = kotlinx.datetime.TimeZone.of("Europe/Dublin")
                 harness.runner(agent, session.id, RoutineRun(routine)).run(session.id, routine.prompt).collect { event ->
-                    if (event is AgentEvent.QuestionsAsked) harness.questions.respond(event.questionsId, mapOf("reflection" to listOf("Rested")))
+                    event.questions?.let { harness.questions.respond(it.id, mapOf("reflection" to listOf("Rested"))) }
                     assertFalse(event is AgentEvent.RunError, event.toString())
                 }
                 val note = assertNotNull(harness.knowledge.find("Journal/2026-10-05"))

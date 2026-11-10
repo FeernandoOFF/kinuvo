@@ -27,7 +27,3 @@ enum class QuestionKind {
 
     val choice get() = this == Single || this == Multi
 }
-
-/** The user's answers by [Question.id]; null [answers] = skipped. */
-@Serializable
-data class QuestionsParams(val questionsId: String, val answers: Map<String, List<String>>? = null)

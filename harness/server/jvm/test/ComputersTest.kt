@@ -131,13 +131,13 @@ class ComputersTest {
         withTimeout(5_000) {
             val tools = tools()
             harness.computers.connect(phone.id) { ComputerResult(DeviceToolStatus.Ready, screen = screen) }
-            val asked = CompletableDeferred<AgentEvent.QuestionsAsked>()
-            harness.log.onEvent { _, _, event -> if (event is AgentEvent.QuestionsAsked) asked.complete(event) }
+            val asked = CompletableDeferred<PendingInteraction.Questions>()
+            harness.log.onEvent { _, _, event -> event.questions?.let { asked.complete(it) } }
             val result = async { tools.getValue("request_takeover").execute(buildJsonObject { put("reason", "Sign in") }, "call") }
             val form = asked.await()
             assertContains(form.title.orEmpty(), "Sign in")
             assertEquals("Sign in", harness.computers.list().single().takeoverRequest)
-            harness.questions.respond(form.questionsId, mapOf("note" to listOf("Signed in")))
+            harness.questions.respond(form.id, mapOf("note" to listOf("Signed in")))
             assertContains(result.await(), "noted: Signed in")
             assertNull(harness.computers.list().single().takeoverRequest)
         }

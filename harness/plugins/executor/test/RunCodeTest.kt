@@ -18,6 +18,7 @@ import kinuvo.harness.core.plugin.ownedBy
 import kinuvo.harness.core.plugin.withModelNames
 import kinuvo.harness.core.tools.ToolRun
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.approval
 import kinuvo.protocol.ApprovalDecision
 import kinuvo.protocol.Risk
 import kinuvo.protocol.SessionEntry
@@ -91,14 +92,14 @@ class RunCodeTest {
         AgentRun(agent, store, model, tools, approvals = Approvals(ApprovalPolicy(agent, FileTrustRules(files)), broker))
             .run(session.id, "Search kotlin and remember the good hits").collect {
                 events += it
-                if (it is AgentEvent.ApprovalRequested) broker.respond(it.approvalId, if ("GraalJS" in it.args) ApprovalDecision.Deny("not that one") else ApprovalDecision.AllowOnce)
+                it.approval?.let { approval -> broker.respond(approval.id, if ("GraalJS" in approval.args) ApprovalDecision.Deny("not that one") else ApprovalDecision.AllowOnce) }
             }
         val entries = store.entries(agent.id, session.id)
         println(transcript(events, entries))
 
         assertEquals(1, search.calls.size)
         assertEquals(listOf("Kotlin 3"), save.calls.map { it["content"]!!.jsonPrimitive.content })
-        val approvals = events.filterIsInstance<AgentEvent.ApprovalRequested>()
+        val approvals = events.mapNotNull { it.approval }
         assertEquals(listOf("memory", "memory"), approvals.map { it.toolCallName })
         assertTrue(approvals.all { it.toolCallId == "c1" }, "Approvals show on the Script's call")
         // The denied second save throws inside the Script, which fails it; the inner calls stay out of the history.
@@ -128,7 +129,7 @@ class RunCodeTest {
         AgentRun(agent, store, model, tools, approvals = Approvals(ApprovalPolicy(agent, FileTrustRules(files)), broker))
             .run(session.id, "Search kotlin and remember the good hits").collect {
                 events += it
-                if (it is AgentEvent.ApprovalRequested) broker.respond(it.approvalId, ApprovalDecision.AllowOnce)
+                it.approval?.let { approval -> broker.respond(approval.id, ApprovalDecision.AllowOnce) }
             }
         println(transcript(events, store.entries(agent.id, session.id)))
         assertEquals(2, save.calls.size)
@@ -145,8 +146,8 @@ class RunCodeTest {
             when (e) {
                 is AgentEvent.ToolCallStart -> appendLine("call ${e.toolCallId} ${e.toolCallName} ${e.args.take(80)}")
                 is AgentEvent.ToolCallResult -> appendLine("result ${e.toolCallId}${if (e.isError) " (error)" else ""}: ${e.content.take(80).replace("\n", " ")}")
-                is AgentEvent.ApprovalRequested -> appendLine("approval? on ${e.toolCallId}: ${e.toolCallName} ${e.args} [${e.risk}]")
-                is AgentEvent.ApprovalResolved -> appendLine("approval ${if (e.allowed) "allowed" else "denied"}")
+                is AgentEvent.InteractionRequested -> e.approval?.let { appendLine("approval? on ${it.toolCallId}: ${it.toolCallName} ${it.args} [${it.risk}]") }
+                is AgentEvent.InteractionResolved -> appendLine("approval ${if (e.allowed == true) "allowed" else "denied"}")
                 is AgentEvent.TextMessageEnd -> appendLine("assistant: ${e.text}")
                 else -> Unit
             }

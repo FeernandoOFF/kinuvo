@@ -13,6 +13,8 @@ import kinuvo.harness.core.ApprovalBroker
 import kinuvo.harness.core.Broker
 import kinuvo.harness.core.TestHome
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.approval
+import kinuvo.protocol.questions
 import kinuvo.protocol.QuestionKind
 import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.channels.Channel
@@ -72,10 +74,10 @@ class AskUserToolTest {
         val runner = AgentRun(agent, home.store, model, listOf(tool), approvals = Approvals(ApprovalPolicy(agent, home.trustRules), ApprovalBroker()), questions = questions)
         val session = home.store.createSession(agent.id, "").id
         val asked = Channel<AgentEvent>(Channel.UNLIMITED)
-        val job = launch { runner.run(session, "plan a trip").collect { if (it is AgentEvent.QuestionsAsked || it is AgentEvent.ApprovalRequested) asked.send(it) } }
-        val event = asked.receive() as AgentEvent.QuestionsAsked
+        val job = launch { runner.run(session, "plan a trip").collect { if (it.questions != null || it.approval != null) asked.send(it) } }
+        val event = asked.receive().questions!!
         assertEquals("Trip", event.title)
-        assertTrue(questions.respond(event.questionsId, mapOf("city" to listOf("Rome"))))
+        assertTrue(questions.respond(event.id, mapOf("city" to listOf("Rome"))))
         job.join()
         assertEquals("""{"city":"Rome"}""", home.store.entries(agent.id, session).filterIsInstance<SessionEntry.ToolResult>().single().output)
     }

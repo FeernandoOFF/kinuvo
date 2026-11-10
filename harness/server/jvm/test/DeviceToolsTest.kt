@@ -27,8 +27,8 @@ class DeviceToolsTest {
         return harness.devices.prepare(RunContext(agent, session.id), activate = true).tools.single { it.descriptor.name == "contacts_lookup" }
     }
 
-    private suspend fun waiting(): AgentEvent.QuestionsAsked {
-        while (true) { val event = events.receive(); if (event is AgentEvent.QuestionsAsked) return event }
+    private suspend fun waiting(): PendingInteraction.Questions {
+        while (true) { events.receive().questions?.let { return it } }
     }
 
     @Test
@@ -52,13 +52,13 @@ class DeviceToolsTest {
             val tool = tool()
             val first = async { tool.execute(buildJsonObject { put("query", "Ada") }, "first") }
             val pending = waiting()
-            assertTrue(harness.questions.respond(pending.questionsId, null))
+            assertTrue(harness.questions.respond(pending.id, null))
             assertEquals(DeviceToolStatus.Skipped, ProtocolJson.decodeFromString(DeviceToolResult.serializer(), first.await()).status)
-            assertFalse(harness.questions.respond(pending.questionsId, null))
+            assertFalse(harness.questions.respond(pending.id, null))
             val second = async { tool.execute(buildJsonObject { put("query", "Ada") }, "second") }
             val stopped = waiting()
             second.cancelAndJoin()
-            assertFalse(harness.questions.respond(stopped.questionsId, null))
+            assertFalse(harness.questions.respond(stopped.id, null))
         }
     }
 
@@ -80,7 +80,7 @@ class DeviceToolsTest {
             val tool = tool()
             harness.devices.connect(device.id, device.tools, false) { error("Background read") }
             val result = async { tool.execute(buildJsonObject { put("query", "Ada") }, "call") }
-            harness.questions.respond(waiting().questionsId, null)
+            harness.questions.respond(waiting().id, null)
             result.await()
             harness.devices.paired = { listOf(device, device.copy(id = "other")) }
             assertFailsWith<IllegalArgumentException> { tool.execute(buildJsonObject { put("query", "Ada") }, "call") }
@@ -97,7 +97,7 @@ class DeviceToolsTest {
                 DeviceToolResult(if (reads == 1) DeviceToolStatus.Unavailable else DeviceToolStatus.Ready)
             }
             val result = async { tool.execute(buildJsonObject { put("query", "Ada") }, "call") }
-            harness.questions.respond(waiting().questionsId, emptyMap())
+            harness.questions.respond(waiting().id, emptyMap())
             assertEquals(DeviceToolStatus.Ready, ProtocolJson.decodeFromString(DeviceToolResult.serializer(), result.await()).status)
             assertEquals(2, reads)
         }

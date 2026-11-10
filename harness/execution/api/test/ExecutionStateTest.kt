@@ -45,13 +45,12 @@ class ExecutionStateTest {
     @Test fun brokerMintsGenerationOwnedTokensAndClaimsOnce() = runTest {
         val state = ExecutionState("s")
         val broker = ExecutionBroker(state)
-        val request = ExecutionRequest("wire", ExecutionRequestKind.Question, JsonNull, prompt = ExecutionPrompt.Unsupported("wire", "Unsupported"))
+        val request = PendingInteraction.Unsupported("wire", "Unsupported")
         val waiting = async { broker.ask(request) }
         runCurrent()
         val pending = state.snapshot().pending.single()
         assertNotEquals("wire", pending.id)
-        assertEquals(pending.id, pending.prompt?.id)
-        assertFalse(broker.answer("wire", JsonNull))
+                assertFalse(broker.answer("wire", JsonNull))
         assertTrue(broker.answer(pending.id, JsonNull))
         assertFalse(broker.answer(pending.id, JsonNull))
         assertEquals(JsonNull, waiting.await())

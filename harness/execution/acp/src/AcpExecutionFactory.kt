@@ -40,22 +40,19 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
         val reducer = AcpReducer(state) { persistAttachment(state, it) }
         val connection = AcpConnection.open(scope, acp, object : ElicitationHandler {
             override suspend fun createElicitation(request: CreateElicitationRequest): CreateElicitationResponse {
-                val source = ExecutionRequest(Uuid.random().toString(), ExecutionRequestKind.Question,
-                    ProtocolJson.encodeToJsonElement(CreateElicitationRequest.serializer(), request))
-                val prompt = source.decodePrompt()
-                val answer = requests.ask(source.copy(prompt = prompt), prompt)
+                val prompt = decodePrompt(Uuid.random().toString(), AcpRequestKind.Question, ProtocolJson.encodeToJsonElement(CreateElicitationRequest.serializer(), request))
+                val answer = requests.ask(prompt)
                 return ProtocolJson.decodeFromJsonElement(CreateElicitationResponse.serializer(), prompt.encodeAnswer(answer))
             }
         }, { reducer.lost(broker::lost) }, cwd = registration.cwd)
         try {
             val operations = object : ClientSessionOperations {
                 override suspend fun requestPermission(request: RequestPermissionRequest): RequestPermissionResponse {
-                    val source = ExecutionRequest(Uuid.random().toString(), ExecutionRequestKind.Approval,
+                    val prompt = decodePrompt(Uuid.random().toString(), AcpRequestKind.Approval,
                         ProtocolJson.encodeToJsonElement(RequestPermissionRequest.serializer(), request), request.options.map {
                             ExternalApprovalOption(it.optionId.toString(), it.name, ProtocolJson.encodeToJsonElement(PermissionOptionKind.serializer(), it.kind).jsonPrimitive.content)
                         })
-                    val prompt = source.decodePrompt()
-                    val answer = requests.ask(source.copy(prompt = prompt), prompt)
+                    val answer = requests.ask(prompt)
                     return ProtocolJson.decodeFromJsonElement(RequestPermissionResponse.serializer(), prompt.encodeAnswer(answer))
                 }
             }

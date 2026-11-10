@@ -1,6 +1,6 @@
 package kinuvo.harness.server
 
-import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.PluginInstanceId
 import kinuvo.protocol.ToolIdentity
 import kotlin.test.Test
@@ -8,7 +8,7 @@ import kotlin.test.assertEquals
 
 class NotificationTextTest {
     private fun approval(tool: String, args: String, plugin: String = "kinuvo.mcp", reason: String? = null) =
-        AgentEvent.ApprovalRequested("a1", "c1", tool, args, reason = reason, identity = ToolIdentity(PluginInstanceId(plugin), tool))
+        PendingInteraction.Approval("a1", "c1", tool, args, reason = reason, identity = ToolIdentity(PluginInstanceId(plugin), tool))
 
     @Test
     fun shellApprovalsShowTheCommand() {

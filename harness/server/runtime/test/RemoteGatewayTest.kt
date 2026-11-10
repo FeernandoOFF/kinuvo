@@ -72,7 +72,7 @@ class RemoteGatewayTest {
         assertTrue(RemoteLinks(persisted).owns(token, "allowed", "source-session"))
         val otherToken = links.grant(ExposureGrant("other", setOf("allowed")))
         for (action in listOf("snapshot", "send", "cancel", "answer")) {
-            assertFailsWith<IllegalArgumentException> { gateway.call(otherToken, RemoteExecutionCall("allowed", "source-session", action, text = "bad", requestId = "q", answer = kotlinx.serialization.json.JsonNull)) }
+            assertFailsWith<IllegalArgumentException> { gateway.call(otherToken, RemoteExecutionCall("allowed", "source-session", action, text = "bad", requestId = "q", answer = InteractionAnswer.Harness(JsonNull))) }
         }
         links.revoke("friend")
         assertFailsWith<IllegalArgumentException> { gateway.call(token, RemoteExecutionCall("allowed", "source-session", "snapshot")) }
@@ -82,14 +82,14 @@ class RemoteGatewayTest {
         val links = RemoteLinks()
         val token = links.grant(ExposureGrant("friend", setOf("agent")))
         links.claim(token, "agent", "session")
-        var received: ExecutionAnswer? = null
+        var received: RespondParams? = null
         val gateway = RemoteGateway(links, { listOf(AgentInfo("agent", "Agent", "")) },
             { error("No create") }, { _, id -> ExecutionSnapshot(id) }, { _, _, _, _ -> }, { _, _ -> },
             { _, answer -> received = answer; true })
-        val original = RemoteExecutionCall("agent", "session", "answer", requestId = "request", answer = JsonNull)
+        val original = RemoteExecutionCall("agent", "session", "answer", requestId = "request", answer = InteractionAnswer.Harness(JsonNull))
         val decoded = ProtocolJson.decodeFromString(RemoteExecutionCall.serializer(), ProtocolJson.encodeToString(RemoteExecutionCall.serializer(), original))
         assertTrue(gateway.call(token, decoded).accepted)
-        assertEquals(ExecutionAnswer("session", "request", JsonNull), received)
+        assertEquals(RespondParams("session", "request", InteractionAnswer.Harness(JsonNull)), received)
     }
 
     @Test fun secretsNeverEnterCatalog() {

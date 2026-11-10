@@ -39,8 +39,8 @@ class AcpSession internal constructor(
 
     override suspend fun cancel() = commands.withLock { connection.cancel(session); cancelRequests() }
 
-    override suspend fun answer(requestId: String, answer: JsonElement) {
-        check(broker.answer(requestId, answer)) { "Request is no longer pending" }
+    override suspend fun answer(requestId: String, answer: InteractionAnswer) {
+        check(broker.answer(requestId, answer.toHarnessJson())) { "Request is no longer pending" }
     }
 
     suspend fun collect() {

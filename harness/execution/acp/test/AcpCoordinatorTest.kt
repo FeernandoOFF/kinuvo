@@ -57,7 +57,7 @@ class AcpCoordinatorTest {
             assertTrue("image/png" in session.capabilities.supportedMimeTypes)
             val requests = state.snapshot().pending
             assertNotEquals(requests[0].id, requests[1].id)
-            assertIs<ExecutionPrompt.Approval>(requests[0].prompt)
+            assertIs<PendingInteraction.HarnessApproval>(requests[0])
             assertFailsWith<IllegalArgumentException> { broker.answer(requests[0].id, buildJsonObject { put("optionId", "bad") }) }
             assertEquals(2, state.snapshot().pending.size)
             requests.forEach { assertTrue(broker.answer(it.id, buildJsonObject { put("optionId", "yes") })) }

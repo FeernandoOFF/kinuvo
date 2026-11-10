@@ -263,8 +263,8 @@ class ExecutionCoordinator(
         require(record(id).agentId == agentId)
         discard(id); recovery.delete(agentId, id); lock.withLock { records.remove(id) }
     }
-    override suspend fun answer(p: ExecutionAnswer): Boolean = lock.withLock { live[p.sessionId] }?.respond(p.requestId, p.answer)
-        ?: (lock.withLock { brokers[p.sessionId] }?.answer(p.requestId, p.answer) ?: false)
+    override suspend fun answer(answer: RespondParams): Boolean = lock.withLock { live[answer.sessionId] }?.respond(answer.requestId, answer.answer)
+        ?: (lock.withLock { brokers[answer.sessionId] }?.answer(answer.requestId, answer.answer.toHarnessJson()) ?: false)
     suspend fun close() { lock.withLock { states.keys.toList() }.forEach { discard(it) } }
 }
 internal fun toolEntries(message: ExecutionMessage): List<SessionEntry> {

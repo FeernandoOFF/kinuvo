@@ -163,10 +163,10 @@ class ToolIdentityTest {
         AgentRun(home.agent, home.store, model, listOf(scopedBridge, target),
             approvals = Approvals(ApprovalPolicy(home.agent, home.trustRules), broker)).run(session.id, "go").collect {
             events += it
-            if (it is AgentEvent.ApprovalRequested) broker.respond(it.approvalId, ApprovalDecision.AlwaysAllow)
+            it.approval?.let { approval -> broker.respond(approval.id, ApprovalDecision.AlwaysAllow) }
         }
         assertEquals(listOf(scopedBridge.identity, target.identity), events.filterIsInstance<AgentEvent.ToolCallStart>().map { it.identity })
-        assertEquals(target.identity, events.filterIsInstance<AgentEvent.ApprovalRequested>().single().identity)
+        assertEquals(target.identity, events.mapNotNull { it.approval }.single().identity)
         val entries = home.store.entries(home.agent.id, session.id)
         assertEquals(scopedBridge.identity, entries.filterIsInstance<SessionEntry.ToolCall>().single().identity)
         assertEquals(scopedBridge.identity, entries.filterIsInstance<SessionEntry.ToolResult>().single().identity)
