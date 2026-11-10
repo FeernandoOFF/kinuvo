@@ -13,6 +13,7 @@ apps/desktop -> harness/server/jvm
 apps/desktop -> shared/ui
 apps/ios -> shared/ui
 apps/web -> shared/ui
+harness/core -> harness/execution/api
 harness/core -> harness/testing [test]
 harness/core -> shared/app [test]
 harness/core -> shared/protocol
