@@ -1,132 +1,64 @@
 # Mobile E2E
 
-Use the repository wrapper with the current development CLI. The latest published
-release (`v0.1.0-rc.1`) predates the YAML config and Kotlin Toolchain/WebSocket support
-used by this suite. Install the development binary once from the Mockstro checkout:
+Screen and flow behavior is covered by the Compose UI flows in `shared/ui/test@jvm/e2e/`,
+which run the whole app in-process on JVM against the real Server runtime
+(`TestServer`, module `harness/server/server-testing`) with seeded Sessions, a scripted
+model and fakes for tools, Browser, Computers and external harnesses:
 
 ```sh
-make install-dev
+./kotlin test -m ui -p jvm --include-classes='kinuvo.ui.e2e.*'
 ```
 
-Requires Java 17+ and Android SDK tools or Xcode for the selected platform.
-`setup` validates fixtures and installs missing Maestro and WireMock dependencies.
+Their screenshots go to `shared/ui/build/screens/flows/`. Maestro keeps only the flows
+that need a real device: the real WebSocket, native pickers, microphone permission and
+voice, and OS-level background/resume. Add new screen or flow coverage to
+`shared/ui/test@jvm/e2e/` and `server-testing`; add a Maestro flow only for device-level
+behavior.
 
-From the Kinuvo repository root:
+## Running flows
+
+Mockstro and its WireMock profiles are gone from this suite, and `.maestro/mockstro.yaml`
+is left as it was. Mockstro is WireMock-based, so `mockstrow` regression runs are paused
+until Mockstro is adapted to the fixture launcher. Run flows with plain Maestro instead.
+
+Start the fixture Server, a real WebSocket Server on `127.0.0.1:18081` with seeded data and a
+scripted model (a test-only module, not part of the `kinuvo` CLI):
 
 ```sh
-./mockstrow --dev setup
-./mockstrow --dev --owner agent status --json
-./mockstrow --dev --owner agent --platform android run --headless .maestro/flows/mobile/chat.yaml
-./mockstrow --dev --owner agent --platform ios run --headless .maestro/flows/mobile/chat.yaml
+./kotlin run -m fixture-server -- chat
+./kotlin run -m fixture-server -- showcase --port=18082
 ```
 
-`.maestro/mockstro.yaml` configures both platform app IDs, full integration, Kotlin
-Toolchain builds, and the pinned WireMock beta with `/ws`. Put machine-specific device
-names in the ignored `.maestro/mockstro.local.yaml`:
-
-```yaml
-platforms:
-  android:
-    devices: [Your_Android_AVD]
-  ios:
-    devices: [Your iPhone simulator]
-```
-
-Agents use designated devices; Mockstro can select and boot a free one. Add
-`--device <serial-or-udid>` to select a particular designated device.
-`MOCKSTRO_DEV_CLI=/path/to/mockstro-dev` selects a development binary outside `PATH`.
-Omit `--platform` to run both configured platforms concurrently.
-When a compatible release is published, add its `cliVersion` to the shared YAML and
-use `./mockstrow` without `--dev`.
-
-Every flow uses `appId: ${APP_ID}` and carries both `android` and `ios`
-tags. Mockstro injects `APP_ID` from the selected platform configuration. Keep
-common behavior in shared flows; use native Maestro platform conditions for
-interactions that differ.
-
-Run all shared flows on iOS (smoke and regression) with:
+It prints the URL and the pairing code (a new one when the code is used or expires). The
+port can also come from `KINUVO_FIXTURE_PORT`. An Android device or emulator reaches it with
+`adb -s <serial> reverse tcp:18081 tcp:18081`; an iOS simulator shares the host's loopback.
+Install the debug build, then pass the code to Maestro:
 
 ```sh
-./mockstrow --dev --owner agent --platform ios run --headless --tags smoke,regression
+maestro --device <serial-or-udid> test -e APP_ID=com.feernandooff.kinuvo.full -e PAIRING_CODE=<code> .maestro/flows/mobile/chat.yaml
 ```
 
-Add `--skip-build` when the current debug build is already installed.
+These flows have not been run against the launcher yet. Mockstro's launch override used to skip
+onboarding and point the app at its address; with plain Maestro a fresh install shows the
+ordinary first-run screens, so the pairing steps may need the address typed or onboarding finished first.
 
-Screen and flow behavior is covered by the Compose UI flows in
-`shared/ui/test/e2e/`, which run the whole app in-process on JVM against these same
-WireMock profiles and stubs (`./kotlin test -m ui -p jvm --include-classes='kinuvo.ui.e2e.*'`).
-Their screenshots go to `shared/ui/build/screens/flows/`. Maestro keeps the flows that
-need a real device: the real WebSocket and launch override, native pickers, microphone
-permission and voice, and OS-level background/resume:
+Every flow uses `appId: ${APP_ID}` and carries both `android` and `ios` tags. Keep common
+behavior in shared flows; use native Maestro platform conditions for interactions that differ.
+Scenarios live in `harness/server/fixture-server/src/Main.kt`:
 
-- `chat.yaml`: pairing, Session creation, message sending and the pushed reply.
-- `external-session.yaml`: an external harness Session's question, answer and follow-up.
-- `attachment-picker.yaml`: Files remains enabled for a model with text and image modalities and opens the native file picker.
-- `external-attachments.yaml` / `external-text-attachments.yaml`: external harness attachment gating and the native file picker.
-- `session-return.yaml`: open Board from Home, receive an event on Board, return to the Session, then background/resume without losing its transcript or resending the message.
-- `voice.yaml`: voice chat with the microphone permission granted.
+- `chat`: Agent "E2E Agent", the Board task "Plan mobile tests", and the scripted reply "Hello from the fixture Server".
+- `showcase`: the dense data of the Compose `showcase` flows.
 
-Add new screen or flow coverage to `shared/ui/test/e2e/`; add a Maestro flow only for device-level behavior.
+Flows that run against the launcher:
 
-The `showcase` profile (`stubs/showcase/`) serves dense, realistic data for reviewing layouts: three Agents (one with a
-long name), 17+ Sessions with favorites and running/waiting states, a fully populated Today, a Board with every Task
-status, a rich chat transcript (Markdown, a mixed tool chain, an attachment, a Browser tab), Knowledge results and a long
-note, Routines, Skills and several Computers. Its times use WireMock's `{{now offset='…' format='epoch'}}` and
-`format='yyyy-MM-dd'` helpers, so Today and due dates stay current. `ShowcaseFlowTest` screenshots it to
-`shared/ui/build/screens/flows/showcase-*/`.
+- `chat.yaml`: pairing, Session creation, message sending and the reply.
+- `session-return.yaml`: open Board from Home, return to the Session, then background/resume without losing its transcript or resending the message.
+- `review/markdown.yaml` (`showcase`): the Markdown review screenshots.
 
-On phones the drawer is an owner rail (Home, Agents, New agent, Server, Settings) beside a column: the
-Agent's Sessions, or with Home selected Today, Board and the Server-wide Computers, Knowledge and Artifacts.
-Flows reach those screens with `tapOn: "Agents and sessions"`, `tapOn: "Home"`, then the destination.
-`mobile-inspector` serves `agent.get` from `mobile/agent-details` and `agent.update` from `mobile/agent-update`.
-
-All flows under `flows/mobile/` run unchanged on Android and iOS. Run the shared
-suite on Android with:
-
-```sh
-./mockstrow --dev --owner agent --platform android run --headless --tags smoke,regression
-```
-
-Tool responses and Agent events are mocked at the WebSocket boundary. These tests
-verify the client's rendering, decisions and lifecycle; actual tool execution is
-covered by the harness's own tests. Background/resume uses Maestro's
-[`launchApp: stopApp: false`](https://docs.maestro.dev/reference/commands-available/launchapp)
-to retain the running process.
-
-Each flow asserts the relevant received WebSocket requests as well as the UI.
-Server pushes happen after UI readiness assertions, without fixed sleeps. Mockstro
-restarts the WebSocket server and stops the app between scenarios; each launch
-uses fresh test preferences and credentials.
-
-Use `--boot-emulator <designated-device-name>` to request a specific stopped device.
-Mockstro builds with `./kotlin`, snapshots
-and installs the artifact, loads the pinned WireMock 4 beta, writes the runtime
-override, and cleans up its override and forwarding when the run finishes.
-
-The shared mobile smoke flow pairs with a remote Server, opens the mocked Agent, creates a Session,
-sends a message, and asserts the pushed reply. Network assertions verify `connect`,
-Agent loading, Session creation and `chat.send`. Fixtures use the real JSON
-protocol and client; feature behavior is shared with ordinary app launches.
-The Agent is selected automatically because this fixture offers one Agent.
-
-Android accepts schema 1 from the base64 Settings.Global key `kinuvo_e2e_override`
-only when the app is debuggable. Mockstro grants the development permission
-`WRITE_SECURE_SETTINGS`, which lets the app publish `kinuvo_e2e_accepted_run_id`.
-iOS accepts `e2e-config.json` in the installed bundle only in a debug simulator
-build. The Swift Debug target must define `DEBUG`. It publishes acceptance to
-`Documents/e2e-accepted-run-id`. Overrides require an unexpired run ID and a
-`ws://127.0.0.1:<port>/...` endpoint.
-
-Accepted test launches use in-memory preferences and Device credentials, skip
-owner onboarding, and offer ordinary remote Servers. Pairing starts fresh on
-each process launch. Ordinary preferences, Keychain/Keystore credentials and
-the embedded Server's data are kept separate. Pairing persistence across process
-restarts is therefore outside these smoke flows.
-
-Add feature requests as native message fixtures in `wiremock/stubs/ws/` and
-reference them from profiles. Server events use `type`, `event`, `payload` and
-`seq`; response IDs echo `{{jsonPath message.body '$.id'}}`. The explicit HTTP
-upgrade fixture is required by the pinned beta. Generated runs and JARs are ignored.
+Paused until the launcher gains matching scenarios: `attachment-picker.yaml` (a model with
+text and image modalities, native file picker), `external-*.yaml` (an external harness Session;
+a new external Session reports no file types until it is open, so these need an existing
+Session first) and `voice.yaml` (voice chat with the microphone permission granted).
 
 ## Visible devices and interactive use
 
@@ -137,50 +69,8 @@ flags returned by `device_open`. Read that installed CLI's help for its supporte
 commands and keep element references current. Use ADB or Apple platform tools for
 low-level diagnostics, always with an explicit device target.
 
-For E2E tests, finish the interactive session and hand the same booted device to
-Mockstro. Obtain the current serial/UDID from T3 rather than assuming it is stable:
-
-```sh
-./mockstrow --dev --owner agent --platform android run --device <android-serial> --tags smoke,regression
-./mockstrow --dev --owner agent --platform ios run --device <simulator-udid> --tags smoke,regression
-```
-
-The device must be designated in this checkout's local Mockstro configuration.
-Mockstro keeps responsibility for test build/install, ownership, overrides and
-cleanup. Do not send interactive commands through another driver during its run.
-The sidebar video may stay visible; it does not replace Mockstro's test ownership.
-If T3 is unavailable, report that limitation; Mockstro can select and boot a
-designated device itself, without promising a sidebar view.
-
-Regular user-requested device interaction does not require running the full suite.
-Maestro MCP is an optional aid for explicitly requested Maestro investigation or
-flow authoring; execute repository E2E flows through Mockstro.
-
-## External Session regressions
-
-The `external-session.yaml` smoke/regression flow uses `mobile-external`: an ACP
-Agent's existing Session catches up through a `window` containing a normalized
-numeric question in `LiveState.pending`. Submitting the displayed default verifies
-`execution.answer` uses `{"answers":{"attempts":["3"]}}`. Resolution, streaming,
-committed entries and completion arrive through ordinary `session.update` events.
-A follow-up message verifies `chat.send` carries a nonempty `submissionId`.
-There is no `execution.changed` or snapshot fixture.
-
-Additional regression flows use separate profiles:
-
-- `external-attachments.yaml` / `mobile-external-attachments`: negotiated image and
-  text MIME types enable Photos and Files; Files opens the native picker.
-- `external-text-attachments.yaml` / `mobile-external-text`: only text documents are
-  negotiated; Photos is disabled and Files opens the native picker.
-- `external-session-lost.yaml` / `mobile-external-lost`: retained history, a read-only
-  lost Session without Resume support, and an expandable interruption Notice with
-  nested unfinished output.
-
-The main external flow also checks Attach is disabled when the Session negotiates
-no MIME types, even though the mocked Server advertises attachment support. These
-fixtures exercise client behavior, not an installed ACP harness or actual file
-upload/conversion. They do not cover archive migration or resumable Sessions.
-Use the usual explicit platform, designated `--device`, and `--tags smoke,regression`
-commands above. Each flow selects its profile with `apiProfile`; no wrapper changes
-or real Server are needed. Both Devices and mocked connect responses use Kinuvo
-protocol version 5; ACP remains version 2.
+Finish the interactive session before running Maestro on the same device, and do not send
+interactive commands through another driver during its run. The sidebar video may stay
+visible; it does not replace Maestro's ownership of the run. Regular user-requested device
+interaction does not require running the flows. Maestro MCP is an optional aid for explicitly
+requested Maestro investigation or flow authoring.
