@@ -1,6 +1,7 @@
 package kinuvo.harness.server.testing
 
 import kinuvo.client.KinuvoClient
+import kinuvo.harness.core.NativeExecutionFactory
 import kinuvo.harness.core.plugin.HarnessPlugin
 import kinuvo.harness.core.store.AgentFiles
 import kinuvo.harness.core.store.knowledgeConfig
@@ -52,6 +53,7 @@ class TestServer private constructor(
     val auth: DeviceAuth,
     val script: ModelScript,
     val harnesses: List<FakeHarness>,
+    val prompts: PromptLog,
     private val temporary: Boolean,
 ) : AutoCloseable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -135,13 +137,15 @@ class TestServer private constructor(
         /**
          * Starts a Server on a fresh temporary home (or [home]), seeded by [scenario] before it serves. [script] sets up the
          * model's answers, [plugins] adds what a test needs beyond the built-in tools, Tasks and Knowledge, and [harnesses]
-         * are the external harnesses the Server can run Agents on, once [scenario] registers them.
+         * are the external harnesses the Server can run Agents on, once [scenario] registers them. With [schedule] the Server also
+         * runs Routines and Tasks; [prompts] records what the built-in harness is asked to run.
          */
         suspend fun start(
             home: Path? = null,
             plugins: List<HarnessPlugin> = emptyList(),
             script: ModelScript.() -> Unit = {},
             harnesses: List<FakeHarness> = emptyList(),
+            schedule: Boolean = false,
             scenario: suspend Scenario.() -> Unit = {},
         ): TestServer {
             val directory = home ?: Path(Files.createTempDirectory("kinuvo-test-server").toString())
@@ -149,7 +153,8 @@ class TestServer private constructor(
             files.saveKnowledgeConfig(files.knowledgeConfig().copy(reflection = false))
             val modelScript = ModelScript().apply(script)
             val dependencies = ServerInstallation.assemble(files, plugins = plugins, userHome = directory)
-            val harness = HarnessRuntime(dependencies, modelFactory = { modelScript.model })
+            val prompts = PromptLog()
+            val harness = HarnessRuntime(dependencies, modelFactory = { modelScript.model }, nativeSessions = { NativeExecutionFactory(it).recording(prompts) })
             val registry = ExecutionRegistry()
             val recovery = MemoryExecutionRecovery()
             try {
@@ -157,11 +162,11 @@ class TestServer private constructor(
                 val auth = DeviceAuth(File(directory.toString(), "server-devices.json"))
                 val runtime = ServerRuntime(harness, auth, "Test Server", executionRegistry = registry, executionStorage = recovery,
                     executionFactory = harnesses.takeIf { it.isNotEmpty() }?.let(::FakeHarnesses))
-                runtime.start(schedule = false)
+                runtime.start(schedule = schedule)
                 withContext(Dispatchers.Default) {
                     withTimeout(5_000) { while (registry.catalog().connections.any { it.readiness.reasonCode == "checking" }) delay(10) }
                 }
-                return TestServer(directory, harness, runtime, auth, modelScript, harnesses, temporary = home == null)
+                return TestServer(directory, harness, runtime, auth, modelScript, harnesses, prompts, temporary = home == null)
             } catch (e: Throwable) {
                 try { harness.close() } catch (cleanup: Throwable) { e.addSuppressed(cleanup) }
                 throw e

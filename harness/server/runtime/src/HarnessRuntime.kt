@@ -113,6 +113,8 @@ open class HarnessRuntime(
     private val platformDescription: String = platform.displayName,
     /** How long an unattended Routine run waits for an Approval before skipping the call. */
     private val routineApprovalWait: Duration = 30.minutes,
+    /** Builds the built-in harness's factory, e.g. to observe what it is asked to run. */
+    nativeSessions: (NativeHarnessHost) -> ExecutionFactory = ::NativeExecutionFactory,
 ) : ServerSettings by dependencies.settings, NativeHarnessHost {
     val log = SessionLog(dependencies.store, dependencies.clock)
     val store: Store = log
@@ -155,7 +157,7 @@ open class HarnessRuntime(
     fun reflects(agent: Agent) = ServerFeature.Knowledge in features && agent.config.tools.any { it in setOf(ToolNames.KNOWLEDGE, ToolNames.MEMORY, ToolNames.SKILLS) } && reflectionEnabled
 
     /** The built-in harness, run with this runtime's tools, instructions and models. */
-    val native: ExecutionFactory = NativeExecutionFactory(this)
+    val native: ExecutionFactory = nativeSessions(this)
 
     override suspend fun run(agentId: String, sessionId: String, input: ExecutionInput): AgentRun {
         val agent = store.agents().firstOrNull { it.id == agentId } ?: error("No agent '$agentId'")
