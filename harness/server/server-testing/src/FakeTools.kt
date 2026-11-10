@@ -7,6 +7,8 @@ import kinuvo.harness.core.plugin.RunContext
 import kinuvo.harness.core.tools.Action
 import kinuvo.harness.core.tools.Assessment
 import kinuvo.harness.core.tools.Tool
+import kinuvo.protocol.Integration
+import kinuvo.protocol.IntegrationOptions
 import kinuvo.protocol.PluginDefinition
 import kinuvo.protocol.Risk
 import kotlinx.serialization.json.JsonObject
@@ -33,4 +35,10 @@ class FakeTools(private vararg val tools: FakeTool) : HarnessPlugin {
     override val definition = PluginDefinition("test.tools", "Test tools")
 
     override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(tools.toList())
+}
+
+/** Offers Agents a host to run shell and files on, so their Workspace settings are available; it has no tools. */
+class FakeExec : HarnessPlugin {
+    override val definition = PluginDefinition("test.exec", "Test exec")
+    override val integrations = mapOf(Integration.Exec to setOf(IntegrationOptions.EXEC_HOST))
 }

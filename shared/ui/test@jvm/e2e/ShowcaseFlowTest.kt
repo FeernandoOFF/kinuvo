@@ -1,18 +1,53 @@
 package kinuvo.ui.e2e
 
+import kinuvo.harness.server.testing.FakeBrowser
+import kinuvo.harness.server.testing.FakeBrowserPlugin
+import kinuvo.harness.server.testing.FakeTool
+import kinuvo.harness.server.testing.FakeTools
+import kinuvo.harness.server.testing.computer
+import kinuvo.harness.server.testing.showcase
+import kinuvo.protocol.Api
+import kinuvo.protocol.BrowserTab
+import kinuvo.protocol.Risk
+import kotlinx.coroutines.awaitCancellation
 import kotlin.test.Test
 
-/** Screens with dense, realistic data from the `showcase` profile, for reviewing layouts rather than behavior. */
+/** Screens with dense, realistic data from the `showcase` scenario, for reviewing layouts rather than behavior. */
 class ShowcaseFlowTest {
+    private val plugins = listOf(
+        FakeTools(
+            FakeTool("shell", Risk.Medium, reason = "Books the flight under 120 EUR") { "booked" },
+            FakeTool("slides") { awaitCancellation() },
+        ),
+        FakeBrowserPlugin(FakeBrowser(listOf(BrowserTab("tab-docs", "e2e", "Kinuvo docs", "https://docs.kinuvo.dev/guides/migrating-to-2-0")))),
+    )
+
+    private fun showcase(flow: String, block: suspend AppTest.() -> Unit) = appTest(flow, plugins,
+        script = {
+            on("cheaper flight") { toolCall("shell"); reply("Booked") }
+            on("planning deck") { toolCall("slides"); reply("Deck ready") }
+        },
+        scenario = { showcase(it) },
+        block = block,
+    )
+
+    /** One Session waiting for an Approval and one running, which only a live Server can produce. */
+    private suspend fun AppTest.live() {
+        server.startSession("e2e", "Find a cheaper flight to Lisbon", title = "Find a cheaper flight to Lisbon")
+        server.startSession("e2e", "Build the planning deck", title = "Build the planning deck")
+    }
+
     private suspend fun AppDriver.connect() {
-        openPairing("123456")
+        openPairing(pairingCode)
         await("Agents and sessions", 20_000)
     }
 
-    @Test fun drawerWithManySessions() = mockedAppTest("showcase-drawer", "showcase") {
+    @Test fun drawerWithManySessions() = showcase("showcase-drawer") {
+        live()
         connect()
         tap("Agents and sessions")
         await("Release notes review for the 2.0 launch.*")
+        await("Find a cheaper flight to Lisbon")
         screenshot("sessions")
         tap("Older sessions")
         screenshot("older-sessions")
@@ -21,7 +56,8 @@ class ShowcaseFlowTest {
         screenshot("long-agent-name")
     }
 
-    @Test fun todayFullyPopulated() = mockedAppTest("showcase-today", "showcase") {
+    @Test fun todayFullyPopulated() = showcase("showcase-today") {
+        live()
         connect()
         openHome()
         tap("Today")
@@ -31,7 +67,7 @@ class ShowcaseFlowTest {
         screenshot("today-scrolled")
     }
 
-    @Test fun boardWithEveryStatus() = mockedAppTest("showcase-board", "showcase") {
+    @Test fun boardWithEveryStatus() = showcase("showcase-board") {
         connect()
         openHome()
         tap("Board")
@@ -43,21 +79,23 @@ class ShowcaseFlowTest {
         screenshot("task-with-runs")
     }
 
-    @Test fun richChatTranscript() = mockedAppTest("showcase-chat", "showcase") {
+    @Test fun richChatTranscript() = showcase("showcase-chat") {
         connect()
         tap("Agents and sessions")
         tap("Release notes review for the 2.0 launch.*")
-        await(".*slack_post")
+        await("End of Markdown review.")
         screenshot("chat-end")
+        repeat(8) { if (!visible(".*slack_post")) swipe(50, 25, 50, 80) }
+        await(".*slack_post")
         repeat(2) { swipe(50, 25, 50, 80); screenshot("chat-up-${it + 1}") }
         tap("Browser")
         await("Kinuvo docs")
-        requestsAtLeast("showcase/browser-watch")
+        requestsAtLeast(Api.ScreenWatch)
         gone("Waiting for a fresh screen…")
         screenshot("browser-tab")
     }
 
-    @Test fun knowledgeResultsAndLongNote() = mockedAppTest("showcase-knowledge", "showcase") {
+    @Test fun knowledgeResultsAndLongNote() = showcase("showcase-knowledge") {
         connect()
         openHome()
         tap("Knowledge")
@@ -73,7 +111,7 @@ class ShowcaseFlowTest {
         screenshot("note-links")
     }
 
-    @Test fun routinesAndSkills() = mockedAppTest("showcase-routines", "showcase") {
+    @Test fun routinesAndSkills() = showcase("showcase-routines") {
         connect()
         openHome()
         tap("Routines")
@@ -89,8 +127,10 @@ class ShowcaseFlowTest {
         screenshot("skills")
     }
 
-    @Test fun computersWithSeveralScreens() = mockedAppTest("showcase-computers", "showcase") {
+    @Test fun computersWithSeveralScreens() = showcase("showcase-computers") {
         connect()
+        server.computer("Pixel 9")
+        server.computer("Studio desktop")
         openHome()
         tap("Computers")
         await("Studio desktop")

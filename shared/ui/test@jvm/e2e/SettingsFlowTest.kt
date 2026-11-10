@@ -1,11 +1,33 @@
 package kinuvo.ui.e2e
 
+import kinuvo.harness.server.testing.FakeExec
+import kinuvo.harness.server.testing.FakeHarness
+import kinuvo.harness.server.testing.FakeModelProvider
+import kinuvo.harness.server.testing.FakeModels
+import kinuvo.protocol.Api
+import kinuvo.protocol.ModelInfo
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class SettingsFlowTest {
-    private suspend fun MockedAppTest.dismissSheet() = swipe(50, 14, 50, 85)
+    private suspend fun AppDriver.dismissSheet() = swipe(50, 14, 50, 85)
 
-    @Test fun settingsJourney() = mockedAppTest("settings-journey", "mobile-settings-journey") {
+    /** The whole SKILL.md is one field or code block, so a line of it is found inside the text. */
+    private fun inFile(line: String) = "(?s).*$line.*"
+
+    private val claude = FakeHarness("claude", "Claude Agent")
+
+    private val models = FakeModels(
+        FakeModelProvider("hosted-models", "Hosted models", needsKey = true),
+        FakeModelProvider("local-models", "Local models"),
+        FakeModelProvider("codex", "ChatGPT / Codex", listOf(ModelInfo("e2e-model", "Demo model", reasoning = emptyList())), signedIn = true),
+    )
+
+    @Test fun settingsJourney() = appTest("settings-journey", plugins = listOf(models, FakeExec()), harnesses = listOf(claude), scenario = { agent ->
+        skill(agent, "daily", "Daily planning instructions", "Original instructions")
+        connection(claude)
+    }) {
         startChat()
         screenshot("chat")
         tap("Ask before acting in this Session: .*")
@@ -38,11 +60,11 @@ class SettingsFlowTest {
         screenshot("today")
         returnToChat()
         gone("All clear")
-        await("Hello from WireMock")
+        await(REPLY)
 
         tap("Message")
         type("Draft survives the sheet")
-        tap("Hello from WireMock")
+        tap(REPLY)
         tap("E2E Agent settings")
         await("Agent settings for every Session")
         await("Name")
@@ -89,7 +111,7 @@ class SettingsFlowTest {
         tap("Skills")
         tap("daily")
         tap("Edit")
-        tap("Original instructions")
+        tap(inFile("Original instructions"))
         clear()
         type("Unsaved instructions")
         tap("Edit daily")
@@ -97,18 +119,16 @@ class SettingsFlowTest {
         await("Discard changes\\?")
         tap("Discard")
         tap("Edit")
-        await("Original instructions")
-        gone("Unsaved instructions")
-        tap("Original instructions")
+        await(inFile("Original instructions"))
+        gone(inFile("Unsaved instructions"))
+        tap(inFile("Original instructions"))
         clear()
-        type("Saved instructions")
+        type("---\nname: daily\ndescription: Daily planning instructions\n---\nSaved instructions\n")
         tap("Edit daily")
-        server.stub("mobile/settings-skill-saved", "skill.get",
-            """{"info":{"name":"daily","description":"Daily planning instructions","scope":"Agent","active":true},"content":"Saved instructions","files":[]}""", 1)
         tap("Save")
         gone("Discard changes\\?")
         await("Daily planning instructions")
-        await("Saved instructions")
+        await(inFile("Saved instructions"))
         screenshot("skill-saved")
         tap("Back")
         tap("Back")
@@ -124,7 +144,8 @@ class SettingsFlowTest {
         tap("Home")
         tap("Routines")
         await(".*E2E Agent, change Agent")
-        tap("Create routine")
+        await("Heartbeat.*")
+        tap("New routine")
         tap("Morning brief")
         type("Unsaved routine")
         tap("New routine")
@@ -159,7 +180,6 @@ class SettingsFlowTest {
         scrollTo("Endpoint Model ID")
         await("Endpoint Model ID")
         screenshot("endpoint-manual-fallback")
-        requestsAtLeast("mobile/endpoint-discover-empty")
         tap("Back")
         tap("Harnesses")
         await("Claude Agent")
@@ -179,15 +199,20 @@ class SettingsFlowTest {
         gone("Save")
         dismissSheet()
         gone("Agent settings for every Session")
-        await("Hello from WireMock")
+        await(REPLY)
 
-        requests("mobile/connect-settings", 1)
-        requests("ws/create-session", 1)
-        requests("ws/chat-send", 1)
-        requests("mobile/agent-update", 1)
-        requests("mobile/settings-skill-save", 1)
-        requestsAtLeast("mobile/server-rules")
-        requestsAtLeast("mobile/providers")
-        requestsAtLeast("mobile/harnesses")
+        requests(Api.Connect, 1)
+        requests(Api.CreateSession, 1)
+        requests(Api.Send, 1)
+        requests(Api.UpdateAgent, 1)
+        assertEquals("Renamed", server.spy.params(Api.UpdateAgent).single().name)
+        assertEquals("Renamed", server.harness.store.agents().single().name)
+        requests(Api.SaveSkill, 1)
+        assertTrue(server.spy.params(Api.SaveSkill).single().content.contains("Saved instructions"))
+        requestsAtLeast(Api.ServerRules)
+        requestsAtLeast(Api.Providers)
+        requestsAtLeast(Api.ExecutionCatalog)
+        requestsAtLeast(Api.DiscoverEndpoint)
+        assertEquals("http://localhost:1234/v1", models.discovered.single().baseUrl)
     }
 }

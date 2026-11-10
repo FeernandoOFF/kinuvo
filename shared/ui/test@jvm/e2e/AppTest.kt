@@ -19,6 +19,7 @@ import kinuvo.app.connection.Preferences
 import kinuvo.app.connection.Servers
 import kinuvo.harness.core.Agent
 import kinuvo.harness.core.plugin.HarnessPlugin
+import kinuvo.harness.server.testing.FakeHarness
 import kinuvo.harness.server.testing.Scenario
 import kinuvo.harness.server.testing.TestServer
 import kinuvo.harness.testing.ModelScript
@@ -47,18 +48,19 @@ private const val SERVER_URL = "ws://127.0.0.1:18081/ws"
  * Runs the whole app on a phone-sized touch layout against a real in-process [TestServer], like a Maestro flow under
  * Mockstro: fresh in-memory preferences and credentials, onboarding skipped, pairing with the Server's code. The Server
  * starts with the Agent "E2E Agent" (id `e2e`) and what [scenario] adds; the model answers [REPLY] unless [script] says
- * otherwise, and [plugins] add what the Server can do beyond its built-ins. Screenshots go to `build/screens/flows/<flow>/`.
+ * otherwise, and [plugins] add what the Server can do beyond its built-ins and [harnesses] the external harnesses it can run Agents on. Screenshots go to `build/screens/flows/<flow>/`.
  */
 @OptIn(ExperimentalTestApi::class)
 internal fun appTest(
     flow: String,
     plugins: List<HarnessPlugin> = emptyList(),
+    harnesses: List<FakeHarness> = emptyList(),
     script: ModelScript.() -> Unit = {},
     scenario: suspend Scenario.(Agent) -> Unit = {},
     block: suspend AppTest.() -> Unit,
 ) = runPhoneTest {
     val server = withContext(Dispatchers.Default) {
-        TestServer.start(plugins = plugins, script = { reply(REPLY); script() }, scenario = {
+        TestServer.start(plugins = plugins, harnesses = harnesses, script = { reply(REPLY); script() }, scenario = {
             val agent = agent("e2e", "E2E Agent")
             withoutDefaultAgent()
             scenario(agent)
