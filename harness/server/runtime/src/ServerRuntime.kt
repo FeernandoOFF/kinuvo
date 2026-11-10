@@ -497,10 +497,13 @@ class ServerRuntime(
         Api.CloseExecution.name -> respond(r, Api.CloseExecution) { executionManagement.withLock { external.closeExecution(it.id) } }
         Api.ExecutionSnapshot.name -> respond(r, Api.ExecutionSnapshot) { if (external.owns(it.id)) external.snapshot(it.id) else nativeExecution.snapshot(nativeOwner(it.id) ?: error("Unknown Session"), it.id) }
         Api.Respond.name -> respond(r, Api.Respond) {
-            // Deciding a Kinuvo Approval takes management access, however the answer is shaped.
-            val approving = it.answer is InteractionAnswer.Approval ||
-                (!external.owns(it.sessionId) && harness.log.pending(it.sessionId).any { p -> p.id == it.requestId && p is PendingInteraction.Approval })
-            if (approving && !client.authenticated(auth::management)) error("This action requires management access")
+            // Deciding any Approval takes management access, however the answer is shaped.
+            if (!client.authenticated(auth::management)) {
+                val pending = if (external.owns(it.sessionId)) external.snapshot(it.sessionId).pending else harness.log.pending(it.sessionId)
+                val approving = it.answer is InteractionAnswer.Approval ||
+                    pending.any { p -> p.id == it.requestId && (p is PendingInteraction.Approval || p is PendingInteraction.HarnessApproval) }
+                if (approving) error("This action requires management access")
+            }
             dispatchFor(it.sessionId).answer(it)
         }
         Api.GrantExecution.name -> respond(r, Api.GrantExecution) { p ->

@@ -101,6 +101,34 @@ class ServerSecurityTest {
     }
 
     @Test
+    fun ordinaryDevicesAnswerQuestionsButNeverDecideApprovals() = runBlocking {
+        val harness = Harness(Path(Files.createTempDirectory("approval-security").toString()))
+        val server = HarnessServer(harness)
+        val port = server.start("127.0.0.1", 0, schedule = false)
+        val owner = KinuvoClient("ws://127.0.0.1:$port/ws", "owner", token = server.auth.sessionToken())
+        var ordinary: KinuvoClient? = null
+        try {
+            owner.connect()
+            ordinary = KinuvoClient("ws://127.0.0.1:$port/ws", "ordinary", pairingCode = owner.call(Api.Pairing, PairingParams()).code)
+            assertFalse(ordinary.connect().management)
+            val agent = harness.store.agents().first()
+            val session = harness.newSession(agent).id
+            val approval = harness.approvals.register()
+            harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Approval(approval.id, "call", "shell", "{}")))
+            val harnessAnswer = InteractionAnswer.Harness(kotlinx.serialization.json.JsonObject(mapOf("optionId" to kotlinx.serialization.json.JsonPrimitive("allow_once"))))
+            assertFails { ordinary.call(Api.Respond, RespondParams(session, approval.id, harnessAnswer)) }
+            assertFails { ordinary.call(Api.Respond, RespondParams(session, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
+            assertTrue(owner.call(Api.Respond, RespondParams(session, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
+            approval.close()
+
+            val form = harness.questions.register()
+            harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Questions(form.id, "ask", "Which?", emptyList())))
+            assertTrue(ordinary.call(Api.Respond, RespondParams(session, form.id, InteractionAnswer.Questions(null))))
+            form.close()
+        } finally { ordinary?.close(); owner.close(); server.stop() }
+    }
+
+    @Test
     fun unauthenticatedConnectionsTimeOutAndAuthenticationFailuresClose() = runBlocking {
         val server = HarnessServer(Harness(Path(Files.createTempDirectory("ws-security").toString())), security = ConnectionSecurity(authenticationTimeoutMillis = 200))
         val port = server.start("127.0.0.1", 0, schedule = false)

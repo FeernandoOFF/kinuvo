@@ -114,8 +114,13 @@ class ExternalServerTest {
             val approval = responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.single()
             assertEquals("Allow", (approval as PendingInteraction.HarnessApproval).options.single().label)
             val answer = RespondParams(id, approval.id, InteractionAnswer.Harness(kotlinx.serialization.json.Json.parseToJsonElement("""{"optionId":"yes"}""")))
-            assertTrue(responder.call(Api.Respond, answer))
-            assertFalse(responder.call(Api.Respond, answer))
+            assertFails { responder.call(Api.Respond, answer) }
+            assertFails { responder.call(Api.Respond, answer.copy(answer = InteractionAnswer.Harness(kotlinx.serialization.json.JsonNull))) }
+            val manager = KinuvoClient("ws://127.0.0.1:$port/ws", "manager", token = token).also { it.connect() }
+            try {
+                assertTrue(manager.call(Api.Respond, answer))
+                assertFalse(manager.call(Api.Respond, answer))
+            } finally { manager.close() }
             awaitCondition("the run to go idle", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase == ExecutionPhase.Idle }
             responder.call(Api.Send, SendParams("external", id, "question"))
             awaitCondition("a pending question", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.isNotEmpty() }
