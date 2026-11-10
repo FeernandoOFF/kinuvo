@@ -1,5 +1,10 @@
 package kinuvo.harness.server
 
+import app.cash.turbine.ReceiveTurbine
+import app.cash.turbine.testIn
+import app.cash.turbine.turbineScope
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.time.Duration.Companion.seconds
 import kotlin.test.assertNotNull
 
 import kinuvo.harness.testing.*
@@ -26,9 +31,7 @@ import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
-import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -46,19 +49,25 @@ private fun KinuvoClient.approvals() =
 
 private fun KinuvoClient.statuses(sessionId: String) = events(Api.SessionChanged).filter { it.id == sessionId }.map { it.status }
 
+private val EVENT_TIMEOUT = 10.seconds
+
+private suspend fun <T> ReceiveTurbine<T>.awaitUntil(done: (T) -> Boolean): List<T> = buildList { do { add(awaitItem()) } while (!done(last())) }
+
 private suspend fun KinuvoClient.newSession() = call(Api.CreateSession, AgentRef("default")).id
 
 /** What a catch-up sent: the window start when it was reset, the entries and the live state. */
 private data class CaughtUp(val reset: Int?, val entries: List<SessionEntry>, val live: LiveState)
 
 /** Subscribes to [sessionId] from [after] and collects the catch-up. */
-private suspend fun KinuvoClient.catchUp(sessionId: String, after: Int? = 0, limit: Int = 100): CaughtUp = coroutineScope {
-    val changes = async(start = CoroutineStart.UNDISPATCHED) {
-        events(Api.Update).filter { it.sessionId == sessionId }.map { it.change }.transformWhile { emit(it); it !is SessionChange.Live }.toList()
+private suspend fun KinuvoClient.catchUp(sessionId: String, after: Int? = 0, limit: Int = 100): CaughtUp {
+    lateinit var all: List<SessionChange>
+    turbineScope {
+        val changes = events(Api.Update).filter { it.sessionId == sessionId }.map { it.change }.testIn(this, EVENT_TIMEOUT)
+        call(Api.CatchUp, CatchUpParams("default", sessionId, after, limit))
+        all = changes.awaitUntil { it is SessionChange.Live }
+        changes.cancel()
     }
-    call(Api.CatchUp, CatchUpParams("default", sessionId, after, limit))
-    val all = changes.await()
-    CaughtUp(
+    return CaughtUp(
         all.filterIsInstance<SessionChange.Reset>().singleOrNull()?.firstSeq,
         all.filterIsInstance<SessionChange.Entry>().map { it.entry },
         (all.last() as SessionChange.Live).state,
@@ -319,24 +328,29 @@ class ServerClientTest {
 
                 val sessionId = client.newSession()
                 client.catchUp(sessionId)
-                val streamed = async(start = CoroutineStart.UNDISPATCHED) {
-                    client.events(Api.Update).map { it.change }.transformWhile { emit(it); (it as? SessionChange.Event)?.event !is AgentEvent.RunFinished }.toList()
+                lateinit var sent: SendResult
+                lateinit var changes: List<SessionChange>
+                turbineScope {
+                    val streamed = client.events(Api.Update).map { it.change }.testIn(this, EVENT_TIMEOUT)
+                    val statuses = client.statuses(sessionId).testIn(this, EVENT_TIMEOUT)
+                    val approvalRequest = client.approvals().testIn(this, EVENT_TIMEOUT)
+                    val result = client.call(Api.Send, SendParams("default", sessionId, "make a skill"))
+                    val approval = approvalRequest.awaitItem()
+                    approvalRequest.cancel()
+                    assertEquals("c1", approval.toolCallId)
+                    assertTrue(client.call(Api.Approve, ApprovalParams(approval.approvalId, ApprovalDecision.AllowOnce)))
+                    val streamedChanges = streamed.awaitUntil { (it as? SessionChange.Event)?.event is AgentEvent.RunFinished }
+                    streamed.cancel()
+                    statuses.awaitUntil { it == SessionStatus.Idle }
+                    statuses.cancel()
+                    sent = result
+                    changes = streamedChanges
                 }
-                val statuses = async(start = CoroutineStart.UNDISPATCHED) {
-                    client.statuses(sessionId).transformWhile { emit(it); it != SessionStatus.Idle }.toList()
-                }
-                val approvalRequest = async(start = CoroutineStart.UNDISPATCHED) { client.approvals().first() }
-                val sent = client.call(Api.Send, SendParams("default", sessionId, "make a skill"))
-                val approval = approvalRequest.await()
-                assertEquals("c1", approval.toolCallId)
-                assertTrue(client.call(Api.Approve, ApprovalParams(approval.approvalId, ApprovalDecision.AllowOnce)))
-                val changes = streamed.await()
                 val live = changes.filterIsInstance<SessionChange.Entry>().map { it.entry }
 
                 assertEquals(sent.runId, changes.filterIsInstance<SessionChange.Event>().map { it.event }.filterIsInstance<AgentEvent.RunStarted>().single().runId)
                 assertTrue(live.any { it is SessionEntry.ToolResult && !it.isError }, "$live")
                 assertEquals("done", live.filterIsInstance<SessionEntry.AssistantMessage>().last().text)
-                statuses.await()
                 assertTrue(File(home, "agents/default/skills/x/SKILL.md").isFile)
                 val caught = client.catchUp(sessionId)
                 assertEquals(live, caught.entries.takeLast(live.size))
@@ -469,14 +483,15 @@ class ServerClientTest {
 
     @Test
     fun pagesSessionsAndEntries() = runBlocking {
-        val harness = Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model })
+        val ticks = AtomicLong(System.currentTimeMillis())
+        val harness = Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }, clock = { ticks.getAndAdd(1_100) })
         val server = HarnessServer(harness)
         val port = server.start("127.0.0.1", 0)
         try {
             withTimeout(30_000) {
                 val client = KinuvoClient("ws://127.0.0.1:$port/ws", "phone", token = server.auth.sessionToken()).also { it.connect() }
                 val agent = harness.store.agents().single()
-                val ids = List(3) { harness.store.createSession(agent.id, "i").id.also { Thread.sleep(1_100) } }
+                val ids = List(3) { harness.store.createSession(agent.id, "i").id }
                 val firstPage = client.call(Api.Sessions, SessionsParams("default", limit = 2))
                 assertEquals(ids.reversed().take(2) to true, firstPage.sessions.map { it.id } to firstPage.hasMore)
                 val secondPage = client.call(Api.Sessions, SessionsParams("default", before = firstPage.sessions.last().id, limit = 2))

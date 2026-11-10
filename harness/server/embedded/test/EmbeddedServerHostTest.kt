@@ -1,5 +1,8 @@
 package kinuvo.harness.server
 
+import app.cash.turbine.testIn
+import app.cash.turbine.turbineScope
+import kotlin.time.Duration.Companion.seconds
 import kinuvo.harness.server.devices.*
 import kinuvo.harness.server.screens.*
 import kinuvo.harness.core.plugin.*
@@ -157,7 +160,7 @@ class EmbeddedServerHostTest {
                 assertTrue(client.call(Api.Approve, ApprovalParams(approval.approvalId, ApprovalDecision.AllowOnce)))
                 // An approved run doesn't wait on anyone, so leaving the app lets it finish.
                 client.call(Api.Presence, PresenceParams(false))
-                while (client.call(Api.Session, SessionParams("default", id)).status != SessionStatus.Idle) kotlinx.coroutines.delay(20)
+                awaitCondition("the run to finish") { client.call(Api.Session, SessionParams("default", id)).status == SessionStatus.Idle }
                 assertTrue(server.runtime.runActivity.value.steps > 0)
                 assertFalse(client.call(Api.Approve, ApprovalParams(approval.approvalId, ApprovalDecision.AllowOnce)))
             } finally { client.close(); server.close() }
@@ -268,13 +271,15 @@ class EmbeddedServerHostTest {
 
     private suspend fun client(server: EmbeddedServerHost) = KinuvoClient("local://kinuvo", "test", token = server.token, connection = server::connect).also { it.connect() }
 
-    private suspend fun CoroutineScope.run(client: KinuvoClient, id: String, text: String): List<SessionChange> {
-        client.call(Api.CatchUp, CatchUpParams("default", id))
-        val updates = async(start = CoroutineStart.UNDISPATCHED) {
-            client.events(Api.Update).filter { it.sessionId == id }.map { it.change }
-                .transformWhile { emit(it); (it as? SessionChange.Event)?.event !is AgentEvent.RunFinished }.toList()
+    private suspend fun run(client: KinuvoClient, id: String, text: String): List<SessionChange> {
+        lateinit var changes: List<SessionChange>
+        turbineScope {
+            client.call(Api.CatchUp, CatchUpParams("default", id))
+            val updates = client.events(Api.Update).filter { it.sessionId == id }.map { it.change }.testIn(this, 10.seconds)
+            client.call(Api.Send, SendParams("default", id, text))
+            changes = buildList { do { add(updates.awaitItem()) } while ((last() as? SessionChange.Event)?.event !is AgentEvent.RunFinished) }
+            updates.cancel()
         }
-        client.call(Api.Send, SendParams("default", id, text))
-        return updates.await()
+        return changes
     }
 }

@@ -166,10 +166,8 @@ class SchedulerTest {
         hang = true
         val r = harness.routines.create(agent, "Brief", "Summarize", Trigger.Every(60))
         now += 60 * 60_000
-        withTimeout(10_000) {
-            scheduler.tick()
-            while (routine(r.id).lastStatus != RunStatus.Running) delay(10)
-        }
+        scheduler.tick()
+        awaitCondition("the routine to run") { routine(r.id).lastStatus == RunStatus.Running }
         val session = routine(r.id).lastSessionId!!
         assertEquals(now, routine(r.id).lastRunAt)
         assertEquals(session, harness.log.page(agent.id, null, 10, r.id).sessions.single().id)

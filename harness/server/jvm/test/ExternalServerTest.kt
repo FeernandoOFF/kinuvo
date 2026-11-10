@@ -1,5 +1,8 @@
 package kinuvo.harness.server
 
+import kotlin.time.Duration.Companion.seconds
+import kinuvo.harness.testing.awaitValue
+import kinuvo.harness.testing.awaitCondition
 import kinuvo.harness.server.screens.*
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
@@ -35,13 +38,8 @@ class ExternalServerTest {
             connected.call(Api.RegisterExternalAgent, AgentRegistration("media", "Media", "media", cwd = dir.path))
             val id = connected.call(Api.CreateSession, AgentRef("media")).id
             connected.call(Api.Send, SendParams("media", id, "image", submissionId = "image"))
-            val attachment = withTimeout(10_000) {
-                var found: Attachment? = null
-                while (found == null) {
-                    found = connected.call(Api.History, HistoryParams("media", id, 100)).map { it.entry }.filterIsInstance<SessionEntry.ToolResult>().flatMap { it.attachments }.singleOrNull()
-                    if (found == null) delay(10)
-                }
-                found
+            val attachment = awaitValue("the image attachment") {
+                connected.call(Api.History, HistoryParams("media", id, 100)).map { it.entry }.filterIsInstance<SessionEntry.ToolResult>().flatMap { it.attachments }.singleOrNull()
             }
             assertEquals("image/png", attachment.mimeType)
             assertEquals("Harness-output.png", attachment.name)
@@ -104,9 +102,9 @@ class ExternalServerTest {
             second.call(Api.UnregisterExternalAgent, ExecutionRef("unused"))
             assertFails { second.call(Api.UnregisterExternalAgent, ExecutionRef("external")) }
             second.call(Api.Stop, StopParams(id))
-            withTimeout(5000) { while(second.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase != ExecutionPhase.Idle) delay(10) }
+            awaitCondition("the run to stop", 5.seconds) { second.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase == ExecutionPhase.Idle }
             second.call(Api.Send, SendParams("external", id, "permission"))
-            withTimeout(5000) { while(second.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.isEmpty()) delay(10) }
+            awaitCondition("a pending permission", 5.seconds) { second.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.isNotEmpty() }
             second.close()
             val responder = KinuvoClient("ws://127.0.0.1:$port/ws", "chat-device", pairingCode = server.auth.pairing(false, false)!!.code)
             client = responder
@@ -118,14 +116,14 @@ class ExternalServerTest {
             val answer = ExecutionAnswer(id, approval.id, kotlinx.serialization.json.Json.parseToJsonElement("""{"optionId":"yes"}"""))
             assertTrue(responder.call(Api.ExecutionAnswer, answer))
             assertFalse(responder.call(Api.ExecutionAnswer, answer))
-            withTimeout(5000) { while(responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase != ExecutionPhase.Idle) delay(10) }
+            awaitCondition("the run to go idle", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase == ExecutionPhase.Idle }
             responder.call(Api.Send, SendParams("external", id, "question"))
-            withTimeout(5000) { while(responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.isEmpty()) delay(10) }
+            awaitCondition("a pending question", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.isNotEmpty() }
             val question = responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.single()
             assertEquals(ExecutionRequestKind.Question, question.kind)
             assertTrue(question.payload.toString().contains("https://example.test/sign-in"))
             assertTrue(responder.call(Api.ExecutionAnswer, ExecutionAnswer(id, question.id, kotlinx.serialization.json.Json.parseToJsonElement("""{"opened":false}"""))))
-            withTimeout(5000) { while(responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase != ExecutionPhase.Idle) delay(10) }
+            awaitCondition("the run to go idle", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase == ExecutionPhase.Idle }
             responder.close()
             server.stop()
             server = HarnessServer(Harness(home = Path(dir.path)))

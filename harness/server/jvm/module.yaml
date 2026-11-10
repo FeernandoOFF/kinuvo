@@ -32,6 +32,7 @@ test-dependencies:
   - io.ktor:ktor-server-cio:3.6.0
   - io.ktor:ktor-server-websockets:3.6.0
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+  - app.cash.turbine:turbine:1.2.1
 
 settings:
   kotlin:

@@ -1,5 +1,9 @@
 package kinuvo.harness.server
 
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kinuvo.harness.testing.awaitValue
+import kinuvo.harness.testing.awaitCondition
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.voice.DownloadedVoice
 import kinuvo.protocol.*
@@ -18,10 +22,9 @@ class ServerVoiceTest {
             .apply { environment()["KINUVO_HOME"] = home.path; environment().remove("KINUVO_EMBEDDED_PORT"); environment().remove("KINUVO_VOICE_WORKER") }
             .redirectErrorStream(true).redirectOutput(home.resolve("server.log")).start() }
         val local = if (server != null) LocalServer("127.0.0.1", server.start("127.0.0.1", 0, schedule = false), server.auth.sessionToken(), ProcessHandle.current().pid())
-            else withTimeout(30_000) {
-                var result: LocalServer? = null
-                while (result == null) { check(process!!.isAlive) { home.resolve("server.log").readText() }; result = LocalServer.read(Path(home.path)); delay(50) }
-                result
+            else awaitValue("the packaged Server", 30.seconds, 50.milliseconds) {
+                check(process!!.isAlive) { home.resolve("server.log").readText() }
+                LocalServer.read(Path(home.path))
             }
         val port = local.port
         val owner = KinuvoClient("ws://127.0.0.1:$port/ws", "owner", token = local.token)
@@ -29,18 +32,17 @@ class ServerVoiceTest {
         try {
             owner.connect()
             owner.call(Api.VoiceDownload, "whisper-tiny")
-            withTimeout(60_000) { while (owner.call(Api.VoiceModels, Unit).downloaded < 65536) delay(50) }
+            awaitCondition("the download to start", 60.seconds, 50.milliseconds) { owner.call(Api.VoiceModels, Unit).downloaded >= 65536 }
             owner.call(Api.VoiceCancelDownload, Unit)
-            withTimeout(15_000) { while (owner.call(Api.VoiceModels, Unit).downloading != null) delay(50) }
+            awaitCondition("the download to cancel", 15.seconds, 50.milliseconds) { owner.call(Api.VoiceModels, Unit).downloading == null }
             assertFalse(home.resolve("server-voice/models/whisper-tiny.part").exists())
             for (id in listOf("whisper-tiny", "supertonic-3")) {
                 owner.call(Api.VoiceDownload, id)
-                withTimeout(300_000) { while (true) {
+                awaitCondition("$id to install", 300.seconds, 200.milliseconds) {
                     val state = owner.call(Api.VoiceModels, Unit)
                     assertNull(state.error)
-                    if (state.downloading == null) { assertTrue(id in state.installed); break }
-                    delay(200)
-                } }
+                    (state.downloading == null).also { if (it) assertTrue(id in state.installed) }
+                }
             }
             owner.call(Api.VoiceSelect, VoiceSelection(VoiceModelKind.Transcription, "whisper-tiny"))
             owner.call(Api.VoiceSelect, VoiceSelection(VoiceModelKind.Synthesis, "supertonic-3"))

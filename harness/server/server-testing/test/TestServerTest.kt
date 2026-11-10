@@ -1,5 +1,8 @@
 package kinuvo.harness.server.testing
 
+import kotlin.time.Duration.Companion.seconds
+import kinuvo.harness.testing.awaitValue
+import kinuvo.harness.testing.awaitCondition
 import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
 import kinuvo.client.AuthException
@@ -224,15 +227,11 @@ class TestServerTest {
                 val session = server.startSession("ext", "Start", title = "External run")
                 val client = server.client().also { it.connect() }
                 assertEquals(true, client.call(Api.ProbeHarnessConnection, harness.connection).readiness.online)
-                val pending = withTimeout(5_000) {
-                    var found = client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).pending
-                    while (found.isEmpty()) { delay(10); found = client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).pending }
-                    found.single()
-                }
+                val pending = awaitValue("a pending request", 5.seconds) { client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).pending.takeIf { it.isNotEmpty() } }.single()
                 assertEquals(ExecutionRequestKind.Question, pending.kind)
                 assertEquals(ExecutionPhase.RequiresAction, client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).phase)
                 assertTrue(client.call(Api.ExecutionAnswer, ExecutionAnswer(session.id, pending.id, JsonObject(emptyMap()))))
-                withTimeout(5_000) { while (client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).phase != ExecutionPhase.Idle) delay(10) }
+                awaitCondition("the run to go idle", 5.seconds) { client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).phase == ExecutionPhase.Idle }
                 val entries = client.call(Api.History, HistoryParams("ext", session.id, 100)).map { it.entry }
                 assertEquals(listOf("Working on Start", "Limit accepted"), entries.filterIsInstance<SessionEntry.AssistantMessage>().map { it.text })
                 assertEquals("External run", client.call(Api.Session, SessionParams("ext", session.id)).title)

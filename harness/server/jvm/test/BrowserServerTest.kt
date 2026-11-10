@@ -1,5 +1,8 @@
 package kinuvo.harness.server
 
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
+import kinuvo.harness.testing.awaitValue
 import kinuvo.harness.server.screens.*
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.browser.BrowserPlugin
@@ -71,10 +74,9 @@ class BrowserServerTest {
                 process = ProcessBuilder(File(System.getProperty("java.home"), "bin/java").absolutePath, "-jar", jar, "serve", "--host", "127.0.0.1", "--port", "0")
                     .apply { environment()["KINUVO_HOME"] = home.absolutePath; environment().remove("KINUVO_EMBEDDED_PORT") }
                     .redirectErrorStream(true).redirectOutput(File(home, "process.log")).start()
-                withTimeout(30_000) {
-                    var found: LocalServer? = null
-                    while (found == null) { check(process!!.isAlive) { "Packaged Server exited: ${File(home, "process.log").readText()}" }; found = LocalServer.read(Path(home.path)); delay(100) }
-                    found
+                awaitValue("the packaged Server", 30.seconds, 100.milliseconds) {
+                    check(process!!.isAlive) { "Packaged Server exited: ${File(home, "process.log").readText()}" }
+                    LocalServer.read(Path(home.path))
                 }
             } else {
                 val harness = Harness(Path(home.path), modelFactory = { scriptedModel { _, _ -> emptyFlow() } },
@@ -143,11 +145,8 @@ class BrowserServerTest {
             client.close()
             client = KinuvoClient(address, "Browser proof reconnect", token = pairedToken)
             client.connect()
-            val suspended = withTimeout(5000) {
-                var control = client.call(Api.Screens, owner).single { it.ref == ref }.control
-                while (!control.suspended) { delay(20); control = client.call(Api.Screens, owner).single { it.ref == ref }.control }
-                control
-            }
+            val reconnected = client
+            val suspended = awaitValue("the Screen to suspend", 5.seconds) { reconnected.call(Api.Screens, owner).single { it.ref == ref }.control.takeIf { it.suspended } }
             assertFailsWith<IllegalStateException> { client.call(Api.ScreenAck, ack) }
             assertFailsWith<IllegalStateException> { client.call(Api.ScreenCommand, ScreenCommand(ref, initial.control.generation, ScreenCommandKind.Navigate, "about:blank")) }
             if (jar == null) {
@@ -176,11 +175,7 @@ class BrowserServerTest {
                 assertNotEquals(held.holder, stolen.holder)
                 assertFailsWith<IllegalStateException> { client.call(Api.ScreenCommand, ScreenCommand(ref, held.generation, ScreenCommandKind.Close)) }
                 client.call(Api.RevokeDevice, DeviceRef(requireNotNull(stolen.holder)))
-                val revoked = withTimeout(5000) {
-                    var value = client.call(Api.Screens, owner).single { it.ref == ref }.control
-                    while (!value.suspended) { delay(20); value = client.call(Api.Screens, owner).single { it.ref == ref }.control }
-                    value
-                }
+                val revoked = awaitValue("the Screen to suspend", 5.seconds) { client.call(Api.Screens, owner).single { it.ref == ref }.control.takeIf { it.suspended } }
                 val finalHold = client.call(Api.ScreenControl, ScreenControlRequest(ref, revoked.generation, true))
                 client.call(Api.ScreenCommand, ScreenCommand(ref, finalHold.generation, ScreenCommandKind.Close))
             } finally { second.close() }

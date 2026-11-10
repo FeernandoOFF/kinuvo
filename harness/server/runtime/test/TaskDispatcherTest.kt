@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kotlin.time.Duration.Companion.seconds
 import kinuvo.harness.testing.*
 import ai.koog.prompt.message.Message
 
@@ -54,14 +55,14 @@ class TaskDispatcherTest {
         val done = harness.tasks.create("Renew passport", notes = "Original instructions", assignee = "default")
         finish = false
         dispatcher.tick()
-        withTimeout(10_000) { while (harness.tasks.get(done.id).status == TaskStatus.InProgress || harness.tasks.get(done.id).sessionIds.isEmpty()) kotlinx.coroutines.delay(20) }
+        awaitCondition("the first run to finish") { harness.tasks.get(done.id).let { it.status != TaskStatus.InProgress && it.sessionIds.isNotEmpty() } }
         assertEquals(TaskStatus.Waiting, harness.tasks.get(done.id).status)
         assertEquals("Original instructions\n\n${agent.name}: On it.", harness.tasks.get(done.id).notes)
 
         harness.tasks.update(done.id, status = TaskStatus.Todo)
         finish = true
         dispatcher.tick()
-        withTimeout(10_000) { while (harness.tasks.get(done.id).sessionIds.size < 2 || runs.isActive(harness.tasks.get(done.id).sessionIds.last())) kotlinx.coroutines.delay(20) }
+        awaitCondition("the second run to finish") { harness.tasks.get(done.id).sessionIds.let { it.size >= 2 && !runs.isActive(it.last()) } }
         val task = harness.tasks.all(includeDone = true).single()
         assertEquals(TaskStatus.Done, task.status)
         assertEquals("Original instructions\n\n${agent.name}: On it.\n\n${agent.name}: On it.", task.notes)
@@ -79,9 +80,7 @@ class TaskDispatcherTest {
         val task = harness.tasks.create("Research", notes = "Original instructions", assignee = "default")
         fail = true
         dispatcher.tick()
-        withTimeout(10_000) {
-            while (harness.tasks.get(task.id).sessionIds.isEmpty() || runs.isActive(harness.tasks.get(task.id).sessionIds.last())) kotlinx.coroutines.delay(20)
-        }
+        awaitCondition("the run to finish") { harness.tasks.get(task.id).sessionIds.let { it.isNotEmpty() && !runs.isActive(it.last()) } }
         assertEquals(TaskStatus.Waiting, harness.tasks.get(task.id).status)
         assertEquals("Original instructions", harness.tasks.get(task.id).notes)
     }
@@ -94,7 +93,7 @@ class TaskDispatcherTest {
         val started = scope.async {
             kotlin.runCatching { runs.start(agent, session.id, "hi") { preparing.await(); error("no runner") } }
         }
-        withTimeout(5_000) { while (runs.activity.value.runs != 1) kotlinx.coroutines.delay(10) }
+        awaitCondition("the run to be counted", 5.seconds) { runs.activity.value.runs == 1 }
         preparing.complete(Unit)
         assertTrue(started.await().isFailure)
         assertEquals(0, runs.activity.value.runs)

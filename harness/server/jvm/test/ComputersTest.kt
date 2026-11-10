@@ -1,5 +1,6 @@
 package kinuvo.harness.server
 
+import kotlin.time.Duration.Companion.seconds
 import kinuvo.harness.testing.*
 
 import kinuvo.harness.core.plugin.RunContext
@@ -195,7 +196,7 @@ class ComputersTest {
             val queued = async { tools.getValue("computer_act").execute(buildJsonObject { put("action", "tap"); put("element", 1) }, "b", run) }
             delay(100)
             val taking = async { harness.computers.takeover(phone.id, take = true) }
-            while (harness.computers.list().single().control != ComputerControl.User) delay(20)
+            awaitCondition("the takeover to start") { harness.computers.list().single().control == ComputerControl.User }
             release.complete(Unit)
             taking.await()
             slow.await()
@@ -214,7 +215,7 @@ class ComputersTest {
             harness.computers.connect(phone.id) { ComputerResult(DeviceToolStatus.Ready, screen = screen, userControl = userOnPhone) }
             val result = async { tools.getValue("request_takeover").execute(buildJsonObject { put("reason", "Sign in") }, "call") }
             userOnPhone = true
-            withTimeout(5_000) { while (harness.computers.list().single().control != ComputerControl.User) delay(100) }
+            awaitCondition("the takeover to start", 5.seconds) { harness.computers.list().single().control == ComputerControl.User }
             userOnPhone = false
             assertContains(result.await(), "finished")
             assertEquals(ComputerControl.Idle, harness.computers.list().single().control)

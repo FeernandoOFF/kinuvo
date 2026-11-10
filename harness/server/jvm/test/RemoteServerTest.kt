@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kotlin.time.Duration.Companion.milliseconds
+import kinuvo.harness.testing.awaitCondition
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.codex.CodexAuth
@@ -51,7 +53,7 @@ class RemoteServerTest {
             destination.call(Api.RegisterExternalAgent, AgentRegistration("native-alias", "Native local alias", "native-remote", remoteAgentId = "default"))
             val nativeId = destination.call(Api.CreateSession, AgentRef("native-alias")).id
             destination.call(Api.Send, SendParams("native-alias", nativeId, "hello native"))
-            withTimeout(10000) { while (destination.call(Api.ExecutionSnapshot, ExecutionRef(nativeId)).messages.none { it.text == "remote native reply" }) delay(25) }
+            awaitCondition("the remote native reply") { destination.call(Api.ExecutionSnapshot, ExecutionRef(nativeId)).messages.any { it.text == "remote native reply" } }
             val token = origin.call(Api.GrantExecution, ExposureGrant("link", setOf("exposed")))
             destination.call(Api.SaveRemoteLink, SaveRemoteLink("source", "ws://127.0.0.1:$sourcePort/ws", token))
             destination.call(Api.SaveHarnessConnection, HarnessConnection("remote", "Source", ExecutionConnection.Remote("source")))
@@ -65,7 +67,7 @@ class RemoteServerTest {
             assertNotEquals(id, initial.externalSessionId)
             suspend fun snapshot() = destination.call(Api.ExecutionSnapshot, ExecutionRef(id))
             suspend fun waitFor(predicate: (ExecutionSnapshot) -> Boolean) {
-                val completed = withTimeoutOrNull(10000) { while (!predicate(snapshot())) delay(25); true } == true
+                val completed = runCatching { awaitCondition("the expected remote state", interval = 25.milliseconds) { predicate(snapshot()) } }.isSuccess
                 if (!completed) {
                     val receiving = snapshot()
                     val sourceSnapshot = receiving.externalSessionId?.let { origin.call(Api.ExecutionSnapshot, ExecutionRef(it)) }

@@ -1,5 +1,7 @@
 package kinuvo.harness.server
 
+import kotlin.time.Duration.Companion.seconds
+import kinuvo.harness.testing.awaitCondition
 import kinuvo.harness.server.devices.*
 import kinuvo.harness.execution.api.*
 import kinuvo.harness.server.execution.ExecutionRegistry
@@ -38,9 +40,7 @@ class HarnessRestartTest {
                 server.start()
                 if (!release.isCompleted) assertTrue(registry.catalog().connections.all { it.readiness.reasonCode == "checking" })
                 release.complete(Unit)
-                withTimeout(5_000) {
-                    while (registry.catalog().connections.any { it.readiness.reasonCode == "checking" }) delay(10)
-                }
+                awaitCondition("connection checks to finish", 5.seconds) { registry.catalog().connections.none { it.readiness.reasonCode == "checking" } }
                 val statuses = registry.catalog().connections.associateBy { it.config.id }
                 assertTrue(statuses.getValue("ready").readiness.online)
                 assertFalse(statuses.getValue("broken").readiness.online)
