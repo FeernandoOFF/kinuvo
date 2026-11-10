@@ -153,10 +153,12 @@ class VoiceRpcTest {
 
     @Test fun liveAudioIsDroppedWhenTheDeviceFallsBehindButOtherEventsArrive() = runTest {
         val flooded = CompletableDeferred<Unit>()
+        val started = CompletableDeferred<Unit>()
         val voice = VoiceProviders(speechToSpeech = object : SpeechToSpeech {
             override val input = AudioFormat.Pcm16(24000)
             override val output = AudioFormat.Pcm16(24000)
             override suspend fun converse(context: VoiceContext, input: ReceiveChannel<VoiceInput>, output: suspend (VoiceOutput) -> Unit, askAgent: suspend (String, suspend (AgentProgress) -> Unit) -> String) {
+                started.await()
                 repeat(2_000) { output(VoiceOutput.Audio("reply", ByteArray(1_920))) }
                 output(VoiceOutput.Transcript("reply", "Hello there", false, final = false))
                 output(VoiceOutput.Transcript("reply", "Hello there.", false))
@@ -178,6 +180,7 @@ class VoiceRpcTest {
         try {
             device.call(Api.Connect, ConnectParams("test"))
             val call = device.call(Api.LiveVoiceStart, LiveVoiceParams(fixture.agent.id, session.id))
+            started.complete(Unit)
             flooded.await()
             assertEquals(1, awake)
             stalled.complete(Unit)
