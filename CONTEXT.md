@@ -7,7 +7,7 @@ The Server manages Agents and their Sessions; a harness executes an Agent's work
 ## Language
 
 **Agent**:
-A named participant the user talks to through Sessions. Its harness owns its instructions, Memory, Skills, tools and model configuration.
+A named participant the user talks to through Sessions, defined by its Identity, Soul and model configuration. The Server owns its tools, Memory and Skills and builds its instructions; a harness runs its turns.
 _Avoid_: Profile, bot, assistant
 
 **Harness connection**:
@@ -121,6 +121,10 @@ _Avoid_: Blocklist, denylist
 The tools an Agent can find, describe and call on demand instead of each being sent to the model, used once it has many MCP tools.
 _Avoid_: Tool registry, toolbox
 
+**KinuvoMCP**:
+Planned: the Server's tools offered over MCP to external harnesses running Kinuvo Agents, under the same Approvals.
+_Avoid_: Kinuvo plugin, tool bridge
+
 **Script**:
 A short JavaScript program an Agent runs in a sandbox with `run_code`, calling its other tools as functions under the same Approvals; only what it returns goes back to the model.
 _Avoid_: Code mode, executor
@@ -181,12 +185,20 @@ This Device's own name for a remote Server, independent of the names other Devic
 **Revoke**:
 Unpair a Device from a Server, ending its access until it pairs again.
 
-**Room**:
-Planned: a lasting conversation space defined by its members (the user and one or more Agents). Not implemented yet; Sessions belong to an Agent.
-_Avoid_: Chat, channel, thread
+**Team**:
+Planned: a lasting conversation space with the user and one or more Agents as members; each member has its own Session and the Team keeps the shared log. Not implemented yet; Sessions belong to an Agent.
+_Avoid_: Room, Chat, channel, group
+
+**Sub-agent**:
+Planned: an Agent run in a child Session started by another Agent's Session, which waits for or is notified of its result.
+_Avoid_: Worker, child agent
+
+**Handoff**:
+Planned: an Agent passing the floor of a Team to another member with a brief. Not a Takeover, which is the user controlling a Screen.
+_Avoid_: Takeover, transfer
 
 **Session**:
-One bounded conversation with an Agent (later, inside a Room); its transcript does not carry into the next Session, only Memory does.
+One bounded conversation with an Agent (later, one per member of a Team); its transcript does not carry into the next Session, only Memory does.
 _Avoid_: Conversation, context
 
 **Session settings**:
@@ -202,8 +214,12 @@ The hosted service that forwards encrypted Notifications from any Server to Appl
 _Avoid_: Push server, proxy
 
 **Routine**:
-A prompt an Agent runs on its own on a schedule (once, every so often, or a cron expression), each run in a new Session or continuing one Session. Each run starts from the last run's outcome, ends with the Agent reporting something new (a Notification) or nothing new (nothing is sent), and skips any tool call whose Approval goes unanswered for 30 minutes.
+A prompt an Agent runs on its own on a schedule (once, every so often, or a cron expression), each run in a new Session or continuing one Session. Each run starts from the last run's outcome, ends with the Agent reporting something new (a Notification) or nothing new (nothing is sent), and skips any tool call whose Approval goes unanswered for 30 minutes. Planned: Routines become scheduled Workflows.
 _Avoid_: Cron job, scheduled task, automation
+
+**Workflow**:
+Planned: a graph of steps the Server runs durably, such as Agent turns and Approvals, started by a trigger such as a schedule. A Routine is a scheduled Workflow.
+_Avoid_: Pipeline, automation, flow
 
 **Heartbeat**:
 The Agent's built-in Routine that periodically works through its checklist (HEARTBEAT.md) and stays silent when nothing needs the user.
