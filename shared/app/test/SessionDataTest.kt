@@ -5,6 +5,7 @@ import kinuvo.app.session.*
 import kinuvo.protocol.ToolIdentity
 import kinuvo.protocol.PluginInstanceId
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.LiveState
 import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ReflectionResult
@@ -28,7 +29,7 @@ class SessionDataTest {
     }
 
     private val identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell")
-    private val approval = AgentEvent.ApprovalRequested("a1", "c1", "model_alias", "{}", identity = identity)
+    private val approval = PendingInteraction.Approval("a1", "c1", "model_alias", "{}", identity = identity)
 
     @Test
     fun savedTimeWinsOverReceiptAndHistoryNeedsNoReceipt() {
@@ -63,7 +64,7 @@ class SessionDataTest {
                 SessionEntry.ToolResult("c0", "shell", "ok"),
                 SessionEntry.ToolCall("c1", "model_alias", "{}", identity),
             ),
-            live = LiveState(running = true, approval = approval),
+            live = LiveState(running = true, pending = listOf(approval)),
         )
         val (done, waiting) = data.items.map { it as ChatItem.ToolCall }
         assertEquals(identity, done.identity)
@@ -96,8 +97,8 @@ class SessionDataTest {
 
     @Test
     fun openFormJoinsItsCall() {
-        val asked = AgentEvent.QuestionsAsked("q1", "c1", null, emptyList())
-        val data = SessionData("main", entries = listOf(SessionEntry.ToolCall("c1", "ask_user", "{}")), live = LiveState(running = true, questions = asked))
+        val asked = PendingInteraction.Questions("q1", "c1", null, emptyList())
+        val data = SessionData("main", entries = listOf(SessionEntry.ToolCall("c1", "ask_user", "{}")), live = LiveState(running = true, pending = listOf(asked)))
         assertEquals(asked, (data.items.single() as ChatItem.ToolCall).questions)
     }
     @Test

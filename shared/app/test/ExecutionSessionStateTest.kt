@@ -47,16 +47,11 @@ class ExecutionSessionStateTest {
         assertEquals(listOf(attachment), assertIs<ChatItem.ToolCall>(nested.draft.single()).attachments)
     }
 
-    @Test fun normalizedAnswersKeepDisplayValuesAndDoNotEncodeAcp() {
-        val asked = AgentEvent.QuestionsAsked("q", "t", "Deploy?", listOf(Question("env", "Environment", QuestionKind.Single, listOf("Production"), default = listOf("Production"))))
-        val prompt = ExecutionPrompt.Questions("q", asked, types = mapOf("env" to "string"), values = mapOf("env" to mapOf("Production" to "prod")))
-        assertEquals("""{"answers":{"env":["Production"]}}""", questionsAnswer(prompt, mapOf("env" to listOf("Production"))).toString())
-        assertEquals(JsonNull, questionsAnswer(prompt, null))
-        assertEquals("""{"optionId":"once"}""", approvalAnswer("once").toString())
-        assertEquals(JsonNull, approvalAnswer(null))
-        assertEquals("""{"opened":true}""", openLinkAnswer(true).toString())
-        assertSame(prompt, ExecutionRequest("q", ExecutionRequestKind.Question, JsonNull, prompt = prompt).displayPrompt())
-        assertIs<ExecutionPrompt.Unsupported>(ExecutionRequest("x", ExecutionRequestKind.Question, buildJsonObject { put("mode", "form") }).displayPrompt())
+    @Test fun harnessAnswersKeepTheirOwnShape() {
+        assertEquals(InteractionAnswer.Harness(buildJsonObject { put("optionId", "once") }), approvalAnswer("once"))
+        assertEquals(InteractionAnswer.Harness(JsonNull), approvalAnswer(null))
+        assertEquals(InteractionAnswer.Harness(buildJsonObject { put("opened", true) }), openLinkAnswer(true))
+        assertEquals(InteractionAnswer.Harness(JsonNull), declineAnswer)
     }
 
     @Test fun liveEntriesKeepKeysAcrossMutationAndCommitWithoutDuplicateRows() {

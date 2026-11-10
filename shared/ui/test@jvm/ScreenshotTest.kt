@@ -72,7 +72,7 @@ import kinuvo.ui.design.StripFrame
 import kinuvo.ui.design.LocalStrips
 import kinuvo.ui.voice.CallApprovalSheet
 import kinuvo.ui.voice.CallExternalApprovalSheet
-import kinuvo.protocol.ExecutionPrompt
+import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.ExternalApprovalOption
 import kinuvo.ui.voice.LiveCallScreen
 import kinuvo.ui.voice.OrbMood
@@ -188,7 +188,7 @@ class ScreenshotTest {
             ),
             ChatItem.ToolCall(
                 "t3", "t3", "shell", """{"command":"git commit -am wip"}""", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"),
-                approval = AgentEvent.ApprovalRequested("a1", "t3", "shell", """{"command":"git commit -am wip"}""", "git commit", Risk.Medium, "git can change things"),
+                approval = PendingInteraction.Approval("a1", "t3", "shell", """{"command":"git commit -am wip"}""", "git commit", Risk.Medium, "git can change things"),
             ),
             ChatItem.Error("e1", "Tool failed: permission denied"),
         ),
@@ -301,7 +301,7 @@ class ScreenshotTest {
     /** Scenes render on the AWT thread, where desktop Compose dispatches effects. */
     @Test
     fun renderScreens() {
-        val waiting = state.copy(approval = state.items.filterIsInstance<ChatItem.ToolCall>().firstNotNullOf { it.approval })
+        val waiting = state.copy(pending = listOf(state.items.filterIsInstance<ChatItem.ToolCall>().firstNotNullOf { it.approval }))
         render("chat-wide-light", 1200, 900) { HarnessTheme(dark = false) { ChatContent(waiting, ConnectionState.Connected("x"), usage, ChatActions()) } }
         render("chat-wide-dark", 1200, 900) { HarnessTheme(dark = true) { ChatContent(waiting, ConnectionState.Disconnected("x"), usage, ChatActions()) } }
         val defaults = AgentSettings("gpt-5.6-sol", "medium", "default", "host")
@@ -430,7 +430,7 @@ class ScreenshotTest {
                 ChatContent(state.copy(items = listOf(ChatItem.User("u1", "Summarize my unread email.", "Morning brief"), ChatItem.Assistant("a1", "Three new emails; nothing urgent."))), ConnectionState.Connected("x"), null, ChatActions())
             }
         }
-        val form = AgentEvent.QuestionsAsked("q1", "c1", "Plan the Lisbon trip", listOf(
+        val form = PendingInteraction.Questions("q1", "c1", "Plan the Lisbon trip", listOf(
             Question("dates", "When do you leave?", QuestionKind.Date, required = true),
             Question("budget", "Budget", QuestionKind.Single, listOf("Under €300", "€300–600", "Flexible"), default = listOf("Under €300")),
             Question("extras", "Also book", QuestionKind.Multi, listOf("Hotel", "Airport transfer", "Restaurant"), default = listOf("Hotel")),
@@ -772,17 +772,17 @@ class ScreenshotTest {
     }
 
     /** What the Agent waits on, in place of the chat input: morphed Composer on phones, tray over it on desktop. */
-    private fun renderRequests(form: AgentEvent.QuestionsAsked) {
+    private fun renderRequests(form: PendingInteraction.Questions) {
         val shell = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell")
-        val approval = AgentEvent.ApprovalRequested("a1", "t1", "shell", """{"command":"git push origin feat/request-composer"}""", "git push", Risk.High, "Pushes commits to a remote", identity = shell)
-        val takeover = AgentEvent.QuestionsAsked("q2", "t2", "Take over Browser: Sign in to GitHub.", listOf(Question("note", "Note")), ScreenRef("browser", "b1"))
+        val approval = PendingInteraction.Approval("a1", "t1", "shell", """{"command":"git push origin feat/request-composer"}""", "git push", Risk.High, "Pushes commits to a remote", identity = shell)
+        val takeover = PendingInteraction.Questions("q2", "t2", "Take over Browser: Sign in to GitHub.", listOf(Question("note", "Note")), ScreenRef("browser", "b1"))
         val push = ChatItem.ToolCall("t1", "t1", "shell", approval.args, identity = shell, approval = approval)
         val ask = ChatItem.ToolCall("t3", "c1", "ask_user", "{}", questions = form)
         val hand = ChatItem.ToolCall("t2", "t2", "request_takeover", """{"reason":"Sign in to GitHub"}""", questions = takeover)
         val talk = listOf(ChatItem.User("u1", "Push the branch and open the release PR."), ChatItem.Assistant("a1", "Tests are green. I'll push the branch next."))
-        val approving = state.copy(items = talk + push, running = false, approval = approval, questions = form)
-        val asking = state.copy(items = talk + ask, running = false, questions = form)
-        val handing = state.copy(items = talk + hand, running = false, questions = takeover)
+        val approving = state.copy(items = talk + push, running = false, pending = listOf(approval, form))
+        val asking = state.copy(items = talk + ask, running = false, pending = listOf(form))
+        val handing = state.copy(items = talk + hand, running = false, pending = listOf(takeover))
         fun chat(name: String, width: Int, height: Int, dark: Boolean, chat: ChatState) =
             render(name, width, height) { HarnessTheme(dark = dark) { ChatContent(chat, ConnectionState.Connected("x"), null, ChatActions()) } }
         chat("request-approval-phone", 390, 844, false, approving)
@@ -805,7 +805,7 @@ class ScreenshotTest {
         val fetch = ChatItem.ToolCall("t5", "t5", "web_fetch", """{"url":"https://kotlinlang.org"}""", result = "ok")
         val push = ChatItem.ToolCall(
             "t6", "t6", "shell", """{"command":"git push origin tier1"}""", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"),
-            approval = AgentEvent.ApprovalRequested("a1", "t6", "shell", """{"command":"git push origin tier1"}""", "git push", Risk.High, "Pushes to a remote"),
+            approval = PendingInteraction.Approval("a1", "t6", "shell", """{"command":"git push origin tier1"}""", "git push", Risk.High, "Pushes to a remote"),
         )
         val items = listOf(
             ChatItem.User("u1", "What's uncommitted, and are the tests green?"),
@@ -815,7 +815,7 @@ class ScreenshotTest {
             ChatItem.Assistant("a2", "Two tests fail in `core`. Want me to push the branch anyway?"),
             ChatItem.Reasoning("r2", "The user asked to push; that needs approval."), push,
         )
-        val phone = state.copy(items = items, running = false, approval = push.approval)
+        val phone = state.copy(items = items, running = false, pending = listOfNotNull(push.approval))
         render("chat-steps-phone", 390, 844) { HarnessTheme(dark = false) { ChatContent(phone, ConnectionState.Connected("x"), null, ChatActions()) } }
         val running = state.copy(items = items.take(4) + status.copy(id = "t7", callId = "t7", args = """{"command":"git diff --stat HEAD~3"}""", result = null), running = true)
         render("chat-steps-running-dark", 390, 600) { HarnessTheme(dark = true) { ChatContent(running, ConnectionState.Connected("x"), null, ChatActions()) } }
@@ -1100,7 +1100,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         call("live-call-muted-dark", listening.copy(paused = true))
         call("live-call-holding-dark", listening.copy(holding = true))
         render("live-call-light", 390, 844) { HarnessTheme(dark = false) { LiveCallScreen("Kinuvo", AvatarInk[2], listening, 75, false, {}, {}, {}, {}, {}, time = 3f) } }
-        val event = AgentEvent.ApprovalRequested("ap", "t", "calendar_update", """{"event":"Dentist","start":"2026-11-07T10:00"}""", reason = "Dentist → Friday, 10:00")
+        val event = PendingInteraction.Approval("ap", "t", "calendar_update", """{"event":"Dentist","start":"2026-11-07T10:00"}""", reason = "Dentist → Friday, 10:00")
         render("live-call-approval-dark", 390, 844) {
             HarnessTheme(dark = true) { Box { LiveCallScreen("Kinuvo", ink, VoiceChatState(VoicePhase.Thinking, live = true), 182, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event, {}, {}) } }
         }
@@ -1110,7 +1110,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         render("live-call-approval-long-small-dark", 375, 560) {
             HarnessTheme(dark = true) { Box { LiveCallScreen("Kinuvo", ink, listening, 40, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event.copy(args = (1..30).joinToString(",", "{", "}") { "\"field$it\":\"value $it\"" }, reason = "Update the event with a long list of changed fields that wraps across several lines of the sheet."), {}, {}) } }
         }
-        val external = ExecutionPrompt.Approval("x1", "Edit config.yaml", "Replace 3 lines in config.yaml", listOf(
+        val external = PendingInteraction.HarnessApproval("x1", "Edit config.yaml", "Replace 3 lines in config.yaml", listOf(
             ExternalApprovalOption("allow_always", "Always allow edits", "allow_always"), ExternalApprovalOption("allow_once", "Allow", "allow_once"), ExternalApprovalOption("reject_once", "Reject", "reject_once")))
         render("live-call-approval-external-dark", 390, 844) {
             HarnessTheme(dark = true) { Box { LiveCallScreen("Claude Code", AvatarInk[1], VoiceChatState(VoicePhase.Thinking, live = true), 95, false, {}, {}, {}, {}, {}, time = 3f); CallExternalApprovalSheet("Claude Code", external, {}, {}) } }

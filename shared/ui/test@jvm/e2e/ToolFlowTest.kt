@@ -5,6 +5,7 @@ import kinuvo.harness.server.testing.FakeTool
 import kinuvo.harness.server.testing.FakeTools
 import kinuvo.protocol.Api
 import kinuvo.protocol.ApprovalDecision
+import kinuvo.protocol.InteractionAnswer
 import kinuvo.protocol.Risk
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
@@ -58,8 +59,8 @@ class ToolFlowTest {
         gone("Allow once")
         screenshot("approved")
         requests(Api.Send, 1)
-        requests(Api.Approve, 1)
-        assertEquals(ApprovalDecision.AllowOnce, server.spy.params(Api.Approve).single().decision)
+        requests(Api.Respond, 1)
+        assertEquals(ApprovalDecision.AllowOnce, (server.spy.params(Api.Respond).single().answer as InteractionAnswer.Approval).decision)
     }
 
     @Test fun approvalDenySendsTheNote() = appTest("approval-deny", tools, script = {
@@ -79,7 +80,7 @@ class ToolFlowTest {
         requests(Api.CreateSession, 1)
         requests(Api.Send, 1)
         requests(Api.CatchUp, 1)
-        requests(Api.Approve, 1)
-        assertEquals(ApprovalDecision.Deny("Do not run this command"), server.spy.params(Api.Approve).single().decision)
+        requests(Api.Respond, 1)
+        assertEquals(ApprovalDecision.Deny("Do not run this command"), (server.spy.params(Api.Respond).single().answer as InteractionAnswer.Approval).decision)
     }
 }

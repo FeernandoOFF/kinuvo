@@ -319,14 +319,14 @@ class ChatChromeTest {
 
     @Test fun externalRequestsAndNoticesRenderWithoutNativeSettings() = javax.swing.SwingUtilities.invokeAndWait {
         val agent = AgentInfo("a", "External", "external", executionKind = ExecutionKind.Acp)
-        val prompt = ExecutionPrompt.Questions("q", AgentEvent.QuestionsAsked("q", "t", "Travel details", listOf(Question("seat", "Seat", QuestionKind.Text))))
+        val prompt = PendingInteraction.Questions("q", "t", "Travel details", listOf(Question("seat", "Seat", QuestionKind.Text)))
         val caps = SessionCapabilities(server = ServerCapabilities("s"), execution = ExecutionCapabilities())
         ImageComposeScene(1000, 1400, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 ChatContent(ChatState(agent = agent, selected = "s", loaded = true, capabilities = caps,
                     defaults = AgentSettings("model", "medium", "default", "provider"),
                     items = listOf(ChatItem.Notice("n", "history_gap", "Earlier history is unavailable")),
-                    prompts = listOf(prompt, ExecutionPrompt.Unsupported("other", "Another request"))),
+                    pending = listOf(prompt, PendingInteraction.Unsupported("other", "Another request"))),
                     ConnectionState.Connected("Test"), null, ChatActions(), wide = true)
             }
         }).use { scene ->

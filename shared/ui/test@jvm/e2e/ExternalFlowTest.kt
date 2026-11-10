@@ -54,7 +54,7 @@ class ExternalFlowTest {
         screenshot("continued")
         requestsAtLeast(Api.CatchUp)
         requestsAtLeast(Api.Capabilities)
-        requests(Api.ExecutionAnswer, 1)
+        requests(Api.Respond, 1)
         requests(Api.Send, 1)
         assertEquals(listOf("Start", "Continue external Session"), harness.sessions.single().prompts.map { it.text })
     }

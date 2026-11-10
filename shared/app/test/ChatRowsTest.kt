@@ -5,6 +5,7 @@ import kinuvo.app.session.*
 import kinuvo.app.agent.*
 
 import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.PendingInteraction
 import kinuvo.protocol.RequestKind
 import kinuvo.protocol.RequestMetrics
 import kinuvo.protocol.ReflectionResult
@@ -41,7 +42,7 @@ class ChatRowsTest {
 
     @Test
     fun stepsBetweenMessagesGroupAndPendingCallsStayOut() {
-        val approval = AgentEvent.ApprovalRequested("a1", "t4", "shell", "{}")
+        val approval = PendingInteraction.Approval("a1", "t4", "shell", "{}")
         val items = listOf(
             ChatItem.User("u1", "hi"),
             ChatItem.Reasoning("r1", "hm"), tool("t1"), tool("t2"),

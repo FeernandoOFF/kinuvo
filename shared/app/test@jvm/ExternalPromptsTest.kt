@@ -22,8 +22,7 @@ import kotlin.test.*
 @OptIn(ExperimentalCoroutinesApi::class)
 class ExternalPromptsTest {
     private val wren = AgentInfo("wren", "Wren", "external", executionKind = ExecutionKind.Acp, connectionId = "codex")
-    private val urlApproval = ExecutionRequest("open", ExecutionRequestKind.Approval, JsonNull,
-        prompt = ExecutionPrompt.Approval("open", "Open a page", "Reconnect Slack", listOf(ExternalApprovalOption("accept", "Allow", "allow_once"))))
+    private val urlApproval = PendingInteraction.HarnessApproval("open", "Open a page", "Reconnect Slack", listOf(ExternalApprovalOption("accept", "Allow", "allow_once")))
 
     @Test fun reopenedSessionAndMultipleRequestsUseOnlySessionUpdates() = withServer(LiveState(executionPhase = ExecutionPhase.Running, pending = listOf(urlApproval))) { owner, script ->
         val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat("wren", "s1"))
@@ -32,17 +31,16 @@ class ExternalPromptsTest {
             try {
                 vm.state.first { !it.resolving }
                 vm.shown()
-                assertIs<ExecutionPrompt.Approval>(vm.state.first { it.prompts.isNotEmpty() }.prompts.single())
-                val asked = AgentEvent.QuestionsAsked("q", "t", "Details", listOf(Question("when", "When?", QuestionKind.Text, default = listOf("Tomorrow"))))
-                val request = ExecutionRequest("q", ExecutionRequestKind.Question, JsonNull, prompt = ExecutionPrompt.Questions("q", asked))
-                script.event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Event(AgentEvent.ExecutionRequested(request))))
-                assertEquals(listOf("open", "q"), vm.state.first { it.prompts.size == 2 }.prompts.map { it.id })
+                assertIs<PendingInteraction.HarnessApproval>(vm.state.first { it.pending.isNotEmpty() }.pending.single())
+                val request = PendingInteraction.Questions("q", "t", "Details", listOf(Question("when", "When?", QuestionKind.Text, default = listOf("Tomorrow"))))
+                script.event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Event(AgentEvent.InteractionRequested(request))))
+                assertEquals(listOf("open", "q"), vm.state.first { it.pending.size == 2 }.pending.map { it.id })
                 script.acceptAnswer = false
-                vm.answerExternal(urlApproval.displayPrompt(), approvalAnswer("accept"))
+                vm.answerExternal(urlApproval, approvalAnswer("accept"))
                 assertTrue(vm.state.first { it.errors.isNotEmpty() }.errors.last().contains("Already answered"))
-                assertEquals(2, vm.state.value.prompts.size)
-                script.event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Event(AgentEvent.ExecutionResolved("open"))))
-                assertEquals("q", vm.state.first { it.prompts.size == 1 }.prompts.single().id)
+                assertEquals(2, vm.state.value.pending.size)
+                script.event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Event(AgentEvent.InteractionResolved("open"))))
+                assertEquals("q", vm.state.first { it.pending.size == 1 }.pending.single().id)
                 assertEquals(0, script.snapshotReads)
             } finally { clearAndJoin() }
         }
@@ -141,7 +139,7 @@ class ExternalPromptsTest {
         script.event(Api.SessionChanged, SessionInfo("s1", "wren", "Test", SessionStatus.Idle))
         owner.sessions.state.first { it.sessions["s1"]?.live?.executionPhase == ExecutionPhase.Lost }
         script.event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Event(AgentEvent.RunFinished("lost"))))
-        script.event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Event(AgentEvent.ExecutionRequested(urlApproval))))
+        script.event(Api.Update, SessionUpdate("wren", "s1", SessionChange.Event(AgentEvent.InteractionRequested(urlApproval))))
         owner.sessions.state.first { it.sessions["s1"]?.live?.pending?.isNotEmpty() == true }
         assertTrue(script.notices.none { it is Notice.RunFinished })
     }
@@ -202,7 +200,7 @@ class ExternalPromptsTest {
                     if (failSend) frames.send(Frame.Response(request.id, false, error = "Uncertain submission"))
                     else reply(request, Api.Send, SendResult("s1", "run", ""))
                 }
-                Api.ExecutionAnswer.name -> reply(request, Api.ExecutionAnswer, acceptAnswer)
+                Api.Respond.name -> reply(request, Api.Respond, acceptAnswer)
                 Api.ResumeExecution.name -> {
                     actions += request.method
                     dispatches += request.method

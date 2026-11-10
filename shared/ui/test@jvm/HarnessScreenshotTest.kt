@@ -115,20 +115,20 @@ class HarnessScreenshotTest {
     }
 
     @Test fun renderSession() {
-        val approval = ExecutionPrompt.Approval("p1", "Run ./kotlin build", "In /Users/fer/dev/kinuvo",
+        val approval = PendingInteraction.HarnessApproval("p1", "Run ./kotlin build", "In /Users/fer/dev/kinuvo",
             listOf(ExternalApprovalOption("once", "Allow once", "allow_once"), ExternalApprovalOption("always", "Always allow here", "allow_always"), ExternalApprovalOption("no", "Reject", "reject_once")))
-        val form = ExecutionPrompt.Questions("q1", AgentEvent.QuestionsAsked("q1", "t1", "Which branch should I review?", listOf(
+        val form = PendingInteraction.Questions("q1", "t1", "Which branch should I review?", listOf(
             Question("branch", "Branch", QuestionKind.Single, listOf("main", "acp-v2"), required = true),
-            Question("fix", "Fix lint too?", QuestionKind.YesNo, default = listOf("Yes")))), types = mapOf("branch" to "string", "fix" to "boolean"))
+            Question("fix", "Fix lint too?", QuestionKind.YesNo, default = listOf("Yes"))))
         val base = ChatState(agent = builder, harness = "Claude Code", selected = "s1", loaded = true, running = true, defaults = AgentSettings("", "", "", "external"),
             capabilities = SessionCapabilities(server = capabilities),
             items = listOf(ChatItem.User("u1", "Review the open PR and fix lint."), ChatItem.Assistant("a1", "Looking at the diff. I'll run the build first.")))
-        render("harness-chat-approval-phone", 390, 844) { theme(touch = true) { ChatContent(base.copy(prompts = listOf(approval)), ConnectionState.Connected("x"), null, ChatActions()) } }
-        render("harness-chat-form-desktop", 900, 760) { theme { ChatContent(base.copy(prompts = listOf(form)), ConnectionState.Connected("x"), null, ChatActions(), wide = true) } }
-        val openUrl = ExecutionPrompt.Approval("p2", "MCP server requests to open a URL", "Reconnect Slack on ChatGPT to restore access for this request.",
+        render("harness-chat-approval-phone", 390, 844) { theme(touch = true) { ChatContent(base.copy(pending = listOf(approval)), ConnectionState.Connected("x"), null, ChatActions()) } }
+        render("harness-chat-form-desktop", 900, 760) { theme { ChatContent(base.copy(pending = listOf(form)), ConnectionState.Connected("x"), null, ChatActions(), wide = true) } }
+        val openUrl = PendingInteraction.HarnessApproval("p2", "MCP server requests to open a URL", "Reconnect Slack on ChatGPT to restore access for this request.",
             listOf(ExternalApprovalOption("accept", "Allow", "allow_once"), ExternalApprovalOption("decline", "Deny", "reject_once"), ExternalApprovalOption("cancel", "Cancel", "reject_once")),
             site = "chatgpt.com", server = "codex_apps")
-        render("harness-chat-open-url-desktop", 900, 760) { theme { ChatContent(base.copy(agent = reviewer, harness = "Codex", prompts = listOf(openUrl)), ConnectionState.Connected("x"), null, ChatActions(), wide = true) } }
+        render("harness-chat-open-url-desktop", 900, 760) { theme { ChatContent(base.copy(agent = reviewer, harness = "Codex", pending = listOf(openUrl)), ConnectionState.Connected("x"), null, ChatActions(), wide = true) } }
         for (support in listOf(true, false, null)) render("harness-chat-ended-$support-phone", 390, 844) {
             theme(touch = true) { ChatContent(base.copy(running = false, phase = ExecutionPhase.Lost, resume = support), ConnectionState.Connected("x"), null, ChatActions()) }
         }
