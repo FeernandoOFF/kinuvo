@@ -2,6 +2,7 @@ package kinuvo.harness.firecrawl
 
 import kinuvo.harness.core.plugin.*
 import kinuvo.harness.core.*
+import kinuvo.harness.core.tools.SearchRegion
 import kinuvo.harness.core.tools.WebResult
 import kinuvo.harness.core.tools.WebSearch
 import kinuvo.harness.core.tools.WebSearchProvider
@@ -14,24 +15,28 @@ class FirecrawlPlugin : HarnessPlugin {
         override val id = "firecrawl"
         override val name = "Firecrawl"
         override val settings = SettingsSchema(listOf(
+            SettingsField("country", "Country", description = "ISO country code; overrides the Server time zone."),
+            SettingsField("location", "Location", description = "City and country; overrides the Server time zone."),
             SettingsField("apiKey", "API key", description = "From firecrawl.dev → API keys.", placeholder = "fc-…", required = true, sensitive = true),
             SettingsField("url", "Server URL", SettingsFieldType.Url, "Only for a self-hosted Firecrawl.", defaultValue = Firecrawl.DEFAULT_URL),
         ))
         override val hostAccess = PluginAccess(network = setOf("url"), secrets = setOf("apiKey"))
         override fun configured(options: Map<String, String>, host: PluginHost): WebSearch {
             checkOptions(options)
-            return Firecrawl(host)
+            return Firecrawl(host, options["country"], options["location"])
         }
     })
     override val manifest get() = super.manifest.copy(discoversTools = false)
 }
 
 /** Search and page extraction through host-bound HTTP and credentials. */
-class Firecrawl(private val host: PluginHost) : WebSearch {
-    override suspend fun search(query: String, limit: Int, news: Boolean): List<WebResult> {
+class Firecrawl(private val host: PluginHost, private val country: String? = null, private val location: String? = null) : WebSearch {
+    override suspend fun search(query: String, limit: Int, news: Boolean, region: SearchRegion?): List<WebResult> {
         val source = if (news) "news" else "web"
         val data = call("search", buildJsonObject {
             put("query", query)
+            (country?.takeIf { it.isNotBlank() } ?: region?.country)?.let { put("country", it) }
+            (location?.takeIf { it.isNotBlank() } ?: region?.location)?.let { put("location", it) }
             put("limit", limit)
             putJsonArray("sources") { add(source) }
         })

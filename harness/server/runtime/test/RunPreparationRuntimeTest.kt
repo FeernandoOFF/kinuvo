@@ -324,7 +324,7 @@ class RunPreparationRuntimeTest {
             val base = agent(harness, listOf(ToolNames.MEMORY, ToolNames.SCHEDULE, ToolNames.ASK_USER))
             suspend fun offered(agent: Agent, scope: ToolScope = ToolScope.All): List<String> {
                 val session = harness.newSession(agent)
-                harness.runner(agent, session.id, scope = scope).run(session.id, "hi").toList()
+                harness.runner(agent, session.id, scope = scope).run(session.id, "Remember that I like tea").toList()
                 return seen.last().sorted()
             }
             assertEquals(listOf("ask_user", "memory", "schedule"), offered(base))

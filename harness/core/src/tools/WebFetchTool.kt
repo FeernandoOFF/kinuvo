@@ -33,6 +33,7 @@ class WebFetchTool(
         val res = http.get(url)
         val body = res.bodyAsText()
         val text = if (res.contentType()?.contentSubtype == "html") htmlToText(body) else body
+        check(res.status.value < 400) { "HTTP ${res.status.value}\n\n${clip(text).takeWhole(2_000)}" }
         return "HTTP ${res.status.value}\n\n${clip(text)}"
     }
 

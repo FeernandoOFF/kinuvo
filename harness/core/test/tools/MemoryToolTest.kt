@@ -32,6 +32,13 @@ class MemoryToolTest {
     }
 
     @Test
+    fun addingAnExistingEntryKeepsOne() = runTest {
+        call("action" to "add", "target" to "user", "content" to "Likes tea")
+        call("action" to "add", "target" to "user", "content" to "likes TEA")
+        assertEquals("- Likes tea\n", doc(AgentDoc.UserNotes))
+    }
+
+    @Test
     fun batchIsAtomicAndChecksOnlyTheFinalSize() = runTest {
         call("action" to "add", "target" to "user", "content" to "x".repeat(40))
         tool.execute(Json.parseToJsonElement("""{"target":"user","operations":[

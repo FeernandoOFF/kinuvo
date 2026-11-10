@@ -1,9 +1,12 @@
 package kinuvo.harness.apple
 
+import kinuvo.harness.core.ANSWER_NUDGE
 import kinuvo.harness.testing.*
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
+import ai.koog.prompt.message.Message
+import ai.koog.prompt.message.RequestMetaInfo
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.AgentConfig
 import kinuvo.harness.core.ModelProfile
@@ -24,6 +27,17 @@ import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppleProviderTest {
+    @Test fun sharedAnswerNudgeReplacesAppleTrailingNudge() {
+        val history = listOf(
+            Message.User("Who?", RequestMetaInfo.Empty),
+            Message.System(ANSWER_NUDGE, RequestMetaInfo.Empty),
+        )
+        assertFalse(promptFor(history).contains("Answer the user's message using the tool results above"))
+        assertTrue(promptFor(history).trimEnd().endsWith(ANSWER_NUDGE))
+        assertFalse(appleInstructions(history).contains(ANSWER_NUDGE))
+        assertTrue(appleOffer(emptyList()).isEmpty())
+    }
+
     @BeforeTest
     fun main() { Dispatchers.setMain(UnconfinedTestDispatcher()) }
     @AfterTest

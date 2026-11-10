@@ -72,10 +72,10 @@ suspend fun basicContextFor(agent: Agent, docs: AgentDocs, tools: List<Tool>, to
     val known = listOf(AgentDoc.UserNotes, AgentDoc.Memory).map { docs.read(agent.id, it).trim() }.filter { it.isNotEmpty() }
     append("You are ${agent.name}, the user's personal assistant. Keep replies short and friendly.\n\n")
     if (identity) docs.read(agent.id, AgentDoc.Identity).trim().take(IDENTITY_CHARS).takeIf { it.isNotEmpty() }?.let { append("Who you are:\n$it\n\n") }
-    append("What you know about the user:\n${known.joinToString("\n").ifEmpty { "Nothing saved yet." }}\n\n")
+    if (known.isNotEmpty()) append("What you know about the user:\n${known.joinToString("\n")}\n\n")
     if (tools.isNotEmpty()) append("Tools: ${tools.joinToString { it.identity?.localId ?: it.descriptor.name }}. ")
     append("Use a tool when the user asks you to do something, and only say it's done after the tool succeeds.")
-    if (tools.any { it.identity?.localId == ToolNames.MEMORY }) append(" When the user asks you to remember something, call memory with action=add, target=user and content starting \"The user\".")
+    if (tools.any { it.identity?.localId == ToolNames.MEMORY }) append(" To remember something about the user, use the memory tool.")
     append("\nToday is $today.\n")
 }
 

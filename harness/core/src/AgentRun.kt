@@ -62,7 +62,7 @@ class AgentRun(
         val session = RunSession(agent, store, sessionId, runId, model, advertisedTools, tools, requestKind, contextTokens, profile.history.latestTurnOnly, profile, { send(it) }, voice = voice)
         var stopped = "Cancelled by user"
         var cancelled = false
-        val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, maxItems = profile.resultLimits.maxItems, reports = reports, progress = { send(it) }, emit = { event ->
+        val executor = ToolExecutor(tools, advertisedTools, approvals, questions, attach, maxItems = profile.resultLimits.maxItems, callsPerTurn = profile.tools.callsPerTurn, reports = reports, progress = { send(it) }, emit = { event ->
             if (event is AgentEvent.ToolCallStart) session.toolStarted(event.toolCallId)
             if (event !is AgentEvent.ToolCallResult || session.calls.none { it.id == event.toolCallId }) send(event)
         })

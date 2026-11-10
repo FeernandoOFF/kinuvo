@@ -11,6 +11,7 @@ import ai.koog.agents.core.dsl.builder.node
 import ai.koog.agents.core.feature.AIAgentGraphFeature
 import ai.koog.agents.core.feature.config.FeatureConfig
 import ai.koog.agents.core.feature.pipeline.AIAgentGraphPipeline
+import ai.koog.prompt.message.RequestMetaInfo
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import ai.koog.prompt.streaming.requireEndFrame
@@ -20,7 +21,8 @@ import kinuvo.protocol.SessionEntry
 import kinuvo.protocol.ToolIdentity
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.json.Json
+import kotlinx.coroutines.CancellationException
+import kotlinx.serialization.json.*
 import kotlin.uuid.Uuid
 
 internal class StreamResponse(private val identity: (String) -> ToolIdentity? = { null }) {
@@ -63,8 +65,8 @@ internal class ToolLoop(
     private val completed: suspend (SessionEntry.ToolCall) -> SessionEntry.ToolResult = { call ->
         SessionEntry.ToolResult(call.id, call.name, "This exact action already succeeded. Use its result and answer the user; don't repeat it.", isError = true, identity = call.identity)
     },
-    private val skipped: suspend (SessionEntry.ToolCall) -> SessionEntry.ToolResult = { call ->
-        SessionEntry.ToolResult(call.id, call.name, SKIPPED_CALL, isError = true, identity = call.identity)
+    private val skipped: suspend (SessionEntry.ToolCall, String, Boolean) -> SessionEntry.ToolResult = { call, text, error ->
+        SessionEntry.ToolResult(call.id, call.name, text, isError = error, identity = call.identity)
     },
     private val onResponse: suspend () -> Unit = {},
     private val onResult: suspend (SessionEntry.ToolResult) -> Unit = {},
@@ -72,8 +74,18 @@ internal class ToolLoop(
     private val stopped: (String) -> Unit = {},
     private val maxRequests: Int = Int.MAX_VALUE,
     private val parallelCalls: Boolean = true,
+    private val callsPerTurn: Int? = null,
+    private val answerNudge: Boolean = false,
+    /** A reason not to run this call, e.g. a small model saving to Memory unasked; the turn then ends with an answer. */
+    /** After a successful search, the next request answers: Micro models otherwise repeat the same search. */
+    private val answerAfterSearch: Boolean = false,
+    /** Tools left out of this request, e.g. Memory for a small model the user didn't ask to remember anything. */
+    private val hidden: suspend () -> Set<String> = { emptySet() },
+    private val refuse: suspend (SessionEntry.ToolCall) -> String? = { null },
 ) {
     private var requests = 0
+    private val searches = mutableMapOf<String, MutableList<Set<String>>>()
+    private var forceAnswer = false
     private val failed = mutableSetOf<Pair<String, String>>()
     private var repeats = 0
     private var repeatedSuccess = false
@@ -84,9 +96,32 @@ internal class ToolLoop(
 
     val request by node<Unit, Unit>("streamResponse") {
         checkRepeats()
-        if (requests++ >= maxRequests) throw RequestLimitReached()
+        val finalAnswer = requests++ >= maxRequests || forceAnswer || answerNudge && repeats > 0 || callsPerTurn?.let { executor().executedCalls >= it } == true
+        val hide = if (finalAnswer) emptySet() else hidden()
         llm.writeSession {
-            requestLLMStreaming().requireEndFrame().collect { onFrame(it) }
+            var answering = finalAnswer
+            fun answerNow() {
+                tools = emptyList()
+                prompt = prompt.withMessages { it + Message.System(ANSWER_NOW, RequestMetaInfo.Empty) }
+            }
+            if (finalAnswer) answerNow()
+            else {
+                if (hide.isNotEmpty()) tools = tools.filterNot { it.name in hide }
+                if (answerNudge && executor().executedCalls > 0) prompt = prompt.withMessages { it + Message.System(ANSWER_NUDGE, RequestMetaInfo.Empty) }
+            }
+            try { requestLLMStreaming().requireEndFrame().collect { onFrame(it) } }
+            catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                if (finalAnswer) throw RequestLimitReached()
+                if (!answerNudge) throw e
+                // Small models can fail mid-turn (Apple's guardrails refuse some requests): one try at answering without tools.
+                answerNow()
+                answering = true
+                try { requestLLMStreaming().requireEndFrame().collect { onFrame(it) } }
+                catch (c: CancellationException) { throw c }
+                catch (_: Exception) { throw e }
+            }
+            if (answering && response.calls.isNotEmpty()) throw RequestLimitReached()
             prompt = prompt.withMessages { it + response.messages(messages) }
         }
         onResponse()
@@ -99,8 +134,20 @@ internal class ToolLoop(
         val key = call.name to canonical(call.args)
         val result = toolCall(call, toolName(call.name)) {
             if (key == lastSuccessful && !repeatable(call.name)) { repeats++; repeatedSuccess = true; completed(call) }
-            else if (key in failed) { repeats++; repeated(call) }
-            else executor().call(call, stopped = stopped)
+            else if (key in failed && !executor().search(call.name, call.args)) { repeats++; repeated(call) }
+            else {
+                val query = if (executor().search(call.name, call.args)) searchWords(call.args) else emptySet()
+                val previous = searches.getOrPut(call.name) { mutableListOf() }
+                val refusal = refuse(call)
+                if (refusal != null) skipped(call, refusal, true)
+                else if (query.isNotEmpty() && previous.any { similarSearch(it, query) })
+                    skipped(call, SEARCHED, false).also { forceAnswer = true }
+                else if (callsPerTurn?.let { executor().executedCalls >= it } == true && !executor().internal(call.name)) skipped(call, SKIPPED_CALL, true)
+                else {
+                    if (query.isNotEmpty()) previous += query
+                    executor().call(call, stopped = stopped).also { if (answerAfterSearch && query.isNotEmpty() && !it.isError) forceAnswer = true }
+                }
+            }
         }
         if (result.isError) failed += key else lastSuccessful = key
         onResult(result)
@@ -108,7 +155,7 @@ internal class ToolLoop(
         pending = pending.drop(1)
         if (!parallelCalls) {
             pending.forEach { call ->
-                val result = skipped(call)
+                val result = skipped(call, SKIPPED_CALL, true)
                 onResult(result)
                 llm.writeSession { prompt = prompt.withMessages { it + messages.messages(listOf(result)) } }
             }
@@ -187,3 +234,19 @@ private suspend fun AIAgentGraphContextBase.toolCall(call: SessionEntry.ToolCall
 internal fun canonical(args: String) = runCatching { Json.parseToJsonElement(args).deterministic().toString() }.getOrDefault(args)
 
 internal class RequestLimitReached : IllegalStateException()
+
+const val SEARCHED = "You already searched for this; use the results above and answer."
+const val ANSWER_NOW = "Answer the user's question now in a few sentences, using the tool results above. Don't ask the user to clarify, and don't say you'll remember or save anything; if the results don't answer it, say what you found and what's missing."
+const val ANSWER_NUDGE = "Answer the user from these results unless something essential is missing. Don't ask the user to clarify."
+
+internal fun searchWords(args: String): Set<String> = runCatching {
+    val query = Json.parseToJsonElement(args).jsonObject["query"]?.jsonPrimitive?.content.orEmpty()
+    queryWords(query)
+}.getOrDefault(emptySet())
+
+internal fun queryWords(query: String): Set<String> =
+    query.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))
+        .filter { it.isNotBlank() && it !in setOf("a", "an", "the", "is", "who", "what", "of", "in", "on", "for", "to", "and") }.toSet()
+
+internal fun similarSearch(a: Set<String>, b: Set<String>) = a.isNotEmpty() && b.isNotEmpty() &&
+    a.intersect(b).size.toDouble() / a.union(b).size >= 0.6

@@ -16,6 +16,7 @@ data class CoreToolEntry(
     val documentation: String? = null,
     val itemLimit: ItemLimit? = null,
     val paging: Boolean = false,
+    val search: Boolean = false,
 )
 
 object CoreToolRegistry {
@@ -25,7 +26,7 @@ object CoreToolRegistry {
         CoreToolEntry(ToolNames.SHOW_HTML, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Show an interactive HTML Surface in the chat."),
         CoreToolEntry(ToolNames.SHOW_UI, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Show native interactive Surfaces using A2UI v1.0."),
         CoreToolEntry(ToolNames.ASK_USER, ToolGroup.Interactive, Risk.Low, ToolKind.AskUser, true, "Ask the user one or more questions as a form and wait for their answers."),
-        CoreToolEntry(ToolNames.WEB_SEARCH, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "Search the web.", itemLimit = ItemLimit("limit", 20)),
+        CoreToolEntry(ToolNames.WEB_SEARCH, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "Search the web.", itemLimit = ItemLimit("limit", 20), search = true),
         CoreToolEntry(ToolNames.WEB_FETCH, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "Fetch a URL over HTTP(S) and return its text content (HTML is reduced to plain text)."),
         CoreToolEntry(ToolNames.GENERATE_IMAGE, ToolGroup.Interactive, Risk.Medium, ToolKind.Standard, true, "Generate or edit images."),
         CoreToolEntry(ToolNames.MEMORY, ToolGroup.Core, Risk.Low, ToolKind.Standard, false, "Persist concise, durable information across Sessions.", hint = "The memory tool edits this Agent's Memory and User Notes. Their current contents appear in the personal context."),
@@ -34,7 +35,7 @@ object CoreToolRegistry {
         CoreToolEntry(ToolNames.CALL_TOOL, ToolGroup.External, Risk.Low, ToolKind.Standard, true, "Run a catalogued tool; it asks for Approval like the tool itself would."),
         CoreToolEntry(ToolNames.ROUTINE_REPORT, ToolGroup.Internal, Risk.Low, ToolKind.Standard, true, "Finish a Routine and report its outcome."),
         CoreToolEntry(ToolNames.SCHEDULE, ToolGroup.Data, Risk.High, ToolKind.Standard, true, "Manage your Routines: prompts you run on a schedule, each in a fresh Session by default.", hint = "Routines schedule future Agent work on the Server; use the scheduling tool instead of claiming you will remember to act later."),
-        CoreToolEntry(ToolNames.KNOWLEDGE, ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "The user's knowledge base (their own note system).", hint = "Knowledge is the user's shared note system. Follow its Conventions. Asking for advice or options is not authorization to edit Notes."),
+        CoreToolEntry(ToolNames.KNOWLEDGE, ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "The user's knowledge base (their own note system).", search = true, hint = "Knowledge is the user's shared note system. Follow its Conventions. Asking for advice or options is not authorization to edit Notes."),
         CoreToolEntry(ToolNames.KNOWLEDGE_REWRITE, ToolGroup.Data, Risk.Medium, ToolKind.Standard, true, "Replace text in a Knowledge Note."),
         CoreToolEntry(ToolNames.REFLECTION_FEEDBACK, ToolGroup.External, Risk.Medium, ToolKind.Standard, true, "Classify this review note before finishing."),
         CoreToolEntry(ToolNames.CONVENTIONS, ToolGroup.External, Risk.Medium, ToolKind.Standard, true, "Propose how the user organizes Knowledge, preserving their other Conventions."),

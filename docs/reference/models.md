@@ -34,7 +34,7 @@ Each model has a tier, shown beside its name in the model picker. The tier sets 
 | Tier | Prompt | Tools | Steps |
 | --- | --- | --- | --- |
 | No tools | Basic | None | 1 |
-| Micro | Basic | Memory and web, at most 5, simple parameters, latest message only | 4 |
+| Micro | Basic | Memory and web search (no web fetch), at most 5, simple parameters; latest message plus a note of the four questions before it, without earlier replies | 4 |
 | Small | Basic with a short Identity | Memory, web, Knowledge, Tasks and Routines, at most 8, simple parameters | 10 |
 | Mid | Full | All except screen, browser, Script and Device tools; MCP tools through the tool catalog | 50 |
 | Frontier | Full | All | 66 |
@@ -115,4 +115,6 @@ The discovery cache belongs to the Server and is keyed by provider, not account.
 
 Tool results fit the selected model's context. Micro and Small models receive up to 15% of context per result; Mid and Frontier receive 10%, capped at 8,000 and 25,000 tokens. Micro has a 400-token minimum. Earlier turns get a quarter of that budget. Unknown context uses 24,576 tokens as its starting budget.
 
-Micro, Small and Mid request up to 3, 5 and 20 items from tools with count parameters. Frontier keeps each tool's existing defaults. Large results show their beginning and end with an omission marker in model input; the Session and app retain the full tool output.
+Micro and Small request as many items as fit their result budget (Micro 3–6, Small 5–10) and Mid up to 20, from tools with count parameters. Frontier keeps each tool's existing defaults. Large results show their beginning and end with an omission marker in model input; the Session and app retain the full tool output.
+
+Micro and Small can run two and four tool calls per turn respectively, then answer from their results. Their web search results use short snippets and URLs without dates. All tiers get one final chance to answer without tools when the step limit is reached; if that request fails, the run reports the unfinished-work error.

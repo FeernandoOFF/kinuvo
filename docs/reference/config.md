@@ -86,6 +86,8 @@ Provider option values are strings and support `${VAR}` and [Secret references](
 | Provider | Option | Default | Example / meaning |
 | --- | --- | --- | --- |
 | Firecrawl | `apiKey` | Required | `${pass://Kinuvo/Firecrawl/key}` |
+| Firecrawl | `country` | Server time zone | ISO country code, such as `IE` |
+| Firecrawl | `location` | Server time zone | City and country, such as `Dublin,Ireland` |
 | Firecrawl | `url` | `https://api.firecrawl.dev` | Change for a self-hosted service |
 | ntfy | `topic` | Required | A long random topic subscribed to in the ntfy app |
 | ntfy | `url` | `https://ntfy.sh` | Change for a self-hosted service |

@@ -28,6 +28,9 @@ How capable a model is as an Agent: NoTools, Micro, Small, Mid or Frontier. Set 
 **Model profile**:
 What a Model tier changes in a run: prompt style, which tool groups and how many tools, history and Compaction limits, step limit and Memory budget.
 
+**Tool-call budget**:
+The maximum number of tools an Agent executes in one turn before answering from the results it has. Internal bookkeeping does not use this budget.
+
 **Tool scope**:
 The tools one run may use, by name, group or Toolset, narrowing the Agent's before the Model profile applies. Tools it names skip the profile's group filter.
 

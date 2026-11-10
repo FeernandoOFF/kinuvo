@@ -12,6 +12,12 @@ import java.io.File
 import kotlin.test.*
 
 class FmLanguageModelTest {
+    @Test fun emptyToolsKeepOnlyReplyInSchema() {
+        val command = fmSchemaCommand(emptyList())
+        assertEquals(1, command.count { it == "--schema" })
+        assertContains(command.last(), "reply")
+    }
+
     @Test
     fun unacceptedLicenseOffersSetupWithoutInvokingTheModel() = runBlocking {
         val calls = mutableListOf<List<String>>()

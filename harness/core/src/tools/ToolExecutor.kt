@@ -21,6 +21,7 @@ class ToolExecutor(
     private val questions: Broker<Map<String, List<String>>?>? = null,
     private val attach: ((String, ByteArray) -> Attachment)? = null,
     private val maxItems: Int? = null,
+    private val callsPerTurn: Int? = null,
     private val emit: suspend (AgentEvent) -> Unit = {},
     private val reports: ToolReports? = null,
     private val progress: suspend (AgentEvent.ToolCallResult) -> Unit = { emit(it) },
@@ -28,6 +29,16 @@ class ToolExecutor(
     // Sessions recorded before a tool got its short name still call it by its alias.
     private val toolsByName = tools.indexedTools().let { named -> named + tools.mapNotNull { t -> t.identity?.modelAlias()?.let { it to t } }.filter { it.first !in named } }
     private val callable = (advertisedTools + tools.map { it.descriptor.withItemLimits(it.itemLimits(maxItems)) }).distinctBy { it.name }
+
+    var executedCalls: Int = 0
+        private set
+
+    fun search(name: String, args: String): Boolean {
+        if (toolsByName[name]?.coreMetadata?.search != true) return false
+        val action = runCatching { Json.parseToJsonElement(args).jsonObject.string("action") }.getOrNull()
+        return action == null || action == "search"
+    }
+    fun internal(name: String) = toolsByName[name]?.coreMetadata?.group == ToolGroup.Internal
 
     fun repeatable(name: String) = toolsByName[name]?.repeatable ?: true
 
@@ -95,6 +106,11 @@ class ToolExecutor(
                     ApprovalDecision.AlwaysAllow -> approvals.policy?.trust(tool, verdict.trustKeys)
                     ApprovalDecision.AllowForSession -> approvals.policy?.trustForSession(tool, verdict.trustKeys)
                     else -> {}
+                }
+                if (tool != null && !internal(call.name)) {
+                    if (callsPerTurn?.let { executedCalls >= it } == true)
+                        return SessionEntry.ToolResult(call.id, call.name, "Tool-call budget spent; answer from the results above.", isError = true)
+                    executedCalls++
                 }
                 if (tool?.kind == ToolKind.AskUser) ask(call, approvalId) else execute(call, approvalId, stopped)
             }
