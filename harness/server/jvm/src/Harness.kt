@@ -17,11 +17,11 @@ class Harness private constructor(home: Path, dependencies: RuntimeDependencies,
     val files = AgentFiles(home)
     constructor(home: Path = kinuvoHome(), store: Store? = null, providers: List<HarnessPlugin>? = null,
         modelFactory: ((AgentConfig) -> AgentModel)? = null, clock: () -> Long = System::currentTimeMillis,
-        plugins: List<HarnessPlugin>? = null, secretProviders: List<SecretProvider>? = null,
-    ) : this(home, install(home, store, providers, plugins, secretProviders, clock), modelFactory)
+        plugins: List<HarnessPlugin>? = null, secretProviders: List<SecretProvider>? = null, codexAuth: CodexAuth = CodexAuth(),
+    ) : this(home, install(home, store, providers, plugins, secretProviders, clock, codexAuth), modelFactory)
 
     private companion object {
-        private fun install(home: Path, store: Store?, providers: List<HarnessPlugin>?, plugins: List<HarnessPlugin>?, secretProviders: List<SecretProvider>?, clock: () -> Long): RuntimeDependencies = runBlocking {
+        private fun install(home: Path, store: Store?, providers: List<HarnessPlugin>?, plugins: List<HarnessPlugin>?, secretProviders: List<SecretProvider>?, clock: () -> Long, auth: CodexAuth): RuntimeDependencies = runBlocking {
             val files = AgentFiles(home)
             val secrets = Secrets(secretProviders ?: jvmSecretProviders(files))
             val owned = mutableListOf<HarnessPlugin>()
@@ -33,7 +33,6 @@ class Harness private constructor(home: Path, dependencies: RuntimeDependencies,
             }
             ServerInstallation.assemble(files, store, selected,
                 secrets = secrets, userHome = Path(System.getProperty("user.home")), clock = clock).also { dependencies ->
-                    val auth = CodexAuth()
                     if (auth.account().signedIn && CodexRealtime.available()) {
                         val voice = dependencies.voice
                         dependencies.voice = VoiceProviders(voice.transcriber, voice.processor, voice.synthesizer, CodexRealtime(auth))

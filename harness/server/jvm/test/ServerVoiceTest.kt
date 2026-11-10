@@ -5,6 +5,8 @@ import kotlin.time.Duration.Companion.seconds
 import kinuvo.harness.testing.awaitValue
 import kinuvo.harness.testing.awaitCondition
 import kinuvo.client.KinuvoClient
+import kinuvo.harness.codex.CodexAuth
+import kinuvo.harness.core.PrivateFile
 import kinuvo.harness.voice.DownloadedVoice
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
@@ -69,7 +71,7 @@ class ServerVoiceTest {
 
     @Test fun serverOwnsSettingsAndOrdinaryDevicesOnlyGetInference() = runBlocking {
         val home = Files.createTempDirectory("server-voice-test").toFile()
-        val server = HarnessServer(Harness(Path(home.path)))
+        val server = HarnessServer(Harness(Path(home.path), codexAuth = CodexAuth(PrivateFile(Path(home.path, "codex-auth.json")))))
         val port = server.start("127.0.0.1", 0, schedule = false)
         val address = "ws://127.0.0.1:$port/ws"
         val owner = KinuvoClient(address, "owner", token = server.auth.sessionToken())
