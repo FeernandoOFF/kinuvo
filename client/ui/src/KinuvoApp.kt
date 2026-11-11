@@ -8,6 +8,10 @@ import kinuvo.protocol.workflow.WorkflowId
 import kinuvo.protocol.workflow.WorkflowStep
 import kinuvo.ui.workflow.WorkflowScreen
 import kinuvo.ui.workflow.WorkflowsScreen
+import kinuvo.app.team.TeamRepository
+import kinuvo.app.team.TeamViewModel
+import kinuvo.ui.team.TeamEditor
+import kinuvo.ui.team.TeamScreen
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
@@ -30,6 +34,7 @@ import kinuvo.ui.artifacts.*
 import kinuvo.ui.navigation.*
 
 import com.composables.icons.lucide.Globe
+import com.composables.icons.lucide.Users
 import com.composables.icons.lucide.ArrowLeft
 
 import kinuvo.protocol.capability.ServerFeature
@@ -225,9 +230,11 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             SideEffect { history.compact = compact }
             val top = backStack.lastOrNull()
             LaunchedEffect(agent?.id) { if (app.state.value.agentId == null) agent?.id?.let(app::showAgent) }
+            val teamRepository = koinInject<TeamRepository>()
+            val teams by teamRepository.state.collectAsState()
             val shellState = ShellState(appState.agents, agent, appState.sessions.lists, appState.sessions.finished, top,
                 ServerMenuState(appState.servers, (connection as? Connection.Ready)?.server), appState.capabilities, appState.routines,
-                (connection as? Connection.Ready)?.client?.lastConnect?.management != false, appState.home)
+                (connection as? Connection.Ready)?.client?.lastConnect?.management != false, appState.home, teams.values.map { it.team }.sortedBy { it.name.lowercase() })
             // Home's Routines and Tools open on the shown Agent, or the first that Kinuvo runs itself.
             val homePage = { section: SettingsSection ->
                 (agent?.takeIf { !it.external } ?: appState.agents.firstOrNull { !it.external })?.let { guardLeave { history.switchTo(Route.Settings(it.id, section)) } }
@@ -251,6 +258,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onLoadMore = { agent?.id?.let(app::loadMoreSessions) },
                 onSettings = cover { guardLeave { agent?.let { openSettings(Route.Settings(it.id), true) } } },
                 onBoard = cover { history.switchTo(Route.Board) },
+                onTeam = { id -> cover { history.switchTo(Route.Team(id)) }() },
                 onKnowledge = cover { history.switchTo(Route.Knowledge()) },
                 onArtifacts = cover { history.switchTo(Route.Artifacts()) },
                 onComputers = cover { history.switchTo(Route.Computers()) },
@@ -359,6 +367,26 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 app.showAgent(id)
                                 history.open(Route.Chat(id))
                             }
+                        }
+                        entry<Route.Team> { route ->
+                            val id = route.id
+                            if (connection !is Connection.Ready) Loading(connection)
+                            else if (id == null) {
+                                val scope = rememberCoroutineScope()
+                                var error by remember { mutableStateOf<String?>(null) }
+                                Column(Modifier.fillMaxSize().background(color(backgroundColor)), horizontalAlignment = Alignment.CenterHorizontally) {
+                                    PageHeader(Lucide.Users, "New Team", actions = listOfNotNull(back.takeIf { history.canGoBack }?.let { PageAction(Lucide.ArrowLeft, "Back", it) }))
+                                    TeamEditor(appState.agents, null, Modifier.widthIn(max = 560.dp).padding(Spacing.space16)) { spec ->
+                                        scope.launch {
+                                            runCatching { teamRepository.create(spec) }
+                                                .onSuccess { backStack.remove(route); history.open(Route.Team(it.team.id)) }
+                                                .onFailure { error = it.message }
+                                        }
+                                    }
+                                    error?.let { Text(it, Modifier.padding(horizontal = Spacing.space16), color = color(destructiveColor)) }
+                                }
+                            } else TeamScreen(koinViewModel<TeamViewModel>(key = "team/${app.serverLifetime}/$id") { parametersOf(id) }, appState.agents,
+                                onOpenSession = { agentId, session -> history.open(Route.Chat(agentId, session)) }, onBack = back.takeIf { compact && history.canGoBack })
                         }
                         entry<Route.Board> {
                             BoardScreen(app, koinViewModel<BoardViewModel>(key = "board/${app.serverLifetime}"), onOpenSession = history::open,
