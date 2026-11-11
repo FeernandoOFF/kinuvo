@@ -40,6 +40,7 @@ class ToolService(
     private val maxItems: Int? = null,
     private val callsPerTurn: Int? = null,
     private val reports: ToolReports? = null,
+    private val consume: suspend () -> Unit = {},
 ) : ToolProvider, ToolGate {
     // Sessions recorded before a tool got its short name still call it by its alias.
     private val toolsByName = tools.indexedTools().let { named -> named + tools.mapNotNull { t -> t.identity?.modelAlias()?.let { it to t } }.filter { it.first !in named } }
@@ -119,6 +120,7 @@ class ToolService(
                 if (tool != null && !tool.internal) {
                     if (callsPerTurn?.let { turn.executedCalls >= it } == true)
                         return SessionEntry.ToolResult(call.id, call.name, "Tool-call budget spent; answer from the results above.", isError = true)
+                    consume()
                     turn.executedCalls++
                 }
                 if (tool?.kind == ToolKind.AskUser) ask(call, turn, approvalId) else execute(call, approvalId, turn)

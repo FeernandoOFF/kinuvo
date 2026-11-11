@@ -9,6 +9,8 @@ import kinuvo.protocol.session.SessionChange
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.withWrittenAt
 import kotlin.time.Clock
+import kinuvo.protocol.session.SessionParent
+import kinuvo.protocol.session.SessionSettings
 import kinuvo.protocol.session.SessionInfo
 import kinuvo.protocol.session.SessionOrder
 import kinuvo.protocol.session.SessionPage
@@ -73,10 +75,9 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
 
     /** [before] is the last Session ID of the previous page; [routineId] picks that Routine's Sessions instead of the chats. */
     suspend fun page(agentId: AgentId, before: String?, limit: Int, routineId: String? = null): SessionPage {
-        val sessions = store.sessions(agentId).map { executionMetadata(it) }
-        val all = lock.withLock { sessions.map { it.copy(status = statusOf(it.id)) } }
+        val all = lock.withLock { store.sessions(agentId).map { executionMetadata(it).copy(status = statusOf(it.id)) } }
             .sortedWith(SessionOrder)
-            .filter { if (routineId == null) it.inChats else it.routine?.id == routineId }
+            .filter { !it.hidden }.filter { if (routineId == null) it.inChats else it.routine?.id == routineId }
         val from = before?.let { id -> all.indexOfFirst { it.id.value == id } + 1 } ?: 0
         val page = all.drop(from).take(limit)
         return SessionPage(page, from + page.size < all.size, if (before == null && routineId == null) all.filter { it.favorite } else emptyList())
@@ -84,6 +85,13 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
 
     override suspend fun createSession(agentId: AgentId, instructions: String, routine: RoutineRef?): SessionInfo =
         store.createSession(agentId, instructions, routine).also { info -> lock.withLock { changed(info) } }
+
+    suspend fun createHidden(agentId: AgentId, parent: SessionParent, settings: SessionSettings): SessionInfo = lock.withLock {
+        val info = store.createSession(agentId, "")
+        store.append(agentId, info.id, SessionEntry.Settings(settings))
+        store.append(agentId, info.id, SessionEntry.Details(parent = parent, hidden = true))
+        store.session(agentId, info.id).also { changed(it) }
+    }
 
     var onDelete: suspend (AgentId, SessionId) -> Unit = { _, _ -> }
     override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) {
@@ -151,7 +159,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         counts[sessionId] = seq + 1
         live[sessionId]?.let {
             val state = it.on(entry)
-            if (state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty())
+            if (state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty() || state.children.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
         }
         deliver(SessionUpdate(agentId, sessionId, SessionChange.Entry(seq, entry)))
@@ -171,7 +179,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         }
         val before = statusOf(sessionId)
         val state = (live[sessionId] ?: LiveState()).on(event)
-        if (state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty())
+        if (state.running || state.reflectionId != null || state.executionPhase != null || state.entries.isNotEmpty() || state.pending.isNotEmpty() || state.children.isNotEmpty())
                 live[sessionId] = state else live.remove(sessionId)
         if (event.isLive) deliver(SessionUpdate(agentId, sessionId, SessionChange.Event(event)))
         eventListeners.load().forEach { it(agentId, sessionId, event) }
@@ -195,7 +203,8 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         val changes = buildList {
             if (from != after) add(SessionChange.Reset(from))
             entries.drop(from).forEachIndexed { i, entry -> add(SessionChange.Entry(from + i, entry)) }
-            add(SessionChange.Live(live[sessionId] ?: LiveState()))
+            val children = entries.filterIsInstance<SessionEntry.Notice>().mapNotNull { it.child }.associateBy { it.sessionId }
+            add(SessionChange.Live((live[sessionId] ?: LiveState()).let { it.copy(children = children + it.children) }))
         }
         for (change in changes) if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return removeEverywhere(subscriber)
     }

@@ -42,6 +42,9 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
     /** The run was stopped while it was being set up, so nothing ran; its onDone has been called. */
     class StoppedBeforeStart : IllegalStateException("Stopped before it started")
 
+    var onBegin: suspend (AgentId, SessionId) -> Unit = { _, _ -> }
+    var onFinish: suspend (AgentId, SessionId, Boolean) -> Unit = { _, _, _ -> }
+    var onCancel: suspend (SessionId) -> Unit = {}
     private val active = ConcurrentMutableMap<SessionId, Job>()
     /** The Routine behind each active run a Routine started, by Session. */
     private val routines = ConcurrentMutableMap<SessionId, RoutineRef>()
@@ -94,6 +97,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
         val counted = Job().also { activity.update { a -> a.copy(runs = a.runs + 1) } }
         counted.invokeOnCompletion { activity.update { a -> a.copy(runs = a.runs - 1) } }
         try {
+            onBegin(agent.id, sessionId)
             reserved()
             val sink = object : ExecutionSink {
                 override suspend fun publish(event: AgentEvent) {
@@ -113,7 +117,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
                     stopped = true
                     throw e
                 } finally {
-                    withContext(NonCancellable) { try { session.close() } finally { onDone(stopped) } }
+                    withContext(NonCancellable) { try { session.close() } finally { if (stopped) onCancel(sessionId); onFinish(agent.id, sessionId, stopped); onDone(stopped) } }
                 }
             }
             (input.kind as? RunKind.Routine)?.let { routines[sessionId] = it.turn.ref }
@@ -133,7 +137,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
     }
 
     private suspend fun stoppedEarly(sessionId: SessionId, reservation: Job, onDone: suspend (Boolean) -> Unit): Nothing {
-        try { onDone(true) } finally { active.removeExact(sessionId, reservation) }
+        try { onCancel(sessionId); onDone(true) } finally { active.removeExact(sessionId, reservation) }
         throw StoppedBeforeStart()
     }
 

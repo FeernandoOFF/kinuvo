@@ -65,7 +65,7 @@ suspend fun SessionLog.executionSnapshot(agent: AgentId, id: SessionId): Executi
 }
 
 /** A linked Server and harness clients see an Approval as a harness permission request with Kinuvo's own options. */
-internal fun PendingInteraction.Approval.forHarness() = PendingInteraction.HarnessApproval(id, toolCallName, reason, buildList {
+internal fun PendingInteraction.Approval.forHarness() = PendingInteraction.HarnessApproval(id, toolCallName, preview?.text() ?: reason, buildList {
     add(ExternalApprovalOption("allow_once", "Allow once", "allow_once"))
     if (trustable) add(ExternalApprovalOption("allow_session", "Allow for this Session", "allow_always"))
     if (trustable) add(ExternalApprovalOption("always_allow", "Always allow", "allow_always"))

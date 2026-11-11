@@ -37,11 +37,12 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         // Read now, while the run is still active.
         val routine = routineOf(sessionId)
         scope.launch {
+            if (harness.store.session(agentId, sessionId).hidden) return@launch
             val agent = harness.store.agents().firstOrNull { it.id == agentId }
             val name = agent?.name ?: externalName(agentId.value) ?: return@launch
             if (harness.log.watched(sessionId)) return@launch
             val notification = when (event) {
-                is AgentEvent.InteractionRequested -> when (val interaction = event.interaction) {
+                is AgentEvent.InteractionRequested -> if (event.childSessionId != null) Notification("$name needs a response", "A Sub-agent is waiting for you", agentId, sessionId, urgent = true) else when (val interaction = event.interaction) {
                     is PendingInteraction.Approval -> approvalText(name, interaction).let { (title, body) ->
                         Notification(title, body.clip(), agentId, sessionId, urgent = true)
                     }

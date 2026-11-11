@@ -103,6 +103,7 @@ import kinuvo.protocol.routine.RoutineRef
 import kinuvo.protocol.session.SessionInfo
 import kinuvo.protocol.session.SessionSettings
 import kinuvo.protocol.usage.Usage
+import kinuvo.protocol.capability.ExecutionLocation
 import kinuvo.protocol.capability.ServerFeature
 import kinuvo.protocol.capability.Integration
 import kinuvo.protocol.capability.CapabilityState
@@ -146,6 +147,7 @@ open class HarnessRuntime(
     /** The harness builds models without a registered provider, e.g. scripted ones in tests, so no provider is asked whether it is ready. */
     private val unmanagedModels: Boolean = false,
 ) : ServerSettings by dependencies.settings, NativeHarnessHost {
+    var subAgents: SubAgents? = null
     val log = SessionLog(dependencies.store, dependencies.clock)
     val store: Store = log
     val docs = dependencies.docs
@@ -237,6 +239,7 @@ open class HarnessRuntime(
 
     /** Replaces [sessionId]'s own settings; its next run uses them. */
     suspend fun configure(agent: Agent, sessionId: SessionId, settings: SessionSettings): SessionInfo {
+        if (store.session(agent.id, sessionId).hidden) require(settings == store.session(agent.id, sessionId).settings) { "Hidden Session settings are pinned" }
         val s = settings.copy(model = settings.model?.trim()?.ifEmpty { null }, reasoning = settings.reasoning?.trim()?.ifEmpty { null },
             approvals = settings.approvals?.trim()?.ifEmpty { null }, provider = settings.provider?.trim()?.ifEmpty { null }?.let(::providerId))
         s.provider?.let { requireModelProvider(it); require(s.model != null) { "Choose a model with its provider" } }
@@ -248,7 +251,7 @@ open class HarnessRuntime(
     /** Renames [sessionId] (blank: back to its first message) or marks it a favorite. */
     suspend fun update(agent: Agent, sessionId: SessionId, title: String?, favorite: Boolean?): SessionInfo {
         val before = store.entries(agent.id, sessionId).filterIsInstance<SessionEntry.Details>().lastOrNull() ?: SessionEntry.Details()
-        val details = SessionEntry.Details(
+        val details = before.copy(
             title = if (title == null) before.title else title.trim().take(MAX_SESSION_TITLE).ifEmpty { null },
             favorite = favorite ?: before.favorite,
         )
@@ -308,13 +311,14 @@ open class HarnessRuntime(
 
     private suspend fun prepare(agent: Agent, sessionId: SessionId?, settings: SessionSettings? = null,
         routine: RoutineTurn? = null, taskId: String? = null, activate: Boolean = false, catalogs: List<UiCatalog> = uiCatalogs.forRun(), scope: ToolScope = ToolScope.All, requireModel: Boolean = true): PreparedRun {
+        val privateSession = sessionId?.let { store.session(agent.id, it).hidden } == true
         val e = effective(agent, sessionId, settings)
         val chat = if (unmanagedModels) CapabilityState() else e.provider?.availability(e.agent.config.model)
             ?: CapabilityState.unsupported("No model provider '${e.agent.config.provider}'; this model provider is not installed")
         if (activate && requireModel) chat.requireReady()
         val run = RunContext(e.agent, sessionId, routine?.routine, taskId)
-        val contributed = plugins.map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
-        val own = PluginTools(toolsFor(e, sessionId, routine, catalogs)).ownedBy(PluginInstanceId("kinuvo.core")).tools
+        val contributed = (if (privateSession) emptyList() else plugins).map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
+        val own = PluginTools(if (privateSession) subAgents?.tools(agent.id, requireNotNull(sessionId)).orEmpty() + listOf(AskUserTool()) else toolsFor(e, sessionId, routine, catalogs)).ownedBy(PluginInstanceId("kinuvo.core")).tools
         val aliased = own + contributed.flatMap { it.tools }
         val all = aliased.withModelNames().also { it.indexedTools() }
         val renamed = aliased.zip(all).filter { (a, b) -> a !== b }.associate { (a, b) -> a.descriptor.name to b.descriptor.name }
@@ -378,6 +382,7 @@ open class HarnessRuntime(
 
     suspend fun compose(agent: Agent, sessionId: SessionId? = null, routine: RoutineTurn? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
         scope: ToolScope = ToolScope.All, reports: ToolReports? = null, requireModel: Boolean = true): NativeRun {
+        if (sessionId != null && store.session(agent.id, sessionId).hidden) requireOnDevice(agent, sessionId)
         val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs, scope = scope, requireModel = requireModel)
         val e = prepared.effective
         val agent = e.agent
@@ -404,6 +409,7 @@ open class HarnessRuntime(
             maxItems = e.profile.resultLimits.maxItems,
             callsPerTurn = e.profile.tools.callsPerTurn,
             reports = reports,
+            consume = { sessionId?.let { subAgents?.consume(it) } },
         )
         return NativeRun(
             agent = agent,
@@ -498,6 +504,12 @@ open class HarnessRuntime(
     /** Stops everything the plugins run, e.g. before the process exits. */
     suspend fun close() { computers.close(); try { native.close() } finally { dependencies.resources.close() } }
 
+    suspend fun requireOnDevice(agent: Agent, sessionId: SessionId? = null) {
+        val e = effective(agent, sessionId)
+        if (!(unmanagedModels && e.info == null) && e.info?.location != ExecutionLocation.ServerHost)
+            throw ServerException(SubAgentError.Privacy)
+    }
+
     /** Stops what the plugins run for the Agent, e.g. after its exec settings changed. */
     suspend fun release(agent: Agent) = dependencies.resources.release(agent.id)
 
@@ -518,7 +530,7 @@ open class HarnessRuntime(
                 } }
             }, attachments::bytes) else null
         val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() }?.let(::ShowUiTool)
-        return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
+        return (sessionId?.let { subAgents?.tools(agent.id, it) }.orEmpty()) + builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
     }
 
     private suspend fun builtInTools(e: Effective, sessionId: SessionId?, routine: RoutineTurn?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {

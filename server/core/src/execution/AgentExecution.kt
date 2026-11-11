@@ -8,6 +8,7 @@ import kinuvo.protocol.surface.*
 import kinuvo.protocol.agent.AgentId
 import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
+import kinuvo.server.SubAgents
 import kinuvo.server.AgentError
 import kinuvo.server.ServerError
 import kinuvo.server.SessionError
@@ -22,6 +23,7 @@ class AgentExecution(
     private val native: NativeExecution,
     private val management: Mutex,
 ) : ExecutionDispatch {
+    var subAgents: SubAgents? = null
     private suspend fun forAgent(agentId: AgentId): ExecutionDispatch = if (registry.registration(agentId) != null) external else native
 
     private suspend fun forSession(sessionId: SessionId): ExecutionDispatch = if (external.owns(sessionId)) external else native
@@ -38,15 +40,18 @@ class AgentExecution(
     suspend fun snapshot(sessionId: SessionId): ExecutionSnapshot =
         if (external.owns(sessionId)) external.snapshot(sessionId) else native.snapshotOf(native.owner(sessionId) ?: raise(SessionError.Unknown), sessionId)
 
-    override suspend fun answer(answer: RespondParams) = forSession(answer.sessionId).answer(answer)
+    override suspend fun answer(answer: RespondParams) = subAgents?.answer(answer) == true || forSession(answer.sessionId).answer(answer)
 
     override suspend fun send(params: SendParams): SendResult = throwing<ServerError, _> { send(params, null) }
 
     /** [catalogs] are the Surface catalogs of the client sending, for the built-in harness. */
     context(_: Raise<AgentError>, _: Raise<SessionError>)
     suspend fun send(params: SendParams, catalogs: List<UiCatalog>?, onEvent: suspend (AgentEvent) -> Unit = {}): SendResult =
-        if (registry.registration(params.agentId) != null) management.withLock { external.send(params) }
+        if (registry.registration(params.agentId) != null) management.withLock {
+            params.sessionId?.let { subAgents?.begin(it) }
+            external.send(params)
+        }
         else native.send(params, catalogs, onEvent)
 
-    override suspend fun stop(sessionId: SessionId) = forSession(sessionId).stop(sessionId)
+    override suspend fun stop(sessionId: SessionId) { subAgents?.cancelChildren(sessionId); forSession(sessionId).stop(sessionId) }
 }

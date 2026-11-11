@@ -124,6 +124,7 @@ class ServerRuntime(
         NativeExecution(harness, runs, scope, { admin.agent(it) }, { capabilities }, reflector::ran) { sessionId, text ->
             clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveVoice?.notify(text) }
         }, executionManagement)
+    private val subAgents = SubAgents(harness, dispatch, scope, runs::join).also { harness.subAgents = it; dispatch.subAgents = it; runs.onBegin = { _, id -> it.begin(id) }; runs.onFinish = it::finish; runs.onCancel = it::cancelChildren }
     private val dispatcher = TaskDispatcher(harness, runs, scope)
     private val seq = AtomicLong(0)
     private val sessions = SessionService(harness, admin)
@@ -179,7 +180,7 @@ class ServerRuntime(
             external.reload()
             external.recover()
             scope.launch { harness.usage.filterNotNull().collect { broadcast(Api.Usage, it) } }
-            harness.log.onChange { broadcast(Api.SessionChanged, it) }
+            harness.log.onChange { if (!it.hidden) broadcast(Api.SessionChanged, it) }
             harness.log.onEvent(notifications::on)
             harness.mcp.onSignInNeeded(notifications::mcpSignInNeeded)
             harness.routines.onChange { agent, routines -> broadcast(Api.RoutinesChanged, RoutinesChanged(agent.id, routines)) }

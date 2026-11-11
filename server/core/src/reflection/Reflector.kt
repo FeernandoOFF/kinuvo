@@ -49,7 +49,7 @@ class Reflector(
     /** Reflects on what [sessionId] said since last time; returns how many changes were saved immediately. */
     suspend fun reflect(agent: Agent, sessionId: SessionId): Int = lock.withLock {
         // A turn in progress is reflected on after it ends.
-        if (busy(sessionId) || !harness.reflects(agent)) return 0
+        if (harness.store.session(agent.id, sessionId).hidden || busy(sessionId) || !harness.reflects(agent)) return 0
         val done = progress()
         val entries = harness.store.entries(agent.id, sessionId)
         val new = entries.drop(done[sessionId] ?: 0)

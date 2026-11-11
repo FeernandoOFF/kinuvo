@@ -115,7 +115,7 @@ class FileStore(
             else -> Unit
         }
         return SessionInfo(sessionId, agentId, details.title ?: routine?.name ?: title ?: NEW_TITLE, routine = routine, settings = settings,
-            answered = answered, task = task, favorite = details.favorite, createdAt = createdAt(sessionId))
+            answered = answered, task = task, favorite = details.favorite, createdAt = createdAt(sessionId), parent = details.parent, hidden = details.hidden)
     }
 
     override suspend fun createSession(agentId: AgentId, instructions: String, routine: RoutineRef?): SessionInfo {
