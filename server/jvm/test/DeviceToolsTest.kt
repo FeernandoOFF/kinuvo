@@ -104,6 +104,25 @@ class DeviceToolsTest {
     }
 
     @Test
+    fun aRefreshDuringAnUnavailableReadStillLetsTheReadRetry() = runBlocking {
+        withTimeout(5_000) {
+            val tool = tool()
+            var reads = 0
+            lateinit var read: suspend (DeviceToolRequest) -> DeviceToolResult
+            read = {
+                if (++reads == 1) {
+                    harness.devices.connect(device.id, device.tools, true, read)
+                    DeviceToolResult(DeviceToolStatus.Unavailable)
+                } else DeviceToolResult(DeviceToolStatus.Ready)
+            }
+            harness.devices.connect(device.id, device.tools, true, read)
+            val result = async { tool.execute(buildJsonObject { put("query", "Ada") }, "call") }
+            assertEquals(DeviceToolStatus.Ready, ProtocolJson.decodeFromString(DeviceToolResult.serializer(), result.await()).status)
+            assertEquals(2, reads)
+        }
+    }
+
+    @Test
     fun anOldSocketCannotRemoveTheNewConnection() = runBlocking {
         val tool = tool()
         val old: suspend (DeviceToolRequest) -> DeviceToolResult = { error("Old connection") }

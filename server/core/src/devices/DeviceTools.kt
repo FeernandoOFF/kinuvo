@@ -33,7 +33,10 @@ class DeviceTools(
     override val definition = PluginDefinition("kinuvo.devices", "Device tools")
     internal val lock = Lock()
     var paired: () -> List<ToolDevice> = { emptyList() }
-    private data class Connection(val tools: Set<DeviceToolKind>, val active: Boolean, val read: suspend (DeviceToolRequest) -> DeviceToolResult, val failed: Boolean = false)
+    /** Compared by identity: a refresh that looks identical must still replace a connection whose read is in flight. */
+    private class Connection(val tools: Set<DeviceToolKind>, val active: Boolean, val read: suspend (DeviceToolRequest) -> DeviceToolResult, val failed: Boolean = false) {
+        fun copy(failed: Boolean) = Connection(tools, active, read, failed)
+    }
     private val connections = MutableStateFlow(emptyMap<String, Connection>())
 
     fun connect(id: String, tools: Set<DeviceToolKind>, active: Boolean, read: suspend (DeviceToolRequest) -> DeviceToolResult) {
