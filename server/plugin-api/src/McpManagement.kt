@@ -1,8 +1,8 @@
 package kinuvo.server.plugin
 
 import kinuvo.harness.Agent
-import kinuvo.protocol.*
-
+import kinuvo.protocol.mcp.*
+import kinuvo.protocol.routine.*
 /** Lists, edits, tests and signs in to the Agents' MCP servers; a Server without MCP uses [Unavailable]. */
 interface McpManagement {
     suspend fun mcpServers(agent: Agent): List<McpServerInfo>

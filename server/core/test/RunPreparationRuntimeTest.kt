@@ -20,10 +20,19 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.builtin.*
 import kinuvo.server.plugin.Tool
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.ToolGroup
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.tool.ToolGroup
 import kinuvo.server.tools.ToolScope
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.surface.*
+import kinuvo.protocol.tool.*
 import kinuvo.client.KinuvoClient
 import kinuvo.server.devices.*
 import kotlinx.coroutines.*
@@ -295,7 +304,7 @@ class RunPreparationRuntimeTest {
             override suspend fun execute(args: JsonObject) = "pong"
         }
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.runpreparationruntimetest.2", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runpreparationruntimetest.2", "Test")
             override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(tool, tool))
         }
         val harness = harness(listOf(plugin))
@@ -400,7 +409,7 @@ class RunPreparationRuntimeTest {
     fun sessionSettingsAndFullDescriptorsDetermineEligibilityInBothPaths() = runBlocking {
         val modes = mutableListOf<Boolean>()
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.runpreparationruntimetest.3", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runpreparationruntimetest.3", "Test")
             override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
                 modes += activate
                 assertEquals("strict", run.agent.config.approvals)
@@ -433,7 +442,7 @@ class RunPreparationRuntimeTest {
             override suspend fun availability(model: String) = CapabilityState.unavailable("Model is not downloaded")
         }
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.runpreparationruntimetest.4", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runpreparationruntimetest.4", "Test")
             override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
                 activated = activated || activate
                 return PluginTools()

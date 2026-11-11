@@ -2,12 +2,12 @@ package kinuvo.plugins.mcp
 
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
-import kinuvo.protocol.ConfigScope
-import kinuvo.protocol.McpOAuthClient
-import kinuvo.protocol.McpParams
-import kinuvo.protocol.McpRedirect
-import kinuvo.protocol.McpServerInfo
-import kinuvo.protocol.McpTestResult
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.mcp.McpOAuthClient
+import kinuvo.protocol.mcp.McpParams
+import kinuvo.protocol.mcp.McpRedirect
+import kinuvo.protocol.mcp.McpServerInfo
+import kinuvo.protocol.mcp.McpTestResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*

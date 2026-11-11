@@ -1,6 +1,6 @@
 package kinuvo.harness
 
-import kinuvo.protocol.ModelTier
+import kinuvo.protocol.model.ModelTier
 
 data class ResultLimits(val maxTokens: Int, val maxItems: Int?, val olderShare: Double = 0.25) {
     companion object {

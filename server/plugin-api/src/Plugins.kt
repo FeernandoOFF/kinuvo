@@ -1,8 +1,12 @@
 package kinuvo.server.plugin
 
 import kinuvo.harness.Agent
-import kinuvo.protocol.*
-
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.mcp.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.routine.*
 /** The most characters an Artifact holds, so a plugin's [HarnessPlugin.readFile] needn't read more. */
 const val ARTIFACT_MAX_CHARS = 5_000_000
 

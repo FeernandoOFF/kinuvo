@@ -5,7 +5,7 @@ import io.ktor.client.plugins.HttpTimeout
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.SecretResolver
 import kinuvo.server.plugin.PluginStorage
-import kinuvo.protocol.PluginDefinition
+import kinuvo.protocol.plugin.PluginDefinition
 
 class AnytypePlugin(files: PluginStorage, secrets: SecretResolver = SecretResolver.None) : HarnessPlugin {
     override val definition = PluginDefinition("kinuvo.anytype", "Anytype")

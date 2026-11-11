@@ -5,7 +5,7 @@ import kinuvo.testing.server.FakeHarness
 import kinuvo.testing.server.FakeModelProvider
 import kinuvo.testing.server.FakeModels
 import kinuvo.protocol.Api
-import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.model.ModelInfo
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

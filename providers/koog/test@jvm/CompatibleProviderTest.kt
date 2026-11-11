@@ -20,9 +20,9 @@ import kinuvo.harness.builtin.*
 import kinuvo.server.*
 import kinuvo.server.store.*
 import kinuvo.harness.builtin.tools.RawSchemaToolDescriptor
-import kinuvo.protocol.CustomEndpointParams
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.model.CustomEndpointParams
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.*

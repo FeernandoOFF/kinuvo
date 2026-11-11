@@ -16,8 +16,8 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import ai.koog.prompt.streaming.requireEndFrame
 import ai.koog.serialization.JSONObject
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.ToolIdentity
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.plugin.ToolIdentity
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException

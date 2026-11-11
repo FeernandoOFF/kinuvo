@@ -1,8 +1,8 @@
 package kinuvo.server
 
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.PluginInstanceId
-import kinuvo.protocol.ToolIdentity
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.plugin.ToolIdentity
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

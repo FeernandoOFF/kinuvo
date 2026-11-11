@@ -20,7 +20,11 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.reflection.*
+import kinuvo.protocol.secret.*
 import kinuvo.ui.design.*
 
 /** Where Tasks come from, which lists the Board shows and each list's Agent. Saved to config.yaml. */

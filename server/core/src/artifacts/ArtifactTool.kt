@@ -5,10 +5,10 @@ import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
 import kinuvo.server.plugin.CoreTool
 import kinuvo.harness.Agent
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.requireString
 import kinuvo.server.plugin.string
-import kinuvo.protocol.ArtifactInfo
+import kinuvo.protocol.artifact.ArtifactInfo
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 

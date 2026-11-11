@@ -7,16 +7,16 @@ import kinuvo.server.plugin.ScreenGate
 import kinuvo.server.plugin.ShellCommand
 import kinuvo.testing.harness.*
 
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.approval
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.DenyRules
-import kinuvo.protocol.TrustRules
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.approval.approval
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.approval.DenyRules
+import kinuvo.protocol.approval.TrustRules
 
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.protocol.Risk
+import kinuvo.protocol.approval.Risk
 import kinuvo.server.plugin.Tool
 import kinuvo.server.plugin.string
 import kotlinx.coroutines.channels.Channel
@@ -40,7 +40,7 @@ class ApprovalsTest {
 
     private class FakeTool(name: String, override val risk: Risk) : Tool {
         var calls = 0
-        override val identity get() = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), descriptor.name)
+        override val identity get() = kinuvo.protocol.plugin.ToolIdentity(kinuvo.protocol.plugin.PluginInstanceId("test.tools"), descriptor.name)
         override val descriptor = toolSpec(name, "fake")
         override suspend fun execute(args: JsonObject): String { calls++; return "ran" }
     }
@@ -49,7 +49,7 @@ class ApprovalsTest {
         val gate = ScreenGate()
         var ran = false
         val tool = object : Tool {
-            override val identity = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), "screen")
+            override val identity = kinuvo.protocol.plugin.ToolIdentity(kinuvo.protocol.plugin.PluginInstanceId("test.tools"), "screen")
             override val descriptor = toolSpec("screen", "screen action")
             override val risk = Risk.High
             override suspend fun bind(args: JsonObject): suspend () -> Unit {
@@ -75,7 +75,7 @@ class ApprovalsTest {
     @Test
     fun mandatoryApprovalsIgnoreFullToleranceAndTrustRules() = runTest {
         val tool = object : Tool {
-            override val identity = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), "private")
+            override val identity = kinuvo.protocol.plugin.ToolIdentity(kinuvo.protocol.plugin.PluginInstanceId("test.tools"), "private")
             override val descriptor = toolSpec("private", "fake")
             override fun assess(args: JsonObject) = kinuvo.server.plugin.Assessment(listOf(
                 kinuvo.server.plugin.Action(Risk.High, listOf("private"), alwaysAsk = true)))
@@ -94,8 +94,8 @@ class ApprovalsTest {
     @Test
     fun computerActionsAreTrustedPerAppNeverForTheWholeTool() = runTest {
         val act = object : Tool {
-            override val identity get() = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), descriptor.name)
-        override val descriptor = toolSpec(kinuvo.protocol.ToolNames.COMPUTER_ACT, "fake")
+            override val identity get() = kinuvo.protocol.plugin.ToolIdentity(kinuvo.protocol.plugin.PluginInstanceId("test.tools"), descriptor.name)
+        override val descriptor = toolSpec(kinuvo.protocol.tool.ToolNames.COMPUTER_ACT, "fake")
             override val kind = kinuvo.server.plugin.ToolKind.ComputerAction
             override fun assess(args: JsonObject) = kinuvo.server.plugin.Assessment(listOf(kinuvo.server.plugin.Action(
                 Risk.High, listOf(descriptor.name, args.string("app")!!), exact = true)))
@@ -163,7 +163,7 @@ class ApprovalsTest {
         val policy = policy(agent())
         policy.trust(risky, listOf("cua__click"))
         assertFalse(policy.asks(risky))
-        home.trustRules.updateServer { it.copy(deny = kinuvo.protocol.DenyRules(tools = listOf("cua__click"))) }
+        home.trustRules.updateServer { it.copy(deny = kinuvo.protocol.approval.DenyRules(tools = listOf("cua__click"))) }
         assertIs<Verdict.Block>(policy.decide(risky))
         assertTrue("cua__click" in home.files.serverConfig.readText())
     }
@@ -191,7 +191,7 @@ class ApprovalsTest {
 
     private class FakeShell : Tool {
         override val kind = kinuvo.server.plugin.ToolKind.Shell
-        override val identity get() = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), descriptor.name)
+        override val identity get() = kinuvo.protocol.plugin.ToolIdentity(kinuvo.protocol.plugin.PluginInstanceId("test.tools"), descriptor.name)
         override val descriptor = toolSpec("shell", "fake")
         override fun assess(args: JsonObject) = ShellCommand.parse(args.string("command")!!).assess(listOf("/work"))
         override suspend fun execute(args: JsonObject) = "ran"

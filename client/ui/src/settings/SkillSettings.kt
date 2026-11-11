@@ -16,9 +16,9 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.mutedColor
-import kinuvo.protocol.ConfigScope
-import kinuvo.protocol.SkillDetails
-import kinuvo.protocol.SkillInfo
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.skill.SkillDetails
+import kinuvo.protocol.skill.SkillInfo
 import kinuvo.ui.design.*
 
 @Composable

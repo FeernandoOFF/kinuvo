@@ -7,16 +7,16 @@ import kinuvo.server.HarnessRuntime
 import kinuvo.server.execution.ExecutionRecovery
 import kinuvo.server.execution.ExecutionRegistry
 import kinuvo.server.execution.ExecutionRecoveryStore
-import kinuvo.protocol.AgentRegistration
-import kinuvo.protocol.ConfigScope
-import kinuvo.protocol.ExecutionCapabilities
-import kinuvo.protocol.Note
-import kinuvo.protocol.Routine
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.SessionInfo
-import kinuvo.protocol.TaskInfo
-import kinuvo.protocol.TaskStatus
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.execution.AgentRegistration
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.execution.ExecutionCapabilities
+import kinuvo.protocol.knowledge.Note
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionInfo
+import kinuvo.protocol.board.TaskInfo
+import kinuvo.protocol.board.TaskStatus
+import kinuvo.protocol.routine.Trigger
 import kotlinx.datetime.LocalDate
 import kotlinx.io.files.Path
 

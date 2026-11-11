@@ -1,8 +1,8 @@
 package kinuvo.app.settings
 
-import kinuvo.protocol.ConfigScope
-import kinuvo.protocol.McpOAuthClient
-import kinuvo.protocol.McpServerInfo
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.mcp.McpOAuthClient
+import kinuvo.protocol.mcp.McpServerInfo
 
 /** How a catalog server signs in: OAuth in the browser, a token in a header, or the user's own OAuth app. */
 enum class McpPresetAuth { OAuth, Token, OwnClient }

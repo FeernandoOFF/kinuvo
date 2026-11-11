@@ -16,7 +16,10 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
 import kotlinx.coroutines.Dispatchers
 import kinuvo.client.ConnectionState
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
 import kinuvo.ui.design.HarnessTheme
 import kotlinx.serialization.json.Json
 import org.jetbrains.skia.EncodedImageFormat

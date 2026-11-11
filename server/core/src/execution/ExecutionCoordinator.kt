@@ -6,7 +6,10 @@ import kinuvo.harness.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.store.SessionCommitConflict
 import kinuvo.server.SessionLog
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

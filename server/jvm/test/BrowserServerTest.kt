@@ -12,6 +12,12 @@ import ai.koog.prompt.streaming.StreamFrame
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.screen.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emptyFlow

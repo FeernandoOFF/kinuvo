@@ -11,6 +11,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.semantics.*
 import kinuvo.app.screen.LiveViewState
 import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.screen.*
 import kinuvo.ui.screen.*
 import kinuvo.ui.design.HarnessTheme
 import java.io.File

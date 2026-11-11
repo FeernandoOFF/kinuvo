@@ -15,7 +15,11 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.mutedColor
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.mcp.*
+import kinuvo.protocol.plugin.*
 import kinuvo.ui.design.*
 
 /** The Tools page's own items besides MCP servers. */

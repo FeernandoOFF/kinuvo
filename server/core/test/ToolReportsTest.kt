@@ -7,8 +7,8 @@ import kinuvo.harness.builtin.tools.*
 import kinuvo.server.tools.*
 import kinuvo.harness.ToolReports
 import kinuvo.harness.ToolTurn
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest

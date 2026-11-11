@@ -10,9 +10,9 @@ import kinuvo.harness.ExecutionInput
 import kinuvo.harness.ExecutionSink
 import kinuvo.harness.ExecutionState
 import kinuvo.harness.RunKind
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.RoutineRef
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.routine.RoutineRef
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart

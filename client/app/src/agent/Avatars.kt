@@ -1,7 +1,7 @@
 package kinuvo.app.agent
 
-import kinuvo.protocol.AgentInfo
-import kinuvo.protocol.SessionStatus
+import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.session.SessionStatus
 import kotlin.random.Random
 
 val AvatarArtboards = listOf("Lilac Cloud", "Tangerine Drop", "Mint Pill", "Coral Bloom", "Sky Peak", "Honey Star", "Berry Orb", "Cocoa Bloop")

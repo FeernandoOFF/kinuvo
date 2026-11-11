@@ -1,9 +1,9 @@
 package kinuvo.server.store
 
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.SessionEntryIdentity
-import kinuvo.protocol.withWrittenAt
-import kinuvo.protocol.identity
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionEntryIdentity
+import kinuvo.protocol.session.withWrittenAt
+import kinuvo.protocol.session.identity
 
 class SessionCommitConflict(val identity: String) : IllegalStateException("Conflicting saved Session entry '$identity'")
 

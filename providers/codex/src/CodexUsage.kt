@@ -1,6 +1,6 @@
 package kinuvo.providers.codex
 
-import kinuvo.protocol.Usage
+import kinuvo.protocol.usage.Usage
 
 import io.ktor.http.Headers
 

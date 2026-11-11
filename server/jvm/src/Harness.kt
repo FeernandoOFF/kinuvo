@@ -11,7 +11,7 @@ import kinuvo.server.*
 import kinuvo.server.store.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
-import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.device.currentPlatform
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.providers.codex.CodexRealtime
 import kinuvo.server.plugin.VoiceProviders

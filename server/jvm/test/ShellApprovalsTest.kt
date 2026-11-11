@@ -23,7 +23,7 @@ class ShellApprovalsTest {
         val base = store.agents().single()
         val policy = ApprovalPolicy(base, FileTrustRules(files))
         val shell = kinuvo.server.plugin.PluginTools(listOf(ShellTool(HostBackend(listOf(File(files.agent(base.id).toString()))))))
-            .ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.exec")).tools.single()
+            .ownedBy(kinuvo.protocol.plugin.PluginInstanceId("kinuvo.exec")).tools.single()
         val args = """{"command":"./kotlin test -m core"}"""
 
         assertEquals(Verdict.Run, policy.decide(shell, """{"command":"git status && ls"}"""))

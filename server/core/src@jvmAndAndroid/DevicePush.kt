@@ -9,11 +9,11 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.HttpStatusCode
-import kinuvo.protocol.WebPush
+import kinuvo.protocol.push.WebPush
 import kinuvo.server.plugin.Notification
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.PushMessage
-import kinuvo.protocol.PushSubscription
+import kinuvo.protocol.push.PushMessage
+import kinuvo.protocol.push.PushSubscription
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll

@@ -1,13 +1,13 @@
 package kinuvo.harness
 
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.AgentRegistration
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.ExecutionConnection
-import kinuvo.protocol.HarnessConnection
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.execution.AgentRegistration
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.execution.ExecutionConnection
+import kinuvo.protocol.execution.HarnessConnection
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.surface.SurfaceAction
 import kotlinx.coroutines.flow.Flow
 import kotlinx.io.files.Path
 import kotlin.uuid.Uuid

@@ -10,6 +10,10 @@ import ai.koog.prompt.streaming.StreamFrame
 import kotlinx.coroutines.flow.flowOf
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.io.files.Path
 import java.nio.file.Files

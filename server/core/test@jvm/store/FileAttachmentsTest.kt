@@ -1,6 +1,7 @@
 package kinuvo.server.store
 
 import kinuvo.protocol.*
+import kinuvo.protocol.session.*
 import kotlinx.io.files.Path
 import java.nio.file.Files
 import kotlin.io.encoding.Base64

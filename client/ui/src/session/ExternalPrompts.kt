@@ -3,9 +3,9 @@ package kinuvo.ui.session
 import kinuvo.app.agent.*
 import kinuvo.ui.settings.*
 import kinuvo.app.session.*
-import kinuvo.protocol.ExecutionKind
-import kinuvo.protocol.InteractionAnswer
-import kinuvo.protocol.PendingInteraction
+import kinuvo.protocol.execution.ExecutionKind
+import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.protocol.approval.PendingInteraction
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.runtime.*

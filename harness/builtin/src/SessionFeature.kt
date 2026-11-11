@@ -13,10 +13,10 @@ import ai.koog.prompt.message.RequestMetaInfo
 import kinuvo.harness.SessionStorage
 import kinuvo.harness.builtin.tools.toDescriptor
 import kinuvo.harness.ToolProvider
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.RequestKind
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.usage.RequestKind
+import kinuvo.protocol.session.SessionEntry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext

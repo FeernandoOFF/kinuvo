@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kinuvo.protocol.PairingCode
+import kinuvo.protocol.device.PairingCode
 
 internal class MemoryCredentials : DeviceCredentials {
     private val values = mutableMapOf<String, String>()

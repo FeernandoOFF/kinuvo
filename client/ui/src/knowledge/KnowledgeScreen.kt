@@ -33,7 +33,9 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.knowledge.*
 import kinuvo.ui.design.*
 import kotlinx.coroutines.delay
 import kotlin.time.Clock

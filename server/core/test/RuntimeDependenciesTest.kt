@@ -16,6 +16,12 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.builtin.*
 import kinuvo.server.plugin.Tool
 import kinuvo.protocol.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.usage.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -80,12 +86,12 @@ class RuntimeDependenciesTest {
     fun resourceOwnerReleasesEveryPluginAndClosesOnceEvenWhenCancelled() = runTest {
         val actions = mutableListOf<String>()
         val first = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.runtimedependenciestest.1", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runtimedependenciestest.1", "Test")
             override suspend fun release(agentId: String) { actions += "release first"; error("Release failed") }
             override suspend fun close() { actions += "close first"; yield(); error("Close failed") }
         }
         val second = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.runtimedependenciestest.2", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runtimedependenciestest.2", "Test")
             override suspend fun release(agentId: String) { actions += "release second" }
             override suspend fun close() { actions += "close second"; yield() }
         }
@@ -174,7 +180,7 @@ class RuntimeDependenciesTest {
             override fun onSignInNeeded(listener: suspend (agentId: String, server: String) -> Unit) { error("Start failed") }
         }
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.runtimedependenciestest.3", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runtimedependenciestest.3", "Test")
             override val mcp = management
             override suspend fun close() { closes++ }
         }

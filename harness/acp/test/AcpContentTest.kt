@@ -3,7 +3,9 @@ package kinuvo.harness.acp
 
 import com.agentclientprotocol.model.v2.*
 import kinuvo.harness.ExecutionInput
-import kinuvo.protocol.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.surface.*
 import java.util.Base64
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put

@@ -3,16 +3,16 @@ package kinuvo.server
 import kinuvo.testing.server.AgentRun
 import kinuvo.server.plugin.toolSpec
 import ai.koog.prompt.message.Message
-import kinuvo.protocol.ModelTier
+import kinuvo.protocol.model.ModelTier
 import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.testing.harness.*
 import kinuvo.server.plugin.Tool
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.RequestKind
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.SessionEntry.*
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.usage.RequestKind
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionEntry.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
@@ -27,8 +27,8 @@ import kinuvo.harness.SCREENSHOT_PREFIX
 class CompactionTest {
     @Test
     fun onlyTheLatestScreenshotsAreSentAgain() {
-        fun shot(n: Int) = ToolResult("$n", "computer_capture", "screen $n", attachments = listOf(kinuvo.protocol.Attachment("$n", "${SCREENSHOT_PREFIX}$n.jpg", "image/jpeg", 10)))
-        val file = ToolResult("f", "knowledge", "note", attachments = listOf(kinuvo.protocol.Attachment("f", "plan.pdf", "application/pdf", 10)))
+        fun shot(n: Int) = ToolResult("$n", "computer_capture", "screen $n", attachments = listOf(kinuvo.protocol.session.Attachment("$n", "${SCREENSHOT_PREFIX}$n.jpg", "image/jpeg", 10)))
+        val file = ToolResult("f", "knowledge", "note", attachments = listOf(kinuvo.protocol.session.Attachment("f", "plan.pdf", "application/pdf", 10)))
         val pruned = (listOf(file) + (1..5).map(::shot)).recentScreens(keep = 3).filterIsInstance<ToolResult>()
         assertEquals(listOf(1, 0, 0, 1, 1, 1), pruned.map { it.attachments.size })
         assertTrue(pruned[1].output.endsWith("no longer shown.)"))
@@ -38,7 +38,7 @@ class CompactionTest {
     fun activeHistoryStartsAtTheLatestSnapshotAndExcludesReflection() {
         val snapshot = listOf(Context("Current context"), UserMessage("current"), AssistantMessage("summary"))
         val all = listOf(Started("i"), UserMessage("old"), Compaction("old summary", emptyList()),
-            Compaction("summary", snapshot), SessionEntry.Reflection("r", 123, kinuvo.protocol.ReflectionResult()), AssistantMessage("reply"))
+            Compaction("summary", snapshot), SessionEntry.Reflection("r", 123, kinuvo.protocol.reflection.ReflectionResult()), AssistantMessage("reply"))
         assertEquals(snapshot + AssistantMessage("reply"), all.activeHistory())
         assertEquals(listOf(UserMessage("old")), all.take(2).activeHistory())
     }
@@ -115,7 +115,7 @@ class CompactionTest {
         home.store.append(agent.id, session.id, UserMessage("Earlier question"))
         home.store.append(agent.id, session.id, AssistantMessage("x".repeat(8000)))
         home.store.append(agent.id, session.id, ToolCall("activate", "activate_skill", """{"name":"loaded"}""",
-            kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "activate_skill")))
+            kinuvo.protocol.plugin.ToolIdentity(kinuvo.protocol.plugin.PluginInstanceId("kinuvo.core"), "activate_skill")))
         home.store.append(agent.id, session.id, ToolResult("activate", "activate_skill", "Loaded Skill instructions"))
         val seen = mutableListOf<List<Message>>()
         val model = scriptedModel { prompt, _ ->

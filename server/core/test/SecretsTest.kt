@@ -3,8 +3,8 @@ package kinuvo.server
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.SecretProvider
 import kinuvo.server.plugin.SecretReferences
-import kinuvo.protocol.SecretEntry
-import kinuvo.protocol.SecretProviderStatus
+import kinuvo.protocol.secret.SecretEntry
+import kinuvo.protocol.secret.SecretProviderStatus
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -93,7 +93,7 @@ class SecretsTest {
             override val descriptor = kinuvo.server.plugin.toolSpec("app", "")
             override suspend fun execute(args: kotlinx.serialization.json.JsonObject) = ""
             override suspend fun executeResult(args: kotlinx.serialization.json.JsonObject, callId: String, run: kinuvo.server.plugin.ToolRun) =
-                if (fail) error("bad gh\"p_2") else kinuvo.protocol.SessionEntry.ToolResult(callId, "app", "gh\"p_2",
+                if (fail) error("bad gh\"p_2") else kinuvo.protocol.session.SessionEntry.ToolResult(callId, "app", "gh\"p_2",
                     appResult = kotlinx.serialization.json.buildJsonObject { put("text", kotlinx.serialization.json.JsonPrimitive("key gh\"p_2")) })
         }
         val run = object : kinuvo.server.plugin.ToolRun {
@@ -122,7 +122,7 @@ class SecretsTest {
         assertFalse(SecretReferences.isReference("plain-key"))
         assertTrue(SecretReferences.hasSecret("--token=\${pass://Kinuvo/GitHub/token}"))
         assertFalse(SecretReferences.hasSecret("--token=\${TOKEN}"))
-        val reference = kinuvo.protocol.secretReference("pass", listOf("My Vault", "GitHub/API", "Prod.key}"))
+        val reference = kinuvo.protocol.secret.secretReference("pass", listOf("My Vault", "GitHub/API", "Prod.key}"))
         assertEquals("\${pass://My Vault/GitHub%2FAPI/Prod.key%7D}", reference)
         assertTrue(SecretReferences.isReference(reference))
     }

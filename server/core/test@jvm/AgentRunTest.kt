@@ -7,17 +7,17 @@ import kinuvo.testing.harness.*
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.RequestKind
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.withWrittenAt
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.usage.RequestKind
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.withWrittenAt
 
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.server.tools.MemoryTool
 import kinuvo.server.plugin.Tool
 import kinuvo.server.plugin.ToolRun
-import kinuvo.protocol.Attachment
+import kinuvo.protocol.session.Attachment
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow

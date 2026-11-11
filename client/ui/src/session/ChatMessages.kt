@@ -9,7 +9,7 @@ import kinuvo.ui.surface.McpAppSurface
 import kinuvo.ui.surface.LocalHtmlHeights
 import kinuvo.ui.surface.LocalHtmlSurfaces
 import kinuvo.ui.surface.SurfaceRenderer
-import kinuvo.protocol.Attachment
+import kinuvo.protocol.session.Attachment
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
@@ -62,7 +62,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.builtins.ListSerializer
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.Question
+import kinuvo.protocol.approval.Question
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.launch
@@ -74,7 +74,7 @@ import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import kinuvo.protocol.RequestMetrics
+import kinuvo.protocol.usage.RequestMetrics
 import kotlinx.serialization.json.JsonElement
 
 @Composable

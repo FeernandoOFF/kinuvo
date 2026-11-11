@@ -1,8 +1,8 @@
 package kinuvo.plugins.mcp
 
 import kinuvo.server.plugin.sha256
-import kinuvo.protocol.McpAppRef
-import kinuvo.protocol.McpAppResource
+import kinuvo.protocol.mcp.McpAppRef
+import kinuvo.protocol.mcp.McpAppResource
 import kinuvo.protocol.ProtocolJson
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

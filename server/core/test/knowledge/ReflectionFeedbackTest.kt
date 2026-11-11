@@ -6,8 +6,8 @@ import kinuvo.server.TestHome
 import kinuvo.testing.harness.*
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.protocol.ReflectionProposal
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.reflection.ReflectionProposal
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject

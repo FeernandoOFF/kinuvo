@@ -1,9 +1,9 @@
 package kinuvo.server.routines
 
-import kinuvo.protocol.ActiveHours
-import kinuvo.protocol.Routine
-import kinuvo.protocol.RoutineSpec
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.routine.ActiveHours
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.RoutineSpec
+import kinuvo.protocol.routine.Trigger
 import kotlinx.datetime.IllegalTimeZoneException
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone

@@ -6,8 +6,8 @@ import kinuvo.harness.ExecutionAcceptance
 import kinuvo.harness.ExecutionInput
 import kinuvo.harness.ExecutionSession
 import kinuvo.harness.ExecutionState
-import kinuvo.protocol.AgentRegistration
-import kinuvo.protocol.HarnessConnection
+import kinuvo.protocol.execution.AgentRegistration
+import kinuvo.protocol.execution.HarnessConnection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update

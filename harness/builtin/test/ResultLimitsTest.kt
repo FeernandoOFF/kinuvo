@@ -2,8 +2,8 @@ package kinuvo.harness.builtin
 
 import ai.koog.prompt.message.MessagePart
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*

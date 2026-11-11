@@ -5,7 +5,7 @@ import java.net.Proxy
 import java.io.InputStream
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.TimeUnit
-import kinuvo.protocol.SurfaceImage
+import kinuvo.protocol.surface.SurfaceImage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Dns

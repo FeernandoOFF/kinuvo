@@ -1,6 +1,6 @@
 package kinuvo.plugins.executor
 
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin

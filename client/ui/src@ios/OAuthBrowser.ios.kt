@@ -2,7 +2,7 @@ package kinuvo.ui
 
 import kinuvo.app.connection.*
 
-import kinuvo.protocol.McpRedirect
+import kinuvo.protocol.mcp.McpRedirect
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext

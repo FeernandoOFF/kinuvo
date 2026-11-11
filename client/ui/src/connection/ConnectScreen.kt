@@ -14,8 +14,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.runtime.*
-import kinuvo.protocol.Links
-import kinuvo.protocol.PairLink
+import kinuvo.protocol.device.Links
+import kinuvo.protocol.device.PairLink
 import kotlinx.coroutines.delay
 
 /**

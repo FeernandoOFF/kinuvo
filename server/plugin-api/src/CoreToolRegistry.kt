@@ -1,8 +1,8 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.Risk
-import kinuvo.protocol.ToolGroup
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.tool.ToolGroup
+import kinuvo.protocol.tool.ToolNames
 
 /** A tool's result-count parameter; [lines] counts lines of text, which the Result limits' text budget bounds instead of maxItems. */
 data class ItemLimit(val parameter: String, val max: Int, val lines: Boolean = false)

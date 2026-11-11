@@ -4,6 +4,9 @@ import kinuvo.harness.*
 import kinuvo.server.store.InMemoryStore
 import kinuvo.server.execution.*
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.*
 import kotlinx.serialization.json.*

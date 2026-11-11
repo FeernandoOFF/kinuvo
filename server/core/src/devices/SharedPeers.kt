@@ -1,7 +1,7 @@
 package kinuvo.server.devices
 
-import kinuvo.protocol.DeviceToolKind
-import kinuvo.protocol.PushSubscription
+import kinuvo.protocol.device.DeviceToolKind
+import kinuvo.protocol.push.PushSubscription
 
 /** An embedded Server's own client ([local]) plus the Devices that paired with it over the network ([network]). */
 class SharedPeers(private val local: PeerRegistry, private val network: PeerRegistry) : PeerRegistry {

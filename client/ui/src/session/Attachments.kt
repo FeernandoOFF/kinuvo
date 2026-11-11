@@ -39,7 +39,7 @@ import com.composables.ui.theme.mediumShape
 import com.composables.ui.theme.mutedColor
 import com.composables.ui.theme.shapes
 import com.composeunstyled.theme.Theme
-import kinuvo.protocol.*
+import kinuvo.protocol.session.*
 import kinuvo.ui.design.Markdown
 import kinuvo.ui.design.MonoStyle
 import kinuvo.ui.design.Spinner

@@ -4,8 +4,8 @@ import ai.koog.prompt.Prompt
 import ai.koog.prompt.dsl.prompt
 import ai.koog.prompt.dsl.RequestMessagePartsBuilder
 import ai.koog.prompt.message.*
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.session.SessionEntry
 import kotlin.uuid.Uuid
 import kinuvo.harness.ResultLimits
 import kinuvo.harness.modelText
@@ -100,7 +100,7 @@ class SessionMessages(private val model: AgentModel, private val imageReferences
     private fun RequestMessagePartsBuilder.attach(list: List<Attachment>) = list.forEach { a ->
         val bytes = requireNotNull(model.attachments) { "This provider has no attachment storage" }(a)
         val content = AttachmentContent.Binary.Bytes(bytes)
-        if (kinuvo.protocol.attachmentInput(a.mimeType) == "text") text("\n\nFile: ${a.name}\n${bytes.decodeToString()}\n\n")
+        if (kinuvo.protocol.session.attachmentInput(a.mimeType) == "text") text("\n\nFile: ${a.name}\n${bytes.decodeToString()}\n\n")
         else if (a.mimeType.startsWith("image/")) image(AttachmentSource.Image(content, a.mimeType.substringAfter('/'), a.mimeType, a.name))
         else file(AttachmentSource.File(content = content, format = a.name.substringAfterLast('.'), mimeType = a.mimeType, fileName = a.name))
     }

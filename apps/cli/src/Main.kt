@@ -19,7 +19,7 @@ import kinuvo.server.jvm.Harness
 import kinuvo.server.jvm.HarnessServer
 import kinuvo.server.NetworkSecurity
 import kinuvo.server.jvm.LocalServer
-import kinuvo.protocol.Links
+import kinuvo.protocol.device.Links
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull

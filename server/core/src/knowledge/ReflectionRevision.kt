@@ -4,10 +4,10 @@ import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
 import kinuvo.server.plugin.CoreTool
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.requireString
-import kinuvo.protocol.ReflectionProposal
-import kinuvo.protocol.ReflectionResult
+import kinuvo.protocol.reflection.ReflectionProposal
+import kinuvo.protocol.reflection.ReflectionResult
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.boolean

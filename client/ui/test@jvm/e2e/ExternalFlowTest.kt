@@ -6,10 +6,10 @@ import kinuvo.testing.server.FakeHarness
 import kinuvo.testing.server.FakeModelProvider
 import kinuvo.testing.server.FakeModels
 import kinuvo.protocol.Api
-import kinuvo.protocol.ExecutionCapabilities
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.Question
-import kinuvo.protocol.QuestionKind
+import kinuvo.protocol.execution.ExecutionCapabilities
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.approval.Question
+import kinuvo.protocol.approval.QuestionKind
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

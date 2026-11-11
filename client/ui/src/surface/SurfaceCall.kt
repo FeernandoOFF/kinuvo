@@ -6,7 +6,7 @@ import kinuvo.app.surface.SurfaceSubmissions
 import kinuvo.app.surface.openSurfaceUrl
 import kinuvo.app.surface.surfaceAction
 import kinuvo.app.surface.surfaceSubmissions
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.surface.SurfaceAction
 
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.layout.Column
@@ -15,7 +15,7 @@ import dev.ynagai.a2ui.compose.*
 import dev.ynagai.a2ui.core.protocol.*
 import kinuvo.app.session.ChatItem
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.uiMessages
+import kinuvo.protocol.surface.uiMessages
 import kotlinx.serialization.json.jsonObject
 
 internal val LocalSurfaceItems = staticCompositionLocalOf<List<ChatItem>> { emptyList() }

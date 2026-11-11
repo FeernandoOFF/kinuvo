@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import kinuvo.app.connection.ConnectedServer
 import kinuvo.app.connection.catching
 import kinuvo.protocol.*
+import kinuvo.protocol.voice.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 

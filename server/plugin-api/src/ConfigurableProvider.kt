@@ -1,13 +1,13 @@
 package kinuvo.server.plugin
 
 import io.ktor.http.Url
-import kinuvo.protocol.KnowledgeSettings
-import kinuvo.protocol.PluginInstanceId
-import kinuvo.protocol.SecretUpdate
-import kinuvo.protocol.SettingsField
-import kinuvo.protocol.SettingsFieldType
-import kinuvo.protocol.SettingsSchema
-import kinuvo.protocol.PluginAccess
+import kinuvo.protocol.knowledge.KnowledgeSettings
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.settings.SecretUpdate
+import kinuvo.protocol.settings.SettingsField
+import kinuvo.protocol.settings.SettingsFieldType
+import kinuvo.protocol.settings.SettingsSchema
+import kinuvo.protocol.plugin.PluginAccess
 
 interface ConfigurableProvider {
     val id: String

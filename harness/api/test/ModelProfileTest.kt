@@ -1,9 +1,9 @@
 package kinuvo.harness
 
-import kinuvo.protocol.ExecutionLocation
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.ToolGroup
+import kinuvo.protocol.capability.ExecutionLocation
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.tool.ToolGroup
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

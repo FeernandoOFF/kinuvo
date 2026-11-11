@@ -10,8 +10,8 @@ import com.github.ajalt.clikt.parameters.types.int
 import kinuvo.server.jvm.HarnessServer
 import kinuvo.server.jvm.LocalServer
 import kinuvo.server.jvm.kinuvoHome
-import kinuvo.protocol.Platform
-import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption

@@ -2,7 +2,7 @@ package kinuvo.server
 
 import kinuvo.harness.Agent
 import kinuvo.protocol.*
-
+import kinuvo.protocol.service.*
 /** The Server's settings: Secret reference providers, services, model provider sign-ins and MCP servers. */
 internal class SettingsRequests(private val harness: HarnessRuntime, private val logins: ProviderLogins, private val agent: suspend (String) -> Agent, private val notifications: Notifications) {
     suspend fun handle(r: Frame.Request): Frame.Response? = when (r.method) {

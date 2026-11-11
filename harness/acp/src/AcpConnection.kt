@@ -17,7 +17,7 @@ import kotlinx.coroutines.*
 import kotlinx.io.asSink
 import kotlinx.io.asSource
 import kotlinx.io.buffered
-import kinuvo.protocol.ExecutionConnection
+import kinuvo.protocol.execution.ExecutionConnection
 import java.io.File
 import java.util.concurrent.TimeUnit
 

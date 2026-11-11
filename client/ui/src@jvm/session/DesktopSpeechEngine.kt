@@ -4,8 +4,8 @@ import kinuvo.app.session.LiveAudio
 import kinuvo.app.session.SpeechEngine
 import kinuvo.app.session.VoiceAudio
 import kotlin.io.encoding.Base64
-import kinuvo.protocol.Platform
-import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import kotlinx.serialization.json.*
 import javax.swing.SwingUtilities
 

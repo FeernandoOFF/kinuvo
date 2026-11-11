@@ -5,7 +5,7 @@ import dev.kdriver.core.browser.defaultBrowserSearchConfig
 import java.io.File
 import java.net.InetSocketAddress
 import java.nio.file.Files
-import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlin.test.*

@@ -4,7 +4,7 @@ import kinuvo.app.agent.chatModels
 import kinuvo.app.navigation.Route
 import kinuvo.app.navigation.SettingsSection
 import kinuvo.app.settings.SettingsState
-import kinuvo.protocol.*
+import kinuvo.protocol.model.*
 import kotlin.test.*
 
 class ImageModelSettingsTest {

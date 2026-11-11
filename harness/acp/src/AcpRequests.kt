@@ -1,7 +1,8 @@
 package kinuvo.harness.acp
 
 import java.net.URI
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
 import kinuvo.harness.ExecutionBroker
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex

@@ -10,12 +10,12 @@ import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.Action
 import kinuvo.server.plugin.Assessment
 import kinuvo.server.plugin.Tool
-import kinuvo.protocol.Integration
-import kinuvo.protocol.McpAppRef
-import kinuvo.protocol.McpAppResource
-import kinuvo.protocol.IntegrationOptions
-import kinuvo.protocol.PluginDefinition
-import kinuvo.protocol.Risk
+import kinuvo.protocol.capability.Integration
+import kinuvo.protocol.mcp.McpAppRef
+import kinuvo.protocol.mcp.McpAppResource
+import kinuvo.protocol.capability.IntegrationOptions
+import kinuvo.protocol.plugin.PluginDefinition
+import kinuvo.protocol.approval.Risk
 import kotlinx.serialization.json.JsonObject
 
 /**

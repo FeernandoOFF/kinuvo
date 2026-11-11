@@ -1,9 +1,9 @@
 package kinuvo.app.voice
 
-typealias VoiceModelKind = kinuvo.protocol.VoiceModelKind
-typealias ModelFile = kinuvo.protocol.ModelFile
-typealias VoiceModel = kinuvo.protocol.VoiceModel
-typealias LiveVoiceSettings = kinuvo.protocol.LiveVoiceSettings
+typealias VoiceModelKind = kinuvo.protocol.voice.VoiceModelKind
+typealias ModelFile = kinuvo.protocol.voice.ModelFile
+typealias VoiceModel = kinuvo.protocol.voice.VoiceModel
+typealias LiveVoiceSettings = kinuvo.protocol.voice.LiveVoiceSettings
 
 data class LocalVoiceState(
     val models: List<VoiceModel> = emptyList(),

@@ -6,9 +6,9 @@ import kinuvo.server.knowledge.ChangeSource
 import kinuvo.server.knowledge.ReflectionRevision
 import kinuvo.server.knowledge.rememberReflectionReview
 import kinuvo.server.knowledge.KnowledgeTool
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.requireString
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

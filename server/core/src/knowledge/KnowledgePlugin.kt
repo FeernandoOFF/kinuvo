@@ -5,8 +5,8 @@ import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.InstructionSection
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.PluginDefinition
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.plugin.PluginDefinition
 
 /** The knowledge tools for Agents that have `knowledge` in their tools, and the user's conventions in their instructions. */
 class KnowledgePlugin(private val knowledge: Knowledge) : HarnessPlugin {

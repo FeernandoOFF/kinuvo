@@ -13,8 +13,7 @@ import io.ktor.http.content.TextContent
 import kinuvo.server.plugin.Notification
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
-import kinuvo.protocol.*
-
+import kinuvo.protocol.capability.*
 class NtfyTest {
     private val hosts = mutableListOf<PluginHosts>()
     private val requests = mutableListOf<Triple<String, String?, String>>()

@@ -1,7 +1,7 @@
 package kinuvo.app
 
 import kinuvo.app.screen.*
-import kinuvo.protocol.*
+import kinuvo.protocol.screen.*
 import kotlin.test.*
 
 class RemoteKeyboardTest {

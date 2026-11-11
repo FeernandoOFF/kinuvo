@@ -1,6 +1,6 @@
 package kinuvo.providers.litert
 
-import kinuvo.protocol.ModelTier
+import kinuvo.protocol.model.ModelTier
 import kotlinx.coroutines.test.runTest
 import kinuvo.harness.AgentConfig
 import java.nio.file.Files

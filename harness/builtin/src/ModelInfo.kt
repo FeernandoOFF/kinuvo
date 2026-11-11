@@ -3,7 +3,7 @@ package kinuvo.harness.builtin
 import ai.koog.prompt.llm.LLMCapability
 import ai.koog.prompt.llm.LLMProvider
 import ai.koog.prompt.llm.LLModel
-import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.model.ModelInfo
 
 /** The resolved catalog entry also configures the model client. Unknown fields retain provider defaults. */
 fun ModelInfo.llModel(provider: LLMProvider, endpoints: List<LLMCapability> = emptyList()) = LLModel(

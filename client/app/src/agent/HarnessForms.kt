@@ -3,7 +3,9 @@ package kinuvo.app.agent
 import kinuvo.app.onboarding.*
 import kinuvo.app.connection.*
 import kinuvo.protocol.*
-
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
 /** An external Agent's instructions, Memory, Skills and tools belong to its harness, not Kinuvo. */
 val AgentInfo.external get() = executionKind != ExecutionKind.Native
 

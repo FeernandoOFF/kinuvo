@@ -2,7 +2,8 @@ package kinuvo.harness.acp
 
 import java.util.Base64
 import kinuvo.harness.ExecutionState
-import kinuvo.protocol.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*

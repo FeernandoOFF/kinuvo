@@ -2,9 +2,9 @@ package kinuvo.harness.builtin
 
 import ai.koog.prompt.message.MessagePart
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.surface.SurfaceAction
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.flow.emptyFlow

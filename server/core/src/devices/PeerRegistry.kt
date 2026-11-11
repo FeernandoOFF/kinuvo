@@ -1,10 +1,10 @@
 package kinuvo.server.devices
 
-import kinuvo.protocol.DeviceToolKind
-import kinuvo.protocol.PairedDeviceInfo
-import kinuvo.protocol.PairingCode
-import kinuvo.protocol.PushSubscription
-import kinuvo.protocol.ToolDevice
+import kinuvo.protocol.device.DeviceToolKind
+import kinuvo.protocol.device.PairedDeviceInfo
+import kinuvo.protocol.device.PairingCode
+import kinuvo.protocol.push.PushSubscription
+import kinuvo.protocol.device.ToolDevice
 
 interface PeerRegistry {
     val pairable: Boolean get() = false

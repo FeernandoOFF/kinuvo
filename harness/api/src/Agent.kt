@@ -1,12 +1,12 @@
 package kinuvo.harness
 
 import kotlinx.serialization.Serializable
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.SessionSettings
-import kinuvo.protocol.TrustRules
-import kinuvo.protocol.ContainerSettings
-import kinuvo.protocol.SshSettings
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.session.SessionSettings
+import kinuvo.protocol.approval.TrustRules
+import kinuvo.protocol.agent.ContainerSettings
+import kinuvo.protocol.agent.SshSettings
 
 object ExecModes {
     const val NONE = "none"

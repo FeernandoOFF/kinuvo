@@ -8,7 +8,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextOverflow
 import kinuvo.app.agent.label
-import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.model.ModelInfo
 import kinuvo.ui.design.Badge
 import com.composables.ui.components.Text
 

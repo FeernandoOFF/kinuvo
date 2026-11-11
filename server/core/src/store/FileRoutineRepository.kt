@@ -3,7 +3,7 @@ package kinuvo.server.store
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.server.routines.RoutineRepository
-import kinuvo.protocol.Routine
+import kinuvo.protocol.routine.Routine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.builtins.ListSerializer

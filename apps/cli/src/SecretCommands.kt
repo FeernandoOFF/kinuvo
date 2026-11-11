@@ -5,7 +5,7 @@ import com.github.ajalt.clikt.parameters.arguments.multiple
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import kinuvo.protocol.*
-
+import kinuvo.protocol.secret.*
 internal class SecretCommands : Group(
     "secrets", "Connect the Server's password managers for references in config: \${pass://…} (Proton Pass), \${op://…} (1Password), \${bws://…} (Bitwarden).",
     SecretsStatus(), ConnectSecrets(), DisconnectSecrets(), BrowseSecrets(), RefreshSecrets(),

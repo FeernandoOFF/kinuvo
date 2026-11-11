@@ -15,8 +15,6 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.*
-
 /** A labelled form control; its [hint] opens from a (?) by the label. */
 @Composable
 internal fun FormField(label: String, hint: String? = null, content: @Composable () -> Unit) {

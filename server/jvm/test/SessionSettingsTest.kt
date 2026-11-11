@@ -10,9 +10,9 @@ import kinuvo.server.plugin.PrivateFile
 import kinuvo.providers.codex.CodexProvider
 import kinuvo.harness.builtin.AgentModel
 import kinuvo.harness.AgentConfig
-import kinuvo.protocol.UpdateAgentParams
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.SessionSettings
+import kinuvo.protocol.agent.UpdateAgentParams
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionSettings
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -37,7 +37,7 @@ class SessionSettingsTest {
     fun modelPairsRouteAcrossPluginsAndSurviveRestart() = runBlocking {
         val used = mutableListOf<String>()
         fun plugin(id: String) = object : ProviderPlugin, TestModelProvider {
-            override val definition = kinuvo.protocol.PluginDefinition("test.$id", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.$id", "Test")
             override val id = id
             override val providerAdmins get() = listOf(this)
             override fun model(config: AgentConfig): AgentModel {

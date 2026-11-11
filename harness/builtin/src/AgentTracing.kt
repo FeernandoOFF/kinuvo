@@ -1,7 +1,7 @@
 package kinuvo.harness.builtin
 
 import ai.koog.agents.core.agent.GraphAIAgent
-import kinuvo.protocol.RequestKind
+import kinuvo.protocol.usage.RequestKind
 import kotlinx.io.files.Path
 
 interface AgentTracing : AutoCloseable {

@@ -1,11 +1,11 @@
 package kinuvo.testing.server
 
 import kinuvo.harness.Agent
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.ConfigScope
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.TaskStatus
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.board.TaskStatus
+import kinuvo.protocol.routine.Trigger
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone

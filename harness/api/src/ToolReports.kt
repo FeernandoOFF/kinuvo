@@ -1,6 +1,6 @@
 package kinuvo.harness
 
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch

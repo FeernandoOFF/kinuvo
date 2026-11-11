@@ -5,7 +5,7 @@ import kinuvo.harness.schemaProperties
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.CoreTool
 import kinuvo.server.plugin.Tool
 import kinuvo.server.plugin.ToolRun

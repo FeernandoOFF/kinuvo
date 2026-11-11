@@ -10,11 +10,11 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.RequestMetaInfo
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.AgentConfig
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.ToolIdentity
-import kinuvo.protocol.PluginInstanceId
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.plugin.ToolIdentity
+import kinuvo.protocol.plugin.PluginInstanceId
 import kinuvo.server.plugin.modelAlias
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject

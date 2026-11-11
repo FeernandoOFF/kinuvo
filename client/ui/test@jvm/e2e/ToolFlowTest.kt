@@ -4,9 +4,9 @@ import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.testing.server.FakeTool
 import kinuvo.testing.server.FakeTools
 import kinuvo.protocol.Api
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.InteractionAnswer
-import kinuvo.protocol.Risk
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.protocol.approval.Risk
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals

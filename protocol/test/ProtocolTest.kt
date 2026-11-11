@@ -1,13 +1,36 @@
 package kinuvo.protocol
 
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.approval.Question
+import kinuvo.protocol.approval.RespondParams
+import kinuvo.protocol.capability.ServerCapabilities
+import kinuvo.protocol.device.ChatLink
+import kinuvo.protocol.device.Links
+import kinuvo.protocol.device.PairLink
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.knowledge.KnowledgeSettings
+import kinuvo.protocol.reflection.ReflectionResult
+import kinuvo.protocol.routine.ActiveHours
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.RoutinesChanged
+import kinuvo.protocol.routine.RunStatus
+import kinuvo.protocol.routine.Trigger
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.session.LiveState
+import kinuvo.protocol.session.SessionChange
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionStatus
+import kinuvo.protocol.session.SessionUpdate
+import kinuvo.protocol.usage.RequestKind
+import kinuvo.protocol.usage.RequestMetrics
+import kinuvo.protocol.usage.Usage
+import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlin.test.Test
-import kotlin.test.assertEquals
 
 class ProtocolTest {
     @Test

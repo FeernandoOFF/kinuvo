@@ -14,15 +14,15 @@ import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.FileStore
 import kinuvo.server.store.FileTrustRules
 import kinuvo.server.plugin.Tool
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.ownedBy
 import kinuvo.server.plugin.withModelNames
 import kinuvo.server.plugin.ToolRun
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.approval
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.Risk
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.approval.approval
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
@@ -42,7 +42,7 @@ class RunCodeTest {
 
     private class FakeTool(name: String, override val risk: Risk, val output: (JsonObject) -> String) : Tool {
         val calls = mutableListOf<JsonObject>()
-        override val identity get() = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), descriptor.name)
+        override val identity get() = kinuvo.protocol.plugin.ToolIdentity(kinuvo.protocol.plugin.PluginInstanceId("test.tools"), descriptor.name)
         override val descriptor = toolSpec(name, "fake")
         override suspend fun execute(args: JsonObject) = output(args).also { calls += args }
     }
@@ -81,7 +81,7 @@ class RunCodeTest {
     @Test
     fun scriptCallsTwoToolsWithApprovals() = runBlocking {
         val agent = store.agents().single().let { it.copy(config = it.config.copy(tools = it.config.tools + ToolNames.RUN_CODE)) }
-        val tools = ExecutorPlugin().prepare(RunContext(agent, null), activate = true).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.executor")).tools.plus(listOf(search, save)).withModelNames()
+        val tools = ExecutorPlugin().prepare(RunContext(agent, null), activate = true).ownedBy(kinuvo.protocol.plugin.PluginInstanceId("kinuvo.executor")).tools.plus(listOf(search, save)).withModelNames()
         val model = scriptedModel { prompt, _ ->
             val history = prompt.messages
             if (history.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("c1", "run_code", args(code)), StreamFrame.End())
@@ -116,7 +116,7 @@ class RunCodeTest {
     @Test
     fun approvedScriptReturnsOnlyItsResult() = runBlocking {
         val agent = store.agents().single().let { it.copy(config = it.config.copy(tools = it.config.tools + ToolNames.RUN_CODE)) }
-        val tools = ExecutorPlugin().prepare(RunContext(agent, null), activate = true).ownedBy(kinuvo.protocol.PluginInstanceId("kinuvo.executor")).tools.plus(listOf(search, save)).withModelNames()
+        val tools = ExecutorPlugin().prepare(RunContext(agent, null), activate = true).ownedBy(kinuvo.protocol.plugin.PluginInstanceId("kinuvo.executor")).tools.plus(listOf(search, save)).withModelNames()
         var replied = ""
         val model = scriptedModel { prompt, _ ->
             val history = prompt.messages

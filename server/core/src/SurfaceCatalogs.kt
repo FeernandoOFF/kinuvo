@@ -1,7 +1,7 @@
 package kinuvo.server
 
 import co.touchlab.stately.collections.ConcurrentMutableMap
-import kinuvo.protocol.UiCatalog
+import kinuvo.protocol.surface.UiCatalog
 
 class SurfaceCatalogs {
     private val connections = ConcurrentMutableMap<Any, List<UiCatalog>>()

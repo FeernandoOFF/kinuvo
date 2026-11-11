@@ -15,6 +15,15 @@ import kinuvo.server.plugin.NotificationProvider
 import kinuvo.server.store.serviceConfig
 import kinuvo.server.plugin.Notifier
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.settings.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -46,7 +55,7 @@ class NotificationsTest {
     fun notifiesWhenARoutineFindsAnMcpServerNeedingSignIn() = runBlocking {
         var signInNeeded: (suspend (String, String) -> Unit)? = null
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.notificationstest.1", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.notificationstest.1", "Test")
             override val notifications = listOf(provider)
             override val mcp = object : McpManagement by McpManagement.Unavailable {
                 override fun onSignInNeeded(listener: suspend (agentId: String, server: String) -> Unit) { signInNeeded = listener }
@@ -68,7 +77,7 @@ class NotificationsTest {
     fun notifiesWhenNoClientInTheForegroundWatches() = runBlocking {
         val model = scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("All done"), StreamFrame.End()) }
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.notificationstest.2", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.notificationstest.2", "Test")
             override val notifications = listOf(provider) }
         val harness = Harness(Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }, plugins = listOf(plugin))
         val server = HarnessServer(harness)
@@ -119,7 +128,7 @@ class NotificationsTest {
     @Test
     fun aRoutineRunInTheUsersSessionIsNotToldAsAReply(): Unit = runBlocking {
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.notificationstest.3", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.notificationstest.3", "Test")
             override val notifications = listOf(provider) }
         val harness = Harness(Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), plugins = listOf(plugin))
         harness.saveService(ServiceKind.Notifications, ServiceSettings("test"))

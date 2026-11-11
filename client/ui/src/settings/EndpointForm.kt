@@ -11,7 +11,7 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.app.settings.EndpointViewModel
 import kinuvo.app.settings.EndpointState
-import kinuvo.protocol.CustomEndpointParams
+import kinuvo.protocol.model.CustomEndpointParams
 import kinuvo.ui.design.*
 import org.koin.compose.viewmodel.koinViewModel
 

@@ -5,7 +5,7 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import kinuvo.protocol.*
-
+import kinuvo.protocol.knowledge.*
 internal class KnowledgeCommands : Group(
     "knowledge", "Search your Knowledge and review or undo what Agents changed in it.",
     SearchKnowledge(), ShowNote(), KnowledgeChanges(), UndoChange(),

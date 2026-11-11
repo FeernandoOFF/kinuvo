@@ -12,8 +12,8 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.*
 import io.ktor.http.content.TextContent
 import kinuvo.harness.AgentConfig
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*

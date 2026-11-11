@@ -11,8 +11,11 @@ import kinuvo.server.plugin.InstructionSection
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.Tool
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.session.*
 import kinuvo.client.KinuvoClient
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -30,7 +33,7 @@ class PluginsTest {
     private val released = mutableListOf<String>()
 
     private val plugin = object : ProviderPlugin, TestModelProvider {
-        override val definition = kinuvo.protocol.PluginDefinition("test.pluginstest.1", "Test")
+        override val definition = kinuvo.protocol.plugin.PluginDefinition("test.pluginstest.1", "Test")
         override val id = "fake"
         override val providerAdmins get() = listOf(this)
         override suspend fun models() = listOf(ModelInfo("plugin-model", "Plugin model"))
@@ -69,7 +72,7 @@ class PluginsTest {
 
         val events = harness.runner(agent, session.id).run(session.id, "hi").toList()
         assertTrue(harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Context>().any { "## Fake\n\nPlugin section" in it.content })
-        assertTrue(events.any { it is kinuvo.protocol.AgentEvent.Warning && it.message == "half up" })
+        assertTrue(events.any { it is kinuvo.protocol.session.AgentEvent.Warning && it.message == "half up" })
         assertEquals("ping", harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.AssistantMessage>().single().text)
 
         harness.release(agent)

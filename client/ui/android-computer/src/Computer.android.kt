@@ -19,7 +19,8 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityNodeInfo.AccessibilityAction
 import androidx.annotation.RequiresApi
-import kinuvo.protocol.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.device.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

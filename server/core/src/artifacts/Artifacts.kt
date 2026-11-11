@@ -2,9 +2,9 @@ package kinuvo.server.artifacts
 
 import kinuvo.server.plugin.ARTIFACT_MAX_CHARS
 
-import kinuvo.protocol.ArtifactChange
-import kinuvo.protocol.ArtifactData
-import kinuvo.protocol.ArtifactInfo
+import kinuvo.protocol.artifact.ArtifactChange
+import kinuvo.protocol.artifact.ArtifactData
+import kinuvo.protocol.artifact.ArtifactInfo
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.atomics.AtomicReference

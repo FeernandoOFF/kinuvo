@@ -7,6 +7,9 @@ import kinuvo.plugins.cua.Driver
 import kinuvo.server.jvm.Harness
 import kinuvo.server.jvm.HarnessServer
 import kinuvo.protocol.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import kotlinx.io.files.Path

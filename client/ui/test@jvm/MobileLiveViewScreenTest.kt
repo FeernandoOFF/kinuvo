@@ -11,6 +11,8 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
 import kinuvo.app.screen.LiveViewState
 import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.screen.*
 import kinuvo.ui.design.HarnessTheme
 import kinuvo.ui.screen.*
 import java.io.File

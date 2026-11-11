@@ -1,6 +1,8 @@
 package kinuvo.app.session
 
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
 import kotlinx.serialization.json.*
 
 fun approvalAnswer(optionId: String?): InteractionAnswer = InteractionAnswer.Harness(optionId?.let {

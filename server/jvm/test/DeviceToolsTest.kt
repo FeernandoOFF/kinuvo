@@ -5,6 +5,10 @@ import kinuvo.testing.harness.*
 
 import kinuvo.server.plugin.RunContext
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.io.files.Path

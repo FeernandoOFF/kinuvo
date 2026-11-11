@@ -55,7 +55,7 @@ import com.composables.icons.lucide.Lucide
 import com.composables.ui.components.Icon
 import com.composables.ui.components.Text
 import com.composables.ui.theme.*
-import kinuvo.protocol.AgentInfo
+import kinuvo.protocol.agent.AgentInfo
 import kinuvo.ui.design.*
 import kotlinx.coroutines.launch
 import kinuvo.app.agent.AvatarState

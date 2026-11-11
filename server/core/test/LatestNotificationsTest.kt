@@ -1,7 +1,9 @@
 package kinuvo.server.execution
 
 import kinuvo.harness.transcript
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.*
 import kotlin.test.*

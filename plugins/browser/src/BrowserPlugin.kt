@@ -14,6 +14,9 @@ import kinuvo.server.plugin.ToolRun
 import kinuvo.server.plugin.requireString
 import kinuvo.server.plugin.string
 import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.plugin.*
 import kotlinx.serialization.json.*
 import kotlin.io.encoding.Base64
 

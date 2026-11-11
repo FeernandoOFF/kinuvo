@@ -1,11 +1,11 @@
 package kinuvo.harness
 
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.Routine
-import kinuvo.protocol.RoutineRef
-import kinuvo.protocol.RequestMetrics
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.UiCatalog
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.RoutineRef
+import kinuvo.protocol.usage.RequestMetrics
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.surface.UiCatalog
 
 /** What a prompt asks the harness to run. The built-in harness picks its strategy by kind; an external harness only sees chat turns. */
 sealed interface RunKind {

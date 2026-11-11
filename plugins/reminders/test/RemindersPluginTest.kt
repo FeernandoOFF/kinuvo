@@ -1,6 +1,6 @@
 package kinuvo.plugins.reminders
 
-import kinuvo.protocol.Platform
+import kinuvo.protocol.device.Platform
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

@@ -4,6 +4,8 @@ import kinuvo.app.connection.*
 import kinuvo.app.device.*
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.connection.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow

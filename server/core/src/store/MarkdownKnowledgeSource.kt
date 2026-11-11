@@ -17,11 +17,11 @@ import kinuvo.server.knowledge.MarkdownBody
 import kinuvo.server.plugin.NoteEdit
 import kinuvo.server.plugin.Written
 import kinuvo.server.skills.splitFrontmatter
-import kinuvo.protocol.KnowledgeSchema
-import kinuvo.protocol.Note
-import kinuvo.protocol.NoteProperty
-import kinuvo.protocol.NoteSummary
-import kinuvo.protocol.NoteType
+import kinuvo.protocol.knowledge.KnowledgeSchema
+import kinuvo.protocol.knowledge.Note
+import kinuvo.protocol.knowledge.NoteProperty
+import kinuvo.protocol.knowledge.NoteSummary
+import kinuvo.protocol.knowledge.NoteType
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.files.Path

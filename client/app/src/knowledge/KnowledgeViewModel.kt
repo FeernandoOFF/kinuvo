@@ -6,9 +6,9 @@ import kinuvo.app.navigation.*
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kinuvo.protocol.Note
-import kinuvo.protocol.NoteSummary
-import kinuvo.protocol.KnowledgeChange
+import kinuvo.protocol.knowledge.Note
+import kinuvo.protocol.knowledge.NoteSummary
+import kinuvo.protocol.knowledge.KnowledgeChange
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow

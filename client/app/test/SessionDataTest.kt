@@ -2,13 +2,13 @@ package kinuvo.app
 
 import kinuvo.app.session.*
 
-import kinuvo.protocol.ToolIdentity
-import kinuvo.protocol.PluginInstanceId
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.LiveState
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.ReflectionResult
+import kinuvo.protocol.plugin.ToolIdentity
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.session.LiveState
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.reflection.ReflectionResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -76,7 +76,7 @@ class SessionDataTest {
     @Test
     fun reflectionKeepsItsKeyAndResultWhenReopened() {
         val result = ReflectionResult(knowledge = 1, memory = 2, userNotes = 1, memoryChanges = listOf(
-            kinuvo.protocol.ReflectionMemoryChange("memory", "- Old lesson\n", "- New lesson\n"),
+            kinuvo.protocol.reflection.ReflectionMemoryChange("memory", "- Old lesson\n", "- New lesson\n"),
         ))
         val entry = SessionEntry.Reflection("r1", 123, result)
         val live = SessionData("main", live = LiveState(reflectionId = "r1"))
@@ -89,7 +89,7 @@ class SessionDataTest {
 
     @Test
     fun reflectionReviewsFoldIntoSavedProposalCards() {
-        val result = ReflectionResult(proposals = listOf(kinuvo.protocol.ReflectionProposal("p1", "knowledge",
+        val result = ReflectionResult(proposals = listOf(kinuvo.protocol.reflection.ReflectionProposal("p1", "knowledge",
             kotlinx.serialization.json.JsonObject(emptyMap()), "A decision", "user-0")))
         val data = SessionData("main", entries = listOf(SessionEntry.Reflection("r1", 0, result), SessionEntry.ReflectionReview("p1", false)))
         assertEquals(listOf(ChatItem.Reflection("reflection-r1", result, mapOf("p1" to false))), data.items)
@@ -103,7 +103,7 @@ class SessionDataTest {
     }
     @Test
     fun revisedProposalsRemainPendingAndTheOriginalIsNotCountedAsSaved() {
-        val proposal = kinuvo.protocol.ReflectionProposal("original", "knowledge", kotlinx.serialization.json.JsonObject(emptyMap()), "Reason", "Evidence")
+        val proposal = kinuvo.protocol.reflection.ReflectionProposal("original", "knowledge", kotlinx.serialization.json.JsonObject(emptyMap()), "Reason", "Evidence")
         val revised = proposal.copy(id = "revised")
         val data = SessionData("main", entries = listOf(
             SessionEntry.Reflection("first", 0, ReflectionResult(proposals = listOf(proposal))),

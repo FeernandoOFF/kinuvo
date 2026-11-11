@@ -8,9 +8,12 @@ import kinuvo.server.plugin.*
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.builtin.*
 import kinuvo.server.store.ReflectionConfig
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.testing.harness.*
-import kinuvo.protocol.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.reflection.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.tool.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*

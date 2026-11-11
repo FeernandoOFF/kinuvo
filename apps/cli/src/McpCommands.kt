@@ -10,6 +10,9 @@ import com.github.ajalt.clikt.parameters.types.choice
 import kinuvo.client.LoopbackCallback
 import kinuvo.client.oauthState
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.mcp.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope

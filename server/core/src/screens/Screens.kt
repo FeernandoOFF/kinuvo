@@ -4,7 +4,9 @@ import kinuvo.server.plugin.BrowserService
 import kinuvo.server.plugin.ScreenGate
 import kinuvo.server.plugin.ScreenSource
 import kinuvo.server.*
-import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex

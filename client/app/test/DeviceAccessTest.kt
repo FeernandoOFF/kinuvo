@@ -4,6 +4,7 @@ import kinuvo.app.connection.*
 import kinuvo.app.device.*
 
 import kinuvo.protocol.*
+import kinuvo.protocol.device.*
 import kinuvo.client.KinuvoClient
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest

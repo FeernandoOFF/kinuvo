@@ -9,7 +9,10 @@ import kinuvo.server.plugin.*
 import kinuvo.server.store.*
 import kinuvo.server.voice.VoiceConfig
 import kinuvo.server.voice.VoiceProviderConfig
-import kinuvo.protocol.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.voice.*
 import kotlin.test.*
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.test.runTest
@@ -47,7 +50,7 @@ class ServerInstallationTest {
     fun failedAssemblyClosesInstalledPluginsOnce() = runTest {
         var closes = 0
         val plugin = object : ProviderPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.serverinstallationtest.2", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.serverinstallationtest.2", "Test")
             override val providerAdmins: List<ProviderAdmin> get() = error("Assembly failed")
             override suspend fun close() { closes++ }
         }

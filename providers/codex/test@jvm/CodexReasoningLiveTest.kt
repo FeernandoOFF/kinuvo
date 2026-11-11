@@ -3,7 +3,7 @@ package kinuvo.providers.codex
 import kinuvo.testing.harness.*
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.AgentConfig
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertTrue

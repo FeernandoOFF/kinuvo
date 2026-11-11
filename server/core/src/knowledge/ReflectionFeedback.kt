@@ -2,8 +2,8 @@ package kinuvo.server.knowledge
 
 import kinuvo.harness.AgentDoc
 import kinuvo.harness.AgentDocs
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.ReflectionProposal
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.reflection.ReflectionProposal
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json

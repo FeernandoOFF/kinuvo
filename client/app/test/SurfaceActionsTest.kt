@@ -9,7 +9,7 @@ import kinuvo.app.surface.dateTimeValue
 import kinuvo.app.surface.openSurfaceUrl
 import kinuvo.app.surface.surfaceAction
 import kinuvo.app.surface.surfaceDataModels
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.*

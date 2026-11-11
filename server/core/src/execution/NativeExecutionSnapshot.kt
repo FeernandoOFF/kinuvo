@@ -5,7 +5,10 @@ import kinuvo.harness.modelText
 import kinuvo.harness.Agent
 import kinuvo.server.SessionLog
 import kinuvo.protocol.*
-
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.surface.*
 /** Uses the native log's atomic catch-up so persisted and live text retain their IDs. */
 suspend fun SessionLog.executionSnapshot(agent: Agent, id: String) = executionSnapshot(agent.id, id)
 

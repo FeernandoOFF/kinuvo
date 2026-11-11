@@ -4,14 +4,14 @@ import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
 import kinuvo.server.plugin.CoreTool
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.requireString
 import kotlinx.serialization.json.JsonObject
 import kinuvo.harness.Agent
 import kinuvo.server.plugin.takeWhole
-import kinuvo.protocol.ConfigScope
+import kinuvo.protocol.agent.ConfigScope
 
 /** Renders a Skill for the model, per the agentskills activation format. */
 suspend fun SkillRepository.activationText(skill: Skill): String = buildString {

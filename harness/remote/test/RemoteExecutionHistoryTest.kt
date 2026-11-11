@@ -3,6 +3,8 @@ package kinuvo.harness.remote
 import kinuvo.harness.ExecutionSink
 import kinuvo.harness.ExecutionState
 import kinuvo.protocol.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 

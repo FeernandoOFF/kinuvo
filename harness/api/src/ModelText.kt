@@ -1,8 +1,8 @@
 package kinuvo.harness
 
-import kinuvo.protocol.modelText
+import kinuvo.protocol.surface.modelText
 
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 
 /** What the model reads for a user turn: a Routine's prompt is labelled with the Routine's name, a voice turn as spoken. */
 val SessionEntry.UserMessage.modelText: String

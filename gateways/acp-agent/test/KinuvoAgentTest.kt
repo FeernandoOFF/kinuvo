@@ -11,6 +11,9 @@ import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.StdioTransport
 import kinuvo.harness.ExecutionDispatch
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -76,7 +79,7 @@ class KinuvoAgentTest {
         val started = CompletableDeferred<Unit>()
         val approval = CompletableDeferred<Unit>()
         val form = CompletableDeferred<Unit>()
-        override suspend fun create(agentId: String) = kinuvo.protocol.SessionInfo("s", agentId, "ACP")
+        override suspend fun create(agentId: String) = kinuvo.protocol.session.SessionInfo("s", agentId, "ACP")
         override suspend fun snapshot(agentId: String, sessionId: String) = state
         override suspend fun send(params: SendParams): SendResult { state = state.copy(phase = ExecutionPhase.Running); started.complete(Unit); return SendResult("s", "run", "accepted") }
         override suspend fun stop(sessionId: String) { stopped.add(sessionId); state = state.copy(phase = ExecutionPhase.Idle) }

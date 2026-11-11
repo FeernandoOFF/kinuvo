@@ -9,8 +9,8 @@ import co.touchlab.stately.concurrency.withLock
 import com.charleskorn.kaml.Yaml
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.AgentDoc
-import kinuvo.protocol.ServiceKind
-import kinuvo.protocol.ServiceSettings
+import kinuvo.protocol.service.ServiceKind
+import kinuvo.protocol.service.ServiceSettings
 import kotlinx.io.files.Path
 import kinuvo.server.knowledge.KnowledgeConfig
 import kinuvo.server.parseDotEnv

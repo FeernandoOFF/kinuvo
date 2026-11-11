@@ -4,7 +4,7 @@ import kinuvo.server.plugin.appendText
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.server.knowledge.KnowledgeChangeLog
-import kinuvo.protocol.KnowledgeChange
+import kinuvo.protocol.knowledge.KnowledgeChange
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.files.Path

@@ -13,13 +13,13 @@ import kinuvo.server.store.FileKnowledgeChangeLog
 import kinuvo.server.store.MarkdownKnowledgeSource
 import kinuvo.server.plugin.readText
 import kinuvo.server.plugin.writeAtomically
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.ReflectionResult
-import kinuvo.protocol.KnowledgeChange
-import kinuvo.protocol.KnowledgeSchema
-import kinuvo.protocol.Note
-import kinuvo.protocol.NoteProperty
-import kinuvo.protocol.NoteType
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.reflection.ReflectionResult
+import kinuvo.protocol.knowledge.KnowledgeChange
+import kinuvo.protocol.knowledge.KnowledgeSchema
+import kinuvo.protocol.knowledge.Note
+import kinuvo.protocol.knowledge.NoteProperty
+import kinuvo.protocol.knowledge.NoteType
 import kotlinx.datetime.LocalDate
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -238,7 +238,7 @@ class KnowledgeTest {
         assertTrue("## Timeline\n\n- Met at work" in tool.execute(buildJsonObject { put("action", "read"); put("ref", "Ana") }))
         assertTrue("person (person)" in tool.execute(buildJsonObject { put("action", "schema") }))
         val rewrite = tools.getValue("knowledge_rewrite")
-        assertEquals(kinuvo.protocol.Risk.Medium, rewrite.risk)
+        assertEquals(kinuvo.protocol.approval.Risk.Medium, rewrite.risk)
         rewrite.execute(buildJsonObject { put("ref", "Ana"); put("old", "Met at work"); put("new", "Met at the gym") })
         assertEquals("## Timeline\n\n- Met at the gym", knowledge.find("Ana")!!.body)
         assertEquals("s1", knowledge.changes().first().sessionId)

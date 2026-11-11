@@ -1,7 +1,7 @@
 package kinuvo.ui.e2e
 
 import kinuvo.protocol.Api
-import kinuvo.protocol.SendParams
+import kinuvo.protocol.session.SendParams
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

@@ -1,6 +1,7 @@
 package kinuvo.plugins.cua
 
-import kinuvo.protocol.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.device.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.io.encoding.Base64

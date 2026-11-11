@@ -15,6 +15,13 @@ import kinuvo.client.AuthException
 import kinuvo.client.ProtocolMismatchException
 import kinuvo.client.userMessage
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.surface.*
+import kinuvo.protocol.usage.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay

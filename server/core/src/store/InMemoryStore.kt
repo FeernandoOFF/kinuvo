@@ -2,12 +2,12 @@ package kinuvo.server.store
 
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
-import kinuvo.protocol.RoutineRef
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.withWrittenAt
-import kinuvo.protocol.SessionOrder
-import kinuvo.protocol.SessionSettings
-import kinuvo.protocol.SessionInfo
+import kinuvo.protocol.routine.RoutineRef
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.withWrittenAt
+import kinuvo.protocol.session.SessionOrder
+import kinuvo.protocol.session.SessionSettings
+import kinuvo.protocol.session.SessionInfo
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.uuid.Uuid

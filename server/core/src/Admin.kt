@@ -4,8 +4,14 @@ import kinuvo.harness.Agent
 import kinuvo.harness.AgentDoc
 import kinuvo.harness.ExecModes
 import kinuvo.server.skills.Skill
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.*
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.skill.*
+import kinuvo.protocol.tool.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 

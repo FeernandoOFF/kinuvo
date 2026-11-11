@@ -1,7 +1,7 @@
 package kinuvo.server
 
 import kinuvo.protocol.*
-
+import kinuvo.protocol.knowledge.*
 /** Knowledge notes, changes and settings. */
 internal class KnowledgeRequests(private val harness: HarnessRuntime) {
     suspend fun handle(r: Frame.Request): Frame.Response? = when (r.method) {

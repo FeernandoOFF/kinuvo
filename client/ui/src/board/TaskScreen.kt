@@ -20,7 +20,9 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.session.*
 import kinuvo.ui.design.*
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn

@@ -10,6 +10,12 @@ import kinuvo.app.navigation.*
 import androidx.lifecycle.ViewModelStore
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.reflection.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first

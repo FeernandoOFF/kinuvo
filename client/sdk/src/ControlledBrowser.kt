@@ -1,6 +1,7 @@
 package kinuvo.client
 
 import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
 import kotlinx.coroutines.*
 
 /** Typed transport for the Server-owned Browser. Input calls are never retried. */

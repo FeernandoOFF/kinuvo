@@ -22,7 +22,7 @@ final class NotificationService: UNNotificationServiceExtension {
     }
 }
 
-/// What a pushed Notification decrypts to; `kinuvo.protocol.PushMessage`.
+/// What a pushed Notification decrypts to; `kinuvo.protocol.push.PushMessage`.
 private struct PushMessage: Decodable {
     let title: String
     let body: String

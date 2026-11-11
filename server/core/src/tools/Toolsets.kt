@@ -1,6 +1,6 @@
 package kinuvo.server.tools
 
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.CoreToolRegistry
 
 data class Toolset(val name: String, val tools: Set<String> = emptySet(), val includes: Set<String> = emptySet())

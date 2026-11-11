@@ -5,7 +5,8 @@ import kinuvo.harness.AgentConfig
 import kinuvo.server.plugin.McpManagement
 import kinuvo.server.plugin.SecretResolver
 import kinuvo.server.plugin.PluginStorage
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.mcp.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 

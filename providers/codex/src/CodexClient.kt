@@ -1,6 +1,6 @@
 package kinuvo.providers.codex
 
-import kinuvo.protocol.Usage
+import kinuvo.protocol.usage.Usage
 import kinuvo.harness.builtin.llModel
 
 import ai.koog.http.client.KoogHttpClient
@@ -41,7 +41,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.model.ModelInfo
 
 const val CODEX_BASE_URL = "https://chatgpt.com/backend-api/codex/"
 

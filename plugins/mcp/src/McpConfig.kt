@@ -2,7 +2,7 @@ package kinuvo.plugins.mcp
 
 import kinuvo.server.plugin.SecretReferences
 import kinuvo.server.plugin.SecretResolver
-import kinuvo.protocol.McpOAuthClient
+import kinuvo.protocol.mcp.McpOAuthClient
 import kotlinx.serialization.json.*
 import kinuvo.server.plugin.readTextOrNull
 import kotlinx.io.files.Path

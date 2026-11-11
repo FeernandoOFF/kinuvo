@@ -1,11 +1,11 @@
 package kinuvo.ui.session
 
 import kinuvo.app.surface.SurfaceImages
-import kinuvo.protocol.McpAppResource
+import kinuvo.protocol.mcp.McpAppResource
 import kotlinx.serialization.json.JsonObject
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.surface.SurfaceAction
 
-import kinuvo.protocol.ScreenRef
+import kinuvo.protocol.screen.ScreenRef
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import org.koin.compose.koinInject
@@ -53,16 +53,16 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import kinuvo.client.ConnectionState
-import kinuvo.protocol.InteractionAnswer
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.AgentSettings
-import kinuvo.protocol.SessionSettings
-import kinuvo.protocol.Usage
-import kinuvo.protocol.ServerFeature
-import kinuvo.protocol.supports
+import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.agent.AgentSettings
+import kinuvo.protocol.session.SessionSettings
+import kinuvo.protocol.usage.Usage
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.capability.supports
 import kinuvo.ui.design.*
-import kinuvo.protocol.UploadAttachmentParams
+import kinuvo.protocol.session.UploadAttachmentParams
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -228,7 +228,7 @@ class ChatActions(
     val onSaveAttachment: (String) -> Unit = {},
     /** Opens an attachment full screen; null closes it. */
     val onPreviewAttachment: (String?) -> Unit = {},
-    val downloads: Map<String, kinuvo.protocol.AttachmentData> = emptyMap(),
+    val downloads: Map<String, kinuvo.protocol.session.AttachmentData> = emptyMap(),
     val onConfigure: (SessionSettings) -> Unit = {},
     val onRefreshModels: () -> Unit = {},
     val onStop: () -> Unit = {},

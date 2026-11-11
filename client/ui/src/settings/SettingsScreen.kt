@@ -27,7 +27,16 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.mcp.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.service.*
 import kinuvo.ui.design.*
 import kinuvo.ui.voice.ServerVoiceSettings
 import kotlinx.coroutines.delay

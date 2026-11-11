@@ -1,14 +1,14 @@
 package kinuvo.harness.builtin
 
 import kinuvo.harness.modelText
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.harness.builtin.tools.RawSchemaToolDescriptor
 import ai.koog.agents.core.tools.ToolDescriptor
 
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kinuvo.protocol.Attachment
+import kinuvo.protocol.session.Attachment
 import kotlinx.serialization.json.Json
 import kinuvo.harness.SCREENSHOT_PREFIX
 

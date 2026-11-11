@@ -2,7 +2,7 @@ package kinuvo.server.jvm
 
 import kinuvo.plugins.mcp.*
 
-import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.session.AgentEvent
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.buildJsonObject

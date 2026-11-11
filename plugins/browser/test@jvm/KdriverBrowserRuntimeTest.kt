@@ -6,7 +6,8 @@ import java.nio.file.Files
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.*
-import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect

@@ -25,9 +25,9 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.http.parameters
 import io.ktor.http.parseQueryString
-import kinuvo.protocol.McpAuthStatus
-import kinuvo.protocol.McpParams
-import kinuvo.protocol.McpRedirect
+import kinuvo.protocol.mcp.McpAuthStatus
+import kinuvo.protocol.mcp.McpParams
+import kinuvo.protocol.mcp.McpRedirect
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

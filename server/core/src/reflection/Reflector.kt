@@ -3,9 +3,9 @@ package kinuvo.server.reflection
 import kinuvo.server.*
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import kinuvo.harness.Agent
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.ReflectionResult
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.reflection.ReflectionResult
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CancellationException

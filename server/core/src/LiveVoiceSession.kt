@@ -6,7 +6,8 @@ import kinuvo.server.plugin.VoiceContext
 import kinuvo.server.plugin.VoiceInput
 import kinuvo.server.plugin.VoiceMessage
 import kinuvo.server.plugin.VoiceOutput
-import kinuvo.protocol.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.voice.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlin.concurrent.Volatile

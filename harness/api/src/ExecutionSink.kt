@@ -1,10 +1,10 @@
 package kinuvo.harness
 
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.surface.SurfaceAction
 
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.AttachmentData
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.session.AttachmentData
+import kinuvo.protocol.session.SessionEntry
 
 /** Ordered SessionLog boundary. Commit appends an identity-reconciled batch; it never upserts saved entries. */
 interface ExecutionSink {

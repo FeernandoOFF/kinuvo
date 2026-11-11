@@ -10,6 +10,8 @@ import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.models.voiceEngine
 import kinuvo.protocol.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.voice.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

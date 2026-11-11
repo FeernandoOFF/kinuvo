@@ -19,7 +19,7 @@ class InstructionsTest {
         val session = home.store.createSession(home.agent.id, initial)
         home.docs.write(home.agent.id, AgentDoc.Memory, "Updated lesson")
         assertEquals(initial, instructionsFor(home.agent.copy(config = home.agent.config.copy(tools = emptyList())), home.docs))
-        assertEquals(initial, home.store.entries(home.agent.id, session.id).filterIsInstance<kinuvo.protocol.SessionEntry.Started>().single().instructions)
+        assertEquals(initial, home.store.entries(home.agent.id, session.id).filterIsInstance<kinuvo.protocol.session.SessionEntry.Started>().single().instructions)
         assertTrue(initial.indexOf("## How to work") < initial.indexOf("## Soul"))
         assertTrue("Speak in a calm, measured tone." in initial)
         assertEquals("Speak in a calm, measured tone.", home.docs.read(home.agent.id, AgentDoc.Soul))

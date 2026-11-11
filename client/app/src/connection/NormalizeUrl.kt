@@ -1,7 +1,6 @@
 package kinuvo.app.connection
 
 import kinuvo.protocol.*
-
 /** `host[:port]` or a full URL → `ws://host:port/ws`; plain http to a public host only with [allowCleartext]. */
 fun normalizeUrl(input: String, allowCleartext: Boolean = false): String {
     val text = input.trim().removeSuffix("/")

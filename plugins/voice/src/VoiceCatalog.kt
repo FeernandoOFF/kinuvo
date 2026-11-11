@@ -1,7 +1,6 @@
 package kinuvo.plugins.voice
 
-import kinuvo.protocol.*
-
+import kinuvo.protocol.voice.*
 val serverVoiceModels = listOf(
     whisper("tiny", "Tiny · smallest", "65176e2deb88badc814a94058666cadccc29b61c", 12937772, "d24fb083ae3b1041fc24e97971d60e280c9342201fbb67b0ab428a8b4a51a434", 89855401, "d2fece8dd42771f1df975c6c0445770d0c292bf7547c2cae04a6c0cc57540925"),
     whisper("base", "Base · larger", "bb53ee204431c90d314c1cc08d28d23e5b7927cc", 29120534, "0b8fb1304b6109976038efff5ace81720e00386f3ff6b54ee8c75291ca0a1e11", 130672026, "9759d217388a01b3a4c7c15533201067b48ae819c4daafc8624e64b9409dc02d"),

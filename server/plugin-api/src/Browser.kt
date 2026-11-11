@@ -1,7 +1,6 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.*
-
+import kinuvo.protocol.browser.*
 /** Server-owned browsing, separate from paired Computers. Implementations never expose a debugging endpoint. */
 interface BrowserService {
     suspend fun presentation(owner: BrowserOwner): BrowserPresentation = error("Browser window settings unavailable")

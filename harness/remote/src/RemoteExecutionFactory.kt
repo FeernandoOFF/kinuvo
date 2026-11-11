@@ -4,6 +4,9 @@ import kinuvo.harness.*
 import kinuvo.client.KinuvoClient
 import kinuvo.client.ConnectionState
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.sync.Mutex

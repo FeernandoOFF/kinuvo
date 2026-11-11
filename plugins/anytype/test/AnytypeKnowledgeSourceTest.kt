@@ -9,7 +9,7 @@ import io.ktor.http.*
 import io.ktor.http.content.TextContent
 import kinuvo.server.plugin.BodyEdit
 import kinuvo.server.plugin.NoteEdit
-import kinuvo.protocol.MAX_ATTACHMENT_BYTES
+import kinuvo.protocol.session.MAX_ATTACHMENT_BYTES
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*

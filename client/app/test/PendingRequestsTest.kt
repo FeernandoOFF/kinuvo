@@ -1,7 +1,9 @@
 package kinuvo.app
 
 import kinuvo.app.session.*
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.session.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs

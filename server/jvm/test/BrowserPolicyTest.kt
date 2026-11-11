@@ -8,7 +8,8 @@ import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.instance
 import kinuvo.server.plugin.ownedBy
 import kinuvo.server.plugin.policyKey
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.test.*

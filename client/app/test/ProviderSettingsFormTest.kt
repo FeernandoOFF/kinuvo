@@ -1,7 +1,9 @@
 package kinuvo.app.agent
 
 import kinuvo.app.settings.*
-import kinuvo.protocol.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.settings.*
 import kotlin.test.*
 
 class ProviderSettingsFormTest {

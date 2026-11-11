@@ -4,8 +4,8 @@ import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.optional
 import kinuvo.protocol.Api
-import kinuvo.protocol.ServiceKind
-import kinuvo.protocol.TestServiceParams
+import kinuvo.protocol.service.ServiceKind
+import kinuvo.protocol.service.TestServiceParams
 
 internal class NotifyCommand : ServerCommand("notify", "Send a test notification with the Server's notification settings (Settings → Notifications).") {
     private val message by argument("MESSAGE").optional()

@@ -2,8 +2,8 @@ package kinuvo.plugins.bitwarden
 
 import kinuvo.server.plugin.CliSecretProvider
 import kinuvo.server.plugin.Keychain
-import kinuvo.protocol.SecretEntry
-import kinuvo.protocol.secretPath
+import kinuvo.protocol.secret.SecretEntry
+import kinuvo.protocol.secret.secretPath
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement

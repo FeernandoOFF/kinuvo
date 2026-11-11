@@ -7,7 +7,10 @@ import kinuvo.app.device.DeviceReader
 import kinuvo.client.KinuvoClient
 import kinuvo.app.onboarding.*
 
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.service.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

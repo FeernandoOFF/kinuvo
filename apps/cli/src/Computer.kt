@@ -4,7 +4,7 @@ import com.github.ajalt.clikt.core.CliktError
 import kinuvo.client.KinuvoClient
 import kinuvo.plugins.cua.DesktopComputer
 import kinuvo.server.jvm.HarnessServer
-import kinuvo.protocol.DeviceToolKind
+import kinuvo.protocol.device.DeviceToolKind
 import kotlinx.coroutines.withTimeout
 
 /** Offers the CLI's desktop as a Device through the same protocol as the desktop app. */

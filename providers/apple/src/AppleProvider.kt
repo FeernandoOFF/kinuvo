@@ -9,10 +9,10 @@ import kinuvo.harness.builtin.*
 import kinuvo.harness.ToolSpec
 import kinuvo.harness.builtin.tools.simplified
 import kinuvo.harness.builtin.tools.toDescriptor
-import kinuvo.protocol.CapabilityState
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.ExecutionLocation
-import kinuvo.protocol.ModelTier
+import kinuvo.protocol.capability.CapabilityState
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.capability.ExecutionLocation
+import kinuvo.protocol.model.ModelTier
 import kinuvo.protocol.ProtocolJson
 import ai.koog.prompt.Prompt
 import ai.koog.prompt.dsl.ModerationResult
@@ -42,7 +42,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.uuid.Uuid
-import kinuvo.protocol.PluginDefinition
+import kinuvo.protocol.plugin.PluginDefinition
 import kinuvo.harness.ModelProfile
 import kinuvo.harness.SchemaLevel
 

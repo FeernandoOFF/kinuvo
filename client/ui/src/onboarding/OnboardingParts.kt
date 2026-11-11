@@ -38,7 +38,6 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.LocalTextStyle
-import kinuvo.protocol.*
 import kinuvo.ui.design.*
 import kotlin.math.PI
 import kotlin.math.sin

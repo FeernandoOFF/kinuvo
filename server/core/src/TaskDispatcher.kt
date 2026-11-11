@@ -4,9 +4,9 @@ import io.github.oshai.kotlinlogging.KotlinLogging
 import co.touchlab.stately.collections.ConcurrentMutableSet
 import kinuvo.harness.ExecutionInput
 import kinuvo.harness.RunKind
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.TaskInfo
-import kinuvo.protocol.taskPrompt
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.board.TaskInfo
+import kinuvo.protocol.session.taskPrompt
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable

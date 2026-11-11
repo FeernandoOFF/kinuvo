@@ -2,7 +2,12 @@ package kinuvo.app
 
 import kinuvo.app.agent.*
 import kinuvo.app.session.*
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.session.*
 import kotlinx.serialization.json.*
 import kotlin.test.*
 

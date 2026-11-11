@@ -1,7 +1,7 @@
 package kinuvo.app.connection
 
-import kinuvo.protocol.RoutineRef
-import kinuvo.protocol.TaskInfo
+import kinuvo.protocol.routine.RoutineRef
+import kinuvo.protocol.board.TaskInfo
 
 /** Something worth telling the user about, even when they're looking elsewhere. */
 sealed interface Notice {

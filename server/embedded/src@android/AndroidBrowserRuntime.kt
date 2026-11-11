@@ -24,7 +24,8 @@ import kinuvo.plugins.browser.browserDeadline
 import kinuvo.server.plugin.BrowserService
 import kinuvo.server.plugin.ScreenGate
 import kinuvo.server.plugin.ScreenSource
-import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*

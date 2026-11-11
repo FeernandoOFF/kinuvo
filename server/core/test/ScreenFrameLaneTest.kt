@@ -1,7 +1,7 @@
 package kinuvo.server
 
 import kinuvo.server.screens.*
-import kinuvo.protocol.*
+import kinuvo.protocol.screen.*
 import kotlin.test.*
 
 class ScreenFrameLaneTest {

@@ -29,7 +29,7 @@ import com.composeunstyled.theme.Theme
 import kinuvo.ui.design.*
 import kinuvo.app.session.ChatItem
 import kinuvo.app.surface.AppHost
-import kinuvo.protocol.McpAppResource
+import kinuvo.protocol.mcp.McpAppResource
 import kotlinx.serialization.json.*
 
 internal class HtmlBridge(val receive: (String) -> List<String>) {

@@ -2,7 +2,7 @@ package kinuvo.ui
 
 import kinuvo.app.connection.*
 
-import kinuvo.protocol.PushSubscription
+import kinuvo.protocol.push.PushSubscription
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 

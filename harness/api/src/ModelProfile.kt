@@ -1,8 +1,8 @@
 package kinuvo.harness
 
-import kinuvo.protocol.ToolGroup
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.ModelTier
+import kinuvo.protocol.tool.ToolGroup
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.model.ModelTier
 
 enum class PromptStyle {
     /** The small context from [basicContextFor]. */

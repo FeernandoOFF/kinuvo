@@ -9,7 +9,9 @@ import ai.koog.prompt.llm.LLMProvider
 import kinuvo.harness.builtin.*
 import kinuvo.models.ModelFiles
 import kinuvo.models.gigabytes
-import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update

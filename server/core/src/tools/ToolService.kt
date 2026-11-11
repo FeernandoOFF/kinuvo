@@ -13,12 +13,12 @@ import kinuvo.harness.ToolGate
 import kinuvo.harness.ToolProvider
 import kinuvo.harness.ToolReports
 import kinuvo.harness.ToolTurn
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.PendingInteraction
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json

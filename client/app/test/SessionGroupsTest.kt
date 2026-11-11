@@ -1,7 +1,8 @@
 package kinuvo.app
 
 import kinuvo.app.session.*
-import kinuvo.protocol.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.*
 import kotlin.test.*
 
 class SessionGroupsTest {

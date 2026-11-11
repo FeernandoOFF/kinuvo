@@ -1,7 +1,9 @@
 package kinuvo.server
 
 import kinuvo.server.plugin.Notification
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*

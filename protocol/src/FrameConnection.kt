@@ -9,4 +9,3 @@ interface FrameConnection {
     suspend fun send(frame: Frame)
     suspend fun close()
 }
-

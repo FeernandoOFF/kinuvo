@@ -11,9 +11,9 @@ import kinuvo.providers.codex.CodexProvider
 import kinuvo.server.store.knowledgeConfig
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.Api
-import kinuvo.protocol.KnowledgeChangeRef
-import kinuvo.protocol.KnowledgeChangesParams
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.knowledge.KnowledgeChangeRef
+import kinuvo.protocol.knowledge.KnowledgeChangesParams
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
@@ -52,9 +52,9 @@ class ReflectorTest {
 
     @Test
     fun knowledgeSettingsKeepKeysPrivate() {
-        val s = kinuvo.protocol.KnowledgeSettings(provider = "anytype", options = mapOf("apiKey" to "secret-key", "space" to "space-1"))
+        val s = kinuvo.protocol.knowledge.KnowledgeSettings(provider = "anytype", options = mapOf("apiKey" to "secret-key", "space" to "space-1"))
         val saved = harness.saveKnowledgeSettings(s)
-        assertEquals(kinuvo.protocol.KnowledgeSettings.SECRET, saved.settings.options["apiKey"])
+        assertEquals(kinuvo.protocol.knowledge.KnowledgeSettings.SECRET, saved.settings.options["apiKey"])
         assertEquals("space-1", saved.settings.options["space"])
         harness.saveKnowledgeSettings(saved.settings.copy(options = saved.settings.options + ("space" to "space-2")))
         val yaml = File(home, "config.yaml").readText()
@@ -66,9 +66,9 @@ class ReflectorTest {
     @Test
     fun testsKnowledgeSettingsWithoutSavingThem() = runBlocking {
         val folder = File(home, "vault").path
-        val ok = harness.testKnowledge(kinuvo.protocol.KnowledgeSettings(folder))
+        val ok = harness.testKnowledge(kinuvo.protocol.knowledge.KnowledgeSettings(folder))
         assertTrue(ok.error == null && "types" in ok.summary!!, "$ok")
-        val bad = harness.testKnowledge(kinuvo.protocol.KnowledgeSettings(provider = "anytype", options = mapOf("space" to "s")))
+        val bad = harness.testKnowledge(kinuvo.protocol.knowledge.KnowledgeSettings(provider = "anytype", options = mapOf("space" to "s")))
         assertTrue("API key" in bad.error!!, "$bad")
         assertEquals(null, harness.files.knowledgeConfig().path)
     }
@@ -76,7 +76,7 @@ class ReflectorTest {
     @Test
     fun knowledgeSettingsShowSecretReferences() {
         val reference = "\${pass://Kinuvo/Anytype/api key}"
-        val s = kinuvo.protocol.KnowledgeSettings(provider = "anytype", options = mapOf("apiKey" to reference, "space" to "space-1"))
+        val s = kinuvo.protocol.knowledge.KnowledgeSettings(provider = "anytype", options = mapOf("apiKey" to reference, "space" to "space-1"))
         assertEquals(reference, harness.saveKnowledgeSettings(s).settings.options["apiKey"])
     }
 
@@ -85,12 +85,12 @@ class ReflectorTest {
         val agent = harness.store.agents().single()
         val session = harness.newSession(agent)
         val conventions = "People are person notes.\nAdd dated facts under ## Timeline."
-        val saved = harness.saveKnowledgeSettings(kinuvo.protocol.KnowledgeSettings(conventions = mapOf("markdown" to conventions, "anytype" to "Humans are profile.")))
+        val saved = harness.saveKnowledgeSettings(kinuvo.protocol.knowledge.KnowledgeSettings(conventions = mapOf("markdown" to conventions, "anytype" to "Humans are profile.")))
         assertEquals(conventions, saved.settings.conventions["markdown"])
         assertEquals(conventions + "\n", File(home, "conventions/markdown.md").readText())
         assertTrue(conventions !in harness.store.entries(agent.id, harness.newSession(agent).id).filterIsInstance<SessionEntry.Started>().single().instructions)
         harness.reflect(agent, "s1", listOf(SessionEntry.UserMessage("My sister Ana is visiting")))
-        assertTrue(instructionsSeen.any { it.startsWith(kinuvo.protocol.DEFAULT_REFLECTION_PROMPT) && conventions in it && "Humans are profile." !in it })
+        assertTrue(instructionsSeen.any { it.startsWith(kinuvo.protocol.reflection.DEFAULT_REFLECTION_PROMPT) && conventions in it && "Humans are profile." !in it })
         harness.runner(agent, session.id).run(session.id, "Hello").collect {}
         assertTrue(conventions !in toolDescriptions.last())
         assertTrue(harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Context>().any { conventions in it.content })
@@ -115,11 +115,11 @@ class ReflectorTest {
         assertTrue("Today is " in instructions)
         assertTrue(instructionsSeen.any { "person" in it })
 
-        val reset = harness.saveKnowledgeSettings(settings.copy(reflectionPrompt = kinuvo.protocol.DEFAULT_REFLECTION_PROMPT))
+        val reset = harness.saveKnowledgeSettings(settings.copy(reflectionPrompt = kinuvo.protocol.reflection.DEFAULT_REFLECTION_PROMPT))
         assertEquals(null, reset.settings.reflectionPrompt)
         assertEquals(null, harness.files.knowledgeConfig().reflectionPrompt)
         harness.reflect(agent, "s2", listOf(SessionEntry.UserMessage("My sister Ana is visiting")))
-        assertTrue(instructionsSeen.last().startsWith(kinuvo.protocol.DEFAULT_REFLECTION_PROMPT))
+        assertTrue(instructionsSeen.last().startsWith(kinuvo.protocol.reflection.DEFAULT_REFLECTION_PROMPT))
         assertEquals(null, harness.saveKnowledgeSettings(settings.copy(reflectionPrompt = "  ")).settings.reflectionPrompt)
     }
 
@@ -147,7 +147,7 @@ class ReflectorTest {
         harness.runner(agent, session.id).run(session.id, "My sister Ana is visiting").collect {}
         var delivered = false
         harness.log.subscribe(agent.id, session.id, null, 100, SessionLog.Subscriber { update ->
-            val change = update.change as? kinuvo.protocol.SessionChange.Entry
+            val change = update.change as? kinuvo.protocol.session.SessionChange.Entry
             if (change?.entry is SessionEntry.Reflection) {
                 assertTrue(!File(home, "reflections.json").exists())
                 delivered = true
@@ -171,9 +171,9 @@ class ReflectorTest {
                 client.connect()
                 harness.knowledge.create("person", "Sam")
                 val change = client.call(Api.KnowledgeChanges, KnowledgeChangesParams()).single()
-                assertEquals("People/Sam", client.call(Api.KnowledgeNote, kinuvo.protocol.NoteRef("sam")).ref)
+                assertEquals("People/Sam", client.call(Api.KnowledgeNote, kinuvo.protocol.knowledge.NoteRef("sam")).ref)
                 assertTrue(client.call(Api.UndoKnowledgeChange, KnowledgeChangeRef(change.id)).undone)
-                assertTrue(client.call(Api.KnowledgeSearch, kinuvo.protocol.KnowledgeSearchParams("Sam")).isEmpty())
+                assertTrue(client.call(Api.KnowledgeSearch, kinuvo.protocol.knowledge.KnowledgeSearchParams("Sam")).isEmpty())
                 client.close()
             }
         } finally {
@@ -184,21 +184,21 @@ class ReflectorTest {
     @Test
     fun settingsAreValidatedAndApplied() = runBlocking {
         val folder = File(home, "vault/Kinuvo").path
-        assertEquals(folder, harness.saveKnowledgeSettings(kinuvo.protocol.KnowledgeSettings(folder, reflection = false)).folder)
+        assertEquals(folder, harness.saveKnowledgeSettings(kinuvo.protocol.knowledge.KnowledgeSettings(folder, reflection = false)).folder)
         harness.knowledge.create("person", "Sam")
         assertTrue(File(folder, "People/Sam.md").isFile)
         assertTrue(!harness.reflects(harness.store.agents().single()))
-        assertTrue(runCatching { harness.saveKnowledgeSettings(kinuvo.protocol.KnowledgeSettings("relative/dir")) }.isFailure)
+        assertTrue(runCatching { harness.saveKnowledgeSettings(kinuvo.protocol.knowledge.KnowledgeSettings("relative/dir")) }.isFailure)
         val before = harness.knowledgeSetup()
-        assertTrue(runCatching { harness.saveKnowledgeSettings(kinuvo.protocol.KnowledgeSettings(conventions = mapOf("unknown" to "Text"))) }.isFailure)
+        assertTrue(runCatching { harness.saveKnowledgeSettings(kinuvo.protocol.knowledge.KnowledgeSettings(conventions = mapOf("unknown" to "Text"))) }.isFailure)
         assertEquals(before, harness.knowledgeSetup())
 
-        val saved = harness.saveTasksSettings(kinuvo.protocol.TasksSettings(lists = mapOf("Inbox" to "default"), startBeforeDays = 7))
+        val saved = harness.saveTasksSettings(kinuvo.protocol.board.TasksSettings(lists = mapOf("Inbox" to "default"), startBeforeDays = 7))
         assertEquals(7, saved.settings.startBeforeDays)
         assertEquals("default", harness.tasks.lists().single().agentId)
-        assertTrue(runCatching { harness.saveTasksSettings(kinuvo.protocol.TasksSettings(provider = "todoist")) }.isFailure)
-        assertTrue(runCatching { harness.saveTasksSettings(kinuvo.protocol.TasksSettings(lists = mapOf("Inbox" to "ghost"))) }.isFailure)
-        harness.saveTasksSettings(kinuvo.protocol.TasksSettings(lists = mapOf("Inbox" to "")))
+        assertTrue(runCatching { harness.saveTasksSettings(kinuvo.protocol.board.TasksSettings(provider = "todoist")) }.isFailure)
+        assertTrue(runCatching { harness.saveTasksSettings(kinuvo.protocol.board.TasksSettings(lists = mapOf("Inbox" to "ghost"))) }.isFailure)
+        harness.saveTasksSettings(kinuvo.protocol.board.TasksSettings(lists = mapOf("Inbox" to "")))
         assertEquals(null, harness.tasks.lists().single().agentId)
     }
 }

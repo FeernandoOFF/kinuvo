@@ -1,6 +1,11 @@
 package kinuvo.client
 
 import kinuvo.protocol.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.surface.*
+import kinuvo.protocol.voice.*
 import kotlin.concurrent.Volatile
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets

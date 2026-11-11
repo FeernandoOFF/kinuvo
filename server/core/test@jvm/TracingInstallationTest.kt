@@ -7,7 +7,7 @@ import kinuvo.server.plugin.readText
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.server.store.*
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.session.AgentEvent
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking

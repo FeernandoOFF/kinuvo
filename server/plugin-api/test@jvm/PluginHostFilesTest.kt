@@ -3,7 +3,7 @@ package kinuvo.server.plugin
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
-import kinuvo.protocol.*
+import kinuvo.protocol.plugin.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import java.nio.file.Files

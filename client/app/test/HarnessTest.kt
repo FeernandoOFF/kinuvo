@@ -4,7 +4,9 @@ import kinuvo.app.agent.*
 import kinuvo.app.onboarding.*
 import kinuvo.app.session.*
 
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
 import kotlinx.serialization.json.*
 import kotlin.test.Test
 import kotlin.test.assertEquals

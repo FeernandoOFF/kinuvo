@@ -1,7 +1,7 @@
 package kinuvo.app
 
 import kinuvo.app.artifacts.*
-import kinuvo.protocol.ArtifactInfo
+import kinuvo.protocol.artifact.ArtifactInfo
 import kotlin.test.*
 
 class ArtifactKindTest {

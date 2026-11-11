@@ -1,7 +1,9 @@
 package kinuvo.protocol
 
-import kotlinx.serialization.SerializationException
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.connection.ConnectParams
 import kotlin.test.*
+import kotlinx.serialization.SerializationException
 
 class ProtocolVersionTest {
     @Test fun browserRequiresExplicitMatchingProtocol() {

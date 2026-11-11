@@ -1,7 +1,7 @@
 package kinuvo.plugins.onepassword
 
 import kinuvo.server.plugin.Keychain
-import kinuvo.protocol.SecretEntry
+import kinuvo.protocol.secret.SecretEntry
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import java.nio.file.Files

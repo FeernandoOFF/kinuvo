@@ -6,6 +6,7 @@ import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.client.userMessage
 import kinuvo.protocol.*
+import kinuvo.protocol.voice.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*

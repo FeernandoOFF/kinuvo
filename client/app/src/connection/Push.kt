@@ -3,10 +3,10 @@ package kinuvo.app.connection
 import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.Api
-import kinuvo.protocol.PushParams
-import kinuvo.protocol.PushSubscription
-import kinuvo.protocol.ServerFeature
-import kinuvo.protocol.supports
+import kinuvo.protocol.push.PushParams
+import kinuvo.protocol.push.PushSubscription
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.capability.supports
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.StateFlow

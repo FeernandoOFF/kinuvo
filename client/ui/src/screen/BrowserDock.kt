@@ -17,7 +17,7 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.VerticalSeparator
 import kinuvo.app.navigation.Route
 import kinuvo.app.screen.LiveViewModel
-import kinuvo.protocol.ScreenRef
+import kinuvo.protocol.screen.ScreenRef
 import kinuvo.ui.navigation.PageAction
 import kinuvo.ui.session.BrowserDock
 import org.koin.compose.viewmodel.koinViewModel

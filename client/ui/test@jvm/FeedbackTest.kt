@@ -20,7 +20,7 @@ import com.composables.icons.lucide.CircleX
 import com.composables.icons.lucide.Lucide
 import com.composables.ui.theme.backgroundColor
 import kinuvo.app.onboarding.OnboardingState
-import kinuvo.protocol.DeviceCode
+import kinuvo.protocol.model.DeviceCode
 import kinuvo.ui.onboarding.ModelStep
 import kinuvo.ui.design.*
 import org.jetbrains.skia.EncodedImageFormat

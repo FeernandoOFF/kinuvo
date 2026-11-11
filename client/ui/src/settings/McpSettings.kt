@@ -18,13 +18,13 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.ConfigScope
-import kinuvo.protocol.McpAuthStatus
-import kinuvo.protocol.McpOAuthClient
-import kinuvo.protocol.McpServerInfo
-import kinuvo.protocol.Integration
-import kinuvo.protocol.IntegrationOptions
-import kinuvo.protocol.offers
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.mcp.McpAuthStatus
+import kinuvo.protocol.mcp.McpOAuthClient
+import kinuvo.protocol.mcp.McpServerInfo
+import kinuvo.protocol.capability.Integration
+import kinuvo.protocol.capability.IntegrationOptions
+import kinuvo.protocol.capability.offers
 import kinuvo.ui.design.*
 import androidx.compose.ui.platform.LocalUriHandler
 

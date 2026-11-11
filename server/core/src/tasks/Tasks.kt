@@ -7,9 +7,9 @@ import kinuvo.server.plugin.TaskProvider
 import kinuvo.server.plugin.NoPluginHost
 import kinuvo.server.plugin.PluginHost
 import kinuvo.server.update
-import kinuvo.protocol.TaskInfo
-import kinuvo.protocol.TaskListInfo
-import kinuvo.protocol.TaskStatus
+import kinuvo.protocol.board.TaskInfo
+import kinuvo.protocol.board.TaskListInfo
+import kinuvo.protocol.board.TaskStatus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.DateTimeUnit

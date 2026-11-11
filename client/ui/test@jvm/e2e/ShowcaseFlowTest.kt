@@ -7,8 +7,8 @@ import kinuvo.testing.server.FakeTools
 import kinuvo.testing.server.computer
 import kinuvo.testing.server.showcase
 import kinuvo.protocol.Api
-import kinuvo.protocol.BrowserTab
-import kinuvo.protocol.Risk
+import kinuvo.protocol.browser.BrowserTab
+import kinuvo.protocol.approval.Risk
 import kotlinx.coroutines.awaitCancellation
 import kotlin.test.Test
 

@@ -5,6 +5,7 @@ import kinuvo.server.plugin.AudioFormat
 import kinuvo.server.voice.MAX_RECORDING_BYTES
 import kinuvo.server.plugin.VoiceProviders
 import kinuvo.protocol.*
+import kinuvo.protocol.voice.*
 import kotlin.io.encoding.Base64
 
 /** Speech through the models the Server downloaded and runs itself, else its configured OpenAI-compatible providers. */

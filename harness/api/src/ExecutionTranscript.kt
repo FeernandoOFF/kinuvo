@@ -1,6 +1,8 @@
 package kinuvo.harness
 
 import kinuvo.protocol.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.serialization.json.*
 
 fun toolEntries(message: ExecutionMessage): List<SessionEntry> {

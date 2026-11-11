@@ -2,6 +2,7 @@ package kinuvo.app.surface
 
 import kinuvo.app.connection.ConnectedServer
 import kinuvo.protocol.*
+import kinuvo.protocol.mcp.*
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.serialization.json.JsonObject

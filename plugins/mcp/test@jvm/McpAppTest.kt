@@ -2,7 +2,7 @@ package kinuvo.plugins.mcp
 
 import kinuvo.harness.ToolSpec
 import kinuvo.server.plugin.ToolRun
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.*

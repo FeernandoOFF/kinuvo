@@ -8,7 +8,11 @@ import kinuvo.harness.RunKind
 import kinuvo.harness.ToolReports
 import kinuvo.server.HarnessRuntime
 import kinuvo.server.Runs
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.surface.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

@@ -1,6 +1,6 @@
 package kinuvo.harness
 
-import kinuvo.protocol.InteractionAnswer
+import kinuvo.protocol.approval.InteractionAnswer
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull

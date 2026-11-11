@@ -5,7 +5,10 @@ import kinuvo.server.plugin.Notification
 import kinuvo.server.plugin.NotificationProvider
 import kinuvo.server.plugin.Notifier
 import kinuvo.server.plugin.PluginHost
-import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.settings.*
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.put

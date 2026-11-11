@@ -6,9 +6,9 @@ import kinuvo.server.plugin.readText
 import kinuvo.server.store.saveKnowledgeConfig
 import kinuvo.server.store.saveServiceConfig
 import kinuvo.server.store.updateConfig
-import kinuvo.protocol.ServiceKind
-import kinuvo.protocol.ServiceSettings
-import kinuvo.protocol.TrustRules
+import kinuvo.protocol.service.ServiceKind
+import kinuvo.protocol.service.ServiceSettings
+import kinuvo.protocol.approval.TrustRules
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals

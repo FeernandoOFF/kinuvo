@@ -5,10 +5,10 @@ import kinuvo.server.plugin.KnowledgeSource
 import kinuvo.server.plugin.NoteEdit
 import kinuvo.server.plugin.NoteFile
 import kinuvo.server.update
-import kinuvo.protocol.KnowledgeChange
-import kinuvo.protocol.KnowledgeSchema
-import kinuvo.protocol.Note
-import kinuvo.protocol.NoteSummary
+import kinuvo.protocol.knowledge.KnowledgeChange
+import kinuvo.protocol.knowledge.KnowledgeSchema
+import kinuvo.protocol.knowledge.Note
+import kinuvo.protocol.knowledge.NoteSummary
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.io.files.Path
 import kotlinx.coroutines.sync.withLock

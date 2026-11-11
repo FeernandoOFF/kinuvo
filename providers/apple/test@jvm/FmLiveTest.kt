@@ -4,7 +4,7 @@ import ai.koog.prompt.streaming.StreamFrame
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kinuvo.harness.AgentConfig
 import kinuvo.testing.harness.request
 import kotlinx.coroutines.Dispatchers

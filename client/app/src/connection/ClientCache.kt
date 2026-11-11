@@ -4,6 +4,11 @@ import kinuvo.app.session.*
 
 import io.github.xxfast.kstore.KStore
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.*
 import kotlinx.serialization.Serializable
 
 /** A Session's saved entries, from seq [firstSeq]; its live turn isn't kept. */

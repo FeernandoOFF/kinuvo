@@ -16,7 +16,9 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
 import kinuvo.ui.design.*
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject

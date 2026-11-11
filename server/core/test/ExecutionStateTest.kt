@@ -2,7 +2,9 @@ package kinuvo.server
 
 import kinuvo.harness.*
 import kinuvo.server.execution.*
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest

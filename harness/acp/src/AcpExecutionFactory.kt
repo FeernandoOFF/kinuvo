@@ -5,6 +5,9 @@ import com.agentclientprotocol.client.v2.*
 import com.agentclientprotocol.model.v2.*
 import kinuvo.harness.*
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import kotlin.uuid.Uuid

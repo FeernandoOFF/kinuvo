@@ -1,7 +1,7 @@
 package kinuvo.server.store
 
-import kinuvo.protocol.withWrittenAt
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.withWrittenAt
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals

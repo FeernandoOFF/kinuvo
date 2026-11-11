@@ -5,7 +5,7 @@ import ai.koog.prompt.llm.LLModel
 import ai.koog.prompt.params.LLMParams
 import ai.koog.prompt.Prompt
 import ai.koog.agents.core.tools.ToolDescriptor
-import kinuvo.protocol.Attachment
+import kinuvo.protocol.session.Attachment
 
 /** A provider's executor and the native model and parameters for an Agent's requests. */
 data class AgentModel(

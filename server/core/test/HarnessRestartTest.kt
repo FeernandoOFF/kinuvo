@@ -5,7 +5,8 @@ import kinuvo.testing.harness.awaitCondition
 import kinuvo.server.devices.*
 import kinuvo.harness.*
 import kinuvo.server.execution.ExecutionRegistry
-import kinuvo.protocol.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

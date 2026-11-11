@@ -17,9 +17,9 @@ import com.composables.icons.lucide.MessageCircleQuestionMark
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.Question
-import kinuvo.protocol.QuestionKind
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.approval.Question
+import kinuvo.protocol.approval.QuestionKind
 import kinuvo.ui.design.*
 
 /** [skip] names the button that answers null. */

@@ -5,7 +5,10 @@ import kinuvo.app.connection.*
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

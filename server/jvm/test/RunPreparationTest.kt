@@ -26,7 +26,11 @@ import kinuvo.plugins.executor.ExecutorPlugin
 import kinuvo.plugins.mcp.McpServerConfig
 import kinuvo.plugins.mcp.McpTool
 import kinuvo.plugins.mcp.McpPlugin
-import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.secret.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking

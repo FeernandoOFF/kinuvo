@@ -7,6 +7,8 @@ import kinuvo.server.plugin.writeAtomically
 import kinuvo.server.store.*
 import kinuvo.server.execution.*
 import kinuvo.protocol.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path

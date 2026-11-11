@@ -10,9 +10,9 @@ import kinuvo.harness.ExecutionFactory
 import kinuvo.harness.ExecutionInput
 import kinuvo.harness.ExecutionSession
 import kinuvo.harness.ExecutionState
-import kinuvo.protocol.AgentRegistration
-import kinuvo.protocol.HarnessConnection
-import kinuvo.protocol.TaskStatus
+import kinuvo.protocol.execution.AgentRegistration
+import kinuvo.protocol.execution.HarnessConnection
+import kinuvo.protocol.board.TaskStatus
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.CoroutineScope

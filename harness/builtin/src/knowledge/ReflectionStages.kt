@@ -18,8 +18,8 @@ import kinuvo.harness.builtin.tools.toDescriptor
 import kinuvo.harness.ReflectionTurn
 import kinuvo.harness.ToolProvider
 import kinuvo.harness.ToolTurn
-import kinuvo.protocol.RequestKind
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.usage.RequestKind
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlin.uuid.Uuid

@@ -5,9 +5,9 @@ import kinuvo.testing.server.FakeBrowser
 import kinuvo.testing.server.FakeBrowserPlugin
 import kinuvo.testing.server.computer
 import kinuvo.protocol.Api
-import kinuvo.protocol.BrowserTab
-import kinuvo.protocol.ComputerActionKind
-import kinuvo.protocol.SendParams
+import kinuvo.protocol.browser.BrowserTab
+import kinuvo.protocol.computer.ComputerActionKind
+import kinuvo.protocol.session.SendParams
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue

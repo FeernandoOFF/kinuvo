@@ -1,6 +1,7 @@
 package kinuvo.server
 
 import kinuvo.protocol.*
+import kinuvo.protocol.board.*
 import kotlinx.datetime.LocalDate
 
 /** Tasks, their lists and their providers' settings. */

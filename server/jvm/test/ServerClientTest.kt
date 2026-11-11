@@ -12,17 +12,25 @@ import kinuvo.testing.harness.*
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.AuthException
 import kinuvo.client.KinuvoClient
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.ApprovalDecision
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.approval.ApprovalDecision
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.plugin.exists
 import kinuvo.server.store.FileStore
 import kinuvo.server.store.Store
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.providers.codex.CodexProvider
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.mcp.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.skill.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filter
@@ -192,7 +200,7 @@ class ServerClientTest {
                 assertEquals(RoutineApprovals.Auto, updated.approvals)
                 assertEquals(updated, changed.await().routines.single())
 
-                val routine = server.harness.routines.create(server.harness.store.agents().single(), "Greet", "Say hello", kinuvo.protocol.Trigger.Every(60))
+                val routine = server.harness.routines.create(server.harness.store.agents().single(), "Greet", "Say hello", kinuvo.protocol.routine.Trigger.Every(60))
                 val ran = async(start = CoroutineStart.UNDISPATCHED) { client.events(Api.RoutineRan).first() }
                 client.call(Api.RunRoutine, RoutineParams("default", routine.id))
                 val result = ran.await()

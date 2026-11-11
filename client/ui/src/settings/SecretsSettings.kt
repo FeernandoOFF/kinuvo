@@ -20,8 +20,8 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.SecretProviderStatus
-import kinuvo.protocol.secretReference
+import kinuvo.protocol.secret.SecretProviderStatus
+import kinuvo.protocol.secret.secretReference
 import kinuvo.ui.design.*
 
 internal const val REFERENCES = "KEY=value per line; values can use \${VAR} from .env files or a password manager reference such as \${pass://Vault/Item/field}."

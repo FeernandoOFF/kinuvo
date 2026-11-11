@@ -22,9 +22,9 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.ProviderDownloads
-import kinuvo.protocol.ProviderInfo
-import kinuvo.protocol.isReference
+import kinuvo.protocol.model.ProviderDownloads
+import kinuvo.protocol.model.ProviderInfo
+import kinuvo.protocol.secret.isReference
 import kinuvo.ui.design.*
 
 /** The Server's model providers: sign in to the ones that need an account, with a code entered in a browser. */

@@ -33,7 +33,7 @@ import kinuvo.ui.session.ChatActions
 import kinuvo.app.surface.sumSurfaceValues
 import kinuvo.app.surface.surfaceValues
 import kinuvo.app.session.ChatItem
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.surface.SurfaceAction
 import kotlinx.serialization.json.*
 import kinuvo.ui.surface.*
 import org.jetbrains.skia.EncodedImageFormat

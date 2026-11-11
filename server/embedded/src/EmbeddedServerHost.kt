@@ -11,8 +11,11 @@ import kinuvo.server.execution.ExecutionStorage
 import kinuvo.harness.remote.RemoteExecutionFactory
 import kinuvo.server.execution.remoteLinks
 import kinuvo.server.store.*
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.tool.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow

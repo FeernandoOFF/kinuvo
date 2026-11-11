@@ -16,9 +16,9 @@ import kinuvo.server.tools.WebSearchTool
 import kinuvo.server.tools.MemoryTool
 import kinuvo.server.tools.cleanSnippet
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest

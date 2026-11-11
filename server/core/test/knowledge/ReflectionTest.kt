@@ -9,14 +9,14 @@ import kinuvo.harness.AgentDoc
 import kinuvo.server.TestHome
 import kinuvo.server.store.FileKnowledgeChangeLog
 import kinuvo.server.store.MarkdownKnowledgeSource
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.ReflectionResult
-import kinuvo.protocol.ReflectionMemoryChange
-import kinuvo.protocol.ConfigScope
-import kinuvo.protocol.PluginInstanceId
-import kinuvo.protocol.ToolIdentity
-import kinuvo.protocol.RequestKind
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.reflection.ReflectionResult
+import kinuvo.protocol.reflection.ReflectionMemoryChange
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.plugin.ToolIdentity
+import kinuvo.protocol.usage.RequestKind
 import kotlinx.coroutines.flow.flow
 import ai.koog.prompt.message.ResponseMetaInfo
 import kinuvo.harness.builtin.TokenUsageCapture
@@ -170,7 +170,7 @@ class ReflectionTest {
             assertFalse(tools.any { it.name == memory })
             flowOf(StreamFrame.TextDelta("Nothing to save."), StreamFrame.End())
         }
-        Reflection(knowledge, home.docs, denied = { kinuvo.protocol.DenyRules(tools = listOf("memory")) })
+        Reflection(knowledge, home.docs, denied = { kinuvo.protocol.approval.DenyRules(tools = listOf("memory")) })
             .reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Remember I like tea.")))
         assertEquals("", home.docs.read(home.agent.id, AgentDoc.Memory))
     }
@@ -328,7 +328,7 @@ class ReflectionTest {
                 assertTrue(stage in enabled)
                 seen += stage
                 val review = prompt.messages.filterIsInstance<Message.User>().last().textContent()
-                assertTrue(kinuvo.protocol.DEFAULT_REFLECTION_PROMPT in review)
+                assertTrue(kinuvo.protocol.reflection.DEFAULT_REFLECTION_PROMPT in review)
                 ReflectionStage.entries.forEachIndexed { index, part -> assertEquals(stage == index, part.instructions in review) }
                 assertTrue("[assistant-1] Assistant: Do that" in review)
                 assertTrue("[user-2] User: Yes" in review)

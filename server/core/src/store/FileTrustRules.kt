@@ -1,7 +1,7 @@
 package kinuvo.server.store
 
 import kinuvo.server.plugin.isFile
-import kinuvo.protocol.TrustRules
+import kinuvo.protocol.approval.TrustRules
 import kinuvo.server.TrustRulesRepository
 
 /** Trust and Deny rules: each Agent's under `rules` in its `agent.yaml`, the Server's in `config.yaml`. */

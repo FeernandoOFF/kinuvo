@@ -14,7 +14,7 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.http.takeFrom
 import io.ktor.utils.io.readBuffer
-import kinuvo.protocol.SurfaceImage
+import kinuvo.protocol.surface.SurfaceImage
 import kotlinx.coroutines.withTimeout
 import kotlinx.io.readByteArray
 import kotlin.io.encoding.Base64

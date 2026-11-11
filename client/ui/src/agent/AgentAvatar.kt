@@ -24,8 +24,8 @@ import com.composables.ui.components.Icon
 import com.composables.icons.lucide.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
-import kinuvo.protocol.AgentInfo
-import kinuvo.protocol.ExecutionKind
+import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.execution.ExecutionKind
 import kinuvo.ui.design.*
 
 internal const val BundledAvatar = "files/avatars.riv"

@@ -43,10 +43,10 @@ import com.composables.icons.lucide.X
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.app.session.*
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.Question
-import kinuvo.protocol.Risk
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.approval.Question
+import kinuvo.protocol.approval.Risk
 import kinuvo.ui.design.*
 
 private val ComposerShape = RoundedCornerShape(Radius.composer)

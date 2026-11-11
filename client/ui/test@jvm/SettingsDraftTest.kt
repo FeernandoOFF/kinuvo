@@ -5,7 +5,7 @@ import androidx.compose.ui.semantics.*
 import kinuvo.app.agent.*
 import kinuvo.ui.agent.*
 import kinuvo.ui.settings.*
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
 import kinuvo.ui.design.*
 import com.composables.ui.components.Text
 import androidx.compose.ui.ImageComposeScene

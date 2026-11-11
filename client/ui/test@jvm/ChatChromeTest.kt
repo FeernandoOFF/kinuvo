@@ -3,9 +3,16 @@ package kinuvo.ui
 import kinuvo.ui.navigation.*
 import com.composables.ui.theme.LocalInteractionMode
 import com.composables.ui.theme.InteractionMode
-import kinuvo.protocol.*
-import kinuvo.protocol.AgentInfo
-import kinuvo.protocol.AgentSettings
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.screen.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.agent.AgentSettings
 import kinuvo.app.session.SessionList
 import kinuvo.app.connection.Server
 import kinuvo.app.navigation.Route
@@ -53,7 +60,7 @@ import kinuvo.app.session.ChatRow
 import kinuvo.ui.session.StepsView
 import kinuvo.app.session.ChatItem
 import kinuvo.client.ConnectionState
-import kinuvo.protocol.SessionInfo
+import kinuvo.protocol.session.SessionInfo
 import kinuvo.ui.design.HarnessTheme
 import kinuvo.ui.design.LocalPopovers
 import kinuvo.ui.design.Popovers
@@ -299,7 +306,7 @@ class ChatChromeTest {
 
     @Test fun narrowDesktopHeaderLeavesRoomForTheSessionTitle() = javax.swing.SwingUtilities.invokeAndWait {
         val agent = AgentInfo("echo", "Echo", "host")
-        val session = SessionInfo("journal", agent.id, "Evening journal", routine = kinuvo.protocol.RoutineRef("journal", "Evening journal"))
+        val session = SessionInfo("journal", agent.id, "Evening journal", routine = kinuvo.protocol.routine.RoutineRef("journal", "Evening journal"))
         ImageComposeScene(286, 900, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Pointer) {

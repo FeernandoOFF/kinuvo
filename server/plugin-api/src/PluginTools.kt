@@ -1,8 +1,8 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.PluginInstanceId
-import kinuvo.protocol.ToolIdentity
-import kinuvo.protocol.PluginManifest
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.plugin.ToolIdentity
+import kinuvo.protocol.plugin.PluginManifest
 import kotlinx.serialization.json.JsonObject
 
 /** Names are bounded model aliases; the full identity remains the routing and policy authority. */

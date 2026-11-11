@@ -1,7 +1,8 @@
 package kinuvo.plugins.browser
 
 import com.sun.net.httpserver.HttpServer
-import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collect

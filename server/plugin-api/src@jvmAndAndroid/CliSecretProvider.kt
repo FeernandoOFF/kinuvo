@@ -1,7 +1,7 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.SecretEntry
-import kinuvo.protocol.SecretProviderStatus
+import kinuvo.protocol.secret.SecretEntry
+import kinuvo.protocol.secret.SecretProviderStatus
 import java.io.File
 import java.io.IOException
 

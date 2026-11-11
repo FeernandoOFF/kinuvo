@@ -1,6 +1,6 @@
 package kinuvo.harness
 
-import kinuvo.protocol.*
+import kinuvo.protocol.execution.*
 import kotlinx.coroutines.CoroutineScope
 
 interface ExecutionFactory {

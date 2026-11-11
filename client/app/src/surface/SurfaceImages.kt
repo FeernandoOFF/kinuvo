@@ -2,8 +2,8 @@ package kinuvo.app.surface
 
 import kinuvo.app.connection.ConnectedServer
 import kinuvo.protocol.Api
-import kinuvo.protocol.SurfaceImage
-import kinuvo.protocol.SurfaceImageParams
+import kinuvo.protocol.surface.SurfaceImage
+import kinuvo.protocol.surface.SurfaceImageParams
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 

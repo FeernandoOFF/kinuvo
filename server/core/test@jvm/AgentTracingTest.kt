@@ -13,8 +13,8 @@ import kinuvo.server.knowledge.Reflection
 import kinuvo.server.store.*
 import kinuvo.server.plugin.Tool
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope

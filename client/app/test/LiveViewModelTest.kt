@@ -1,7 +1,8 @@
 package kinuvo.app
 
 import kinuvo.app.screen.*
-import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.test.*

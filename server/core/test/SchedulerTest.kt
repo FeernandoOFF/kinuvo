@@ -3,18 +3,18 @@ package kinuvo.server
 import kinuvo.testing.harness.*
 
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kotlin.time.Duration.Companion.milliseconds
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.approval
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.RoutineApprovals
-import kinuvo.protocol.RoutineRan
-import kinuvo.protocol.RunStatus
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.withWrittenAt
-import kinuvo.protocol.SessionSettings
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.approval.approval
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.routine.RoutineApprovals
+import kinuvo.protocol.routine.RoutineRan
+import kinuvo.protocol.routine.RunStatus
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.withWrittenAt
+import kinuvo.protocol.session.SessionSettings
+import kinuvo.protocol.routine.Trigger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -225,7 +225,7 @@ class SchedulerTest {
         tickAndWait()
         val session = routine(first.id).lastSessionId!!
         val before = harness.store.entries(agent.id, session)
-        val changes = mutableListOf<kinuvo.protocol.SessionInfo>()
+        val changes = mutableListOf<kinuvo.protocol.session.SessionInfo>()
         harness.log.onChange { if (it.id == session) changes += it }
         nothingNew()
         harness.routines.create(agent, "Watch", "Check", Trigger.Every(5)) { it.copy(sessionId = session) }
@@ -234,7 +234,7 @@ class SchedulerTest {
 
         assertEquals(before, harness.store.entries(agent.id, session))
         assertTrue(changes.isNotEmpty() && changes.all { it.inChats })
-        assertEquals(kinuvo.protocol.SessionStatus.Idle, changes.last().status)
+        assertEquals(kinuvo.protocol.session.SessionStatus.Idle, changes.last().status)
         assertEquals(listOf(session), harness.log.page(agent.id, null, 10).sessions.map { it.id })
         harness.log.truncate(agent.id, session, 1)
         assertEquals(false, changes.last().inChats)

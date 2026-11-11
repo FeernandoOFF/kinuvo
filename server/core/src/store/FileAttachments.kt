@@ -5,6 +5,7 @@ import kinuvo.server.plugin.createPrivateFile
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.protocol.*
+import kinuvo.protocol.session.*
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem

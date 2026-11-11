@@ -19,7 +19,7 @@ import kinuvo.server.jvm.kinuvoHome
 import kinuvo.app.computer.ComputerDriver
 import kinuvo.app.connection.EmbeddedServer
 import kinuvo.plugins.cua.DesktopComputer
-import kinuvo.protocol.ComputerRequest
+import kinuvo.protocol.computer.ComputerRequest
 import kinuvo.app.connection.Endpoint
 import kinuvo.app.connection.pendingLink
 import kinuvo.app.navigation.Route

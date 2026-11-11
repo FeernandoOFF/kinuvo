@@ -1,7 +1,8 @@
 package kinuvo.harness
 
-import kinuvo.protocol.*
-
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 /** One way to run any Agent: the Server implements it over its built-in and external harnesses; a client-backed one serves gateways. */
 interface ExecutionDispatch {
     suspend fun create(agentId: String): SessionInfo

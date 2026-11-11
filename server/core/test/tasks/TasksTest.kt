@@ -4,7 +4,7 @@ import kinuvo.server.plugin.TaskProvider
 import kinuvo.server.TestHome
 import kinuvo.server.store.FileBoard
 import kinuvo.server.store.LocalTaskApp
-import kinuvo.protocol.TaskStatus
+import kinuvo.protocol.board.TaskStatus
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlinx.io.files.Path

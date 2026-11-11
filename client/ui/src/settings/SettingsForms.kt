@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
 import kinuvo.ui.design.*
 /** A section's list: title with an add button, an intro, then its [rows], or a spinner while [loading]. */
 @Composable

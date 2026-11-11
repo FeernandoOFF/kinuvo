@@ -6,8 +6,8 @@ import kinuvo.server.plugin.readText
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.server.TestHome
 import kinuvo.harness.builtin.activeHistory
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.withWrittenAt
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.withWrittenAt
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import kotlin.test.Test
@@ -136,7 +136,7 @@ class FileStoreTest {
     @Test
     fun routineSessionJoinsTheChatsOnceItReportsOrTheUserJoinsIn() = runTest {
         val home = TestHome()
-        val routine = kinuvo.protocol.RoutineRef("watch", "Watch")
+        val routine = kinuvo.protocol.routine.RoutineRef("watch", "Watch")
         val quiet = home.store.createSession(home.agent.id, "instructions", routine)
         home.store.append(home.agent.id, quiet.id, SessionEntry.Outcome(report = false))
         assertEquals(false, home.store.session(home.agent.id, quiet.id).inChats)
@@ -155,7 +155,7 @@ class FileStoreTest {
     fun taskRunIsTitledByItsTask() = runTest {
         val home = TestHome()
         val session = home.store.createSession(home.agent.id, "instructions")
-        home.store.append(home.agent.id, session.id, SessionEntry.UserMessage(kinuvo.protocol.taskPrompt("t1", "Renew passport") + "\nDue: 2026-10-09"))
+        home.store.append(home.agent.id, session.id, SessionEntry.UserMessage(kinuvo.protocol.session.taskPrompt("t1", "Renew passport") + "\nDue: 2026-10-09"))
         val info = home.store.session(home.agent.id, session.id)
         assertEquals("Renew passport", info.title)
         assertEquals("t1", info.task)

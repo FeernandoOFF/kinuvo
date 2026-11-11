@@ -1,7 +1,8 @@
 package kinuvo.harness.acp
 
 import kinuvo.harness.*
-import kinuvo.protocol.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import java.nio.file.Files
 import kotlin.test.*

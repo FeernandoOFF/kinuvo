@@ -4,7 +4,7 @@ import dev.ynagai.a2ui.core.protocol.A2uiJson
 import dev.ynagai.a2ui.core.protocol.CatalogDefinition
 import kinuvo.server.tools.ShowUiTool
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.UiCatalog
+import kinuvo.protocol.surface.UiCatalog
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*

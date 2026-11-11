@@ -10,7 +10,7 @@ import kinuvo.server.plugin.TaskApp
 import kinuvo.server.plugin.TaskProvider
 import kinuvo.server.tasks.TasksConfig
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.PluginDefinition
+import kinuvo.protocol.plugin.PluginDefinition
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitCancellation

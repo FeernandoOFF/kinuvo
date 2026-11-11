@@ -18,16 +18,16 @@ import kinuvo.server.store.saveKnowledgeConfig
 import kinuvo.server.store.saveTasksConfig
 import kinuvo.server.plugin.TaskProvider
 import kinuvo.server.tasks.TasksConfig
-import kinuvo.protocol.ProviderModelRef
-import kinuvo.protocol.Integration
-import kinuvo.protocol.KnowledgeSettings
-import kinuvo.protocol.KnowledgeSetup
-import kinuvo.protocol.KnowledgeTestResult
+import kinuvo.protocol.model.ProviderModelRef
+import kinuvo.protocol.capability.Integration
+import kinuvo.protocol.knowledge.KnowledgeSettings
+import kinuvo.protocol.knowledge.KnowledgeSetup
+import kinuvo.protocol.knowledge.KnowledgeTestResult
 import kotlinx.coroutines.CancellationException
-import kinuvo.protocol.TaskListInfo
-import kinuvo.protocol.TaskProviderRef
-import kinuvo.protocol.TasksSettings
-import kinuvo.protocol.TasksSetup
+import kinuvo.protocol.board.TaskListInfo
+import kinuvo.protocol.board.TaskProviderRef
+import kinuvo.protocol.board.TasksSettings
+import kinuvo.protocol.board.TasksSetup
 import kinuvo.server.store.FileBoard
 import kinuvo.server.store.LocalTaskApp
 import kinuvo.server.store.tasksConfig
@@ -42,13 +42,13 @@ import kinuvo.server.store.knowledgeRoot
 import kinuvo.server.store.Store
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.server.plugin.WebSearch
-import kinuvo.protocol.ServiceKind
-import kinuvo.protocol.ServiceSettings
-import kinuvo.protocol.ServiceSetup
-import kinuvo.protocol.ServiceTestResult
-import kinuvo.protocol.TestServiceParams
-import kinuvo.protocol.SecretUpdate
-import kinuvo.protocol.SettingsProvider
+import kinuvo.protocol.service.ServiceKind
+import kinuvo.protocol.service.ServiceSettings
+import kinuvo.protocol.service.ServiceSetup
+import kinuvo.protocol.service.ServiceTestResult
+import kinuvo.protocol.service.TestServiceParams
+import kinuvo.protocol.settings.SecretUpdate
+import kinuvo.protocol.settings.SettingsProvider
 import kinuvo.server.store.serviceConfig
 import kinuvo.server.store.saveServiceConfig
 import kinuvo.server.store.config
@@ -56,7 +56,7 @@ import kinuvo.server.store.updateConfig
 import kotlinx.datetime.TimeZone
 import kotlinx.io.files.Path
 import kinuvo.server.plugin.WebSearchProvider
-import kinuvo.protocol.DEFAULT_REFLECTION_PROMPT
+import kinuvo.protocol.reflection.DEFAULT_REFLECTION_PROMPT
 import kotlin.concurrent.Volatile
 
 internal class FileServerSettings(

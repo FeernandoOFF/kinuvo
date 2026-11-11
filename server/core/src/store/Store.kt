@@ -3,9 +3,9 @@ package kinuvo.server.store
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.SessionStorage
-import kinuvo.protocol.RoutineRef
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.SessionInfo
+import kinuvo.protocol.routine.RoutineRef
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionInfo
 
 /** Agents and their Sessions. */
 interface Store : SessionStorage {

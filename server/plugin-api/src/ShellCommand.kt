@@ -1,6 +1,6 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.Risk
+import kinuvo.protocol.approval.Risk
 
 /**
  * A bash command split into its simple commands at `&& || ; | &` and newlines, with quotes resolved. Anything it

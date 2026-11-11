@@ -1,6 +1,6 @@
 package kinuvo.server
 
-import kinuvo.protocol.UiCatalog
+import kinuvo.protocol.surface.UiCatalog
 import kotlin.test.*
 
 class SurfaceCatalogsTest {

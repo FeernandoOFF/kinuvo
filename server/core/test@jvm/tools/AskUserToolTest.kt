@@ -6,18 +6,18 @@ import kinuvo.testing.harness.*
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.ownedBy
-import kinuvo.protocol.PluginInstanceId
+import kinuvo.protocol.plugin.PluginInstanceId
 import kinuvo.harness.builtin.AgentRun
 import kinuvo.server.ApprovalPolicy
 import kinuvo.server.Approvals
 import kinuvo.server.ApprovalBroker
 import kinuvo.server.Broker
 import kinuvo.server.TestHome
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.approval
-import kinuvo.protocol.questions
-import kinuvo.protocol.QuestionKind
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.approval.approval
+import kinuvo.protocol.approval.questions
+import kinuvo.protocol.approval.QuestionKind
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
@@ -59,7 +59,7 @@ class AskUserToolTest {
 
     @Test fun formsStillHonorIdentityBasedDenyRules() = runTest {
         val agent = home.agent
-        home.trustRules.update(agent.id) { it.copy(deny = kinuvo.protocol.DenyRules(tools = listOf(tool.identity!!.key))) }
+        home.trustRules.update(agent.id) { it.copy(deny = kinuvo.protocol.approval.DenyRules(tools = listOf(tool.identity!!.key))) }
         kotlin.test.assertIs<kinuvo.server.Verdict.Block>(ApprovalPolicy(agent, home.trustRules).decide(tool, form))
     }
 

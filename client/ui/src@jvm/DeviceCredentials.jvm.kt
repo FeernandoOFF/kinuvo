@@ -1,8 +1,8 @@
 package kinuvo.ui
 
 import kinuvo.app.connection.*
-import kinuvo.protocol.Platform
-import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 
 import java.io.File
 import java.nio.file.Files

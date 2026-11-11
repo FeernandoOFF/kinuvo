@@ -1,7 +1,7 @@
 package kinuvo.client
 
 import com.sun.net.httpserver.HttpServer
-import kinuvo.protocol.McpRedirect
+import kinuvo.protocol.mcp.McpRedirect
 import kotlinx.coroutines.CompletableDeferred
 import java.net.InetAddress
 import java.net.InetSocketAddress

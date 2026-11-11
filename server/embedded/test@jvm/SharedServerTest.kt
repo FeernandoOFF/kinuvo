@@ -11,6 +11,8 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.KinuvoClient
 import kinuvo.server.store.*
 import kinuvo.protocol.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.model.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.io.files.Path

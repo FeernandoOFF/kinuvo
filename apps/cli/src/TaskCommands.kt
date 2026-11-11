@@ -5,7 +5,7 @@ import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.enum
 import kinuvo.protocol.*
-
+import kinuvo.protocol.board.*
 internal class TaskCommands : Group(
     "tasks", "The Board: your Tasks from your task app (config.yaml) and the Agents working on them.",
     ListTasks(), TaskLists(), AddTask(), AssignTask(), SetTaskStatus(),

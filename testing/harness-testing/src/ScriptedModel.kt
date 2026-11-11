@@ -10,7 +10,7 @@ import ai.koog.prompt.llm.LLModel
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.message.ResponseMetaInfo
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.builtin.AgentModel
 import kotlinx.coroutines.flow.catch

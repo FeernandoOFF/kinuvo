@@ -45,7 +45,7 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.app.screen.*
-import kinuvo.protocol.*
+import kinuvo.protocol.screen.*
 import kinuvo.ui.design.*
 import kinuvo.ui.session.*
 import kotlinx.coroutines.*

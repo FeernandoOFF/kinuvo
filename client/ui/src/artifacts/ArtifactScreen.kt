@@ -43,11 +43,11 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
-import kinuvo.protocol.AgentInfo
+import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.Api
-import kinuvo.protocol.ArtifactData
-import kinuvo.protocol.ArtifactInfo
-import kinuvo.protocol.ArtifactRef
+import kinuvo.protocol.artifact.ArtifactData
+import kinuvo.protocol.artifact.ArtifactInfo
+import kinuvo.protocol.artifact.ArtifactRef
 import kinuvo.ui.design.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay

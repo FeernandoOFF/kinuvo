@@ -24,8 +24,8 @@ import kinuvo.ui.navigation.*
 import com.composables.icons.lucide.Globe
 import com.composables.icons.lucide.ArrowLeft
 
-import kinuvo.protocol.ServerFeature
-import kinuvo.protocol.supports
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.capability.supports
 import kinuvo.protocol.privateNetworkHost
 import kinuvo.protocol.requireSecureTransport
 
@@ -40,8 +40,8 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import kinuvo.protocol.PairLink
-import kinuvo.protocol.Links
+import kinuvo.protocol.device.PairLink
+import kinuvo.protocol.device.Links
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState

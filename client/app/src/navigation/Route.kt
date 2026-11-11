@@ -2,15 +2,15 @@ package kinuvo.app.navigation
 
 import kinuvo.app.connection.*
 
-import kinuvo.protocol.Integration
-import kinuvo.protocol.ServerCapabilities
-import kinuvo.protocol.ServerFeature
-import kinuvo.protocol.offers
-import kinuvo.protocol.supports
+import kinuvo.protocol.capability.Integration
+import kinuvo.protocol.capability.ServerCapabilities
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.capability.offers
+import kinuvo.protocol.capability.supports
 import kotlinx.serialization.Serializable
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
-import kinuvo.protocol.ScreenRef
+import kinuvo.protocol.screen.ScreenRef
 
 /** A destination in the app's back stack; saved across configuration changes and process death. */
 @Serializable

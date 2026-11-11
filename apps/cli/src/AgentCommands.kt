@@ -5,10 +5,10 @@ import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.types.choice
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
-import kinuvo.protocol.AgentRef
+import kinuvo.protocol.agent.AgentRef
 import kinuvo.protocol.Api
-import kinuvo.protocol.CreateAgentParams
-import kinuvo.protocol.UpdateAgentParams
+import kinuvo.protocol.agent.CreateAgentParams
+import kinuvo.protocol.agent.UpdateAgentParams
 
 internal class AgentCommands : Group(
     "agents", "List, create, change and delete Agents (Hermes: profile).",

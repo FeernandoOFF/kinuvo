@@ -1,7 +1,9 @@
 package kinuvo.server
 
 import kinuvo.server.plugin.AgentProgress
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.serialization.json.JsonNull
 import kotlin.test.Test
 import kotlin.test.assertEquals

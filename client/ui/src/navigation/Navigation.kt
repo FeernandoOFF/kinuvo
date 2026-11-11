@@ -2,7 +2,7 @@ package kinuvo.ui.navigation
 
 import kinuvo.app.navigation.*
 
-import kinuvo.protocol.ServerFeature
+import kinuvo.protocol.capability.ServerFeature
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf

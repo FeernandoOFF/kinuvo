@@ -3,11 +3,11 @@ package kinuvo.ui
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 
-import kinuvo.protocol.DeviceToolResult
-import kinuvo.protocol.DeviceToolStatus
-import kinuvo.protocol.McpRedirect
+import kinuvo.protocol.device.DeviceToolResult
+import kinuvo.protocol.device.DeviceToolStatus
+import kinuvo.protocol.mcp.McpRedirect
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.Links
+import kinuvo.protocol.device.Links
 import kotlinx.browser.localStorage
 import kotlinx.browser.window
 import kotlinx.coroutines.awaitCancellation

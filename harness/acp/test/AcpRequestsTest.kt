@@ -1,6 +1,8 @@
 package kinuvo.harness.acp
 
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
 import kinuvo.harness.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*

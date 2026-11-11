@@ -5,6 +5,9 @@ import kinuvo.app.connection.*
 import kinuvo.app.computer.ComputerDriver
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.device.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

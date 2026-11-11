@@ -7,7 +7,9 @@ import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.testing.harness.*
 
 import kinuvo.harness.builtin.*
-import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.io.files.Path
@@ -27,7 +29,7 @@ class ModelCatalogTest {
         val expected = ModelInfo("resolved", reasoning = emptyList(), input = listOf("text"), tools = false, context = 8192)
         var received: ModelInfo? = null
         val plugin = object : TestModelProvider, ProviderPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.modelcatalogtest.1", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.modelcatalogtest.1", "Test")
             override val id = "test"
             override val providerAdmins get() = listOf(this)
             override suspend fun models() = listOf(expected)

@@ -1,13 +1,13 @@
 package kinuvo.server.plugin
 
 import kinuvo.harness.ToolSpec
-import kinuvo.protocol.ToolGroup
-import kinuvo.protocol.Risk
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.tool.ToolGroup
+import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.ToolIdentity
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.plugin.ToolIdentity
 
 /**
  * One thing a call does, e.g. one command of a shell chain. Trust rules match it by [words]: as a prefix, or all of

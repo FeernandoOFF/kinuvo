@@ -21,8 +21,8 @@ import androidx.compose.ui.use
 import java.awt.datatransfer.DataFlavor
 import kinuvo.app.artifacts.ArtifactsState
 import kinuvo.app.navigation.Route
-import kinuvo.protocol.ArtifactData
-import kinuvo.protocol.ArtifactInfo
+import kinuvo.protocol.artifact.ArtifactData
+import kinuvo.protocol.artifact.ArtifactInfo
 import kinuvo.ui.artifacts.ArtifactsActions
 import kinuvo.ui.artifacts.ArtifactsContent
 import kinuvo.ui.design.HarnessTheme

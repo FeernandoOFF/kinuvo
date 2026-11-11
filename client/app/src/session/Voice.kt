@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kinuvo.protocol.Api
-import kinuvo.protocol.VoiceSetup
+import kinuvo.protocol.voice.VoiceSetup
 
 /** Turns what the user says into text as they talk. Callbacks arrive on the main thread. */
 interface Transcriber {

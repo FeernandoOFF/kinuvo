@@ -5,8 +5,8 @@ import kinuvo.server.plugin.GeneratedImage
 import kinuvo.server.plugin.ImageGeneration
 import kinuvo.server.tools.GenerateImageTool
 import kinuvo.server.plugin.ToolRun
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*

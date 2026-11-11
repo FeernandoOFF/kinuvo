@@ -2,7 +2,7 @@ package kinuvo.plugins.protonpass
 
 import kinuvo.server.plugin.CliSecretProvider
 import kinuvo.server.plugin.Keychain
-import kinuvo.protocol.SecretEntry
+import kinuvo.protocol.secret.SecretEntry
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json

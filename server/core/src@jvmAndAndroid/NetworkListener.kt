@@ -1,6 +1,7 @@
 package kinuvo.server
 
 import kinuvo.protocol.*
+import kinuvo.protocol.connection.*
 import io.ktor.server.application.install
 import io.ktor.server.application.call
 import io.ktor.server.request.receiveChannel

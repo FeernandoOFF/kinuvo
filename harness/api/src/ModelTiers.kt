@@ -1,8 +1,8 @@
 package kinuvo.harness
 
-import kinuvo.protocol.ExecutionLocation
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.ModelTier
+import kinuvo.protocol.capability.ExecutionLocation
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.model.ModelTier
 
 /**
  * The tier of [info]: the one it declares, else from what it can do. Models that can't call tools are [ModelTier.NoTools];

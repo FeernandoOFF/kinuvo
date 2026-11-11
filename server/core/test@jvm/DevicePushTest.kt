@@ -5,11 +5,11 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.OutgoingContent
-import kinuvo.protocol.WebPush
+import kinuvo.protocol.push.WebPush
 import kinuvo.server.plugin.Notification
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.PushMessage
-import kinuvo.protocol.PushSubscription
+import kinuvo.protocol.push.PushMessage
+import kinuvo.protocol.push.PushSubscription
 import kotlinx.coroutines.test.runTest
 import java.nio.file.Files
 import java.security.interfaces.ECPublicKey

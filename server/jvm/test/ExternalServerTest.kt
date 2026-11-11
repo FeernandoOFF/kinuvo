@@ -6,6 +6,11 @@ import kinuvo.testing.harness.awaitCondition
 import kinuvo.server.screens.*
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.io.files.Path
 import java.nio.file.Files

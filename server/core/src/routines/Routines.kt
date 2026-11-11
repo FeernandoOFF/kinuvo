@@ -4,10 +4,10 @@ import kinuvo.harness.Agent
 import kinuvo.harness.AgentDoc
 import kinuvo.harness.AgentDocs
 import kinuvo.server.update
-import kinuvo.protocol.ActiveHours
-import kinuvo.protocol.Routine
-import kinuvo.protocol.RoutineSpec
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.routine.ActiveHours
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.RoutineSpec
+import kinuvo.protocol.routine.Trigger
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone

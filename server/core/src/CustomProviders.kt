@@ -5,7 +5,7 @@ import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.Store
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.io.files.Path
 import kinuvo.server.providers.ModelProvider
 

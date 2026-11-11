@@ -87,8 +87,8 @@ class McpConfigTest {
 
     @Test fun removingAnAgentDropsItFromSharedServers() = runBlocking {
         val files = TestStorage(Path(dir.path))
-        val shared = McpFiles(files.sharedMcp, kinuvo.protocol.ConfigScope.Shared)
-        shared.save(kinuvo.protocol.McpServerInfo("work", kinuvo.protocol.ConfigScope.Shared, url = "https://w/mcp", agents = listOf("main", "old")))
+        val shared = McpFiles(files.sharedMcp, kinuvo.protocol.agent.ConfigScope.Shared)
+        shared.save(kinuvo.protocol.mcp.McpServerInfo("work", kinuvo.protocol.agent.ConfigScope.Shared, url = "https://w/mcp", agents = listOf("main", "old")))
         McpPlugin(files).mcp.removeAgent("old")
         assertEquals(listOf("main"), shared.get("work")?.agents)
     }

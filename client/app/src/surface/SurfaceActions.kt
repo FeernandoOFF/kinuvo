@@ -2,7 +2,7 @@ package kinuvo.app.surface
 
 import dev.ynagai.a2ui.core.protocol.ActionMessage
 import kinuvo.app.session.ChatItem
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.surface.SurfaceAction
 import kotlinx.serialization.json.JsonObject
 
 fun ActionMessage.surfaceAction(callId: String, dataModel: JsonObject): SurfaceAction =

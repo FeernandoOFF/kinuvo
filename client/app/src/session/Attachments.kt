@@ -1,7 +1,7 @@
 package kinuvo.app.session
 
-import kinuvo.protocol.*
-
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.session.*
 data class PendingAttachment(val id: String, val upload: UploadAttachmentParams, val uploaded: Attachment? = null) {
     val attachment get() = Attachment(id, upload.name, attachmentMimeType(upload.name).orEmpty(), upload.base64.length / 4 * 3 - upload.base64.takeLast(2).count { it == '=' })
 }

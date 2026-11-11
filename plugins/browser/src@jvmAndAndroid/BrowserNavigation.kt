@@ -1,7 +1,7 @@
 package kinuvo.plugins.browser
 
 import java.net.URI
-import kinuvo.protocol.browserAddress
+import kinuvo.protocol.browser.browserAddress
 
 fun browserNavigationAllowed(value: String): Boolean = runCatching {
     value == "about:blank" || URI(value).let { it.scheme?.lowercase() in setOf("http", "https") && !it.host.isNullOrBlank() && it.userInfo == null }

@@ -9,10 +9,10 @@ import kinuvo.harness.NativeHarnessHost
 import kinuvo.harness.NativeReflection
 import kinuvo.harness.NativeRun
 import kinuvo.harness.RunKind
-import kinuvo.protocol.ModelTier
+import kinuvo.protocol.model.ModelTier
 import kinuvo.server.tools.ToolService
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.flow

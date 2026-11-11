@@ -3,8 +3,8 @@ package kinuvo.app.connection
 
 import kinuvo.app.agent.*
 import kinuvo.protocol.FrameConnection
-import kinuvo.protocol.Links
-import kinuvo.protocol.PairingCode
+import kinuvo.protocol.device.Links
+import kinuvo.protocol.device.PairingCode
 import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient

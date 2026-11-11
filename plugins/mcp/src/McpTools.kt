@@ -2,19 +2,19 @@ package kinuvo.plugins.mcp
 
 import kinuvo.server.plugin.rawSchemaSpec
 import kinuvo.server.plugin.modelAlias
-import kinuvo.protocol.PluginInstanceId
-import kinuvo.protocol.ToolIdentity
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.plugin.ToolIdentity
 
-import kinuvo.protocol.Risk
+import kinuvo.protocol.approval.Risk
 import kinuvo.server.plugin.Tool
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.ImageContent
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import kotlinx.coroutines.CancellationException
-import kinuvo.protocol.McpAppRef
-import kinuvo.protocol.McpAppResource
+import kinuvo.protocol.mcp.McpAppRef
+import kinuvo.protocol.mcp.McpAppResource
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kinuvo.server.plugin.ToolRun
 import kotlinx.serialization.json.*
 import kotlinx.io.files.Path

@@ -4,7 +4,7 @@ import kinuvo.server.plugin.modelAlias
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.Keychain
 import kinuvo.server.plugin.McpApps
-import kinuvo.protocol.McpAppRef
+import kinuvo.protocol.mcp.McpAppRef
 import kinuvo.server.plugin.McpManagement
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
@@ -12,16 +12,16 @@ import kinuvo.server.plugin.SecretResolver
 import kinuvo.server.plugin.PluginStorage
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kinuvo.protocol.ConfigScope
-import kinuvo.protocol.Authorization
-import kinuvo.protocol.CapabilityState
-import kinuvo.protocol.ExecutionLocation
-import kinuvo.protocol.Integration
-import kinuvo.protocol.IntegrationOptions
-import kinuvo.protocol.PluginDefinition
-import kinuvo.protocol.ResolvedTool
-import kinuvo.protocol.ServerFeature
-import kinuvo.protocol.Support
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.capability.Authorization
+import kinuvo.protocol.capability.CapabilityState
+import kinuvo.protocol.capability.ExecutionLocation
+import kinuvo.protocol.capability.Integration
+import kinuvo.protocol.capability.IntegrationOptions
+import kinuvo.protocol.plugin.PluginDefinition
+import kinuvo.protocol.capability.ResolvedTool
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.capability.Support
 
 /** Each Agent's MCP servers (the shared ones it uses, then its own) as tools; servers connect on first use. */
 class McpPlugin(

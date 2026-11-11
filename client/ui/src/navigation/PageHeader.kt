@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.AgentInfo
+import kinuvo.protocol.agent.AgentInfo
 import kinuvo.ui.agent.AgentAvatar
 import kinuvo.ui.design.*
 import kinuvo.ui.design.HeaderButton

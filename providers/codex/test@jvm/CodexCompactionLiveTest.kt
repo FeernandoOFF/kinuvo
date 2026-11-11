@@ -3,9 +3,9 @@ package kinuvo.providers.codex
 import kinuvo.testing.server.AgentRun
 import kinuvo.testing.harness.*
 
-import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.session.AgentEvent
 import kinuvo.harness.builtin.AgentRun
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kinuvo.server.store.AgentFiles
 import kotlinx.io.files.Path
 import kinuvo.server.store.FileStore

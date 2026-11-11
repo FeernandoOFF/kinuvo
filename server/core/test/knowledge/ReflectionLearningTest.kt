@@ -8,7 +8,9 @@ import kinuvo.server.skills.load
 import kinuvo.server.store.FileKnowledgeChangeLog
 import kinuvo.server.store.MarkdownKnowledgeSource
 import kinuvo.testing.harness.*
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.reflection.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path

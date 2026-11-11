@@ -2,16 +2,16 @@
 
 package kinuvo.harness.builtin
 
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.tool.ToolNames
 import ai.koog.agents.core.agent.entity.AIAgentNodeBase
 import ai.koog.agents.core.dsl.builder.AIAgentSubgraphBuilderBase
 import ai.koog.agents.core.dsl.builder.node
 import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.core.dsl.extension.nodeLLMCompressHistory
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.session.SessionEntry
 
 internal fun chatStrategy(session: RunSession, calls: ToolCalls) = strategy<Unit, Unit>("kinuvoChat") {
     edge(nodeStart forwardTo chatTurn(session, calls, nodeFinish))

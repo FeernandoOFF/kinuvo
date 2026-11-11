@@ -4,11 +4,11 @@ import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
 
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.RequestKind
-import kinuvo.protocol.RequestMetrics
-import kinuvo.protocol.ReflectionResult
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.usage.RequestKind
+import kinuvo.protocol.usage.RequestMetrics
+import kinuvo.protocol.reflection.ReflectionResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

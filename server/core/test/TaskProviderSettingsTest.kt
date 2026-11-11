@@ -10,7 +10,10 @@ import kinuvo.server.plugin.TaskChange
 import kinuvo.server.plugin.TaskList
 import kinuvo.server.plugin.TaskApp
 import kinuvo.server.plugin.TaskProvider
-import kinuvo.protocol.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.settings.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlinx.io.files.Path

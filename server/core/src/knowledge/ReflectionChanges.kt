@@ -8,10 +8,10 @@ import kinuvo.server.skills.Skill
 import kinuvo.server.skills.SkillRepository
 import kinuvo.server.skills.load
 import kinuvo.server.plugin.Tool
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.requireString
-import kinuvo.protocol.ConfigScope
-import kinuvo.protocol.ReflectionProposal
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.reflection.ReflectionProposal
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject

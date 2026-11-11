@@ -7,7 +7,7 @@ import java.io.File
 import kinuvo.harness.acp.AcpExecutionFactory
 import kinuvo.harness.remote.RemoteExecutionFactory
 import kinuvo.harness.ExecutionState
-import kinuvo.protocol.AttachmentData
+import kinuvo.protocol.session.AttachmentData
 import java.net.InetAddress
 import kinuvo.server.ConnectionSecurity
 import kinuvo.server.DeviceAuth

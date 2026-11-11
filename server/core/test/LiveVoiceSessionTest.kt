@@ -7,7 +7,8 @@ import kinuvo.server.plugin.VoiceInput
 import kinuvo.server.plugin.VoiceMessage
 import kinuvo.server.plugin.VoiceOutput
 import kinuvo.server.plugin.AgentProgress
-import kinuvo.protocol.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.voice.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.test.runTest

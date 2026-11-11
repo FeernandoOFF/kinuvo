@@ -3,7 +3,7 @@ package kinuvo.server.artifacts
 import kinuvo.server.TestHome
 import kinuvo.server.store.FileArtifacts
 import kinuvo.server.plugin.isFile
-import kinuvo.protocol.ArtifactChange
+import kinuvo.protocol.artifact.ArtifactChange
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.Json

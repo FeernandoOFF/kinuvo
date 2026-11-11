@@ -1,7 +1,7 @@
 package kinuvo.plugins.exec
 
 import kotlinx.coroutines.withTimeout
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kinuvo.server.tools.ToolService
 import kinuvo.harness.ToolTurn
 import kinuvo.harness.ToolReports
@@ -15,7 +15,7 @@ import java.io.File
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertTrue
-import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.session.AgentEvent
 
 class BackgroundProcessTest {
     @Test fun watchTimeoutKeepsOutput() = runBlocking {

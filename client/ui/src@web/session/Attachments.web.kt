@@ -5,8 +5,8 @@ import kinuvo.app.session.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
-import kinuvo.protocol.AttachmentData
-import kinuvo.protocol.UploadAttachmentParams
+import kinuvo.protocol.session.AttachmentData
+import kinuvo.protocol.session.UploadAttachmentParams
 import kotlinx.browser.document
 import org.jetbrains.compose.resources.decodeToImageBitmap
 import org.w3c.dom.HTMLAnchorElement

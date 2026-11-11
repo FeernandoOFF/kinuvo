@@ -1,7 +1,7 @@
 package kinuvo.server.tools
 
-import kinuvo.protocol.ToolGroup
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolGroup
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.CoreToolRegistry
 import kinuvo.server.plugin.Tool
 import kinuvo.server.Tolerance

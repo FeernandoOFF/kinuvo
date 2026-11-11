@@ -1,6 +1,7 @@
 package kinuvo.server.execution
 
-import kinuvo.protocol.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.serialization.Serializable
 
 @Serializable

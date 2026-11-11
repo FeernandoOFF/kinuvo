@@ -1,12 +1,12 @@
 package kinuvo.testing.server
 
 import kinuvo.client.KinuvoClient
-import kinuvo.protocol.ComputerElement
-import kinuvo.protocol.ComputerRequest
-import kinuvo.protocol.ComputerResult
-import kinuvo.protocol.ComputerScreen
-import kinuvo.protocol.DeviceToolKind
-import kinuvo.protocol.DeviceToolStatus
+import kinuvo.protocol.computer.ComputerElement
+import kinuvo.protocol.computer.ComputerRequest
+import kinuvo.protocol.computer.ComputerResult
+import kinuvo.protocol.computer.ComputerScreen
+import kinuvo.protocol.device.DeviceToolKind
+import kinuvo.protocol.device.DeviceToolStatus
 
 /** The screen a [FakeComputer] answers with. */
 val FakeScreen = ComputerScreen("fake", 540, 1200, app = "com.example.chat", platform = "Android", screenshot = TEST_CARD_PNG,

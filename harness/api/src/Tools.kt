@@ -1,8 +1,8 @@
 package kinuvo.harness
 
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.ToolIdentity
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.plugin.ToolIdentity
 import kotlinx.serialization.json.JsonObject
 
 /**

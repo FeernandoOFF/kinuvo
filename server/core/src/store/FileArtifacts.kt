@@ -5,8 +5,8 @@ import kinuvo.server.plugin.readText
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.server.artifacts.ArtifactRepository
-import kinuvo.protocol.ArtifactData
-import kinuvo.protocol.ArtifactInfo
+import kinuvo.protocol.artifact.ArtifactData
+import kinuvo.protocol.artifact.ArtifactInfo
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 import kotlinx.serialization.json.Json

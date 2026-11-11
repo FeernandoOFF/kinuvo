@@ -1,6 +1,7 @@
 package kinuvo.server.execution
 
-import kinuvo.protocol.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 

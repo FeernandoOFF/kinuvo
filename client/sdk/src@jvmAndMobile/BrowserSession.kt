@@ -1,6 +1,6 @@
 package kinuvo.client
 
 import io.ktor.client.HttpClient
-import kinuvo.protocol.ConnectParams
+import kinuvo.protocol.connection.ConnectParams
 
 internal actual suspend fun HttpClient.prepareConnect(url: String, params: ConnectParams, rotate: Boolean) = params

@@ -19,8 +19,18 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.KinuvoClient
 import kinuvo.server.store.*
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.tool.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.io.files.Path
@@ -58,7 +68,7 @@ class EmbeddedServerHostTest {
     fun failedFreshInstallationClosesPluginsOnce() = runBlocking {
         var closes = 0
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.localservertest.1", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.localservertest.1", "Test")
             override suspend fun close() { closes++ }
         }
         val failing = object : TestModelProvider by provider {
@@ -87,7 +97,7 @@ class EmbeddedServerHostTest {
             var closes = 0
             val discovering = CompletableDeferred<Unit>()
             val plugin = object : HarnessPlugin {
-                override val definition = kinuvo.protocol.PluginDefinition("test.localservertest.2", "Test")
+                override val definition = kinuvo.protocol.plugin.PluginDefinition("test.localservertest.2", "Test")
                 override suspend fun close() { yield(); closes++ }
             }
             val waiting = object : TestModelProvider by provider {

@@ -7,6 +7,9 @@ import kinuvo.app.device.*
 import kinuvo.app.navigation.*
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.artifact.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.connection.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel

@@ -2,7 +2,7 @@
 
 package kinuvo.harness.acp
 
-import kinuvo.protocol.modelText
+import kinuvo.protocol.surface.modelText
 
 import com.agentclientprotocol.client.v2.ClientSession
 import com.agentclientprotocol.model.v2.*
@@ -10,6 +10,10 @@ import com.agentclientprotocol.model.v2.SessionUpdate as AcpSessionUpdate
 import java.nio.ByteBuffer
 import kinuvo.harness.*
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.surface.*
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex

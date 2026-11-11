@@ -7,7 +7,9 @@ import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.ScreenGate
 import kinuvo.server.plugin.instance
 import kinuvo.server.plugin.ownedBy
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*

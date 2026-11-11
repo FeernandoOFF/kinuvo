@@ -1,7 +1,9 @@
 package kinuvo.app
 
 import kinuvo.app.home.*
-import kinuvo.protocol.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.*
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlin.test.*

@@ -14,9 +14,9 @@ import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.use
-import kinuvo.protocol.AgentInfo
-import kinuvo.protocol.ExecutionKind
-import kinuvo.protocol.ExecutionReadiness
+import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.execution.ExecutionKind
+import kinuvo.protocol.execution.ExecutionReadiness
 import kinuvo.ui.agent.AgentAvatar
 import kinuvo.ui.design.HarnessTheme
 import org.jetbrains.skia.EncodedImageFormat

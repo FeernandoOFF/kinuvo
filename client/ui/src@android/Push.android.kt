@@ -21,8 +21,8 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import kinuvo.protocol.PushMessage
-import kinuvo.protocol.PushSubscription
+import kinuvo.protocol.push.PushMessage
+import kinuvo.protocol.push.PushSubscription
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.koin.mp.KoinPlatform.getKoin

@@ -9,6 +9,7 @@ import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import kinuvo.protocol.*
+import kinuvo.protocol.device.*
 import kotlin.time.Clock
 import kotlin.time.Instant
 

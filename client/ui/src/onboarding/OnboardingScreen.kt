@@ -80,7 +80,11 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.LocalTextStyle
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.model.*
 import kinuvo.app.navigation.allows
 import kinuvo.ui.design.*
 import kotlinx.coroutines.delay

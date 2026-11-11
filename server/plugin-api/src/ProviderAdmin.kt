@@ -1,14 +1,14 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.ATTACHMENT_MIME_TYPES
-import kinuvo.protocol.CapabilityState
-import kinuvo.protocol.DeviceCode
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.ProviderAccount
-import kinuvo.protocol.ProviderApiKeyStatus
-import kinuvo.protocol.ProviderDownloads
-import kinuvo.protocol.Usage
-import kinuvo.protocol.attachmentInput
+import kinuvo.protocol.session.ATTACHMENT_MIME_TYPES
+import kinuvo.protocol.capability.CapabilityState
+import kinuvo.protocol.model.DeviceCode
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.model.ProviderAccount
+import kinuvo.protocol.model.ProviderApiKeyStatus
+import kinuvo.protocol.model.ProviderDownloads
+import kinuvo.protocol.usage.Usage
+import kinuvo.protocol.session.attachmentInput
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 

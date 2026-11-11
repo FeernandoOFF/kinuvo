@@ -1,8 +1,8 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.REFERENCE
-import kinuvo.protocol.SecretEntry
-import kinuvo.protocol.SecretProviderStatus
+import kinuvo.protocol.secret.REFERENCE
+import kinuvo.protocol.secret.SecretEntry
+import kinuvo.protocol.secret.SecretProviderStatus
 
 /** A password manager that config can point into with Secret references, e.g. Proton Pass for `${pass://Vault/Item/field}`. */
 interface SecretProvider {
@@ -56,7 +56,7 @@ private suspend fun replace(value: String, by: suspend (name: String, uri: Strin
 
 object SecretReferences {
     /** Whether [value] is a single `${…}` reference, which isn't secret itself. */
-    fun isReference(value: String) = kinuvo.protocol.isReference(value)
+    fun isReference(value: String) = kinuvo.protocol.secret.isReference(value)
 
     fun hasReferences(value: String) = REFERENCE.containsMatchIn(value)
 

@@ -6,6 +6,8 @@ import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.skill.*
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem
 

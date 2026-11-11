@@ -1,6 +1,6 @@
 package kinuvo.app.artifacts
 
-import kinuvo.protocol.ArtifactInfo
+import kinuvo.protocol.artifact.ArtifactInfo
 
 enum class EditorTab { Visual, Source, Preview }
 

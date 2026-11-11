@@ -38,7 +38,11 @@ import androidx.navigationevent.compose.rememberNavigationEventState
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kinuvo.ui.design.*
 
 /** What the inspector needs from its host: every Agent (for validation) and a way to the Agent's full Settings. */

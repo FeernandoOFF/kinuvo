@@ -7,7 +7,7 @@ import io.ktor.client.statement.bodyAsChannel
 import io.ktor.utils.io.readBuffer
 import kotlinx.io.readByteArray
 import io.ktor.http.isSuccess
-import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.model.ModelInfo
 import kotlinx.serialization.json.*
 
 internal suspend fun discoverCodexModels(http: HttpClient): List<ModelInfo> {

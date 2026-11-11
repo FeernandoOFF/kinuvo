@@ -1,6 +1,6 @@
 package kinuvo.harness
 
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 
 /** What the built-in harness reads and writes of a Session while it runs: its history, and what a turn and its compaction add. */
 interface SessionStorage {

@@ -4,7 +4,7 @@ import kinuvo.harness.ToolGate
 import kinuvo.harness.ToolProvider
 import kinuvo.harness.ToolSpec
 import kinuvo.harness.ToolTurn
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive

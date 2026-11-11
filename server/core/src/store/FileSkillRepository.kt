@@ -13,7 +13,7 @@ import kinuvo.harness.Agent
 import kinuvo.server.skills.Skill
 import kinuvo.server.skills.SkillRepository
 import kinuvo.server.skills.safeRelativePath
-import kinuvo.protocol.ConfigScope
+import kinuvo.protocol.agent.ConfigScope
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.files.Path

@@ -7,10 +7,10 @@ import kinuvo.server.plugin.PluginTools
 import kinuvo.server.Tolerance
 import kinuvo.server.Verdict
 import kinuvo.server.plugin.ownedBy
-import kinuvo.protocol.PluginInstanceId
+import kinuvo.protocol.plugin.PluginInstanceId
 import kinuvo.server.plugin.readText
-import kinuvo.protocol.RoutineApprovals
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.routine.RoutineApprovals
+import kinuvo.protocol.routine.Trigger
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive

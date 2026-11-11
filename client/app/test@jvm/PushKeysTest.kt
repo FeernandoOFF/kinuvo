@@ -1,8 +1,8 @@
 package kinuvo.app.connection
 
-import kinuvo.protocol.WebPush
+import kinuvo.protocol.push.WebPush
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.PushMessage
+import kinuvo.protocol.push.PushMessage
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull

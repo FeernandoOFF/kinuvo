@@ -50,18 +50,37 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
 import kotlinx.coroutines.Dispatchers
 import kinuvo.client.ConnectionState
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.CapabilityState
-import kinuvo.protocol.ServerCapabilities
-import kinuvo.protocol.SessionCapabilities
-import kinuvo.protocol.SessionInfo
-import kinuvo.protocol.SessionStatus
-import kinuvo.protocol.Usage
-import kinuvo.protocol.AgentInfo
-import kinuvo.protocol.ActiveHours
-import kinuvo.protocol.Routine
-import kinuvo.protocol.RunStatus
-import kinuvo.protocol.*
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.capability.CapabilityState
+import kinuvo.protocol.capability.ServerCapabilities
+import kinuvo.protocol.capability.SessionCapabilities
+import kinuvo.protocol.session.SessionInfo
+import kinuvo.protocol.session.SessionStatus
+import kinuvo.protocol.usage.Usage
+import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.routine.ActiveHours
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.RunStatus
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.artifact.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.mcp.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.reflection.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.screen.*
+import kinuvo.protocol.secret.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.settings.*
+import kinuvo.protocol.skill.*
+import kinuvo.protocol.usage.*
 import kinuvo.ui.design.HarnessTheme
 import kinuvo.ui.voice.AgentOrb
 import kinuvo.ui.voice.CallStrip
@@ -72,8 +91,8 @@ import kinuvo.ui.design.StripFrame
 import kinuvo.ui.design.LocalStrips
 import kinuvo.ui.voice.CallApprovalSheet
 import kinuvo.ui.voice.CallExternalApprovalSheet
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.ExternalApprovalOption
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.execution.ExternalApprovalOption
 import kinuvo.ui.voice.LiveCallScreen
 import kinuvo.ui.voice.OrbMood
 import kinuvo.ui.onboarding.AvatarInk
@@ -371,12 +390,12 @@ class ScreenshotTest {
         render("settings-narrow-sections", 420, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main")), SettingsActions()) } }
         render("settings-providers", 1280, 760) {
             val providers = listOf(
-                kinuvo.protocol.ProviderInfo("codex", "ChatGPT / Codex", kinuvo.protocol.ProviderAccount(false)),
-                kinuvo.protocol.ProviderInfo("apple", "Apple · On device"),
+                kinuvo.protocol.model.ProviderInfo("codex", "ChatGPT / Codex", kinuvo.protocol.model.ProviderAccount(false)),
+                kinuvo.protocol.model.ProviderInfo("apple", "Apple · On device"),
                 ProviderInfo("openai", "OpenAI API", apiKey = ProviderApiKeyStatus(false, "macOS Keychain")),
             )
             val ui = settingsAt(Route.Settings("main", SettingsSection.Providers))
-            HarnessTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers, deviceCode = "codex" to kinuvo.protocol.DeviceCode("https://auth.openai.com/codex/device", "ABCD-1234", 0))), SettingsActions()) }
+            HarnessTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers, deviceCode = "codex" to kinuvo.protocol.model.DeviceCode("https://auth.openai.com/codex/device", "ABCD-1234", 0))), SettingsActions()) }
         }
         render("settings-compatible-providers", 900, 1050) {
             val providers = listOf(
@@ -1180,14 +1199,14 @@ I checked your knowledge base just now and didn't find a profile note for you.
 
     @Test
     fun renderRequestMeasurements() {
-        val metrics = kinuvo.protocol.RequestMetrics("m1", 123, kinuvo.protocol.RequestKind.Chat, "codex", "gpt-5.6-sol", "medium", 2340, 320, 12000, 560, 10240)
+        val metrics = kinuvo.protocol.usage.RequestMetrics("m1", 123, kinuvo.protocol.usage.RequestKind.Chat, "codex", "gpt-5.6-sol", "medium", 2340, 320, 12000, 560, 10240)
         for (dark in listOf(false, true)) render("request-metrics-${if (dark) "dark" else "light"}", 420, 640) {
             HarnessTheme(dark = dark) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ChatStatisticsContent(usage, listOf(
                         metrics,
-                        metrics.copy(id = "m2", kind = kinuvo.protocol.RequestKind.Reflection, cachedTokens = 0),
-                        metrics.copy(id = "m3", kind = kinuvo.protocol.RequestKind.Compaction, inputTokens = null, outputTokens = null, cachedTokens = null, success = false),
+                        metrics.copy(id = "m2", kind = kinuvo.protocol.usage.RequestKind.Reflection, cachedTokens = 0),
+                        metrics.copy(id = "m3", kind = kinuvo.protocol.usage.RequestKind.Compaction, inputTokens = null, outputTokens = null, cachedTokens = null, success = false),
                     ))
                 }
             }

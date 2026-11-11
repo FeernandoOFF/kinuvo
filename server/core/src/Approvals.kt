@@ -10,9 +10,9 @@ import kinuvo.server.plugin.ToolKind
 import kinuvo.server.plugin.string
 import kinuvo.server.plugin.policyKey
 import kinuvo.server.plugin.withToolKey
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.Risk
-import kinuvo.protocol.TrustRules
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.approval.TrustRules
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -21,7 +21,7 @@ import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Duration
 import kotlin.uuid.Uuid
-import kinuvo.protocol.DenyRules
+import kinuvo.protocol.approval.DenyRules
 
 /** Which risk levels run without an Approval: strict asks for everything, full skips risk-based Approvals. Deny rules apply to all. */
 enum class Tolerance(val id: String, val autoUpTo: Risk?) {

@@ -6,9 +6,9 @@ import kinuvo.testing.server.AgentRun
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.server.plugin.Tool
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.approval
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.approval.approval
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
@@ -61,7 +61,7 @@ class SessionFeatureTest {
         var executed = 0
         val tool = object : Tool {
             override val descriptor = toolSpec("read", "Read")
-            override val identity = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), "read")
+            override val identity = kinuvo.protocol.plugin.ToolIdentity(kinuvo.protocol.plugin.PluginInstanceId("test.tools"), "read")
             override suspend fun execute(args: JsonObject): String { executed++; return "OK" }
         }
         val model = scriptedModel { _, _ -> flowOf(StreamFrame.ToolCallComplete("first", "read", "{}"),

@@ -1,6 +1,6 @@
 package kinuvo.harness
 
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

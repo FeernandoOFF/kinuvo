@@ -4,14 +4,14 @@ import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
 import kinuvo.server.plugin.CoreTool
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.requireString
 import kinuvo.harness.RoutineTurn
 import kinuvo.server.plugin.string
-import kinuvo.protocol.Routine
-import kinuvo.protocol.RoutineRef
-import kinuvo.protocol.RunStatus
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.RoutineRef
+import kinuvo.protocol.routine.RunStatus
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.serialization.json.JsonObject
 import kotlin.time.Clock
 
