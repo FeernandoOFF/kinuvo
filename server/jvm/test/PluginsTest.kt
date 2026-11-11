@@ -1,6 +1,5 @@
 package kinuvo.server.jvm
 
-import kinuvo.server.plugin.ModelProviders
 import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.server.plugin.toolSpec
 import kinuvo.testing.harness.*
@@ -9,7 +8,6 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
 import kinuvo.server.plugin.InstructionSection
-import kinuvo.server.plugin.ModelProvider
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.Tool
@@ -25,6 +23,8 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
+import kinuvo.server.providers.ModelProvider
+import kinuvo.server.providers.ModelProviders
 
 class PluginsTest {
     private val released = mutableListOf<String>()

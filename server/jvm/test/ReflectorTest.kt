@@ -8,7 +8,6 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.providers.codex.CodexProvider
-import kinuvo.server.plugin.ModelProviders
 import kinuvo.server.store.knowledgeConfig
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.Api
@@ -27,6 +26,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kinuvo.server.SessionLog
+import kinuvo.server.providers.ModelProviders
 
 class ReflectorTest {
     private val home = Files.createTempDirectory("harness-reflector").toFile()

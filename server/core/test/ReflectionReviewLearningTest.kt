@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*
+import kinuvo.server.providers.ModelProvider
 
 class ReflectionReviewLearningTest {
     @Test

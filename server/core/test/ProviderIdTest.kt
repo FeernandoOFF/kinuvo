@@ -2,7 +2,6 @@ package kinuvo.server
 
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.builtin.AgentModel
-import kinuvo.server.plugin.ModelProvider
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.FileStore
 import kinuvo.server.plugin.deleteTree
@@ -11,6 +10,7 @@ import kotlinx.io.files.Path
 import kotlinx.io.files.SystemTemporaryDirectory
 import kotlin.random.Random
 import kotlin.test.*
+import kinuvo.server.providers.ModelProvider
 
 class ProviderIdTest {
     private fun provider(id: String) = object : ModelProvider {

@@ -8,9 +8,7 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.providers.codex.CodexProvider
-import kinuvo.server.plugin.ModelProviders
 import kinuvo.harness.builtin.AgentModel
-import kinuvo.server.plugin.ModelProvider
 import kinuvo.harness.AgentConfig
 import kinuvo.protocol.UpdateAgentParams
 import kinuvo.protocol.SessionEntry
@@ -29,6 +27,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kinuvo.server.Admin
 import kinuvo.server.Runs
+import kinuvo.server.providers.ModelProvider
+import kinuvo.server.providers.ModelProviders
 
 class SessionSettingsTest {
     private val home = Files.createTempDirectory("harness-settings").toFile()

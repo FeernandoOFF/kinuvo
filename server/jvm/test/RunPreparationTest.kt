@@ -30,6 +30,7 @@ import kotlinx.io.files.Path
 import kotlinx.serialization.json.JsonObject
 import java.nio.file.Files
 import kotlin.test.*
+import kinuvo.server.providers.ModelProvider
 
 class RunPreparationTest {
     @Test

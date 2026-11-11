@@ -4,7 +4,6 @@ import kotlin.time.Duration.Companion.milliseconds
 import kinuvo.testing.harness.awaitCondition
 import kinuvo.testing.harness.scriptedModel
 import kinuvo.providers.codex.CodexProvider
-import kinuvo.server.plugin.ModelProviders
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import ai.koog.prompt.streaming.StreamFrame
@@ -15,6 +14,7 @@ import kotlinx.coroutines.*
 import kotlinx.io.files.Path
 import java.nio.file.Files
 import kotlin.test.*
+import kinuvo.server.providers.ModelProviders
 
 class RemoteServerTest {
     @Test fun scopedRemoteExecution() = runBlocking {

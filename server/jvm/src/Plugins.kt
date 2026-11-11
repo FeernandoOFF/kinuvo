@@ -9,7 +9,6 @@ import kinuvo.providers.codex.CodexProvider
 import kinuvo.providers.codex.OpenAIProvider
 import kinuvo.providers.koog.compatibleProviders
 import kinuvo.providers.litert.LiteRtProvider
-import kinuvo.server.plugin.ModelProviders
 import kinuvo.server.system
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.Keychain
@@ -30,6 +29,7 @@ import kinuvo.plugins.todoist.TodoistPlugin
 import kinuvo.plugins.voice.DownloadedVoice
 import java.io.File
 import kotlinx.io.files.Path
+import kinuvo.server.providers.ModelProviders
 
 /** The model providers a JVM host offers. */
 fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (HarnessPlugin) -> Unit = {}): ModelProviders {

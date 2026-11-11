@@ -28,6 +28,7 @@ import kotlinx.io.files.SystemTemporaryDirectory
 import kotlinx.serialization.encodeToString
 import kotlin.test.*
 import kotlin.uuid.Uuid
+import kinuvo.server.providers.ModelProvider
 
 class EmbeddedServerHostTest {
     private val home = Path(SystemTemporaryDirectory, "kinuvo-local-${Uuid.random()}")

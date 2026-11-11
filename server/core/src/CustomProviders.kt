@@ -1,13 +1,13 @@
 package kinuvo.server
 
 import kinuvo.server.plugin.CUSTOM_PROVIDERS
-import kinuvo.server.plugin.ModelProvider
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.Store
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.protocol.SessionEntry
 import kotlinx.io.files.Path
+import kinuvo.server.providers.ModelProvider
 
 /**
  * A custom provider with a built-in provider's ID used to replace that provider, so Agents and Sessions naming the bare ID

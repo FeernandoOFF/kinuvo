@@ -9,7 +9,6 @@ import kinuvo.client.KinuvoClient
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.providers.codex.CodexProvider
-import kinuvo.server.plugin.ModelProviders
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlinx.io.files.Path
@@ -19,6 +18,7 @@ import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kinuvo.server.providers.ModelProviders
 
 class CliTest {
     private val home = Files.createTempDirectory("harness-cli").toFile()

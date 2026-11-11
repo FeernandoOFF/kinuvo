@@ -2,7 +2,6 @@ package kinuvo.server
 
 import kinuvo.harness.builtin.inferTier
 import kinuvo.server.plugin.CUSTOM_PROVIDERS
-import kinuvo.server.plugin.ModelProvider
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.protocol.*
@@ -17,6 +16,7 @@ import kotlinx.io.files.Path
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.*
 import kotlin.time.Clock
+import kinuvo.server.providers.ModelProvider
 
 @Serializable
 private data class CachedModels(val at: Long, val models: List<ModelInfo>)

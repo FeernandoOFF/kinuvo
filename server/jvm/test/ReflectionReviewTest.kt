@@ -6,7 +6,6 @@ import kinuvo.testing.harness.*
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.providers.codex.CodexProvider
-import kinuvo.server.plugin.ModelProviders
 import kinuvo.server.knowledge.ChangeSource
 import kinuvo.server.knowledge.KnowledgeTool
 import kinuvo.server.skills.load
@@ -23,6 +22,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kinuvo.server.providers.ModelProviders
 
 class ReflectionReviewTest {
     private val home = Files.createTempDirectory("reflection-review").toFile()

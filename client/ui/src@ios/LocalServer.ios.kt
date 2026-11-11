@@ -10,7 +10,6 @@ import kinuvo.server.store.knowledgeConfig
 import kinuvo.server.store.saveKnowledgeConfig
 import kinuvo.server.embedded.EmbeddedServerHost
 import kinuvo.server.embedded.embeddedPlugins
-import kinuvo.server.plugin.ModelProviders
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -19,6 +18,7 @@ import kotlinx.io.files.Path
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSUserDomainMask
+import kinuvo.server.providers.ModelProviders
 
 private var appleModel: AppleLanguageModel? = null
 private var backgroundRuns: BackgroundRuns? = null

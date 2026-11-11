@@ -1,8 +1,9 @@
-package kinuvo.server.plugin
+package kinuvo.server.providers
 
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.ProviderAdmin
 import kinuvo.server.plugin.ProviderPlugin
+
 import kinuvo.harness.builtin.plugin.ModelSource
 
 /** A model provider as a Server runs it: the [ModelSource] a host registers with the built-in harness, paired by ID with its [ProviderAdmin]. */

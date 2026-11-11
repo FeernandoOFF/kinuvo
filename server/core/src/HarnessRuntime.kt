@@ -109,6 +109,7 @@ import kinuvo.protocol.PluginInstanceId
 import kinuvo.protocol.UploadAttachmentParams
 import kotlin.io.encoding.Base64
 import kotlinx.coroutines.CancellationException
+import kinuvo.server.providers.ModelProvider
 
 val BUILT_IN_FEATURES = setOf(ServerFeature.Attachments, ServerFeature.Skills,
     ServerFeature.Artifacts, ServerFeature.Routines, ServerFeature.DeviceTools, ServerFeature.Computer)

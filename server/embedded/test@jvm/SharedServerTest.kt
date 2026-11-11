@@ -19,6 +19,7 @@ import kotlin.test.*
 import kotlin.uuid.Uuid
 import kinuvo.server.DeviceAuth
 import kinuvo.server.NetworkListener
+import kinuvo.server.providers.ModelProvider
 
 /** The phone's Server shared on the network, which needs the JVM and Android listener. */
 class SharedServerTest {

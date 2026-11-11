@@ -34,6 +34,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlin.test.*
+import kinuvo.server.providers.ModelProvider
 
 class RunPreparationRuntimeTest {
     @Test fun basicProfileOmitsFrozenIdentityAndSoul() = runBlocking {

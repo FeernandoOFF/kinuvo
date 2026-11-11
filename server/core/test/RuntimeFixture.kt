@@ -25,6 +25,7 @@ import kinuvo.testing.harness.*
 import kinuvo.protocol.*
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kinuvo.server.providers.ModelProvider
 
 internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), providers: List<ModelProvider> = emptyList(), closeNetwork: () -> Unit = {}, voice: VoiceProviders = VoiceProviders()) {
     val agent = Agent("test", "Test", AgentConfig(provider = "test", model = "tools", tools = emptyList()))

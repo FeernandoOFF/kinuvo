@@ -8,7 +8,6 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.providers.codex.CodexProvider
-import kinuvo.server.plugin.ModelProviders
 import kinuvo.server.store.FileStore
 import kinuvo.protocol.*
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +23,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kinuvo.server.SessionLog
+import kinuvo.server.providers.ModelProviders
 
 class ReflectionActivityTest {
     @Test

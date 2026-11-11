@@ -18,6 +18,7 @@ import kinuvo.protocol.*
 import kotlin.time.Clock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kinuvo.server.providers.ModelProvider
 
 interface ReflectionProgress {
     fun get(): Map<String, Int>

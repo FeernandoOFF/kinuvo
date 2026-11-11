@@ -22,7 +22,6 @@ import kinuvo.protocol.SessionEntry
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.providers.codex.CodexProvider
-import kinuvo.server.plugin.ModelProviders
 import kinuvo.protocol.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.coroutineScope
@@ -43,6 +42,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kinuvo.server.lanAddresses
+import kinuvo.server.providers.ModelProviders
 
 private fun KinuvoClient.approvals() =
     events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }

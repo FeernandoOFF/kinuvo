@@ -13,6 +13,7 @@ import kinuvo.protocol.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
+import kinuvo.server.providers.ModelProvider
 
 class ReflectionModelTest {
     @Test

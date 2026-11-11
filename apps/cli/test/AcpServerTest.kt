@@ -14,7 +14,6 @@ import kinuvo.client.KinuvoClient
 import kinuvo.server.jvm.Harness
 import kinuvo.server.jvm.HarnessServer
 import kinuvo.providers.codex.CodexProvider
-import kinuvo.server.plugin.ModelProviders
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.testing.harness.scriptedModel
@@ -25,6 +24,7 @@ import kotlinx.coroutines.flow.*
 import kotlinx.io.files.Path
 import java.nio.file.Files
 import kotlin.test.*
+import kinuvo.server.providers.ModelProviders
 
 class AcpServerTest {
     @Test fun nativeServerReplyReachesSdkClient() = runBlocking {

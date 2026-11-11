@@ -1,7 +1,6 @@
 package kinuvo.server
 
 import co.touchlab.stately.collections.ConcurrentMutableMap
-import kinuvo.server.plugin.ModelProvider
 import kinuvo.protocol.DeviceCode
 import kinuvo.protocol.ProviderInfo
 import kotlinx.coroutines.CancellationException
@@ -13,6 +12,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kinuvo.server.providers.ModelProvider
 
 /** Model provider sign-ins: each runs in the background after handing its device code to the client; [changed] follows. */
 class ProviderLogins(private val providers: List<ModelProvider>, private val scope: CoroutineScope, private val changed: suspend (List<ProviderInfo>) -> Unit) {

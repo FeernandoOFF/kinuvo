@@ -7,7 +7,6 @@ import kinuvo.client.KinuvoClient
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.providers.codex.CodexProvider
-import kinuvo.server.plugin.ModelProviders
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.McpManagement
 import kinuvo.server.store.saveServiceConfig
@@ -32,6 +31,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kinuvo.server.Notifications
+import kinuvo.server.providers.ModelProviders
 
 class NotificationsTest {
     private val home = Files.createTempDirectory("harness-notify").toFile()

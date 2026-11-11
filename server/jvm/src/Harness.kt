@@ -14,6 +14,7 @@ import kinuvo.protocol.currentPlatform
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.providers.codex.CodexRealtime
 import kinuvo.server.plugin.VoiceProviders
+import kinuvo.server.providers.ModelProviders
 
 class Harness private constructor(home: Path, dependencies: RuntimeDependencies, modelFactory: ((AgentConfig) -> AgentModel)?) : HarnessRuntime(
     dependencies, modelFactory,

@@ -16,6 +16,7 @@ import kotlinx.io.files.SystemTemporaryDirectory
 import kotlin.uuid.Uuid
 import kinuvo.server.store.AgentFiles
 import kotlin.test.*
+import kinuvo.server.providers.ModelProvider
 
 class ModelCatalogTest {
     private val home = Path(SystemTemporaryDirectory, "model-catalog-${Uuid.random()}")

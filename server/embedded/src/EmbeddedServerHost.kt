@@ -23,6 +23,7 @@ import kinuvo.server.HarnessRuntime
 import kinuvo.server.ServerInstallation
 import kinuvo.server.ServerResources
 import kinuvo.server.ServerRuntime
+import kinuvo.server.providers.ModelProvider
 
 class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

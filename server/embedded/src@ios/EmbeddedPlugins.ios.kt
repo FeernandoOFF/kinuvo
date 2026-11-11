@@ -4,12 +4,12 @@ import kinuvo.providers.codex.CodexAuth
 import kinuvo.providers.codex.CodexProvider
 import kinuvo.providers.codex.OpenAIProvider
 import kinuvo.server.plugin.Keychain
-import kinuvo.server.plugin.ModelProviders
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.FileAttachments
 import kinuvo.server.system
 import kinuvo.providers.koog.compatibleProviders
 import kotlinx.io.files.Path
+import kinuvo.server.providers.ModelProviders
 
 /** What an iPhone's Server runs with; [extra] are providers the app builds from its own objects, e.g. Apple's on-device model, which come first. */
 fun embeddedPlugins(home: Path, extra: ModelProviders = ModelProviders()): EmbeddedPlugins {

@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.*
+import kinuvo.server.providers.ModelProvider
 
 class RuntimeDependenciesTest {
     @Test
