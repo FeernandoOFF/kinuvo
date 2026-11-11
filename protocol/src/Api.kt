@@ -1,5 +1,7 @@
 package kinuvo.protocol
 
+import kinuvo.protocol.workflow.*
+import kinuvo.protocol.workflow.Workflow as WorkflowValue
 import kinuvo.protocol.agent.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.artifact.*
@@ -71,6 +73,17 @@ object ProtocolVersion {
 const val MAX_CONCURRENT_REQUESTS = 8
 
 object Api {
+    val Workflows = Method("workflows.list", Unit.serializer(), ListSerializer(WorkflowValue.serializer()))
+    val Workflow = Method("workflows.get", WorkflowId.serializer(), WorkflowValue.serializer())
+    val CreateWorkflow = Method("workflows.create", WorkflowValue.serializer(), WorkflowValue.serializer())
+    val UpdateWorkflow = Method("workflows.update", WorkflowValue.serializer(), WorkflowValue.serializer())
+    val DeleteWorkflow = Method("workflows.delete", WorkflowId.serializer(), Unit.serializer())
+    val RunWorkflow = Method("workflows.run", WorkflowId.serializer(), WorkflowRun.serializer())
+    val CancelWorkflow = Method("workflows.cancel", WorkflowRunId.serializer(), WorkflowRun.serializer())
+    val WorkflowRuns = Method("workflows.runs", WorkflowId.serializer(), ListSerializer(WorkflowRun.serializer()))
+    val WorkflowsChanged = EventType("workflows.changed", ListSerializer(WorkflowValue.serializer()))
+    val WorkflowRunChanged = EventType("workflows.runChanged", WorkflowRun.serializer())
+
     val ScreenOpen = Method("screens.open", kinuvo.protocol.screen.ScreenOpen.serializer(), ScreenInfo.serializer())
     val Screens = Method("screens.list", BrowserOwner.serializer().nullable, ListSerializer(ScreenInfo.serializer()))
     val ScreenWatch = Method("screens.watch", kinuvo.protocol.screen.ScreenWatch.serializer(), ScreenSubscription.serializer())
