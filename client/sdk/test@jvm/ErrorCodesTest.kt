@@ -9,6 +9,8 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlin.test.*
 
 class ErrorCodesTest {
@@ -53,11 +55,22 @@ class ErrorCodesTest {
         assertEquals(data, missing.data)
     }
 
-    @Test fun forbiddenIsWordedByTheClient() {
-        val forbidden = failure(WireError(WireErrorCode.Forbidden, "Something the Server worded"))
+    @Test fun managementRefusalsAreWordedByTheClient() {
+        val data = buildJsonObject { put("reason", WireErrorReason.Management) }
+        val forbidden = failure(WireError(WireErrorCode.Forbidden, "Something the Server worded", data))
         assertIs<KinuvoException.Forbidden>(forbidden)
+        assertTrue(forbidden.management)
         assertEquals(ManagementAccessMessage, forbidden.message)
         assertEquals(ManagementAccessMessage, forbidden.userMessage)
+        assertEquals(data, forbidden.data)
+    }
+
+    @Test fun otherRefusalsShowTheServersMessage() {
+        val forbidden = failure(WireError(WireErrorCode.Forbidden, "Agent is not exposed"))
+        assertIs<KinuvoException.Forbidden>(forbidden)
+        assertFalse(forbidden.management)
+        assertEquals("Agent is not exposed", forbidden.message)
+        assertEquals("Agent is not exposed", assertIs<KinuvoException.Forbidden>(failure(WireError(WireErrorCode.Forbidden, "Agent is not exposed", buildJsonObject { put("reason", "other") }))).message)
     }
 
     @Test fun unknownCodesAreGenericServerErrors() {

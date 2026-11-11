@@ -20,6 +20,7 @@ class RoutineRepositoryTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val frames = Channel<Frame>(Channel.UNLIMITED)
         var failure = true
+        var refusal = WireError(WireErrorCode.Forbidden, "This action requires management access", buildJsonObject { put("reason", WireErrorReason.Management) })
         var drop = false
         val transport = object : FrameConnection {
             override val incoming = frames.receiveAsFlow()
@@ -30,7 +31,7 @@ class RoutineRepositoryTest {
                 } else if (request.method == Api.Presence.name) {
                     frames.send(Frame.Response(request.id, true, buildJsonObject {}))
                 } else if (!drop) {
-                    frames.send(Frame.Response(request.id, !failure, JsonArray(emptyList()), if (failure) WireError(WireErrorCode.Forbidden, "This action requires management access") else null))
+                    frames.send(Frame.Response(request.id, !failure, JsonArray(emptyList()), if (failure) refusal else null))
                 }
             }
             override suspend fun close() { frames.close() }
@@ -49,6 +50,10 @@ class RoutineRepositoryTest {
             runCurrent()
             assertEquals("This action requires management access", server.routines.errors.value[AgentId("devops")])
             assertNull(server.routines.state.value[AgentId("devops")])
+            refusal = WireError(WireErrorCode.Forbidden, "Agent is not exposed")
+            server.routines.load(AgentId("devops"))
+            runCurrent()
+            assertEquals("Agent is not exposed", server.routines.errors.value[AgentId("devops")])
             failure = false
             server.routines.load(AgentId("devops"))
             runCurrent()
