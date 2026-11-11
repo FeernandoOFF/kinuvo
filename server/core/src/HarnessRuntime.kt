@@ -507,7 +507,7 @@ open class HarnessRuntime(
     suspend fun requireOnDevice(agent: Agent, sessionId: SessionId? = null) {
         val e = effective(agent, sessionId)
         if (!(unmanagedModels && e.info == null) && e.info?.location != ExecutionLocation.ServerHost)
-            throw ServerException(SubAgentError.Privacy)
+            throw ServerException(SubAgentError.Privacy(agent.name))
     }
 
     /** Stops what the plugins run for the Agent, e.g. after its exec settings changed. */

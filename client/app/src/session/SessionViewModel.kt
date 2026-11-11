@@ -199,9 +199,9 @@ data class ChatState(
     val ended get() = if (external && selected != null && capabilities?.chat?.reasonCode != "archived") SessionEnd.of(phase, capabilities?.chat, resume) else null
     val resumeOnSend get() = external && resumeOnSend(phase, capabilities)
     /** Everything the open Session waits on from the user, oldest first. */
-    val requests get() = pendingRequests(items, pending, external)
+    val requests get() = pendingRequests(items, pending)
     /** The requests of an external Agent's harness, shown above its composer. */
-    val prompts get() = if (external) pending else emptyList()
+    val prompts get() = if (external) requests.filterIsInstance<PendingRequest.External>().map { it.prompt } else emptyList()
     val canStop get() = !external || capabilities?.execution?.cancel == true
     val skills get() = capabilities?.server.supports(ServerFeature.Skills)
     /** Why nothing can be sent, or null when chat works. */

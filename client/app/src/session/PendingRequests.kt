@@ -35,8 +35,7 @@ sealed interface PendingRequest {
 internal const val TAKEOVER_TOOL = "request_takeover"
 
 /** An Agent's own requests in transcript order, those without a call in the transcript last, then an external harness's. */
-internal fun pendingRequests(items: List<ChatItem>, pending: List<PendingInteraction>, external: Boolean): List<PendingRequest> {
-    if (external) return pending.map { PendingRequest.External(it) }
+internal fun pendingRequests(items: List<ChatItem>, pending: List<PendingInteraction>): List<PendingRequest> {
     fun call(id: ToolCallId) = items.indexOfLast { it is ChatItem.ToolCall && it.callId == id && it.result == null }
     val native = pending.mapNotNull { request ->
         when (request) {

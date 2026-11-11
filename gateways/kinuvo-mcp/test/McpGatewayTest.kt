@@ -2,6 +2,8 @@ package kinuvo.gateways.mcp
 
 import arrow.core.raise.context.either
 import kinuvo.harness.*
+import kinuvo.protocol.Api
+import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.session.*
 import kinuvo.server.tools.ToolScope
@@ -13,12 +15,17 @@ import kotlin.test.*
 class McpGatewayTest {
     @Test fun externalCallerCanSpawnAndWaitThroughServerTools() = runBlocking {
         lateinit var agent: Agent
-        TestServer.start(script = { reply("child answer") }, scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
-            val session = server.startSession(agent.id)
-            val composed = server.harness.compose(agent, session.id, scope = ToolScope.only("agents_spawn", "agents_wait"))
+        val external = FakeHarness("external", "External host")
+        val caller = Agent(AgentId("external"), "External", AgentConfig(approvals = "full"))
+        TestServer.start(harnesses = listOf(external), script = { reply("child answer") }, scenario = {
+            agent = agent("work") { it.copy(approvals = "full") }
+            externalAgent(external, caller.id.value)
+        }).use { server ->
+            val session = server.startSession(caller.id)
+            val composed = server.harness.compose(caller, session.id, scope = ToolScope.only("agents_spawn", "agents_wait"))
             val access = McpAccess()
             val endpoint = McpEndpoint(access)
-            val run = McpAccess.Run(composed.tools, composed.gate, ToolTurn(emit = { server.harness.log.publish(agent.id, session.id, it) }), SupervisorJob())
+            val run = McpAccess.Run(composed.tools, composed.gate, ToolTurn(emit = { server.harness.log.publish(caller.id, session.id, it) }), SupervisorJob())
             val token = access.issue(run)
             suspend fun call(name: String, args: JsonObject): String {
                 val response = endpoint.handle("Bearer $token", buildJsonObject {
@@ -28,7 +35,7 @@ class McpGatewayTest {
                 assertEquals(200, response.status)
                 return Json.parseToJsonElement(response.body!!).jsonObject.getValue("result").jsonObject.getValue("content").jsonArray.single().jsonObject.getValue("text").jsonPrimitive.content
             }
-            val spawned = Json.parseToJsonElement(call("agents_spawn", buildJsonObject { put("goal", "work") })).jsonObject
+            val spawned = Json.parseToJsonElement(call("agents_spawn", buildJsonObject { put("goal", "work"); put("agent_id", agent.id.value) })).jsonObject
             val id = spawned.getValue("sessionId").jsonPrimitive.content
             val waiting = async { call("agents_wait", buildJsonObject { put("session_ids", JsonArray(listOf(JsonPrimitive(id)))); put("timeout_seconds", "5") }) }
             val review = withTimeout(5000) {
@@ -40,7 +47,8 @@ class McpGatewayTest {
             }
             assertTrue(review.args.contains("child answer"))
             assertEquals("child answer", review.preview?.body)
-            server.harness.approvals.respond(review.id, ApprovalDecision.AllowOnce)
+            val client = server.client(token = server.auth.sessionToken()).also { it.connect() }
+            assertTrue(client.call(Api.Respond, RespondParams(session.id, review.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
             val result = Json.parseToJsonElement(waiting.await()).jsonArray.single().jsonObject
             assertEquals(id, result.getValue("sessionId").jsonPrimitive.content)
             assertEquals("child answer", result.getValue("result").jsonPrimitive.content)

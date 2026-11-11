@@ -51,7 +51,7 @@ private fun ChatItem.ToolCall.rows(children: Map<SessionId, SubAgentState>): Lis
     fun row(id: SessionId, fallback: String = "") = children[id].let { ChildRow(id, it?.agentId, it?.goal ?: fallback, it) }
     return when (name) {
         ToolNames.AGENTS_SPAWN -> {
-            val started = result?.takeIf { !isError }?.let { runCatching { ProtocolJson.decodeFromString(SubAgentState.serializer(), it) }.getOrNull() }
+            val started = children.values.lastOrNull { it.callId == callId } ?: result?.takeIf { !isError }?.let { runCatching { ProtocolJson.decodeFromString(SubAgentState.serializer(), it) }.getOrNull() }
             listOf(started?.let { children[it.sessionId]?.let { live -> ChildRow(it.sessionId, live.agentId, live.goal, live) } ?: ChildRow(it.sessionId, it.agentId, it.goal, it) }
                 ?: ChildRow(null, text("agent_id")?.let(::AgentId), text("goal").orEmpty(), null))
         }
@@ -80,7 +80,7 @@ internal fun SubAgentCard(item: ChatItem.ToolCall, actions: ChatActions) {
             }, Modifier.weight(1f), style = TextStyles.callout, singleLine = true, overflow = TextOverflow.Ellipsis)
             when {
                 item.waiting || needs > 0 -> Pill(if (rows.size > 1 && needs > 1) "$needs need you" else "Needs you", tone = Tone.Warning)
-                item.isError && !item.denied -> Pill("Failed", tone = Tone.Danger)
+                (item.isError && !item.denied) || rows.any { it.state?.status == SubAgentStatus.Failed } -> Pill("Failed", tone = Tone.Danger)
                 item.denied -> Pill("Denied")
                 running > 0 -> Pill(if (rows.size > 1) "$running working" else "Working", tone = Tone.Accent, loading = true)
                 else -> Pill("Done", tone = Tone.Success)

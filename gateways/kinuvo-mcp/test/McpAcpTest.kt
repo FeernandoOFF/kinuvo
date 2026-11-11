@@ -30,13 +30,14 @@ class McpAcpTest {
                 with lock: print(json.dumps(v),flush=True)
             def reply(r,v): emit({'jsonrpc':'2.0','id':r['id'],'result':v})
             def update(v): emit({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'external','update':v}})
-            def http(server,method):
-                req=urllib.request.Request(server['url'],data=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':{'name':'deploy','arguments':{}}}).encode(),headers={h['name']:h['value'] for h in server['headers']})
+            def http(server,method,name='deploy',arguments=None):
+                req=urllib.request.Request(server['url'],data=json.dumps({'jsonrpc':'2.0','id':1,'method':method,'params':{'name':name,'arguments':arguments or {}}}).encode(),headers={h['name']:h['value'] for h in server['headers']})
                 try:
                     with urllib.request.urlopen(req,timeout=15) as res: return res.status,json.load(res)
                 except urllib.error.HTTPError as e: return e.code,None
             def turn(r,server):
-                status,result=http(server,'tools/call')
+                questions=r['params']['prompt'][0]['text']=='questions'
+                status,result=http(server,'tools/call','ask_user',{'questions':[{'id':'answer','label':'Your answer','kind':'text'}]}) if questions else http(server,'tools/call')
                 if cancelled.is_set(): return
                 assert status==200 and result['result']['isError']==False, (status,result)
                 update({'sessionUpdate':'agent_message_chunk','messageId':str(r['id']),'content':{'type':'text','text':'deployed'}})
@@ -109,6 +110,17 @@ class McpAcpTest {
                 assertTrue(client.call(Api.Respond, RespondParams(session.id, approval.id, answer)))
                 phase(ExecutionPhase.Idle)
             }
+            client.call(Api.Send, SendParams(agent, session.id, "questions"))
+            val questions = withTimeout(10000) {
+                while (true) {
+                    server.harness.log.pending(session.id).filterIsInstance<PendingInteraction.Questions>().firstOrNull()?.let { return@withTimeout it }
+                    delay(10)
+                }
+                error("unreachable")
+            }
+            assertTrue(client.call(Api.Respond, RespondParams(session.id, questions.id, InteractionAnswer.Questions(mapOf("answer" to listOf("yes"))))))
+            phase(ExecutionPhase.Idle)
+            assertTrue(server.harness.log.pending(session.id).isEmpty())
             client.call(Api.Send, SendParams(agent, session.id, "private"))
             val privateQuestion = withTimeout(10000) {
                 while (true) {
@@ -122,9 +134,12 @@ class McpAcpTest {
             val history = client.call(Api.History, HistoryParams(agent, session.id, 100)).map { it.entry }
             assertEquals(2, history.filterIsInstance<SessionEntry.ToolResult>().count { it.output == "deployed" })
             client.call(Api.Send, SendParams(agent, session.id, "cancel"))
-            pending()
+            val cancelled = pending()
             client.call(Api.Stop, StopParams(session.id))
             phase(ExecutionPhase.Idle)
+            assertTrue(server.harness.log.pending(session.id).none { it.id == cancelled.id })
+            assertTrue(client.call(Api.ExecutionSnapshot, ExecutionRef(session.id.value)).pending.none { it.id == cancelled.id })
+            assertFalse(server.harness.approvals.respond(cancelled.id, ApprovalDecision.AllowOnce))
             client.call(Api.Send, SendParams(agent, session.id, "disconnect"))
             phase(ExecutionPhase.Lost)
             client.call(Api.ResumeExecution, ExecutionRef(session.id.value))

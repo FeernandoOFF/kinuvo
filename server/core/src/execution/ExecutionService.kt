@@ -82,6 +82,9 @@ class ExecutionService internal constructor(
                 pending.any { p -> p.id == answer.requestId && (p is PendingInteraction.Approval || p is PendingInteraction.HarnessApproval) }
             if (approving) raise(AccessError.ManagementRequired)
         }
+        harness.log.pending(answer.sessionId).firstOrNull { it.id == answer.requestId }?.let { pending ->
+            if (harness.respondToTool(pending, answer.answer)) return true
+        }
         return dispatch.answer(answer)
     }
 

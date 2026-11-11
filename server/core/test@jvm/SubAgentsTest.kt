@@ -100,7 +100,12 @@ class SubAgentsTest {
             val parent = server.startSession(cloud.id)
             val children = server.harness.subAgents!!
             val error = assertFailsWith<ServerException> { value { children.spawn(cloud.id, parent.id, ToolCallId("cloud"), cloud.id, "task") } }
-            assertEquals(SubAgentError.Privacy, error.error)
+            assertEquals(SubAgentError.Privacy(cloud.name), error.error)
+            assertTrue(error.message.orEmpty().contains("has no on-device model"))
+            val failed = children.list(cloud.id, parent.id).values.single()
+            assertEquals(SubAgentStatus.Failed, failed.status)
+            assertEquals(error.message, failed.result)
+            assertEquals(failed, value { children.wait(cloud.id, parent.id, listOf(failed.sessionId), 0) }.single())
             val child = value { children.spawn(cloud.id, parent.id, ToolCallId("local"), local.id, "task") }
             assertEquals(SubAgentStatus.Completed, value { children.wait(cloud.id, parent.id, listOf(child.sessionId), 5) }.single().status)
             assertFailsWith<IllegalArgumentException> { server.harness.configure(local, child.sessionId, SessionSettings(provider = "test", model = "cloud")) }

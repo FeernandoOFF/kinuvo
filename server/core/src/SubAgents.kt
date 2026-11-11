@@ -27,7 +27,7 @@ sealed class SubAgentError(override val code: String, override val message: Stri
     data class Unknown(val id: SessionId) : SubAgentError(WireErrorCode.NotFound, "No child '$id' in this Session")
     data object Depth : SubAgentError(WireErrorCode.Conflict, "Sub-agent nesting limit is 2")
     data object Budget : SubAgentError(WireErrorCode.Conflict, "Activation budget exhausted")
-    data object Privacy : SubAgentError(WireErrorCode.Forbidden, "Hidden Sessions require an on-device model")
+    data class Privacy(val agent: String) : SubAgentError(WireErrorCode.Forbidden, "$agent has no on-device model; Sub-agents run in Hidden Sessions on this device’s model")
     data object Busy : SubAgentError(WireErrorCode.Conflict, "A follow-up is already queued")
 }
 
@@ -97,14 +97,16 @@ class SubAgents internal constructor(
         val depth = (parent.parent?.depth ?: 0) + 1
         if (depth > 2) raise(SubAgentError.Depth)
         val agent = harness.store.agents().firstOrNull { it.id == target } ?: throw ServerException(AgentError.NotFound(target))
-        harness.requireOnDevice(agent)
         val link = SessionParent(agentId, parentId, callId, depth)
         val info = harness.log.createHidden(target, link, SessionSettings(model = agent.config.model,
             reasoning = agent.config.reasoning, approvals = agent.config.approvals, provider = agent.config.provider))
         lock.withLock { parents[info.id] = link }
         val child = SubAgentState(info.id, target, callId, goal)
         save(agentId, parentId, child)
-        try { dispatch.send(SendParams(target, info.id, goal)) }
+        try {
+            harness.requireOnDevice(agent)
+            dispatch.send(SendParams(target, info.id, goal))
+        }
         catch (e: CancellationException) { withContext(NonCancellable) { finish(target, info.id, true) }; throw e }
         catch (e: Exception) { save(agentId, parentId, child.copy(status = SubAgentStatus.Failed, result = e.message)); throw e }
         return child

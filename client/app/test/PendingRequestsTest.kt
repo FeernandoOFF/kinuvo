@@ -4,6 +4,8 @@ import kinuvo.app.session.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.knowledge.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.execution.ExecutionKind
 import kinuvo.protocol.agent.AgentId
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -48,6 +50,16 @@ class PendingRequestsTest {
 
     @Test fun externalPromptsWrapTheHarnessPrompt() {
         assertEquals(listOf(PendingRequest.External(external)), state(prompts = listOf(external)).requests)
+    }
+
+    @Test fun externalSessionsKeepKinuvoRequestsInTheComposer() {
+        val state = ChatState(
+            agent = AgentInfo(AgentId("external"), "External", "", executionKind = ExecutionKind.Acp),
+            pending = listOf(approval, form, external),
+        )
+        assertTrue(state.external)
+        assertEquals(listOf(PendingRequest.Approval(approval), PendingRequest.Questions(form), PendingRequest.External(external)), state.requests)
+        assertEquals(listOf(external), state.prompts)
     }
 
     @Test fun severalWaitInTranscriptOrderThenExternal() {
