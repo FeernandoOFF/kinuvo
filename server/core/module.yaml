@@ -7,7 +7,6 @@ aliases:
 
 dependencies:
   - ../../harness/api: exported
-  - ../../client/sdk
   - ../../harness/builtin: exported
   - ../plugin-api: exported
   - com.charleskorn.kaml:kaml:0.104.0

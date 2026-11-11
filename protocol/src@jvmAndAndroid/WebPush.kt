@@ -1,4 +1,4 @@
-package kinuvo.client
+package kinuvo.protocol
 
 import java.math.BigInteger
 import java.nio.ByteBuffer

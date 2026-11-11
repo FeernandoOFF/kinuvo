@@ -5,7 +5,7 @@ import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.OutgoingContent
-import kinuvo.client.WebPush
+import kinuvo.protocol.WebPush
 import kinuvo.server.plugin.Notification
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.PushMessage

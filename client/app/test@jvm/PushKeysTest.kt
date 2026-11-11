@@ -1,6 +1,6 @@
 package kinuvo.app.connection
 
-import kinuvo.client.WebPush
+import kinuvo.protocol.WebPush
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.PushMessage
 import kotlin.test.Test

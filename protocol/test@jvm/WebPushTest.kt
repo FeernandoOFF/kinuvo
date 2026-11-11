@@ -1,4 +1,4 @@
-package kinuvo.client
+package kinuvo.protocol
 
 import java.security.interfaces.ECPublicKey
 import kotlin.test.Test
