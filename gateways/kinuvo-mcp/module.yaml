@@ -1,0 +1,14 @@
+product: jvm/lib
+
+dependencies:
+  - ../../server/core
+  - io.ktor:ktor-server-cio:3.6.0
+
+test-dependencies:
+  - ../../testing/server-testing
+  - ../../harness/acp
+  - $kotlin.test
+
+settings:
+  kotlin:
+    serialization: json

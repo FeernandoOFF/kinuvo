@@ -2,6 +2,7 @@ package kinuvo.testing.server
 
 import kinuvo.server.rpc.serverRoutes
 import kinuvo.client.KinuvoClient
+import kinuvo.harness.ExecutionFactory
 import kinuvo.harness.builtin.NativeExecutionFactory
 import kinuvo.harness.remote.RemoteExecutionFactory
 import kinuvo.server.plugin.HarnessPlugin
@@ -150,6 +151,7 @@ class TestServer private constructor(
             script: ModelScript.() -> Unit = {},
             harnesses: List<FakeHarness> = emptyList(),
             schedule: Boolean = false,
+            executionFactory: ((HarnessRuntime) -> ExecutionFactory)? = null,
             scenario: suspend Scenario.() -> Unit = {},
         ): TestServer {
             val directory = home ?: Path(Files.createTempDirectory("kinuvo-test-server").toString())
@@ -167,7 +169,7 @@ class TestServer private constructor(
                 val auth = DeviceAuth(File(directory.toString(), "server-devices.json"))
                 val links = RemoteLinks()
                 val runtime = ServerRuntime(harness, auth, serverRoutes(), "Test Server", remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, executionRegistry = registry, executionStorage = recovery,
-                    executionFactory = harnesses.takeIf { it.isNotEmpty() }?.let(::FakeHarnesses))
+                    executionFactory = executionFactory?.invoke(harness) ?: harnesses.takeIf { it.isNotEmpty() }?.let(::FakeHarnesses))
                 runtime.start(schedule = schedule)
                 withContext(Dispatchers.Default) {
                     withTimeout(5_000) { while (registry.catalog().connections.any { it.readiness.reasonCode == "checking" }) delay(10) }

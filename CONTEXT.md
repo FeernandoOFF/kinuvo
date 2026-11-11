@@ -122,7 +122,7 @@ The tools an Agent can find, describe and call on demand instead of each being s
 _Avoid_: Tool registry, toolbox
 
 **KinuvoMCP**:
-Planned: the Server's tools offered over MCP to external harnesses running Kinuvo Agents, under the same Approvals.
+The Server's tools offered over HTTP MCP to external harnesses running Kinuvo Agents, with per-run credentials and the same Tool scope and Approvals.
 _Avoid_: Kinuvo plugin, tool bridge
 
 **Script**:

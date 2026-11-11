@@ -12,6 +12,7 @@ modules:
   - client/ui
   - client/ui/android-computer
   - gateways/acp-agent
+  - gateways/kinuvo-mcp
   - harness/acp
   - harness/api
   - harness/builtin

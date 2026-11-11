@@ -18,7 +18,7 @@ Target layout:
 - `harness/`: `api` (execution contracts), `builtin` (the native harness), and the adapters `acp` and `remote`.
 - `models`: verified model downloads.
 - `server/`: `plugin-api`, `core`, `rpc`, and the hosts `jvm` and `embedded`.
-- `providers/`, `plugins/`, `gateways/` (`acp-agent`, `mcp`), `apps/`, `testing/`.
+- `providers/`, `plugins/`, `gateways/` (`acp-agent`, `kinuvo-mcp`), `apps/`, `testing/`.
 
 **Standalone harness.** `harness/api` and `harness/builtin` depend on no `server/*`, `client/*`, plugin or gateway module. Protocol values are allowed. `harness/api` is Koog-free; only `harness/builtin` knows Koog and converts neutral tool descriptors to it.
 
@@ -27,6 +27,8 @@ Target layout:
 **Core and hosts.** `server/core` depends on `harness/api` only. Hosts register each provider's `ModelSource` with builtin (`NativeExecutionFactory`) and hand core that `NativeHarness`, an `ExecutionFactory` that also builds the loop of a composed turn. Core pairs each provider's `ModelPolicy` with its admin, composes the tools, instructions and model choice of a run as a Koog-free `NativeRun` (or `NativeReflection`), and starts chat, Reflection and Routine runs through the factory, with the run kind in the request. Model profiles, tiers, result limits and tool schema levels are `harness/api` vocabulary. Apps provide the embedded Server through the existing `EmbeddedServer` interface, bound by one Koin module (`apps/android-embedded`) or framework module (`apps/ios-embedded`) that depends on `client/ui` and `server/embedded`; `client/*` never depends on Server modules.
 
 **Routes.** `server/core` defines the `Routes` dispatch interface, `ServerServices` (what a handler calls on) and `Caller` (the connection a request arrived on). `server/rpc` implements `Routes` with one route per protocol `Method`, grouped by feature, and may depend on `server/core`, `server/plugin-api`, `harness/api` and `protocol`; core never depends on it. Hosts and server tests pass `serverRoutes()` to `ServerRuntime`, which keeps connection lifecycle, the handshake, frame I/O, presence and subscriptions. Domain rules stay in core services, not in route handlers. A test in `server/rpc` fails on a `Method` with no route, two routes, or no owner.
+
+**MCP gateway.** `gateways/kinuvo-mcp` may depend on `server/core`, `harness/api` and `protocol` to expose the existing tool service. Its JVM host installs it; harness adapters receive only a neutral descriptor. The directory avoids Amper's duplicate module name with `plugins/mcp`. Its integration tests may depend on `harness/acp` and `testing/*` for external-process tests against a real Server.
 
 **Enforcement.** `ModuleEdgesTest` in `testing/server-testing` parses `module.yaml` dependency edges against explicit per-layer rules, including the adapter and host edges, and checks that `harness/api` and `harness/builtin` reach only `harness/*` and `protocol`, and that `client/*` reaches only `client/*` and `protocol`. Test dependencies may also reach `testing/*`, and Server-side modules may use `client/*` in tests. Edges outside the rules need a commented entry in the test's exception list, which is empty today.
 

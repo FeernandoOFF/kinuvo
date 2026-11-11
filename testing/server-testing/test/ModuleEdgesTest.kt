@@ -31,6 +31,7 @@ class ModuleEdgesTest {
         Rule("server/rpc", listOf("server/core", "server/plugin-api", "harness/api", "protocol"), serverTests),
         Rule("providers/*", listOf("harness/builtin", "harness/api", "server/plugin-api", "models", "protocol"), serverTests),
         Rule("plugins/*", listOf("server/plugin-api", "models", "protocol"), serverTests),
+        Rule("gateways/kinuvo-mcp", listOf("server/core", "harness/api", "protocol"), serverTests + "harness/acp"),
         Rule("gateways/*", listOf("client/sdk", "harness/api", "protocol"), serverTests),
         Rule("server/jvm", hostTo, serverTests),
         Rule("server/embedded", hostTo, serverTests),
