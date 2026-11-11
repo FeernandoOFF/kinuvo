@@ -5,6 +5,7 @@ modules:
   - apps/cli
   - apps/desktop
   - apps/ios
+  - apps/ios-embedded
   - apps/web
   - client/app
   - client/sdk

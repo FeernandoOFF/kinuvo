@@ -9,15 +9,16 @@ struct KinuvoApp: App {
         #if DEBUG && targetEnvironment(simulator)
         MobileTestMode_iosKt.enableMobileTests()
         #endif
-        Keychain_iosKt.installKeychain(native: AppleKeychain())
-        LocalServer_iosKt.installAppleLanguageModel(model: AppleSystemLanguageModel())
+        let keychain = AppleKeychain()
+        Keychain_iosKt.installKeychain(native: keychain)
         DeviceReader_iosKt.installDeviceReader(reader: AppleDeviceReader())
         Attachments_iosKt.installAttachmentPicker(picker: AppleAttachmentPicker())
-        FolderPicker_iosKt.installFolderAccess(access: AppleFolderAccess())
+        let folders = AppleFolderAccess()
+        FolderPicker_iosKt.installFolderAccess(access: folders)
         QrScanner_iosKt.installQrScanner(scanner: AppleQrScanner())
-        LocalServer_iosKt.installBackgroundRuns(keeper: AppleBackgroundRuns())
         Speech_iosKt.installSpeechEngine(engine: AppleSpeech())
         Push_iosKt.installPush(native: ApplePush.shared)
+        IosEmbeddedKt.startKinuvoWithEmbeddedServer(model: AppleSystemLanguageModel(), keychain: keychain, folders: folders, runs: AppleBackgroundRuns())
     }
     var body: some Scene {
         WindowGroup {

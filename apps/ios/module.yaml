@@ -2,6 +2,7 @@ product: ios/app
 
 dependencies:
   - ../../client/ui
+  - ../ios-embedded: exported
 
 settings:
   kotlin:

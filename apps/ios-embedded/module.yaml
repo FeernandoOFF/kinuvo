@@ -1,0 +1,12 @@
+product:
+  type: kmp/lib
+  platforms: [iosArm64, iosSimulatorArm64]
+
+dependencies:
+  - ../../client/ui
+  - ../../server/embedded
+  - ../../providers/apple: exported
+
+settings:
+  kotlin:
+    compileIncrementally: true

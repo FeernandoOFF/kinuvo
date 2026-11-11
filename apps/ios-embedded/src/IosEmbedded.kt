@@ -1,26 +1,31 @@
-package kinuvo.ui
+package dev.kinuvo.ios.embedded
 
-import kinuvo.app.connection.*
-import kinuvo.app.agent.*
-
+import kinuvo.app.connection.EmbeddedServer
+import kinuvo.app.connection.Endpoint
+import kinuvo.app.connection.OnDeviceSupport
 import kinuvo.providers.apple.AppleLanguageModel
 import kinuvo.providers.apple.AppleProvider
+import kinuvo.server.embedded.EmbeddedServerHost
+import kinuvo.server.embedded.embeddedPlugins
+import kinuvo.server.iosKeychain
+import kinuvo.server.plugin.Keychain
+import kinuvo.server.providers.ModelProviders
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.knowledgeConfig
 import kinuvo.server.store.saveKnowledgeConfig
-import kinuvo.server.embedded.EmbeddedServerHost
-import kinuvo.server.embedded.embeddedPlugins
+import kinuvo.ui.NativeKeychain
+import kinuvo.ui.connection.FolderAccess
+import kinuvo.ui.startKinuvo
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.files.Path
+import org.koin.dsl.module
 import platform.Foundation.NSApplicationSupportDirectory
 import platform.Foundation.NSSearchPathForDirectoriesInDomains
 import platform.Foundation.NSUserDomainMask
-import kinuvo.server.providers.ModelProviders
 
-private var appleModel: AppleLanguageModel? = null
 private var backgroundRuns: BackgroundRuns? = null
 private var localHost: EmbeddedServerHost? = null
 
@@ -30,18 +35,32 @@ interface BackgroundRuns {
     fun update(runs: Int, steps: Long)
 }
 
-fun installBackgroundRuns(keeper: BackgroundRuns) { backgroundRuns = keeper }
-
 /** Stops every run on the iPhone Server, e.g. when iOS ends the app's background time; [completion] runs once they've saved. */
 fun stopLocalRuns(completion: () -> Unit) {
     MainScope().launch { try { localHost?.runtime?.stopRuns() } finally { completion() } }
 }
 
-fun installAppleLanguageModel(model: AppleLanguageModel) { appleModel = model }
+/**
+ * Starts the shared Koin graph with the on-device Server bound as the [EmbeddedServer].
+ * [folders] reopens the folders the user picked outside the sandbox; their moved paths reach the Server when it starts.
+ */
+fun startKinuvoWithEmbeddedServer(model: AppleLanguageModel, keychain: NativeKeychain, folders: FolderAccess, runs: BackgroundRuns) {
+    backgroundRuns = runs
+    iosKeychain = { service, account ->
+        object : Keychain {
+            override val name = "iOS Keychain"
+            override suspend fun read() = keychain.read(service, account)
+            override suspend fun write(token: String) = check(keychain.write(service, account, token)) { "Couldn't save to the iOS Keychain" }
+            override suspend fun delete() = keychain.delete(service, account)
+        }
+    }
+    startKinuvo(module {
+        single<OnDeviceSupport> { OnDeviceSupport { provider -> provider != "apple" || model.unavailableCode("system") == null } }
+        single<EmbeddedServer> { IosEmbeddedServer(model, folders) }
+    })
+}
 
-internal val iosOnDeviceSupport = OnDeviceSupport { provider -> provider != "apple" || appleModel?.unavailableCode("system") == null && appleModel != null }
-
-internal class IosEmbeddedServer : EmbeddedServer {
+internal class IosEmbeddedServer(private val model: AppleLanguageModel, private val folders: FolderAccess) : EmbeddedServer {
     private val lock = Mutex()
     private var server: EmbeddedServerHost? = null
 
@@ -49,9 +68,8 @@ internal class IosEmbeddedServer : EmbeddedServer {
         val local = lock.withLock {
             server ?: run {
                 val root = NSSearchPathForDirectoriesInDomains(NSApplicationSupportDirectory, NSUserDomainMask, true).first() as String
-                val model = checkNotNull(appleModel) { "Apple's on-device model bridge is unavailable" }
                 val home = Path(root, "Kinuvo")
-                val moved = kinuvo.ui.connection.folderAccess?.restore().orEmpty()
+                val moved = folders.restore()
                 AgentFiles(home).let { files ->
                     val knowledge = files.knowledgeConfig()
                     knowledge.path?.let(moved::get)?.let { files.saveKnowledgeConfig(knowledge.copy(path = it)) }
@@ -66,5 +84,4 @@ internal class IosEmbeddedServer : EmbeddedServer {
         }
         return Endpoint("local://kinuvo", local.token, local::connect)
     }
-
 }

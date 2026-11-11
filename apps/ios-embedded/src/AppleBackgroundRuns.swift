@@ -79,6 +79,6 @@ final class AppleBackgroundRuns: NSObject, BackgroundRuns {
     }
 
     private func stopRuns(then done: @escaping () -> Void) {
-        LocalServer_iosKt.stopLocalRuns { DispatchQueue.main.async(execute: done) }
+        IosEmbeddedKt.stopLocalRuns { DispatchQueue.main.async(execute: done) }
     }
 }
