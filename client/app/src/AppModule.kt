@@ -3,6 +3,8 @@ package kinuvo.app
 import kinuvo.protocol.workflow.WorkflowId
 import kinuvo.app.workflow.WorkflowViewModel
 import kinuvo.app.agent.*
+import kinuvo.app.team.TeamViewModel
+import kinuvo.protocol.team.TeamId
 import kinuvo.app.settings.*
 import kinuvo.app.onboarding.*
 import kinuvo.app.artifacts.ArtifactsViewModel
@@ -33,6 +35,8 @@ val appModule = module {
     single { get<ConnectedServer>().routines }
     single { get<ConnectedServer>().workflows }
     viewModel { (id: WorkflowId) -> WorkflowViewModel(get(), id) }
+    single { get<ConnectedServer>().teams }
+    viewModel { (id: TeamId) -> TeamViewModel(get(), id) }
     single { get<ConnectedServer>().config }
     single { get<ConnectedServer>().harnesses }
     single { get<ConnectedServer>().board }
