@@ -1,5 +1,6 @@
 modules:
   - apps/android
+  - apps/android-embedded
   - apps/android-play
   - apps/cli
   - apps/desktop

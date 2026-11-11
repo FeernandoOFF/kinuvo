@@ -17,6 +17,8 @@ dependencies:
 
 dependencies@android:
   - ../../providers/litert
+  - ../../plugins/browser
+  - androidx.webkit:webkit:1.15.0
 
 test-dependencies:
   - ../../testing/harness-testing

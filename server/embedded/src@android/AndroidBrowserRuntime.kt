@@ -1,4 +1,4 @@
-package kinuvo.ui.screen
+package kinuvo.server.embedded
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -35,7 +35,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
 /** All WebView access and tab records belong to Main; ScreenGate arbitrates Agent and user work. */
-internal class AndroidBrowserRuntime(private val context: Context) : BrowserService {
+class AndroidBrowserRuntime(private val context: Context) : BrowserService {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val tabs = linkedMapOf<String, Tab>()
     private val opening = ConcurrentHashMap<BrowserOwner, ScreenGate>()

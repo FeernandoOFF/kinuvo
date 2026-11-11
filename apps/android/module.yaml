@@ -2,6 +2,7 @@ product: android/app
 
 dependencies:
   - ../../client/ui
+  - ../android-embedded
   - ../../client/ui/android-computer
   - androidx.activity:activity-compose:1.13.0
 

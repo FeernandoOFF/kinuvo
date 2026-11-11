@@ -41,9 +41,7 @@ dependencies@jvm:
   - dev.onvoid.webrtc:webrtc-java:0.20.0:macos-aarch64
 
 dependencies@android:
-  - ../../plugins/browser
   - androidx.webkit:webkit:1.15.0
-  - ../../server/embedded
   - io.insert-koin:koin-android:4.2.2: exported
   - androidx.activity:activity-compose:1.13.0
   - androidx.browser:browser:1.9.0

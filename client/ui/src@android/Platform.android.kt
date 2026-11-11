@@ -3,7 +3,6 @@ package kinuvo.ui
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 
-import kinuvo.ui.screen.AndroidBrowserRuntime
 import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
@@ -57,8 +56,6 @@ internal actual val platformModule = module {
         OnDeviceSupport { it != "local" || supported }
     }
     single { AndroidSpeech(androidContext()) } bind SpeechEngine::class
-    single { AndroidBrowserRuntime(androidContext()) }
-    single<EmbeddedServer> { AndroidEmbeddedServer(androidContext(), get()) }
     single<DeviceReader> { AndroidContactsReader(androidContext()) }
     single { HapticNotifier(androidContext()) } bind Notifier::class
     single { androidTestMode(androidContext()) }

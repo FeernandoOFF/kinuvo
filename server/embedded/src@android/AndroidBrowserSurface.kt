@@ -1,4 +1,4 @@
-package kinuvo.ui.screen
+package kinuvo.server.embedded
 
 import android.annotation.SuppressLint
 import android.R

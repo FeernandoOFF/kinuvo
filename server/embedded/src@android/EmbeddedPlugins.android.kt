@@ -1,5 +1,6 @@
 package kinuvo.server.embedded
 
+import kinuvo.plugins.browser.BrowserPlugin
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.providers.codex.CodexProvider
 import kinuvo.providers.codex.OpenAIProvider
@@ -24,3 +25,6 @@ fun embeddedPlugins(home: Path, extra: List<HarnessPlugin> = emptyList()): Embed
     val local = LiteRtProvider(File(home.toString()))
     return EmbeddedPlugins(listOf<HarnessPlugin>(codex, openAI) + sharedPlugins(files) + extra + endpoints + local) { listOf<ModelSource>(codex, openAI) + endpoints.modelSources + local }
 }
+
+/** The browser plugin over the app's WebView when this device supports it; call on the main thread. */
+fun AndroidBrowserRuntime.browserPlugins(): List<HarnessPlugin> = if (available) listOf(BrowserPlugin(this)) else emptyList()
