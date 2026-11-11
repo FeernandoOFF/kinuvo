@@ -19,7 +19,13 @@ data class ExecutionInput(
     val action: SurfaceAction? = null,
     val kind: RunKind = RunKind.Chat(),
     val runId: RunId? = null,
+    val mcp: McpServerDescriptor? = null,
 )
 
 /** Source insertion identity; null means unavailable, never rejection or foreground completion. */
 data class ExecutionAcceptance(val messageId: String? = null)
+
+/** HTTP MCP access for this run only. Never include credentials in diagnostics. */
+class McpServerDescriptor(val url: String, val authorization: String, val toolNames: Set<String> = emptySet()) {
+    override fun toString() = "McpServerDescriptor($url)"
+}

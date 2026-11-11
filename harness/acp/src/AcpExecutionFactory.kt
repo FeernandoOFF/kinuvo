@@ -60,11 +60,11 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
                 }
             }
             val previous = state.snapshot().externalSessionId
-            val session = if (previous == null) connection.newSession(requireNotNull(registration.cwd), operations)
+            val session = if (connection.supportsMcp()) null else if (previous == null) connection.newSession(requireNotNull(registration.cwd), operations)
                 else connection.resumeSession(previous, requireNotNull(registration.cwd), operations)
-            state.reference(session.sessionId.toString())
+            session?.let { state.reference(it.sessionId.toString()) }
             val info = connection.client.agentInfo.await()
-            val adapter = AcpSession(session, connection, state, broker, reducer, requests::cancel, ExecutionCapabilities(
+            val adapter = AcpSession(session, previous, requireNotNull(registration.cwd), operations, connection, state, broker, reducer, requests::cancel, ExecutionCapabilities(
                 resume = connection.supportsResume(), cancel = true, questions = true, approvals = true,
                 supportedMimeTypes = info.capabilities.session?.prompt.supportedMimeTypes()))
             val collecting = scope.launch(start = CoroutineStart.UNDISPATCHED) {
