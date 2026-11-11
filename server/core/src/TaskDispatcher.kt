@@ -1,5 +1,7 @@
 package kinuvo.server
 
+import arrow.core.getOrElse
+import arrow.core.Either
 import io.github.oshai.kotlinlogging.KotlinLogging
 import co.touchlab.stately.collections.ConcurrentMutableSet
 import kinuvo.harness.ExecutionInput
@@ -40,7 +42,7 @@ class TaskDispatcher(private val harness: HarnessRuntime, private val runs: Runs
             guarded("reconcile") { harness.tasks.reconcile { it.id in active } }
             while (true) {
                 tick()
-                val minutes = runCatching { harness.tasksSetup().settings.pollMinutes }.getOrDefault(DEFAULT_POLL).coerceAtLeast(1)
+                val minutes = Either.catch { harness.tasksSetup().settings.pollMinutes }.getOrElse { DEFAULT_POLL }.coerceAtLeast(1)
                 withTimeoutOrNull(minutes * 60_000L) { wake.receive() }
             }
         }

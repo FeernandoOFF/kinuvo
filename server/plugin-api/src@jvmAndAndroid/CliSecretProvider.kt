@@ -1,5 +1,6 @@
 package kinuvo.server.plugin
 
+import kotlinx.coroutines.CancellationException
 import kinuvo.protocol.secret.SecretEntry
 import kinuvo.protocol.secret.SecretProviderStatus
 import java.io.File
@@ -42,7 +43,7 @@ abstract class CliSecretProvider(
         val status = SecretProviderStatus(scheme, name, tokenStorage = keychain?.name ?: "$tokenVariable in $envFile", levels = levels)
         if (!installed()) return status.copy(detail = "Install $tool on the Server: $install")
         if (stored() == null) return status.copy(installed = true, detail = tokenHelp)
-        return runCatching { browse(emptyList()) }.fold(
+        return runCatching { browse(emptyList()) }.onFailure { if (it is CancellationException) throw it }.fold(
             { status.copy(installed = true, connected = true, detail = "Signed in; ${found(it)}") },
             { status.copy(installed = true, connected = true, detail = it.message.orEmpty()) },
         )

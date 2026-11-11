@@ -1,5 +1,6 @@
 package kinuvo.server.execution
 
+import kotlinx.coroutines.CancellationException
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.harness.transcript
@@ -113,7 +114,8 @@ class ExecutionStorage(private val home: Path) : ExecutionRecoveryStore {
                 save(record.copy(checkpoint = emptyList()))
                 completed += identity
                 writeAtomically(receiptFile, ProtocolJson.encodeToString(receiptSerializer, completed.sorted()), private = true)
-            } catch (e: Exception) { failures += "Legacy record $index: ${e.message}" }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { failures += "Legacy record $index: ${e.message}" }
         }
         return failures
     }

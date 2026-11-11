@@ -1,5 +1,6 @@
 package kinuvo.ui.surface
 
+import arrow.core.Either
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.runtime.*
@@ -64,8 +65,8 @@ internal fun McpAppSurface(
     send: (String) -> Unit,
     fallback: @Composable () -> Unit,
 ) {
-    val loaded by produceState<Result<McpAppResource>?>(null, call.callId) { value = runCatching { resource(call.callId) } }
-    val app = loaded?.getOrNull() ?: run { fallback(); return }
+    val loaded by produceState<McpAppResource?>(null, call.callId) { value = Either.catch { resource(call.callId) }.getOrNull() }
+    val app = loaded ?: run { fallback(); return }
     val input = remember(call.args) { runCatching { Json.parseToJsonElement(call.args).jsonObject }.getOrNull() } ?: JsonObject(emptyMap())
     val result = call.appResult ?: buildJsonObject {
         put("content", buildJsonArray { add(buildJsonObject { put("type", "text"); put("text", call.result.orEmpty()) }) })

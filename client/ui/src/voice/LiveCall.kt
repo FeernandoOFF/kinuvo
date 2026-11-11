@@ -1,5 +1,6 @@
 package kinuvo.ui.voice
 
+import arrow.core.Either
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -342,12 +343,12 @@ fun LiveCallHost(agents: List<AgentInfo>) {
     }
     AnimatedVisibility(!minimized && approval != null, enter = fadeIn(), exit = fadeOut()) {
         approval?.let { a ->
-            CallApprovalSheet(shown.agentName, a, onDecision = { d -> scope.launch { runCatching { sessions.respond(shown.sessionId, a.id, InteractionAnswer.Approval(d)) } } }, onEnd = calls::end)
+            CallApprovalSheet(shown.agentName, a, onDecision = { d -> scope.launch { Either.catch { sessions.respond(shown.sessionId, a.id, InteractionAnswer.Approval(d)) } } }, onEnd = calls::end)
         }
     }
     AnimatedVisibility(!minimized && approval == null && external != null, enter = fadeIn(), exit = fadeOut()) {
         external?.let { p ->
-            CallExternalApprovalSheet(shown.agentName, p, onOption = { o -> scope.launch { runCatching { sessions.respond(shown.sessionId, p.id, approvalAnswer(o)) } } }, onEnd = calls::end)
+            CallExternalApprovalSheet(shown.agentName, p, onOption = { o -> scope.launch { Either.catch { sessions.respond(shown.sessionId, p.id, approvalAnswer(o)) } } }, onEnd = calls::end)
         }
     }
     if (minimized) Strip("live-call", if (shown.voice.error != null) color(mutedColor) else ink, onClick = { minimized = false }, priority = 100) {

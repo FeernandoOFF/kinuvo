@@ -1,5 +1,6 @@
 package kinuvo.app.screen
 
+import kinuvo.app.connection.catching
 import kinuvo.client.userMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -40,7 +41,7 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
     selected: ScreenRef? = null, reason: String? = null) : ViewModel() {
     constructor(connection: ConnectedServer, owner: BrowserOwner?, selected: ScreenRef?, reason: String?) : this(ConnectedScreens(connection), owner, selected, reason) {
         connection.bind(viewModelScope)
-        cleanup = { id -> connection.scope.launch { runCatching { repository.unwatch(id) } } }
+        cleanup = { id -> connection.scope.launch { catching { repository.unwatch(id) } } }
     }
     val state: StateFlow<LiveViewState>
         field = MutableStateFlow(LiveViewState(selected = selected, requestReason = reason, owner = owner))

@@ -78,7 +78,8 @@ class ExecPlugin(private val files: PluginStorage, private val secrets: SecretRe
         finally { if (backend is ContainerBackend) kotlinx.coroutines.withContext(NonCancellable) { runCatching { backend.remove() } } }
     }
 
-    override suspend fun instructions(agent: Agent): InstructionSection? = runCatching { backend(agent)?.instructions }.getOrNull()
+    override suspend fun instructions(agent: Agent): InstructionSection? =
+        try { backend(agent)?.instructions } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
 
     override suspend fun readFile(agent: Agent, path: String): String? = backend(agent)?.read(path, ARTIFACT_MAX_CHARS, whole = true)
 

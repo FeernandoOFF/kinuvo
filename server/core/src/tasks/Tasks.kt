@@ -1,5 +1,6 @@
 package kinuvo.server.tasks
 
+import arrow.core.Either
 import kinuvo.server.plugin.ProviderTask
 import kinuvo.server.plugin.TaskApp
 import kinuvo.server.plugin.TaskChange
@@ -151,7 +152,7 @@ class Tasks(
             val s = states[key(p, id)]
             if (s?.status == TaskStatus.InProgress) states + (key(p, id) to s.copy(status = TaskStatus.Waiting)).also { moved = true } else states
         }
-        if (moved) runCatching { changed(p, id) }
+        if (moved) Either.catch { changed(p, id) }
     }
 
     /** Tasks in progress with no run going (e.g. after a restart) wait for the user instead of staying stuck. */

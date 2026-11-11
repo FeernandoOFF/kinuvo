@@ -1,5 +1,6 @@
 package kinuvo.client
 
+import arrow.core.Either
 import kinuvo.protocol.*
 import kinuvo.protocol.computer.*
 import kinuvo.protocol.connection.*
@@ -165,7 +166,7 @@ class KinuvoClient(
         if (this.active == active) return
         this.active = active
         // One at a time, each sending the latest value, so the Server ends up with the last one.
-        scope.launch { presence.withLock { runCatching { dispatchRequest(Api.Presence, PresenceParams(this@KinuvoClient.active)) } } }
+        scope.launch { presence.withLock { Either.catch { dispatchRequest(Api.Presence, PresenceParams(this@KinuvoClient.active)) } } }
     }
 
     /** Sends an event the Server takes without replying, e.g. live call audio. */

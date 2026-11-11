@@ -1,5 +1,6 @@
 package kinuvo.plugins.mcp
 
+import kotlinx.coroutines.CancellationException
 import kinuvo.server.plugin.SecretReferences
 import kinuvo.server.plugin.SecretResolver
 import kinuvo.protocol.mcp.McpOAuthClient
@@ -73,7 +74,7 @@ object McpConfig {
             for ((name, value) in entries) {
                 runCatching { parse(name, value.jsonObject, signInScopes.getOrNull(i)) { expand(name, it) } }
                     .onSuccess { if (agentId == null || it.usedBy(agentId)) servers[name] = it else servers.remove(name) }
-                    .onFailure { errors += "MCP server '$name': ${it.message}" }
+                    .onFailure { if (it is CancellationException) throw it; errors += "MCP server '$name': ${it.message}" }
             }
         }
         return servers.values.toList() to errors

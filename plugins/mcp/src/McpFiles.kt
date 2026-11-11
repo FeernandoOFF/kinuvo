@@ -105,6 +105,8 @@ class McpFiles(private val file: Path, private val scope: ConfigScope) {
 suspend fun testMcp(server: McpServerInfo, expand: suspend (String) -> String, auth: McpAuth? = null, signInScope: String? = null): McpTestResult {
     val connection = try {
         McpServer(McpConfig.parse(server.name, McpFiles.entry(server), signInScope, expand), auth)
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
         return McpTestResult(error = e.message ?: e.toString())
     }
