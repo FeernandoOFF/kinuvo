@@ -2,6 +2,7 @@ package kinuvo.server.execution
 
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
+import kinuvo.harness.transcript
 import kinuvo.protocol.*
 import kinuvo.server.plugin.children
 import kinuvo.server.plugin.exists

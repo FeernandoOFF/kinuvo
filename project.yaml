@@ -13,6 +13,7 @@ modules:
   - harness/acp
   - harness/api
   - harness/builtin
+  - harness/remote
   - models
   - plugins/anytype
   - plugins/bitwarden

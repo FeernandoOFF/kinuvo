@@ -1,4 +1,4 @@
-package kinuvo.server.execution
+package kinuvo.harness.remote
 
 import kinuvo.harness.*
 import kinuvo.client.KinuvoClient
@@ -13,9 +13,9 @@ import kinuvo.client.AuthException
 import kinuvo.client.DisconnectedException
 
 /** KMP adapter: a linked party receives no management credential or catalog secrets. */
-class RemoteExecutionFactory(private val links: RemoteLinks, private val serverId: String, private val readiness: suspend (String, Boolean, String) -> Unit = { _, _, _ -> }) : ExecutionFactory {
+class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, private val serverId: String, private val readiness: suspend (String, Boolean, String) -> Unit = { _, _, _ -> }) : RemoteHarness {
     private suspend fun connect(id: String): KinuvoClient {
-        val link = links.link(id)
+        val link = link(id)
         val client = KinuvoClient(link.url, "Kinuvo Server link", token = link.token, allowCleartext = true)
         try {
             val result = withTimeout(15_000) { client.connect() }
@@ -25,8 +25,8 @@ class RemoteExecutionFactory(private val links: RemoteLinks, private val serverI
         } catch (e: Throwable) { client.close(); throw e }
     }
 
-    suspend fun discover(id: String): RemoteExecutionResult {
-        val client = connect(id)
+    override suspend fun discover(linkId: String): RemoteExecutionResult {
+        val client = connect(linkId)
         try { return client.call(Api.RemoteExecution, RemoteExecutionCall()) }
         finally { client.close() }
     }

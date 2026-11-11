@@ -2,6 +2,7 @@ package kinuvo.testing.server
 
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.builtin.NativeExecutionFactory
+import kinuvo.harness.remote.RemoteExecutionFactory
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.knowledgeConfig
@@ -13,6 +14,7 @@ import kinuvo.server.ServerInstallation
 import kinuvo.server.ServerRuntime
 import kinuvo.server.execution.ExecutionRegistry
 import kinuvo.server.execution.MemoryExecutionRecovery
+import kinuvo.server.execution.RemoteLinks
 import kinuvo.testing.harness.ModelScript
 import kinuvo.protocol.AgentRef
 import kinuvo.protocol.Api
@@ -160,7 +162,8 @@ class TestServer private constructor(
             try {
                 Scenario(harness, directory, registry, recovery).scenario()
                 val auth = DeviceAuth(File(directory.toString(), "server-devices.json"))
-                val runtime = ServerRuntime(harness, auth, "Test Server", executionRegistry = registry, executionStorage = recovery,
+                val links = RemoteLinks()
+                val runtime = ServerRuntime(harness, auth, "Test Server", remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, executionRegistry = registry, executionStorage = recovery,
                     executionFactory = harnesses.takeIf { it.isNotEmpty() }?.let(::FakeHarnesses))
                 runtime.start(schedule = schedule)
                 withContext(Dispatchers.Default) {

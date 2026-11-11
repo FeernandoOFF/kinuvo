@@ -1,5 +1,6 @@
 package kinuvo.server.execution
 
+import kinuvo.harness.transcript
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.*

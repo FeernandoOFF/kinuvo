@@ -41,6 +41,9 @@ import kotlin.uuid.Uuid
 
 private val log = KotlinLogging.logger("kinuvo.server")
 
+/** Builds the harness for linked Servers; [readiness] reports each connection going online or offline. */
+typealias RemoteHarnessFactory = (readiness: suspend (connectionId: String, online: Boolean, code: String) -> Unit) -> RemoteHarness
+
 @OptIn(ExperimentalAtomicApi::class)
 class ServerRuntime(
     val harness: HarnessRuntime,
@@ -53,13 +56,14 @@ class ServerRuntime(
     nativeFactory: ExecutionFactory = harness.native,
     private val executionStorage: ExecutionRecoveryStore = MemoryExecutionRecovery(),
     val remoteLinks: RemoteLinks = RemoteLinks(),
+    remoteHarness: RemoteHarnessFactory? = null,
     private val prepareAttachment: (UploadAttachmentParams) -> UploadAttachmentParams = { it },
     /** Held while a live voice call runs, so the host keeps serving it in real time. */
     private val keepAwake: () -> AutoCloseable = { AutoCloseable {} },
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val executions = executionRegistry
-    private val remoteFactory = RemoteExecutionFactory(remoteLinks, harness.serverId) { id, online, code ->
+    private val remoteFactory = remoteHarness?.invoke { id, online, code ->
         val before = executions.catalog().connections.firstOrNull { it.config.id == id }
         if (before != null) {
             if (online) executions.negotiated(id, ExecutionCapabilities(cancel = true, questions = true, approvals = true))
@@ -68,9 +72,9 @@ class ServerRuntime(
         }
     }
     private val installedFactory = object : ExecutionFactory {
-        override suspend fun probe(config: HarnessConnection) = if (config.connection is ExecutionConnection.Remote) remoteFactory.probe(config) else executionFactory?.probe(config) ?: ExecutionProbe(ExecutionReadiness(true, false, "ACP unavailable", "unsupported"))
+        override suspend fun probe(config: HarnessConnection) = if (config.connection is ExecutionConnection.Remote) remoteFactory?.probe(config) ?: ExecutionProbe(ExecutionReadiness(true, false, "Remote Servers unavailable", "unsupported")) else executionFactory?.probe(config) ?: ExecutionProbe(ExecutionReadiness(true, false, "ACP unavailable", "unsupported"))
         override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
-            if (config.connection is ExecutionConnection.Remote) remoteFactory.open(config, registration, state, broker, scope) else requireNotNull(executionFactory).open(config, registration, state, broker, scope)
+            if (config.connection is ExecutionConnection.Remote) requireNotNull(remoteFactory) { "Remote Servers unavailable" }.open(config, registration, state, broker, scope) else requireNotNull(executionFactory).open(config, registration, state, broker, scope)
     }
     private val remoteGateway = RemoteGateway(remoteLinks,
         { admin.agents() + externalAgents() },
@@ -513,7 +517,7 @@ class ServerRuntime(
             check(connections.none { external.inUse(it.config.id) }) { "Connection has live Sessions" }
             remoteLinks.save(link)
         } }
-        Api.DiscoverRemote.name -> respond(r, Api.DiscoverRemote) { remoteFactory.discover(it.id) }
+        Api.DiscoverRemote.name -> respond(r, Api.DiscoverRemote) { requireNotNull(remoteFactory) { "Remote Servers unavailable" }.discover(it.id) }
         Api.ExecutionCatalog.name -> respond(r, Api.ExecutionCatalog) { executions.catalog() }
         Api.SaveHarnessConnection.name -> respond(r, Api.SaveHarnessConnection) { executionManagement.withLock { check(!external.inUse(it.id)) { "Connection has live Sessions" }; executions.save(it).also { catalogChanged() } } }
         Api.DeleteHarnessConnection.name -> respond(r, Api.DeleteHarnessConnection) { executionManagement.withLock { check(!external.inUse(it.id)) { "Connection has live Sessions" }; executions.removeConnection(it.id).also { catalogChanged() } } }

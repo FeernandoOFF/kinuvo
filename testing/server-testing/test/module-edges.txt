@@ -27,6 +27,8 @@ harness/api -> protocol
 harness/builtin -> harness/api
 harness/builtin -> protocol
 harness/builtin -> testing/harness-testing [test]
+harness/remote -> client/sdk
+harness/remote -> harness/api
 models -> protocol
 plugins/anytype -> server/plugin-api
 plugins/bitwarden -> server/plugin-api
@@ -68,6 +70,7 @@ server/core -> server/plugin-api
 server/core -> testing/harness-testing [test]
 server/core -> testing/server-testing [test]
 server/embedded -> client/sdk [test]
+server/embedded -> harness/remote
 server/embedded -> plugins/anytype
 server/embedded -> plugins/caldav
 server/embedded -> plugins/executor
@@ -83,6 +86,7 @@ server/embedded -> testing/harness-testing [test]
 server/jvm -> client/sdk [test]
 server/jvm -> harness/acp
 server/jvm -> harness/builtin
+server/jvm -> harness/remote
 server/jvm -> plugins/anytype
 server/jvm -> plugins/bitwarden
 server/jvm -> plugins/browser
@@ -109,5 +113,6 @@ server/plugin-api -> protocol
 testing/fixture-server -> testing/server-testing
 testing/harness-testing -> harness/builtin
 testing/server-testing -> client/sdk
+testing/server-testing -> harness/remote
 testing/server-testing -> server/core
 testing/server-testing -> testing/harness-testing

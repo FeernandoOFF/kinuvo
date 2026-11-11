@@ -1,17 +1,13 @@
-package kinuvo.server
+package kinuvo.harness.remote
 
 import kinuvo.harness.ExecutionSink
 import kinuvo.harness.ExecutionState
-import kinuvo.server.execution.executionSnapshot
-import kinuvo.server.execution.remoteEntries
 import kinuvo.protocol.*
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 
 class RemoteExecutionHistoryTest {
     @Test fun streamedNativeReplyCommitsBeforeCompletionAndAllowsAnotherTurn() = runTest {
-        val log = SessionLog(RuntimeFixture().store)
-        val id = log.createSession("source", "").id
         val saved = mutableListOf<SessionEntry>()
         val state = ExecutionState("receiving", sink = object : ExecutionSink {
             override suspend fun publish(event: AgentEvent) {}
@@ -21,14 +17,11 @@ class RemoteExecutionHistoryTest {
         repeat(2) { turn ->
             val messageId = "reply-$turn"
             state.begin()
-            log.publish("source", id, AgentEvent.RunStarted("run-$turn"))
-            log.publish("source", id, AgentEvent.TextMessageContent(messageId, "Hello"))
-            val streaming = log.executionSnapshot("source", id).messages.last()
+            val streaming = ExecutionMessage("assistant:$messageId", "assistant", "Hello")
             val live = remoteEntries(listOf(streaming), state.generation).single()
             sink.publish(AgentEvent.ExecutionEntryChanged(live))
-            log.append("source", id, SessionEntry.AssistantMessage("Hello", messageId))
-            log.publish("source", id, AgentEvent.RunFinished("run-$turn"))
-            val completed = remoteEntries(listOf(log.executionSnapshot("source", id).messages.last()), state.generation)
+            val payload = ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), SessionEntry.AssistantMessage("Hello", messageId))
+            val completed = remoteEntries(listOf(ExecutionMessage("assistant:$messageId", "assistant", "Hello", payload)), state.generation)
             assertEquals(live.identity(), completed.single().identity())
             sink.commit(completed)
             assertTrue(state.live().entries.isEmpty())

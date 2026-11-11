@@ -4,6 +4,7 @@ dependencies:
   - ../../server/core: exported
   - ../harness-testing: exported
   - ../../client/sdk: exported
+  - ../../harness/remote
 
 test-dependencies:
   - $kotlin.test

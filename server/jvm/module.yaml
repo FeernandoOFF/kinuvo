@@ -5,6 +5,7 @@ dependencies:
   - ../../harness/builtin: exported
   - ../core: exported
   - ../../harness/acp
+  - ../../harness/remote
   - ../../plugins/browser
   - ../../plugins/anytype
   - ../../plugins/bitwarden

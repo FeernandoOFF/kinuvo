@@ -6,7 +6,7 @@ Self-hosted personal AI assistant. Terms: `CONTEXT.md`. Decisions: `docs/adr/`.
 
 - `protocol/`: wire and domain values (KMP, incl. web).
 - `client/`: `sdk` (transport), `app` (Compose-free feature logic), `ui` (Compose Multiplatform, matching feature packages; `android-computer`).
-- `harness/`: runs Agents, no Server dependencies: `api` (execution contracts), `builtin` (the built-in harness, KMP), `acp` (external ACP harnesses).
+- `harness/`: runs Agents, no Server dependencies: `api` (execution contracts), `builtin` (the built-in harness, KMP), `acp` (external ACP harnesses), `remote` (another Kinuvo Server as a harness, KMP; hosts register it).
 - `gateways/`: clients of a Server that expose it elsewhere: `acp-agent` (serves an Agent as an ACP agent over stdio, `kinuvo.gateways.acp`).
 - `server/`: `plugin-api` (Server plugin SPI, `kinuvo.server.plugin`, Koog-free; plugins depend on it, never on `harness/builtin`), `core` (KMP implementations), `jvm` host, `embedded` on-device host with each phone's plugin list.
 - `models/`: verified model downloads. `providers/` (apple, codex, koog, litert) and `plugins/` (anytype, bitwarden, browser, caldav, exec, executor, firecrawl, mcp, ntfy, onepassword, protonpass, reminders, todoist, voice; `cua` is the desktop Computer driver).

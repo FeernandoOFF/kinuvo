@@ -5,6 +5,7 @@ import kinuvo.server.execution.ExecutionStorage
 import kinuvo.server.execution.remoteLinks
 import java.io.File
 import kinuvo.harness.acp.AcpExecutionFactory
+import kinuvo.harness.remote.RemoteExecutionFactory
 import kinuvo.harness.ExecutionState
 import kinuvo.protocol.AttachmentData
 import java.net.InetAddress
@@ -17,8 +18,9 @@ import kinuvo.server.ServerRuntime
 class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File(harness.files.home.toString(), "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity()) {
     private val executionStorage = ExecutionStorage(harness.files.home)
     private val activity = ProcessActivity("Serving a live voice call")
+    private val links = remoteLinks(harness.files.home)
     val runtime: ServerRuntime = ServerRuntime(harness, auth, name,
-        remoteLinks = remoteLinks(harness.files.home), security = security, prepareAttachment = ::prepareAttachment, keepAwake = activity::hold,
+        remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, security = security, prepareAttachment = ::prepareAttachment, keepAwake = activity::hold,
         executionRegistry = executionStorage.registry, executionFactory = AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment), executionStorage = executionStorage)
     private suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData) = runtime.persistExecutionAttachment(state, data)
     private val listener = NetworkListener(runtime, auth, network)
