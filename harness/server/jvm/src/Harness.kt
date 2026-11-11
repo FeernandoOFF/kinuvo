@@ -18,23 +18,24 @@ class Harness private constructor(home: Path, dependencies: RuntimeDependencies,
     platformDescription = "${currentPlatform.displayName} ${System.getProperty("os.arch")}",
 ) {
     val files = AgentFiles(home)
-    constructor(home: Path = kinuvoHome(), store: Store? = null, providers: List<ModelProviderPlugin>? = null,
+    constructor(home: Path = kinuvoHome(), store: Store? = null, providers: ModelProviders? = null,
         modelFactory: ((AgentConfig) -> AgentModel)? = null, clock: () -> Long = System::currentTimeMillis,
         plugins: List<HarnessPlugin>? = null, secretProviders: List<SecretProvider>? = null, codexAuth: CodexAuth = CodexAuth(),
     ) : this(home, install(home, store, providers, plugins, secretProviders, clock, codexAuth), modelFactory)
 
     private companion object {
-        private fun install(home: Path, store: Store?, providers: List<ModelProviderPlugin>?, plugins: List<HarnessPlugin>?, secretProviders: List<SecretProvider>?, clock: () -> Long, auth: CodexAuth): RuntimeDependencies = runBlocking {
+        private fun install(home: Path, store: Store?, providers: ModelProviders?, plugins: List<HarnessPlugin>?, secretProviders: List<SecretProvider>?, clock: () -> Long, auth: CodexAuth): RuntimeDependencies = runBlocking {
             val files = AgentFiles(home)
             val secrets = Secrets(secretProviders ?: jvmSecretProviders(files))
             val owned = mutableListOf<HarnessPlugin>()
-            val selected = try {
-                plugins ?: jvmPlugins(files, secrets, providers ?: jvmProviders(files, secrets, owned::add), owned::add)
+            val (sources, selected) = try {
+                if (plugins != null) (providers?.sources ?: { emptyList() }) to plugins
+                else (providers ?: jvmProviders(files, secrets, owned::add)).let { it.sources to jvmPlugins(files, secrets, it, owned::add) }
             } catch (e: Throwable) {
                 ServerResources(owned).close()
                 throw e
             }
-            ServerInstallation.assemble(files, store, selected,
+            ServerInstallation.assemble(files, store, selected, modelSources = sources,
                 secrets = secrets, userHome = Path(System.getProperty("user.home")), clock = clock).also { dependencies ->
                     if (auth.account().signedIn && CodexRealtime.available()) {
                         val voice = dependencies.voice

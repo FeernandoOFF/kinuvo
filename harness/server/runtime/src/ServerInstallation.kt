@@ -34,6 +34,7 @@ object ServerInstallation {
         store: Store? = null,
         plugins: List<HarnessPlugin> = emptyList(),
         modelProviders: List<ModelProvider> = emptyList(),
+        modelSources: () -> List<ModelSource> = { emptyList() },
         secrets: Secrets = Secrets(),
         userHome: Path = files.home,
         clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
@@ -49,7 +50,7 @@ object ServerInstallation {
             val installedStore = store ?: FileStore(files, clock)
             val docs = FileAgentDocs(files)
             val providers = object : AbstractList<ModelProvider>() {
-                private fun current() = (modelProviders + plugins.filterIsInstance<ModelProviderPlugin>().flatMap { it.modelProviders }).distinctBy { it.id }
+                private fun current() = (modelProviders + pairModelProviders(plugins, modelSources())).distinctBy { it.id }
                 override val size get() = current().size
                 override fun get(index: Int) = current()[index]
             }

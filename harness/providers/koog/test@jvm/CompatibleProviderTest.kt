@@ -1,6 +1,10 @@
 package kinuvo.harness.koog
 
 import kinuvo.harness.execution.api.AgentConfig
+import kinuvo.server.plugin.ModelProviderConfig
+import kinuvo.server.plugin.PrivateFile
+import kinuvo.server.plugin.ProviderKeys
+import kinuvo.server.plugin.StoredProviderKey
 import kinuvo.server.plugin.readText
 import ai.koog.prompt.dsl.prompt
 import ai.koog.prompt.llm.LLMCapability
@@ -25,6 +29,8 @@ import java.nio.file.Files
 import kotlin.test.*
 
 class CompatibleProviderTest {
+    private fun keys(files: AgentFiles) = ProviderKeys(files, Secrets())
+
     @Test
     fun compatibleEndpointRetainsPathAndModelIdsAndUsesChatCompletions() = runTest {
         val home = Files.createTempDirectory("koog-provider").toFile()
@@ -44,8 +50,8 @@ class CompatibleProviderTest {
                 else -> error("Unexpected path: ${request.url}")
             }
         }
-        val key = StoredProviderKey("test", "Test", "TEST_KEY", files, Secrets(), PrivateFile(Path(home.path, "key")), PrivateFile(Path(home.path, "ref")), { mapOf("TEST_KEY" to token) })
-        val provider = CompatibleProvider("local", ModelProviderConfig(baseUrl = "http://localhost:1234/custom/v1"), files, Secrets(), null, engine, key)
+        val key = StoredProviderKey("test", "Test", "TEST_KEY", Secrets(), PrivateFile(Path(home.path, "key")), PrivateFile(Path(home.path, "ref")), { mapOf("TEST_KEY" to token) })
+        val provider = CompatibleProvider("local", ModelProviderConfig(baseUrl = "http://localhost:1234/custom/v1"), keys(files), null, engine, key)
         try {
             assertEquals(listOf("another-model", "vendor/local-model"), provider.models().map { it.id })
             assertEquals(listOf("image", "text"), provider.models().first { it.id == "vendor/local-model" }.output)
@@ -93,8 +99,8 @@ class CompatibleProviderTest {
             exchange.responseBody.use { it.write(response) }
         }
         server.start()
-        val key = StoredProviderKey("test", "Test", "TEST_KEY", files, Secrets(), PrivateFile(Path(home.path, "key")), PrivateFile(Path(home.path, "ref")), { emptyMap() })
-        val provider = CompatibleProvider("local", ModelProviderConfig(baseUrl = "http://127.0.0.1:${server.address.port}/v1/", apiKeyRequired = false), files, Secrets(), null, key = key)
+        val key = StoredProviderKey("test", "Test", "TEST_KEY", Secrets(), PrivateFile(Path(home.path, "key")), PrivateFile(Path(home.path, "ref")), { emptyMap() })
+        val provider = CompatibleProvider("local", ModelProviderConfig(baseUrl = "http://127.0.0.1:${server.address.port}/v1/", apiKeyRequired = false), keys(files), null, key = key)
         try {
             assertTrue(provider.availability("local").actionable)
             val model = provider.model(AgentConfig(provider = "local", model = "local"), ModelInfo("local", tools = true, reasoning = emptyList()))
@@ -117,13 +123,13 @@ class CompatibleProviderTest {
         try {
             files.updateConfig { it.copy(providers = mapOf("local" to options)) }
             assertEquals(options, files.config().providers["local"])
-            val providers = compatibleProviders(files)
+            val providers = compatibleProviders(keys(files), files)
             try {
-                assertEquals(listOf("custom/local"), providers.flatMap { it.modelProviders }.map { it.id })
-                val local = providers.last().modelProviders.single()
+                assertEquals(listOf("custom/local"), providers.modelSources.map { it.id })
+                val local = providers.providerAdmins.single()
                 assertEquals(options.models, local.models())
                 assertTrue(local.availability("local").actionable)
-            } finally { providers.forEach { it.close() } }
+            } finally { providers.close() }
         } finally { home.deleteRecursively() }
     }
 
@@ -131,16 +137,16 @@ class CompatibleProviderTest {
     fun newEndpointsAreSavedAndAvailableWithoutRestart() = runTest {
         val home = Files.createTempDirectory("koog-endpoint").toFile()
         val files = AgentFiles(Path(home.path))
-        val plugins = compatibleProviders(files)
+        val plugins = compatibleProviders(keys(files), files)
         try {
-            val endpoints = assertNotNull(plugins.single().customEndpoints)
+            val endpoints = assertNotNull(plugins.customEndpoints)
             val params = CustomEndpointParams(id = "studio", baseUrl = "http://localhost:1234/v1", model = "my-model")
             val ref = endpoints.save(params)
             assertEquals("custom/studio", ref.provider)
-            assertEquals(listOf("my-model"), plugins.flatMap { it.modelProviders }.single().models().map { it.id })
+            assertEquals(listOf("my-model"), plugins.providerAdmins.single().models().map { it.id })
             assertEquals("http://localhost:1234/v1/", files.config().providers["studio"]?.baseUrl)
             assertFailsWith<IllegalArgumentException> { endpoints.save(params) }
-        } finally { plugins.forEach { it.close() }; home.deleteRecursively() }
+        } finally { plugins.close(); home.deleteRecursively() }
     }
 
     @Test

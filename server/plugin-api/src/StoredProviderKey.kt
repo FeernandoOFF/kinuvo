@@ -1,9 +1,5 @@
-package kinuvo.harness.core
+package kinuvo.server.plugin
 
-import kinuvo.server.plugin.Keychain
-import kinuvo.server.plugin.ProviderApiKey
-import kinuvo.server.plugin.SecretReferences
-import kinuvo.harness.core.store.AgentFiles
 import kinuvo.protocol.ProviderApiKeyStatus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -13,11 +9,10 @@ class StoredProviderKey(
     private val id: String,
     private val name: String,
     private val environmentKey: String,
-    private val files: AgentFiles,
-    private val secrets: Secrets,
-    private val store: Keychain = Keychain.system("kinuvo", id) ?: PrivateFile(Path(files.home, "credentials", "$id-key")),
-    private val references: Keychain = PrivateFile(Path(files.home, "credentials", "$id-reference")),
-    private val env: () -> Map<String, String> = { files.loadEnv() },
+    private val secrets: SecretResolver,
+    private val store: Keychain,
+    private val references: Keychain,
+    private val env: () -> Map<String, String>,
 ) : ProviderApiKey {
     private val lock = Mutex()
 
@@ -55,4 +50,17 @@ class StoredProviderKey(
             }
         }
     }
+}
+
+/** Opens the API key stores providers keep under the Server's home; [system] gives an account's OS keychain, or null when the host has none. */
+class ProviderKeys(
+    val storage: PluginStorage,
+    val secrets: SecretResolver,
+    private val system: (account: String) -> Keychain? = { null },
+) {
+    fun store(account: String): Keychain = system(account) ?: PrivateFile(Path(storage.home, "credentials", "$account-key"))
+    fun reference(account: String): Keychain = PrivateFile(Path(storage.home, "credentials", "$account-reference"))
+
+    fun key(id: String, name: String, environmentKey: String, env: () -> Map<String, String> = { storage.loadEnv() }) =
+        StoredProviderKey(id, name, environmentKey, secrets, store(id), reference(id), env)
 }

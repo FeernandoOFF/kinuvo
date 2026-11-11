@@ -1,6 +1,7 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.plugin.ModelProviderPlugin
+import kinuvo.server.plugin.ProviderAdmin
+import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.deleteTree
 import kinuvo.harness.core.plugin.*
@@ -44,9 +45,9 @@ class ServerInstallationTest {
     @Test
     fun failedAssemblyClosesInstalledPluginsOnce() = runTest {
         var closes = 0
-        val plugin = object : ModelProviderPlugin {
+        val plugin = object : ProviderPlugin {
             override val definition = kinuvo.protocol.PluginDefinition("test.serverinstallationtest.2", "Test")
-            override val modelProviders: List<ModelProvider> get() = error("Assembly failed")
+            override val providerAdmins: List<ProviderAdmin> get() = error("Assembly failed")
             override suspend fun close() { closes++ }
         }
         assertFailsWith<IllegalArgumentException> { ServerInstallation.assemble(AgentFiles(home), plugins = listOf(plugin, plugin)) }

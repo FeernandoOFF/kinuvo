@@ -42,7 +42,7 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
          * The first model provider, from [providers] then [plugins], runs the default Agent on a fresh install.
          * A [continuous] Server keeps running and scheduling Routines while its app is in the background.
          */
-        suspend fun create(home: Path, providers: List<ModelProvider> = emptyList(), plugins: List<HarnessPlugin> = emptyList(), continuous: Boolean = false,
+        suspend fun create(home: Path, providers: List<ModelProvider> = emptyList(), plugins: List<HarnessPlugin> = emptyList(), modelSources: () -> List<ModelSource> = { emptyList() }, continuous: Boolean = false,
                            features: Set<ServerFeature> = setOf(ServerFeature.DeviceTools, ServerFeature.Computer),
                            peers: (PeerRegistry) -> PeerRegistry = { it }): EmbeddedServerHost {
             val files = AgentFiles(home)
@@ -50,7 +50,7 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
                 ServerResources(plugins).close()
                 throw e
             }
-            val dependencies = ServerInstallation.assemble(files, plugins = plugins, modelProviders = providers)
+            val dependencies = ServerInstallation.assemble(files, plugins = plugins, modelProviders = providers, modelSources = modelSources)
             try {
                 val harness = HarnessRuntime(dependencies, builtInFeatures = features)
                 if (fresh) {

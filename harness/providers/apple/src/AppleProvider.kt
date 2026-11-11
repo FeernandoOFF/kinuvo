@@ -2,6 +2,8 @@ package kinuvo.harness.apple
 
 import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.ProviderAdmin
+import kinuvo.server.plugin.ProviderPlugin
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.core.*
 import kinuvo.harness.core.tools.simplified
@@ -61,11 +63,11 @@ const val SYSTEM = "system"
 const val PRIVATE_CLOUD = "private-cloud"
 
 class AppleProvider(private val native: AppleLanguageModel, private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
-    private val estimateTokens: (suspend (Prompt, List<ToolDescriptor>) -> Int)? = null) : ModelProvider, ModelProviderPlugin {
+    private val estimateTokens: (suspend (Prompt, List<ToolDescriptor>) -> Int)? = null) : ModelSource, ProviderAdmin, ProviderPlugin {
     override val definition = PluginDefinition("kinuvo.apple", "Apple")
     override val id = "apple"
     override val name = "Apple"
-    override val modelProviders get() = listOf(this)
+    override val providerAdmins get() = listOf(this)
     override suspend fun models() = withContext(dispatcher) {
         listOf(SYSTEM to "Apple on-device model", PRIVATE_CLOUD to "Apple Private Cloud Compute").mapNotNull { (id, name) ->
             suspendCoroutine { c -> native.contextSize(id) { c.resume(it) } }.takeIf { it > 0 }

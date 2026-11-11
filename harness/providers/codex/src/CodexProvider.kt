@@ -1,9 +1,10 @@
 package kinuvo.harness.codex
 
 import kinuvo.harness.execution.api.AgentConfig
-import kinuvo.harness.core.plugin.ModelProviderPlugin
+import kinuvo.server.plugin.ProviderAdmin
+import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.harness.core.AgentModel
-import kinuvo.harness.core.plugin.ModelProvider
+import kinuvo.harness.core.plugin.ModelSource
 import kinuvo.server.plugin.ImageGeneration
 import kinuvo.harness.core.koogExecutor
 import kinuvo.protocol.Attachment
@@ -15,7 +16,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kinuvo.protocol.PluginDefinition
 
 /** Builds Codex-backed [AgentModel]s sharing one authenticated client; [usage] tracks plan usage. */
-class CodexProvider(override val auth: CodexAuth = CodexAuth(), private val attachments: ((Attachment) -> ByteArray)? = null) : ModelProvider, ModelProviderPlugin {
+class CodexProvider(override val auth: CodexAuth = CodexAuth(), private val attachments: ((Attachment) -> ByteArray)? = null) : ModelSource, ProviderAdmin, ProviderPlugin {
     override val definition = PluginDefinition("kinuvo.codex", "ChatGPT / Codex")
     private val _usage = MutableStateFlow<Usage?>(null)
     private val executor = lazy { koogExecutor(codexLLMClient(auth, _usage)) }
@@ -30,7 +31,7 @@ class CodexProvider(override val auth: CodexAuth = CodexAuth(), private val atta
     override fun fileTypes(model: ModelInfo?) = responsesFileTypes(model)
 
     override val usage: StateFlow<Usage?> = _usage
-    override val modelProviders get() = listOf(this)
+    override val providerAdmins get() = listOf(this)
 
     override suspend fun availability(model: String) =
         if (auth.account().signedIn) CapabilityState() else CapabilityState.unavailable("Sign in to ChatGPT in Settings → Providers", "needs_login")

@@ -5,8 +5,9 @@ import kinuvo.harness.testing.*
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.PrivateFile
+import kinuvo.server.plugin.PrivateFile
 import kinuvo.harness.codex.CodexProvider
+import kinuvo.harness.core.plugin.ModelProviders
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.McpManagement
 import kinuvo.harness.core.store.saveServiceConfig
@@ -50,7 +51,7 @@ class NotificationsTest {
                 override fun onSignInNeeded(listener: suspend (agentId: String, server: String) -> Unit) { signInNeeded = listener }
             }
         }
-        val harness = Harness(Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), plugins = listOf(plugin))
+        val harness = Harness(Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), plugins = listOf(plugin))
         harness.files.saveServiceConfig(ServiceKind.Notifications, ServiceSettings("test", emptyMap()))
         val server = HarnessServer(harness)
         server.start("127.0.0.1", 0, schedule = false)
@@ -68,7 +69,7 @@ class NotificationsTest {
         val plugin = object : HarnessPlugin {
             override val definition = kinuvo.protocol.PluginDefinition("test.notificationstest.2", "Test")
             override val notifications = listOf(provider) }
-        val harness = Harness(Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }, plugins = listOf(plugin))
+        val harness = Harness(Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }, plugins = listOf(plugin))
         val server = HarnessServer(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)
         val phone = KinuvoClient("ws://127.0.0.1:$port/ws", "phone", server.auth.sessionToken(), timeZone = "UTC")
@@ -119,7 +120,7 @@ class NotificationsTest {
         val plugin = object : HarnessPlugin {
             override val definition = kinuvo.protocol.PluginDefinition("test.notificationstest.3", "Test")
             override val notifications = listOf(provider) }
-        val harness = Harness(Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), plugins = listOf(plugin))
+        val harness = Harness(Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), plugins = listOf(plugin))
         harness.saveService(ServiceKind.Notifications, ServiceSettings("test"))
         val agent = harness.store.agents().single()
         val session = harness.newSession(agent).id

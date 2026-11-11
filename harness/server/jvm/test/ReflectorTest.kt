@@ -6,8 +6,9 @@ import ai.koog.prompt.message.Message
 
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.PrivateFile
+import kinuvo.server.plugin.PrivateFile
 import kinuvo.harness.codex.CodexProvider
+import kinuvo.harness.core.plugin.ModelProviders
 import kinuvo.harness.core.store.knowledgeConfig
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.Api
@@ -46,7 +47,7 @@ class ReflectorTest {
             }
         }
     }
-    private val harness = Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model })
+    private val harness = Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model })
 
     @Test
     fun knowledgeSettingsKeepKeysPrivate() {

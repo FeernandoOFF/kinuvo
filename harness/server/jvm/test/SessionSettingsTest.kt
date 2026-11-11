@@ -1,13 +1,14 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.plugin.ModelProviderPlugin
+import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.harness.testing.*
 import ai.koog.prompt.message.Message
 
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.PrivateFile
+import kinuvo.server.plugin.PrivateFile
 import kinuvo.harness.codex.CodexProvider
+import kinuvo.harness.core.plugin.ModelProviders
 import kinuvo.harness.core.AgentModel
 import kinuvo.harness.core.plugin.ModelProvider
 import kinuvo.harness.execution.api.AgentConfig
@@ -33,10 +34,10 @@ class SessionSettingsTest {
     @Test
     fun modelPairsRouteAcrossPluginsAndSurviveRestart() = runBlocking {
         val used = mutableListOf<String>()
-        fun plugin(id: String) = object : ModelProviderPlugin, ModelProvider {
+        fun plugin(id: String) = object : ProviderPlugin, ModelProvider {
             override val definition = kinuvo.protocol.PluginDefinition("test.$id", "Test")
             override val id = id
-            override val modelProviders get() = listOf(this)
+            override val providerAdmins get() = listOf(this)
             override fun model(config: AgentConfig): AgentModel {
                 used += "$id/${config.model}"
                 return scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) }
@@ -44,7 +45,7 @@ class SessionSettingsTest {
         }
         val plugins = listOf(plugin("first"), plugin("second"))
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        var harness = Harness(Path(home.path), plugins = plugins)
+        var harness = Harness(Path(home.path), providers = ModelProviders.of(plugins), plugins = plugins)
         try {
             val admin = Admin(harness, Runs(harness.log, scope, harness.native)) {}
             admin.update(UpdateAgentParams("default", provider = "first", model = "shared-id"))
@@ -57,7 +58,7 @@ class SessionSettingsTest {
             assertFailsWith<IllegalArgumentException> { harness.configure(agent, session, SessionSettings(provider = "missing", model = "custom")) }
             assertFailsWith<IllegalArgumentException> { harness.configure(agent, session, SessionSettings(provider = "second")) }
             harness.close()
-            harness = Harness(Path(home.path), plugins = plugins)
+            harness = Harness(Path(home.path), providers = ModelProviders.of(plugins), plugins = plugins)
             val restored = harness.store.agents().single()
             harness.runner(restored, session).run(session, "again").toList()
             assertEquals("second/shared-id", used.last())
@@ -71,7 +72,7 @@ class SessionSettingsTest {
     fun aSessionRunsWithItsOwnSettings(): Unit = runBlocking {
         val used = mutableListOf<String>()
         val seen = mutableListOf<List<Message>>()
-        val harness = Harness(Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { config ->
+        val harness = Harness(Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { config ->
             used += "${config.model}/${config.reasoning}/${config.approvals}"
             scriptedModel { prompt, _ -> seen += prompt.messages; flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) }
         }, plugins = emptyList())

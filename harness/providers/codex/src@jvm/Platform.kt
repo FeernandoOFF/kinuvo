@@ -2,7 +2,7 @@ package kinuvo.harness.codex
 
 import io.ktor.client.engine.java.Java
 import kinuvo.server.plugin.Keychain
-import kinuvo.harness.core.PrivateFile
+import kinuvo.server.plugin.PrivateFile
 import kotlinx.io.files.Path
 
 /** The Codex CLI's auth.json, so either can sign in for both. */

@@ -3,6 +3,8 @@ package kinuvo.harness.litert
 import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.server.plugin.ModelDownloads
 import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.ProviderAdmin
+import kinuvo.server.plugin.ProviderPlugin
 import ai.koog.prompt.llm.LLMProvider
 import kinuvo.harness.core.*
 import kinuvo.harness.models.ModelFiles
@@ -16,11 +18,11 @@ import java.io.File
 internal object LiteRt : LLMProvider("local", "On this device")
 
 /** Open models the Server downloads into [home] and runs on its own machine with LiteRT-LM. */
-class LiteRtProvider(home: File) : ModelProvider, ModelProviderPlugin {
+class LiteRtProvider(home: File) : ModelSource, ProviderAdmin, ProviderPlugin {
     override val definition = PluginDefinition("kinuvo.litert", "On this device")
     override val id = "local"
     override val name = "On this device"
-    override val modelProviders get() = listOf(this)
+    override val providerAdmins get() = listOf(this)
     private val files = ModelFiles(File(home, "local-models"))
     private val native = nativeEngine(home)
     private val engines = Engines(files, File(home, "cache/litert"), native)

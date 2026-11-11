@@ -13,8 +13,9 @@ import kinuvo.client.KinuvoClient
 import kinuvo.harness.server.Harness
 import kinuvo.harness.server.HarnessServer
 import kinuvo.harness.codex.CodexProvider
+import kinuvo.harness.core.plugin.ModelProviders
 import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.PrivateFile
+import kinuvo.server.plugin.PrivateFile
 import kinuvo.harness.testing.scriptedModel
 import ai.koog.prompt.streaming.StreamFrame
 import kotlinx.coroutines.*
@@ -28,7 +29,7 @@ class AcpServerTest {
     @Test fun nativeServerReplyReachesSdkClient() = runBlocking {
         val dir = Files.createTempDirectory("kinuvo-native-acp").toFile()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val server = HarnessServer(Harness(home = Path(dir.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(dir.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("native ACP reply"), StreamFrame.End()) } }))
+        val server = HarnessServer(Harness(home = Path(dir.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(dir.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("native ACP reply"), StreamFrame.End()) } }))
         var native: KinuvoClient? = null
         var agentProtocol: Protocol? = null
         var clientProtocol: Protocol? = null

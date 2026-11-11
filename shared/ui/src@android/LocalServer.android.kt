@@ -56,7 +56,8 @@ internal class AndroidEmbeddedServer(private val context: Context, private val b
     suspend fun host(): EmbeddedServerHost = lock.withLock {
         server ?: run {
             val browser = withContext(Dispatchers.Main.immediate) { if (browserRuntime.available) listOf(BrowserPlugin(browserRuntime)) else emptyList() }
-            EmbeddedServerHost.create(home, plugins = embeddedPlugins(home, browser), continuous = true, features = BUILT_IN_FEATURES, peers = { SharedPeers(it, auth) })
+            val embedded = embeddedPlugins(home, browser)
+            EmbeddedServerHost.create(home, plugins = embedded.plugins, modelSources = embedded.modelSources, continuous = true, features = BUILT_IN_FEATURES, peers = { SharedPeers(it, auth) })
                 .also { server = it; listenLocked(it) }
         }
     }

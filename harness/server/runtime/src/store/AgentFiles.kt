@@ -14,11 +14,13 @@ import kinuvo.protocol.ServiceSettings
 import kotlinx.io.files.Path
 import kinuvo.harness.core.knowledge.KnowledgeConfig
 import kinuvo.harness.core.parseDotEnv
+import kinuvo.server.plugin.CustomProviderStore
+import kinuvo.server.plugin.ModelProviderConfig
 import kinuvo.server.plugin.PluginStorage
 import kinuvo.harness.core.tasks.TasksConfig
 
 /** Where everything lives under the Kinuvo home folder. The one place that knows the on-disk layout. */
-class AgentFiles(override val home: Path) : PluginStorage {
+class AgentFiles(override val home: Path) : PluginStorage, CustomProviderStore {
     val agents = Path(home, "agents")
     val sharedSkills = Path(home, "skills")
     override val sharedMcp = Path(home, MCP_FILE)
@@ -51,6 +53,10 @@ class AgentFiles(override val home: Path) : PluginStorage {
         dotEnv(sharedEnv) + agentId?.let { dotEnv(env(it)) }.orEmpty() + process
 
     override fun knowledgeOptions() = knowledgeConfig().options
+
+    override fun customProviders() = config().providers
+
+    override fun saveCustomProvider(id: String, options: ModelProviderConfig) = updateConfig { it.copy(providers = it.providers + (id to options)) }
 
     companion object {
         const val CONFIG_FILE = "agent.yaml"

@@ -152,7 +152,7 @@ class TestServer private constructor(
             val files = AgentFiles(directory)
             files.saveKnowledgeConfig(files.knowledgeConfig().copy(reflection = false))
             val modelScript = ModelScript().apply(script)
-            val dependencies = ServerInstallation.assemble(files, plugins = plugins, userHome = directory)
+            val dependencies = ServerInstallation.assemble(files, plugins = plugins, modelSources = { plugins.filterIsInstance<FakeModels>().flatMap { it.modelSources } }, userHome = directory)
             val prompts = PromptLog()
             val harness = HarnessRuntime(dependencies, modelFactory = { modelScript.model }, nativeSessions = { NativeExecutionFactory(it).recording(prompts) })
             val registry = ExecutionRegistry()

@@ -4,8 +4,9 @@ import kinuvo.harness.server.reflection.*
 import kinuvo.harness.testing.*
 
 import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.PrivateFile
+import kinuvo.server.plugin.PrivateFile
 import kinuvo.harness.codex.CodexProvider
+import kinuvo.harness.core.plugin.ModelProviders
 import kinuvo.harness.core.knowledge.ChangeSource
 import kinuvo.harness.core.knowledge.KnowledgeTool
 import kinuvo.harness.core.skills.load
@@ -25,7 +26,7 @@ import kotlin.test.assertTrue
 
 class ReflectionReviewTest {
     private val home = Files.createTempDirectory("reflection-review").toFile()
-    private fun harness(model: kinuvo.harness.core.AgentModel = scriptedModel { _, _ -> emptyFlow() }) = Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))),
+    private fun harness(model: kinuvo.harness.core.AgentModel = scriptedModel { _, _ -> emptyFlow() }) = Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))),
         modelFactory = { model }, plugins = emptyList())
 
     @Test

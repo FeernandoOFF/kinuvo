@@ -4,8 +4,9 @@ import kotlin.time.Duration.Companion.milliseconds
 import kinuvo.harness.testing.awaitCondition
 import kinuvo.harness.testing.scriptedModel
 import kinuvo.harness.codex.CodexProvider
+import kinuvo.harness.core.plugin.ModelProviders
 import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.PrivateFile
+import kinuvo.server.plugin.PrivateFile
 import ai.koog.prompt.streaming.StreamFrame
 import kotlinx.coroutines.flow.flowOf
 import kinuvo.client.KinuvoClient
@@ -36,7 +37,7 @@ class RemoteServerTest {
                 elif r.get('id') in ['p','q']: emit({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'external','update':{'sessionUpdate':'state_update','state':'idle','stopReason':'end_turn'}}})
                 elif m=='session/cancel': emit({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'external','update':{'sessionUpdate':'state_update','state':'idle','stopReason':'cancelled'}}})
         """.trimIndent())
-        val source = HarnessServer(Harness(home = Path(dir.resolve("source").path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(dir.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("remote native reply"), StreamFrame.End()) } }))
+        val source = HarnessServer(Harness(home = Path(dir.resolve("source").path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(dir.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("remote native reply"), StreamFrame.End()) } }))
         val local = HarnessServer(Harness(home = Path(dir.resolve("local").path)))
         val clients = mutableListOf<KinuvoClient>()
         suspend fun manager(server: HarnessServer, port: Int): KinuvoClient = KinuvoClient("ws://127.0.0.1:$port/ws", "manager", pairingCode = server.auth.pairing(false, true)!!.code).also { clients.add(it); it.connect() }

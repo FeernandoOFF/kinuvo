@@ -6,7 +6,7 @@ import kinuvo.harness.testing.awaitValue
 import kinuvo.harness.testing.awaitCondition
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.PrivateFile
+import kinuvo.server.plugin.PrivateFile
 import kinuvo.harness.voice.DownloadedVoice
 import kinuvo.protocol.*
 import kotlinx.coroutines.*

@@ -9,10 +9,11 @@ import kinuvo.harness.codex.CodexProvider
 import kinuvo.harness.codex.OpenAIProvider
 import kinuvo.harness.koog.compatibleProviders
 import kinuvo.harness.litert.LiteRtProvider
-import kinuvo.harness.core.plugin.ModelProviderPlugin
+import kinuvo.harness.core.plugin.ModelProviders
 import kinuvo.harness.core.system
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.Keychain
+import kinuvo.server.plugin.ProviderKeys
 import kinuvo.server.plugin.SecretProvider
 import kinuvo.harness.core.Secrets
 import kinuvo.harness.core.store.AgentFiles
@@ -31,15 +32,19 @@ import java.io.File
 import kotlinx.io.files.Path
 
 /** The model providers a JVM host offers. */
-fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (HarnessPlugin) -> Unit = {}): List<ModelProviderPlugin> {
+fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (HarnessPlugin) -> Unit = {}): ModelProviders {
     val attachments = FileAttachments(Path(files.home, "attachments"))::bytes
-    return (listOf(CodexProvider(attachments = attachments), OpenAIProvider(files, secrets, attachments)) +
-        compatibleProviders(files, secrets, attachments) + listOfNotNull(fmProvider()) + LiteRtProvider(File(files.home.toString()))).onEach(installed)
+    val keys = ProviderKeys(files, secrets) { Keychain.system("kinuvo", it) }
+    val endpoints = compatibleProviders(keys, files, attachments)
+    val providers = ModelProviders.of(CodexProvider(attachments = attachments)) + ModelProviders.of(OpenAIProvider(keys, attachments)) +
+        ModelProviders(listOf(endpoints)) { endpoints.modelSources } +
+        (fmProvider()?.let { ModelProviders.of(it) } ?: ModelProviders()) + ModelProviders.of(LiteRtProvider(File(files.home.toString())))
+    return providers.also { it.plugins.forEach(installed) }
 }
 
 /** What a JVM host (desktop, the `kinuvo` command) runs with. */
-fun jvmPlugins(files: AgentFiles, secrets: Secrets, providers: List<ModelProviderPlugin> = jvmProviders(files, secrets), installed: (HarnessPlugin) -> Unit = {}): List<HarnessPlugin> =
-    providers.onEach(installed) + listOf(
+fun jvmPlugins(files: AgentFiles, secrets: Secrets, providers: ModelProviders = jvmProviders(files, secrets), installed: (HarnessPlugin) -> Unit = {}): List<HarnessPlugin> =
+    providers.plugins.onEach(installed) + listOf(
         { BrowserPlugin(File(files.home.toString(), "browser")) },
         { ExecPlugin(files, secrets) }, { McpPlugin(files, secrets, Keychain.system("kinuvo", "mcp-oauth")) }, { RemindersPlugin() }, { TodoistPlugin() }, { CalDavPlugin() },
         { AnytypePlugin(files, secrets) }, { FirecrawlPlugin() }, { NtfyPlugin() }, { ExecutorPlugin() }, { DownloadedVoice(File(files.home.toString())) },

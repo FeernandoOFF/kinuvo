@@ -37,21 +37,18 @@ harness/plugins/todoist -> server/plugin-api
 harness/plugins/voice -> harness/models
 harness/plugins/voice -> server/plugin-api
 harness/providers/apple -> harness/core
-harness/providers/apple -> harness/server/runtime
 harness/providers/apple -> harness/testing [test]
 harness/providers/apple -> server/plugin-api
 harness/providers/codex -> harness/core
-harness/providers/codex -> harness/server/runtime
 harness/providers/codex -> harness/server/server-testing [test]
 harness/providers/codex -> harness/testing [test]
 harness/providers/codex -> server/plugin-api
 harness/providers/koog -> harness/core
-harness/providers/koog -> harness/server/runtime
+harness/providers/koog -> harness/server/server-testing [test]
 harness/providers/koog -> harness/testing [test]
 harness/providers/koog -> server/plugin-api
 harness/providers/litert -> harness/core
 harness/providers/litert -> harness/models
-harness/providers/litert -> harness/server/runtime
 harness/providers/litert -> harness/testing [test]
 harness/providers/litert -> server/plugin-api
 harness/server/embedded -> harness/plugins/anytype

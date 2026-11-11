@@ -13,7 +13,7 @@ import kinuvo.protocol.ServiceKind
 import kinuvo.protocol.ServiceSettings
 import kinuvo.protocol.TrustRules
 import kotlinx.serialization.Serializable
-import kinuvo.protocol.ModelInfo
+import kinuvo.server.plugin.ModelProviderConfig
 import kinuvo.protocol.ProviderModelRef
 
 /** `config.yaml` in the home folder: everything set up for the whole Server. [rules] are its Trust and Deny rules, for every Agent. */
@@ -35,15 +35,6 @@ data class ServerConfig(
     fun service(kind: ServiceKind) = if (kind == ServiceKind.Search) search else notifications
     fun service(kind: ServiceKind, settings: ServiceSettings) = if (kind == ServiceKind.Search) copy(search = settings) else copy(notifications = settings)
 }
-
-@Serializable
-data class ModelProviderConfig(
-    val name: String? = null,
-    val baseUrl: String? = null,
-    val models: List<ModelInfo> = emptyList(),
-    val apiKeyEnv: String? = null,
-    val apiKeyRequired: Boolean = true,
-)
 
 @Serializable
 data class ReflectionConfig(val provider: String? = null, val model: String? = null)

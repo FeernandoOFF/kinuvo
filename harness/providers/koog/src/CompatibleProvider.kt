@@ -4,8 +4,14 @@ import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.server.plugin.CUSTOM_PROVIDERS
 import kinuvo.server.plugin.CustomEndpoints
 import kinuvo.server.plugin.ImageGeneration
+import kinuvo.server.plugin.CustomProviderStore
 import kinuvo.server.plugin.Keychain
+import kinuvo.server.plugin.ModelProviderConfig
+import kinuvo.server.plugin.ProviderAdmin
 import kinuvo.server.plugin.ProviderApiKey
+import kinuvo.server.plugin.ProviderKeys
+import kinuvo.server.plugin.ProviderPlugin
+import kinuvo.server.plugin.StoredProviderKey
 import kinuvo.harness.core.plugin.*
 import ai.koog.http.client.KoogHttpClient
 import ai.koog.http.client.ktor.fromKtorClient
@@ -36,11 +42,9 @@ import io.ktor.http.Url
 import io.ktor.http.isSuccess
 import io.ktor.http.contentType
 import kinuvo.harness.core.*
-import kinuvo.harness.core.store.*
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.CapabilityState
 import kinuvo.protocol.ModelInfo
-import kotlinx.io.files.Path
 import kotlinx.serialization.json.*
 import kinuvo.protocol.PluginDefinition
 import kinuvo.protocol.CustomEndpointParams
@@ -50,25 +54,25 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
-fun compatibleProviders(files: AgentFiles, secrets: Secrets = Secrets(), attachments: ((Attachment) -> ByteArray)? = null): List<ModelProviderPlugin> {
-    val configured = files.config().providers
-    configured.forEach { (id, options) ->
+fun compatibleProviders(keys: ProviderKeys, configs: CustomProviderStore, attachments: ((Attachment) -> ByteArray)? = null): CompatibleEndpoints {
+    configs.customProviders().forEach { (id, options) ->
         require(id.matches(Regex("[a-z][a-z0-9-]{0,63}"))) { "Invalid model provider ID: $id" }
         endpoint(options.baseUrl.orEmpty())
     }
-    return listOf(CompatibleEndpoints(files, secrets, attachments))
+    return CompatibleEndpoints(keys, configs, attachments)
 }
 
 /** A custom provider's key, apart from built-in providers' keys; one saved under its bare ID before is moved on first read. */
-private fun customKey(configId: String, options: ModelProviderConfig, files: AgentFiles, secrets: Secrets): StoredProviderKey {
-    fun store(account: String) = Keychain.system("kinuvo", account) ?: PrivateFile(Path(files.home, "credentials", "$account-key"))
-    fun reference(account: String) = PrivateFile(Path(files.home, "credentials", "$account-reference"))
+private fun customKey(configId: String, options: ModelProviderConfig, keys: ProviderKeys): StoredProviderKey {
+    fun store(account: String) = keys.store(account)
+    fun reference(account: String) = keys.reference(account)
     val account = "custom-$configId"
     // Other parts of Kinuvo keep their own secrets under these names; `openai`'s key is shared with the built-in provider, so it's copied.
     val legacy = configId !in setOf("codex", "protonpass", "mcp-oauth")
     val shared = configId == "openai"
-    return StoredProviderKey(account, options.name ?: configId, options.apiKeyEnv ?: "OPENAI_COMPATIBLE_API_KEY", files, secrets,
-        MovedKeychain(store(account), store(configId).takeIf { legacy }, shared), MovedKeychain(reference(account), reference(configId).takeIf { legacy }, shared))
+    return StoredProviderKey(account, options.name ?: configId, options.apiKeyEnv ?: "OPENAI_COMPATIBLE_API_KEY", keys.secrets,
+        MovedKeychain(store(account), store(configId).takeIf { legacy }, shared), MovedKeychain(reference(account), reference(configId).takeIf { legacy }, shared),
+        { keys.storage.loadEnv() })
 }
 
 private class MovedKeychain(private val current: Keychain, private val legacy: Keychain?, private val shared: Boolean) : Keychain {
@@ -82,18 +86,17 @@ private class MovedKeychain(private val current: Keychain, private val legacy: K
 internal class CompatibleProvider(
     private val configId: String,
     private val options: ModelProviderConfig,
-    files: AgentFiles,
-    secrets: Secrets,
+    keys: ProviderKeys,
     private val attachments: ((Attachment) -> ByteArray)?,
     engine: HttpClientEngine = providerEngine(),
-    private val key: StoredProviderKey = customKey(configId, options, files, secrets),
-) : ModelProvider, ModelProviderPlugin {
+    private val key: StoredProviderKey = customKey(configId, options, keys),
+) : ModelSource, ProviderAdmin, ProviderPlugin {
     override val images: ImageGeneration get() = CompatibleImages(http)
     override val id = CUSTOM_PROVIDERS + configId
     override val name = options.name ?: configId
     override val apiKey: ProviderApiKey? = if (options.apiKeyRequired) key else null
     override val definition = PluginDefinition("kinuvo.provider.$configId", name)
-    override val modelProviders get() = listOf(this)
+    override val providerAdmins get() = listOf(this)
     private val http = providerHttpClient(endpoint(options.baseUrl.orEmpty()), key::resolve, options.apiKeyRequired, engine)
     private val client = CompatibleClient(KoogHttpClient.fromKtorClient(configId, KotlinLogging.logger(configId), http))
     private val executor = koogExecutor(client)
@@ -173,13 +176,15 @@ private suspend fun discoverCompatibleModels(http: HttpClient): List<ModelInfo> 
                 output = (architecture?.get("output_modalities") as? JsonArray)?.map { it.jsonPrimitive.content }) }.distinctBy { it.id }.sortedBy { it.id }
 }
 
-private class CompatibleEndpoints(private val files: AgentFiles, private val secrets: Secrets,
-    private val attachments: ((Attachment) -> ByteArray)?) : ModelProviderPlugin, CustomEndpoints {
+/** The custom providers saved in the Server's config, with the endpoints the owner adds; each is a source and admin sharing its ID. */
+class CompatibleEndpoints internal constructor(private val keys: ProviderKeys, private val configs: CustomProviderStore,
+    private val attachments: ((Attachment) -> ByteArray)?) : ProviderPlugin, CustomEndpoints {
     override val definition = PluginDefinition("kinuvo.custom-endpoints", "Custom providers")
     override val customEndpoints get() = this
     private val lock = Mutex()
-    override val modelProviders get() = installed.value
-    private val installed = MutableStateFlow(files.config().providers.map { (id, options) -> CompatibleProvider(id, options, files, secrets, attachments) })
+    override val providerAdmins: List<ProviderAdmin> get() = installed.value
+    val modelSources: List<ModelSource> get() = installed.value
+    private val installed = MutableStateFlow(configs.customProviders().map { (id, options) -> CompatibleProvider(id, options, keys, attachments) })
 
     override suspend fun discover(params: CustomEndpointParams): List<ModelInfo> {
         val http = providerHttpClient(endpoint(params.baseUrl), { params.apiKey.takeIf { it.isNotBlank() } }, false, providerEngine())
@@ -188,13 +193,13 @@ private class CompatibleEndpoints(private val files: AgentFiles, private val sec
 
     override suspend fun save(params: CustomEndpointParams): ProviderRef = lock.withLock {
         require(params.id.matches(Regex("[a-z][a-z0-9-]{0,63}"))) { "Use a lowercase provider ID, letters, numbers and hyphens." }
-        require(files.config().providers[params.id] == null) { "That provider ID is already in use." }
+        require(configs.customProviders()[params.id] == null) { "That provider ID is already in use." }
         val options = ModelProviderConfig(name = params.id, baseUrl = endpoint(params.baseUrl), apiKeyRequired = params.apiKey.isNotBlank(),
             models = params.model.takeIf { it.isNotBlank() }?.let { listOf(ModelInfo(it)) }.orEmpty())
-        val provider = CompatibleProvider(params.id, options, files, secrets, attachments)
+        val provider = CompatibleProvider(params.id, options, keys, attachments)
         try {
             if (params.apiKey.isNotBlank()) provider.apiKey?.save(params.apiKey)
-            files.updateConfig { it.copy(providers = it.providers + (params.id to options)) }
+            configs.saveCustomProvider(params.id, options)
             installed.value += provider
         } catch (e: Throwable) { provider.close(); throw e }
         ProviderRef(provider.id)

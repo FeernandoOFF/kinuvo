@@ -1,6 +1,8 @@
-package kinuvo.harness.codex
+package kinuvo.harness.core
 
+import kinuvo.server.plugin.PrivateFile
 import kinuvo.server.plugin.SecretProvider
+import kinuvo.server.plugin.StoredProviderKey
 import kinuvo.server.plugin.exists
 import kinuvo.server.plugin.isFile
 import kinuvo.server.plugin.readText
@@ -14,13 +16,13 @@ import java.nio.file.attribute.PosixFilePermission
 import kotlinx.serialization.encodeToString
 import kotlin.test.*
 
-class OpenAIKeyTest {
+class StoredProviderKeyTest {
     private val home = Files.createTempDirectory("openai-key").toFile()
     private val files = AgentFiles(Path(home.path))
     private val keyFile = Path(files.home, "credentials", "openai-key")
     private val refFile = Path(files.home, "credentials", "openai-reference")
     private fun keys(secrets: Secrets = Secrets(), env: Map<String, String> = emptyMap()) =
-        OpenAIKey(files, secrets, PrivateFile(keyFile), PrivateFile(refFile), { env })
+        StoredProviderKey("openai", "OpenAI API", "OPENAI_API_KEY", secrets, PrivateFile(keyFile), PrivateFile(refFile), { env })
 
     @Test
     fun savesOwnerOnlyKeyWithoutReturningItAndFallsBackToEnvironment() = runTest {

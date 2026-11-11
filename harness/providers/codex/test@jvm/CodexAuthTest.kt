@@ -10,7 +10,7 @@ import kotlinx.serialization.json.*
 import java.io.File
 import java.nio.file.Files
 import java.util.Base64
-import kinuvo.harness.core.PrivateFile
+import kinuvo.server.plugin.PrivateFile
 import kotlinx.io.files.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals

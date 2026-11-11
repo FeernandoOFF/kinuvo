@@ -2,6 +2,7 @@ package kinuvo.harness.server
 
 import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.core.plugin.*
+import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.harness.testing.*
 
 import kinuvo.harness.core.*
@@ -23,10 +24,10 @@ class ModelCatalogTest {
     fun runnerPassesResolvedMetadataToTheProvider() = runBlocking {
         val expected = ModelInfo("resolved", reasoning = emptyList(), input = listOf("text"), tools = false, context = 8192)
         var received: ModelInfo? = null
-        val plugin = object : ModelProvider, ModelProviderPlugin {
+        val plugin = object : ModelProvider, ProviderPlugin {
             override val definition = kinuvo.protocol.PluginDefinition("test.modelcatalogtest.1", "Test")
             override val id = "test"
-            override val modelProviders get() = listOf(this)
+            override val providerAdmins get() = listOf(this)
             override suspend fun models() = listOf(expected)
             override fun model(config: AgentConfig): AgentModel = error("Metadata was not passed")
             override fun model(config: AgentConfig, info: ModelInfo?): AgentModel {
@@ -34,7 +35,7 @@ class ModelCatalogTest {
                 return scriptedModel { _, _ -> emptyFlow() }
             }
         }
-        val harness = HarnessRuntime(ServerInstallation.assemble(AgentFiles(Path(home, "installation")), plugins = listOf(plugin)))
+        val harness = HarnessRuntime(ServerInstallation.assemble(AgentFiles(Path(home, "installation")), plugins = listOf(plugin), modelSources = { listOf(plugin) }))
         try {
             val original = harness.store.agents().single()
             val agent = harness.store.saveConfig(original, AgentConfig(provider = "test", model = "resolved"))

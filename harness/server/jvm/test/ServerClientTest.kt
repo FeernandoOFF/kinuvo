@@ -21,8 +21,9 @@ import kinuvo.harness.core.store.FileStore
 import kinuvo.harness.core.store.Store
 import kinuvo.protocol.SessionEntry
 import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.PrivateFile
+import kinuvo.server.plugin.PrivateFile
 import kinuvo.harness.codex.CodexProvider
+import kinuvo.harness.core.plugin.ModelProviders
 import kinuvo.protocol.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.coroutineScope
@@ -176,7 +177,7 @@ class ServerClientTest {
 
     @Test
     fun managesRoutinesAndReportsTheirRuns() = runBlocking {
-        val server = HarnessServer(Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("hello"), StreamFrame.End()) } }))
+        val server = HarnessServer(Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("hello"), StreamFrame.End()) } }))
         val port = server.start("127.0.0.1", 0)
         try {
             withTimeout(30_000) {
@@ -212,7 +213,7 @@ class ServerClientTest {
 
     @Test
     fun advertisesItselfToTheCliOwnerOnly() = runBlocking {
-        val server = HarnessServer(Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json")))))))
+        val server = HarnessServer(Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json")))))))
         server.start("0.0.0.0", 0, schedule = false)
         try {
             server.advertise()
@@ -230,13 +231,13 @@ class ServerClientTest {
     fun keepsToTheFirstFreePortOfItsList() = runBlocking {
         java.net.ServerSocket(0).use { taken ->
             val free = java.net.ServerSocket(0).use { it.localPort }
-            val server = HarnessServer(Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json")))))))
+            val server = HarnessServer(Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json")))))))
             try {
                 assertEquals(free, server.start("0.0.0.0", listOf(taken.localPort, free), schedule = false))
             } finally {
                 server.stop()
             }
-            val fallback = HarnessServer(Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json")))))))
+            val fallback = HarnessServer(Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json")))))))
             try {
                 assertTrue(fallback.start("0.0.0.0", listOf(taken.localPort), schedule = false) != taken.localPort)
             } finally {
@@ -247,7 +248,7 @@ class ServerClientTest {
 
     @Test
     fun managesAgentsSkillsMcpServersAndRoutines() = runBlocking {
-        val server = HarnessServer(Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json")))))))
+        val server = HarnessServer(Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json")))))))
         val port = server.start("127.0.0.1", 0, schedule = false)
         try {
             withTimeout(30_000) {
@@ -310,7 +311,7 @@ class ServerClientTest {
 
     @Test
     fun pairsStreamsRunsAndAnswersApprovals() = runBlocking {
-        val server = HarnessServer(Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }))
+        val server = HarnessServer(Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }))
         val port = server.start("127.0.0.1", 0)
         val url = "ws://127.0.0.1:$port/ws"
         try {
@@ -372,7 +373,7 @@ class ServerClientTest {
 
     @Test
     fun reconnectSeesPendingApprovalAndCanApproveOrStop() = runBlocking {
-        val server = HarnessServer(Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }))
+        val server = HarnessServer(Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }))
         val port = server.start("127.0.0.1", 0)
         val url = "ws://127.0.0.1:$port/ws"
         try {
@@ -429,7 +430,7 @@ class ServerClientTest {
         File(home, "skills/hidden").apply { mkdirs() }.resolve("SKILL.md")
             .writeText("---\nname: hidden\ndescription: model only\nuser-invocable: false\n---\nbody")
         File(home, "skills/review").apply { mkdirs() }.resolve("SKILL.md").writeText("---\nname: review\ndescription: Reviews code\n---\nbody")
-        val server = HarnessServer(Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }))
+        val server = HarnessServer(Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }))
         val port = server.start("127.0.0.1", 0)
         try {
             withTimeout(30_000) {
@@ -447,7 +448,7 @@ class ServerClientTest {
 
     @Test
     fun onlySubscribersGetSessionUpdates() = runBlocking {
-        val server = HarnessServer(Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }))
+        val server = HarnessServer(Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }))
         val port = server.start("127.0.0.1", 0)
         val url = "ws://127.0.0.1:$port/ws"
         try {
@@ -483,7 +484,7 @@ class ServerClientTest {
     @Test
     fun pagesSessionsAndEntries() = runBlocking {
         val ticks = AtomicLong(System.currentTimeMillis())
-        val harness = Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }, clock = { ticks.getAndAdd(1_100) })
+        val harness = Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }, clock = { ticks.getAndAdd(1_100) })
         val server = HarnessServer(harness)
         val port = server.start("127.0.0.1", 0)
         try {

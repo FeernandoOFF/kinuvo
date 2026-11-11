@@ -1,6 +1,7 @@
 package kinuvo.harness.server
 
-import kinuvo.harness.core.plugin.ModelProviderPlugin
+import kinuvo.harness.core.plugin.ModelProviders
+import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.server.plugin.toolSpec
 import kinuvo.harness.testing.*
 
@@ -28,10 +29,10 @@ import kotlin.test.assertTrue
 class PluginsTest {
     private val released = mutableListOf<String>()
 
-    private val plugin = object : ModelProviderPlugin, ModelProvider {
+    private val plugin = object : ProviderPlugin, ModelProvider {
         override val definition = kinuvo.protocol.PluginDefinition("test.pluginstest.1", "Test")
         override val id = "fake"
-        override val modelProviders get() = listOf(this)
+        override val providerAdmins get() = listOf(this)
         override suspend fun models() = listOf(ModelInfo("plugin-model", "Plugin model"))
         override fun model(config: AgentConfig) = scriptedModel { _, tools ->
             flowOf(StreamFrame.TextDelta(tools.joinToString { it.name }), StreamFrame.End())
@@ -46,7 +47,7 @@ class PluginsTest {
 
     @Test
     fun authenticatedClientsDiscoverInstalledPluginModels() = runBlocking {
-        val harness = Harness(home = Path(Files.createTempDirectory("plugin-model-list").toString()), plugins = listOf(plugin))
+        val harness = Harness(home = Path(Files.createTempDirectory("plugin-model-list").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
         val server = HarnessServer(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)
         val client = KinuvoClient("ws://127.0.0.1:$port/ws", "test", pairingCode = server.auth.currentPairingCode())
@@ -60,7 +61,7 @@ class PluginsTest {
 
     @Test
     fun pluginsContributeModelsToolsAndInstructions() = runBlocking {
-        val harness = Harness(home = Path(Files.createTempDirectory("harness-plugins").toString()), plugins = listOf(plugin))
+        val harness = Harness(home = Path(Files.createTempDirectory("harness-plugins").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
         val agent = harness.store.agents().single().let { it.copy(config = it.config.copy(provider = "fake", tools = emptyList())) }
         val session = harness.newSession(agent)
         val started = harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Started>().single()
@@ -77,7 +78,7 @@ class PluginsTest {
 
     @Test
     fun unknownProviderIsReported() = runBlocking {
-        val harness = Harness(home = Path(Files.createTempDirectory("harness-plugins").toString()), plugins = listOf(plugin))
+        val harness = Harness(home = Path(Files.createTempDirectory("harness-plugins").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
         val agent = harness.store.agents().single()
         val error = runCatching { harness.runner(agent) }.exceptionOrNull()
         assertTrue("No model provider 'codex'" in error?.message.orEmpty())

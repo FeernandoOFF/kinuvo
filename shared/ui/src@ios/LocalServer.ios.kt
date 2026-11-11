@@ -10,6 +10,7 @@ import kinuvo.harness.core.store.knowledgeConfig
 import kinuvo.harness.core.store.saveKnowledgeConfig
 import kinuvo.harness.server.EmbeddedServerHost
 import kinuvo.harness.server.embeddedPlugins
+import kinuvo.harness.core.plugin.ModelProviders
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -55,7 +56,8 @@ internal class IosEmbeddedServer : EmbeddedServer {
                     val knowledge = files.knowledgeConfig()
                     knowledge.path?.let(moved::get)?.let { files.saveKnowledgeConfig(knowledge.copy(path = it)) }
                 }
-                EmbeddedServerHost.create(home, plugins = embeddedPlugins(home, listOf(AppleProvider(model)))).also { host ->
+                val embedded = embeddedPlugins(home, ModelProviders.of(AppleProvider(model)))
+                EmbeddedServerHost.create(home, plugins = embedded.plugins, modelSources = embedded.modelSources).also { host ->
                     server = host
                     localHost = host
                     MainScope().launch { host.runtime.runActivity.collect { backgroundRuns?.update(it.runs, it.steps) } }

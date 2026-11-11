@@ -6,8 +6,9 @@ import ai.koog.prompt.message.Message
 
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.PrivateFile
+import kinuvo.server.plugin.PrivateFile
 import kinuvo.harness.codex.CodexProvider
+import kinuvo.harness.core.plugin.ModelProviders
 import kinuvo.harness.core.store.FileStore
 import kinuvo.protocol.*
 import kotlinx.coroutines.CoroutineScope
@@ -59,7 +60,7 @@ class ReflectionActivityTest {
                 else -> flowOf(StreamFrame.End())
             })
         } }
-        harness = Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }, plugins = emptyList())
+        harness = Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }, plugins = emptyList())
         harness.saveKnowledgeSettings(KnowledgeSettings(conventions = mapOf("markdown" to "People go in person notes")))
         val agent = harness.store.agents().single()
         sessionId = harness.newSession(agent).id

@@ -3,8 +3,9 @@ package kinuvo.harness.server.testing
 import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.harness.core.AgentModel
 import kinuvo.server.plugin.CustomEndpoints
-import kinuvo.harness.core.plugin.ModelProvider
-import kinuvo.harness.core.plugin.ModelProviderPlugin
+import kinuvo.harness.core.plugin.ModelSource
+import kinuvo.server.plugin.ProviderAdmin
+import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.server.plugin.ProviderApiKey
 import kinuvo.server.plugin.ProviderAuth
 import kinuvo.protocol.CustomEndpointParams
@@ -26,7 +27,7 @@ class FakeModelProvider(
     private val models: List<ModelInfo> = emptyList(),
     signedIn: Boolean? = null,
     needsKey: Boolean = false,
-) : ModelProvider {
+) : ModelSource, ProviderAdmin {
     override suspend fun models() = models
 
     override fun model(config: AgentConfig): AgentModel = error("The scripted model answers; $id only lists models")
@@ -46,9 +47,10 @@ class FakeModelProvider(
 }
 
 /** Gives a Server the model [providers], and custom endpoints that discover no models, as a Server with none reachable does. */
-class FakeModels(private vararg val providers: FakeModelProvider) : ModelProviderPlugin {
+class FakeModels(private vararg val providers: FakeModelProvider) : ProviderPlugin {
     override val definition = PluginDefinition("test.models", "Test models")
-    override val modelProviders: List<ModelProvider> get() = providers.toList()
+    override val providerAdmins: List<ProviderAdmin> get() = providers.toList()
+    val modelSources: List<ModelSource> get() = providers.toList()
     val discovered = CopyOnWriteArrayList<CustomEndpointParams>()
 
     override val customEndpoints = object : CustomEndpoints {

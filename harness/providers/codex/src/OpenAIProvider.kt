@@ -2,7 +2,11 @@ package kinuvo.harness.codex
 
 import kinuvo.harness.execution.api.AgentConfig
 import kinuvo.server.plugin.ImageGeneration
+import kinuvo.server.plugin.ProviderAdmin
 import kinuvo.server.plugin.ProviderApiKey
+import kinuvo.server.plugin.ProviderKeys
+import kinuvo.server.plugin.ProviderPlugin
+import kinuvo.server.plugin.StoredProviderKey
 import kinuvo.harness.core.plugin.*
 import ai.koog.http.client.KoogHttpClient
 import ai.koog.http.client.ktor.fromKtorClient
@@ -23,7 +27,6 @@ import io.ktor.http.isSuccess
 import io.ktor.http.content.OutgoingContent
 import io.ktor.utils.io.readBuffer
 import kinuvo.harness.core.*
-import kinuvo.harness.core.store.AgentFiles
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.CapabilityState
 import kinuvo.protocol.ModelInfo
@@ -37,10 +40,10 @@ class OpenAIProvider(
     private val attachments: ((Attachment) -> ByteArray)? = null,
     private val http: HttpClient = openAIHttpClient(keyValue),
     override val apiKey: ProviderApiKey? = null,
-) : ModelProvider, ModelProviderPlugin {
+) : ModelSource, ProviderAdmin, ProviderPlugin {
     override val definition = PluginDefinition("kinuvo.openai", "OpenAI API")
-    constructor(files: AgentFiles, secrets: Secrets = Secrets(), attachments: ((Attachment) -> ByteArray)? = null) :
-        this(OpenAIKey(files, secrets), attachments)
+    constructor(keys: ProviderKeys, attachments: ((Attachment) -> ByteArray)? = null) :
+        this(keys.key("openai", "OpenAI API", "OPENAI_API_KEY"), attachments)
 
     private constructor(key: StoredProviderKey, attachments: ((Attachment) -> ByteArray)?) :
         this(key::resolve, attachments, apiKey = key)
@@ -50,7 +53,7 @@ class OpenAIProvider(
     override val id = "openai"
     override val name = "OpenAI API"
     override val catalogId = "openai"
-    override val modelProviders get() = listOf(this)
+    override val providerAdmins get() = listOf(this)
     private val executor = lazy {
         koogExecutor(ResponsesLLMClient(
             settings = OpenAIClientSettings(baseUrl = OPENAI_BASE_URL, responsesAPIPath = "responses"),

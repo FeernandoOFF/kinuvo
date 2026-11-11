@@ -54,7 +54,7 @@ private class Login : CoreSuspendingCliktCommand("login") {
     override fun help(context: Context) = "Sign in to a model provider with a device code."
 
     override suspend fun run() {
-        val providers = jvmProviders(AgentFiles(kinuvoHome())).flatMap { it.modelProviders }.filter { it.auth != null }
+        val providers = jvmProviders(AgentFiles(kinuvoHome())).plugins.flatMap { it.providerAdmins }.filter { it.auth != null }
         val target = provider?.let { id -> providers.firstOrNull { it.id == id } ?: throw UsageError("No provider '$id' to sign in to; available: ${providers.joinToString { it.id }}") }
             ?: providers.singleOrNull() ?: throw UsageError("Name a provider: ${providers.joinToString { it.id }}")
         target.auth!!.login { echo("Open ${it.url} and enter code ${it.code} (expires in 15 minutes)") }
