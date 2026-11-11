@@ -1,6 +1,9 @@
 package kinuvo.server.jvm
 
 import kinuvo.server.rpc.serverRoutes
+import kinuvo.gateways.mcp.McpAccess
+import kinuvo.gateways.mcp.McpListener
+import kinuvo.gateways.mcp.McpExecutionFactory
 import kotlinx.coroutines.*
 import kinuvo.server.execution.ExecutionStorage
 import kinuvo.server.execution.remoteLinks
@@ -17,12 +20,14 @@ import kinuvo.server.NetworkSecurity
 import kinuvo.server.ServerRuntime
 
 class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File(harness.files.home.toString(), "server-devices.json")), private val name: String = machineName(), val network: NetworkSecurity = NetworkSecurity(), security: ConnectionSecurity = ConnectionSecurity()) {
+    private val mcpAccess = McpAccess()
+    private val mcpListener = McpListener(mcpAccess)
     private val executionStorage = ExecutionStorage(harness.files.home)
     private val activity = ProcessActivity("Serving a live voice call")
     private val links = remoteLinks(harness.files.home)
     val runtime: ServerRuntime = ServerRuntime(harness, auth, serverRoutes(), name,
         remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, security = security, prepareAttachment = ::prepareAttachment, keepAwake = activity::hold,
-        executionRegistry = executionStorage.registry, executionFactory = AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment), executionStorage = executionStorage)
+        executionRegistry = executionStorage.registry, executionFactory = McpExecutionFactory(AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment), harness, mcpAccess, { mcpListener.url }), executionStorage = executionStorage)
     private suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData) = runtime.persistExecutionAttachment(state, data)
     private val listener = NetworkListener(runtime, auth, network)
     private var started = false
@@ -33,10 +38,12 @@ class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File
         check(!started) { "Server already started" }
         started = true
         try {
+            mcpListener.start()
             runtime.start(schedule)
             return listener.start(host, ports)
         } catch (e: Throwable) {
             withContext(NonCancellable) {
+                mcpListener.stop()
                 try { listener.stop() } catch (cleanup: Throwable) { e.addSuppressed(cleanup) }
                 try { runtime.close() } catch (cleanup: Throwable) { e.addSuppressed(cleanup) }
             }
@@ -55,6 +62,7 @@ class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File
     }
     fun stop() = runBlocking {
         advertised?.let { if (LocalServer.read(harness.files.home) == it) LocalServer.delete(harness.files.home) }
+        mcpListener.stop()
         listener.stop()
         runtime.close()
     }
