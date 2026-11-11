@@ -27,7 +27,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 
 /**
- * The one tool invocation path: every call from the built-in harness, Reflection and MCP Apps is checked and run here,
+ * The one tool invocation path: every call from the built-in harness, Reflection, KinuvoMCP and MCP Apps is checked and run here,
  * under the same Tool scope, Deny and Trust rules, Approvals, result limits and Tool-call budget. Scripts call the run's
  * other tools back through it.
  */

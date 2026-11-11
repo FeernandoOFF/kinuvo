@@ -57,17 +57,7 @@ class NativeExecution(
     override suspend fun answer(answer: RespondParams): Boolean {
         owner(answer.sessionId) ?: return false
         val pending = harness.log.pending(answer.sessionId).firstOrNull { it.id == answer.requestId } ?: return false
-        val given = answer.answer
-        return when {
-            pending is PendingInteraction.Approval && given is InteractionAnswer.Approval -> harness.approvals.respond(pending.id, given.decision)
-            pending is PendingInteraction.Approval && given is InteractionAnswer.Harness -> {
-                val option = (given.answer as? JsonObject)?.get("optionId")?.jsonPrimitive?.content
-                require(option == null || pending.forHarness().options.any { it.id == option })
-                harness.approvals.respond(pending.id, approvalDecision(option))
-            }
-            pending is PendingInteraction.Questions && given is InteractionAnswer.Questions -> harness.questions.respond(pending.id, given.answers)
-            else -> false
-        }
+        return harness.respondToTool(pending, answer.answer)
     }
 
     override suspend fun send(params: SendParams): SendResult = throwing<ServerError, _> { send(params, null) {} }

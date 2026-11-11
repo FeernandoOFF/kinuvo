@@ -93,6 +93,10 @@ import kinuvo.server.tools.ToolCatalog
 import kinuvo.server.plugin.WebSearch
 import kinuvo.server.plugin.SearchRegion
 import kinuvo.server.tools.WebSearchTool
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.server.execution.forHarness
+import kinuvo.server.execution.approvalDecision
 import kinuvo.protocol.approval.ApprovalDecision
 import kinuvo.protocol.routine.RoutineApprovals
 import kinuvo.protocol.routine.RoutineRef
@@ -261,6 +265,18 @@ open class HarnessRuntime(
     val questions = Broker<Map<String, List<String>>?>()
     val uiCatalogs = SurfaceCatalogs()
 
+    /** Answers a Server tool's interaction, including the neutral form used by external harness clients. */
+    fun respondToTool(pending: PendingInteraction, answer: InteractionAnswer): Boolean = when {
+        pending is PendingInteraction.Approval && answer is InteractionAnswer.Approval -> approvals.respond(pending.id, answer.decision)
+        pending is PendingInteraction.Approval && answer is InteractionAnswer.Harness -> {
+            val option = (answer.answer as? JsonObject)?.get("optionId")?.jsonPrimitive?.content
+            require(option == null || pending.forHarness().options.any { it.id == option })
+            approvals.respond(pending.id, approvalDecision(option))
+        }
+        pending is PendingInteraction.Questions && answer is InteractionAnswer.Questions -> questions.respond(pending.id, answer.answers)
+        else -> false
+    }
+
     /**
      * The Agent as a Session runs it: its settings applied, tool groups this Server lacks dropped, and compaction and
      * Memory limits fitted to the model's context window, and its [profile] resolved once. Capabilities, instructions and runs all start from this.
@@ -291,11 +307,11 @@ open class HarnessRuntime(
     private class PreparedRun(val effective: Effective, val tools: List<Tool>, val advertised: List<Tool>, val catalog: List<ResolvedTool>, val warnings: List<String>, val chat: CapabilityState)
 
     private suspend fun prepare(agent: Agent, sessionId: SessionId?, settings: SessionSettings? = null,
-        routine: RoutineTurn? = null, taskId: String? = null, activate: Boolean = false, catalogs: List<UiCatalog> = uiCatalogs.forRun(), scope: ToolScope = ToolScope.All): PreparedRun {
+        routine: RoutineTurn? = null, taskId: String? = null, activate: Boolean = false, catalogs: List<UiCatalog> = uiCatalogs.forRun(), scope: ToolScope = ToolScope.All, requireModel: Boolean = true): PreparedRun {
         val e = effective(agent, sessionId, settings)
         val chat = if (unmanagedModels) CapabilityState() else e.provider?.availability(e.agent.config.model)
             ?: CapabilityState.unsupported("No model provider '${e.agent.config.provider}'; this model provider is not installed")
-        if (activate) chat.requireReady()
+        if (activate && requireModel) chat.requireReady()
         val run = RunContext(e.agent, sessionId, routine?.routine, taskId)
         val contributed = plugins.map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
         val own = PluginTools(toolsFor(e, sessionId, routine, catalogs)).ownedBy(PluginInstanceId("kinuvo.core")).tools
@@ -360,9 +376,9 @@ open class HarnessRuntime(
         scope: ToolScope = ToolScope.All, reports: ToolReports? = null): AgentRunner =
         native.runner(compose(agent, sessionId, routine, taskId, catalogs, scope, reports))
 
-    private suspend fun compose(agent: Agent, sessionId: SessionId? = null, routine: RoutineTurn? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
-        scope: ToolScope = ToolScope.All, reports: ToolReports? = null): NativeRun {
-        val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs, scope = scope)
+    suspend fun compose(agent: Agent, sessionId: SessionId? = null, routine: RoutineTurn? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
+        scope: ToolScope = ToolScope.All, reports: ToolReports? = null, requireModel: Boolean = true): NativeRun {
+        val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs, scope = scope, requireModel = requireModel)
         val e = prepared.effective
         val agent = e.agent
         val tools = prepared.tools.map(secrets::redacting)
