@@ -1,5 +1,9 @@
 package kinuvo.client
 
+import arrow.core.Either
+import arrow.core.left
+import arrow.core.right
+import kinuvo.protocol.Method
 import kinuvo.protocol.WireError
 import kinuvo.protocol.WireErrorCode
 import kinuvo.protocol.WireErrorReason
@@ -30,3 +34,37 @@ internal fun WireError.toException(): KinuvoException = when (code) {
     WireErrorCode.Unavailable -> KinuvoException.Unavailable(message, data)
     else -> KinuvoException.Server(code, message, data)
 }
+
+/** A failed request as a value: what [KinuvoException] throws, plus a connection that is down. */
+sealed interface KinuvoError {
+    val code: String
+    val message: String
+    val data: JsonElement? get() = null
+
+    data class InvalidParams(override val message: String, override val data: JsonElement? = null) : KinuvoError { override val code get() = WireErrorCode.InvalidParams }
+    data class NotFound(override val message: String, override val data: JsonElement? = null) : KinuvoError { override val code get() = WireErrorCode.NotFound }
+    data class Forbidden(override val message: String, override val data: JsonElement? = null, val management: Boolean = false) : KinuvoError { override val code get() = WireErrorCode.Forbidden }
+    data class Conflict(override val message: String, override val data: JsonElement? = null) : KinuvoError { override val code get() = WireErrorCode.Conflict }
+    data class Unavailable(override val message: String, override val data: JsonElement? = null) : KinuvoError { override val code get() = WireErrorCode.Unavailable }
+
+    /** The connection is down; the client reconnects on its own. */
+    data class Disconnected(override val message: String) : KinuvoError { override val code get() = WireErrorCode.Unavailable }
+
+    /** An internal failure, or a code this client doesn't know. */
+    data class Server(override val code: String, override val message: String, override val data: JsonElement? = null) : KinuvoError
+}
+
+fun KinuvoException.toError(): KinuvoError = when (this) {
+    is KinuvoException.InvalidParams -> KinuvoError.InvalidParams(message.orEmpty(), data)
+    is KinuvoException.NotFound -> KinuvoError.NotFound(message.orEmpty(), data)
+    is KinuvoException.Forbidden -> KinuvoError.Forbidden(message.orEmpty(), data, management)
+    is KinuvoException.Conflict -> KinuvoError.Conflict(message.orEmpty(), data)
+    is KinuvoException.Unavailable -> KinuvoError.Unavailable(message.orEmpty(), data)
+    is KinuvoException.Server -> KinuvoError.Server(code, message.orEmpty(), data)
+}
+
+/** Like [KinuvoClient.call], but a Server error or a closed connection is a [KinuvoError] value instead of an exception. */
+suspend fun <P, R> KinuvoClient.request(method: Method<P, R>, params: P): Either<KinuvoError, R> =
+    try { call(method, params).right() }
+    catch (e: KinuvoException) { e.toError().left() }
+    catch (e: DisconnectedException) { KinuvoError.Disconnected(e.message.orEmpty()).left() }

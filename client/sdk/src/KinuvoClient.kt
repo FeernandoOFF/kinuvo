@@ -115,13 +115,13 @@ class KinuvoClient(
                         catch (_: Exception) { }
                         finally { withContext(NonCancellable) { if (session === ws) failPending() } }
                     }
-                    val result = request(Api.Connect, prepared)
+                    val result = dispatchRequest(Api.Connect, prepared)
                     token = result.token.also(onToken)
                     if (uiCatalogs.isNotEmpty()) exchange(Api.SurfaceCatalogs, SurfaceCatalogsParams(uiCatalogs))
                     lastConnect = result
                     connected.complete(Unit)
                     _state.value = ConnectionState.Connected(result.serverName)
-                    presence.withLock { request(Api.Presence, PresenceParams(active)) }
+                    presence.withLock { dispatchRequest(Api.Presence, PresenceParams(active)) }
                     first.complete(result)
                     delayMs = 500L
                     reader.join()
@@ -156,7 +156,7 @@ class KinuvoClient(
         return first.await()
     }
 
-    suspend fun <P, R> call(method: Method<P, R>, params: P): R = request(method, params)
+    suspend fun <P, R> call(method: Method<P, R>, params: P): R = dispatchRequest(method, params)
 
     suspend fun updateDeviceTools() = call(Api.DeviceTools, DeviceToolsParams(deviceTools()))
 
@@ -165,7 +165,7 @@ class KinuvoClient(
         if (this.active == active) return
         this.active = active
         // One at a time, each sending the latest value, so the Server ends up with the last one.
-        scope.launch { presence.withLock { runCatching { request(Api.Presence, PresenceParams(this@KinuvoClient.active)) } } }
+        scope.launch { presence.withLock { runCatching { dispatchRequest(Api.Presence, PresenceParams(this@KinuvoClient.active)) } } }
     }
 
     /** Sends an event the Server takes without replying, e.g. live call audio. */
@@ -182,7 +182,7 @@ class KinuvoClient(
         scope.launch { runCatching { session?.close() } }.invokeOnCompletion { scope.cancel(); if (connection == null) http.close() }
     }
 
-    private suspend fun <P, R> request(method: Method<P, R>, params: P): R =
+    private suspend fun <P, R> dispatchRequest(method: Method<P, R>, params: P): R =
         if (method == Api.Connect) exchange(method, params) else {
             val connected = ready ?: throw DisconnectedException()
             connected.await()

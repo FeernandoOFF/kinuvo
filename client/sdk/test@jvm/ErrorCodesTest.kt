@@ -73,6 +73,28 @@ class ErrorCodesTest {
         assertEquals("Agent is not exposed", assertIs<KinuvoException.Forbidden>(failure(WireError(WireErrorCode.Forbidden, "Agent is not exposed", buildJsonObject { put("reason", "other") }))).message)
     }
 
+    @Test fun requestReturnsErrorsAsValues() = runBlocking {
+        val client = client(WireError(WireErrorCode.NotFound, "No agent 'x'"))
+        try {
+            withTimeout(5_000) {
+                client.connect()
+                assertEquals(KinuvoError.NotFound("No agent 'x'"), client.request(Api.Agents, Unit).leftOrNull())
+            }
+        } finally { client.close() }
+        val management = client(WireError(WireErrorCode.Forbidden, "Nope", buildJsonObject { put("reason", WireErrorReason.Management) }))
+        try {
+            withTimeout(5_000) {
+                management.connect()
+                val error = assertIs<KinuvoError.Forbidden>(management.request(Api.Agents, Unit).leftOrNull())
+                assertTrue(error.management)
+                assertEquals(ManagementAccessMessage, error.message)
+            }
+        } finally { management.close() }
+        val closed = client(null)
+        closed.close()
+        assertIs<KinuvoError.Disconnected>(closed.request(Api.Agents, Unit).leftOrNull())
+    }
+
     @Test fun unknownCodesAreGenericServerErrors() {
         val unknown = failure(WireError("from_the_future", "Newer failure"))
         assertIs<KinuvoException.Server>(unknown)
