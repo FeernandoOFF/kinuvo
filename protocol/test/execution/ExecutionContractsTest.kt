@@ -16,6 +16,12 @@ import kinuvo.protocol.session.ToolCallId
 import kotlin.test.*
 
 class ExecutionContractsTest {
+    @Test fun connectionsKeepTheirSerialNames() {
+        assertEquals("""{"type":"builtin"}""", ProtocolJson.encodeToString(ExecutionConnection.serializer(), ExecutionConnection.BuiltIn))
+        assertEquals(ExecutionConnection.Acp(listOf("agent")), ProtocolJson.decodeFromString(ExecutionConnection.serializer(), """{"type":"kinuvo.protocol.ExecutionConnection.Acp","command":["agent"]}"""))
+        assertEquals(ExecutionConnection.Remote("source"), ProtocolJson.decodeFromString(ExecutionConnection.serializer(), """{"type":"kinuvo.protocol.ExecutionConnection.Remote","serverId":"source"}"""))
+    }
+
     @Test fun noticesAndNormalizedPromptsRoundTrip() {
         val notice = SessionEntry.Notice("n", "interrupted", "Interrupted", listOf(
             SessionEntry.UserMessage("", submissionId = "s"), SessionEntry.AssistantMessage("draft", "m"),

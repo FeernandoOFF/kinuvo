@@ -15,6 +15,10 @@ enum class ExecutionKind { Native, Acp, Remote }
 
 @Serializable
 sealed interface ExecutionConnection {
+    /** The Server's own harness; it has nothing to configure, so it is never saved or sent. */
+    @Serializable @SerialName("builtin")
+    data object BuiltIn : ExecutionConnection
+
     @Serializable @SerialName("kinuvo.protocol.ExecutionConnection.Acp")
     data class Acp(val command: List<String>, val environment: Map<String, String> = emptyMap()) : ExecutionConnection
     /** Credentials stay in the Server's paired connection machinery. */

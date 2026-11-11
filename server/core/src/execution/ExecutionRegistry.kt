@@ -27,6 +27,7 @@ class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList()
         when (val c = config.connection) {
             is ExecutionConnection.Acp -> require(c.command.isNotEmpty() && c.command.all { it.isNotBlank() })
             is ExecutionConnection.Remote -> require(c.serverId.isNotBlank())
+            ExecutionConnection.BuiltIn -> error("The built-in harness is not configurable")
         }
         HarnessConnectionStatus(config, ExecutionReadiness(true, false, "Connection has not been negotiated")).also { connections[config.id] = it; save() }
     }
@@ -37,6 +38,7 @@ class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList()
         when (connections.getValue(agent.connectionId).config.connection) {
             is ExecutionConnection.Acp -> require(agent.cwd?.let { absoluteExecutionPath(it) } == true) { "Working folder must be absolute" }
             is ExecutionConnection.Remote -> require(!agent.remoteAgentId.isNullOrBlank()) { "Select a remote Agent" }
+            ExecutionConnection.BuiltIn -> error("The built-in harness runs Kinuvo Agents")
         }
         agent.also { agents[it.id] = it; save() }
     }

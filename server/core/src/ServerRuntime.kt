@@ -689,7 +689,7 @@ class ServerRuntime(
         val c = executions.catalog().connections.firstOrNull { it.config.id == a.connectionId }
         if (executions.registration(a.id) == null) return AgentInfo(a.id, a.name, "external", a.avatar, ExecutionKind.Acp, a.connectionId, readiness = ExecutionReadiness(true, false, "Agent registration archived", "archived"))
         requireNotNull(c)
-        return AgentInfo(a.id, a.name, "external", a.avatar, if (c.config.connection is ExecutionConnection.Acp) ExecutionKind.Acp else ExecutionKind.Remote, a.connectionId, c.config.host ?: name, c.readiness)
+        return AgentInfo(a.id, a.name, "external", a.avatar, when (c.config.connection) { is ExecutionConnection.Acp -> ExecutionKind.Acp; is ExecutionConnection.Remote -> ExecutionKind.Remote; ExecutionConnection.BuiltIn -> ExecutionKind.Native }, a.connectionId, c.config.host ?: name, c.readiness)
     }
 
     private suspend fun agent(id: String): Agent = admin.agent(AgentId(id))

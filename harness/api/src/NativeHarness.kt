@@ -15,8 +15,8 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.io.files.Path
 import kotlin.uuid.Uuid
 
-/** The built-in harness has no connection to configure; this stands in for the one [ExecutionFactory.open] takes. */
-val BUILT_IN_HARNESS = HarnessConnection("kinuvo", "Kinuvo", ExecutionConnection.Acp(listOf("kinuvo")))
+/** The connection [ExecutionFactory.open] takes for the built-in harness. */
+val BUILT_IN_HARNESS = HarnessConnection("kinuvo", "Kinuvo", ExecutionConnection.BuiltIn)
 
 fun builtInRegistration(agent: Agent) = AgentRegistration(agent.id, agent.name, BUILT_IN_HARNESS.id)
 

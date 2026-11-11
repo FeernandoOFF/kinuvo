@@ -15,6 +15,7 @@ fun sessionBrowserAvailable(agent: AgentInfo?, server: ServerCapabilities?) =
 val HarnessConnectionStatus.kind get() = when (config.connection) {
     is ExecutionConnection.Acp -> ExecutionKind.Acp
     is ExecutionConnection.Remote -> ExecutionKind.Remote
+    ExecutionConnection.BuiltIn -> ExecutionKind.Native
 }
 
 /** The selected Server's machine as labels name it: its own name, or "this device" only when it's embedded here. */
