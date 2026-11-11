@@ -4,6 +4,10 @@ import kinuvo.protocol.routine.Routine
 
 object ToolNames {
     const val GENERATE_IMAGE = "generate_image"
+    const val AGENTS_SPAWN = "agents_spawn"
+    const val AGENTS_WAIT = "agents_wait"
+    const val AGENTS_SEND = "agents_send"
+    const val AGENTS_LIST = "agents_list"
     const val MEMORY = "memory"
     const val WEB_FETCH = "web_fetch"
     /** Comes with [WEB_FETCH] when web search is set up. */

@@ -190,8 +190,14 @@ Planned: a lasting conversation space with the user and one or more Agents as me
 _Avoid_: Room, Chat, channel, group
 
 **Sub-agent**:
-Planned: an Agent run in a child Session started by another Agent's Session, which waits for or is notified of its result.
+An Agent run in a Hidden Session started by another Agent's Session, which waits for or is notified of its result.
 _Avoid_: Worker, child agent
+
+**Hidden Session**:
+A private Session used by a Sub-agent, kept on-device and out of normal Session listings. Sharing its result with a parent Agent requires the user's Approval.
+
+**Activation budget**:
+The shared limit on tool executions by one root run and all its Sub-agents. Exhausting it stops the whole tree.
 
 **Handoff**:
 Planned: an Agent passing the floor of a Team to another member with a brief. Not a Takeover, which is the user controlling a Screen.

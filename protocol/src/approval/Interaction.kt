@@ -36,6 +36,7 @@ sealed interface PendingInteraction {
         /** False when "Always allow" can't be offered, e.g. for a command that can't be checked. */
         val trustable: Boolean = true,
         val identity: ToolIdentity? = null,
+        val preview: ChangePreview? = null,
     ) : PendingInteraction
 
     /** A form, such as `ask_user`'s or an external harness's; answered with [InteractionAnswer.Questions]. */

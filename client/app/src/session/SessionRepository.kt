@@ -40,6 +40,7 @@ data class SessionData(
     val loadingOlder: Boolean = false,
     val receivedAt: Map<String, Long> = emptyMap(),
 ) {
+    val children: Map<SessionId, SubAgentState> get() = entries.filterIsInstance<SessionEntry.Notice>().mapNotNull { it.child }.associateBy { it.sessionId } + live.children
     val seen get() = firstSeq + entries.size
     val hasOlder get() = firstSeq > 0
     val items: List<ChatItem> by lazy { chatItems() }
@@ -338,11 +339,12 @@ private fun SessionData.chatItems(): List<ChatItem> {
             is SessionEntry.ReflectionReview -> entry.result?.takeIf { it.proposals.isNotEmpty() }?.let {
                 items += ChatItem.Reflection(key("reflection-review-${entry.proposalId}", seq), it, reviews, revised)
             }
-            is SessionEntry.Notice -> items += ChatItem.Notice(key("notice-${entry.id}", seq), entry.code, entry.message, SessionData(agentId, entries = entry.draft).items)
+            is SessionEntry.Notice -> if (entry.child == null) items += ChatItem.Notice(key("notice-${entry.id}", seq), entry.code, entry.message, SessionData(agentId, entries = entry.draft).items)
             is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Context, is SessionEntry.Outcome -> Unit
         }
     }
     live.pending.forEach { request ->
+        if (request.id in live.interactionChildren) return@forEach
         when (request) {
             is PendingInteraction.Approval -> {
                 val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }

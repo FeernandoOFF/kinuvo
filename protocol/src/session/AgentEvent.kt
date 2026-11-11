@@ -10,9 +10,12 @@ import kotlinx.serialization.Serializable
 /** Events emitted during a run, named after AG-UI event types. */
 @Serializable
 sealed interface AgentEvent {
+    @Serializable @SerialName("SUB_AGENT_CHANGED")
+    data class SubAgentChanged(val child: SubAgentState) : AgentEvent
+
     /** The run is paused until the user answers via `session.respond`. */
     @Serializable @SerialName("INTERACTION_REQUESTED")
-    data class InteractionRequested(val interaction: PendingInteraction) : AgentEvent
+    data class InteractionRequested(val interaction: PendingInteraction, val childSessionId: SessionId? = null) : AgentEvent
 
     /** [allowed] is set when an Approval was decided. */
     @Serializable @SerialName("INTERACTION_RESOLVED")

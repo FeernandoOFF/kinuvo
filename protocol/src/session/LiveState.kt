@@ -1,6 +1,7 @@
 package kinuvo.protocol.session
 
 import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.execution.ExecutionPhase
 import kotlinx.serialization.Serializable
 
@@ -19,10 +20,14 @@ data class LiveState(
     val pending: List<PendingInteraction> = emptyList(),
     val executionPhase: ExecutionPhase? = null,
     val entries: List<SessionEntry> = emptyList(),
+    val children: Map<SessionId, SubAgentState> = emptyMap(),
+    val interactionChildren: Map<InteractionId, SessionId> = emptyMap(),
 ) {
     fun on(event: AgentEvent): LiveState = when (event) {
-        is AgentEvent.InteractionRequested -> copy(pending = pending.filterNot { it.id == event.interaction.id } + event.interaction)
-        is AgentEvent.InteractionResolved -> copy(pending = pending.filterNot { it.id == event.id })
+        is AgentEvent.SubAgentChanged -> copy(children = children + (event.child.sessionId to event.child))
+        is AgentEvent.InteractionRequested -> copy(pending = pending.filterNot { it.id == event.interaction.id } + event.interaction,
+            interactionChildren = event.childSessionId?.let { interactionChildren + (event.interaction.id to it) } ?: interactionChildren)
+        is AgentEvent.InteractionResolved -> copy(pending = pending.filterNot { it.id == event.id }, interactionChildren = interactionChildren - event.id)
         is AgentEvent.ExecutionPhaseChanged -> copy(
             executionPhase = event.phase,
             running = event.phase == ExecutionPhase.Running || event.phase == ExecutionPhase.RequiresAction,
@@ -34,7 +39,7 @@ data class LiveState(
             copy(entries = entries.toMutableList().apply { if (index < 0) add(event.entry) else set(index, event.entry) })
         }
         is AgentEvent.ReflectionStarted -> copy(reflectionId = event.id)
-        is AgentEvent.RunStarted -> LiveState(running = true, reflectionId = reflectionId, executionPhase = executionPhase, pending = pending, entries = entries)
+        is AgentEvent.RunStarted -> LiveState(running = true, reflectionId = reflectionId, executionPhase = executionPhase, pending = pending, entries = entries, children = children, interactionChildren = interactionChildren)
         is AgentEvent.TextMessageContent -> if (executionPhase == null) copy(messageId = event.messageId, text = text + event.delta)
             else {
                 val previous = entries.filterIsInstance<SessionEntry.AssistantMessage>().firstOrNull { it.messageId == event.messageId }
@@ -45,14 +50,14 @@ data class LiveState(
                 val previous = entries.filterIsInstance<SessionEntry.Reasoning>().firstOrNull { it.messageId == event.messageId }
                 on(AgentEvent.ExecutionEntryChanged(SessionEntry.Reasoning(previous?.text.orEmpty() + event.delta, messageId = event.messageId)))
             }
-        is AgentEvent.RunFinished, is AgentEvent.RunError -> copy(running = false, pending = emptyList())
+        is AgentEvent.RunFinished, is AgentEvent.RunError -> copy(running = false, pending = pending.filter { it.id in interactionChildren })
         else -> this
     }
 
     val status: SessionStatus
         get() = when {
-            !running -> SessionStatus.Idle
             pending.isNotEmpty() -> SessionStatus.Waiting
+            !running -> SessionStatus.Idle
             else -> SessionStatus.Running
         }
 
@@ -64,6 +69,7 @@ data class LiveState(
     }
 
     private fun saved(entry: SessionEntry): LiveState = when (entry) {
+        is SessionEntry.Notice -> entry.child?.let { copy(children = children + (it.sessionId to it)) } ?: this
         is SessionEntry.Reflection -> if (reflectionId == entry.id) copy(reflectionId = null) else this
         is SessionEntry.AssistantMessage -> if (entry.messageId == null || entry.messageId == messageId) copy(text = "") else this
         is SessionEntry.Reasoning -> if (entry.messageId == null || entry.messageId == messageId) copy(reasoning = "") else this
