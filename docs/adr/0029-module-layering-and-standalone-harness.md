@@ -18,7 +18,7 @@ Target layout:
 - `harness/`: `api` (execution contracts), `builtin` (the native harness), and the adapters `acp` and `remote`.
 - `models`: verified model downloads.
 - `server/`: `plugin-api`, `core`, `rpc`, and the hosts `jvm` and `embedded`.
-- `providers/`, `plugins/`, `gateways/` (`acp`, `mcp`), `apps/`, `testing/`.
+- `providers/`, `plugins/`, `gateways/` (`acp-agent`, `mcp`), `apps/`, `testing/`.
 
 **Standalone harness.** `harness/api` and `harness/builtin` depend on no `server/*`, `client/*`, plugin or gateway module. Protocol values are allowed. `harness/api` is Koog-free; only `harness/builtin` knows Koog and converts neutral tool descriptors to it.
 

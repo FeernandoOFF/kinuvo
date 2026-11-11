@@ -2,8 +2,7 @@ apps/android -> client/ui
 apps/android -> client/ui/android-computer
 apps/android-play -> client/ui
 apps/cli -> client/sdk
-apps/cli -> harness/acp
-apps/cli -> harness/api
+apps/cli -> gateways/acp-agent
 apps/cli -> plugins/cua
 apps/cli -> providers/codex [test]
 apps/cli -> server/jvm
@@ -21,8 +20,9 @@ client/ui -> providers/apple
 client/ui -> server/embedded
 client/ui -> testing/server-testing [test]
 client/ui/android-computer -> client/app
+gateways/acp-agent -> client/sdk
+gateways/acp-agent -> harness/api
 harness/acp -> harness/api
-harness/acp -> server/core [test]
 harness/api -> protocol
 harness/builtin -> harness/api
 harness/builtin -> protocol

@@ -1,6 +1,6 @@
 @file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
 
-package kinuvo.harness.acp
+package kinuvo.gateways.acp
 
 import com.agentclientprotocol.agent.v2.Agent
 import com.agentclientprotocol.protocol.Protocol

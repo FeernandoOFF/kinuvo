@@ -9,6 +9,7 @@ modules:
   - client/sdk
   - client/ui
   - client/ui/android-computer
+  - gateways/acp-agent
   - harness/acp
   - harness/api
   - harness/builtin

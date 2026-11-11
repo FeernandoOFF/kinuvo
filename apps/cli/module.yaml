@@ -3,8 +3,7 @@
 product: jvm/app
 
 dependencies:
-  - ../../harness/acp
-  - ../../harness/api
+  - ../../gateways/acp-agent
   - ../../server/jvm
   - ../../plugins/cua
   - ../../client/sdk
