@@ -1,5 +1,10 @@
 package kinuvo.client
 
+import kotlin.time.Duration
+import kotlin.random.Random
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.milliseconds
+import arrow.resilience.Schedule
 import arrow.core.Either
 import kinuvo.protocol.*
 import kinuvo.protocol.computer.*
@@ -27,6 +32,12 @@ sealed interface ConnectionState {
     /** [rejected] when the Server refused the token, e.g. because the Device was revoked; it won't reconnect. */
     data class Disconnected(val reason: String, val rejected: Boolean = false) : ConnectionState
 }
+
+/** Reconnect attempts back off exponentially from half a second. */
+internal val ReconnectBackoff = Schedule.exponential<Unit>(500.milliseconds)
+
+/** The wait before the next reconnect attempt: [scheduled] capped at ten seconds, then cut by up to half so Devices don't reconnect in step. */
+internal fun reconnectWait(scheduled: Duration, random: Random = Random): Duration = minOf(scheduled, 10.seconds) * random.nextDouble(0.5, 1.0)
 
 /** Thrown when the server rejects the token or pairing code; retrying won't help. */
 class AuthException(message: String) : Exception(message)
@@ -97,7 +108,7 @@ class KinuvoClient(
     suspend fun connect(retry: Boolean = false): ConnectResult {
         val first = CompletableDeferred<ConnectResult>()
         loop = scope.launch {
-            var delayMs = 500L
+            var backoff = ReconnectBackoff.step
             while (isActive) {
                 _state.value = ConnectionState.Connecting
                 val connected = CompletableDeferred<Unit>()
@@ -124,7 +135,7 @@ class KinuvoClient(
                     _state.value = ConnectionState.Connected(result.serverName)
                     presence.withLock { dispatchRequest(Api.Presence, PresenceParams(active)) }
                     first.complete(result)
-                    delayMs = 500L
+                    backoff = ReconnectBackoff.step
                     reader.join()
                     _state.value = ConnectionState.Disconnected("Connection lost")
                 } catch (e: CancellationException) {
@@ -150,8 +161,9 @@ class KinuvoClient(
                         failPending()
                     }
                 }
-                delay(delayMs)
-                delayMs = (delayMs * 2).coerceAtMost(10_000)
+                val next = backoff(Unit) as? Schedule.Decision.Continue ?: return@launch
+                backoff = next.step
+                delay(reconnectWait(next.delay))
             }
         }
         return first.await()
