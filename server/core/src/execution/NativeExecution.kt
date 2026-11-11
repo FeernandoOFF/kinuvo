@@ -1,5 +1,6 @@
 package kinuvo.server.execution
 
+import kinuvo.server.ServerError
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.harness.Agent
 import kinuvo.harness.ExecutionDispatch
@@ -69,7 +70,7 @@ class NativeExecution(
         val attachments = withContext(Dispatchers.Default) { p.attachments.map(harness.attachments::get) }
         require(attachments.sumOf { it.size } <= MAX_ATTACHMENT_TOTAL_BYTES) { "Attachments must total 20 MB or less" }
         val sessionId = p.sessionId?.also { id ->
-            check(harness.store.sessions(agent.id).any { it.id == id }) { "No session '$id' for agent '${agent.id}'" }
+            if (harness.store.sessions(agent.id).none { it.id == id }) throw ServerError.NotFound("No session '$id' for agent '${agent.id}'")
         } ?: harness.newSession(agent).id
         val effective = harness.capabilities(agent, sessionId, null, capabilities())
         effective.chat.requireReady()

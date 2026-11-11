@@ -204,7 +204,7 @@ class ExternalPromptsTest {
                 Api.Send.name -> {
                     dispatches += request.method
                     sends += ProtocolJson.decodeFromJsonElement(Api.Send.params, request.params)
-                    if (failSend) frames.send(Frame.Response(request.id, false, error = "Uncertain submission"))
+                    if (failSend) frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Uncertain submission")))
                     else reply(request, Api.Send, SendResult(SessionId("s1"), RunId("run"), ""))
                 }
                 Api.Respond.name -> reply(request, Api.Respond, acceptAnswer)
@@ -212,7 +212,7 @@ class ExternalPromptsTest {
                     actions += request.method
                     dispatches += request.method
                     if (resumeError != null) {
-                        frames.send(Frame.Response(request.id, false, error = resumeError))
+                        frames.send(Frame.Response(request.id, false, error = resumeError?.let { WireError(WireErrorCode.Internal, it) }))
                         return
                     }
                     snapshot = snapshot.copy(executionPhase = ExecutionPhase.Idle)
@@ -231,7 +231,7 @@ class ExternalPromptsTest {
                     reply(request, Api.CatchUp, Unit)
                     event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Window(0, emptyList(), snapshot)))
                 }
-                else -> frames.send(Frame.Response(request.id, false, error = "Unsupported in test: ${request.method}"))
+                else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))
             }
         }
         suspend fun <T> event(type: EventType<T>, payload: T) = frames.send(Frame.Event(type.name, ProtocolJson.encodeToJsonElement(type.payload, payload), 1))

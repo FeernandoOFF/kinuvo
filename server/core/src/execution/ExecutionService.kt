@@ -9,6 +9,7 @@ import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.server.Admin
 import kinuvo.server.HarnessRuntime
+import kinuvo.server.ServerError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -71,7 +72,7 @@ class ExecutionService internal constructor(
             val pending = if (external.owns(answer.sessionId)) external.snapshot(answer.sessionId).pending else harness.log.pending(answer.sessionId)
             val approving = answer.answer is InteractionAnswer.Approval ||
                 pending.any { p -> p.id == answer.requestId && (p is PendingInteraction.Approval || p is PendingInteraction.HarnessApproval) }
-            if (approving) error("This action requires management access")
+            if (approving) throw ServerError.Forbidden()
         }
         return dispatch.answer(answer)
     }
@@ -87,34 +88,34 @@ class ExecutionService internal constructor(
 
     suspend fun saveRemoteLink(link: SaveRemoteLink) = management.withLock {
         val connections = registry.catalog().connections.filter { (it.config.connection as? ExecutionConnection.Remote)?.serverId == link.id }
-        check(connections.none { external.inUse(it.config.id) }) { "Connection has live Sessions" }
+        if (connections.any { external.inUse(it.config.id) }) throw ServerError.Conflict("Connection has live Sessions")
         remoteLinks.save(link)
     }
 
-    suspend fun discoverRemote(id: String) = requireNotNull(remote) { "Remote Servers unavailable" }.discover(id)
+    suspend fun discoverRemote(id: String) = (remote ?: throw ServerError.Unavailable("Remote Servers unavailable")).discover(id)
 
     suspend fun remoteExecution(token: String, call: RemoteExecutionCall) = gateway.call(token, call)
 
     suspend fun saveConnection(config: HarnessConnection) = management.withLock {
-        check(!external.inUse(config.id)) { "Connection has live Sessions" }
+        if (external.inUse(config.id)) throw ServerError.Conflict("Connection has live Sessions")
         registry.save(config).also { catalogChanged() }
     }
 
     suspend fun deleteConnection(id: String) = management.withLock {
-        check(!external.inUse(id)) { "Connection has live Sessions" }
+        if (external.inUse(id)) throw ServerError.Conflict("Connection has live Sessions")
         registry.removeConnection(id).also { catalogChanged() }
     }
 
     suspend fun registerAgent(registration: AgentRegistration) = management.withLock {
         val existing = registry.registration(registration.id)
-        check(existing == null || !external.agentInUse(existing.id)) { "Agent has live Sessions" }
-        require(harness.store.agents().none { it.id == registration.id }) { "Agent ID belongs to a native Agent" }
+        if (existing != null && external.agentInUse(existing.id)) throw ServerError.Conflict("Agent has live Sessions")
+        if (harness.store.agents().any { it.id == registration.id }) throw ServerError.Conflict("Agent ID belongs to a native Agent")
         registry.register(registration).also { external.restore(it.id); catalogChanged() }
     }
 
     suspend fun unregisterAgent(id: String) = management.withLock {
         val agent = registry.registration(AgentId(id))
-        check(agent == null || !external.agentInUse(agent.id)) { "Agent has live Sessions" }
+        if (agent != null && external.agentInUse(agent.id)) throw ServerError.Conflict("Agent has live Sessions")
         external.archive(AgentId(id))
         registry.removeAgent(AgentId(id)).also { catalogChanged() }
     }
@@ -127,7 +128,7 @@ class ExecutionService internal constructor(
         } ?: admin.details(admin.agent(id))
 
     suspend fun createAgent(p: CreateAgentParams): AgentInfo {
-        require(registry.catalog().agents.none { it.id == p.agentId }) { "Agent ID is reserved by an external registration" }
+        if (registry.catalog().agents.any { it.id == p.agentId }) throw ServerError.Conflict("Agent ID is reserved by an external registration")
         return admin.create(p)
     }
 

@@ -1,6 +1,7 @@
 package kinuvo.server.execution
 
 
+import kinuvo.server.ServerError
 import kinuvo.harness.liveVoiceInstructions
 import kinuvo.harness.*
 import io.github.oshai.kotlinlogging.KotlinLogging
@@ -132,7 +133,7 @@ class ExecutionCoordinator(
     }
     suspend fun resume(id: SessionId): ExecutionSnapshot {
         val old = record(id)
-        check(old.lost && !old.closed && !old.archived) { "This Session cannot resume" }
+        if (!old.lost || old.closed || old.archived) throw ServerError.Conflict("This Session cannot resume")
         requireNotNull(old.externalSessionId)
         check(old.connection == registry.configured(old.agentId) && old.registration == registry.registration(old.agentId)) { "Execution configuration changed" }
         discard(id)

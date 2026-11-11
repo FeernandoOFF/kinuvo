@@ -16,5 +16,6 @@ suspend fun <P, R> respond(r: Frame.Request, method: Method<P, R>, block: suspen
     } catch (e: CancellationException) {
         throw e
     } catch (e: Exception) {
-        Frame.Response(r.id, ok = false, error = if (method == Api.Connect && e is MissingFieldException && "protocolVersion" in e.missingFields) ProtocolVersion.Mismatch else e.message ?: e.toString())
+        val mismatch = method == Api.Connect && e is MissingFieldException && "protocolVersion" in e.missingFields
+        Frame.Response(r.id, ok = false, error = if (mismatch) ServerError.ProtocolMismatch().toWireError() else e.toWireError())
     }

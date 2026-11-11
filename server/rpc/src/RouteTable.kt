@@ -5,6 +5,8 @@ import kinuvo.protocol.Method
 import kinuvo.server.Call
 import kinuvo.server.RouteAccess
 import kinuvo.server.Routes
+import kinuvo.server.ServerError
+import kinuvo.server.failure
 import kinuvo.server.respond
 
 internal class Route(val access: RouteAccess, val handle: suspend (Call, Frame.Request) -> Frame.Response)
@@ -15,7 +17,7 @@ private class RouteTable(private val routes: Map<String, Route>) : Routes {
     override fun access(method: String) = routes[method]?.access
 
     override suspend fun dispatch(call: Call, request: Frame.Request) =
-        routes[request.method]?.handle?.invoke(call, request) ?: Frame.Response(request.id, ok = false, error = "Unknown method ${request.method}")
+        routes[request.method]?.handle?.invoke(call, request) ?: request.failure(ServerError.NotFound("Unknown method ${request.method}"))
 }
 
 /** Registers one handler per [Method]; a method registered twice fails the build. */

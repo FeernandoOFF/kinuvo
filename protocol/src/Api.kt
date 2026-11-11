@@ -43,7 +43,7 @@ sealed interface Frame {
     data class Request(val id: String, val method: String, val params: JsonElement = JsonNull) : Frame
 
     @Serializable @SerialName("res")
-    data class Response(val id: String, val ok: Boolean, val payload: JsonElement = JsonNull, val error: String? = null) : Frame
+    data class Response(val id: String, val ok: Boolean, val payload: JsonElement = JsonNull, @Serializable(with = WireErrorSerializer::class) val error: WireError? = null) : Frame
 
     @Serializable @SerialName("event")
     data class Event(val event: String, val payload: JsonElement, val seq: Long) : Frame
@@ -61,9 +61,10 @@ class Method<P, R>(val name: String, val params: KSerializer<P>, val result: KSe
 class EventType<T>(val name: String, val payload: KSerializer<T>)
 
 object ProtocolVersion {
-    const val Current = 7
+    const val Current = 8
     const val Mismatch = "protocol_mismatch: Update the Server and Device to matching versions"
-    fun requireCompatible(version: Int) { require(version == Current) { Mismatch } }
+    fun isCompatible(version: Int) = version == Current
+    fun requireCompatible(version: Int) { require(isCompatible(version)) { Mismatch } }
 }
 
 /** Requests a Device may have unanswered on one connection; the Server drops a connection that sends more. */

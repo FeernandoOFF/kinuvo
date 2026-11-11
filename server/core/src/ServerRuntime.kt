@@ -88,7 +88,7 @@ class ServerRuntime(
     private val installedFactory = object : ExecutionFactory {
         override suspend fun probe(config: HarnessConnection) = if (config.connection is ExecutionConnection.Remote) remoteFactory?.probe(config) ?: ExecutionProbe(ExecutionReadiness(true, false, "Remote Servers unavailable", "unsupported")) else executionFactory?.probe(config) ?: ExecutionProbe(ExecutionReadiness(true, false, "ACP unavailable", "unsupported"))
         override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
-            if (config.connection is ExecutionConnection.Remote) requireNotNull(remoteFactory) { "Remote Servers unavailable" }.open(config, registration, state, broker, scope) else requireNotNull(executionFactory).open(config, registration, state, broker, scope)
+            if (config.connection is ExecutionConnection.Remote) (remoteFactory ?: throw ServerError.Unavailable("Remote Servers unavailable")).open(config, registration, state, broker, scope) else requireNotNull(executionFactory).open(config, registration, state, broker, scope)
     }
     private val remoteGateway = RemoteGateway(remoteLinks,
         { execution.agents() },
@@ -158,7 +158,7 @@ class ServerRuntime(
         harness.log.executionMetadata = { info -> if (external.owns(info.id)) info.copy(legacyOrder = external.record(info.id).legacyOrder) else info }
         harness.browser?.authorize { owner ->
             browserAccess.validate(owner)
-            check("browser" in admin.agent(owner.agentId).config.tools) { "Browser is disabled for this Agent" }
+            if ("browser" !in admin.agent(owner.agentId).config.tools) throw ServerError.Unavailable("Browser is disabled for this Agent")
         }
         harness.log.onDelete = { a, id -> external.delete(a, id) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
         if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) scope.launch { dispatch.stop(it.id) } }
@@ -266,7 +266,7 @@ class ServerRuntime(
             try {
                 check(offer(Frame.Request(id, Api.ComputerAct.name, ProtocolJson.encodeToJsonElement(Api.ComputerAct.params, p)))) { "Device disconnected" }
                 val result = response.await()
-                check(result.ok) { result.error ?: "The Device couldn't do that" }
+                check(result.ok) { result.error?.message ?: "The Device couldn't do that" }
                 ProtocolJson.decodeFromJsonElement(Api.ComputerAct.result, result.payload)
             } finally { pending.remove(id) }
         }
@@ -319,16 +319,16 @@ class ServerRuntime(
         }
 
         override fun revokeDevice(id: String, requestId: String) {
-            check(authenticated(auth::management) || deviceId == id) { "This action requires management access" }
+            if (!authenticated(auth::management) && deviceId != id) throw ServerError.Forbidden()
             if (deviceId == id) closeAfterResponse = requestId
-            check(auth.revoke(id)) { "No paired Device '$id'" }
+            if (!auth.revoke(id)) throw ServerError.NotFound("No paired Device '$id'")
             clients.block { it.filter { c -> c.deviceId == id && c !== this } }.forEach { it.disconnect() }
             if (deviceId == id) closeAfterResponse = requestId
             broadcast(Api.DevicesChanged, Unit)
         }
 
         override fun rotateToken(): String {
-            check(!browser) { "Rotate browser credentials over HTTPS" }
+            if (browser) throw ServerError.Unavailable("Rotate browser credentials over HTTPS")
             val replacement = authenticated { auth.rotate(it).also { replacement -> token = replacement } }
             clients.block { it.filter { c -> c.deviceId == deviceId && c !== this } }.forEach { it.disconnect() }
             return replacement
@@ -449,12 +449,12 @@ class ServerRuntime(
                 if (!authed && request.method != Api.Connect.name) { connection.close(); return@collect }
                 if (request.method == Api.Connect.name) {
                     val response = respond(request, Api.Connect) { p ->
-                        check(!authed) { "Already connected" }
-                        ProtocolVersion.requireCompatible(p.protocolVersion)
+                        if (authed) throw ServerError.Conflict("Already connected")
+                        if (!ProtocolVersion.isCompatible(p.protocolVersion)) throw ServerError.ProtocolMismatch()
                         val supplied = connection.credential ?: p.token
                         client.linked = supplied?.let { remoteLinks.exposure(it) != null } == true
                         val token = (if (client.linked) supplied else auth.authenticate(p.device, supplied, if (connection.credential == null) p.pairingCode else null))
-                            ?: error(if (p.token != null) "This device was unpaired" else "Invalid or expired pairing code")
+                            ?: throw ServerError.Forbidden(if (p.token != null) "This device was unpaired" else "Invalid or expired pairing code")
                         client.token = token
                         if (!client.linked) client.refreshTools(p.deviceTools, initial = true)
                         if (!client.linked && auth.management(token)) p.timeZone?.let { zone -> runCatching { harness.timeZone = TimeZone.of(zone) } }
@@ -476,7 +476,7 @@ class ServerRuntime(
                 }
                 val voice = request.method == Api.Transcribe.name || request.method == Api.Synthesize.name
                 if (voice && request.id in voiceRequests) {
-                    client.outbox.send(Frame.Response(request.id, false, error = "Voice request is already active"))
+                    client.outbox.send(request.failure(ServerError.Conflict("Voice request is already active")))
                     return@collect
                 }
                 val stateful = request.method in setOf(Api.LiveVoiceStart.name, Api.LiveVoiceEnd.name, Api.CatchUp.name, Api.Unsubscribe.name, Api.Send.name, Api.Stop.name, Api.Presence.name, Api.DeviceTools.name, Api.SurfaceCatalogs.name, Api.RevokeDevice.name, Api.RotateToken.name)
@@ -507,17 +507,17 @@ class ServerRuntime(
     private suspend fun handle(r: Frame.Request, client: Client): Frame.Response {
         val access = routes.access(r.method)
         if (client.linked) {
-            if (access?.linked != true) return Frame.Response(r.id, ok = false, error = "Execution link does not allow this operation")
+            if (access?.linked != true) return r.failure(ServerError.Forbidden("Execution link does not allow this operation"))
         } else {
-            if (access?.management != false && !client.authenticated(auth::management)) return Frame.Response(r.id, ok = false, error = "This action requires management access")
-            if (access == null || access == RouteAccess.Linked) return Frame.Response(r.id, ok = false, error = "Unknown method ${r.method}")
+            if (access?.management != false && !client.authenticated(auth::management)) return r.failure(ServerError.Forbidden())
+            if (access == null || access == RouteAccess.Linked) return r.failure(ServerError.NotFound("Unknown method ${r.method}"))
         }
         return routes.dispatch(Call(services, client, r.id), r)
     }
 
     private suspend fun startLiveVoice(client: Client, p: LiveVoiceParams): LiveVoiceCall {
-        check(client.liveVoice?.active != true) { "A live voice call is already active on this connection" }
-        val provider = checkNotNull(voice.providers.speechToSpeech) { "Live voice is unavailable or disabled on this Server" }
+        if (client.liveVoice?.active == true) throw ServerError.Conflict("A live voice call is already active on this connection")
+        val provider = voice.providers.speechToSpeech ?: throw ServerError.Unavailable("Live voice is unavailable or disabled on this Server")
         val registration = executions.registration(p.agentId)
         val name = registration?.let { execution.externalInfo(it).name } ?: admin.agent(p.agentId).name
         dispatch.snapshot(p.agentId, p.sessionId)

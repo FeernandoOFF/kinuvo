@@ -86,7 +86,7 @@ class FrameDeliveryTest {
                 requests.send(Frame.Request("connect", Api.Connect.name, ProtocolJson.parseToJsonElement(params)))
                 val rejected = withTimeout(5_000) { response.await() }
                 assertFalse(rejected.ok)
-                assertEquals(ProtocolVersion.Mismatch, rejected.error)
+                assertEquals(WireError(WireErrorCode.ProtocolMismatch, ProtocolVersion.Mismatch), rejected.error)
                 assertFalse(authenticated)
             } finally { serving.cancelAndJoin(); runtime.close() }
         }

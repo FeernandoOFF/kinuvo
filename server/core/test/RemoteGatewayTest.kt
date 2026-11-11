@@ -70,18 +70,18 @@ class RemoteGatewayTest {
             { agent, id -> require(agent == "allowed" && id == "source-session"); ExecutionSnapshot(SessionId(id)) },
             { _, _, _, _ -> }, { _, _ -> }, { _, _ -> true })
         assertEquals(listOf("allowed"), gateway.call(token, RemoteExecutionCall()).agents.map { it.id.value })
-        assertFailsWith<IllegalArgumentException> { gateway.call(token, RemoteExecutionCall(AgentId("private"), action = "create")) }
-        assertFailsWith<IllegalArgumentException> { gateway.call(token, RemoteExecutionCall(AgentId("cycle"), action = "create")) }
+        assertFailsWith<ServerError.Forbidden> { gateway.call(token, RemoteExecutionCall(AgentId("private"), action = "create")) }
+        assertFailsWith<ServerError.Forbidden> { gateway.call(token, RemoteExecutionCall(AgentId("cycle"), action = "create")) }
         assertEquals(0, creates)
         assertEquals("source-session", gateway.call(token, RemoteExecutionCall(AgentId("allowed"), action = "create")).snapshot?.sessionId?.value)
-        assertFailsWith<IllegalArgumentException> { gateway.call(token, RemoteExecutionCall(AgentId("allowed"), SessionId("other-session"), "cancel")) }
+        assertFailsWith<ServerError.Forbidden> { gateway.call(token, RemoteExecutionCall(AgentId("allowed"), SessionId("other-session"), "cancel")) }
         assertTrue(RemoteLinks(persisted).owns(token, AgentId("allowed"), SessionId("source-session")))
         val otherToken = links.grant(ExposureGrant("other", setOf(AgentId("allowed"))))
         for (action in listOf("snapshot", "send", "cancel", "answer")) {
-            assertFailsWith<IllegalArgumentException> { gateway.call(otherToken, RemoteExecutionCall(AgentId("allowed"), SessionId("source-session"), action, text = "bad", requestId = "q", answer = InteractionAnswer.Harness(JsonNull))) }
+            assertFailsWith<ServerError.Forbidden> { gateway.call(otherToken, RemoteExecutionCall(AgentId("allowed"), SessionId("source-session"), action, text = "bad", requestId = "q", answer = InteractionAnswer.Harness(JsonNull))) }
         }
         links.revoke("friend")
-        assertFailsWith<IllegalArgumentException> { gateway.call(token, RemoteExecutionCall(AgentId("allowed"), SessionId("source-session"), "snapshot")) }
+        assertFailsWith<ServerError.Forbidden> { gateway.call(token, RemoteExecutionCall(AgentId("allowed"), SessionId("source-session"), "snapshot")) }
     }
 
     @Test fun normalizedNullAnswerSurvivesRemoteWireDecoding() = runTest {

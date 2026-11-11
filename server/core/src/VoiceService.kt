@@ -10,6 +10,7 @@ import kotlin.io.encoding.Base64
 /** Speech through the models the Server downloaded and runs itself, else its configured OpenAI-compatible providers. */
 class VoiceService internal constructor(private val harness: HarnessRuntime, private val changed: () -> Unit) {
     private val downloaded get() = harness.serverVoice
+    private val local get() = downloaded ?: throw ServerError.Unavailable("Downloaded voice models are unavailable on this Server")
 
     /** A selected downloaded model takes precedence over configured OpenAI-compatible providers. */
     val providers get() = downloaded?.providers.let { local ->
@@ -28,24 +29,24 @@ class VoiceService internal constructor(private val harness: HarnessRuntime, pri
 
     fun setup() = providers.setup
 
-    suspend fun download(id: String) = requireNotNull(downloaded).download(id)
+    suspend fun download(id: String) = local.download(id)
 
-    fun cancelDownload() = requireNotNull(downloaded).cancelDownload()
+    fun cancelDownload() = local.cancelDownload()
 
-    suspend fun remove(id: String) { requireNotNull(downloaded).remove(id); changed() }
+    suspend fun remove(id: String) { local.remove(id); changed() }
 
-    suspend fun select(selection: VoiceSelection) { requireNotNull(downloaded).select(selection); changed() }
+    suspend fun select(selection: VoiceSelection) { local.select(selection); changed() }
 
-    fun language(language: String) = requireNotNull(downloaded).language(language)
+    fun language(language: String) = local.language(language)
 
     suspend fun transcribe(p: TranscribeParams): String {
-        val provider = checkNotNull(providers.transcriber) { "Server transcription is not configured" }
+        val provider = providers.transcriber ?: throw ServerError.Unavailable("Server transcription is not configured")
         require(p.base64.length <= (MAX_RECORDING_BYTES + 2) / 3 * 4) { "Recording is too large" }
         return provider.transcribe(Audio(Base64.decode(p.base64), AudioFormat.Wav))
     }
 
     suspend fun synthesize(p: SynthesizeParams): SpeechAudio {
-        val provider = checkNotNull(providers.synthesizer) { "Server synthesis is not configured" }
+        val provider = providers.synthesizer ?: throw ServerError.Unavailable("Server synthesis is not configured")
         return SpeechAudio(Base64.encode(provider.synthesize(p.text).bytes))
     }
 }

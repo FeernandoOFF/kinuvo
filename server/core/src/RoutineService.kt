@@ -24,16 +24,16 @@ class RoutineService internal constructor(
     suspend fun update(p: UpdateRoutineParams): Routine {
         val agent = admin.agent(p.agentId)
         val spec = checkSession(agent, p.spec)
-        return harness.routines.update(agent, p.routineId) { it.with(spec) } ?: error("No routine '${p.routineId}'")
+        return harness.routines.update(agent, p.routineId) { it.with(spec) } ?: throw ServerError.NotFound("No routine '${p.routineId}'")
     }
 
     suspend fun run(p: RoutineParams): Routine {
-        check(scheduling()) { "No server is running to run it; start one with `kinuvo serve` or the desktop app" }
-        return checkNotNull(harness.routines.update(admin.agent(p.agentId), p.routineId) { it.copy(runRequested = true) }) { "No routine '${p.routineId}'" }
+        if (!scheduling()) throw ServerError.Unavailable("No server is running to run it; start one with `kinuvo serve` or the desktop app")
+        return harness.routines.update(admin.agent(p.agentId), p.routineId) { it.copy(runRequested = true) } ?: throw ServerError.NotFound("No routine '${p.routineId}'")
     }
 
     suspend fun remove(p: RoutineParams) {
-        check(harness.routines.remove(admin.agent(p.agentId), p.routineId)) { "No routine '${p.routineId}'" }
+        if (!harness.routines.remove(admin.agent(p.agentId), p.routineId)) throw ServerError.NotFound("No routine '${p.routineId}'")
     }
 
     private suspend fun checkSession(agent: Agent, spec: RoutineSpec) = spec.also {

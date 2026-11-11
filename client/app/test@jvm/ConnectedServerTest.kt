@@ -513,7 +513,7 @@ class ConnectedServerTest {
                 Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo(AgentId("agent"), name, "none")))
                 Api.Models.name -> { reply(request, Api.Models, ModelsCatalog()); modelsLoaded.send(Unit) }
                 Api.Capabilities.name -> if (capabilities != null) reply(request, Api.Capabilities, capabilities)
-                    else frames.send(Frame.Response(request.id, false, error = "Unsupported in test: ${request.method}"))
+                    else frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))
                 Api.Providers.name -> reply(request, Api.Providers, emptyList())
                 Api.TaskLists.name -> reply(request, Api.TaskLists, listOf(TaskListInfo("list", "List")))
                 Api.Tasks.name -> reply(request, Api.Tasks, listOf(TaskInfo("task", "list", "List", name)))
@@ -539,7 +539,7 @@ class ConnectedServerTest {
                     reply(request, Api.CatchUp, Unit)
                     caughtUp.complete(Unit)
                 }
-                else -> frames.send(Frame.Response(request.id, false, error = "Unsupported in test: ${request.method}"))
+                else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))
             }
         }
 

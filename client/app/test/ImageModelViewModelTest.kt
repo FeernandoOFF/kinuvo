@@ -37,7 +37,7 @@ class ImageModelViewModelTest {
                     Api.Providers.name -> JsonArray(emptyList())
                     Api.ImageModel.name -> ProtocolJson.encodeToJsonElement(saved)
                     Api.SaveImageModel.name -> { saved = ProtocolJson.decodeFromJsonElement(request.params); ProtocolJson.encodeToJsonElement(saved) }
-                    else -> { frames.send(Frame.Response(request.id, false, error = "Unused in test")); return }
+                    else -> { frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unused in test"))); return }
                 }
                 frames.send(Frame.Response(request.id, true, payload))
             }

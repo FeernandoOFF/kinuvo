@@ -211,7 +211,7 @@ class PairingManagementTest {
                     revoked = true
                     respond(request, Api.RevokeDevice, Unit)
                 }
-                else -> frames.send(Frame.Response(request.id, false, error = "Unavailable in this test"))
+                else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unavailable in this test")))
             }
         }
 

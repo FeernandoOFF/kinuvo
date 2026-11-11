@@ -1,5 +1,6 @@
 package kinuvo.server.execution
 
+import kinuvo.server.ServerError
 import kinuvo.protocol.device.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.agent.AgentId
@@ -69,7 +70,7 @@ class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList()
 
     /** Lookup never falls back to another Server or Agent. */
     suspend fun route(agentId: AgentId): HarnessConnection = lock.withLock {
-        val agent = requireNotNull(agents[agentId]) { "Unknown external Agent" }
+        val agent = agents[agentId] ?: throw ServerError.NotFound("Unknown external Agent")
         check(!agent.archived) { "Agent registration archived" }
         val status = requireNotNull(connections[agent.connectionId])
         check(status.readiness.online) { status.readiness.reason ?: "Execution is offline" }

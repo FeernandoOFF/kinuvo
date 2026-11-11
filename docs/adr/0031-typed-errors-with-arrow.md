@@ -22,3 +22,5 @@ Wire errors are strings, many call sites use broad `runCatching` or catch blocks
 ## Consequences
 
 Adoption is per feature, as each handler moves into the route registry. js and wasm support is checked when `protocol` and `client` adopt Arrow, and value-class IDs are checked for iOS export.
+
+Wire errors are in place: `Frame.Response.error` is a `WireError`, with the codes `invalid_params`, `not_found`, `forbidden`, `conflict`, `unavailable`, `protocol_mismatch` and `internal`. Until a feature adopts `Raise`, `server/core` throws `ServerError`, a sealed exception per code that the route registry maps to a `WireError`; decode failures and `require` violations are `invalid_params`, any other exception is `internal`. The SDK turns an error response into a sealed `KinuvoException` carrying the code, and any code it doesn't know into its generic `Server` case. A Device wording of a refusal comes from the code, not from the Server's text.

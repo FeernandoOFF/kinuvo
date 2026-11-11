@@ -38,13 +38,13 @@ class ArtifactsViewModelTest {
                     Api.Artifacts.name -> ProtocolJson.encodeToJsonElement(listOf(info))
                     Api.Artifact.name -> ProtocolJson.encodeToJsonElement(ArtifactData(info, content))
                     Api.SaveArtifact.name -> {
-                        if (failSave) { frames.send(Frame.Response(request.id, false, error = "Too big")); return }
+                        if (failSave) { frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Too big"))); return }
                         val save = ProtocolJson.decodeFromJsonElement<ArtifactSave>(request.params)
                         content = save.content
                         info = info.copy(updated = info.updated + 1)
                         ProtocolJson.encodeToJsonElement(info)
                     }
-                    else -> { frames.send(Frame.Response(request.id, false, error = "Unused in test")); return }
+                    else -> { frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unused in test"))); return }
                 }
                 frames.send(Frame.Response(request.id, true, payload))
             }

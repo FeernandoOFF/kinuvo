@@ -6,6 +6,7 @@ import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.surface.*
 import kinuvo.protocol.agent.AgentId
+import kinuvo.server.ServerError
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -26,7 +27,7 @@ class AgentExecution(
     override suspend fun snapshot(agentId: AgentId, sessionId: SessionId) = forAgent(agentId).snapshot(agentId, sessionId)
 
     suspend fun snapshot(sessionId: SessionId): ExecutionSnapshot =
-        if (external.owns(sessionId)) external.snapshot(sessionId) else native.snapshot(native.owner(sessionId) ?: error("Unknown Session"), sessionId)
+        if (external.owns(sessionId)) external.snapshot(sessionId) else native.snapshot(native.owner(sessionId) ?: throw ServerError.NotFound("Unknown Session"), sessionId)
 
     override suspend fun answer(answer: RespondParams) = forSession(answer.sessionId).answer(answer)
 

@@ -235,7 +235,7 @@ class AgentInspectorTest {
                 Api.Skills.name -> reply(request, Api.Skills, emptyList())
                 Api.McpServers.name -> reply(request, Api.McpServers, emptyList())
                 Api.CatchUp.name -> reply(request, Api.CatchUp, Unit)
-                else -> frames.send(Frame.Response(request.id, false, error = "Unsupported in test: ${request.method}"))
+                else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))
             }
         }
         private suspend fun <P, R> reply(request: Frame.Request, method: Method<P, R>, result: R) {

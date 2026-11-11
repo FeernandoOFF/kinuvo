@@ -215,9 +215,12 @@ class KinuvoClient(
             withContext(NonCancellable) { synchronizedPending { pending.remove(id) } }
         }
         if (!response.ok) {
-            val message = response.error ?: "Request failed"
-            if (method == Api.Connect && message.startsWith("protocol_mismatch:")) throw ProtocolMismatchException()
-            throw if (method == Api.Connect) AuthException(message) else IllegalStateException(message)
+            val error = response.error ?: WireError(WireErrorCode.Internal, "Request failed")
+            if (method == Api.Connect) {
+                if (error.code == WireErrorCode.ProtocolMismatch) throw ProtocolMismatchException()
+                throw AuthException(error.message)
+            }
+            throw error.toException()
         }
         if (method == Api.Connect) {
             val version = (response.payload as? JsonObject)?.get("protocolVersion")
@@ -248,7 +251,7 @@ class KinuvoClient(
                                 else -> error("Unsupported Device method")
                             }
                         } catch (e: CancellationException) { throw e }
-                        catch (_: Exception) { Frame.Response(f.id, false, error = "Device read failed") }
+                        catch (_: Exception) { Frame.Response(f.id, false, error = WireError(WireErrorCode.Internal, "Device read failed")) }
                         try { ws.send(response) }
                         catch (e: CancellationException) { throw e }
                         catch (_: Exception) { }

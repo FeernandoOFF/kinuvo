@@ -30,7 +30,7 @@ class RoutineRepositoryTest {
                 } else if (request.method == Api.Presence.name) {
                     frames.send(Frame.Response(request.id, true, buildJsonObject {}))
                 } else if (!drop) {
-                    frames.send(Frame.Response(request.id, !failure, JsonArray(emptyList()), if (failure) "This action requires management access" else null))
+                    frames.send(Frame.Response(request.id, !failure, JsonArray(emptyList()), if (failure) WireError(WireErrorCode.Forbidden, "This action requires management access") else null))
                 }
             }
             override suspend fun close() { frames.close() }

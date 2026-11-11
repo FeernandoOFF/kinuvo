@@ -24,7 +24,7 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
 
     suspend fun agents(): List<AgentInfo> = store.agents().map { it.info() }
 
-    suspend fun agent(id: AgentId): Agent = store.agents().firstOrNull { it.id == id } ?: error("No agent '$id'")
+    suspend fun agent(id: AgentId): Agent = store.agents().firstOrNull { it.id == id } ?: throw ServerError.NotFound("No agent '$id'")
 
     suspend fun details(agent: Agent) = AgentDetails(
         agent.info(), agent.settings(), docs.read(agent.id, AgentDoc.Identity), docs.read(agent.id, AgentDoc.Soul), harness.trustRules.get(agent.id), docs.read(agent.id, AgentDoc.UserNotes),
@@ -60,7 +60,7 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
             ssh = p.ssh ?: old.ssh,
         )
         val execChanged = config.exec != old.exec || config.workspace != old.workspace || config.container != old.container || config.ssh != old.ssh
-        check(!execChanged || !runs.anyActive(sessionIds(agent))) { "Stop the agent's runs before changing where its shell runs" }
+        if (execChanged && runs.anyActive(sessionIds(agent))) throw ServerError.Conflict("Stop the agent's runs before changing where its shell runs")
         if (config != old) store.saveConfig(agent, config)
         p.identity?.let { docs.write(agent.id, AgentDoc.Identity, it) }
         p.name?.let { name -> docs.update(agent.id, AgentDoc.Identity) { titled(it, name) } }
@@ -103,8 +103,8 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
 
     suspend fun delete(id: String) = lock.withLock {
         val agent = agent(AgentId(id))
-        check(store.agents().size > 1) { "Can't delete the only Agent" }
-        check(runs.close(agent, sessionIds(agent))) { "Agent '$id' has an active run; stop it first" }
+        if (store.agents().size <= 1) throw ServerError.Conflict("Can't delete the only Agent")
+        if (!runs.close(agent, sessionIds(agent))) throw ServerError.Conflict("Agent '$id' has an active run; stop it first")
         try {
             harness.release(agent)
             harness.browser?.deleteAgent(agent.id)
@@ -124,7 +124,7 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
 
     suspend fun skill(agent: Agent, name: String, scope: ConfigScope?): SkillDetails {
         val skill = harness.skills.all(agent).firstOrNull { it.name == name && (scope == null || it.scope == scope) }
-            ?: error("No skill '$name'")
+            ?: throw ServerError.NotFound("No skill '$name'")
         return SkillDetails(skills(agent).first { it.name == name && it.scope == skill.scope }, harness.skills.content(skill), harness.skills.resources(skill))
     }
 
@@ -136,8 +136,8 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
 
     suspend fun deleteSkill(p: SkillParams) = lock.withLock {
         val agent = agent(p.agentId)
-        val scope = p.scope ?: skills(agent).firstOrNull { it.name == p.name }?.scope ?: error("No skill '${p.name}'")
-        check(harness.skills.delete(agent, scope, p.name)) { "No skill '${p.name}' in ${scope.name.lowercase()} skills" }
+        val scope = p.scope ?: skills(agent).firstOrNull { it.name == p.name }?.scope ?: throw ServerError.NotFound("No skill '${p.name}'")
+        if (!harness.skills.delete(agent, scope, p.name)) throw ServerError.NotFound("No skill '${p.name}' in ${scope.name.lowercase()} skills")
     }
 
     private fun requireExec(mode: String) = require(mode == ExecModes.NONE || harness.integrations[Integration.Exec].orEmpty().contains(mode)) {

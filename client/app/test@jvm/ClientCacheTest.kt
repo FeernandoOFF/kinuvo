@@ -130,7 +130,7 @@ class ClientCacheTest {
                     reply(request, Api.CatchUp, Unit)
                 }
                 Api.Routines.name -> reply(request, Api.Routines, emptyList())
-                else -> frames.send(Frame.Response(request.id, false, error = "Unsupported in test: ${request.method}"))
+                else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))
             }
         }
 
