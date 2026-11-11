@@ -1,18 +1,18 @@
 # Mobile E2E
 
-Screen and flow behavior is covered by the Compose UI flows in `shared/ui/test@jvm/e2e/`,
+Screen and flow behavior is covered by the Compose UI flows in `client/ui/test@jvm/e2e/`,
 which run the whole app in-process on JVM against the real Server runtime
-(`TestServer`, module `harness/server/server-testing`) with seeded Sessions, a scripted
+(`TestServer`, module `testing/server-testing`) with seeded Sessions, a scripted
 model and fakes for tools, Browser, Computers and external harnesses:
 
 ```sh
 ./kotlin test -m ui -p jvm --include-classes='kinuvo.ui.e2e.*'
 ```
 
-Their screenshots go to `shared/ui/build/screens/flows/`. Maestro keeps only the flows
+Their screenshots go to `client/ui/build/screens/flows/`. Maestro keeps only the flows
 that need a real device: the real WebSocket, native pickers, microphone permission and
 voice, and OS-level background/resume. Add new screen or flow coverage to
-`shared/ui/test@jvm/e2e/` and `server-testing`; add a Maestro flow only for device-level
+`client/ui/test@jvm/e2e/` and `server-testing`; add a Maestro flow only for device-level
 behavior.
 
 ## Running flows
@@ -44,7 +44,7 @@ ordinary first-run screens, so the pairing steps may need the address typed or o
 
 Every flow uses `appId: ${APP_ID}` and carries both `android` and `ios` tags. Keep common
 behavior in shared flows; use native Maestro platform conditions for interactions that differ.
-Scenarios live in `harness/server/fixture-server/src/Main.kt`:
+Scenarios live in `testing/fixture-server/src/Main.kt`:
 
 - `chat`: Agent "E2E Agent", the Board task "Plan mobile tests", and the scripted reply "Hello from the fixture Server".
 - `showcase`: the dense data of the Compose `showcase` flows.

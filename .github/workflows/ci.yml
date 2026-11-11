@@ -72,10 +72,10 @@ jobs:
             modules: -m ui --exclude-classes=kinuvo.ui.e2e.SettingsFlowTest --exclude-classes=kinuvo.ui.e2e.ExternalFlowTest --exclude-classes=kinuvo.ui.e2e.SessionFlowTest --exclude-classes=kinuvo.ui.e2e.ShowcaseFlowTest
           - suite: server
             cache: server
-            modules: -m jvm -m embedded -m runtime -m browser -m cli
+            modules: -m jvm -m embedded -m core -m browser -m cli
           - suite: rest
             cache: rest
-            modules: --exclude-module ui --exclude-module jvm --exclude-module embedded --exclude-module runtime --exclude-module browser --exclude-module cli
+            modules: --exclude-module ui --exclude-module jvm --exclude-module embedded --exclude-module core --exclude-module browser --exclude-module cli
     env:
       MODULES: ${{ matrix.modules }}
     steps:
@@ -122,7 +122,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ui-flow-screens-${{ matrix.suite }}
-          path: shared/ui/build/screens/flows
+          path: client/ui/build/screens/flows
           if-no-files-found: ignore
       - if: failure()
         uses: actions/upload-artifact@v4

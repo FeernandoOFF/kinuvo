@@ -1,6 +1,6 @@
 package kinuvo.server.plugin
 
-import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.Agent
 import kinuvo.protocol.*
 
 /** The most characters an Artifact holds, so a plugin's [HarnessPlugin.readFile] needn't read more. */

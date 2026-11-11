@@ -1,0 +1,30 @@
+product:
+  type: kmp/lib
+  platforms: [jvm, android, iosArm64, iosSimulatorArm64]
+
+dependencies:
+  - ../core: exported
+  - ../../providers/codex
+  - ../../providers/koog
+  - ../../plugins/mcp
+  - ../../plugins/firecrawl
+  - ../../plugins/ntfy
+  - ../../plugins/todoist
+  - ../../plugins/caldav
+  - ../../plugins/executor
+  - ../../plugins/anytype
+
+dependencies@android:
+  - ../../providers/litert
+
+test-dependencies:
+  - ../../testing/harness-testing
+  - $kotlin.test
+  - ../../client/sdk
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+  - app.cash.turbine:turbine:1.2.1
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

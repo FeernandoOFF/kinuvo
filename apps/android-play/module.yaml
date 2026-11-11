@@ -1,7 +1,7 @@
 product: android/app
 
 dependencies:
-  - ../../shared/ui
+  - ../../client/ui
   - androidx.activity:activity-compose:1.13.0
   - io.opentelemetry:opentelemetry-api-incubator:1.61.0-alpha
 

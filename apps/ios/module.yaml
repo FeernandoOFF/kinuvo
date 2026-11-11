@@ -1,7 +1,7 @@
 product: ios/app
 
 dependencies:
-  - ../../shared/ui
+  - ../../client/ui
 
 settings:
   kotlin:

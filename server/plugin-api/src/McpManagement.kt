@@ -1,6 +1,6 @@
 package kinuvo.server.plugin
 
-import kinuvo.harness.execution.api.Agent
+import kinuvo.harness.Agent
 import kinuvo.protocol.*
 
 /** Lists, edits, tests and signs in to the Agents' MCP servers; a Server without MCP uses [Unavailable]. */

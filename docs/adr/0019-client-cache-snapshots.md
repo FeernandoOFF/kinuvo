@@ -11,7 +11,7 @@ Remote Server data should stay readable during startup and disconnection.
 
 ## Decision
 
-Apps keep what they last saw of each remote Server so they open with it before connecting and stay readable while they can't reach it. The cache lives in `shared/app` (`ClientCache`), so every UI, including future native ones, gets it from the shared Repositories rather than doing its own caching.
+Apps keep what they last saw of each remote Server so they open with it before connecting and stay readable while they can't reach it. The cache lives in `client/app` (`ClientCache`), so every UI, including future native ones, gets it from the shared Repositories rather than doing its own caching.
 
 A Server's cache is one `Snapshot`: Agents, capabilities, Session lists, the cached Sessions' last 100 entries, Routines and the Board, saved as JSON with KStore after the shown state settles for a second while online. Files go in `client-cache/` under the desktop home (`KINUVO_HOME`), and in the app's cache folder on Android and iOS; the web uses localStorage on a best-effort basis and drops transcripts when storage is full. A snapshot from another protocol version, or one that fails to read, is discarded. The embedded Server uses `ClientCache.None`. Encryption relies on what the platform provides.
 

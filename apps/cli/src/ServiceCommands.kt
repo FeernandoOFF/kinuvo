@@ -7,9 +7,9 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
-import kinuvo.harness.server.HarnessServer
-import kinuvo.harness.server.LocalServer
-import kinuvo.harness.server.kinuvoHome
+import kinuvo.server.jvm.HarnessServer
+import kinuvo.server.jvm.LocalServer
+import kinuvo.server.jvm.kinuvoHome
 import kinuvo.protocol.Platform
 import kinuvo.protocol.currentPlatform
 import java.io.File

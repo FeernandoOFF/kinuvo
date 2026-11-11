@@ -4,20 +4,23 @@ Self-hosted personal AI assistant. Terms: `CONTEXT.md`. Decisions: `docs/adr/`.
 
 ## Layout
 
-- `harness/`: runs Agents: `core` (KMP, the built-in harness: no Server dependencies), `execution/` (`api` contracts, `acp` external harnesses), `models` (verified model downloads), `plugins/` (anytype, bitwarden, browser, caldav, exec, executor, firecrawl, mcp, ntfy, onepassword, protonpass, reminders, todoist, voice; `cua` is the desktop Computer driver), `providers/` (apple, codex, koog, litert), `server/` (`runtime` KMP, `jvm` host, `embedded` on-device, with each phone's plugin list, `server-testing` real in-process Server fixtures, `fixture-server` Maestro launcher), `testing`.
-- `server/plugin-api`: the Server plugin SPI (`kinuvo.server.plugin`, KMP, Koog-free): contracts and pure helpers; plugins depend on it, never on `harness/core`.
-- `shared/`: KMP, used by clients: `protocol`, `client`, `app` (Compose-free feature logic), `ui` (Compose Multiplatform, matching feature packages).
+- `protocol/`: wire and domain values (KMP, incl. web).
+- `client/`: `sdk` (transport), `app` (Compose-free feature logic), `ui` (Compose Multiplatform, matching feature packages; `android-computer`).
+- `harness/`: runs Agents, no Server dependencies: `api` (execution contracts), `builtin` (the built-in harness, KMP), `acp` (external ACP harnesses).
+- `server/`: `plugin-api` (Server plugin SPI, `kinuvo.server.plugin`, Koog-free; plugins depend on it, never on `harness/builtin`), `core` (KMP implementations), `jvm` host, `embedded` on-device host with each phone's plugin list.
+- `models/`: verified model downloads. `providers/` (apple, codex, koog, litert) and `plugins/` (anytype, bitwarden, browser, caldav, exec, executor, firecrawl, mcp, ntfy, onepassword, protonpass, reminders, todoist, voice; `cua` is the desktop Computer driver).
+- `testing/`: `harness-testing` (scripted models), `server-testing` (real in-process Server fixtures, module-edge test), `fixture-server` (Maestro launcher).
 - `apps/`: platform shells (desktop, android, ios, web) and `cli`, the `kinuvo` command (headless server + management commands).
 
 ## Build
 
-Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p jvm`. UI screenshots render to `shared/ui/build/screens/` via `./kotlin test -m ui -p jvm`. Releases: [docs/releasing.md](docs/releasing.md).
+Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p jvm`. UI screenshots render to `client/ui/build/screens/` via `./kotlin test -m ui -p jvm`. Releases: [docs/releasing.md](docs/releasing.md).
 
 ## Commits
 
 - Every commit follows [Conventional Commits](https://www.conventionalcommits.org): `type(scope): subject`. CI rejects pull requests with other commit subjects (merges excepted).
 - Types: `feat`, `fix`, `perf`, `refactor`, `style`, `test`, `docs`, `build`, `ci`, `chore`, `revert`. Append `!` for breaking protocol or config changes.
-- Scope is the feature or area, lowercase, matching `shared/app` feature names where one fits: `agents`, `sessions`, `chat`, `voice`, `browser`, `screens`, `computers`, `surfaces`, `notifications`, `models`, `approvals`, `onboarding`, `settings`, `ui`, `server`, `core`, `plugins`, `ios`, `android`, `desktop`, `cli`, `release`. Omit it for repo-wide changes.
+- Scope is the feature or area, lowercase, matching `client/app` feature names where one fits: `agents`, `sessions`, `chat`, `voice`, `browser`, `screens`, `computers`, `surfaces`, `notifications`, `models`, `approvals`, `onboarding`, `settings`, `ui`, `server`, `core`, `plugins`, `ios`, `android`, `desktop`, `cli`, `release`. Omit it for repo-wide changes.
 - Subject: imperative, lowercase start, no trailing period, at most 72 characters. Explain why in the body when it isn't obvious.
 - One logical change per commit; never `wip`, `fixup` or round-numbered subjects on main.
 
@@ -25,18 +28,18 @@ Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p j
 
 - Use T3 `device_list` and `device_open` only to discover, boot and attach a device to the sidebar for the user to watch. Use the returned device ID for every subsequent operation. Do not use T3 device screenshot tools for inspection or verification.
 - For regular device use and exploratory debugging, use the `agent-device` CLI returned by `device_open`, keeping its exact executable path and all target, config and session flags. Read its installed help, prefer current element refs/selectors, and use its screenshots when visual evidence is needed. Verify the requested result in the UI. Routine interaction does not require a regression run.
-- For repeatable app verification after code changes, run the Compose UI flows first: `./kotlin test -m ui -p jvm --include-classes='kinuvo.ui.e2e.*'` (screenshots in `shared/ui/build/screens/flows/`). They run the whole app against the real in-process Server (`TestServer`, module `server-testing`); WireMock and `MockServer` are removed. For device-level behavior, read [.maestro/README.md](.maestro/README.md): Mockstro is WireMock-based, so `mockstrow` regression runs are paused until it is adapted. Run the flows in `.maestro/flows/mobile/` with plain Maestro against the fixture launcher (`./kotlin run -m fixture-server -- chat`, which prints its URL and pairing code). Open the designated device through T3 first so the user can watch, and use only a device designated for this checkout. If T3 is unavailable, report that limitation.
+- For repeatable app verification after code changes, run the Compose UI flows first: `./kotlin test -m ui -p jvm --include-classes='kinuvo.ui.e2e.*'` (screenshots in `client/ui/build/screens/flows/`). They run the whole app against the real in-process Server (`TestServer`, module `server-testing`); WireMock and `MockServer` are removed. For device-level behavior, read [.maestro/README.md](.maestro/README.md): Mockstro is WireMock-based, so `mockstrow` regression runs are paused until it is adapted. Run the flows in `.maestro/flows/mobile/` with plain Maestro against the fixture launcher (`./kotlin run -m fixture-server -- chat`, which prints its URL and pairing code). Open the designated device through T3 first so the user can watch, and use only a device designated for this checkout. If T3 is unavailable, report that limitation.
 - Finish interactive automation before running Maestro on a device. Do not run `agent-device`, Maestro MCP or manual ADB UI commands against a device while a Maestro run owns it. Do not treat the T3 sidebar's passive video stream as an interactive controller.
 - Maestro MCP is optional for explicitly requested Maestro investigation or flow authoring; it is not the default interactive driver. If a required tool is unavailable, report that and use an available alternative without silently changing the test setup.
 - Use ADB on Android and `xcrun simctl`/`devicectl` on Apple platforms for lower-level tasks the interactive driver does not cover, such as logs, shell commands, port forwarding and platform diagnostics. Always target an explicit serial/UDID; do not use raw coordinate input as the default UI driver.
-- Extend `shared/ui/test@jvm/e2e/` and `server-testing` (Scenario seeding, fakes, request spy) for new regression coverage; extend `.maestro/flows/mobile/` only for device-level behavior (native pickers, permissions, voice, OS lifecycle, real network). Use a real Server only when the task explicitly requires that integration. Keep the checkout's home and device assignments separate from other branches.
+- Extend `client/ui/test@jvm/e2e/` and `server-testing` (Scenario seeding, fakes, request spy) for new regression coverage; extend `.maestro/flows/mobile/` only for device-level behavior (native pickers, permissions, voice, OS lifecycle, real network). Use a real Server only when the task explicitly requires that integration. Keep the checkout's home and device assignments separate from other branches.
 
 ## Preferences
 
 - Use the `CONTEXT.md` terms in code and docs.
 - Document current behavior and decisions, with future work clearly identified. Omit POC narratives, abandoned implementations, stash references and development-session history.
 - Use imports instead of fully qualified type names in code, except where names conflict.
-- Keep apps thin: platform code goes in `expect`/`actual` + Koin modules in `shared/ui`. Don't pass platform dependencies through composables. The shared Koin graph (`appModule`) lives in `shared/app/src/AppModule.kt`; `shared/ui` adds `platformModule`.
+- Keep apps thin: platform code goes in `expect`/`actual` + Koin modules in `client/ui`. Don't pass platform dependencies through composables. The shared Koin graph (`appModule`) lives in `client/app/src/AppModule.kt`; `client/ui` adds `platformModule`.
 - The embedded server is just another `Server`. No special cases in ViewModels; UI labels only.
 - ViewModels expose one state data class with orthogonal fields, using explicit backing fields (`val state: StateFlow<S>` / `field = MutableStateFlow(...)`), not `_state` pairs.
 - Write minimal code with few comments, and match the surrounding style.
@@ -50,10 +53,10 @@ Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p j
 
 ## Shared client logic
 
-- Put feature behavior, validation, Repositories, ViewModels and immutable state in `shared/app`. Compose and SwiftUI call the same shared ViewModels; move reusable behavior out of screens before adding another UI. Keep `shared/app` free of Compose, UIKit and SwiftUI dependencies.
-- Co-locate logic by feature in `shared/app/src/<feature>` and mirror those feature names in `shared/ui` and native UI folders. Views own rendering, input bindings and navigation; transport stays in `shared/client` and wire types in `shared/protocol`.
+- Put feature behavior, validation, Repositories, ViewModels and immutable state in `client/app`. Compose and SwiftUI call the same shared ViewModels; move reusable behavior out of screens before adding another UI. Keep `client/app` free of Compose, UIKit and SwiftUI dependencies.
+- Co-locate logic by feature in `client/app/src/<feature>` and mirror those feature names in `client/ui` and native UI folders. Views own rendering, input bindings and navigation; transport stays in `client/sdk` and wire types in `protocol`.
 - Reuse `ConnectedServer` for connection work and caches. Native destinations own ViewModel lifetimes and cancel observations on disposal; selected Compose screens share the same app and Server lifetime and hand navigation back to their native host.
-- Before adding a SwiftUI feature, observing Kotlin state or hosting a Compose screen, read [the iOS integration guide](apps/ios/README.md#swiftui-integration-proof). Follow its observation and disposal pattern. Test shared behavior in `shared/app`, Compose rendering in `shared/ui`, and native navigation/lifecycle in the iOS integration.
+- Before adding a SwiftUI feature, observing Kotlin state or hosting a Compose screen, read [the iOS integration guide](apps/ios/README.md#swiftui-integration-proof). Follow its observation and disposal pattern. Test shared behavior in `client/app`, Compose rendering in `client/ui`, and native navigation/lifecycle in the iOS integration.
 
 ## Isolated local testing
 

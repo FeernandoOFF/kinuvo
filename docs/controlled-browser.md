@@ -167,7 +167,7 @@ input under the ordinary Agent policy, sandbox-enabled launch over a loopback de
 management authorization, paired transport, reconnect persistence and control.
 The packaged variant starts the executable jar in an isolated temporary home,
 launches installed Chrome with an isolated profile and stops the process afterward. Rendered UI fixtures
-are in `shared/ui/build/screens/browser-*.png`. The shared mobile flow is
+are in `client/ui/build/screens/browser-*.png`. The shared mobile flow is
 `.maestro/flows/mobile/browser.yaml`; run it through Mockstro using only a
 checkout-designated device, as documented in `.maestro/README.md`.
 

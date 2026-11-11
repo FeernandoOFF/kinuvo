@@ -2,8 +2,8 @@ package kinuvo.cli
 
 import com.github.ajalt.clikt.core.CliktError
 import kinuvo.client.KinuvoClient
-import kinuvo.harness.cua.DesktopComputer
-import kinuvo.harness.server.HarnessServer
+import kinuvo.plugins.cua.DesktopComputer
+import kinuvo.server.jvm.HarnessServer
 import kinuvo.protocol.DeviceToolKind
 import kotlinx.coroutines.withTimeout
 

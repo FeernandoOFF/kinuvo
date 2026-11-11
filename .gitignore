@@ -13,7 +13,7 @@ xcuserdata/
 # Mockstro generated state
 .maestro/.runtime/
 .maestro/mockstro.local.yaml
-shared/ui/avatars/
+client/ui/avatars/
 
 # Independent checkouts
 /.worktrees/

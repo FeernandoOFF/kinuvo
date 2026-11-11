@@ -15,7 +15,7 @@ Compose e2e tests use a mock Server over WireMock fixtures, which drift from the
 - Compose e2e tests run on `TestServer` from `test@jvm`. WireMock and `MockServer` are removed entirely.
 - Maestro keeps a narrow set of device flows against a real fixture Server started by a test-only launcher, not shipped in the `kinuvo` CLI. Mockstro adaptation is deferred, so `mockstrow` regression runs pause until then.
 - Turbine asserts flows. `runTest` with an injected clock is used where virtual time is intended; sleeps are removed.
-- TestBalloon is introduced first in JVM-only test sources. `shared/ui` and tests compiled for iOS stay on kotlin-test until TestBalloon failures fail runs on every target.
+- TestBalloon is introduced first in JVM-only test sources. `client/ui` and tests compiled for iOS stay on kotlin-test until TestBalloon failures fail runs on every target.
 - Tests are audited by covered behaviour: keep public-interface tests, rewrite sleepy ones, delete private-detail and duplicate tests, tag credentialed tests `Live`.
 
 ## Consequences

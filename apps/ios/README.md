@@ -92,7 +92,7 @@ To verify HTTPS and the secure WebSocket handshake against an existing Server wi
 
 ```sh
 SIMCTL_CHILD_KINUVO_TEST_TLS_ORIGIN=https://<machine>.<tailnet>.ts.net \
-  ./kotlin test -m client -p iosSimulatorArm64
+  ./kotlin test -m sdk -p iosSimulatorArm64
 ```
 
 This opt-in integration test uses normal certificate verification and does not send credentials. Without `KINUVO_TEST_TLS_ORIGIN` in the test process, it performs no network requests.
@@ -109,7 +109,7 @@ SwiftUI owns the `NavigationStack` and native back navigation. **Board** renders
 
 **Full app** opens the complete Compose UI with the same AppViewModel and Server lifetime. Settings and Artifact callbacks use it with the requested initial route. This keeps all existing features accessible without claiming the proof is a complete native replacement. Dismiss it with **Done**. Native Board is recreated on return, refreshing from the shared repository. UIKit hosts fit the native safe area; SwiftUI owns the keyboard and navigation bars.
 
-Import `KotlinModules` only. `shared/app/src/<feature>` co-locates Repositories, ViewModels and immutable state; `shared/ui/src/<feature>` holds Compose rendering. Transport and wire types remain in `shared/client` and `shared/protocol`. The umbrella exports typed `AppState`, `BoardState`, ViewModels and `Route` data. Flow is a Kotlin interface in the generated Objective-C header, not a Swift `AsyncSequence`: use `NativeApp.observe` / `BoardDestination.observe` for typed main-thread callbacks. Retain the returned `StateObservation` and cancel it on disposal. `BoardDestination.close()` cancels observations and clears its ViewModelStore; `NativeScreenHost.close()` clears hosted destination ViewModels. The Swift representable calls it from `dismantleUIViewController`. Keep `NativeApp` alive for the native shell and close it when that shell ends.
+Import `KotlinModules` only. `client/app/src/<feature>` co-locates Repositories, ViewModels and immutable state; `client/ui/src/<feature>` holds Compose rendering. Transport and wire types remain in `client/sdk` and `protocol`. The umbrella exports typed `AppState`, `BoardState`, ViewModels and `Route` data. Flow is a Kotlin interface in the generated Objective-C header, not a Swift `AsyncSequence`: use `NativeApp.observe` / `BoardDestination.observe` for typed main-thread callbacks. Retain the returned `StateObservation` and cancel it on disposal. `BoardDestination.close()` cancels observations and clears its ViewModelStore; `NativeScreenHost.close()` clears hosted destination ViewModels. The Swift representable calls it from `dismantleUIViewController`. Keep `NativeApp` alive for the native shell and close it when that shell ends.
 
 For another native feature, register its shared ViewModel with `DestinationLifetime.own`, observe its `state` with `DestinationLifetime.observe`, and cast the callback value to that feature’s state type in Swift. Generic Flow callbacks erase their Kotlin type in this Objective-C export; the App and Board convenience callbacks are explicitly typed. Close the lifetime when the native destination ends. The native shell owns client activity even while its full-app sheet is shown; that sheet disables Compose’s app-level activity hook.
 

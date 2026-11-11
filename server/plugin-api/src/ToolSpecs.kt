@@ -1,6 +1,6 @@
 package kinuvo.server.plugin
 
-import kinuvo.harness.execution.api.ToolSpec
+import kinuvo.harness.ToolSpec
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive

@@ -1,6 +1,6 @@
 package kinuvo.server.plugin
 
-import kinuvo.harness.execution.api.ToolSpec
+import kinuvo.harness.ToolSpec
 import kinuvo.protocol.ToolGroup
 import kinuvo.protocol.Risk
 import kinuvo.protocol.SessionEntry

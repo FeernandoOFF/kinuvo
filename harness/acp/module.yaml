@@ -1,0 +1,13 @@
+product: jvm/lib
+
+dependencies:
+  - ../api
+  - com.agentclientprotocol:acp:0.33.0
+
+settings:
+  kotlin:
+    serialization: json
+
+test-dependencies:
+  - ../../server/core
+  - $kotlin.test
