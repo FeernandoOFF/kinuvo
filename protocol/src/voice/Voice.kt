@@ -2,6 +2,8 @@ package kinuvo.protocol.voice
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 /**
  * Which parts of Voice chat the Server provides; the Device does the rest with its own recognizer and voice. Endpoints
@@ -54,7 +56,7 @@ data class CancelVoiceParams(val requestId: String)
 
 /** Starts a live speech-to-speech call in a Session; the Server holds the call to the model. */
 @Serializable
-data class LiveVoiceParams(val agentId: String, val sessionId: String)
+data class LiveVoiceParams(val agentId: AgentId, val sessionId: SessionId)
 
 /** Audio both ways is mono PCM16 at [sampleRate], base64 encoded. */
 @Serializable

@@ -1,6 +1,7 @@
 package kinuvo.harness
 
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -12,7 +13,7 @@ class ToolReports(private val scope: CoroutineScope, private val completed: susp
             val content = try { work() }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { "Failed: ${e.message ?: "Background work failed"}" }
-            completed(SessionEntry.ToolReport(name, callId, content))
+            completed(SessionEntry.ToolReport(name, callId?.let(::ToolCallId), content))
         }
     }
 }

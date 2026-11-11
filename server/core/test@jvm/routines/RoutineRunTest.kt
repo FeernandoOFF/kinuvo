@@ -26,6 +26,8 @@ import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.withWrittenAt
 import kinuvo.protocol.plugin.ToolIdentity
 import kinuvo.protocol.routine.Trigger
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -74,7 +76,7 @@ class RoutineRunTest {
             .also { sessionId = session.id }
     }
 
-    private var sessionId = ""
+    private var sessionId = SessionId("")
     private suspend fun entries() = store.entries(agent.id, sessionId)
 
     @Test
@@ -180,7 +182,7 @@ class RoutineRunTest {
         val stuck = scriptedModel { _, _ -> flowOf(StreamFrame.ToolCallComplete("c1", "slow", "{}"), StreamFrame.End()) }
         AgentRun(agent, store, stuck, listOf(slow, RoutineReportTool(run)), routine = run).run(session.id, "go").first { it is AgentEvent.ToolCallStart }
 
-        assertEquals(SessionEntry.ToolResult("c1", "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last().withWrittenAt(null))
+        assertEquals(SessionEntry.ToolResult(ToolCallId("c1"), "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last().withWrittenAt(null))
         assertTrue(store.entries(agent.id, session.id).none { it is SessionEntry.Outcome })
         assertTrue(notified.isEmpty())
         assertNull(run.outcome)

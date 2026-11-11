@@ -9,6 +9,7 @@ import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.usage.RequestKind
 import kinuvo.protocol.usage.RequestMetrics
 import kinuvo.protocol.reflection.ReflectionResult
+import kinuvo.protocol.session.ToolCallId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -42,7 +43,7 @@ class ChatRowsTest {
 
     @Test
     fun stepsBetweenMessagesGroupAndPendingCallsStayOut() {
-        val approval = PendingInteraction.Approval("a1", "t4", "shell", "{}")
+        val approval = PendingInteraction.Approval("a1", ToolCallId("t4"), "shell", "{}")
         val items = listOf(
             ChatItem.User("u1", "hi"),
             ChatItem.Reasoning("r1", "hm"), tool("t1"), tool("t2"),

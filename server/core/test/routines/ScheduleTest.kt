@@ -3,6 +3,7 @@ package kinuvo.server.routines
 import kinuvo.protocol.routine.ActiveHours
 import kinuvo.protocol.routine.Routine
 import kinuvo.protocol.routine.Trigger
+import kinuvo.protocol.agent.AgentId
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toInstant
@@ -15,7 +16,7 @@ class ScheduleTest {
     private val zone = TimeZone.of("Europe/Dublin")
     private fun at(text: String) = LocalDateTime.parse(text).toInstant(zone).toEpochMilliseconds()
     private fun routine(trigger: Trigger, hours: ActiveHours? = null, createdAt: Long = at("2026-01-01T00:00")) =
-        Routine("r", "a", "R", "p", trigger, zone.id, activeHours = hours, createdAt = createdAt)
+        Routine("r", AgentId("a"), "R", "p", trigger, zone.id, activeHours = hours, createdAt = createdAt)
 
     @Test
     fun cronFindsNextMatch() {

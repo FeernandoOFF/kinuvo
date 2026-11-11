@@ -7,6 +7,8 @@ import kinuvo.protocol.session.MAX_ATTACHMENTS
 import kinuvo.protocol.session.MAX_ATTACHMENT_BYTES
 import kinuvo.protocol.session.SessionSettings
 import kinuvo.protocol.voice.VoiceSetup
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.serialization.Serializable
 
 @Serializable enum class Support { Supported, Unsupported, Unknown }
@@ -105,4 +107,4 @@ data class SessionCapabilities(
 }
 
 @Serializable
-data class CapabilitiesParams(val agentId: String, val sessionId: String? = null, val settings: SessionSettings? = null)
+data class CapabilitiesParams(val agentId: AgentId, val sessionId: SessionId? = null, val settings: SessionSettings? = null)

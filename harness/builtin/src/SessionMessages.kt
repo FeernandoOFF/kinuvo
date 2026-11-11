@@ -6,6 +6,7 @@ import ai.koog.prompt.dsl.RequestMessagePartsBuilder
 import ai.koog.prompt.message.*
 import kinuvo.protocol.session.Attachment
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.ToolCallId
 import kotlin.uuid.Uuid
 import kinuvo.harness.ResultLimits
 import kinuvo.harness.modelText
@@ -36,7 +37,7 @@ class SessionMessages(private val model: AgentModel, private val imageReferences
                     model.estimateTokens?.invoke(prompt("tool-result") { user(value) }, emptyList()) ?: ((value.length + 3) / 4)
                 }
                 if (text == result.output) message else {
-                    val replacement = prompt("tool-result") { toolResult(MessagePart.Tool.Result(result.id, result.name, text, result.isError)) }.messages.single()
+                    val replacement = prompt("tool-result") { toolResult(MessagePart.Tool.Result(result.id.value, result.name, text, result.isError)) }.messages.single()
                     entries += replacement to listOf(result)
                     replacement
                 }
@@ -54,8 +55,8 @@ class SessionMessages(private val model: AgentModel, private val imageReferences
                 is SessionEntry.Context -> system(entry.content)
                 is SessionEntry.UserMessage -> user { modelText(entry).takeIf { it.isNotBlank() }?.let(::text); attach(entry.attachments) }
                 is SessionEntry.AssistantMessage -> assistant(entry.text)
-                is SessionEntry.ToolCall -> toolCall(MessagePart.Tool.Call(entry.id, entry.name, entry.args))
-                is SessionEntry.ToolResult -> toolResult(MessagePart.Tool.Result(entry.id, entry.name,
+                is SessionEntry.ToolCall -> toolCall(MessagePart.Tool.Call(entry.id.value, entry.name, entry.args))
+                is SessionEntry.ToolResult -> toolResult(MessagePart.Tool.Result(entry.id.value, entry.name,
                     entry.output + if (toolFiles.size < entry.attachments.size) "\n(Tool screenshot omitted; use the semantic text.)" else "", entry.isError))
                 is SessionEntry.Reasoning -> if (model.replayReasoning && entry.encrypted != null) reasoning(
                     MessagePart.Reasoning(content = emptyList(), summary = listOf(entry.text), encrypted = entry.encrypted, id = entry.id)
@@ -80,7 +81,7 @@ class SessionMessages(private val model: AgentModel, private val imageReferences
 
     fun estimatedEntries(messages: List<Message>): List<SessionEntry> = messages.flatMap { message ->
         val results = message.parts.filterIsInstance<MessagePart.Tool.Result>()
-        if (results.isEmpty()) entries(listOf(message)) else results.map { SessionEntry.ToolResult(it.id.orEmpty(), it.tool, it.output) }
+        if (results.isEmpty()) entries(listOf(message)) else results.map { SessionEntry.ToolResult(ToolCallId(it.id.orEmpty()), it.tool, it.output) }
     }
 
     fun entries(messages: List<Message>): List<SessionEntry> = messages.flatMap { entry(it) ?: when (it) {
@@ -109,7 +110,7 @@ class SessionMessages(private val model: AgentModel, private val imageReferences
 internal fun assistantEntries(message: Message.Assistant): List<SessionEntry> = message.parts.mapNotNull { part -> when (part) {
     is MessagePart.Text -> part.text.takeIf { it.isNotEmpty() }?.let { SessionEntry.AssistantMessage(it) }
     is MessagePart.Reasoning -> SessionEntry.Reasoning((part.summary?.takeIf { it.isNotEmpty() } ?: part.content).joinToString("\n\n"), part.id, part.encrypted)
-    is MessagePart.Tool.Call -> SessionEntry.ToolCall(part.id ?: Uuid.random().toString(), part.tool, part.args)
+    is MessagePart.Tool.Call -> SessionEntry.ToolCall(ToolCallId(part.id ?: Uuid.random().toString()), part.tool, part.args)
     else -> null
 } }
 

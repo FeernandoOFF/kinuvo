@@ -123,8 +123,8 @@ class VoiceViewModel(device: SpeechEngine, session: SessionViewModel, server: Co
         live?.let { audio ->
             val route = session.state.value.route
             if (calls != null)
-                calls.attach(route.agentId.orEmpty(), route.sessionId, viewModelScope, session::liveSession, name = { id ->
-                    catching { requireNotNull(server).call { it.call(Api.Agents, Unit) }.firstOrNull { it.id == id }?.name }.getOrNull() ?: id
+                calls.attach(route.agentId, route.sessionId, viewModelScope, session::liveSession, name = { id ->
+                    catching { requireNotNull(server).call { it.call(Api.Agents, Unit) }.firstOrNull { it.id == id }?.name }.getOrNull() ?: id.value
                 }) { agent, id ->
                     LiveVoiceChat(requireNotNull(server), audio) { agent to id }
                 }

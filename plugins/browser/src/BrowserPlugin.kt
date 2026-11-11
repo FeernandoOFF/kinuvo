@@ -17,6 +17,7 @@ import kinuvo.protocol.*
 import kinuvo.protocol.browser.*
 import kinuvo.protocol.capability.*
 import kinuvo.protocol.plugin.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.serialization.json.*
 import kotlin.io.encoding.Base64
 
@@ -74,7 +75,7 @@ class BrowserPlugin(override val browser: BrowserService) : HarnessPlugin {
         }
     }
 
-    override suspend fun release(agentId: String) { browser.release(agentId) }
+    override suspend fun release(agentId: AgentId) { browser.release(agentId) }
     override suspend fun close() = browser.close()
 
     companion object {

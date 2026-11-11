@@ -41,17 +41,17 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
 internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), private val providers: List<ModelProvider> = emptyList(), closeNetwork: () -> Unit = {}, voice: VoiceProviders = VoiceProviders()) {
-    val agent = Agent("test", "Test", AgentConfig(provider = "test", model = "tools", tools = emptyList()))
+    val agent = Agent(AgentId("test"), "Test", AgentConfig(provider = "test", model = "tools", tools = emptyList()))
     val transcripts = InMemoryStore()
     val store = object : Store by transcripts {
         override suspend fun agents() = listOf(agent)
-        override suspend fun session(agentId: String, sessionId: String) = transcripts.session(agentId, sessionId).copy(settings = transcripts.entries(agentId, sessionId).filterIsInstance<SessionEntry.Settings>().lastOrNull()?.settings ?: SessionSettings())
+        override suspend fun session(agentId: AgentId, sessionId: SessionId) = transcripts.session(agentId, sessionId).copy(settings = transcripts.entries(agentId, sessionId).filterIsInstance<SessionEntry.Settings>().lastOrNull()?.settings ?: SessionSettings())
     }
     val documents = mutableMapOf<AgentDoc, String>()
     val docs = object : AgentDocs {
-        override suspend fun read(agentId: String, doc: AgentDoc) = documents[doc].orEmpty()
-        override suspend fun write(agentId: String, doc: AgentDoc, text: String) { documents[doc] = text }
-        override suspend fun update(agentId: String, doc: AgentDoc, transform: (String) -> String): String = transform(read(agentId, doc)).also { write(agentId, doc, it) }
+        override suspend fun read(agentId: AgentId, doc: AgentDoc) = documents[doc].orEmpty()
+        override suspend fun write(agentId: AgentId, doc: AgentDoc, text: String) { documents[doc] = text }
+        override suspend fun update(agentId: AgentId, doc: AgentDoc, transform: (String) -> String): String = transform(read(agentId, doc)).also { write(agentId, doc, it) }
     }
     val skills = object : SkillRepository {
         override suspend fun all(agent: Agent) = emptyList<Skill>()
@@ -64,8 +64,8 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), privat
     }
     var rules = TrustRules()
     val trust = object : TrustRulesRepository {
-        override suspend fun get(agentId: String) = rules
-        override suspend fun update(agentId: String, transform: (TrustRules) -> TrustRules) { rules = transform(rules) }
+        override suspend fun get(agentId: AgentId) = rules
+        override suspend fun update(agentId: AgentId, transform: (TrustRules) -> TrustRules) { rules = transform(rules) }
     }
     var reflectionConfig = kinuvo.server.store.ReflectionConfig()
     var push = true
@@ -92,8 +92,8 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), privat
     }
     private var savedRoutines = emptyList<Routine>()
     val routines = Routines(object : RoutineRepository {
-        override suspend fun get(agentId: String) = savedRoutines
-        override suspend fun update(agentId: String, transform: (List<Routine>) -> List<Routine>) = transform(savedRoutines).also { savedRoutines = it }
+        override suspend fun get(agentId: AgentId) = savedRoutines
+        override suspend fun update(agentId: AgentId, transform: (List<Routine>) -> List<Routine>) = transform(savedRoutines).also { savedRoutines = it }
     }, docs, defaultZone = { settings.timeZone }, clock = { 1000L })
     val artifactData = mutableMapOf<String, ArtifactData>()
     val artifacts = Artifacts(object : ArtifactRepository {
@@ -111,8 +111,8 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), privat
     val tasks = Tasks(emptyList(), object : BoardRepository {
         override suspend fun get() = emptyMap<String, TaskState>()
         override suspend fun update(transform: (Map<String, TaskState>) -> Map<String, TaskState>) = error("Not used")
-    }, { TasksConfig() }, { setOf(agent.id) }, { LocalDate(2026, 10, 12) })
-    var progress = emptyMap<String, Int>()
+    }, { TasksConfig() }, { setOf(agent.id.value) }, { LocalDate(2026, 10, 12) })
+    var progress = emptyMap<SessionId, Int>()
     var catalogReads = 0
     val resources = ServerResources(plugins, closeNetwork)
     var fetch: (WebSearch?) -> Tool = { error("Web fetch must be injected") }
@@ -124,7 +124,7 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), privat
             override fun bytes(attachment: Attachment): ByteArray = error("Not used")
         }, settings, Secrets(), object : ReflectionProgress {
             override fun get() = progress
-            override fun save(progress: Map<String, Int>) { this@RuntimeFixture.progress = progress }
+            override fun save(progress: Map<SessionId, Int>) { this@RuntimeFixture.progress = progress }
         }, "in-memory-server", resources, providers, {
             catalogReads++
             ModelsCatalog(providers.map { ProviderModels(it.id, it.name, it.models(), false) })
@@ -142,7 +142,7 @@ internal fun testRuntime(
 ) = HarnessRuntime(dependencies, { NativeExecutionFactory(it, sources, modelFactory) }, builtInFeatures = builtInFeatures, routineApprovalWait = routineApprovalWait, unmanagedModels = modelFactory != null)
 
 /** [Reflection.turn] run on the built-in harness's Reflection graph with [model]. */
-internal suspend fun Reflection.reflect(agent: Agent, model: AgentModel, sessionId: String, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, review: ReflectionRevision? = null, tracing: AgentTracing? = null): ReflectionResult {
+internal suspend fun Reflection.reflect(agent: Agent, model: AgentModel, sessionId: SessionId, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, review: ReflectionRevision? = null, tracing: AgentTracing? = null): ReflectionResult {
     val run = turn(agent, sessionId, entries, prompt, review)
     runReflection(run, agent, model, sessionId, tracing)
     return run.finish()

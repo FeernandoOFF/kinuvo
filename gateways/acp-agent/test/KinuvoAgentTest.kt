@@ -14,6 +14,7 @@ import kinuvo.protocol.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -30,7 +31,7 @@ class KinuvoAgentTest {
             val server = Protocol(scope, StdioTransport(scope, Dispatchers.Default, toAgent.receiveAsFlow(), toClient::send))
             val peer = Protocol(scope, StdioTransport(scope, Dispatchers.Default, toClient.receiveAsFlow(), toAgent::send))
             val backend = FakeExecution()
-            Agent(server, KinuvoAgent(backend, "native"))
+            Agent(server, KinuvoAgent(backend, AgentId("native")))
             val client = Client(peer, object : ElicitationHandler {
                 override suspend fun createElicitation(request: CreateElicitationRequest): CreateElicitationResponse =
                     CreateElicitationResponse(ElicitationAction.Accept(mapOf("name" to ElicitationContentValue.StringValue("Ada"))))
@@ -48,11 +49,11 @@ class KinuvoAgentTest {
                 assertEquals(ExecutionPhase.Running, backend.state.phase)
                 backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(PendingInteraction.HarnessApproval("approval", "Run", null, listOf(ExternalApprovalOption("allow_once", "Allow once", "allow_once")))))
                 backend.approval.await()
-                backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(PendingInteraction.Questions("form", "tool", "Name", listOf(Question("name", "Name")))))
+                backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(PendingInteraction.Questions("form", ToolCallId("tool"), "Name", listOf(Question("name", "Name")))))
                 backend.form.await()
                 assertEquals(mapOf("name" to listOf("Ada")), (backend.answers.last().answer as InteractionAnswer.Questions).answers)
                 assertEquals(InteractionAnswer.Harness(buildJsonObject { put("optionId", "allow_once") }), backend.answers.first().answer)
-                backend.state = ExecutionSnapshot("s", messages = listOf(ExecutionMessage("u", "user", "hello"), ExecutionMessage("a", "assistant", "reply"), ExecutionMessage("t", "tool", "tool", ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), SessionEntry.ToolCall("t", "tool", "{}")))))
+                backend.state = ExecutionSnapshot(SessionId("s"), messages = listOf(ExecutionMessage("u", "user", "hello"), ExecutionMessage("a", "assistant", "reply"), ExecutionMessage("t", "tool", "tool", ProtocolJson.encodeToJsonElement(SessionEntry.serializer(), SessionEntry.ToolCall(ToolCallId("t"), "tool", "{}")))))
                 val received = mutableListOf<SessionUpdate>()
                 do { val update = updates.receive(); received.add(update) } while (update !is SessionUpdate.StateUpdate || update.state !is StateUpdate.Idle)
                 assertTrue(received.any { it is SessionUpdate.AgentMessage })
@@ -73,16 +74,16 @@ class KinuvoAgentTest {
     }
 
     private class FakeExecution : ExecutionDispatch {
-        @Volatile var state = ExecutionSnapshot("s")
+        @Volatile var state = ExecutionSnapshot(SessionId("s"))
         val answers = mutableListOf<RespondParams>()
         val stopped = mutableListOf<String>()
         val started = CompletableDeferred<Unit>()
         val approval = CompletableDeferred<Unit>()
         val form = CompletableDeferred<Unit>()
-        override suspend fun create(agentId: String) = kinuvo.protocol.session.SessionInfo("s", agentId, "ACP")
-        override suspend fun snapshot(agentId: String, sessionId: String) = state
-        override suspend fun send(params: SendParams): SendResult { state = state.copy(phase = ExecutionPhase.Running); started.complete(Unit); return SendResult("s", "run", "accepted") }
-        override suspend fun stop(sessionId: String) { stopped.add(sessionId); state = state.copy(phase = ExecutionPhase.Idle) }
+        override suspend fun create(agentId: AgentId) = kinuvo.protocol.session.SessionInfo(SessionId("s"), agentId, "ACP")
+        override suspend fun snapshot(agentId: AgentId, sessionId: SessionId) = state
+        override suspend fun send(params: SendParams): SendResult { state = state.copy(phase = ExecutionPhase.Running); started.complete(Unit); return SendResult(SessionId("s"), RunId("run"), "accepted") }
+        override suspend fun stop(sessionId: SessionId) { stopped.add(sessionId.value); state = state.copy(phase = ExecutionPhase.Idle) }
         override suspend fun answer(answer: RespondParams): Boolean {
             answers.add(answer); state = state.copy(phase = ExecutionPhase.Running, pending = emptyList())
             if (answer.requestId == "approval") approval.complete(Unit) else form.complete(Unit)

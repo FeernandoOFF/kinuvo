@@ -26,6 +26,7 @@ import kinuvo.protocol.session.*
 import kinuvo.protocol.surface.*
 import kinuvo.protocol.tool.*
 import kinuvo.protocol.usage.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.datetime.LocalDate
@@ -42,7 +43,7 @@ class Reflection(
     private val today: () -> LocalDate = { Clock.System.todayIn(TimeZone.currentSystemDefault()) },
 ) {
     /** The staged Reflection of [entries], for a harness to run stage by stage. */
-    suspend fun turn(agent: Agent, sessionId: String, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, review: ReflectionRevision? = null): ReflectionRun =
+    suspend fun turn(agent: Agent, sessionId: SessionId, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, review: ReflectionRevision? = null): ReflectionRun =
         ReflectionRun(agent, sessionId, entries, prompt, knowledge, docs, skills, denied, today, review).also { it.gather() }
 }
 
@@ -54,7 +55,7 @@ internal enum class ReflectionStage(val instructions: String) {
 
 class ReflectionRun internal constructor(
     private val agent: Agent,
-    private val sessionId: String,
+    private val sessionId: SessionId,
     private val entries: List<SessionEntry>,
     private val instructions: String,
     private val knowledge: Knowledge,
@@ -84,19 +85,19 @@ class ReflectionRun internal constructor(
         } }.joinToString("\n\n").takeLast(60_000)
         val evidence = entries.mapIndexedNotNull { index, entry -> when (entry) {
             is SessionEntry.UserMessage -> "user-$index" to "User: ${entry.modelText.take(1200)}"
-            is SessionEntry.ToolResult -> entry.id to "${entry.name} (${if (entry.isError) "failed" else "succeeded"}): ${entry.output.take(1200)}"
+            is SessionEntry.ToolResult -> entry.id.value to "${entry.name} (${if (entry.isError) "failed" else "succeeded"}): ${entry.output.take(1200)}"
             else -> null
         } }.toMap()
         changes = ReflectionChanges(agent, knowledge, skills, evidence + (review?.let { mapOf("review-note" to it.note, "proposal" to it.proposal.evidence) } ?: emptyMap()), review)
         val deny = denied(agent)
         policy = ApprovalPolicy(agent, object : TrustRulesRepository {
-            override suspend fun get(agentId: String) = TrustRules(deny = deny)
-            override suspend fun update(agentId: String, transform: (TrustRules) -> TrustRules) = error("Reflection can't save Trust rules")
+            override suspend fun get(agentId: AgentId) = TrustRules(deny = deny)
+            override suspend fun update(agentId: AgentId, transform: (TrustRules) -> TrustRules) = error("Reflection can't save Trust rules")
         }, Tolerance.Full)
     }
 
     private val memoryDocs = object : AgentDocs by docs {
-        override suspend fun update(agentId: String, doc: AgentDoc, transform: (String) -> String): String {
+        override suspend fun update(agentId: AgentId, doc: AgentDoc, transform: (String) -> String): String {
             var before = ""
             val after = docs.update(agentId, doc) { old -> before = old; transform(old) }
             if (doc == AgentDoc.Memory) memory++ else userNotes++

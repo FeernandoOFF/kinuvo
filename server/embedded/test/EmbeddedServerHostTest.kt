@@ -132,24 +132,24 @@ class EmbeddedServerHostTest {
             var server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             var client = client(server)
             try {
-                assertEquals("test", client.call(Api.Agent, AgentRef("default")).settings.provider)
-                val id = client.call(Api.CreateSession, AgentRef("default")).id
-                val updates = run(client, id, "remember tea")
+                assertEquals("test", client.call(Api.Agent, AgentRef(AgentId("default"))).settings.provider)
+                val id = client.call(Api.CreateSession, AgentRef(AgentId("default"))).id
+                val updates = run(client, id.value, "remember tea")
                 val entries = updates.filterIsInstance<SessionChange.Entry>().map { it.entry }
                 assertTrue(entries.any { it is SessionEntry.ToolResult && !it.isError })
                 assertEquals("Saved.", entries.filterIsInstance<SessionEntry.AssistantMessage>().last().text)
-                assertEquals("- Prefers tea\n", FileAgentDocs(AgentFiles(home)).read("default", AgentDoc.UserNotes))
+                assertEquals("- Prefers tea\n", FileAgentDocs(AgentFiles(home)).read(AgentId("default"), AgentDoc.UserNotes))
                 client.close()
                 server.close()
                 server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
                 client = client(server)
-                assertTrue(client.call(Api.Sessions, SessionsParams("default")).sessions.any { it.id == id })
-                val second = client.call(Api.CreateSession, AgentRef("default")).id
-                run(client, second, "what do I prefer?")
+                assertTrue(client.call(Api.Sessions, SessionsParams(AgentId("default"))).sessions.any { it.id == id })
+                val second = client.call(Api.CreateSession, AgentRef(AgentId("default"))).id
+                run(client, second.value, "what do I prefer?")
                 assertTrue(seen.last().filterIsInstance<Message.System>().last().textContent().contains("Prefers tea"))
                 assertFalse(seen.last().filterIsInstance<Message.User>().any { it.textContent() == "remember tea" })
-                assertFailsWith<IllegalStateException> { client.call(Api.Send, SendParams("default", "missing", "hello")) }
-                assertFailsWith<IllegalStateException> { client.call(Api.ConfigureSession, ConfigureSessionParams("default", second, SessionSettings(provider = "cloud", model = "x"))) }
+                assertFailsWith<IllegalStateException> { client.call(Api.Send, SendParams(AgentId("default"), SessionId("missing"), "hello")) }
+                assertFailsWith<IllegalStateException> { client.call(Api.ConfigureSession, ConfigureSessionParams(AgentId("default"), second, SessionSettings(provider = "cloud", model = "x"))) }
             } finally { client.close(); server.close() }
         }
     }
@@ -160,23 +160,23 @@ class EmbeddedServerHostTest {
             val server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             var client = client(server)
             try {
-                val id = client.call(Api.CreateSession, AgentRef("default")).id
-                client.call(Api.ConfigureSession, ConfigureSessionParams("default", id, SessionSettings(approvals = "strict")))
-                client.call(Api.CatchUp, CatchUpParams("default", id))
+                val id = client.call(Api.CreateSession, AgentRef(AgentId("default"))).id
+                client.call(Api.ConfigureSession, ConfigureSessionParams(AgentId("default"), id, SessionSettings(approvals = "strict")))
+                client.call(Api.CatchUp, CatchUpParams(AgentId("default"), id))
                 val request = async(start = CoroutineStart.UNDISPATCHED) {
                     client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }.first()
                 }
-                client.call(Api.Send, SendParams("default", id, "remember tea"))
+                client.call(Api.Send, SendParams(AgentId("default"), id, "remember tea"))
                 val approval = request.await()
-                assertEquals("", FileAgentDocs(AgentFiles(home)).read("default", AgentDoc.UserNotes))
-                assertFailsWith<IllegalStateException> { client.call(Api.Send, SendParams("default", id, "again")) }
+                assertEquals("", FileAgentDocs(AgentFiles(home)).read(AgentId("default"), AgentDoc.UserNotes))
+                assertFailsWith<IllegalStateException> { client.call(Api.Send, SendParams(AgentId("default"), id, "again")) }
                 client.close()
                 client = client(server)
-                assertEquals(SessionStatus.Waiting, client.call(Api.Session, SessionParams("default", id)).status)
+                assertEquals(SessionStatus.Waiting, client.call(Api.Session, SessionParams(AgentId("default"), id)).status)
                 assertTrue(client.call(Api.Respond, RespondParams(id, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
                 // An approved run doesn't wait on anyone, so leaving the app lets it finish.
                 client.call(Api.Presence, PresenceParams(false))
-                awaitCondition("the run to finish") { client.call(Api.Session, SessionParams("default", id)).status == SessionStatus.Idle }
+                awaitCondition("the run to finish") { client.call(Api.Session, SessionParams(AgentId("default"), id)).status == SessionStatus.Idle }
                 assertTrue(server.runtime.runActivity.value.steps > 0)
                 assertFalse(client.call(Api.Respond, RespondParams(id, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
             } finally { client.close(); server.close() }
@@ -189,17 +189,17 @@ class EmbeddedServerHostTest {
             val server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             val client = client(server)
             try {
-                val id = client.call(Api.CreateSession, AgentRef("default")).id
-                client.call(Api.ConfigureSession, ConfigureSessionParams("default", id, SessionSettings(approvals = "strict")))
-                client.call(Api.CatchUp, CatchUpParams("default", id))
+                val id = client.call(Api.CreateSession, AgentRef(AgentId("default"))).id
+                client.call(Api.ConfigureSession, ConfigureSessionParams(AgentId("default"), id, SessionSettings(approvals = "strict")))
+                client.call(Api.CatchUp, CatchUpParams(AgentId("default"), id))
                 val waiting = async(start = CoroutineStart.UNDISPATCHED) {
                     client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }.first()
                 }
-                client.call(Api.Send, SendParams("default", id, "remember tea"))
+                client.call(Api.Send, SendParams(AgentId("default"), id, "remember tea"))
                 waiting.await()
                 client.call(Api.Presence, PresenceParams(false))
-                assertEquals(SessionStatus.Idle, client.call(Api.Session, SessionParams("default", id)).status)
-                assertEquals("", FileAgentDocs(AgentFiles(home)).read("default", AgentDoc.UserNotes))
+                assertEquals(SessionStatus.Idle, client.call(Api.Session, SessionParams(AgentId("default"), id)).status)
+                assertEquals("", FileAgentDocs(AgentFiles(home)).read(AgentId("default"), AgentDoc.UserNotes))
             } finally { client.close(); server.close() }
         }
     }
@@ -210,7 +210,7 @@ class EmbeddedServerHostTest {
             val server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             val client = client(server)
             try {
-                run(client, client.call(Api.CreateSession, AgentRef("default")).id, "hi")
+                run(client, client.call(Api.CreateSession, AgentRef(AgentId("default"))).id.value, "hi")
                 assertTrue(ToolNames.MEMORY in offered.last())
                 for (local in listOf(ToolNames.ACTIVATE_SKILL, "read_skill_file", ToolNames.SCHEDULE, ToolNames.ARTIFACT))
                     assertFalse(local in offered.last())
@@ -230,7 +230,7 @@ class EmbeddedServerHostTest {
                 assertFalse(offered.offers(Integration.Exec) || offered.offers(Integration.Secrets) || offered.offers(Integration.Mcp))
                 assertTrue(offered.offers(Integration.Tasks, "local") && offered.offers(Integration.Knowledge, "markdown"))
                 assertTrue(offered.offers(Integration.Tools, "memory") && !offered.offers(Integration.Tools, "run_code"))
-                val capabilities = client.call(Api.Capabilities, CapabilitiesParams("default"))
+                val capabilities = client.call(Api.Capabilities, CapabilitiesParams(AgentId("default")))
                 assertTrue(capabilities.chat.actionable)
                 assertFalse(capabilities.input("image").actionable)
                 assertFalse(capabilities.input("file").actionable)
@@ -290,9 +290,9 @@ class EmbeddedServerHostTest {
     private suspend fun run(client: KinuvoClient, id: String, text: String): List<SessionChange> {
         lateinit var changes: List<SessionChange>
         turbineScope {
-            client.call(Api.CatchUp, CatchUpParams("default", id))
-            val updates = client.events(Api.Update).filter { it.sessionId == id }.map { it.change }.testIn(this, 10.seconds)
-            client.call(Api.Send, SendParams("default", id, text))
+            client.call(Api.CatchUp, CatchUpParams(AgentId("default"), SessionId(id)))
+            val updates = client.events(Api.Update).filter { it.sessionId.value == id }.map { it.change }.testIn(this, 10.seconds)
+            client.call(Api.Send, SendParams(AgentId("default"), SessionId(id), text))
             changes = buildList { do { add(updates.awaitItem()) } while ((last() as? SessionChange.Event)?.event !is AgentEvent.RunFinished) }
             updates.cancel()
         }

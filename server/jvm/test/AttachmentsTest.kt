@@ -8,6 +8,7 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.io.files.Path
@@ -35,18 +36,18 @@ class AttachmentsTest {
         try { withTimeout(30_000) {
             client.connect()
             val a = client.call(Api.UploadAttachment, UploadAttachmentParams("note.md", Base64.encode("read me".encodeToByteArray())))
-            val sent = client.call(Api.Send, SendParams("default", text = "", attachments = listOf(a.id)))
+            val sent = client.call(Api.Send, SendParams(AgentId("default"), text = "", attachments = listOf(a.id)))
             val message = seen.await()
             assertTrue(message.parts.none { it is MessagePart.Attachment })
             assertTrue(message.parts.filterIsInstance<MessagePart.Text>().any { "File: note.md\n" in it.text })
             assertEquals("read me", Base64.decode(client.call(Api.Attachment, AttachmentRef(a.id)).base64).decodeToString())
-            assertFails { client.call(Api.Send, SendParams("default", attachments = listOf("../bad"), text = "")) }
-            assertFails { client.call(Api.Send, SendParams("default", attachments = List(5) { a.id }, text = "")) }
-            assertFails { client.call(Api.Send, SendParams("default", text = "")) }
+            assertFails { client.call(Api.Send, SendParams(AgentId("default"), attachments = listOf("../bad"), text = "")) }
+            assertFails { client.call(Api.Send, SendParams(AgentId("default"), attachments = List(5) { a.id }, text = "")) }
+            assertFails { client.call(Api.Send, SendParams(AgentId("default"), text = "")) }
             client.close()
             server.stop()
             val restored = Harness(Path(home.path))
-            val agent = restored.store.agents().first { it.id == "default" }
+            val agent = restored.store.agents().first { it.id.value == "default" }
             assertEquals("note.md", restored.store.sessions(agent.id).first { it.id == sent.sessionId }.title)
             assertEquals(listOf(a), restored.store.entries(agent.id, sent.sessionId).filterIsInstance<SessionEntry.UserMessage>().single().attachments)
             assertEquals("read me", restored.attachments.bytes(a).decodeToString())

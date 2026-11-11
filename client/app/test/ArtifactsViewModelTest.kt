@@ -10,6 +10,8 @@ import kinuvo.protocol.*
 import kinuvo.protocol.artifact.*
 import kinuvo.protocol.capability.*
 import kinuvo.protocol.connection.*
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -23,7 +25,7 @@ class ArtifactsViewModelTest {
     @Test fun editsKeepTheDraftWhenTheArtifactChangesUnderneath() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val frames = Channel<Frame>(Channel.UNLIMITED)
-        var info = ArtifactInfo("a1", "Page", "html", "main", "s1", 1, 1)
+        var info = ArtifactInfo("a1", "Page", "html", AgentId("main"), SessionId("s1"), 1, 1)
         var content = "<p>a</p>"
         var failSave = false
         val transport = object : FrameConnection {

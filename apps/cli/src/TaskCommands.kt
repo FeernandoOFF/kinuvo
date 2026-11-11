@@ -27,7 +27,7 @@ private class ListTasks : ServerCommand("list", "List open Tasks.") {
 private class TaskLists : ServerCommand("lists", "List the task lists the Board shows and their Agents.") {
     override suspend fun run() {
         val lists = session.call { client.call(Api.TaskLists, Unit) }
-        echo(table(listOf("LIST", "AGENT"), lists.map { listOf(it.name, it.agentId ?: "-") }))
+        echo(table(listOf("LIST", "AGENT"), lists.map { listOf(it.name, it.agentId?.value ?: "-") }))
     }
 }
 

@@ -25,7 +25,7 @@ sealed interface AgentEvent {
     data class ExecutionEntryChanged(val entry: SessionEntry) : AgentEvent
 
     @Serializable @SerialName("RUN_STARTED")
-    data class RunStarted(val runId: String) : AgentEvent
+    data class RunStarted(val runId: RunId) : AgentEvent
 
     @Serializable @SerialName("TEXT_MESSAGE_CONTENT")
     data class TextMessageContent(val messageId: String, val delta: String) : AgentEvent
@@ -37,10 +37,10 @@ sealed interface AgentEvent {
     data class ThinkingContent(val messageId: String, val delta: String) : AgentEvent
 
     @Serializable @SerialName("TOOL_CALL_START")
-    data class ToolCallStart(val toolCallId: String, val toolCallName: String, val args: String, val identity: ToolIdentity? = null) : AgentEvent
+    data class ToolCallStart(val toolCallId: ToolCallId, val toolCallName: String, val args: String, val identity: ToolIdentity? = null) : AgentEvent
 
     @Serializable @SerialName("TOOL_CALL_RESULT")
-    data class ToolCallResult(val toolCallId: String, val content: String, val isError: Boolean, val identity: ToolIdentity? = null) : AgentEvent
+    data class ToolCallResult(val toolCallId: ToolCallId, val content: String, val isError: Boolean, val identity: ToolIdentity? = null) : AgentEvent
 
     @Serializable @SerialName("REFLECTION_STARTED")
     data class ReflectionStarted(val id: String) : AgentEvent
@@ -54,8 +54,8 @@ sealed interface AgentEvent {
     data class Warning(val message: String) : AgentEvent
 
     @Serializable @SerialName("RUN_FINISHED")
-    data class RunFinished(val runId: String) : AgentEvent
+    data class RunFinished(val runId: RunId) : AgentEvent
 
     @Serializable @SerialName("RUN_ERROR")
-    data class RunError(val runId: String, val message: String) : AgentEvent
+    data class RunError(val runId: RunId, val message: String) : AgentEvent
 }

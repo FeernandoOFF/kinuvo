@@ -38,7 +38,7 @@ class VoiceRpcTest {
     @Test fun liveCallsDelegateThroughExternalDispatch() = runTest {
         val registry = ExecutionRegistry().also {
             it.save(HarnessConnection("c", "ACP", ExecutionConnection.Acp(listOf("mock"))))
-            it.register(AgentRegistration("external", "Agent", "c", cwd = "/tmp"))
+            it.register(AgentRegistration(AgentId("external"), "Agent", "c", cwd = "/tmp"))
         }
         val factory = object : ExecutionFactory {
             override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession = object : ExecutionSession {
@@ -72,11 +72,11 @@ class VoiceRpcTest {
         val serving = launch { server.serve(device.connection) }
         try {
             device.call(Api.Connect, ConnectParams("test"))
-            val session = device.call(Api.CreateSession, AgentRef("external"))
-            val call = device.call(Api.LiveVoiceStart, LiveVoiceParams("external", session.id))
+            val session = device.call(Api.CreateSession, AgentRef(AgentId("external")))
+            val call = device.call(Api.LiveVoiceStart, LiveVoiceParams(AgentId("external"), session.id))
             assertEquals(LiveVoiceOutput.Transcript(call.callId, "reply", "external reply", false), device.outputs.receive())
             device.outputs.receive()
-            val entries = fixture.transcripts.entries("external", session.id)
+            val entries = fixture.transcripts.entries(AgentId("external"), session.id)
             assertTrue(entries.filterIsInstance<SessionEntry.UserMessage>().single().voice)
             assertEquals("external reply", entries.filterIsInstance<SessionEntry.VoiceCall>().single().turns.single().text)
         } finally { server.close(); serving.cancelAndJoin() }

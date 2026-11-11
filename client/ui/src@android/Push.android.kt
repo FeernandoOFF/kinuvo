@@ -103,7 +103,7 @@ class KinuvoMessagingService : FirebaseMessagingService() {
         )
         val intent = push.link?.let { Intent(Intent.ACTION_VIEW, Uri.parse(it)).setPackage(packageName) }
             ?: packageManager.getLaunchIntentForPackage(packageName) ?: return
-        val tag = push.sessionId ?: push.agentId
+        val tag = push.sessionId?.value ?: push.agentId?.value
         val open = PendingIntent.getActivity(this, tag.hashCode(), intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val notification = Notification.Builder(this, id)
             .setSmallIcon(android.R.drawable.stat_notify_chat)

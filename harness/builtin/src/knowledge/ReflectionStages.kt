@@ -20,23 +20,25 @@ import kinuvo.harness.ToolProvider
 import kinuvo.harness.ToolTurn
 import kinuvo.protocol.usage.RequestKind
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.RunId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlin.uuid.Uuid
 
 /** Runs each of [turn]'s stages as its own Koog run with the Reflection strategy; the Server owns what each stage may call. */
-suspend fun runReflection(turn: ReflectionTurn, agent: Agent, model: AgentModel, sessionId: String, tracing: AgentTracing?) {
+suspend fun runReflection(turn: ReflectionTurn, agent: Agent, model: AgentModel, sessionId: SessionId, tracing: AgentTracing?) {
     for (stage in turn.stages) {
         val runId = Uuid.random().toString()
         val run = ReflectionStageRun(turn, agent, model)
         val koog = AIAgent(
-            id = agent.id,
+            id = agent.id.value,
             promptExecutor = model.executor,
             agentConfig = AIAgentConfig(Prompt.Empty, model.model, STAGE_ITERATIONS),
             strategy = reflectionStrategy(run, stage),
         ) {
             install(ToolLoopFeature) { requests = run.requests; response = run.response }
-            tracing?.install(this, agent.id, sessionId, runId, RequestKind.Reflection)
+            tracing?.install(this, agent.id, sessionId, RunId(runId), RequestKind.Reflection)
         }
         try {
             withContext(TokenUsageCapture()) { koog.run(Unit, runId) }

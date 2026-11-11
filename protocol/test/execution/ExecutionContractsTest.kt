@@ -10,6 +10,9 @@ import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.SessionInfo
 import kinuvo.protocol.session.SessionOrder
 import kinuvo.protocol.session.SessionStatus
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
 import kotlin.test.*
 
 class ExecutionContractsTest {
@@ -19,14 +22,14 @@ class ExecutionContractsTest {
         ))
         assertEquals(notice, ProtocolJson.decodeFromString(SessionEntry.serializer(), ProtocolJson.encodeToString(SessionEntry.serializer(), notice)))
         val interactions = listOf(
-            PendingInteraction.Approval("p", "tool", "shell", "{}", risk = Risk.High),
-            PendingInteraction.Questions("q", "tool", "Form", listOf(Question("x", "X"))),
+            PendingInteraction.Approval("p", ToolCallId("tool"), "shell", "{}", risk = Risk.High),
+            PendingInteraction.Questions("q", ToolCallId("tool"), "Form", listOf(Question("x", "X"))),
             PendingInteraction.HarnessApproval("a", "Allow", null, listOf(ExternalApprovalOption("once", "Once", "allow_once"))),
             PendingInteraction.OpenLink("u", "Sign in", "https://example.com/", "example.com"),
             PendingInteraction.Unsupported("x", "Unsupported"),
         )
         interactions.forEach { interaction ->
-            val snapshot = ExecutionSnapshot("s", pending = listOf(interaction))
+            val snapshot = ExecutionSnapshot(SessionId("s"), pending = listOf(interaction))
             assertEquals(snapshot, ProtocolJson.decodeFromString(ExecutionSnapshot.serializer(), ProtocolJson.encodeToString(ExecutionSnapshot.serializer(), snapshot)))
         }
         assertNull(ProtocolJson.decodeFromString(SessionEntry.UserMessage.serializer(), """{"text":"old"}""").submissionId)
@@ -34,18 +37,18 @@ class ExecutionContractsTest {
 
     @Test fun sessionOrderUsesKnownTimeThenFrozenLegacyOrder() {
         val rows = listOf(
-            SessionInfo("uuid-z", "a", "Z", legacyOrder = 0),
-            SessionInfo("uuid-a", "a", "A", legacyOrder = 1),
-            SessionInfo("old", "a", "Old", createdAt = 10),
-            SessionInfo("new", "a", "New", createdAt = 20),
-            SessionInfo("tie-b", "a", "B"), SessionInfo("tie-a", "a", "A"),
+            SessionInfo(SessionId("uuid-z"), AgentId("a"), "Z", legacyOrder = 0),
+            SessionInfo(SessionId("uuid-a"), AgentId("a"), "A", legacyOrder = 1),
+            SessionInfo(SessionId("old"), AgentId("a"), "Old", createdAt = 10),
+            SessionInfo(SessionId("new"), AgentId("a"), "New", createdAt = 20),
+            SessionInfo(SessionId("tie-b"), AgentId("a"), "B"), SessionInfo(SessionId("tie-a"), AgentId("a"), "A"),
         )
-        assertEquals(listOf("new", "old", "uuid-z", "uuid-a", "tie-a", "tie-b"), rows.sortedWith(SessionOrder).map { it.id })
+        assertEquals(listOf("new", "old", "uuid-z", "uuid-a", "tie-a", "tie-b"), rows.sortedWith(SessionOrder).map { it.id.value })
     }
 
     @Test fun interleavedExternalUpdatesReplaceInPlaceAndCommitByTypedIdentity() {
-        val call = SessionEntry.ToolCall("t", "shell", "{}")
-        val result = SessionEntry.ToolResult("t", "shell", "done")
+        val call = SessionEntry.ToolCall(ToolCallId("t"), "shell", "{}")
+        val result = SessionEntry.ToolResult(ToolCallId("t"), "shell", "done")
         val live = LiveState().on(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
             .on(AgentEvent.TextMessageContent("a", "first"))
             .on(AgentEvent.ExecutionEntryChanged(call))

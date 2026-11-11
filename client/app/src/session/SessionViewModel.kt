@@ -150,7 +150,7 @@ private fun ChatItem.isStep() = when (this) {
 data class ChatState(
     val agent: AgentInfo? = null,
     val sessions: List<SessionInfo> = emptyList(),
-    val selected: String? = null,
+    val selected: SessionId? = null,
     /** The selected Session, for when it isn't in [sessions]. */
     val info: SessionInfo? = null,
     val items: List<ChatItem> = emptyList(),
@@ -351,7 +351,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         if (info.id == route.sessionId && !ordered.isLocked) state.update { it.copy(info = info, settings = info.settings) }
     }
 
-    private suspend fun loadCapabilities(agentId: String, sessionId: String?, settings: SessionSettings) {
+    private suspend fun loadCapabilities(agentId: AgentId, sessionId: SessionId?, settings: SessionSettings) {
         val defaults = state.value.defaults
         val capabilities = catching { client.call(Api.Capabilities, CapabilitiesParams(agentId, sessionId, settings)) }.getOrNull() ?: return
         state.update { if (it.route.agentId == agentId && it.route.sessionId == sessionId && it.settings == settings && it.defaults == defaults) it.copy(capabilities = capabilities) else it }
@@ -372,7 +372,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         viewModelScope.launch { attempt { ordered.withLock { apply(agent, sessionId, settings) } } }
     }
 
-    private suspend fun apply(agentId: String, sessionId: String, settings: SessionSettings) {
+    private suspend fun apply(agentId: AgentId, sessionId: SessionId, settings: SessionSettings) {
         val info = client.call(Api.ConfigureSession, ConfigureSessionParams(agentId, sessionId, settings))
         // A newer pick may be waiting; it wins.
         state.update { if (it.settings == settings) it.copy(settings = info.settings) else it }
@@ -392,7 +392,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         } }
     }
 
-    private suspend fun sessionExists(agentId: String, sessionId: String): Boolean =
+    private suspend fun sessionExists(agentId: AgentId, sessionId: SessionId): Boolean =
         catching { client.call(Api.Session, SessionParams(agentId, sessionId)) }
             .onSuccess { info -> state.update { it.copy(info = info, settings = info.settings) } }.isSuccess
 
@@ -426,12 +426,12 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     }
 
     /** The open Session's Agent and ID, starting the Session if it's new; null with no Agent. */
-    suspend fun liveSession(): Pair<String, String>? {
+    suspend fun liveSession(): Pair<AgentId, SessionId>? {
         val agent = route.agentId ?: return null
         return repo.connection.run { ordered.withLock { agent to sessionFor(agent) } }
     }
 
-    private suspend fun sessionFor(agent: String): String = route.sessionId ?: repo.createSession(agent).let { info ->
+    private suspend fun sessionFor(agent: AgentId): SessionId = route.sessionId ?: repo.createSession(agent).let { info ->
         val id = info.id
         // Set first, so a pick made while these settings save queues up behind this send instead of being dropped.
         state.update { it.copy(route = it.route.copy(sessionId = id), info = it.info?.takeIf { i -> i.id == id } ?: info) }
@@ -447,7 +447,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         if (allow) { consent?.grant(request.provider); send(request.text, request.voice, request.action) }
     }
 
-    private suspend fun sendNow(agent: String, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean, submissionId: String, action: SurfaceAction?) {
+    private suspend fun sendNow(agent: AgentId, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean, submissionId: String, action: SurfaceAction?) {
         val sessionId = sessionFor(agent)
         if (state.value.resumeOnSend) {
             state.update { it.copy(resuming = true) }
@@ -541,7 +541,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     suspend fun appCallTool(callId: String, name: String, arguments: JsonObject): JsonObject =
         repo.connection.mcpApps.callTool(appRequest(callId), name, arguments)
 
-    private fun appRequest(callId: String) = McpAppRequest(checkNotNull(route.agentId), checkNotNull(route.sessionId), callId)
+    private fun appRequest(callId: String) = McpAppRequest(checkNotNull(route.agentId), checkNotNull(route.sessionId), ToolCallId(callId))
 
     /** Keeps [value] as the answer to [questionId] in the `ask_user` form [questionsId] until it's sent. */
     fun editAnswer(questionsId: String, questionId: String, value: List<String>) =

@@ -26,6 +26,7 @@ import kinuvo.server.plugin.ScreenGate
 import kinuvo.server.plugin.ScreenSource
 import kinuvo.protocol.browser.*
 import kinuvo.protocol.screen.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*
@@ -40,7 +41,7 @@ class AndroidBrowserRuntime(private val context: Context) : BrowserService {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val tabs = linkedMapOf<String, Tab>()
     private val opening = ConcurrentHashMap<BrowserOwner, ScreenGate>()
-    private val deletedAgents = ConcurrentHashMap.newKeySet<String>()
+    private val deletedAgents = ConcurrentHashMap.newKeySet<AgentId>()
     @Volatile private var authorizeOwner: suspend (BrowserOwner) -> Unit = {}
     @Volatile private var changed: (BrowserOwner) -> Unit = {}
     private var closed = false
@@ -192,7 +193,7 @@ class AndroidBrowserRuntime(private val context: Context) : BrowserService {
     }
 
     private fun create(owner: BrowserOwner): Tab {
-        val surface = AndroidBrowserSurface(context, profile(owner.agentId))
+        val surface = AndroidBrowserSurface(context, profile(owner.agentId.value))
         val tab = Tab(UUID.randomUUID().toString(), owner, surface)
         tabs[tab.id] = tab
         surface.view.webViewClient = object : WebViewClient() {
@@ -279,14 +280,14 @@ class AndroidBrowserRuntime(private val context: Context) : BrowserService {
         tab.frames.tryEmit(Result.failure(IllegalStateException("Browser tab closed")))
         tab.surface.close(); changed(tab.owner)
     }
-    override suspend fun release(agentId: String) = withContext(Dispatchers.Main.immediate) {
+    override suspend fun release(agentId: AgentId) = withContext(Dispatchers.Main.immediate) {
         tabs.values.filter { it.owner.agentId == agentId }.toList().forEach(::remove)
         opening.entries.filter { it.key.agentId == agentId }.forEach { it.value.close(); opening.remove(it.key) }
     }
-    override suspend fun deleteAgent(agentId: String) {
+    override suspend fun deleteAgent(agentId: AgentId) {
         deletedAgents.add(agentId)
         release(agentId)
-        withContext(Dispatchers.Main.immediate) { ProfileStore.getInstance().deleteProfile(profile(agentId)) }
+        withContext(Dispatchers.Main.immediate) { ProfileStore.getInstance().deleteProfile(profile(agentId.value)) }
     }
     override suspend fun close() = withContext(Dispatchers.Main.immediate) {
         closed = true

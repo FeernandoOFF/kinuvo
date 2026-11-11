@@ -37,6 +37,7 @@ import kinuvo.protocol.mcp.*
 import kinuvo.protocol.model.*
 import kinuvo.protocol.routine.*
 import kinuvo.protocol.service.*
+import kinuvo.protocol.session.SessionId
 import kinuvo.ui.design.*
 import kinuvo.ui.voice.ServerVoiceSettings
 import kotlinx.coroutines.delay
@@ -82,7 +83,7 @@ fun SettingsScreen(
             onNavigate = onNavigate,
             onSaveAgent = settings::saveAgent,
             onRefreshModels = { settings.loadModels(true) },
-            onCreateAgent = { p -> settings.createAgent(p) { id -> show(Route.Settings(id, SettingsSection.Overview)) } },
+            onCreateAgent = { p -> settings.createAgent(p) { id -> show(Route.Settings(AgentId(id), SettingsSection.Overview)) } },
             onDeleteAgent = {
                 settings.deleteAgent { appState.agents.firstOrNull { it.id != route.agentId }?.let { show(Route.Settings(it.id, SettingsSection.Overview)) } }
             },
@@ -92,7 +93,7 @@ fun SettingsScreen(
             onReloadRoutines = settings::reloadRoutines,
             onRunNow = settings::runNow,
             onRemove = { id -> settings.remove(id) { show(route.copy(item = null)) } },
-            onOpenSession = { id -> onOpenSession(Route.Chat(route.agentId, id)) },
+            onOpenSession = { id -> onOpenSession(Route.Chat(route.agentId, SessionId(id))) },
             onSaveSkill = { scope, name, content -> settings.saveSkill(scope, name, content) { key -> show(route.copy(item = key, editing = false)) } },
             onDeleteSkill = { scope, name -> settings.deleteSkill(scope, name) { show(route.copy(item = null)) } },
             onSaveMcp = { server -> settings.saveMcp(server) { key -> show(route.copy(item = key, editing = false)) } },
@@ -203,8 +204,8 @@ class SettingsActions(
     val onTestKnowledge: (KnowledgeSettings) -> Unit = {},
     val onTestExec: (TestExecParams) -> Unit = {},
     val onSaveServerRules: (TrustRules) -> Unit = {},
-    val onMcpAccess: (server: String, agentId: String, on: Boolean, everyAgent: List<String>) -> Unit = { _, _, _, _ -> },
-    val onToolAccess: (agentId: String, tool: String, on: Boolean) -> Unit = { _, _, _ -> },
+    val onMcpAccess: (server: String, agentId: AgentId, on: Boolean, everyAgent: List<AgentId>) -> Unit = { _, _, _, _ -> },
+    val onToolAccess: (agentId: AgentId, tool: String, on: Boolean) -> Unit = { _, _, _ -> },
     val onSaveService: (SaveServiceParams) -> Unit = {},
     val onTestService: (TestServiceParams) -> Unit = {},
     val onReloadServer: () -> Unit = {},

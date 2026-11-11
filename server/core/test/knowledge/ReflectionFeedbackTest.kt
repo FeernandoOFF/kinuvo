@@ -8,6 +8,7 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.protocol.reflection.ReflectionProposal
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
@@ -34,6 +35,6 @@ class ReflectionFeedbackTest {
         }
         val knowledge = Knowledge({ kinuvo.server.store.MarkdownKnowledgeSource(kotlinx.io.files.Path(home.files.home, "vault")) },
             kinuvo.server.store.FileKnowledgeChangeLog(home.files.knowledgeChanges))
-        assertNull(Reflection(knowledge, home.docs, home.skills).reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Review"))).error)
+        assertNull(Reflection(knowledge, home.docs, home.skills).reflect(home.agent, model, SessionId("s1"), listOf(SessionEntry.UserMessage("Review"))).error)
     }
 }

@@ -23,6 +23,7 @@ import kinuvo.protocol.approval.approval
 import kinuvo.protocol.approval.ApprovalDecision
 import kinuvo.protocol.approval.Risk
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
@@ -64,7 +65,7 @@ class RunCodeTest {
     fun capsCombinedOutputIncludingErrorsAndCallSummary() = runBlocking {
         val run = object : ToolRun {
             override val tools = listOf(toolSpec("echo", "echo"))
-            override suspend fun call(name: String, args: String) = SessionEntry.ToolResult("inner", name, "ok")
+            override suspend fun call(name: String, args: String) = SessionEntry.ToolResult(ToolCallId("inner"), name, "ok")
         }
         val tool = RunCodeTool(Limits(output = 300))
         fun script(code: String) = JsonObject(mapOf("code" to kotlinx.serialization.json.JsonPrimitive(code)))
@@ -102,14 +103,14 @@ class RunCodeTest {
         assertEquals(listOf("Kotlin 3"), save.calls.map { it["content"]!!.jsonPrimitive.content })
         val approvals = events.mapNotNull { it.approval }
         assertEquals(listOf("memory", "memory"), approvals.map { it.toolCallName })
-        assertTrue(approvals.all { it.toolCallId == "c1" }, "Approvals show on the Script's call")
+        assertTrue(approvals.all { it.toolCallId.value == "c1" }, "Approvals show on the Script's call")
         // The denied second save throws inside the Script, which fails it; the inner calls stay out of the history.
         val result = entries.filterIsInstance<SessionEntry.ToolResult>().single()
         assertTrue(result.isError)
         assertContains(result.output, "denied")
         assertContains(result.output, "Tool calls (3):")
         assertEquals(listOf("run_code"), entries.filterIsInstance<SessionEntry.ToolCall>().map { it.name })
-        assertEquals(listOf("c1", "c1-1", "c1-2", "c1-3"), events.filterIsInstance<AgentEvent.ToolCallStart>().map { it.toolCallId })
+        assertEquals(listOf("c1", "c1-1", "c1-2", "c1-3"), events.filterIsInstance<AgentEvent.ToolCallStart>().map { it.toolCallId.value })
         assertTrue(events.last() is AgentEvent.RunFinished)
     }
 

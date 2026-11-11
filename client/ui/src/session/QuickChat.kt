@@ -56,6 +56,7 @@ import com.composables.ui.components.Icon
 import com.composables.ui.components.Text
 import com.composables.ui.theme.*
 import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.design.*
 import kotlinx.coroutines.launch
 import kinuvo.app.agent.AvatarState
@@ -122,8 +123,8 @@ internal fun QuickChat(
     agents: List<AgentInfo>,
     agent: AgentInfo?,
     draft: TextFieldState,
-    onSelectAgent: (String) -> Unit,
-    onSend: suspend (agentId: String, text: String, open: Boolean) -> Boolean,
+    onSelectAgent: (AgentId) -> Unit,
+    onSend: suspend (agentId: AgentId, text: String, open: Boolean) -> Boolean,
     onDismiss: () -> Unit,
 ) {
     var sending by remember { mutableStateOf(false) }

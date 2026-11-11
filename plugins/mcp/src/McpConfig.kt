@@ -3,6 +3,7 @@ package kinuvo.plugins.mcp
 import kinuvo.server.plugin.SecretReferences
 import kinuvo.server.plugin.SecretResolver
 import kinuvo.protocol.mcp.McpOAuthClient
+import kinuvo.protocol.agent.AgentId
 import kotlinx.serialization.json.*
 import kinuvo.server.plugin.readTextOrNull
 import kotlinx.io.files.Path
@@ -16,7 +17,7 @@ sealed interface McpServerConfig {
     /** "auto" or "ask" overrides the server's readOnlyHint annotations. */
     val approval: String?
     /** The Agents that use a shared server; null for every Agent. */
-    val agents: List<String>?
+    val agents: List<AgentId>?
 
     data class Stdio(
         override val name: String,
@@ -27,7 +28,7 @@ sealed interface McpServerConfig {
         override val excludeTools: List<String> = emptyList(),
         override val approval: String? = null,
         override val instanceId: String = name,
-        override val agents: List<String>? = null,
+        override val agents: List<AgentId>? = null,
     ) : McpServerConfig
 
     data class Http(
@@ -40,14 +41,14 @@ sealed interface McpServerConfig {
         val oauth: McpOAuthClient? = null,
         /** Where its OAuth sign-in is kept: `shared/<name>` or `agents/<id>/<name>`, so it follows the config's scope. */
         val signInId: String = name,
-        override val agents: List<String>? = null,
+        override val agents: List<AgentId>? = null,
     ) : McpServerConfig {
         override val instanceId get() = signInId
     }
 
     fun allows(tool: String) = (includeTools == null || tool in includeTools!!) && tool !in excludeTools
 
-    fun usedBy(agentId: String) = agents?.contains(agentId) != false
+    fun usedBy(agentId: AgentId) = agents?.contains(agentId) != false
 }
 
 object McpConfig {
@@ -59,7 +60,7 @@ object McpConfig {
     suspend fun load(
         files: List<Path>,
         signInScopes: List<String> = emptyList(),
-        agentId: String? = null,
+        agentId: AgentId? = null,
         expand: suspend (server: String, value: String) -> String = ::systemEnv,
     ): Pair<List<McpServerConfig>, List<String>> {
         val servers = linkedMapOf<String, McpServerConfig>()
@@ -87,7 +88,7 @@ object McpConfig {
         val include = obj["includeTools"]?.jsonArray?.map { it.jsonPrimitive.content }
         val exclude = obj["excludeTools"]?.jsonArray?.map { it.jsonPrimitive.content }.orEmpty()
         val approval = str("approval")?.also { require(it == "auto" || it == "ask") { "approval must be auto or ask" } }
-        val agents = obj["agents"]?.jsonArray?.map { it.jsonPrimitive.content }
+        val agents = obj["agents"]?.jsonArray?.map { AgentId(it.jsonPrimitive.content) }
         return when (val type = str("type") ?: if (obj.containsKey("command")) "stdio" else "http") {
             "stdio" -> McpServerConfig.Stdio(name, requireNotNull(str("command")) { "missing command" }, list("args").orEmpty(), map("env"), include, exclude, approval,
                 signInScope?.let { "$it/$name" } ?: name, agents)

@@ -2,6 +2,8 @@ package kinuvo.protocol.routine
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 /** When a Routine fires. Times are epoch milliseconds; [Cron] uses the Routine's time zone. */
 @Serializable
@@ -35,13 +37,13 @@ enum class RunStatus { Ok, Error, Skipped, Silent, Stopped, Running }
 @Serializable
 data class Routine(
     val id: String,
-    val agentId: String,
+    val agentId: AgentId,
     val name: String,
     val prompt: String,
     val trigger: Trigger,
     val timeZone: String,
     val enabled: Boolean = true,
-    val sessionId: String? = null,
+    val sessionId: SessionId? = null,
     val approvals: RoutineApprovals = RoutineApprovals.Inherit,
     val activeHours: ActiveHours? = null,
     val heartbeat: Boolean = false,
@@ -52,7 +54,7 @@ data class Routine(
     val lastRunAt: Long? = null,
     val lastStatus: RunStatus? = null,
     val lastError: String? = null,
-    val lastSessionId: String? = null,
+    val lastSessionId: SessionId? = null,
     /** What the last run told the user, for the next run to build on; null when it found nothing new. */
     val lastReport: String? = null,
 )
@@ -62,7 +64,7 @@ data class Routine(
 data class RoutineRef(val id: String, val name: String)
 
 @Serializable
-data class RoutineParams(val agentId: String, val routineId: String)
+data class RoutineParams(val agentId: AgentId, val routineId: String)
 
 /**
  * A Routine as the user writes it; on update, null fields stay as they are. The schedule is one of [at] (local
@@ -84,15 +86,15 @@ data class RoutineSpec(
 )
 
 @Serializable
-data class CreateRoutineParams(val agentId: String, val spec: RoutineSpec)
+data class CreateRoutineParams(val agentId: AgentId, val spec: RoutineSpec)
 
 @Serializable
-data class UpdateRoutineParams(val agentId: String, val routineId: String, val spec: RoutineSpec)
+data class UpdateRoutineParams(val agentId: AgentId, val routineId: String, val spec: RoutineSpec)
 
 /** All of an Agent's Routines after any of them changed. */
 @Serializable
-data class RoutinesChanged(val agentId: String, val routines: List<Routine>)
+data class RoutinesChanged(val agentId: AgentId, val routines: List<Routine>)
 
 /** A run finished with something to show ([RunStatus.Ok] with its [summary], or [RunStatus.Error]). */
 @Serializable
-data class RoutineRan(val agentId: String, val routine: RoutineRef, val status: RunStatus, val sessionId: String?, val error: String? = null, val summary: String? = null)
+data class RoutineRan(val agentId: AgentId, val routine: RoutineRef, val status: RunStatus, val sessionId: SessionId?, val error: String? = null, val summary: String? = null)

@@ -17,6 +17,7 @@ import androidx.compose.ui.use
 import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.execution.ExecutionKind
 import kinuvo.protocol.execution.ExecutionReadiness
+import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.agent.AgentAvatar
 import kinuvo.ui.design.HarnessTheme
 import org.jetbrains.skia.EncodedImageFormat
@@ -27,10 +28,10 @@ import kotlin.test.*
 class AgentAvatarTest {
     @Test fun externalOriginsRemainVisibleWhenReadyAndDescribeUnavailableHarnesses() = SwingUtilities.invokeAndWait {
         val agents = listOf(
-            AgentInfo("native", "Native", "native"),
-            AgentInfo("acp", "ACP", "external", executionKind = ExecutionKind.Acp),
-            AgentInfo("remote", "Remote", "external", executionKind = ExecutionKind.Remote),
-            AgentInfo("offline", "Offline", "external", executionKind = ExecutionKind.Acp,
+            AgentInfo(AgentId("native"), "Native", "native"),
+            AgentInfo(AgentId("acp"), "ACP", "external", executionKind = ExecutionKind.Acp),
+            AgentInfo(AgentId("remote"), "Remote", "external", executionKind = ExecutionKind.Remote),
+            AgentInfo(AgentId("offline"), "Offline", "external", executionKind = ExecutionKind.Acp,
                 readiness = ExecutionReadiness(true, false, "Command missing", "not_found")),
         )
         ImageComposeScene(240, 64, Density(1f), content = {

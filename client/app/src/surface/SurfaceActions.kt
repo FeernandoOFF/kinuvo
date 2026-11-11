@@ -3,13 +3,14 @@ package kinuvo.app.surface
 import dev.ynagai.a2ui.core.protocol.ActionMessage
 import kinuvo.app.session.ChatItem
 import kinuvo.protocol.surface.SurfaceAction
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.serialization.json.JsonObject
 
 fun ActionMessage.surfaceAction(callId: String, dataModel: JsonObject): SurfaceAction =
-    SurfaceAction(callId, surfaceId, name, sourceComponentId, context, dataModel)
+    SurfaceAction(ToolCallId(callId), surfaceId, name, sourceComponentId, context, dataModel)
 
 fun List<ChatItem>.surfaceDataModels(callId: String): Map<String, JsonObject> =
-    filterIsInstance<ChatItem.User>().mapNotNull { it.action }.filter { it.callId == callId }
+    filterIsInstance<ChatItem.User>().mapNotNull { it.action }.filter { it.callId.value == callId }
         .associate { it.surfaceId to it.dataModel }
 
 class SurfaceDrafts {
@@ -36,5 +37,5 @@ fun openSurfaceUrl(url: String, open: (String) -> Unit) {
 
 fun List<ChatItem>.surfaceSubmissions(callId: String): Map<String, Pair<String, JsonObject>> =
     filterIsInstance<ChatItem.User>().mapNotNull { item ->
-        item.action?.takeIf { it.callId == callId }?.let { it.surfaceId to (item.id to it.dataModel) }
+        item.action?.takeIf { it.callId.value == callId }?.let { it.surfaceId to (item.id to it.dataModel) }
     }.toMap()

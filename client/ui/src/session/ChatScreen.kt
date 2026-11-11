@@ -63,6 +63,8 @@ import kinuvo.protocol.capability.ServerFeature
 import kinuvo.protocol.capability.supports
 import kinuvo.ui.design.*
 import kinuvo.protocol.session.UploadAttachmentParams
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -90,7 +92,7 @@ fun ChatScreen(
     wide: Boolean,
     shell: ShellChrome,
     onOpen: (Route.Chat) -> Unit,
-    onSettings: (agentId: String) -> Unit,
+    onSettings: (agentId: AgentId) -> Unit,
     onNavigate: (Route) -> Unit = {},
     onToggleShell: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null,
@@ -158,7 +160,7 @@ fun ChatScreen(
             syncedAt = appState.syncedAt,
             actions = ChatActions(
                 onNew = { if (route.sessionId != null) onOpen(Route.Chat(route.agentId, compose = true)) },
-                onSelect = { id -> if (id != route.sessionId) onOpen(Route.Chat(route.agentId, id)) },
+                onSelect = { id -> if (id != route.sessionId?.value) onOpen(Route.Chat(route.agentId, SessionId(id))) },
                 onSend = session::send,
                 onSurfaceAction = { text, action -> session.send(text, action = action) },
                 onAppResource = session::appResource,
@@ -312,7 +314,7 @@ fun ChatContent(
 
         fun step(delta: Int) {
             val i = state.sessions.indexOfFirst { it.id == state.selected }
-            state.sessions.getOrNull(if (i < 0) 0 else i + delta)?.let { actions.onSelect(it.id) }
+            state.sessions.getOrNull(if (i < 0) 0 else i + delta)?.let { actions.onSelect(it.id.value) }
         }
 
         fun onKey(e: KeyEvent): Boolean {

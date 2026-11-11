@@ -8,7 +8,7 @@ import kotlinx.serialization.json.jsonObject
 
 class SessionEntryTimeTest {
     @Test fun toolReportRoundTrips() {
-        val entry: SessionEntry = SessionEntry.ToolReport("shell", "call", "done", 123L)
+        val entry: SessionEntry = SessionEntry.ToolReport("shell", ToolCallId("call"), "done", 123L)
         assertEquals(entry, ProtocolJson.decodeFromString<SessionEntry>(ProtocolJson.encodeToString(SessionEntry.serializer(), entry)))
         assertEquals(456L, entry.withWrittenAt(456L).writtenAt)
     }

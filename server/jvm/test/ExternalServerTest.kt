@@ -40,18 +40,18 @@ class ExternalServerTest {
             val connected = KinuvoClient("ws://127.0.0.1:$port/ws", "manager", token = server.auth.sessionToken())
             client = connected; connected.connect()
             connected.call(Api.SaveHarnessConnection, HarnessConnection("media", "Media", ExecutionConnection.Acp(listOf("python3", script.path))))
-            connected.call(Api.RegisterExternalAgent, AgentRegistration("media", "Media", "media", cwd = dir.path))
-            val id = connected.call(Api.CreateSession, AgentRef("media")).id
-            connected.call(Api.Send, SendParams("media", id, "image", submissionId = "image"))
+            connected.call(Api.RegisterExternalAgent, AgentRegistration(AgentId("media"), "Media", "media", cwd = dir.path))
+            val id = connected.call(Api.CreateSession, AgentRef(AgentId("media"))).id
+            connected.call(Api.Send, SendParams(AgentId("media"), id, "image", submissionId = "image"))
             val attachment = awaitValue("the image attachment") {
-                connected.call(Api.History, HistoryParams("media", id, 100)).map { it.entry }.filterIsInstance<SessionEntry.ToolResult>().flatMap { it.attachments }.singleOrNull()
+                connected.call(Api.History, HistoryParams(AgentId("media"), id, 100)).map { it.entry }.filterIsInstance<SessionEntry.ToolResult>().flatMap { it.attachments }.singleOrNull()
             }
             assertEquals("image/png", attachment.mimeType)
             assertEquals("Harness-output.png", attachment.name)
             assertEquals(image, connected.call(Api.Attachment, AttachmentRef(attachment.id)).base64)
             connected.close(); server.stop()
             val restored = Harness(home = Path(dir.path))
-            assertEquals(attachment, restored.store.entries("media", id).filterIsInstance<SessionEntry.ToolResult>().single().attachments.single())
+            assertEquals(attachment, restored.store.entries(AgentId("media"), id).filterIsInstance<SessionEntry.ToolResult>().single().attachments.single())
             assertEquals(image, restored.attachments.download(attachment.id).base64)
         } finally { client?.close(); server.stop(); dir.deleteRecursively() }
     }
@@ -86,37 +86,37 @@ class ExternalServerTest {
             val token = first.connect().token
             val connection = HarnessConnection("mock", "Mock", ExecutionConnection.Acp(listOf("/usr/bin/env", "python3", script.path)))
             first.call(Api.SaveHarnessConnection, connection)
-            first.call(Api.RegisterExternalAgent, AgentRegistration("external", "External", "mock", cwd = dir.path))
-            assertEquals(ExecutionKind.Acp, first.call(Api.Agents, Unit).first { it.id == "external" }.executionKind)
+            first.call(Api.RegisterExternalAgent, AgentRegistration(AgentId("external"), "External", "mock", cwd = dir.path))
+            assertEquals(ExecutionKind.Acp, first.call(Api.Agents, Unit).first { it.id.value == "external" }.executionKind)
             assertTrue(first.call(Api.ProbeHarnessConnection, connection).readiness.online)
-            val id = first.call(Api.CreateSession, AgentRef("external")).id
-            val browserError = assertFails { first.call(Api.BrowserTabs, BrowserOwner("external")) }
+            val id = first.call(Api.CreateSession, AgentRef(AgentId("external"))).id
+            val browserError = assertFails { first.call(Api.BrowserTabs, BrowserOwner(AgentId("external"))) }
             assertTrue(browserError.message.orEmpty().contains("managed by this Agent's harness"))
-            val screensError = assertFails { first.call(Api.Screens, BrowserOwner("external")) }
+            val screensError = assertFails { first.call(Api.Screens, BrowserOwner(AgentId("external"))) }
             assertTrue(screensError.message.orEmpty().contains("managed by this Agent's harness"))
-            first.call(Api.Send, SendParams("external", id, "wait"))
+            first.call(Api.Send, SendParams(AgentId("external"), id, "wait"))
             first.close()
             val second = KinuvoClient("ws://127.0.0.1:$port/ws", "manager", token = token)
             client = second
             second.connect()
-            assertEquals(ExecutionPhase.Running, second.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase)
-            second.call(Api.CatchUp, CatchUpParams("external", id))
-            assertEquals("wait", second.call(Api.History, HistoryParams("external", id, 100)).map { it.entry }.filterIsInstance<SessionEntry.UserMessage>().single().text)
+            assertEquals(ExecutionPhase.Running, second.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).phase)
+            second.call(Api.CatchUp, CatchUpParams(AgentId("external"), id))
+            assertEquals("wait", second.call(Api.History, HistoryParams(AgentId("external"), id, 100)).map { it.entry }.filterIsInstance<SessionEntry.UserMessage>().single().text)
             assertFails { second.call(Api.SaveHarnessConnection, connection) }
-            second.call(Api.RegisterExternalAgent, AgentRegistration("unused", "Unused", "mock", cwd = dir.path))
+            second.call(Api.RegisterExternalAgent, AgentRegistration(AgentId("unused"), "Unused", "mock", cwd = dir.path))
             second.call(Api.UnregisterExternalAgent, ExecutionRef("unused"))
             assertFails { second.call(Api.UnregisterExternalAgent, ExecutionRef("external")) }
             second.call(Api.Stop, StopParams(id))
-            awaitCondition("the run to stop", 5.seconds) { second.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase == ExecutionPhase.Idle }
-            second.call(Api.Send, SendParams("external", id, "permission"))
-            awaitCondition("a pending permission", 5.seconds) { second.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.isNotEmpty() }
+            awaitCondition("the run to stop", 5.seconds) { second.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).phase == ExecutionPhase.Idle }
+            second.call(Api.Send, SendParams(AgentId("external"), id, "permission"))
+            awaitCondition("a pending permission", 5.seconds) { second.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).pending.isNotEmpty() }
             second.close()
             val responder = KinuvoClient("ws://127.0.0.1:$port/ws", "chat-device", pairingCode = server.auth.pairing(false, false)!!.code)
             client = responder
             responder.connect()
             assertFails { responder.call(Api.ExecutionCatalog, Unit) }
             assertFails { responder.call(Api.SaveHarnessConnection, connection) }
-            val approval = responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.single()
+            val approval = responder.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).pending.single()
             assertEquals("Allow", (approval as PendingInteraction.HarnessApproval).options.single().label)
             val answer = RespondParams(id, approval.id, InteractionAnswer.Harness(kotlinx.serialization.json.Json.parseToJsonElement("""{"optionId":"yes"}""")))
             assertFails { responder.call(Api.Respond, answer) }
@@ -126,13 +126,13 @@ class ExternalServerTest {
                 assertTrue(manager.call(Api.Respond, answer))
                 assertFalse(manager.call(Api.Respond, answer))
             } finally { manager.close() }
-            awaitCondition("the run to go idle", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase == ExecutionPhase.Idle }
-            responder.call(Api.Send, SendParams("external", id, "question"))
-            awaitCondition("a pending question", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.isNotEmpty() }
-            val question = responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).pending.single()
+            awaitCondition("the run to go idle", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).phase == ExecutionPhase.Idle }
+            responder.call(Api.Send, SendParams(AgentId("external"), id, "question"))
+            awaitCondition("a pending question", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).pending.isNotEmpty() }
+            val question = responder.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).pending.single()
             assertEquals("example.test", (question as PendingInteraction.OpenLink).site)
             assertTrue(responder.call(Api.Respond, RespondParams(id, question.id, InteractionAnswer.Harness(kotlinx.serialization.json.Json.parseToJsonElement("""{"opened":false}""")))))
-            awaitCondition("the run to go idle", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase == ExecutionPhase.Idle }
+            awaitCondition("the run to go idle", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).phase == ExecutionPhase.Idle }
             responder.close()
             server.stop()
             server = HarnessServer(Harness(home = Path(dir.path)))
@@ -140,19 +140,19 @@ class ExternalServerTest {
             val third = KinuvoClient("ws://127.0.0.1:$restartedPort/ws", "manager", token = token)
             client = third
             third.connect()
-            assertEquals("external", third.call(Api.ExecutionCatalog, Unit).agents.single { !it.archived }.id)
-            assertEquals(ExecutionPhase.Lost, third.call(Api.ExecutionSnapshot, ExecutionRef(id)).phase)
-            assertEquals("external", third.call(Api.ExecutionSnapshot, ExecutionRef(id)).externalSessionId)
-            val saved = third.call(Api.ExecutionSnapshot, ExecutionRef(id)).messages
-            val resumed = third.call(Api.ResumeExecution, ExecutionRef(id))
+            assertEquals("external", third.call(Api.ExecutionCatalog, Unit).agents.single { !it.archived }.id.value)
+            assertEquals(ExecutionPhase.Lost, third.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).phase)
+            assertEquals("external", third.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).externalSessionId)
+            val saved = third.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).messages
+            val resumed = third.call(Api.ResumeExecution, ExecutionRef(id.value))
             assertEquals(id, resumed.sessionId)
             assertEquals(saved, resumed.messages.take(saved.size))
             assertTrue(resumed.messages.any { it.role == "notice" && it.text.contains("disconnected") })
             assertEquals("external", resumed.externalSessionId)
-            third.call(Api.CloseExecution, ExecutionRef(id))
+            third.call(Api.CloseExecution, ExecutionRef(id.value))
             third.call(Api.UnregisterExternalAgent, ExecutionRef("external"))
-            third.call(Api.CloseExecution, ExecutionRef(id))
-            assertEquals(resumed.messages, third.call(Api.ExecutionSnapshot, ExecutionRef(id)).messages)
+            third.call(Api.CloseExecution, ExecutionRef(id.value))
+            assertEquals(resumed.messages, third.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).messages)
         } finally { client?.close(); server.stop(); dir.deleteRecursively() }
     }
 }

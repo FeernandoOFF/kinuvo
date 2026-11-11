@@ -34,6 +34,7 @@ import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
 import kinuvo.protocol.agent.*
 import kinuvo.protocol.board.*
+import kinuvo.protocol.session.SessionId
 import kinuvo.ui.design.*
 import kotlinx.coroutines.launch
 
@@ -67,7 +68,7 @@ class BoardActions(
     val onAdding: (Boolean) -> Unit = {},
     val onAdd: (CreateTaskParams) -> Unit = {},
     val onUpdate: (UpdateTaskParams) -> Unit = {},
-    val onOpenSession: (agentId: String, sessionId: String) -> Unit = { _, _ -> },
+    val onOpenSession: (agentId: AgentId, sessionId: SessionId) -> Unit = { _, _ -> },
     val onSettings: () -> Unit = {},
     /** Opens a Task with all its runs. */
     val onOpenTask: (taskId: String) -> Unit = {},
@@ -131,7 +132,7 @@ private fun BoardColumn(status: TaskStatus, tasks: List<TaskInfo>, ui: BoardUi, 
 
 @Composable
 private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActions) {
-    val assignee = agents.firstOrNull { it.id == task.assignee }
+    val assignee = agents.firstOrNull { it.id.value == task.assignee }
     Panel(Modifier.fillMaxWidth(), shape = Theme[shapes][largeShape], contentPadding = PaddingValues(Spacing.space12)) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
             // Its own target, so the card's pickers aren't buttons inside a button.
@@ -154,7 +155,7 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
             // One row: a long assignee shortens rather than pushing the run link onto a line of its own.
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space6), verticalAlignment = Alignment.CenterVertically) {
                 Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->
-                    actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: ""))
+                    actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id?.value ?: ""))
                 }, icon = Lucide.User, modifier = Modifier.widthIn(max = 160.dp), style = if (task.assignee == null) ButtonStyle.Ghost else ButtonStyle.Outlined)
                 // Phones show the status as the tab; it changes from the Task itself.
                 if (LocalInteractionMode.current != InteractionMode.Touch)
@@ -162,7 +163,7 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                 val last = task.sessionIds.lastOrNull()
                 if (last != null && task.assignee != null) {
                     Spacer(Modifier.weight(1f))
-                    Button(onClick = { actions.onOpenSession(task.assignee!!, last) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(accentColor)) {
+                    Button(onClick = { actions.onOpenSession(AgentId(task.assignee!!), last) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(accentColor)) {
                         Icon(Lucide.MessageSquare, Modifier.size(14.dp))
                         Text(if (task.sessionIds.size > 1) "Latest run" else "Open run", style = TextStyles.secondary)
                         if (task.sessionIds.size > 1) Text("${task.sessionIds.size} runs", style = TextStyles.caption, color = color(mutedColor))
@@ -189,7 +190,7 @@ private fun NewTaskForm(ui: BoardUi, actions: BoardActions) {
                 Box(Modifier.weight(1f)) { FormField("Due") { Input(due, "2026-11-20") } }
             }
             FormButtons("Add task", title.value().isNotEmpty(), null, onSave = {
-                actions.onAdd(CreateTaskParams(title.value(), list?.id, due = due.value().ifEmpty { null }, assignee = agent?.id))
+                actions.onAdd(CreateTaskParams(title.value(), list?.id, due = due.value().ifEmpty { null }, assignee = agent?.id?.value))
             }, onCancel = { actions.onAdding(false) })
         }
     }

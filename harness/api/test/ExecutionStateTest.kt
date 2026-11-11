@@ -12,7 +12,7 @@ import kotlin.test.*
 class ExecutionStateTest {
     @Test fun sinkRejectsStaleAndLostWritesAndCommitsBeforeCompletion() = runTest {
         val operations = mutableListOf<String>()
-        val state = ExecutionState("s", generation = "g", sink = object : ExecutionSink {
+        val state = ExecutionState(SessionId("s"), generation = "g", sink = object : ExecutionSink {
             override suspend fun publish(event: AgentEvent) { operations += event::class.simpleName.orEmpty() }
             override suspend fun commit(entries: List<SessionEntry>) { operations += "commit" }
         })
@@ -21,9 +21,9 @@ class ExecutionStateTest {
         sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
         val entry = SessionEntry.AssistantMessage("done", "m")
         sink.publish(AgentEvent.ExecutionEntryChanged(entry))
-        assertFailsWith<IllegalStateException> { sink.publish(AgentEvent.RunFinished("turn")) }
+        assertFailsWith<IllegalStateException> { sink.publish(AgentEvent.RunFinished(RunId("turn"))) }
         sink.commit(listOf(entry))
-        sink.publish(AgentEvent.RunFinished("turn"))
+        sink.publish(AgentEvent.RunFinished(RunId("turn")))
         assertEquals(listOf("commit", "RunFinished"), operations.takeLast(2))
         assertTrue(state.live().entries.isEmpty())
         state.lost()
@@ -33,7 +33,7 @@ class ExecutionStateTest {
 
     @Test fun initialIdleHasNoCompletionAndSameTextIsNotIdentity() = runTest {
         val events = mutableListOf<AgentEvent>()
-        val state = ExecutionState("s", sink = object : ExecutionSink {
+        val state = ExecutionState(SessionId("s"), sink = object : ExecutionSink {
             override suspend fun publish(event: AgentEvent) { events += event }
             override suspend fun commit(entries: List<SessionEntry>) {}
         })
@@ -45,7 +45,7 @@ class ExecutionStateTest {
     }
 
     @Test fun brokerMintsGenerationOwnedTokensAndClaimsOnce() = runTest {
-        val state = ExecutionState("s")
+        val state = ExecutionState(SessionId("s"))
         val broker = ExecutionBroker(state)
         val request = PendingInteraction.Unsupported("wire", "Unsupported")
         val waiting = async { broker.ask(request) }
@@ -56,7 +56,7 @@ class ExecutionStateTest {
         assertTrue(broker.answer(pending.id, JsonNull))
         assertFalse(broker.answer(pending.id, JsonNull))
         assertEquals(JsonNull, waiting.await())
-        val replacement = ExecutionBroker(ExecutionState("s"))
+        val replacement = ExecutionBroker(ExecutionState(SessionId("s")))
         assertFalse(replacement.answer(pending.id, JsonNull))
         broker.lost()
         assertFailsWith<IllegalStateException> { broker.ask(request) }

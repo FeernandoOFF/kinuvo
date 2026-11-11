@@ -22,6 +22,7 @@ import kinuvo.protocol.model.*
 import kinuvo.protocol.plugin.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.usage.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -87,20 +88,20 @@ class RuntimeDependenciesTest {
         val actions = mutableListOf<String>()
         val first = object : HarnessPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runtimedependenciestest.1", "Test")
-            override suspend fun release(agentId: String) { actions += "release first"; error("Release failed") }
+            override suspend fun release(agentId: AgentId) { actions += "release first"; error("Release failed") }
             override suspend fun close() { actions += "close first"; yield(); error("Close failed") }
         }
         val second = object : HarnessPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runtimedependenciestest.2", "Test")
-            override suspend fun release(agentId: String) { actions += "release second" }
+            override suspend fun release(agentId: AgentId) { actions += "release second" }
             override suspend fun close() { actions += "close second"; yield() }
         }
         val owner = ServerResources(listOf(first, second, first)) { actions += "close network" }
-        assertFailsWith<IllegalStateException> { owner.release("test") }
+        assertFailsWith<IllegalStateException> { owner.release(AgentId("test")) }
         val closing = launch(start = CoroutineStart.UNDISPATCHED) { owner.close() }
         closing.cancelAndJoin()
         owner.close()
-        owner.release("test")
+        owner.release(AgentId("test"))
         assertEquals(listOf("release first", "release second", "close first", "close second", "close network"), actions)
     }
 
@@ -177,7 +178,7 @@ class RuntimeDependenciesTest {
     fun failedStartClosesResourcesAndCannotRestart() = runTest {
         var closes = 0
         val management = object : McpManagement by McpManagement.Unavailable {
-            override fun onSignInNeeded(listener: suspend (agentId: String, server: String) -> Unit) { error("Start failed") }
+            override fun onSignInNeeded(listener: suspend (agentId: AgentId, server: String) -> Unit) { error("Start failed") }
         }
         val plugin = object : HarnessPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runtimedependenciestest.3", "Test")

@@ -20,6 +20,8 @@ import kinuvo.protocol.agent.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.capability.*
 import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.ui.design.HarnessTheme
 import kotlinx.serialization.json.Json
 import org.jetbrains.skia.EncodedImageFormat
@@ -38,48 +40,48 @@ class HarnessScreenshotTest {
         ExecutionReadiness(true, false, "No such file", "not_found"))
     private val studio = HarnessConnectionStatus(HarnessConnection("studio", "Studio", ExecutionConnection.Remote("studio"), "Studio"),
         ExecutionReadiness(true, false, "Remote Server unavailable", "host_offline"))
-    private val kinuvo = AgentInfo("main", "Kinuvo", "host")
-    private val reviewer = AgentInfo("reviewer", "Reviewer", "external", "Coral Bloom", ExecutionKind.Acp, "codex", server, codex.readiness)
-    private val builder = AgentInfo("builder", "Builder", "external", "Sky Peak", ExecutionKind.Acp, "claude", server, claude.readiness)
+    private val kinuvo = AgentInfo(AgentId("main"), "Kinuvo", "host")
+    private val reviewer = AgentInfo(AgentId("reviewer"), "Reviewer", "external", "Coral Bloom", ExecutionKind.Acp, "codex", server, codex.readiness)
+    private val builder = AgentInfo(AgentId("builder"), "Builder", "external", "Sky Peak", ExecutionKind.Acp, "claude", server, claude.readiness)
     private val agents = listOf(kinuvo, builder, reviewer)
     private val catalog = ExecutionCatalog(listOf(claude, codex, gemini, studio), listOf(
-        AgentRegistration("milo", "Milo", "studio", remoteAgentId = "milo"),
-        AgentRegistration("builder", "Builder", "claude", cwd = "/Users/fer/dev/kinuvo"), AgentRegistration("reviewer", "Reviewer", "codex", cwd = "/Users/fer/dev/kinuvo")))
+        AgentRegistration(AgentId("milo"), "Milo", "studio", remoteAgentId = "milo"),
+        AgentRegistration(AgentId("builder"), "Builder", "claude", cwd = "/Users/fer/dev/kinuvo"), AgentRegistration(AgentId("reviewer"), "Reviewer", "codex", cwd = "/Users/fer/dev/kinuvo")))
     private val harnesses = HarnessesState(catalog)
 
     private fun settings(route: Route.Settings, acp: AcpForm? = null) =
         SettingsUi(SettingsState(route, harnesses = harnesses, acp = acp), agents, capabilities = capabilities, serverName = server)
 
     @Test fun renderSettings() {
-        render("harness-settings-list-desktop", 1200, 760) { theme { SettingsContent(settings(Route.Settings("main", SettingsSection.Harnesses)), SettingsActions()) } }
+        render("harness-settings-list-desktop", 1200, 760) { theme { SettingsContent(settings(Route.Settings(AgentId("main"), SettingsSection.Harnesses)), SettingsActions()) } }
         render("harness-settings-detail-phone", 390, 844) {
-            theme { SettingsContent(settings(Route.Settings("main", SettingsSection.Harnesses, "codex")), SettingsActions(), sidebar = false) }
+            theme { SettingsContent(settings(Route.Settings(AgentId("main"), SettingsSection.Harnesses, "codex")), SettingsActions(), sidebar = false) }
         }
         val form = AcpForm(name = "Codex", command = "codex-acp", args = listOf("--profile", "work"), environment = listOf("CODEX_HOME" to "/Users/test/.codex-work"))
         val probed = form.copy(probe = ExecutionProbe(ExecutionReadiness(true, false, "Not signed in", "needs_sign_in"), "Codex", "0.9.2", authenticated = false,
             Json.parseToJsonElement("""[{"id":"chatgpt","name":"ChatGPT account"},{"id":"api","name":"API key"}]""")), probed = form.acp)
         render("harness-settings-acp-form-phone", 390, 844) {
-            theme { SettingsContent(settings(Route.Settings("main", SettingsSection.Harnesses, editing = true), probed), SettingsActions(), sidebar = false) }
+            theme { SettingsContent(settings(Route.Settings(AgentId("main"), SettingsSection.Harnesses, editing = true), probed), SettingsActions(), sidebar = false) }
         }
         render("harness-settings-acp-form-unchecked-phone", 390, 700) {
-            theme { SettingsContent(settings(Route.Settings("main", SettingsSection.Harnesses, editing = true), AcpForm(name = "Gemini", command = "gemini --acp")), SettingsActions(), sidebar = false) }
+            theme { SettingsContent(settings(Route.Settings(AgentId("main"), SettingsSection.Harnesses, editing = true), AcpForm(name = "Gemini", command = "gemini --acp")), SettingsActions(), sidebar = false) }
         }
         render("harness-settings-link-phone", 390, 760) {
-            theme { SettingsContent(settings(Route.Settings("main", SettingsSection.Harnesses, LinkItem, editing = true)).let {
+            theme { SettingsContent(settings(Route.Settings(AgentId("main"), SettingsSection.Harnesses, LinkItem, editing = true)).let {
                 it.copy(state = it.state.copy(link = LinkForm("Studio", "https://studio.example.com", "4f1c…")))
             }, SettingsActions(), sidebar = false) }
         }
         render("harness-settings-share-phone", 390, 760) {
-            theme { SettingsContent(settings(Route.Settings("main", SettingsSection.Harnesses, ShareItem, editing = true)).let {
-                it.copy(state = it.state.copy(share = ShareForm("Studio", setOf("main", "builder")), grants = listOf(ExposureGrant("laptop", setOf("main")))))
+            theme { SettingsContent(settings(Route.Settings(AgentId("main"), SettingsSection.Harnesses, ShareItem, editing = true)).let {
+                it.copy(state = it.state.copy(share = ShareForm("Studio", setOf(AgentId("main"), AgentId("builder"))), grants = listOf(ExposureGrant("laptop", setOf(AgentId("main"))))))
             }, SettingsActions(), sidebar = false) }
         }
         render("harness-settings-share-code-phone", 390, 760) {
-            theme { SettingsContent(settings(Route.Settings("main", SettingsSection.Harnesses, ShareItem, editing = true)).let {
-                it.copy(state = it.state.copy(share = ShareForm("Studio", setOf("main", "builder"), "0f9c2e7a1b4d4e8f9a6b3c2d1e0f9a8b7c6d5e4f", "studio"), grants = listOf(ExposureGrant("studio", setOf("main", "builder")))))
+            theme { SettingsContent(settings(Route.Settings(AgentId("main"), SettingsSection.Harnesses, ShareItem, editing = true)).let {
+                it.copy(state = it.state.copy(share = ShareForm("Studio", setOf(AgentId("main"), AgentId("builder")), "0f9c2e7a1b4d4e8f9a6b3c2d1e0f9a8b7c6d5e4f", "studio"), grants = listOf(ExposureGrant("studio", setOf(AgentId("main"), AgentId("builder"))))))
             }, SettingsActions(), sidebar = false) }
         }
-        val overview = SettingsUi(SettingsState(Route.Settings("reviewer", SettingsSection.Overview), AgentConfig(details(reviewer)), harnesses = harnesses), agents,
+        val overview = SettingsUi(SettingsState(Route.Settings(AgentId("reviewer"), SettingsSection.Overview), AgentConfig(details(reviewer)), harnesses = harnesses), agents,
             capabilities = capabilities, serverName = server)
         render("harness-settings-overview-acp-phone", 390, 844) { theme { SettingsContent(overview, SettingsActions(), sidebar = false) } }
     }
@@ -95,8 +97,8 @@ class HarnessScreenshotTest {
         val phone = start.copy(server = "this device", connections = emptyList())
         render("harness-new-agent-where-embedded-390", 390, 844) { theme { OnboardingContent(phone, onClose = {}, harness = { choose(phone, false) }) } }
         val remote = start.choose(HarnessChoice.Remote("studio")).copy(step = PickStep, registrations = catalog.agents,
-            shared = listOf(AgentInfo("ada", "Ada", "host", "Mint Pill"), AgentInfo("research", "Kinuvo", "host", "Honey Star"), AgentInfo("milo", "Milo", "host", "Berry Orb")),
-            picked = setOf("ada"))
+            shared = listOf(AgentInfo(AgentId("ada"), "Ada", "host", "Mint Pill"), AgentInfo(AgentId("research"), "Kinuvo", "host", "Honey Star"), AgentInfo(AgentId("milo"), "Milo", "host", "Berry Orb")),
+            picked = setOf(AgentId("ada")))
         render("harness-new-agent-pick-remote-390", 390, 844) {
             theme { OnboardingContent(remote, action = OnboardingAction("Add 1 Agent"), onClose = {}, pick = { PickAgents(remote) {} }) }
         }
@@ -111,7 +113,7 @@ class HarnessScreenshotTest {
 
     @Test fun renderInspector() {
         val details = details(reviewer)
-        val state = InspectorState("reviewer", details = details, draft = AgentDraft.of(details).copy(cwd = "/Users/fer/dev/other"), connection = codex)
+        val state = InspectorState(AgentId("reviewer"), details = details, draft = AgentDraft.of(details).copy(cwd = "/Users/fer/dev/other"), connection = codex)
         val host = InspectorHost(agents, capabilities, server)
         render("harness-inspector-acp", 368, 900) { theme { AgentInspectorContent(state, host, InspectorActions(), sheet = false) } }
         render("harness-inspector-acp-sheet-phone", 390, 844) { theme(touch = true) { AgentInspectorContent(state, host, InspectorActions(), sheet = true) } }
@@ -120,10 +122,10 @@ class HarnessScreenshotTest {
     @Test fun renderSession() {
         val approval = PendingInteraction.HarnessApproval("p1", "Run ./kotlin build", "In /Users/fer/dev/kinuvo",
             listOf(ExternalApprovalOption("once", "Allow once", "allow_once"), ExternalApprovalOption("always", "Always allow here", "allow_always"), ExternalApprovalOption("no", "Reject", "reject_once")))
-        val form = PendingInteraction.Questions("q1", "t1", "Which branch should I review?", listOf(
+        val form = PendingInteraction.Questions("q1", ToolCallId("t1"), "Which branch should I review?", listOf(
             Question("branch", "Branch", QuestionKind.Single, listOf("main", "acp-v2"), required = true),
             Question("fix", "Fix lint too?", QuestionKind.YesNo, default = listOf("Yes"))))
-        val base = ChatState(agent = builder, harness = "Claude Code", selected = "s1", loaded = true, running = true, defaults = AgentSettings("", "", "", "external"),
+        val base = ChatState(agent = builder, harness = "Claude Code", selected = SessionId("s1"), loaded = true, running = true, defaults = AgentSettings("", "", "", "external"),
             capabilities = SessionCapabilities(server = capabilities),
             items = listOf(ChatItem.User("u1", "Review the open PR and fix lint."), ChatItem.Assistant("a1", "Looking at the diff. I'll run the build first.")))
         render("harness-chat-approval-phone", 390, 844) { theme(touch = true) { ChatContent(base.copy(pending = listOf(approval)), ConnectionState.Connected("x"), null, ChatActions()) } }

@@ -110,7 +110,7 @@ private class RoutineRuns : ServerCommand("runs", "List the Sessions a Routine r
 
     override suspend fun run() {
         val page = session.call { client.call(Api.Sessions, SessionsParams(agentId(), limit = 20, routineId = id)) }
-        echo(table(listOf("SESSION", "STATUS"), page.sessions.map { listOf(it.id, it.status.name.lowercase()) }))
+        echo(table(listOf("SESSION", "STATUS"), page.sessions.map { listOf(it.id.value, it.status.name.lowercase()) }))
     }
 }
 
@@ -121,7 +121,7 @@ private fun describe(r: Routine): String = table(listOf("ID", r.id), listOfNotNu
     listOf("active hours", r.activeHours?.let { "${it.start}-${it.end}" } ?: "any time"),
     listOf("state", if (r.enabled) "on" else "paused"),
     listOf("next run", r.nextRunAt?.takeIf { r.enabled }?.let { time(it, r.timeZone) } ?: "-"),
-    listOf("session", r.sessionId ?: "new each run"),
+    listOf("session", r.sessionId?.value ?: "new each run"),
     listOf("approvals", r.approvals.name.lowercase()),
     r.lastRunAt?.let { listOf("last run", "${time(it, r.timeZone)} ${r.lastStatus?.name?.lowercase().orEmpty()}") },
     r.lastError?.let { listOf("last error", it) },

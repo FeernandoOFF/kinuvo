@@ -31,7 +31,7 @@ import kotlinx.coroutines.CancellationException
  * [loaded] turns true once the first catch-up arrived.
  */
 data class SessionData(
-    val agentId: String,
+    val agentId: AgentId,
     val firstSeq: Int = 0,
     val entries: List<SessionEntry> = emptyList(),
     val live: LiveState = LiveState(),
@@ -50,15 +50,15 @@ data class SessionData(
 data class SessionList(
     val sessions: List<SessionInfo> = emptyList(),
     val hasMore: Boolean = false,
-    val nextBefore: String? = null,
+    val nextBefore: SessionId? = null,
 )
 
 /** [finished] holds Sessions whose run ended while they weren't on screen. */
 data class RepositoryState(
-    val sessions: Map<String, SessionData> = emptyMap(),
-    val lists: Map<String, SessionList> = emptyMap(),
-    val skills: Map<String, List<SkillInfo>> = emptyMap(),
-    val finished: Set<String> = emptySet(),
+    val sessions: Map<SessionId, SessionData> = emptyMap(),
+    val lists: Map<AgentId, SessionList> = emptyMap(),
+    val skills: Map<AgentId, List<SkillInfo>> = emptyMap(),
+    val finished: Set<SessionId> = emptySet(),
 )
 
 /**
@@ -73,15 +73,15 @@ class SessionRepository(private val notifications: Notifications, internal val c
     private val scope get() = connection.scope
     private val client get() = connection.client
     private var attached: Job? = null
-    private val statuses = mutableMapOf<String, SessionStatus>()
+    private val statuses = mutableMapOf<SessionId, SessionStatus>()
     /** Cached Sessions, least recently viewed first. */
-    private val recent = mutableListOf<String>()
-    private val catchingUp = mutableSetOf<String>()
-    private val loadingLists = mutableSetOf<String>()
-    private val listChanges = mutableMapOf<String, MutableMap<String, SessionInfo>>()
-    private val replies = mutableSetOf<String>()
+    private val recent = mutableListOf<SessionId>()
+    private val catchingUp = mutableSetOf<SessionId>()
+    private val loadingLists = mutableSetOf<AgentId>()
+    private val listChanges = mutableMapOf<AgentId, MutableMap<SessionId, SessionInfo>>()
+    private val replies = mutableSetOf<SessionId>()
     private val completions = mutableSetOf<String>()
-    private var viewing: String? = null
+    private var viewing: SessionId? = null
 
     internal fun attach(client: KinuvoClient) {
         attached?.cancel()
@@ -95,20 +95,20 @@ class SessionRepository(private val notifications: Notifications, internal val c
     internal fun detach() { clear() }
 
     /** Shows what this Device last saw until the Server is reached; reconnecting catches the Sessions up from there. */
-    internal fun restore(lists: Map<String, SessionList>, sessions: Map<String, CachedSession>) {
+    internal fun restore(lists: Map<AgentId, SessionList>, sessions: Map<SessionId, CachedSession>) {
         recent += sessions.keys
         state.value = RepositoryState(lists = lists,
             sessions = sessions.mapValues { (_, s) -> SessionData(s.agentId, s.firstSeq, s.entries, loaded = true, receivedAt = s.receivedAt) })
     }
 
     /** The cached Sessions, each with up to its last [MAX_SAVED] entries. */
-    internal fun saved(): Map<String, CachedSession> = state.value.sessions.filterValues { it.loaded }.mapValues { (_, d) ->
+    internal fun saved(): Map<SessionId, CachedSession> = state.value.sessions.filterValues { it.loaded }.mapValues { (_, d) ->
         val drop = (d.entries.size - MAX_SAVED).coerceAtLeast(0)
         CachedSession(d.agentId, d.firstSeq + drop, d.entries.drop(drop), d.receivedAt)
     }
 
     /** [sessionId] is on screen (null: a new Session): keeps it cached and subscribed, and clears its finished mark. */
-    fun view(agentId: String, sessionId: String?) = scope.launch {
+    fun view(agentId: AgentId, sessionId: SessionId?) = scope.launch {
         viewing = sessionId
         if (sessionId == null) return@launch
         state.update { it.copy(finished = it.finished - sessionId) }
@@ -118,11 +118,11 @@ class SessionRepository(private val notifications: Notifications, internal val c
             put(sessionId, SessionData(agentId))
             catchUp(sessionId)
         }
-        while (recent.size > MAX_CACHED) evict(recent.first())
+        while (recent.size > MAX_CACHED) evict(SessionId(recent.first().value))
     }
 
     /** Loads the first page of [agentId]'s Sessions, or with [more] the next one. */
-    fun loadSessions(agentId: String, more: Boolean = false) = scope.launch {
+    fun loadSessions(agentId: AgentId, more: Boolean = false) = scope.launch {
         val client = client ?: return@launch
         val list = state.value.lists[agentId] ?: SessionList()
         if ((more && !list.hasMore) || !loadingLists.add(agentId)) return@launch
@@ -133,9 +133,9 @@ class SessionRepository(private val notifications: Notifications, internal val c
             val changes = listChanges.remove(agentId).orEmpty()
             page.sessions.filterNot { it.id in changes }.forEach { statuses[it.id] = it.status }
             val loaded = if (more) state.value.lists[agentId]?.sessions.orEmpty() + page.sessions else page.favorites + page.sessions
-            val sessions = (loaded.filterNot { it.id in changes } + changes.values.filter { it.inChats }).distinctBy { it.id }.sortedWith(SessionOrder)
+            val sessions = (loaded.filterNot { it.id in changes } + changes.values.filter { it.inChats }).distinctBy { it.id.value }.sortedWith(SessionOrder)
             val nextBefore = page.sessions.lastOrNull()?.id.takeIf { page.hasMore }
-            state.update { it.copy(lists = it.lists + (agentId to SessionList(sessions, page.hasMore, nextBefore))) }
+            state.update { it.copy(lists = it.lists + (agentId to SessionList(sessions, page.hasMore, nextBefore?.value?.let(::SessionId)))) }
         } catch (e: Exception) {
             if (e is CancellationException) throw e
         } finally {
@@ -146,13 +146,13 @@ class SessionRepository(private val notifications: Notifications, internal val c
         }
     }
 
-    fun loadSkills(agentId: String) = scope.launch {
+    fun loadSkills(agentId: AgentId) = scope.launch {
         val skills = catching { client?.call(Api.Skills, AgentRef(agentId)) }.getOrNull() ?: return@launch
         state.update { it.copy(skills = it.skills + (agentId to skills)) }
     }
 
     /** Prepends the page of entries before the cached window. */
-    fun loadOlder(sessionId: String) = scope.launch {
+    fun loadOlder(sessionId: SessionId) = scope.launch {
         val client = client ?: return@launch
         val data = state.value.sessions[sessionId]?.takeIf { it.hasOlder && !it.loadingOlder } ?: return@launch
         put(sessionId, data.copy(loadingOlder = true))
@@ -162,23 +162,23 @@ class SessionRepository(private val notifications: Notifications, internal val c
             else now.copy(firstSeq = page.first().seq, entries = page.map { it.entry } + now.entries, loadingOlder = false))
     }
 
-    suspend fun createSession(agentId: String): SessionInfo = call { it.call(Api.CreateSession, AgentRef(agentId)) }
+    suspend fun createSession(agentId: AgentId): SessionInfo = call { it.call(Api.CreateSession, AgentRef(agentId)) }
 
-    suspend fun send(agentId: String, sessionId: String, text: String, attachments: List<String> = emptyList(), voice: Boolean = false, submissionId: String? = null, action: SurfaceAction? = null) =
+    suspend fun send(agentId: AgentId, sessionId: SessionId, text: String, attachments: List<String> = emptyList(), voice: Boolean = false, submissionId: String? = null, action: SurfaceAction? = null) =
         call { it.call(Api.Send, SendParams(agentId, sessionId, text, attachments, voice, submissionId, action)) }
 
-    suspend fun update(agentId: String, sessionId: String, title: String? = null, favorite: Boolean? = null) =
+    suspend fun update(agentId: AgentId, sessionId: SessionId, title: String? = null, favorite: Boolean? = null) =
         call { it.call(Api.UpdateSession, UpdateSessionParams(agentId, sessionId, title, favorite)) }.also(::onChanged)
 
-    suspend fun resume(sessionId: String) = call { it.call(Api.ResumeExecution, ExecutionRef(sessionId)) }
+    suspend fun resume(sessionId: SessionId) = call { it.call(Api.ResumeExecution, ExecutionRef(sessionId.value)) }
 
-    suspend fun close(sessionId: String) = call { it.call(Api.CloseExecution, ExecutionRef(sessionId)) }
+    suspend fun close(sessionId: SessionId) = call { it.call(Api.CloseExecution, ExecutionRef(sessionId.value)) }
 
     /** Answers the pending request [requestId]; false when another Device answered first or it is gone. */
-    suspend fun respond(sessionId: String, requestId: String, answer: InteractionAnswer): Boolean =
+    suspend fun respond(sessionId: SessionId, requestId: String, answer: InteractionAnswer): Boolean =
         call { it.call(Api.Respond, RespondParams(sessionId, requestId, answer)) }
 
-    suspend fun stop(sessionId: String) = call { it.call(Api.Stop, StopParams(sessionId)) }
+    suspend fun stop(sessionId: SessionId) = call { it.call(Api.Stop, StopParams(sessionId)) }
 
     private suspend fun <T> call(block: suspend (KinuvoClient) -> T): T =
         connection.call(block)
@@ -196,7 +196,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
                 event is AgentEvent.RunError || event is AgentEvent.ExecutionPhaseChanged && event.phase == ExecutionPhase.Lost -> replies -= id
                 event is AgentEvent.RunFinished && replies.remove(id) && data.live.executionPhase != ExecutionPhase.Lost && completions.add("$id:${event.runId}") -> {
                     notifications.post(Notice.RunFinished(update.agentId, id))
-                    if (id != viewing) state.update { it.copy(finished = it.finished + id) }
+                    if (id.value != viewing?.value) state.update { it.copy(finished = it.finished + id) }
                 }
             }
         }
@@ -227,7 +227,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         if (info.routine != null) {
             val before = statuses.put(info.id, info.status)
             if (before != SessionStatus.Waiting && info.status == SessionStatus.Waiting) notifications.post(Notice.ApprovalNeeded(info.agentId, info.id))
-            if (before != null && before != SessionStatus.Idle && info.status == SessionStatus.Idle && info.inChats && info.id != viewing) {
+            if (before != null && before != SessionStatus.Idle && info.status == SessionStatus.Idle && info.inChats && info.id.value != viewing?.value) {
                 state.update { it.copy(finished = it.finished + info.id) }
             }
             return
@@ -242,7 +242,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
                     connection.harnesses.state.value.catalog?.agents?.any { it.id == info.agentId } == true
                 if (external) return
                 notifications.post(Notice.RunFinished(info.agentId, info.id))
-                if (info.id != viewing) state.update { it.copy(finished = it.finished + info.id) }
+                if (info.id.value != viewing?.value) state.update { it.copy(finished = it.finished + info.id) }
                 // A run may have created or edited Skills.
                 if (info.agentId in state.value.skills) loadSkills(info.agentId)
             }
@@ -251,7 +251,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
     }
 
     /** Subscribes to [sessionId] from what's held, or a fresh window when nothing is. */
-    private suspend fun catchUp(sessionId: String) {
+    private suspend fun catchUp(sessionId: SessionId) {
         val client = client ?: return
         val data = state.value.sessions[sessionId] ?: return
         if (!catchingUp.add(sessionId)) return
@@ -271,7 +271,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         state.value.skills.keys.forEach { loadSkills(it) }
     }
 
-    private fun evict(sessionId: String) {
+    private fun evict(sessionId: SessionId) {
         recent -= sessionId
         state.update { it.copy(sessions = it.sessions - sessionId) }
         val client = client ?: return
@@ -292,7 +292,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
     }
 
     /** [received]: [data] holds what just arrived live, so its new replies get this Device's receipt time; history keeps none. */
-    private fun put(sessionId: String, data: SessionData, received: Boolean = false) =
+    private fun put(sessionId: SessionId, data: SessionData, received: Boolean = false) =
         state.update { it.copy(sessions = it.sessions + (sessionId to if (received) data.withReceiptTimes(it.sessions[sessionId]) else data)) }
 
     private companion object {
@@ -324,16 +324,16 @@ private fun SessionData.chatItems(): List<ChatItem> {
             is SessionEntry.VoiceCall -> items += ChatItem.VoiceCall(entry.id, entry.turns, entry.startedAt, entry.durationMillis)
             is SessionEntry.AssistantMessage -> items += ChatItem.Assistant(key(entry.messageId?.let { "text-$it" }, seq), entry.text, at = entry.writtenAt)
             is SessionEntry.Reasoning -> items += ChatItem.Reasoning(key((entry.messageId ?: entry.id)?.let { "reasoning-$it" }, seq), entry.text)
-            is SessionEntry.ToolCall -> items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id, entry.name, entry.args, identity = entry.identity)
+            is SessionEntry.ToolCall -> items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id.value, entry.name, entry.args, identity = entry.identity)
             is SessionEntry.ToolResult -> {
-                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == entry.id && it.result == null }
+                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == entry.id.value && it.result == null }
                 if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(result = entry.output, isError = entry.isError, attachments = entry.attachments, app = entry.app, appResult = entry.appResult)
-                else items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id, entry.name, "", entry.output, entry.isError, identity = entry.identity, attachments = entry.attachments, app = entry.app, appResult = entry.appResult)
+                else items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id.value, entry.name, "", entry.output, entry.isError, identity = entry.identity, attachments = entry.attachments, app = entry.app, appResult = entry.appResult)
             }
             is SessionEntry.Measurement -> items += ChatItem.Measurement(key("metrics-${entry.metrics.id}", seq), entry.metrics)
             is SessionEntry.Reflection -> items += ChatItem.Reflection(key("reflection-${entry.id}", seq), entry.result, reviews, revised)
             is SessionEntry.Compaction -> items += ChatItem.Compaction(key(null, seq), entry.summary)
-            is SessionEntry.ToolReport -> items += ChatItem.ToolReport(key(null, seq), entry.tool, entry.callId, entry.content)
+            is SessionEntry.ToolReport -> items += ChatItem.ToolReport(key(null, seq), entry.tool, entry.callId?.value, entry.content)
             is SessionEntry.Activation -> items += ChatItem.Activation(key(null, seq), entry.name, entry.content)
             is SessionEntry.ReflectionReview -> entry.result?.takeIf { it.proposals.isNotEmpty() }?.let {
                 items += ChatItem.Reflection(key("reflection-review-${entry.proposalId}", seq), it, reviews, revised)
@@ -345,13 +345,13 @@ private fun SessionData.chatItems(): List<ChatItem> {
     live.pending.forEach { request ->
         when (request) {
             is PendingInteraction.Approval -> {
-                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
+                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId.value && it.result == null }
                 if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(approval = request)
                 // An MCP App's own tool call asks outside a run, with no call in the list yet.
-                else items += ChatItem.ToolCall(key("approval-${request.id}", -4), request.toolCallId, request.toolCallName, request.args, approval = request, identity = request.identity)
+                else items += ChatItem.ToolCall(key("approval-${request.id}", -4), request.toolCallId.value, request.toolCallName, request.args, approval = request, identity = request.identity)
             }
             is PendingInteraction.Questions -> {
-                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
+                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId.value && it.result == null }
                 if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(questions = request)
             }
             else -> Unit

@@ -31,7 +31,7 @@ internal class AcpReducer(private val state: ExecutionState,
         turn++
         active = true
         sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
-        sink.publish(AgentEvent.RunStarted(runId()))
+        sink.publish(AgentEvent.RunStarted(RunId(runId())))
     }
 
     suspend fun submitted() = queue.withLock { check(!lost); start() }
@@ -73,11 +73,11 @@ internal class AcpReducer(private val state: ExecutionState,
                 JsonObject(fields + ("content" to JsonArray(content + listOfNotNull(raw["content"]))))
             } else JsonObject(fields)
             tools[source] = merged
-            put(SessionEntry.ToolCall(local, merged.string("title") ?: "Tool", merged["rawInput"]?.toString().orEmpty()))
+            put(SessionEntry.ToolCall(ToolCallId(local), merged.string("title") ?: "Tool", merged["rawInput"]?.toString().orEmpty()))
             val status = merged.string("status")
             if (status in setOf("completed", "failed", "cancelled") || "rawOutput" in merged || "content" in raw) {
                 val media = media(merged["content"])
-                put(SessionEntry.ToolResult(local, merged.string("title") ?: "Tool",
+                put(SessionEntry.ToolResult(ToolCallId(local), merged.string("title") ?: "Tool",
                     merged["rawOutput"]?.let { (it as? JsonPrimitive)?.content ?: it.toString() } ?: text(merged["content"]),
                     status in setOf("failed", "cancelled"), media))
             }
@@ -97,7 +97,7 @@ internal class AcpReducer(private val state: ExecutionState,
                 val mediaId = "$local:media"
                 val previousMedia = entries[SessionEntryIdentity("tool_result", mediaId)] as? SessionEntry.ToolResult
                 val combined = if (kind.endsWith("_chunk")) (previousMedia?.attachments.orEmpty() + attachments).distinctBy { it.id } else attachments
-                put(SessionEntry.ToolResult(mediaId, "Attachment", "", attachments = combined))
+                put(SessionEntry.ToolResult(ToolCallId(mediaId), "Attachment", "", attachments = combined))
             }
         }
     }
@@ -112,7 +112,7 @@ internal class AcpReducer(private val state: ExecutionState,
         val batch = entries.values.toList()
         sink.commit(if (interrupted) listOf(SessionEntry.Notice("${runId()}:interrupted", "interrupted",
             "The harness stopped this turn ($reason).", batch)) else batch)
-        sink.publish(if (interrupted) AgentEvent.RunError(runId(), "The harness stopped this turn ($reason).") else AgentEvent.RunFinished(runId()))
+        sink.publish(if (interrupted) AgentEvent.RunError(RunId(runId()), "The harness stopped this turn ($reason).") else AgentEvent.RunFinished(RunId(runId())))
         sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
         state.update(ExecutionPhase.Idle, reason)
         finalized.putAll(currentSources)

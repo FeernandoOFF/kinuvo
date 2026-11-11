@@ -16,6 +16,7 @@ import kinuvo.protocol.*
 import kinuvo.protocol.model.*
 import kinuvo.protocol.plugin.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kinuvo.client.KinuvoClient
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -30,7 +31,7 @@ import kinuvo.server.providers.ModelProvider
 import kinuvo.server.providers.ModelProviders
 
 class PluginsTest {
-    private val released = mutableListOf<String>()
+    private val released = mutableListOf<AgentId>()
 
     private val plugin = object : ProviderPlugin, TestModelProvider {
         override val definition = kinuvo.protocol.plugin.PluginDefinition("test.pluginstest.1", "Test")
@@ -45,7 +46,7 @@ class PluginsTest {
             override suspend fun execute(args: JsonObject) = "pong"
         }), listOf("half up"))
         override suspend fun instructions(agent: Agent) = InstructionSection("Fake", "Plugin section")
-        override suspend fun release(agentId: String) { released += agentId }
+        override suspend fun release(agentId: AgentId) { released += agentId }
     }
 
     @Test

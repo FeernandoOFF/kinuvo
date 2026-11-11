@@ -7,6 +7,7 @@ import kinuvo.protocol.mcp.*
 import kinuvo.protocol.model.*
 import kinuvo.protocol.plugin.*
 import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.SessionId
 /** The most characters an Artifact holds, so a plugin's [HarnessPlugin.readFile] needn't read more. */
 const val ARTIFACT_MAX_CHARS = 5_000_000
 
@@ -61,7 +62,7 @@ interface HarnessPlugin {
     suspend fun readFile(agent: Agent, path: String): String? = null
 
     /** Stops what the plugin runs for an Agent, e.g. after its settings changed or before it's deleted. */
-    suspend fun release(agentId: String) {}
+    suspend fun release(agentId: AgentId) {}
 
     suspend fun close() {}
 }
@@ -79,7 +80,7 @@ fun List<HarnessPlugin>.checkPluginInstances() {
 }
 
 /** One run: [sessionId] is the Session it runs in; [routine] is set for a Routine's run; [taskId] for a dispatched Task. */
-data class RunContext(val agent: Agent, val sessionId: String?, val routine: Routine? = null, val taskId: String? = null)
+data class RunContext(val agent: Agent, val sessionId: SessionId?, val routine: Routine? = null, val taskId: String? = null)
 
 data class PluginTools(
     val tools: List<Tool> = emptyList(),
@@ -94,8 +95,8 @@ data class PluginTools(
 data class InstructionSection(val title: String, val body: String)
 
 interface McpApps {
-    suspend fun resource(agentId: String, ref: McpAppRef): McpAppResource
-    suspend fun tool(agentId: String, ref: McpAppRef, name: String): Tool
+    suspend fun resource(agentId: AgentId, ref: McpAppRef): McpAppResource
+    suspend fun tool(agentId: AgentId, ref: McpAppRef, name: String): Tool
 }
 
 interface CustomEndpoints {

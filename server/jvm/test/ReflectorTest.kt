@@ -14,6 +14,7 @@ import kinuvo.protocol.Api
 import kinuvo.protocol.knowledge.KnowledgeChangeRef
 import kinuvo.protocol.knowledge.KnowledgeChangesParams
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
@@ -89,7 +90,7 @@ class ReflectorTest {
         assertEquals(conventions, saved.settings.conventions["markdown"])
         assertEquals(conventions + "\n", File(home, "conventions/markdown.md").readText())
         assertTrue(conventions !in harness.store.entries(agent.id, harness.newSession(agent).id).filterIsInstance<SessionEntry.Started>().single().instructions)
-        harness.reflect(agent, "s1", listOf(SessionEntry.UserMessage("My sister Ana is visiting")))
+        harness.reflect(agent, SessionId("s1"), listOf(SessionEntry.UserMessage("My sister Ana is visiting")))
         assertTrue(instructionsSeen.any { it.startsWith(kinuvo.protocol.reflection.DEFAULT_REFLECTION_PROMPT) && conventions in it && "Humans are profile." !in it })
         harness.runner(agent, session.id).run(session.id, "Hello").collect {}
         assertTrue(conventions !in toolDescriptions.last())
@@ -106,7 +107,7 @@ class ReflectorTest {
         assertEquals(custom, harness.saveKnowledgeSettings(settings).settings.reflectionPrompt)
         assertEquals(custom, harness.files.knowledgeConfig().reflectionPrompt)
         harness.docs.write(agent.id, kinuvo.harness.AgentDoc.Memory, "- Use concrete examples\n")
-        harness.reflect(agent, "s1", listOf(SessionEntry.UserMessage("I prefer concise replies")))
+        harness.reflect(agent, SessionId("s1"), listOf(SessionEntry.UserMessage("I prefer concise replies")))
         val instructions = instructionsSeen.last()
         assertTrue(instructions.startsWith(custom))
         assertTrue(instructionsSeen.any { "People are person notes." in it })
@@ -118,7 +119,7 @@ class ReflectorTest {
         val reset = harness.saveKnowledgeSettings(settings.copy(reflectionPrompt = kinuvo.protocol.reflection.DEFAULT_REFLECTION_PROMPT))
         assertEquals(null, reset.settings.reflectionPrompt)
         assertEquals(null, harness.files.knowledgeConfig().reflectionPrompt)
-        harness.reflect(agent, "s2", listOf(SessionEntry.UserMessage("My sister Ana is visiting")))
+        harness.reflect(agent, SessionId("s2"), listOf(SessionEntry.UserMessage("My sister Ana is visiting")))
         assertTrue(instructionsSeen.last().startsWith(kinuvo.protocol.reflection.DEFAULT_REFLECTION_PROMPT))
         assertEquals(null, harness.saveKnowledgeSettings(settings.copy(reflectionPrompt = "  ")).settings.reflectionPrompt)
     }
@@ -195,7 +196,7 @@ class ReflectorTest {
 
         val saved = harness.saveTasksSettings(kinuvo.protocol.board.TasksSettings(lists = mapOf("Inbox" to "default"), startBeforeDays = 7))
         assertEquals(7, saved.settings.startBeforeDays)
-        assertEquals("default", harness.tasks.lists().single().agentId)
+        assertEquals("default", harness.tasks.lists().single().agentId?.value)
         assertTrue(runCatching { harness.saveTasksSettings(kinuvo.protocol.board.TasksSettings(provider = "todoist")) }.isFailure)
         assertTrue(runCatching { harness.saveTasksSettings(kinuvo.protocol.board.TasksSettings(lists = mapOf("Inbox" to "ghost"))) }.isFailure)
         harness.saveTasksSettings(kinuvo.protocol.board.TasksSettings(lists = mapOf("Inbox" to "")))

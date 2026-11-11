@@ -24,14 +24,14 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
 
     suspend fun agents(): List<AgentInfo> = store.agents().map { it.info() }
 
-    suspend fun agent(id: String): Agent = store.agents().firstOrNull { it.id == id } ?: error("No agent '$id'")
+    suspend fun agent(id: AgentId): Agent = store.agents().firstOrNull { it.id == id } ?: error("No agent '$id'")
 
     suspend fun details(agent: Agent) = AgentDetails(
         agent.info(), agent.settings(), docs.read(agent.id, AgentDoc.Identity), docs.read(agent.id, AgentDoc.Soul), harness.trustRules.get(agent.id), docs.read(agent.id, AgentDoc.UserNotes),
     )
 
     suspend fun create(p: CreateAgentParams): AgentInfo = lock.withLock {
-        val agent = store.createAgent(p.agentId, p.cloneFrom?.let { agent(it) })
+        val agent = store.createAgent(p.agentId.value, p.cloneFrom?.let { agent(it) })
         runs.reopen(agent.id)
         p.name?.let { name -> docs.update(agent.id, AgentDoc.Identity) { titled(it, name) } }
         onAgentsChanged(agents())
@@ -102,7 +102,7 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
     }
 
     suspend fun delete(id: String) = lock.withLock {
-        val agent = agent(id)
+        val agent = agent(AgentId(id))
         check(store.agents().size > 1) { "Can't delete the only Agent" }
         check(runs.close(agent, sessionIds(agent))) { "Agent '$id' has an active run; stop it first" }
         try {
@@ -111,7 +111,7 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
             store.deleteAgent(agent)
             harness.mcp.removeAgent(agent.id)
         } catch (e: Exception) {
-            runs.reopen(id)
+            runs.reopen(AgentId(id))
             throw e
         }
         onAgentsChanged(agents())

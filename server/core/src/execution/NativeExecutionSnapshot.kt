@@ -9,10 +9,11 @@ import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.surface.*
+import kinuvo.protocol.agent.AgentId
 /** Uses the native log's atomic catch-up so persisted and live text retain their IDs. */
-suspend fun SessionLog.executionSnapshot(agent: Agent, id: String) = executionSnapshot(agent.id, id)
+suspend fun SessionLog.executionSnapshot(agent: Agent, id: SessionId) = executionSnapshot(agent.id, id)
 
-suspend fun SessionLog.executionSnapshot(agent: String, id: String): ExecutionSnapshot {
+suspend fun SessionLog.executionSnapshot(agent: AgentId, id: SessionId): ExecutionSnapshot {
     require(sessions(agent).any { it.id == id }) { "Session does not belong to source Agent" }
     session(agent, id)
     val messages = mutableListOf<ExecutionMessage>()

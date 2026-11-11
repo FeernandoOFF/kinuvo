@@ -110,7 +110,7 @@ class ServerSecurityTest {
             assertFalse(ordinary.connect().management)
             assertTrue(ordinary.call(Api.Agents, Unit).isNotEmpty())
             assertFails { ordinary.call(Api.Pairing, PairingParams(management = true)) }
-            assertFails { ordinary.call(Api.Respond, RespondParams("missing", "missing", InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
+            assertFails { ordinary.call(Api.Respond, RespondParams(SessionId("missing"), "missing", InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
             assertFails { ordinary.call(Api.LoginProvider, ProviderRef("codex")) }
             ordinary.rotateToken()
             val current = ordinary.call(Api.PairedDevices, Unit).single { it.current }
@@ -132,7 +132,7 @@ class ServerSecurityTest {
             val agent = harness.store.agents().first()
             val session = harness.newSession(agent).id
             val approval = harness.approvals.register()
-            harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Approval(approval.id, "call", "shell", "{}")))
+            harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Approval(approval.id, ToolCallId("call"), "shell", "{}")))
             val harnessAnswer = InteractionAnswer.Harness(kotlinx.serialization.json.JsonObject(mapOf("optionId" to kotlinx.serialization.json.JsonPrimitive("allow_once"))))
             assertFails { ordinary.call(Api.Respond, RespondParams(session, approval.id, harnessAnswer)) }
             assertFails { ordinary.call(Api.Respond, RespondParams(session, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
@@ -140,7 +140,7 @@ class ServerSecurityTest {
             approval.close()
 
             val form = harness.questions.register()
-            harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Questions(form.id, "ask", "Which?", emptyList())))
+            harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Questions(form.id, ToolCallId("ask"), "Which?", emptyList())))
             assertTrue(ordinary.call(Api.Respond, RespondParams(session, form.id, InteractionAnswer.Questions(null))))
             form.close()
         } finally { ordinary?.close(); owner.close(); server.stop() }

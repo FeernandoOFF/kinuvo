@@ -18,14 +18,14 @@ class LatestNotificationsTest {
             delivered.add(value)
         }
         val history = List(2000) { ExecutionMessage("m$it", "assistant", "history $it") }
-        notifications.offer("s", ExecutionSnapshot("s", messages = history))
+        notifications.offer("s", ExecutionSnapshot(SessionId("s"), messages = history))
         runCurrent()
         advanceTimeBy(33)
         runCurrent()
         repeat(5000) { token ->
-            notifications.offer("s", ExecutionSnapshot("s", ExecutionPhase.Running, history + ExecutionMessage("stream", "assistant", "$token")))
+            notifications.offer("s", ExecutionSnapshot(SessionId("s"), ExecutionPhase.Running, history + ExecutionMessage("stream", "assistant", "$token")))
         }
-        val pending = ExecutionSnapshot("s", ExecutionPhase.RequiresAction, history + ExecutionMessage("stream", "assistant", "4999"), listOf(PendingInteraction.Unsupported("approval", "Unsupported")))
+        val pending = ExecutionSnapshot(SessionId("s"), ExecutionPhase.RequiresAction, history + ExecutionMessage("stream", "assistant", "4999"), listOf(PendingInteraction.Unsupported("approval", "Unsupported")))
         notifications.offer("s", pending)
         gate.complete(Unit)
         runCurrent()

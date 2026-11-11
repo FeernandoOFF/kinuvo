@@ -86,7 +86,7 @@ class HarnessRepository(internal val connection: ConnectedServer) {
     suspend fun discover(linkId: String) = connection.call { it.call(Api.DiscoverRemote, ExecutionRef(linkId)) }.agents
 
     /** A link code another Server uses to run [agentIds]; making one again under [id] revokes the old one. */
-    suspend fun share(id: String, agentIds: Set<String>) = connection.call { it.call(Api.GrantExecution, ExposureGrant(id, agentIds)) }
+    suspend fun share(id: String, agentIds: Set<AgentId>) = connection.call { it.call(Api.GrantExecution, ExposureGrant(id, agentIds)) }
 
     suspend fun revoke(id: String) = connection.call { it.call(Api.RevokeExecution, ExecutionRef(id)) }
 

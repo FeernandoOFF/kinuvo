@@ -206,7 +206,7 @@ data class LinkForm(val name: String = "", val url: String = "", val token: Stri
 }
 
 /** Agents this Server shares with another one, as one link code; [token] is shown once, after it's made. */
-data class ShareForm(val name: String = "", val agents: Set<String> = emptySet(), val token: String? = null, val id: String? = null) {
+data class ShareForm(val name: String = "", val agents: Set<AgentId> = emptySet(), val token: String? = null, val id: String? = null) {
     fun problems(): List<String> = buildList {
         if (name.isBlank()) add("Say who it's for, e.g. the other Server's name")
         if (agents.isEmpty()) add("Pick at least one Agent")

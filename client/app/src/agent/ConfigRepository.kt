@@ -27,7 +27,7 @@ data class AgentConfig(val details: AgentDetails? = null, val skills: List<Skill
 /** The connected Server's [AgentConfig]s, reloaded after every change made here. */
 class ConfigRepository(internal val connection: ConnectedServer) {
     /** By Agent ID. */
-    val state: StateFlow<Map<String, AgentConfig>>
+    val state: StateFlow<Map<AgentId, AgentConfig>>
         field = MutableStateFlow(emptyMap())
 
     /** Whether a Server is connected now; screens load what they need when it turns true. */
@@ -41,7 +41,7 @@ class ConfigRepository(internal val connection: ConnectedServer) {
     private val scope get() = connection.scope
     private val client get() = connection.client
     private var attached: Job? = null
-    private val revisions = mutableMapOf<String, Long>()
+    private val revisions = mutableMapOf<AgentId, Long>()
 
     internal fun attach(client: KinuvoClient) {
         clear()
@@ -60,14 +60,14 @@ class ConfigRepository(internal val connection: ConnectedServer) {
     internal fun detach() { clear() }
 
     /** Also reloads [agentId] after every reconnect, even if this first load fails. */
-    fun load(agentId: String) = scope.launch {
+    fun load(agentId: AgentId) = scope.launch {
         edit(agentId) { it }
         loadDetails(agentId).join()
         loadSkills(agentId)
         loadMcp(agentId)
     }
 
-    fun loadDetails(agentId: String) = scope.launch {
+    fun loadDetails(agentId: AgentId) = scope.launch {
         edit(agentId) { it }
         val revision = revise(agentId)
         catching { call { it.call(Api.Agent, AgentRef(agentId)) } }.onSuccess { details ->
@@ -75,7 +75,7 @@ class ConfigRepository(internal val connection: ConnectedServer) {
         }
     }
 
-    suspend fun details(agentId: String) = call { it.call(Api.Agent, AgentRef(agentId)) }
+    suspend fun details(agentId: AgentId) = call { it.call(Api.Agent, AgentRef(agentId)) }
 
     private fun offered(providers: List<ProviderInfo>) = providers.filter { connection.offers(it.id) }
 
@@ -104,12 +104,12 @@ class ConfigRepository(internal val connection: ConnectedServer) {
     suspend fun serverRules() = call { it.call(Api.ServerRules, Unit) }
     suspend fun saveServerRules(rules: TrustRules) = call { it.call(Api.SaveServerRules, rules) }
 
-    suspend fun deleteAgent(agentId: String) = connection.run {
+    suspend fun deleteAgent(agentId: AgentId) = connection.run {
         call { it.call(Api.DeleteAgent, AgentRef(agentId)) }
         state.update { it - agentId }
     }
 
-    suspend fun skill(agentId: String, name: String, scope: ConfigScope?) = call { it.call(Api.Skill, SkillParams(agentId, name, scope)) }
+    suspend fun skill(agentId: AgentId, name: String, scope: ConfigScope?) = call { it.call(Api.Skill, SkillParams(agentId, name, scope)) }
 
     suspend fun saveSkill(params: SaveSkillParams): SkillInfo = connection.run { call { it.call(Api.SaveSkill, params) }.also { loadSkills(params.agentId) } }
 
@@ -129,7 +129,7 @@ class ConfigRepository(internal val connection: ConnectedServer) {
 
     suspend fun loginMcp(params: McpLoginParams) = call { it.call(Api.LoginMcp, params) }
 
-    suspend fun completeMcpLogin(agentId: String, callbackUrl: String) = connection.run {
+    suspend fun completeMcpLogin(agentId: AgentId, callbackUrl: String) = connection.run {
         call { it.call(Api.CompleteMcpLogin, McpLoginCompleteParams(callbackUrl)) }
         loadMcp(agentId)
     }
@@ -168,19 +168,19 @@ class ConfigRepository(internal val connection: ConnectedServer) {
     suspend fun browseSecrets(scheme: String, path: List<String>) = call { it.call(Api.BrowseSecrets, BrowseSecretsParams(scheme, path)) }
     suspend fun refreshSecrets() = call { it.call(Api.RefreshSecrets, Unit) }
 
-    private suspend fun loadSkills(agentId: String) {
+    private suspend fun loadSkills(agentId: AgentId) {
         catching { call { it.call(Api.Skills, AgentRef(agentId)) } }.onSuccess { s -> edit(agentId) { it.copy(skills = s) } }
     }
 
-    suspend fun mcpServers(agentId: String) = call { it.call(Api.McpServers, AgentRef(agentId)) }
+    suspend fun mcpServers(agentId: AgentId) = call { it.call(Api.McpServers, AgentRef(agentId)) }
 
-    private suspend fun loadMcp(agentId: String) {
+    private suspend fun loadMcp(agentId: AgentId) {
         catching { call { it.call(Api.McpServers, AgentRef(agentId)) } }.onSuccess { m -> edit(agentId) { it.copy(mcp = m) } }
     }
 
-    private fun revise(agentId: String): Long = ((revisions[agentId] ?: 0) + 1).also { revisions[agentId] = it }
+    private fun revise(agentId: AgentId): Long = ((revisions[agentId] ?: 0) + 1).also { revisions[agentId] = it }
 
-    private fun edit(agentId: String, change: (AgentConfig) -> AgentConfig) = state.update { it + (agentId to change(it[agentId] ?: AgentConfig())) }
+    private fun edit(agentId: AgentId, change: (AgentConfig) -> AgentConfig) = state.update { it + (agentId to change(it[agentId] ?: AgentConfig())) }
 
     private suspend fun <T> call(block: suspend (KinuvoClient) -> T): T =
         connection.call(block)

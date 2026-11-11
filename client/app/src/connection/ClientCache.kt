@@ -13,7 +13,7 @@ import kotlinx.serialization.Serializable
 
 /** A Session's saved entries, from seq [firstSeq]; its live turn isn't kept. */
 @Serializable
-data class CachedSession(val agentId: String, val firstSeq: Int, val entries: List<SessionEntry>, val receivedAt: Map<String, Long> = emptyMap())
+data class CachedSession(val agentId: AgentId, val firstSeq: Int, val entries: List<SessionEntry>, val receivedAt: Map<String, Long> = emptyMap())
 
 /** What this Device last saw of one Server, shown before it connects and while it can't. [syncedAt] is in epoch milliseconds. */
 @Serializable
@@ -22,9 +22,9 @@ data class Snapshot(
     val protocol: Int = ProtocolVersion.Current,
     val agents: List<AgentInfo> = emptyList(),
     val capabilities: ServerCapabilities? = null,
-    val lists: Map<String, SessionList> = emptyMap(),
-    val sessions: Map<String, CachedSession> = emptyMap(),
-    val routines: Map<String, List<Routine>> = emptyMap(),
+    val lists: Map<AgentId, SessionList> = emptyMap(),
+    val sessions: Map<SessionId, CachedSession> = emptyMap(),
+    val routines: Map<AgentId, List<Routine>> = emptyMap(),
     val taskLists: List<TaskListInfo> = emptyList(),
     val tasks: List<TaskInfo>? = null,
 )

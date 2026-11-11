@@ -27,6 +27,8 @@ import kinuvo.ui.design.Popovers
 import kinuvo.ui.knowledge.KnowledgeScreen
 import org.koin.mp.KoinPlatform
 import platform.UIKit.UIViewController
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 /** The native shell and selected Compose hosts share this one app-scoped connection owner. */
 class NativeApp {
@@ -73,12 +75,14 @@ class NativeApp {
                     onSettings: (Route.Settings) -> Unit, onNavigate: (Route) -> Unit, onMenu: () -> Unit): NativeScreenHost = NativeScreenHost { life ->
         val client = requireNotNull((viewModel.state.value.connection as? Connection.Ready)?.client)
         val session = remember {
-            val route = agentId?.let(viewModel::lastView)?.takeIf { it.sessionId == sessionId } ?: Route.Chat(agentId, sessionId)
+            val agent = agentId?.let(::AgentId)
+            val chat = sessionId?.let(::SessionId)
+            val route = agent?.let(viewModel::lastView)?.takeIf { it.sessionId == chat } ?: Route.Chat(agent, chat)
             life.own(SessionViewModel(client, koin.get(), route, koin.get()))
         }
         val state by session.state.collectAsState()
         LaunchedEffect(state.route) { onResolved(state.route) }
-        ChatScreen(viewModel, session, false, rememberShellChrome(), onOpen = { onOpen(it.agentId, it.sessionId) },
+        ChatScreen(viewModel, session, false, rememberShellChrome(), onOpen = { onOpen(it.agentId?.value, it.sessionId?.value) },
             onSettings = { onSettings(Route.Settings(it)) }, onNavigate = onNavigate, onToggleShell = onMenu)
     }
 

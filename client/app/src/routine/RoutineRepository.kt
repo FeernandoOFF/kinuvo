@@ -18,14 +18,14 @@ import kotlinx.coroutines.withTimeoutOrNull
 /** The connected Server's Routines for every Agent shown, kept current from its events; finished runs become [Notice]s. */
 class RoutineRepository(private val notifications: Notifications, internal val connection: ConnectedServer) {
     /** Routines by Agent ID. */
-    val state: StateFlow<Map<String, List<Routine>>>
+    val state: StateFlow<Map<AgentId, List<Routine>>>
         field = MutableStateFlow(emptyMap())
 
-    val errors: StateFlow<Map<String, String>>
+    val errors: StateFlow<Map<AgentId, String>>
         field = MutableStateFlow(emptyMap())
 
-    private val requested = mutableSetOf<String>()
-    private val loads = mutableMapOf<String, Job>()
+    private val requested = mutableSetOf<AgentId>()
+    private val loads = mutableMapOf<AgentId, Job>()
 
     private val scope get() = connection.scope
     private var attached: Job? = null
@@ -42,12 +42,12 @@ class RoutineRepository(private val notifications: Notifications, internal val c
     internal fun detach() { clear() }
 
     /** Reloaded once connected, like those [load]ed. */
-    internal fun restore(routines: Map<String, List<Routine>>) {
+    internal fun restore(routines: Map<AgentId, List<Routine>>) {
         requested += routines.keys
         state.value = routines
     }
 
-    fun load(agentId: String) {
+    fun load(agentId: AgentId) {
         requested += agentId
         loads[agentId]?.cancel()
         loads[agentId] = scope.launch {
@@ -63,16 +63,16 @@ class RoutineRepository(private val notifications: Notifications, internal val c
         }
     }
 
-    suspend fun create(agentId: String, spec: RoutineSpec) = call { it.call(Api.CreateRoutine, CreateRoutineParams(agentId, spec)) }
+    suspend fun create(agentId: AgentId, spec: RoutineSpec) = call { it.call(Api.CreateRoutine, CreateRoutineParams(agentId, spec)) }
 
-    suspend fun update(agentId: String, routineId: String, spec: RoutineSpec) = call { it.call(Api.UpdateRoutine, UpdateRoutineParams(agentId, routineId, spec)) }
+    suspend fun update(agentId: AgentId, routineId: String, spec: RoutineSpec) = call { it.call(Api.UpdateRoutine, UpdateRoutineParams(agentId, routineId, spec)) }
 
-    suspend fun run(agentId: String, routineId: String) = call { it.call(Api.RunRoutine, RoutineParams(agentId, routineId)) }
+    suspend fun run(agentId: AgentId, routineId: String) = call { it.call(Api.RunRoutine, RoutineParams(agentId, routineId)) }
 
-    suspend fun remove(agentId: String, routineId: String) = call { it.call(Api.RemoveRoutine, RoutineParams(agentId, routineId)) }
+    suspend fun remove(agentId: AgentId, routineId: String) = call { it.call(Api.RemoveRoutine, RoutineParams(agentId, routineId)) }
 
     /** The newest Sessions [routineId] ran in. */
-    suspend fun runs(agentId: String, routineId: String): List<SessionInfo> =
+    suspend fun runs(agentId: AgentId, routineId: String): List<SessionInfo> =
         call { it.call(Api.Sessions, SessionsParams(agentId, limit = 20, routineId = routineId)).sessions }
 
     private suspend fun <T> call(block: suspend (KinuvoClient) -> T): T =

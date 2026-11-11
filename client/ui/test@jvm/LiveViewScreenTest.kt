@@ -13,6 +13,7 @@ import kinuvo.app.screen.LiveViewState
 import kinuvo.protocol.*
 import kinuvo.protocol.browser.*
 import kinuvo.protocol.screen.*
+import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.screen.*
 import kinuvo.ui.design.HarnessTheme
 import java.io.File
@@ -46,7 +47,7 @@ class LiveViewScreenTest {
         g.color = java.awt.Color(14,77,74); g.fillRoundRect(430,440,420,60,8,8)
         g.color = java.awt.Color.WHITE; g.drawString("Continue", 560,480); g.dispose()
         val bytes = java.io.ByteArrayOutputStream().also { javax.imageio.ImageIO.write(image,"png",it) }.toByteArray()
-        val owner = BrowserOwner("Fern")
+        val owner = BrowserOwner(AgentId("Fern"))
         val ref = ScreenRef("browser", "tab", owner)
         val previewRef = ref.copy(id = "preview")
         val missingRef = ref.copy(id = "missing")
@@ -106,7 +107,7 @@ class LiveViewScreenTest {
         }
     }
     @Test fun expandedBrowserHasNoExtraSidebarButtonAndKeepsOptionsInToolbar() = javax.swing.SwingUtilities.invokeAndWait {
-        val owner = BrowserOwner("agent")
+        val owner = BrowserOwner(AgentId("agent"))
         val ref = ScreenRef("browser", "one", owner)
         val info = ScreenInfo(ref, "Example", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap")), ScreenStatus.Ready)
         val state = LiveViewState(screens = listOf(info), selected = ref, owner = owner, connected = true, presentation = BrowserPresentation())
@@ -129,7 +130,7 @@ class LiveViewScreenTest {
     }
 
     @Test fun dockedBrowserBesideChat() = javax.swing.SwingUtilities.invokeAndWait {
-        val owner = BrowserOwner("Fern")
+        val owner = BrowserOwner(AgentId("Fern"))
         val ref = ScreenRef("browser", "tab", owner)
         val info = ScreenInfo(ref, "Cedar — Your account", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap"), navigation = true, tabs = true), ScreenStatus.Ready, active = true, currentUrl = "https://cedar.example/account")
         val state = LiveViewState(screens = listOf(info, info.copy(ref = ref.copy(id = "plans"), title = "Cedar — Plans", active = false)), selected = ref, connected = true, loaded = true, owner = owner)
@@ -203,7 +204,7 @@ class LiveViewScreenTest {
             return Base64.encode(java.io.ByteArrayOutputStream().also { javax.imageio.ImageIO.write(bitmap, "png", it) }.toByteArray())
         }
         for ((width, height) in listOf(390 to 844, 520 to 1100)) {
-            val owner = BrowserOwner("agent")
+            val owner = BrowserOwner(AgentId("agent"))
             val ref = ScreenRef("browser", "one", owner)
             val frame = ScreenFrame(ref, "sub", "epoch", 1, ScreenSample(image(1280, 800), 1280, 800, "initial"))
             val info = ScreenInfo(ref, "Cedar — Your account", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap", "type", "key"),
@@ -232,7 +233,7 @@ class LiveViewScreenTest {
 
     @OptIn(androidx.compose.ui.InternalComposeUiApi::class)
     @Test fun keyboardForwardsTextAndEditingKeysOnlyWhileInControl() = javax.swing.SwingUtilities.invokeAndWait {
-        val ref = ScreenRef("browser", "keyboard", BrowserOwner("agent"))
+        val ref = ScreenRef("browser", "keyboard", BrowserOwner(AgentId("agent")))
         val frame = ScreenFrame(ref, "sub", "epoch", 1, ScreenSample("", 1280, 800, "geometry"))
         val capabilities = ScreenCapabilities(ScreenDelivery.Continuous, setOf("type", "key"), keys = BrowserKeys, modifiers = BrowserModifiers)
         val info = ScreenInfo(ref, "Keyboard", capabilities, ScreenStatus.Ready, ScreenControl(1, "device"))

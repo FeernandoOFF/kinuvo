@@ -3,6 +3,7 @@ package kinuvo.app.home
 import kinuvo.protocol.board.*
 import kinuvo.protocol.routine.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -17,7 +18,7 @@ sealed interface Attention {
 }
 
 /** A Session running now: one the user started, a Task's run or a Routine's ([routine] when only the Routine says so). */
-data class Running(val agentId: String, val sessionId: String, val title: String, val session: SessionInfo? = null, val routine: Routine? = null)
+data class Running(val agentId: AgentId, val sessionId: SessionId, val title: String, val session: SessionInfo? = null, val routine: Routine? = null)
 
 /** A Routine's next run, [at] epoch ms. */
 data class Upcoming(val routine: Routine, val at: Long, val day: LocalDate)
@@ -53,10 +54,10 @@ data class Today(
         fun of(
             now: Long,
             zone: TimeZone,
-            sessions: Map<String, List<SessionInfo>>,
-            routines: Map<String, List<Routine>>,
+            sessions: Map<AgentId, List<SessionInfo>>,
+            routines: Map<AgentId, List<Routine>>,
             tasks: List<TaskInfo>?,
-            finished: Set<String> = emptySet(),
+            finished: Set<SessionId> = emptySet(),
         ): Today {
             val date = Instant.fromEpochMilliseconds(now).toLocalDateTime(zone).date
             val all = sessions.values.flatten().distinctBy { it.id }
@@ -66,8 +67,8 @@ data class Today(
             val running = all.filter { it.status == SessionStatus.Running }.sortedWith(SessionOrder)
                 .map { Running(it.agentId, it.id, it.title, session = it) }
             val routineRuns = routines.values.flatten()
-                .filter { it.lastStatus == RunStatus.Running && it.lastSessionId != null && running.none { r -> r.sessionId == it.lastSessionId } }
-                .map { Running(it.agentId, it.lastSessionId!!, it.name, routine = it) }
+                .filter { it.lastStatus == RunStatus.Running && it.lastSessionId != null && running.none { r -> r.sessionId.value == it.lastSessionId?.value } }
+                .map { Running(it.agentId, SessionId(it.lastSessionId!!.value), it.name, routine = it) }
             val next = routines.values.flatten()
                 .mapNotNull { r -> r.nextRunAt?.takeIf { r.enabled && it >= now - 60_000 }?.let { Upcoming(r, it, Instant.fromEpochMilliseconds(it).toLocalDateTime(zone).date) } }
                 .sortedBy { it.at }.take(NextRuns)
@@ -80,7 +81,7 @@ data class Today(
             val reported = routines.values.flatten()
                 .filter { (it.lastRunAt ?: 0) >= since && it.lastSessionId != null && it.lastStatus in setOf(RunStatus.Ok, RunStatus.Error, RunStatus.Stopped) }
                 .sortedByDescending { it.lastRunAt }.map { Outcome.RoutineRun(it) }
-            val finishedSessions = all.filter { it.id in finished && reported.none { r -> r.routine.lastSessionId == it.id } }.map { Outcome.Finished(it) }
+            val finishedSessions = all.filter { it.id in finished && reported.none { r -> r.routine.lastSessionId?.value == it.id.value } }.map { Outcome.Finished(it) }
             return Today(
                 date,
                 waiting.map { Attention.Waiting(it) } + waitingTasks.map { Attention.TaskWaiting(it) },

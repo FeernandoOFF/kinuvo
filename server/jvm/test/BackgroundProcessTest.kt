@@ -16,12 +16,13 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertTrue
 import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.session.ToolCallId
 
 class BackgroundProcessTest {
     @Test fun watchTimeoutKeepsOutput() = runBlocking {
         val executor = ToolService(listOf(ShellTool(backend)))
         try {
-            val result = executor.invoke(SessionEntry.ToolCall("watch", "shell", """{"command":"echo partial; sleep 30","watch":true,"timeout":1}"""))
+            val result = executor.invoke(SessionEntry.ToolCall(ToolCallId("watch"), "shell", """{"command":"echo partial; sleep 30","watch":true,"timeout":1}"""))
             assertTrue("[timed out after 1s]" in result.output && "partial" in result.output, result.output)
         } finally { backend.close() }
     }
@@ -30,12 +31,12 @@ class BackgroundProcessTest {
         val reports = Channel<SessionEntry.ToolReport>(Channel.UNLIMITED)
         val executor = ToolService(execTools(backend), reports = ToolReports(this) { reports.send(it) })
         try {
-            executor.invoke(SessionEntry.ToolCall("start", "shell", """{"command":"echo partial; sleep 30","background":true}"""))
+            executor.invoke(SessionEntry.ToolCall(ToolCallId("start"), "shell", """{"command":"echo partial; sleep 30","background":true}"""))
             delay(200)
-            executor.invoke(SessionEntry.ToolCall("kill", "process_kill", """{"id":"bg1"}"""))
+            executor.invoke(SessionEntry.ToolCall(ToolCallId("kill"), "process_kill", """{"id":"bg1"}"""))
             val report = withTimeout(10000) { reports.receive() }
             assertTrue("killed" in report.content, report.content)
-            assertTrue(report.callId == "start")
+            assertTrue(report.callId?.value == "start")
             delay(1200)
             assertTrue(reports.tryReceive().isFailure)
         } finally { backend.close() }
@@ -46,7 +47,7 @@ class BackgroundProcessTest {
         val reporter = ToolReports(this) { reports.send(it) }
         val executor = ToolService(listOf(ShellTool(backend)), reports = reporter)
         try {
-            val result = executor.invoke(SessionEntry.ToolCall("call", "shell", """{"command":"echo completed; exit 7","background":true}"""))
+            val result = executor.invoke(SessionEntry.ToolCall(ToolCallId("call"), "shell", """{"command":"echo completed; exit 7","background":true}"""))
             assertTrue(result.output.startsWith("Started"))
             val report = withTimeout(10000) { reports.receive() }
             assertTrue("exit 7" in report.content && "completed" in report.content, report.content)
@@ -64,7 +65,7 @@ class BackgroundProcessTest {
         val events = Channel<AgentEvent>(Channel.UNLIMITED)
         val executor = ToolService(listOf(ShellTool(backend)))
         try {
-            val call = async { executor.invoke(SessionEntry.ToolCall("watch", "shell", """{"command":"echo watching; while [ ! -e release ]; do sleep 0.05; done; echo done","watch":true}"""), ToolTurn(emit = { events.trySend(it) })) }
+            val call = async { executor.invoke(SessionEntry.ToolCall(ToolCallId("watch"), "shell", """{"command":"echo watching; while [ ! -e release ]; do sleep 0.05; done; echo done","watch":true}"""), ToolTurn(emit = { events.trySend(it) })) }
             withTimeout(30000) {
                 do {
                     val shown = events.receive().let { it is AgentEvent.ToolCallResult && "watching" in it.content }

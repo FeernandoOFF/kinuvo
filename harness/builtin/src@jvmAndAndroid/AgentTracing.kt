@@ -13,6 +13,9 @@ import io.opentelemetry.sdk.trace.data.SpanData
 import io.opentelemetry.sdk.trace.data.StatusData
 import io.opentelemetry.sdk.trace.export.SpanExporter
 import kinuvo.protocol.usage.RequestKind
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.RunId
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.io.files.Path
@@ -62,7 +65,7 @@ class FileTracing(private val traces: Path, private val limit: Int = 4 * 1024 * 
         }
     }
 
-    override fun install(context: GraphAIAgent.FeatureContext, agentId: String, sessionId: String, runId: String, kind: RequestKind) {
+    override fun install(context: GraphAIAgent.FeatureContext, agentId: AgentId, sessionId: SessionId, runId: RunId, kind: RequestKind) {
         val delegate = exporter()
         val privateExporter = object : SpanExporter {
             override fun export(spans: Collection<SpanData>) = delegate.export(spans.map { span ->

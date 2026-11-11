@@ -11,7 +11,7 @@ import kotlin.test.*
 class RemoteExecutionHistoryTest {
     @Test fun streamedNativeReplyCommitsBeforeCompletionAndAllowsAnotherTurn() = runTest {
         val saved = mutableListOf<SessionEntry>()
-        val state = ExecutionState("receiving", sink = object : ExecutionSink {
+        val state = ExecutionState(SessionId("receiving"), sink = object : ExecutionSink {
             override suspend fun publish(event: AgentEvent) {}
             override suspend fun commit(entries: List<SessionEntry>) { saved += entries }
         })
@@ -27,7 +27,7 @@ class RemoteExecutionHistoryTest {
             assertEquals(live.identity(), completed.single().identity())
             sink.commit(completed)
             assertTrue(state.live().entries.isEmpty())
-            sink.publish(AgentEvent.RunFinished("run-$turn"))
+            sink.publish(AgentEvent.RunFinished(RunId("run-$turn")))
             sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
             assertEquals(ExecutionPhase.Idle, state.snapshot().phase)
         }

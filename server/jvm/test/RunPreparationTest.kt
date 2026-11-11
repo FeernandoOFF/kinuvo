@@ -89,7 +89,7 @@ class RunPreparationTest {
         it.copy(config = it.config.copy(provider = "test", model = "tools", tools = tools))
     }
     private suspend fun inspect(harness: HarnessRuntime, agent: Agent, session: String? = null, settings: SessionSettings? = null) =
-        harness.capabilities(agent, session, settings, ServerCapabilities(harness.serverId, harness.features))
+        harness.capabilities(agent, session?.let(::SessionId), settings, ServerCapabilities(harness.serverId, harness.features))
 
     @Test
     fun builtInPluginToolsAreReportedAndDisabledGroupsAreAbsent() = runBlocking {
@@ -97,10 +97,10 @@ class RunPreparationTest {
         try {
             val agent = agent(harness, listOf("knowledge", "tasks", "run_code"))
             val session = harness.newSession(agent)
-            val reported = inspect(harness, agent, session.id).tools.map { it.identity!!.localId }.toSet()
+            val reported = inspect(harness, agent, session.id.value).tools.map { it.identity!!.localId }.toSet()
             assertEquals(setOf("knowledge", "knowledge_rewrite", "tasks", "run_code"), reported)
             harness.runner(agent, session.id).run(session.id, "hi").toList()
-            assertEquals(inspect(harness, agent, session.id).tools.map { it.id }.toSet(), seen.last().toSet())
+            assertEquals(inspect(harness, agent, session.id.value).tools.map { it.id }.toSet(), seen.last().toSet())
             assertEquals(emptyList(), inspect(harness, agent(harness)).tools)
         } finally { harness.close() }
     }
@@ -116,7 +116,7 @@ class RunPreparationTest {
             assertEquals(emptyList(), inspect(harness, agent(harness)).tools)
             val host = agent.copy(config = agent.config.copy(exec = "host", workspace = listOf(home.path)))
             val session = harness.newSession(host)
-            assertTrue(inspect(harness, host, session.id).tools.all { it.state.support == Support.Unknown })
+            assertTrue(inspect(harness, host, session.id.value).tools.all { it.state.support == Support.Unknown })
             harness.runner(host, session.id).run(session.id, "hi").toList()
             assertEquals(tools.map { it.id }.toSet(), seen.last().toSet())
         } finally { harness.close() }
@@ -148,21 +148,21 @@ class RunPreparationTest {
         try {
             val agent = agent(harness)
             val session = harness.newSession(agent)
-            assertEquals(Support.Unknown, inspect(harness, agent, session.id).tools.single().state.support)
+            assertEquals(Support.Unknown, inspect(harness, agent, session.id.value).tools.single().state.support)
             assertFalse(marker.exists())
             harness.runner(agent, session.id).run(session.id, "hi").toList()
             assertEquals(listOf("echo"), seen.last())
-            val cached = inspect(harness, agent, session.id).tools.single()
+            val cached = inspect(harness, agent, session.id.value).tools.single()
             assertEquals(seen.last().single(), cached.id)
             assertEquals(Support.Supported, cached.state.support)
             assertEquals(1, marker.readLines().size)
             harness.configure(agent, session.id, SessionSettings(model = "limited"))
-            assertEquals(Support.Unsupported, inspect(harness, agent, session.id).tools.single().state.support)
+            assertEquals(Support.Unsupported, inspect(harness, agent, session.id.value).tools.single().state.support)
             harness.runner(agent, session.id).run(session.id, "hi").toList()
             assertEquals(emptyList(), seen.last())
             assertEquals(1, marker.readLines().size)
             home.resolve("mcp.json").writeText("""{"mcpServers":{}}""")
-            assertEquals(emptyList(), inspect(harness, agent, session.id).tools)
+            assertEquals(emptyList(), inspect(harness, agent, session.id.value).tools)
         } finally { harness.close() }
     }
 
@@ -174,12 +174,12 @@ class RunPreparationTest {
         try {
             val agent = agent(harness)
             val session = harness.newSession(agent)
-            assertEquals(Support.Unknown, inspect(harness, agent, session.id).tools.single().state.support)
+            assertEquals(Support.Unknown, inspect(harness, agent, session.id.value).tools.single().state.support)
             assertFalse(marker.exists())
             val events = harness.runner(agent, session.id).run(session.id, "hi").toList()
             assertTrue(events.any { it is AgentEvent.Warning && "MCP server 'broken' unavailable" in it.message })
             assertEquals(emptyList(), seen.last())
-            assertEquals(Availability.Unavailable, inspect(harness, agent, session.id).tools.single().state.availability)
+            assertEquals(Availability.Unavailable, inspect(harness, agent, session.id.value).tools.single().state.availability)
             assertEquals(1, marker.readLines().size)
         } finally { harness.close() }
     }
@@ -262,7 +262,7 @@ class RunPreparationTest {
             harness.runner(agent, session.id).run(session.id, "hi").toList()
             val sent = seen.last()
             assertEquals(listOf("call_tool", "describe_tool", "find_tools", "memory"), sent.sorted())
-            assertEquals(49, inspect(harness, agent, session.id).tools.size)
+            assertEquals(49, inspect(harness, agent, session.id.value).tools.size)
         } finally { harness.close() }
     }
 }

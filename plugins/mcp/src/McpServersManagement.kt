@@ -13,15 +13,15 @@ import kotlinx.coroutines.sync.withLock
 /** MCP servers from the Agents' `mcp.json` files, signing in through the [McpPlugin]'s [auth]. */
 internal class McpServersManagement(private val files: PluginStorage, private val secrets: SecretResolver, private val auth: McpAuth) : McpManagement {
     private val lock = Mutex()
-    private fun agent(id: String) = Agent(id, id, AgentConfig()).also { check(files.agentExists(id)) { "No Agent '$id'" } }
-    override suspend fun removeAgent(id: String) {
+    private fun agent(id: AgentId) = Agent(id, id.value, AgentConfig()).also { check(files.agentExists(id)) { "No Agent '$id'" } }
+    override suspend fun removeAgent(id: AgentId) {
         auth.signIns.removeAll(McpPlugin.signInScope(id, ConfigScope.Agent))
         lock.withLock {
             val shared = McpFiles(files.sharedMcp, ConfigScope.Shared)
             shared.list().filter { id in it.agents.orEmpty() }.forEach { shared.save(it.copy(agents = it.agents!! - id)) }
         }
     }
-    override fun onSignInNeeded(listener: suspend (agentId: String, server: String) -> Unit) { auth.onSignInNeeded = listener }
+    override fun onSignInNeeded(listener: suspend (agentId: AgentId, server: String) -> Unit) { auth.onSignInNeeded = listener }
     override suspend fun mcpServers(agent: Agent): List<McpServerInfo> {
         val own = mcpFiles(agent, ConfigScope.Agent).list()
         val all = own + mcpFiles(agent, ConfigScope.Shared).list().map { s -> s.copy(active = own.none { it.name == s.name }) }

@@ -2,10 +2,11 @@ package kinuvo.protocol.session
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kinuvo.protocol.agent.AgentId
 
 /** One change to a Session, pushed in order to the clients subscribed to it. */
 @Serializable
-data class SessionUpdate(val agentId: String, val sessionId: String, val change: SessionChange)
+data class SessionUpdate(val agentId: AgentId, val sessionId: SessionId, val change: SessionChange)
 
 @Serializable
 sealed interface SessionChange {

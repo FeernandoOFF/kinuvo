@@ -5,6 +5,8 @@ import kinuvo.server.plugin.ARTIFACT_MAX_CHARS
 import kinuvo.protocol.artifact.ArtifactChange
 import kinuvo.protocol.artifact.ArtifactData
 import kinuvo.protocol.artifact.ArtifactInfo
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.atomics.AtomicReference
@@ -35,7 +37,7 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
 
     private suspend fun find(id: String) = repo.get(id) ?: error("No artifact '$id'")
 
-    suspend fun create(agentId: String, sessionId: String?, title: String, type: String, content: String): ArtifactInfo = lock.withLock {
+    suspend fun create(agentId: AgentId, sessionId: SessionId?, title: String, type: String, content: String): ArtifactInfo = lock.withLock {
         require(title.isNotBlank()) { "Give the artifact a title" }
         val taken = repo.list().map { it.id }.toSet()
         val slug = title.lowercase().replace(Regex("[^a-z0-9]+"), "-").trim('-').take(40).ifEmpty { "artifact" }
@@ -45,7 +47,7 @@ class Artifacts(private val repo: ArtifactRepository, private val clock: () -> L
     }
 
     /** Replaces [id]'s content with what [transform] makes of it, and its title when [title] is set. */
-    suspend fun update(id: String, agentId: String, sessionId: String?, title: String? = null, transform: (String) -> String): ArtifactInfo = lock.withLock {
+    suspend fun update(id: String, agentId: AgentId, sessionId: SessionId?, title: String? = null, transform: (String) -> String): ArtifactInfo = lock.withLock {
         val old = find(id)
         val info = old.info.copy(title = title?.trim()?.ifEmpty { null } ?: old.info.title, agentId = agentId, sessionId = sessionId, updated = clock())
         info.also { save(it, transform(old.content)) }

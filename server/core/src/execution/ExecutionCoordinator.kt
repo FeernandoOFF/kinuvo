@@ -10,6 +10,7 @@ import kinuvo.protocol.approval.*
 import kinuvo.protocol.capability.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -19,7 +20,7 @@ import kotlin.time.TimeSource
 import kotlin.uuid.Uuid
 
 @Serializable
-data class ExternalSession(val agentId: String, val connectionId: String, val snapshot: ExecutionSnapshot)
+data class ExternalSession(val agentId: AgentId, val connectionId: String, val snapshot: ExecutionSnapshot)
 
 class ExecutionCoordinator(
     val registry: ExecutionRegistry,
@@ -33,11 +34,11 @@ class ExecutionCoordinator(
     private val lock = Mutex()
     private val journal = Mutex()
     private val records = recovery.load().associateBy { it.sessionId }.toMutableMap()
-    private val live = mutableMapOf<String, ExecutionSession>()
-    private val states = mutableMapOf<String, ExecutionState>()
-    private val brokers = mutableMapOf<String, ExecutionBroker>()
-    private val dispatch = mutableMapOf<String, Job>()
-    private val opening = mutableSetOf<String>()
+    private val live = mutableMapOf<SessionId, ExecutionSession>()
+    private val states = mutableMapOf<SessionId, ExecutionState>()
+    private val brokers = mutableMapOf<SessionId, ExecutionBroker>()
+    private val dispatch = mutableMapOf<SessionId, Job>()
+    private val opening = mutableSetOf<SessionId>()
 
     suspend fun reload() { val loaded = recovery.load(); lock.withLock { records.clear(); records.putAll(loaded.associateBy { it.sessionId }) } }
 
@@ -74,28 +75,28 @@ class ExecutionCoordinator(
         recovery.save(record)
         lock.withLock { records[record.sessionId] = record }
     }
-    private suspend fun mutate(id: String, change: (ExecutionRecovery) -> ExecutionRecovery): ExecutionRecovery = journal.withLock {
+    private suspend fun mutate(id: SessionId, change: (ExecutionRecovery) -> ExecutionRecovery): ExecutionRecovery = journal.withLock {
         val next = change(lock.withLock { records.getValue(id) })
         recovery.save(next)
         lock.withLock { records[id] = next }
         next
     }
     suspend fun currentStateOwner(state: ExecutionState): String = lock.withLock {
-        states.entries.firstOrNull { it.value === state }?.let { records.getValue(it.key).agentId }
+        states.entries.firstOrNull { it.value === state }?.let { records.getValue(it.key).agentId }?.value
             ?: error("Stale execution generation")
     }
-    suspend fun owns(id: String) = lock.withLock { id in records }
-    suspend fun sessionAgent(id: String) = lock.withLock { records.getValue(id).agentId }
+    suspend fun owns(id: SessionId) = lock.withLock { id in records }
+    suspend fun sessionAgent(id: SessionId) = lock.withLock { records.getValue(id).agentId }
     suspend fun inUse(connectionId: String) = lock.withLock { records.values.any { it.connection.id == connectionId && (it.sessionId in live || it.sessionId in opening) } }
-    suspend fun agentInUse(agentId: String) = lock.withLock { records.values.any { it.agentId == agentId && (it.sessionId in live || it.sessionId in opening) } }
-    suspend fun record(id: String) = lock.withLock { records.getValue(id) }
+    suspend fun agentInUse(agentId: AgentId) = lock.withLock { records.values.any { it.agentId == agentId && (it.sessionId in live || it.sessionId in opening) } }
+    suspend fun record(id: SessionId) = lock.withLock { records.getValue(id) }
     suspend fun archives() = lock.withLock { records.values.filter { it.archived }.map { it.registration }.distinctBy { it.id } }
     /** [agentId]'s registration, including one archived in the catalog or kept only by its saved Sessions. */
-    suspend fun registrationOrArchived(agentId: String) =
+    suspend fun registrationOrArchived(agentId: AgentId) =
         registry.registration(agentId) ?: registry.catalog().agents.firstOrNull { it.id == agentId && it.archived } ?: archives().firstOrNull { it.id == agentId }
 
     /** What an external Agent's [sessionId], or a new Session, can do while its connection has [readiness]. */
-    suspend fun capabilities(agentId: String, sessionId: String?, readiness: ExecutionReadiness, server: ServerCapabilities, seq: Long): SessionCapabilities {
+    suspend fun capabilities(agentId: AgentId, sessionId: SessionId?, readiness: ExecutionReadiness, server: ServerCapabilities, seq: Long): SessionCapabilities {
         val saved = sessionId?.let { session(agentId, it); record(it) }
         val support = saved?.support
         val availability = when {
@@ -109,27 +110,27 @@ class ExecutionCoordinator(
         return SessionCapabilities(seq, server, availability, attachments = support?.supportedMimeTypes.orEmpty().associateWith { availability }, execution = support)
     }
 
-    suspend fun restore(agentId: String) { lock.withLock { records.values.filter { it.agentId == agentId && it.archived } }.forEach { saved -> mutate(saved.sessionId) { it.copy(archived = false) } } }
-    suspend fun archive(agentId: String) { lock.withLock { records.values.filter { it.agentId == agentId } }.forEach { save(it.copy(archived = true)) } }
-    suspend fun session(agentId: String, id: String): SessionInfo {
+    suspend fun restore(agentId: AgentId) { lock.withLock { records.values.filter { it.agentId == agentId && it.archived } }.forEach { saved -> mutate(saved.sessionId) { it.copy(archived = false) } } }
+    suspend fun archive(agentId: AgentId) { lock.withLock { records.values.filter { it.agentId == agentId } }.forEach { save(it.copy(archived = true)) } }
+    suspend fun session(agentId: AgentId, id: SessionId): SessionInfo {
         val r = record(id); require(r.agentId == agentId)
         return log.session(agentId, id).copy(legacyOrder = r.legacyOrder)
     }
-    suspend fun snapshot(id: String): ExecutionSnapshot {
+    suspend fun snapshot(id: SessionId): ExecutionSnapshot {
         val r = record(id)
         return log.executionSnapshot(r.agentId, id).copy(externalSessionId = r.externalSessionId).let { if (r.lost || r.closed) it.copy(phase = ExecutionPhase.Lost) else it }
     }
-    override suspend fun snapshot(agentId: String, sessionId: String): ExecutionSnapshot { session(agentId, sessionId); return snapshot(sessionId) }
-    override suspend fun create(agentId: String): SessionInfo {
+    override suspend fun snapshot(agentId: AgentId, sessionId: SessionId): ExecutionSnapshot { session(agentId, sessionId); return snapshot(sessionId) }
+    override suspend fun create(agentId: AgentId): SessionInfo {
         val config = registry.configured(agentId)
         val registration = requireNotNull(registry.registration(agentId))
-        require(Regex("[a-z0-9][a-z0-9-]{0,31}").matches(agentId))
+        require(Regex("[a-z0-9][a-z0-9-]{0,31}").matches(agentId.value))
         val info = log.createSession(agentId, "")
         save(ExecutionRecovery(agentId, info.id, config, registration, Uuid.random().toString()))
         open(record(info.id))
         return session(agentId, info.id)
     }
-    suspend fun resume(id: String): ExecutionSnapshot {
+    suspend fun resume(id: SessionId): ExecutionSnapshot {
         val old = record(id)
         check(old.lost && !old.closed && !old.archived) { "This Session cannot resume" }
         requireNotNull(old.externalSessionId)
@@ -215,7 +216,7 @@ class ExecutionCoordinator(
         if (submission in r.submissions) {
             val prior = log.entries(p.agentId, id).filterIsInstance<SessionEntry.UserMessage>().firstOrNull { it.submissionId == submission }
             require(prior == null || prior.copy(writtenAt = null) == SessionEntry.UserMessage(p.text, attachments = attachments.map { it.attachment }, voice = p.voice, submissionId = submission, action = p.action)) { "Submission identity reused with different content" }
-            return SendResult(id, submission, p.text)
+            return SendResult(id, RunId(submission), p.text)
         }
         check(!r.archived && !r.closed && !r.lost && r.failure == null)
         attachments.forEach { require(it.attachment.mimeType in r.support.supportedMimeTypes) { "Unsupported attachment type" } }
@@ -235,25 +236,25 @@ class ExecutionCoordinator(
             }
         }
         lock.withLock { dispatch[id] = job }
-        return SendResult(id, submission, p.text)
+        return SendResult(id, RunId(submission), p.text)
     }
-    override suspend fun stop(id: String) { lock.withLock { live[id] }?.cancel() }
-    suspend fun closeExecution(id: String) { discard(id); sealInterrupted(id); mutate(id) { it.copy(closed = true, lost = true) }; readinessChanged() }
-    private suspend fun sealInterrupted(id: String) {
+    override suspend fun stop(id: SessionId) { lock.withLock { live[id] }?.cancel() }
+    suspend fun closeExecution(id: SessionId) { discard(id); sealInterrupted(id); mutate(id) { it.copy(closed = true, lost = true) }; readinessChanged() }
+    private suspend fun sealInterrupted(id: SessionId) {
         val r = record(id)
         if (r.draft.isNotEmpty()) {
             log.appendAll(r.agentId, id, listOf(SessionEntry.Notice("interrupted:${r.generation}", "execution_interrupted", "Execution ended before this output could be confirmed.", r.draft)))
             mutate(id) { it.copy(draft = emptyList()) }
         }
     }
-    suspend fun discard(id: String) = withContext(NonCancellable) {
+    suspend fun discard(id: SessionId) = withContext(NonCancellable) {
         val broker = lock.withLock { brokers[id] }
         broker?.lost()
         val pair = lock.withLock { states.remove(id); brokers.remove(id); live.remove(id) to dispatch.remove(id) }
         pair.second?.cancel()
         pair.first?.close()
     }
-    private suspend fun releaseLost(id: String, generation: String) {
+    private suspend fun releaseLost(id: SessionId, generation: String) {
         val pair = lock.withLock {
             if (states[id]?.generation != generation) return
             states.remove(id); brokers.remove(id); live.remove(id) to dispatch.remove(id)
@@ -261,7 +262,7 @@ class ExecutionCoordinator(
         pair.second?.cancel()
         pair.first?.close()
     }
-    suspend fun delete(agentId: String, id: String) {
+    suspend fun delete(agentId: AgentId, id: SessionId) {
         if (!owns(id)) return
         require(record(id).agentId == agentId)
         discard(id); recovery.delete(agentId, id); lock.withLock { records.remove(id) }

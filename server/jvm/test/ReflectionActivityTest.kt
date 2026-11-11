@@ -33,7 +33,7 @@ class ReflectionActivityTest {
         val home = Files.createTempDirectory("reflection-activity").toFile()
         var outcome = "saved"
         lateinit var harness: Harness
-        var sessionId = ""
+        var sessionId = SessionId("")
         val model = scriptedModel { prompt, tools ->
             val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
             val history = prompt.messages

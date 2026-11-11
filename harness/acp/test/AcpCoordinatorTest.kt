@@ -6,6 +6,7 @@ import kinuvo.harness.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import java.nio.file.Files
@@ -43,7 +44,7 @@ class AcpCoordinatorTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val events = mutableListOf<AgentEvent>()
         val batches = mutableListOf<List<SessionEntry>>()
-        val state = ExecutionState("s", initial = ExecutionSnapshot("s", externalSessionId = "external-1"), sink = object : ExecutionSink {
+        val state = ExecutionState(SessionId("s"), initial = ExecutionSnapshot(SessionId("s"), externalSessionId = "external-1"), sink = object : ExecutionSink {
             override suspend fun publish(event: AgentEvent) { synchronized(events) { events += event } }
             override suspend fun commit(entries: List<SessionEntry>) { synchronized(batches) { batches += entries } }
         })
@@ -51,7 +52,7 @@ class AcpCoordinatorTest {
         val config = HarnessConnection("mock", "Mock", ExecutionConnection.Acp(listOf("/usr/bin/env", "python3", script.toString())))
         var session: ExecutionSession? = null
         try {
-            session = withTimeout(10_000) { AcpExecutionFactory().open(config, AgentRegistration("external", "External", "mock", cwd = dir.toString()), state, broker, scope) }
+            session = withTimeout(10_000) { AcpExecutionFactory().open(config, AgentRegistration(AgentId("external"), "External", "mock", cwd = dir.toString()), state, broker, scope) }
             withTimeout(10_000) { while (state.live().entries.isEmpty() || state.snapshot().pending.size != 2) delay(10) }
             assertEquals("before response", (state.live().entries.single() as SessionEntry.AssistantMessage).text)
             assertTrue(synchronized(events) { events.none { it is AgentEvent.RunFinished } })

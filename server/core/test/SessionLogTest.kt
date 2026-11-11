@@ -12,6 +12,9 @@ import kinuvo.server.store.SessionCommitConflict
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kinuvo.protocol.session.SessionSettings
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.RunId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
@@ -24,15 +27,15 @@ import kotlin.test.assertFalse
 class SessionLogTest {
     @Test fun metadataUpdatesPreserveEachOther() = runBlocking {
         val log = SessionLog(RuntimeFixture().store)
-        val id = log.createSession("external", "").id
-        log.append("external", id, SessionEntry.UserMessage("Automatic title"))
-        log.updateDetails("external", id, "  Saved title  ", true)
-        assertEquals("Saved title", log.session("external", id).title)
-        assertEquals("x".repeat(MAX_SESSION_TITLE), log.updateDetails("external", id, "x".repeat(120), null).title)
-        assertEquals("Automatic title", log.updateDetails("external", id, "   ", null).title)
-        assertEquals("Automatic title", log.updateDetails("external", id, null, true).title)
-        assertEquals(true, log.updateDetails("external", id, "Renamed", null).favorite)
-        val favorite = log.updateDetails("external", id, null, false)
+        val id = log.createSession(AgentId("external"), "").id
+        log.append(AgentId("external"), id, SessionEntry.UserMessage("Automatic title"))
+        log.updateDetails(AgentId("external"), id, "  Saved title  ", true)
+        assertEquals("Saved title", log.session(AgentId("external"), id).title)
+        assertEquals("x".repeat(MAX_SESSION_TITLE), log.updateDetails(AgentId("external"), id, "x".repeat(120), null).title)
+        assertEquals("Automatic title", log.updateDetails(AgentId("external"), id, "   ", null).title)
+        assertEquals("Automatic title", log.updateDetails(AgentId("external"), id, null, true).title)
+        assertEquals(true, log.updateDetails(AgentId("external"), id, "Renamed", null).favorite)
+        val favorite = log.updateDetails(AgentId("external"), id, null, false)
         assertEquals("Renamed", favorite.title)
         assertEquals(false, favorite.favorite)
     }
@@ -40,34 +43,34 @@ class SessionLogTest {
     @Test
     fun batchPublishesOnceBeforeTerminalAndBrowserCleanupPrecedesRemoval() = runBlocking {
         val log = SessionLog(RuntimeFixture().store) { 123L }
-        val session = log.createSession("external", "").id
+        val session = log.createSession(AgentId("external"), "").id
         val updates = mutableListOf<SessionUpdate>()
-        log.subscribe("external", session, null, 100, object : SessionLog.Subscriber {
+        log.subscribe(AgentId("external"), session, null, 100, object : SessionLog.Subscriber {
             override fun offer(update: SessionUpdate): Boolean { updates += update; return true }
         })
         updates.clear()
-        log.publish("external", session, AgentEvent.RunStarted("run"))
+        log.publish(AgentId("external"), session, AgentEvent.RunStarted(RunId("run")))
         val reply = SessionEntry.AssistantMessage("reply", "reply")
-        assertEquals(listOf(reply), log.appendAll("external", session, listOf(reply)).map { it.withWrittenAt(null) })
-        assertEquals(emptyList(), log.appendAll("external", session, listOf(reply)).map { it.withWrittenAt(null) })
-        log.publish("external", session, AgentEvent.RunFinished("run"))
+        assertEquals(listOf(reply), log.appendAll(AgentId("external"), session, listOf(reply)).map { it.withWrittenAt(null) })
+        assertEquals(emptyList(), log.appendAll(AgentId("external"), session, listOf(reply)).map { it.withWrittenAt(null) })
+        log.publish(AgentId("external"), session, AgentEvent.RunFinished(RunId("run")))
         assertEquals(1, updates.count { it.change is SessionChange.Entry })
         val committed = (updates.single { it.change is SessionChange.Entry }.change as SessionChange.Entry).entry
         assertEquals(123L, committed.writtenAt)
-        assertEquals(committed, log.history("external", session, 100, 100).last().entry)
-        assertEquals(committed, log.entries("external", session).last())
+        assertEquals(committed, log.history(AgentId("external"), session, 100, 100).last().entry)
+        assertEquals(committed, log.entries(AgentId("external"), session).last())
         val entryIndex = updates.indexOfFirst { it.change is SessionChange.Entry }
         val finishedIndex = updates.indexOfFirst { (it.change as? SessionChange.Event)?.event is AgentEvent.RunFinished }
         assertTrue(entryIndex in 0 until finishedIndex)
-        assertFailsWith<SessionCommitConflict> { log.appendAll("external", session, listOf(reply.copy(text = "conflict"))) }
+        assertFailsWith<SessionCommitConflict> { log.appendAll(AgentId("external"), session, listOf(reply.copy(text = "conflict"))) }
         var cleaned = false
         log.onDelete = { owner, id ->
-            assertEquals("external", owner)
+            assertEquals(AgentId("external"), owner)
             assertEquals(session, id)
             assertTrue(log.entries(owner, id).isNotEmpty())
             cleaned = true
         }
-        log.deleteSession("external", session)
+        log.deleteSession(AgentId("external"), session)
         assertTrue(cleaned)
         assertFalse(log.watched(session))
     }
@@ -79,14 +82,14 @@ class SessionLogTest {
             val truncating = CompletableDeferred<Unit>()
             val resume = CompletableDeferred<Unit>()
             val store = object : Store by files {
-                override suspend fun truncate(agentId: String, sessionId: String, size: Int) {
+                override suspend fun truncate(agentId: AgentId, sessionId: SessionId, size: Int) {
                     truncating.complete(Unit)
                     resume.await()
                     files.truncate(agentId, sessionId, size)
                 }
             }
             val log = SessionLog(store)
-            val agent = Agent("test", "Test", AgentConfig())
+            val agent = Agent(AgentId("test"), "Test", AgentConfig())
             val session = log.createSession(agent.id, "Instructions").id
             val before = log.entries(agent.id, session)
             val first = SessionEntry.Settings(SessionSettings(model = "first"))

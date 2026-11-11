@@ -75,9 +75,9 @@ object ServerInstallation {
             }, clock)
             val attachmentFiles = FileAttachments(Path(files.home, "attachments"))
             val progress = object : ReflectionProgress {
-                private val serializer = MapSerializer(String.serializer(), Int.serializer())
+                private val serializer = MapSerializer(SessionId.serializer(), Int.serializer())
                 override fun get() = files.reflections.readTextOrNull()?.let { runCatching { Json.decodeFromString(serializer, it) }.getOrNull() }.orEmpty()
-                override fun save(progress: Map<String, Int>) = writeAtomically(files.reflections, Json.encodeToString(serializer, progress))
+                override fun save(progress: Map<SessionId, Int>) = writeAtomically(files.reflections, Json.encodeToString(serializer, progress))
             }
             val serverId = Path(files.home, "server-id").let { file ->
                 file.readTextOrNull()?.trim()?.takeIf { it.isNotEmpty() } ?: Uuid.random().toString().also { writeAtomically(file, it) }

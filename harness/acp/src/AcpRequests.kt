@@ -3,6 +3,7 @@ package kinuvo.harness.acp
 import java.net.URI
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.harness.ExecutionBroker
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -72,7 +73,7 @@ internal fun decodePrompt(id: String, kind: AcpRequestKind, payload: JsonElement
             .map { v -> choices.entries.firstOrNull { it.value == v }?.key ?: if (kind == QuestionKind.YesNo) (if (v == "true") "Yes" else "No") else v }
         Question(key, withoutAddresses(p["title"].text() ?: key), kind, choices.keys.toList(), key in required, p["description"].text()?.let(::withoutAddresses), default)
     }
-    return AcpPrompt(PendingInteraction.Questions(id, id, withoutAddresses(message), questions), types, values)
+    return AcpPrompt(PendingInteraction.Questions(id, ToolCallId(id), withoutAddresses(message), questions), types, values)
 }
 
 /** Option label to value, from `enum` (label = value) or titled `oneOf`/`anyOf` options. */

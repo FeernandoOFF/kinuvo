@@ -17,6 +17,8 @@ import kinuvo.protocol.approval.TrustRules
 
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.server.plugin.Tool
 import kinuvo.server.plugin.string
 import kotlinx.coroutines.channels.Channel
@@ -60,7 +62,7 @@ class ApprovalsTest {
         }
         val broker = Broker<ApprovalDecision>()
         val executor = kinuvo.server.tools.ToolService(listOf(tool), approvals = Approvals(policy(agent()), broker))
-        val result = executor.invoke(SessionEntry.ToolCall("call", "screen", "{}"), kinuvo.harness.ToolTurn(emit = { event ->
+        val result = executor.invoke(SessionEntry.ToolCall(ToolCallId("call"), "screen", "{}"), kinuvo.harness.ToolTurn(emit = { event ->
             if (event.approval != null) {
                 val held = gate.acquire("device", 0)
                 gate.release("device", held.generation)
@@ -137,14 +139,14 @@ class ApprovalsTest {
         val broker = ApprovalBroker()
         val runner = AgentRun(a, store, model, listOf(tool), approvals = Approvals(policy(a), broker))
         val sessions = List(2) { store.createSession(a.id, "").id }
-        val requests = Channel<Pair<String, PendingInteraction.Approval>>(Channel.UNLIMITED)
+        val requests = Channel<Pair<SessionId, PendingInteraction.Approval>>(Channel.UNLIMITED)
         val jobs = sessions.map { id -> launch {
             runner.run(id, "go").collect { it.approval?.let { approval -> requests.send(id to approval) } }
         } }
         val (firstSession, first) = requests.receive()
         val (secondSession, second) = requests.receive()
-        assertEquals("same", store.entries(a.id, firstSession).filterIsInstance<SessionEntry.ToolCall>().single().id)
-        assertEquals("same", store.entries(a.id, secondSession).filterIsInstance<SessionEntry.ToolCall>().single().id)
+        assertEquals("same", store.entries(a.id, firstSession).filterIsInstance<SessionEntry.ToolCall>().single().id.value)
+        assertEquals("same", store.entries(a.id, secondSession).filterIsInstance<SessionEntry.ToolCall>().single().id.value)
         assertTrue(first.id != second.id)
         assertFalse(broker.respond("same", ApprovalDecision.AllowOnce))
         assertTrue(broker.respond(first.id, ApprovalDecision.Deny()))
@@ -214,10 +216,10 @@ class ApprovalsTest {
     fun sessionTrustStaysInItsSession() = runTest {
         val risky = FakeTool("cua__click", Risk.Medium)
         val trust = SessionTrust()
-        val policy = ApprovalPolicy(agent(), home.trustRules, session = trust.scope("s1"))
+        val policy = ApprovalPolicy(agent(), home.trustRules, session = trust.scope(SessionId("s1")))
         assertTrue(policy.trustForSession(risky, listOf("cua__click")))
         assertFalse(policy.asks(risky))
-        assertTrue(ApprovalPolicy(agent(), home.trustRules, session = trust.scope("s2")).asks(risky))
+        assertTrue(ApprovalPolicy(agent(), home.trustRules, session = trust.scope(SessionId("s2"))).asks(risky))
         assertEquals(TrustRules(), policy.rules())
         assertFalse(policy(agent()).trustForSession(risky, listOf("cua__click")))
     }

@@ -26,7 +26,7 @@ class DeviceToolsTest {
         val agent = harness.store.agents().single()
         val session = harness.newSession(agent)
         harness.log.onEvent { _, _, event -> events.trySend(event) }
-        harness.log.publish(agent.id, session.id, AgentEvent.RunStarted("run"))
+        harness.log.publish(agent.id, session.id, AgentEvent.RunStarted(RunId("run")))
         harness.devices.paired = { listOf(device) }
         return harness.devices.prepare(RunContext(agent, session.id), activate = true).tools.single { it.descriptor.name == "contacts_lookup" }
     }
@@ -40,7 +40,7 @@ class DeviceToolsTest {
         withTimeout(5_000) {
             val tool = tool()
             val result = async { tool.execute(buildJsonObject { put("query", "Ada") }, "call") }
-            assertEquals("call", waiting().toolCallId)
+            assertEquals("call", waiting().toolCallId.value)
             harness.devices.connect(device.id, device.tools, true) { DeviceToolResult(DeviceToolStatus.Ready, buildJsonObject { put("contacts", JsonArray(emptyList())) }) }
             val read = ProtocolJson.decodeFromString(DeviceToolResult.serializer(), result.await())
             assertEquals(DeviceToolStatus.Ready, read.status)

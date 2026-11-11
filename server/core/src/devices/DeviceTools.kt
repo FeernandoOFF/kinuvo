@@ -145,7 +145,7 @@ class DeviceTools(
             }
             val pending = questions().register()
             try {
-                log.publish(run.agent.id, run.sessionId!!, AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, callId, "Open Kinuvo on ${device.name} to read ${request.kind.name.lowercase()}. This continues automatically; Skip to continue without this data.", emptyList())))
+                log.publish(run.agent.id, run.sessionId!!, AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, ToolCallId(callId), "Open Kinuvo on ${device.name} to read ${request.kind.name.lowercase()}. This continues automatically; Skip to continue without this data.", emptyList())))
                 val skipped = coroutineScope {
                     val answer = async { pending.await() }
                     val ready = async { connections.first { map ->

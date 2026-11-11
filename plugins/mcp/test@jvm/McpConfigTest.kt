@@ -13,6 +13,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.assertNotEquals
+import kinuvo.protocol.agent.AgentId
 
 class McpConfigTest {
     private val dir = Files.createTempDirectory("mcp").toFile()
@@ -80,24 +81,24 @@ class McpConfigTest {
 
     @Test fun sharedServersCanBeLimitedToSomeAgents() = runBlocking {
         val shared = file("shared.json", """{"mcpServers":{"work":{"url":"https://w/mcp","agents":["main"]},"all":{"url":"https://a/mcp"}}}""")
-        assertEquals(listOf("work", "all"), McpConfig.load(listOf(shared), agentId = "main").first.map { it.name })
-        assertEquals(listOf("all"), McpConfig.load(listOf(shared), agentId = "other").first.map { it.name })
-        assertEquals(listOf("main"), McpConfig.load(listOf(shared)).first.first().agents)
+        assertEquals(listOf("work", "all"), McpConfig.load(listOf(shared), agentId = AgentId("main")).first.map { it.name })
+        assertEquals(listOf("all"), McpConfig.load(listOf(shared), agentId = AgentId("other")).first.map { it.name })
+        assertEquals(listOf(AgentId("main")), McpConfig.load(listOf(shared)).first.first().agents)
     }
 
     @Test fun removingAnAgentDropsItFromSharedServers() = runBlocking {
         val files = TestStorage(Path(dir.path))
         val shared = McpFiles(files.sharedMcp, kinuvo.protocol.agent.ConfigScope.Shared)
-        shared.save(kinuvo.protocol.mcp.McpServerInfo("work", kinuvo.protocol.agent.ConfigScope.Shared, url = "https://w/mcp", agents = listOf("main", "old")))
-        McpPlugin(files).mcp.removeAgent("old")
-        assertEquals(listOf("main"), shared.get("work")?.agents)
+        shared.save(kinuvo.protocol.mcp.McpServerInfo("work", kinuvo.protocol.agent.ConfigScope.Shared, url = "https://w/mcp", agents = listOf(AgentId("main"), AgentId("old"))))
+        McpPlugin(files).mcp.removeAgent(AgentId("old"))
+        assertEquals(listOf(AgentId("main")), shared.get("work")?.agents)
     }
 }
 
 private class TestStorage(override val home: Path) : PluginStorage {
     override val sharedMcp = Path(home, "mcp.json")
-    override fun mcp(agentId: String) = Path(home, "agents", agentId, "mcp.json")
-    override fun agentExists(id: String) = true
-    override fun loadEnv(agentId: String?, process: Map<String, String>) = process
+    override fun mcp(id: AgentId) = Path(home, "agents", id.value, "mcp.json")
+    override fun agentExists(id: AgentId) = true
+    override fun loadEnv(agentId: AgentId?, process: Map<String, String>) = process
     override fun knowledgeOptions() = emptyMap<String, String>()
 }

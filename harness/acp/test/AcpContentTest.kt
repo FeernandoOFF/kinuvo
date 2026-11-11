@@ -14,7 +14,7 @@ import kotlin.test.*
 class AcpContentTest {
     @Test fun surfaceActionIncludesResolvedContext() {
         val context = buildJsonObject { put("name", "Alex") }
-        val action = SurfaceAction("call", "plan", "save", "submit", context, context)
+        val action = SurfaceAction(ToolCallId("call"), "plan", "save", "submit", context, context)
         val text = (ExecutionInput("Save plan", action = action).content(ExecutionCapabilities()).single() as ContentBlock.Text).text
         assertEquals(action.modelText("Save plan"), text)
     }

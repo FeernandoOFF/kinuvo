@@ -4,10 +4,12 @@ import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.SessionEntryIdentity
 import kinuvo.protocol.session.withWrittenAt
 import kinuvo.protocol.session.identity
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 class SessionCommitConflict(val identity: String) : IllegalStateException("Conflicting saved Session entry '$identity'")
 
-class CorruptSession(val sessionId: String, val line: Int, val trailing: Boolean, cause: Throwable) :
+class CorruptSession(val sessionId: SessionId, val line: Int, val trailing: Boolean, cause: Throwable) :
     IllegalStateException("Corrupt Session '$sessionId' at line $line${if (trailing) " (trailing record; recovery required)" else ""}", cause)
 
 /** Validates the entire batch before writing anything; replay may overlap any saved positions. */
@@ -24,12 +26,12 @@ internal fun missingEntries(saved: List<SessionEntry>, incoming: List<SessionEnt
     return incoming.filter { remember(it) }
 }
 
-internal fun validateOwnerId(agentId: String) {
-    require(SAFE_ID.matches(agentId)) { "Invalid Session owner ID" }
+internal fun validateOwnerId(agentId: AgentId) {
+    require(SAFE_ID.matches(agentId.value)) { "Invalid Session owner ID" }
 }
 
-internal fun validateSessionId(sessionId: String) {
-    require(SAFE_ID.matches(sessionId)) { "Invalid Session ID" }
+internal fun validateSessionId(sessionId: SessionId) {
+    require(SAFE_ID.matches(sessionId.value)) { "Invalid Session ID" }
 }
 
 private val SAFE_ID = Regex("[A-Za-z0-9_-]{1,128}")

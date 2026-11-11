@@ -9,6 +9,7 @@ import kinuvo.server.knowledge.KnowledgeTool
 import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.requireString
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -18,7 +19,7 @@ import kotlinx.coroutines.withContext
 class ReflectionReview(private val harness: HarnessRuntime) {
     private val lock = Mutex()
 
-    suspend fun respond(agent: Agent, sessionId: String, proposalId: String, approve: Boolean, note: String? = null) = lock.withLock {
+    suspend fun respond(agent: Agent, sessionId: SessionId, proposalId: String, approve: Boolean, note: String? = null) = lock.withLock {
         val entries = harness.store.entries(agent.id, sessionId)
         val reviewed = entries.filterIsInstance<SessionEntry.ReflectionReview>().firstOrNull { it.proposalId == proposalId }
         if (reviewed != null) {

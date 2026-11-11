@@ -38,9 +38,9 @@ internal fun pendingRequests(items: List<ChatItem>, pending: List<PendingInterac
     fun call(id: String) = items.indexOfLast { it is ChatItem.ToolCall && it.callId == id && it.result == null }
     val native = pending.mapNotNull { request ->
         when (request) {
-            is PendingInteraction.Approval -> call(request.toolCallId) to PendingRequest.Approval(request)
+            is PendingInteraction.Approval -> call(request.toolCallId.value) to PendingRequest.Approval(request)
             is PendingInteraction.Questions -> {
-                val index = call(request.toolCallId)
+                val index = call(request.toolCallId.value)
                 val tool = items.getOrNull(index) as? ChatItem.ToolCall
                 index to if (tool?.name == TAKEOVER_TOOL) PendingRequest.Takeover(takeoverReason(tool.args), request) else PendingRequest.Questions(request)
             }

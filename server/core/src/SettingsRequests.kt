@@ -24,7 +24,7 @@ internal class SettingsRequests(private val harness: HarnessRuntime, private val
         Api.DownloadProviderModel.name -> respond(r, Api.DownloadProviderModel) { logins.download(it.provider, it.model) }
         Api.CancelProviderDownload.name -> respond(r, Api.CancelProviderDownload) { logins.cancelDownload(it.provider) }
         Api.RemoveProviderModel.name -> respond(r, Api.RemoveProviderModel) { logins.removeModel(it.provider, it.model) }
-        Api.McpServers.name -> respond(r, Api.McpServers) { harness.mcp.mcpServers(agent(it.agentId)) }
+        Api.McpServers.name -> respond(r, Api.McpServers) { harness.mcp.mcpServers(agent(it.agentId.value)) }
         Api.SaveMcp.name -> respond(r, Api.SaveMcp) { harness.mcp.saveMcp(it) }
         Api.RemoveMcp.name -> respond(r, Api.RemoveMcp) { harness.mcp.removeMcp(it) }
         Api.TestMcp.name -> respond(r, Api.TestMcp) { harness.mcp.testMcp(it) }

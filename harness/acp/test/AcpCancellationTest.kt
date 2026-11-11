@@ -3,6 +3,7 @@ package kinuvo.harness.acp
 import kinuvo.harness.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import java.nio.file.Files
 import kotlin.test.*
@@ -29,7 +30,7 @@ class AcpCancellationTest {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val starting = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
-        val state = ExecutionState("local", sink = object : ExecutionSink {
+        val state = ExecutionState(SessionId("local"), sink = object : ExecutionSink {
             override suspend fun publish(event: AgentEvent) {
                 if (event is AgentEvent.ExecutionPhaseChanged && event.phase == ExecutionPhase.Running) {
                     starting.complete(Unit)
@@ -41,7 +42,7 @@ class AcpCancellationTest {
         var session: ExecutionSession? = null
         try {
             val config = HarnessConnection("mock", "Mock", ExecutionConnection.Acp(listOf("/usr/bin/env", "python3", script.path, trace.path)))
-            val active = AcpExecutionFactory().open(config, AgentRegistration("a", "Agent", "mock", cwd = dir.path), state, ExecutionBroker(state), scope)
+            val active = AcpExecutionFactory().open(config, AgentRegistration(AgentId("a"), "Agent", "mock", cwd = dir.path), state, ExecutionBroker(state), scope)
             session = active
             withTimeout(10_000) {
                 val prompt = async(start = CoroutineStart.UNDISPATCHED) { active.prompt(ExecutionInput("wait")) }

@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
 import kotlin.test.*
+import kinuvo.protocol.agent.AgentId
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DesktopVoiceTest {
@@ -38,7 +39,7 @@ class DesktopVoiceTest {
         val client = KinuvoClient("ws://unused", "test")
         owner.open(client, "test")
         val engine = Engine()
-        val session = SessionViewModel(client, owner.sessions, Route.Chat(agentId = "one"))
+        val session = SessionViewModel(client, owner.sessions, Route.Chat(agentId = AgentId("one")))
         val voice = SpeechVoiceChat(engine, session, backgroundScope)
         try {
             voice.start()
@@ -70,7 +71,7 @@ class DesktopVoiceTest {
         val client = KinuvoClient("ws://unused", "test")
         owner.open(client, "test")
         val engine = Engine()
-        val session = SessionViewModel(client, owner.sessions, Route.Chat(agentId = "one"))
+        val session = SessionViewModel(client, owner.sessions, Route.Chat(agentId = AgentId("one")))
         val voice = SpeechVoiceChat(engine, session, backgroundScope)
         try {
             voice.start()

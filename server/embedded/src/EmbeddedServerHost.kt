@@ -16,6 +16,7 @@ import kinuvo.protocol.*
 import kinuvo.protocol.capability.*
 import kinuvo.protocol.device.*
 import kinuvo.protocol.tool.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -57,7 +58,7 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
                            features: Set<ServerFeature> = setOf(ServerFeature.DeviceTools, ServerFeature.Computer),
                            peers: (PeerRegistry) -> PeerRegistry = { it }): EmbeddedServerHost {
             val files = AgentFiles(home)
-            val fresh = try { !files.config("default").exists() } catch (e: Throwable) {
+            val fresh = try { !files.config(AgentId("default")).exists() } catch (e: Throwable) {
                 ServerResources(plugins).close()
                 throw e
             }

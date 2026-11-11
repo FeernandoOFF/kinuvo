@@ -12,12 +12,12 @@ import kotlin.test.assertTrue
 class VoiceAgentProgressTest {
     @Test fun nativeIgnoresToolOutput() {
         val updates = NativeVoiceProgress()
-        assertTrue(updates.update(AgentEvent.ToolCallResult("call", "raw output", false)).isEmpty())
+        assertTrue(updates.update(AgentEvent.ToolCallResult(ToolCallId("call"), "raw output", false)).isEmpty())
     }
 
     @Test fun snapshotsDeduplicateRequestsAndTextWithoutInventingApprovalDecisions() {
-        val updates = VoiceAgentProgress(ExecutionSnapshot("s"))
-        val waiting = ExecutionSnapshot("s", ExecutionPhase.RequiresAction,
+        val updates = VoiceAgentProgress(ExecutionSnapshot(SessionId("s")))
+        val waiting = ExecutionSnapshot(SessionId("s"), ExecutionPhase.RequiresAction,
             messages = listOf(ExecutionMessage("m", "assistant", "Checking")),
             pending = listOf(PendingInteraction.HarnessApproval("r", "Agent action", null, emptyList())))
         assertEquals(2, updates.update(waiting).size)
@@ -26,8 +26,8 @@ class VoiceAgentProgressTest {
     }
 
     @Test fun theLatestMessageWaitsUntilSuperseded() {
-        val updates = VoiceAgentProgress(ExecutionSnapshot("s"))
-        val streaming = ExecutionSnapshot("s", ExecutionPhase.Running, messages = listOf(ExecutionMessage("m", "assistant", "Che")))
+        val updates = VoiceAgentProgress(ExecutionSnapshot(SessionId("s")))
+        val streaming = ExecutionSnapshot(SessionId("s"), ExecutionPhase.Running, messages = listOf(ExecutionMessage("m", "assistant", "Che")))
         assertTrue(updates.update(streaming).isEmpty())
         assertTrue(updates.update(streaming.copy(messages = listOf(ExecutionMessage("m", "assistant", "Checking the build")))).isEmpty())
         val next = streaming.copy(messages = listOf(ExecutionMessage("m", "assistant", "Checking the build"), ExecutionMessage("n", "assistant", "Done")))
@@ -38,7 +38,7 @@ class VoiceAgentProgressTest {
     @Test fun nativeReportsMessagesOnlyOnceWorkFollows() {
         val updates = NativeVoiceProgress()
         assertTrue(updates.update(AgentEvent.TextMessageEnd("m", "Let me run the tests")).isEmpty())
-        assertEquals(listOf<AgentProgress>(AgentProgress.Text("Let me run the tests")), updates.update(AgentEvent.ToolCallStart("t", "shell", "{}")))
+        assertEquals(listOf<AgentProgress>(AgentProgress.Text("Let me run the tests")), updates.update(AgentEvent.ToolCallStart(ToolCallId("t"), "shell", "{}")))
         assertTrue(updates.update(AgentEvent.TextMessageEnd("r", "All green")).isEmpty(), "The reply is not progress")
         assertEquals(listOf<AgentProgress>(AgentProgress.ApprovalResolved(false)), updates.update(AgentEvent.InteractionResolved("call", false)))
     }

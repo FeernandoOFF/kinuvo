@@ -39,7 +39,7 @@ class ReflectionLearningTest {
         }
     }
     private suspend fun review(proposal: ReflectionProposal, note: String, approve: Boolean, calls: List<Pair<String, JsonObject>>) =
-        reflection.reflect(home.agent, model(calls), "s1", listOf(SessionEntry.UserMessage("Dublin is a city")),
+        reflection.reflect(home.agent, model(calls), SessionId("s1"), listOf(SessionEntry.UserMessage("Dublin is a city")),
             review = ReflectionRevision(proposal, note, approve))
 
     @Test

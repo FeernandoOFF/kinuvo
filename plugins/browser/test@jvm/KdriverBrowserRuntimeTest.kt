@@ -8,6 +8,7 @@ import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.*
 import kinuvo.protocol.browser.*
 import kinuvo.protocol.screen.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collect
@@ -31,7 +32,7 @@ class KdriverBrowserRuntimeTest {
             val records = Json.parseToJsonElement(File(home, "kdriver-tabs.json").readText()).jsonArray
             assertEquals(2, records.size)
             val restored = BrowserRuntime(home)
-            try { assertEquals(2, restored.tabs(BrowserOwner("shutdown")).size) }
+            try { assertEquals(2, restored.tabs(BrowserOwner(AgentId("shutdown"))).size) }
             finally { restored.close() }
         } finally {
             if (process.isAlive) { process.destroy(); if (!process.waitFor(5, TimeUnit.SECONDS)) process.destroyForcibly() }
@@ -48,7 +49,7 @@ class KdriverBrowserRuntimeTest {
             exchange.responseBody.use { it.write(bytes) }
         }
         server.start()
-        val owner = BrowserOwner("restored-frames")
+        val owner = BrowserOwner(AgentId("restored-frames"))
         var runtime = BrowserRuntime(home)
         try {
             val address = "http://127.0.0.1:${server.address.port}"
@@ -82,7 +83,7 @@ class KdriverBrowserRuntimeTest {
         }
         server.start()
         val runtime = BrowserRuntime(home)
-        val owner = BrowserOwner("keyboard-agent")
+        val owner = BrowserOwner(AgentId("keyboard-agent"))
         try {
             assertTrue(runtime.presentation(owner).headless)
             val tab = runtime.command(BrowserCommand(owner, BrowserAction.Open, text = "http://127.0.0.1:${server.address.port}"))!!.tab.id
@@ -150,7 +151,7 @@ class KdriverBrowserRuntimeTest {
         }
         server.start()
         val runtime = BrowserRuntime(home)
-        val owner = BrowserOwner("history-agent")
+        val owner = BrowserOwner(AgentId("history-agent"))
         val base = "http://127.0.0.1:${server.address.port}"
         try {
             val tab = runtime.command(BrowserCommand(owner, BrowserAction.Open, text = "$base/first"))!!.tab.id
@@ -184,7 +185,7 @@ class KdriverBrowserRuntimeTest {
         }
         server.start()
         val runtime = BrowserRuntime(home)
-        val owner = BrowserOwner("popup-agent")
+        val owner = BrowserOwner(AgentId("popup-agent"))
         try {
             val opened = runtime.command(BrowserCommand(owner, BrowserAction.Open, text = "http://127.0.0.1:${server.address.port}"))!!
             val gate = runtime.gate(owner, opened.tab.id)
@@ -200,7 +201,7 @@ class KdriverBrowserRuntimeTest {
             assertEquals("test-device", popupGate.state.value.holder)
             assertTrue(popupGate.state.value.suspended)
             assertFailsWith<IllegalStateException> { runtime.command(BrowserCommand(owner, BrowserAction.Capture, popup.id)) }
-            assertTrue(runtime.tabs(BrowserOwner("other-agent")).isEmpty())
+            assertTrue(runtime.tabs(BrowserOwner(AgentId("other-agent"))).isEmpty())
         } finally { runtime.close(); server.stop(0) }
     }
 
@@ -214,7 +215,7 @@ class KdriverBrowserRuntimeTest {
             exchange.responseBody.use { it.write(html) }
         }
         server.start()
-        val owner = BrowserOwner("first")
+        val owner = BrowserOwner(AgentId("first"))
         val address = "http://127.0.0.1:${server.address.port}"
         var runtime = BrowserRuntime(home)
         try {
@@ -227,8 +228,8 @@ class KdriverBrowserRuntimeTest {
             val clicked = runtime.command(BrowserCommand(owner, BrowserAction.Click, opened.tab.id, typed.revision, button.ref))!!
             assertTrue(clicked.text.contains("clicked"))
             assertFailsWith<IllegalArgumentException> { runtime.command(BrowserCommand(owner, BrowserAction.Type, opened.tab.id, opened.revision, input.ref, "stale")) }
-            assertFailsWith<IllegalArgumentException> { runtime.gate(BrowserOwner("second"), opened.tab.id) }
-            val isolated = runtime.command(BrowserCommand(BrowserOwner("second"), BrowserAction.Open, text = address))!!
+            assertFailsWith<IllegalArgumentException> { runtime.gate(BrowserOwner(AgentId("second")), opened.tab.id) }
+            val isolated = runtime.command(BrowserCommand(BrowserOwner(AgentId("second")), BrowserAction.Open, text = address))!!
             assertTrue(isolated.text.contains("no-cookie"))
             val frame = withTimeout(15_000) { runtime.screen(owner, opened.tab.id).frames().first() }
             assertEquals(1280, frame.width)
@@ -259,7 +260,7 @@ object BrowserShutdownFixture {
         val home = File(args.single())
         val runtime = BrowserRuntime(home)
         Runtime.getRuntime().addShutdownHook(Thread { runBlocking { runtime.close() } })
-        repeat(2) { runtime.command(BrowserCommand(BrowserOwner("shutdown"), BrowserAction.Open, text = "about:blank")) }
+        repeat(2) { runtime.command(BrowserCommand(BrowserOwner(AgentId("shutdown")), BrowserAction.Open, text = "about:blank")) }
         File(home, "ready").writeText("ready")
         awaitCancellation()
     }

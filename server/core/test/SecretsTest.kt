@@ -5,6 +5,7 @@ import kinuvo.server.plugin.SecretProvider
 import kinuvo.server.plugin.SecretReferences
 import kinuvo.protocol.secret.SecretEntry
 import kinuvo.protocol.secret.SecretProviderStatus
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -93,7 +94,7 @@ class SecretsTest {
             override val descriptor = kinuvo.server.plugin.toolSpec("app", "")
             override suspend fun execute(args: kotlinx.serialization.json.JsonObject) = ""
             override suspend fun executeResult(args: kotlinx.serialization.json.JsonObject, callId: String, run: kinuvo.server.plugin.ToolRun) =
-                if (fail) error("bad gh\"p_2") else kinuvo.protocol.session.SessionEntry.ToolResult(callId, "app", "gh\"p_2",
+                if (fail) error("bad gh\"p_2") else kinuvo.protocol.session.SessionEntry.ToolResult(ToolCallId(callId), "app", "gh\"p_2",
                     appResult = kotlinx.serialization.json.buildJsonObject { put("text", kotlinx.serialization.json.JsonPrimitive("key gh\"p_2")) })
         }
         val run = object : kinuvo.server.plugin.ToolRun {

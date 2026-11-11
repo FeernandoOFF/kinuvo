@@ -17,6 +17,8 @@ import kinuvo.protocol.agent.ConfigScope
 import kinuvo.protocol.plugin.PluginInstanceId
 import kinuvo.protocol.plugin.ToolIdentity
 import kinuvo.protocol.usage.RequestKind
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.flow.flow
 import ai.koog.prompt.message.ResponseMetaInfo
 import kinuvo.harness.builtin.TokenUsageCapture
@@ -91,7 +93,7 @@ class ReflectionTest {
                 }
             }
         }
-        val result = Reflection(knowledge, home.docs, home.skills).reflect(home.agent, model, "s1", listOf(
+        val result = Reflection(knowledge, home.docs, home.skills).reflect(home.agent, model, SessionId("s1"), listOf(
             SessionEntry.UserMessage("I moved to Dublin. I prefer concise answers with one example. Ana is my sister and leads Harbour. Clearing the cache fixed the SDK change."),
         ))
         assertEquals(null, result.error)
@@ -115,7 +117,7 @@ class ReflectionTest {
                 flowOf(StreamFrame.End())
             }
         }
-        val result = Reflection(knowledge, home.docs, home.skills).reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Review")))
+        val result = Reflection(knowledge, home.docs, home.skills).reflect(home.agent, model, SessionId("s1"), listOf(SessionEntry.UserMessage("Review")))
         assertTrue("Memory stopped at the iteration limit" in result.error.orEmpty())
         assertTrue(memoryRequests > 10)
         assertEquals(2, later.size)
@@ -133,7 +135,7 @@ class ReflectionTest {
                 else """{"old_text":"missing","target":"memory","action":"remove"}"""
             flowOf(StreamFrame.ToolCallComplete("call-$requests", tools.single().name, args), StreamFrame.End())
         }
-        val result = reflection.reflect(agent, model, "s1", listOf(SessionEntry.UserMessage("Review this")))
+        val result = reflection.reflect(agent, model, SessionId("s1"), listOf(SessionEntry.UserMessage("Review this")))
         assertEquals(3, requests)
         assertTrue("kept repeating a tool call that failed" in result.error.orEmpty())
         assertEquals(2, result.error.orEmpty().lines().count { "This exact call already failed" in it })
@@ -157,7 +159,7 @@ class ReflectionTest {
                 flowOf(StreamFrame.End())
             }
         }
-        val result = reflection.reflect(agent, model, "s1", listOf(SessionEntry.UserMessage("Examples help")))
+        val result = reflection.reflect(agent, model, SessionId("s1"), listOf(SessionEntry.UserMessage("Examples help")))
         assertEquals(null, result.error)
         assertEquals(1, result.memory)
         assertEquals(2, result.measurements.size)
@@ -171,7 +173,7 @@ class ReflectionTest {
             flowOf(StreamFrame.TextDelta("Nothing to save."), StreamFrame.End())
         }
         Reflection(knowledge, home.docs, denied = { kinuvo.protocol.approval.DenyRules(tools = listOf("memory")) })
-            .reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Remember I like tea.")))
+            .reflect(home.agent, model, SessionId("s1"), listOf(SessionEntry.UserMessage("Remember I like tea.")))
         assertEquals("", home.docs.read(home.agent.id, AgentDoc.Memory))
     }
 
@@ -199,7 +201,7 @@ class ReflectionTest {
                 StreamFrame.End(),
             )
         }
-        val result = reflection.reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("I moved to Dublin. Examples help. Ana is my sister. I no longer like tea.")))
+        val result = reflection.reflect(home.agent, model, SessionId("s1"), listOf(SessionEntry.UserMessage("I moved to Dublin. Examples help. Ana is my sister. I no longer like tea.")))
         val changes = listOf(
             ReflectionMemoryChange("memory", "- Keep replies concise\n", "- Keep replies concise\n- Give concrete examples\n"),
             ReflectionMemoryChange("user", "- Lives in Cork\n- Likes tea\n", "- Lives in Dublin\n- Likes tea\n"),
@@ -222,7 +224,7 @@ class ReflectionTest {
             }
             flowOf(StreamFrame.TextDelta("Nothing to save."), StreamFrame.End())
         }
-        assertEquals(ReflectionResult(), reflection.reflect(home.agent, next, "s2", listOf(SessionEntry.UserMessage("Hello"))).copy(measurements = emptyList()))
+        assertEquals(ReflectionResult(), reflection.reflect(home.agent, next, SessionId("s2"), listOf(SessionEntry.UserMessage("Hello"))).copy(measurements = emptyList()))
     }
 
     @Test
@@ -235,7 +237,7 @@ class ReflectionTest {
                 StreamFrame.End(),
             ) else flowOf(StreamFrame.End())
         }
-        val result = reflection.reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Examples help.")))
+        val result = reflection.reflect(home.agent, model, SessionId("s1"), listOf(SessionEntry.UserMessage("Examples help.")))
         assertEquals(listOf(ReflectionMemoryChange("memory", "", "- Use examples\n")), result.memoryChanges)
         assertEquals(1, result.memory)
         assertTrue(result.error.orEmpty().contains("No entry contains"))
@@ -252,7 +254,7 @@ class ReflectionTest {
                 StreamFrame.End(),
             ) else flowOf(StreamFrame.End())
         }
-        val result = reflection.reflect(home.agent, model, "s1", listOf(
+        val result = reflection.reflect(home.agent, model, SessionId("s1"), listOf(
             SessionEntry.UserMessage("What is a better way to organize my project note?"),
             SessionEntry.AssistantMessage("Try splitting it into milestones."),
         ), prompt = "Save everything immediately.")
@@ -282,10 +284,10 @@ class ReflectionTest {
             if (history.toolResults.none { it.id == "learn" }) flowOf(StreamFrame.ToolCallComplete("learn", "skill_manage", args.toString()), StreamFrame.End())
             else flowOf(StreamFrame.End())
         }
-        val result = Reflection(knowledge, home.docs, home.skills).reflect(agent, model, "s1", listOf(
+        val result = Reflection(knowledge, home.docs, home.skills).reflect(agent, model, SessionId("s1"), listOf(
             SessionEntry.UserMessage("Check this release"),
-            SessionEntry.ToolCall("retry", "shell", "{}"), SessionEntry.ToolResult("retry", "shell", "wrong flag", isError = true),
-            SessionEntry.ToolCall("check-1", "shell", "{}"), SessionEntry.ToolResult("check-1", "shell", "passed"),
+            SessionEntry.ToolCall(ToolCallId("retry"), "shell", "{}"), SessionEntry.ToolResult(ToolCallId("retry"), "shell", "wrong flag", isError = true),
+            SessionEntry.ToolCall(ToolCallId("check-1"), "shell", "{}"), SessionEntry.ToolResult(ToolCallId("check-1"), "shell", "passed"),
         ))
         assertEquals(null, result.error)
         assertEquals("skill_manage", result.proposals.single().tool)
@@ -306,7 +308,7 @@ class ReflectionTest {
             assertFalse("Existing user notes" in instructions)
             flowOf(StreamFrame.TextDelta("Nothing to save."), StreamFrame.End())
         }
-        assertEquals(ReflectionResult(), reflection.reflect(agent, model, "s1", listOf(SessionEntry.UserMessage("Hello"))).copy(measurements = emptyList()))
+        assertEquals(ReflectionResult(), reflection.reflect(agent, model, SessionId("s1"), listOf(SessionEntry.UserMessage("Hello"))).copy(measurements = emptyList()))
         assertEquals("- Existing memory\n", home.docs.read(agent.id, AgentDoc.Memory))
         assertEquals("- Existing user notes\n", home.docs.read(agent.id, AgentDoc.UserNotes))
     }
@@ -338,7 +340,7 @@ class ReflectionTest {
                 flowOf(StreamFrame.End())
             }
             val agent = home.agent.copy(config = home.agent.config.copy(tools = enabled.map { features[it] }))
-            val result = Reflection(knowledge, home.docs, home.skills).reflect(agent, model, "s1", listOf(SessionEntry.UserMessage("Review this"), SessionEntry.AssistantMessage("Do that"), SessionEntry.UserMessage("Yes")))
+            val result = Reflection(knowledge, home.docs, home.skills).reflect(agent, model, SessionId("s1"), listOf(SessionEntry.UserMessage("Review this"), SessionEntry.AssistantMessage("Do that"), SessionEntry.UserMessage("Yes")))
             assertEquals(null, result.error)
             assertEquals(enabled, seen)
             assertEquals(enabled.size, result.measurements.size)
@@ -357,7 +359,7 @@ class ReflectionTest {
                 StreamFrame.ToolCallComplete("same-id", name, """{"action":"create","type":"person","title":"Ana","reason":"Family","evidence":"user-0"}"""), StreamFrame.End(),
             )
         }
-        val result = reflection.reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Ana is my sister. Examples still help.")))
+        val result = reflection.reflect(home.agent, model, SessionId("s1"), listOf(SessionEntry.UserMessage("Ana is my sister. Examples still help.")))
         assertEquals(null, result.error)
         assertEquals(1, result.memory)
         assertTrue(result.memoryChanges.isEmpty())
@@ -382,7 +384,7 @@ class ReflectionTest {
                 else -> error("Knowledge provider failed")
             }
         } }
-        val result = reflection.reflect(home.agent, model, "s1", listOf(SessionEntry.UserMessage("Examples help")))
+        val result = reflection.reflect(home.agent, model, SessionId("s1"), listOf(SessionEntry.UserMessage("Examples help")))
         assertEquals(1, result.memory)
         assertEquals(1, result.memoryChanges.size)
         assertEquals("Knowledge provider failed", result.error)

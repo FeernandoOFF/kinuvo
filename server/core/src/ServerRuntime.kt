@@ -92,12 +92,12 @@ class ServerRuntime(
     }
     private val remoteGateway = RemoteGateway(remoteLinks,
         { admin.agents() + externalAgents() },
-        { id -> dispatch.create(id).let { dispatch.snapshot(id, it.id) } },
-        { agent, id -> dispatch.snapshot(agent, id) },
-        { agent, id, text, action -> dispatch.send(SendParams(agent, id, text, action = action)); Unit },
-        { _, id -> dispatch.stop(id) },
+        { id -> dispatch.create(AgentId(id)).let { dispatch.snapshot(AgentId(id), it.id) } },
+        { agent, id -> dispatch.snapshot(AgentId(agent), SessionId(id)) },
+        { agent, id, text, action -> dispatch.send(SendParams(AgentId(agent), SessionId(id), text, action = action)); Unit },
+        { _, id -> dispatch.stop(SessionId(id)) },
         { _, answer -> dispatch.answer(answer) },
-        { _, id -> if (external.owns(id)) external.discard(id) else dispatch.stop(id) })
+        { _, id -> if (external.owns(SessionId(id))) external.discard(SessionId(id)) else dispatch.stop(SessionId(id)) })
     private val executionManagement = Mutex()
     private val external = ExecutionCoordinator(executions, installedFactory, scope, harness.log, executionStorage,
         resolve = { harness.attachments.download(it) }, readinessChanged = { catalogChanged() })
@@ -112,7 +112,7 @@ class ServerRuntime(
     private val clients = ConcurrentMutableSet<Client>()
     private val runs = Runs(harness.log, scope, nativeFactory)
     private val devicePush = devicePush(auth, harness.serverId)
-    private val notifications = Notifications(harness, scope, runs::routine, { external.registrationOrArchived(it)?.name }, devicePush)
+    private val notifications = Notifications(harness, scope, runs::routine, { external.registrationOrArchived(AgentId(it))?.name }, devicePush)
     private val scheduler = Scheduler(harness, runs, scope, onRan = { broadcast(Api.RoutineRan, it); notifications.routineRan(it) })
     private val admin = Admin(harness, runs) { broadcast(Api.AgentsChanged, it) }
     private val reflectionReview = ReflectionReview(harness)
@@ -152,7 +152,7 @@ class ServerRuntime(
         harness.log.executionMetadata = { info -> if (external.owns(info.id)) info.copy(legacyOrder = external.record(info.id).legacyOrder) else info }
         harness.browser?.authorize { owner ->
             browserOwner(owner)
-            check("browser" in agent(owner.agentId).config.tools) { "Browser is disabled for this Agent" }
+            check("browser" in agent(owner.agentId.value).config.tools) { "Browser is disabled for this Agent" }
         }
         harness.log.onDelete = { a, id -> external.delete(a, id) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
         if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) scope.launch { dispatch.stop(it.id) } }
@@ -220,7 +220,7 @@ class ServerRuntime(
 
     private inner class Client(private val connection: FrameConnection) : SessionLog.Subscriber {
         var liveVoice: LiveVoiceSession? = null
-        var voiceSessionId: String? = null
+        var voiceSessionId: SessionId? = null
         var callScope: CoroutineScope = scope
         val browser = connection.credential != null
         val outbox = Channel<Frame>(OUTBOX_SIZE)
@@ -455,7 +455,7 @@ class ServerRuntime(
             check(client.liveVoice?.active != true) { "A live voice call is already active on this connection" }
             val provider = checkNotNull(voice.providers.speechToSpeech) { "Live voice is unavailable or disabled on this Server" }
             val registration = executions.registration(p.agentId)
-            val name = registration?.let { externalInfo(it).name } ?: agent(p.agentId).name
+            val name = registration?.let { externalInfo(it).name } ?: agent(p.agentId.value).name
             dispatch.snapshot(p.agentId, p.sessionId)
             client.voiceSessionId = p.sessionId
             LiveVoiceSession(provider, client.callScope, voiceContext(name, harness.store.entries(p.agentId, p.sessionId)),
@@ -503,13 +503,13 @@ class ServerRuntime(
         return voice.handle(r) ?: knowledge.handle(r) ?: tasks.handle(r) ?: settings.handle(r) ?: when (r.method) {
         Api.Capabilities.name -> respond(r, Api.Capabilities) { p ->
             val registration = external.registrationOrArchived(p.agentId)
-            if (registration == null) harness.capabilities(agent(p.agentId), p.sessionId, p.settings, capabilities, seq.load())
+            if (registration == null) harness.capabilities(agent(p.agentId.value), p.sessionId, p.settings, capabilities, seq.load())
             else external.capabilities(p.agentId, p.sessionId, externalInfo(registration).readiness, capabilities, seq.load())
         }
         Api.ProbeHarnessConnection.name -> respond(r, Api.ProbeHarnessConnection) { checkHarness(it) }
-        Api.ResumeExecution.name -> respond(r, Api.ResumeExecution) { executionManagement.withLock { external.resume(it.id) } }
-        Api.CloseExecution.name -> respond(r, Api.CloseExecution) { executionManagement.withLock { external.closeExecution(it.id) } }
-        Api.ExecutionSnapshot.name -> respond(r, Api.ExecutionSnapshot) { dispatch.snapshot(it.id) }
+        Api.ResumeExecution.name -> respond(r, Api.ResumeExecution) { executionManagement.withLock { external.resume(SessionId(it.id)) } }
+        Api.CloseExecution.name -> respond(r, Api.CloseExecution) { executionManagement.withLock { external.closeExecution(SessionId(it.id)) } }
+        Api.ExecutionSnapshot.name -> respond(r, Api.ExecutionSnapshot) { dispatch.snapshot(SessionId(it.id)) }
         Api.Respond.name -> respond(r, Api.Respond) {
             // Deciding any Approval takes management access, however the answer is shaped.
             if (!client.authenticated(auth::management)) {
@@ -536,9 +536,9 @@ class ServerRuntime(
         Api.SaveHarnessConnection.name -> respond(r, Api.SaveHarnessConnection) { executionManagement.withLock { check(!external.inUse(it.id)) { "Connection has live Sessions" }; executions.save(it).also { catalogChanged() } } }
         Api.DeleteHarnessConnection.name -> respond(r, Api.DeleteHarnessConnection) { executionManagement.withLock { check(!external.inUse(it.id)) { "Connection has live Sessions" }; executions.removeConnection(it.id).also { catalogChanged() } } }
         Api.RegisterExternalAgent.name -> respond(r, Api.RegisterExternalAgent) { executionManagement.withLock { val existing = executions.registration(it.id); check(existing == null || !external.agentInUse(existing.id)) { "Agent has live Sessions" }; require(harness.store.agents().none { a -> a.id == it.id }) { "Agent ID belongs to a native Agent" }; executions.register(it).also { a -> external.restore(a.id); catalogChanged() } } }
-        Api.UnregisterExternalAgent.name -> respond(r, Api.UnregisterExternalAgent) { executionManagement.withLock { val a = executions.registration(it.id); check(a == null || !external.agentInUse(a.id)) { "Agent has live Sessions" }; external.archive(it.id); executions.removeAgent(it.id).also { catalogChanged() } } }
+        Api.UnregisterExternalAgent.name -> respond(r, Api.UnregisterExternalAgent) { executionManagement.withLock { val a = executions.registration(AgentId(it.id)); check(a == null || !external.agentInUse(a.id)) { "Agent has live Sessions" }; external.archive(AgentId(it.id)); executions.removeAgent(AgentId(it.id)).also { catalogChanged() } } }
         Api.Agents.name -> respond(r, Api.Agents) { admin.agents() + externalAgents() }
-        Api.Agent.name -> respond(r, Api.Agent) { external.registrationOrArchived(it.agentId)?.let { a -> AgentDetails(externalInfo(a), AgentSettings("", "", "", "external"), "", "", managed = true, cwd = a.cwd, remoteAgentId = a.remoteAgentId) } ?: admin.details(agent(it.agentId)) }
+        Api.Agent.name -> respond(r, Api.Agent) { external.registrationOrArchived(it.agentId)?.let { a -> AgentDetails(externalInfo(a), AgentSettings("", "", "", "external"), "", "", managed = true, cwd = a.cwd, remoteAgentId = a.remoteAgentId) } ?: admin.details(agent(it.agentId.value)) }
         Api.CreateAgent.name -> respond(r, Api.CreateAgent) { p -> require(executions.catalog().agents.none { it.id == p.agentId }) { "Agent ID is reserved by an external registration" }; admin.create(p) }
         Api.UpdateAgent.name -> respond(r, Api.UpdateAgent) { admin.update(it).also { changedCapabilities() } }
         Api.TestExec.name -> respond(r, Api.TestExec) { admin.testExec(it) }
@@ -546,11 +546,11 @@ class ServerRuntime(
         Api.SaveImageModel.name -> respond(r, Api.SaveImageModel) { admin.saveImageModel(it).also { changedCapabilities() } }
         Api.ServerRules.name -> respond(r, Api.ServerRules) { admin.serverRules() }
         Api.SaveServerRules.name -> respond(r, Api.SaveServerRules) { admin.saveServerRules(it).also { changedCapabilities() } }
-        Api.DeleteAgent.name -> respond(r, Api.DeleteAgent) { admin.delete(it.agentId) }
-        Api.Sessions.name -> respond(r, Api.Sessions) { harness.log.page(it.agentId, it.before, it.limit.coerceIn(1, MAX_PAGE), it.routineId) }
+        Api.DeleteAgent.name -> respond(r, Api.DeleteAgent) { admin.delete(it.agentId.value) }
+        Api.Sessions.name -> respond(r, Api.Sessions) { harness.log.page(it.agentId, it.before?.value, it.limit.coerceIn(1, MAX_PAGE), it.routineId) }
         Api.Session.name -> respond(r, Api.Session) { harness.log.session(it.agentId, it.sessionId) }
-        Api.Skills.name -> respond(r, Api.Skills) { admin.skills(agent(it.agentId)) }
-        Api.Skill.name -> respond(r, Api.Skill) { admin.skill(agent(it.agentId), it.name, it.scope) }
+        Api.Skills.name -> respond(r, Api.Skills) { admin.skills(agent(it.agentId.value)) }
+        Api.Skill.name -> respond(r, Api.Skill) { admin.skill(agent(it.agentId.value), it.name, it.scope) }
         Api.SaveSkill.name -> respond(r, Api.SaveSkill) { admin.saveSkill(it) }
         Api.DeleteSkill.name -> respond(r, Api.DeleteSkill) { admin.deleteSkill(it) }
         Api.CatchUp.name -> respond(r, Api.CatchUp) { harness.log.subscribe(it.agentId, it.sessionId, it.after, it.limit.coerceIn(1, MAX_PAGE), client) }
@@ -558,7 +558,7 @@ class ServerRuntime(
         Api.History.name -> respond(r, Api.History) { harness.log.history(it.agentId, it.sessionId, it.before, it.limit.coerceIn(1, MAX_PAGE)) }
         Api.CreateSession.name -> respond(r, Api.CreateSession) { dispatch.create(it.agentId) }
         Api.ConfigureSession.name -> respond(r, Api.ConfigureSession) { p ->
-            val agent = agent(p.agentId)
+            val agent = agent(p.agentId.value)
             check(harness.store.entries(agent.id, p.sessionId).isNotEmpty()) { "No session '${p.sessionId}'" }
             harness.configure(agent, p.sessionId, p.settings).also { changedCapabilities() }
         }
@@ -570,30 +570,30 @@ class ServerRuntime(
         Api.SurfaceCatalogs.name -> respond(r, Api.SurfaceCatalogs) { harness.uiCatalogs.connect(client, it.catalogs) }
         Api.SurfaceImage.name -> respond(r, Api.SurfaceImage) { fetchSurfaceImage(it.url) }
         Api.AppResource.name -> respond(r, Api.AppResource) { harness.appResource(it) }
-        Api.AppCallTool.name -> respond(r, Api.AppCallTool) { harness.appCallTool(agent(it.app.agentId), it) }
+        Api.AppCallTool.name -> respond(r, Api.AppCallTool) { harness.appCallTool(agent(it.app.agentId.value), it) }
         Api.Attachment.name -> respond(r, Api.Attachment) { withContext(Dispatchers.Default) { harness.attachments.download(it.id) } }
         Api.Send.name -> respond(r, Api.Send) { dispatch.send(it, harness.uiCatalogs.forRun(client)) }
         Api.Stop.name -> respond(r, Api.Stop) { dispatch.stop(it.sessionId) }
-        Api.ReviewReflection.name -> respond(r, Api.ReviewReflection) { reflectionReview.respond(agent(it.agentId), it.sessionId, it.proposalId, it.approve, it.note) }
+        Api.ReviewReflection.name -> respond(r, Api.ReviewReflection) { reflectionReview.respond(agent(it.agentId.value), it.sessionId, it.proposalId, it.approve, it.note) }
         Api.Artifacts.name -> respond(r, Api.Artifacts) { harness.artifacts.list() }
         Api.Artifact.name -> respond(r, Api.Artifact) { harness.artifacts.get(it.id) }
         Api.SaveArtifact.name -> respond(r, Api.SaveArtifact) { harness.artifacts.replace(it.id, it.content) }
         Api.DeleteArtifact.name -> respond(r, Api.DeleteArtifact) { harness.artifacts.delete(it.id) }
-        Api.Routines.name -> respond(r, Api.Routines) { harness.routines.list(agent(it.agentId)) }
+        Api.Routines.name -> respond(r, Api.Routines) { harness.routines.list(agent(it.agentId.value)) }
         Api.CreateRoutine.name -> respond(r, Api.CreateRoutine) { p ->
-            val agent = agent(p.agentId)
+            val agent = agent(p.agentId.value)
             harness.routines.create(agent, checkSession(agent, p.spec))
         }
         Api.UpdateRoutine.name -> respond(r, Api.UpdateRoutine) { p ->
-            val agent = agent(p.agentId)
+            val agent = agent(p.agentId.value)
             val spec = checkSession(agent, p.spec)
             harness.routines.update(agent, p.routineId) { it.with(spec) } ?: error("No routine '${p.routineId}'")
         }
         Api.RunRoutine.name -> respond(r, Api.RunRoutine) { p ->
             check(scheduling) { "No server is running to run it; start one with `kinuvo serve` or the desktop app" }
-            checkNotNull(harness.routines.update(agent(p.agentId), p.routineId) { it.copy(runRequested = true) }) { "No routine '${p.routineId}'" }
+            checkNotNull(harness.routines.update(agent(p.agentId.value), p.routineId) { it.copy(runRequested = true) }) { "No routine '${p.routineId}'" }
         }
-        Api.RemoveRoutine.name -> respond(r, Api.RemoveRoutine) { p -> check(harness.routines.remove(agent(p.agentId), p.routineId)) { "No routine '${p.routineId}'" } }
+        Api.RemoveRoutine.name -> respond(r, Api.RemoveRoutine) { p -> check(harness.routines.remove(agent(p.agentId.value), p.routineId)) { "No routine '${p.routineId}'" } }
         Api.Presence.name -> respond(r, Api.Presence) { client.watching = it.active; client.refreshTools(); if (foregroundOnly && unwatched()) stopWaiting(); changedCapabilities() }
         Api.DeviceTools.name -> respond(r, Api.DeviceTools) { client.refreshTools(it.tools); changedCapabilities(); broadcast(Api.DevicesChanged, Unit) }
         Api.SubscribePush.name -> respond(r, Api.SubscribePush) { p -> client.authenticated { auth.setPush(it, p.subscription) }; broadcast(Api.DevicesChanged, Unit) }
@@ -652,7 +652,7 @@ class ServerRuntime(
         check(executions.registration(owner.agentId) == null) {
             "Browser is managed by this Agent's harness and isn't available in Kinuvo"
         }
-        agent(owner.agentId)
+        agent(owner.agentId.value)
     }
 
     private suspend fun checkHarness(config: HarnessConnection): ExecutionProbe {
@@ -692,11 +692,11 @@ class ServerRuntime(
         return AgentInfo(a.id, a.name, "external", a.avatar, if (c.config.connection is ExecutionConnection.Acp) ExecutionKind.Acp else ExecutionKind.Remote, a.connectionId, c.config.host ?: name, c.readiness)
     }
 
-    private suspend fun agent(id: String): Agent = admin.agent(id)
+    private suspend fun agent(id: String): Agent = admin.agent(AgentId(id))
 
     private suspend fun checkSession(agent: Agent, spec: RoutineSpec) = spec.also {
         val id = it.session?.takeIf { s -> s != NEW_SESSIONS } ?: return@also
-        check(harness.store.entries(agent.id, id).isNotEmpty()) { "No session '$id'" }
+        check(harness.store.entries(agent.id, SessionId(id)).isNotEmpty()) { "No session '$id'" }
     }
 
     private fun <T> broadcast(type: EventType<T>, payload: T) {

@@ -1,6 +1,7 @@
 package kinuvo.protocol.skill
 
 import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.agent.AgentId
 import kotlinx.serialization.Serializable
 
 /** A Skill an Agent can use; [userInvocable] ones can be activated with `/name`. [active] is false when a Skill of the same name shadows it. */
@@ -20,12 +21,12 @@ data class SkillDetails(val info: SkillInfo, val content: String, val files: Lis
 
 /** A null [scope] means the Skill the Agent uses under that name. */
 @Serializable
-data class SkillParams(val agentId: String, val name: String, val scope: ConfigScope? = null)
+data class SkillParams(val agentId: AgentId, val name: String, val scope: ConfigScope? = null)
 
 /** Writes SKILL.md ([content]) plus extra text [files] by relative path; [content]'s frontmatter must name the Skill [name]. */
 @Serializable
 data class SaveSkillParams(
-    val agentId: String,
+    val agentId: AgentId,
     val name: String,
     val content: String,
     val scope: ConfigScope = ConfigScope.Agent,

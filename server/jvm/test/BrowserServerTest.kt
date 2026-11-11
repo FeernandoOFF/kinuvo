@@ -119,7 +119,7 @@ class BrowserServerTest {
             assertEquals("/first", client.call(Api.Screens, owner).single { it.ref == ref }.title)
             client.call(Api.ScreenCommand, ScreenCommand(ref, initial.control.generation, ScreenCommandKind.Forward))
             assertEquals("/second", client.call(Api.Screens, owner).single { it.ref == ref }.title)
-            assertFailsWith<IllegalStateException> { client.call(Api.Screens, owner.copy(agentId = "missing")) }
+            assertFailsWith<IllegalStateException> { client.call(Api.Screens, owner.copy(agentId = AgentId("missing"))) }
             assertFailsWith<IllegalStateException> { client.call(Api.BrowserCommand, BrowserCommand(owner, BrowserAction.Takeover, ref.id, take = false)) }
             val pairing = client.call(Api.Pairing, PairingParams(refresh = true, management = false))
             ordinary = KinuvoClient(address, "Ordinary", pairingCode = pairing.code)

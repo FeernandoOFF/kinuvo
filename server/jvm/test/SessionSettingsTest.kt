@@ -13,6 +13,7 @@ import kinuvo.harness.AgentConfig
 import kinuvo.protocol.agent.UpdateAgentParams
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.SessionSettings
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -50,7 +51,7 @@ class SessionSettingsTest {
         var harness = Harness(Path(home.path), providers = ModelProviders.of(plugins), plugins = plugins)
         try {
             val admin = Admin(harness, Runs(harness.log, scope, harness.native)) {}
-            admin.update(UpdateAgentParams("default", provider = "first", model = "shared-id"))
+            admin.update(UpdateAgentParams(AgentId("default"), provider = "first", model = "shared-id"))
             val agent = harness.store.agents().single()
             val session = harness.newSession(agent).id
             harness.configure(agent, session, SessionSettings(provider = "second", model = "shared-id"))

@@ -71,8 +71,8 @@ class CodexAttachmentsTest {
         val model = openAIModel(AgentConfig(), client, ModelInfo("test", input = listOf("text", "image", "file"))) { byteArrayOf(1, 2, 3) }
         val history = listOf(
             SessionEntry.UserMessage("What's in Ana's photo?"),
-            SessionEntry.ToolCall("call-1", "knowledge", "{}"),
-            SessionEntry.ToolResult("call-1", "knowledge", "Attached photo.png", attachments = listOf(Attachment("image", "photo.png", "image/png", 3))),
+            SessionEntry.ToolCall(ToolCallId("call-1"), "knowledge", "{}"),
+            SessionEntry.ToolResult(ToolCallId("call-1"), "knowledge", "Attached photo.png", attachments = listOf(Attachment("image", "photo.png", "image/png", 3))),
         )
         try {
             assertFailsWith<IncompleteStreamException> { model.request("Help the user", history, emptyList()).toList() }

@@ -78,7 +78,7 @@ class ToolRunTest {
             }
         }
         assertEquals(listOf("change"), requests.map { it.toolCallName })
-        assertEquals(listOf("c1"), requests.map { it.toolCallId })
+        assertEquals(listOf("c1"), requests.map { it.toolCallId.value })
         assertEquals(listOf(target.identity.key), home.trustRules.get(agent.id).trusted)
         assertEquals(2, calls)
 

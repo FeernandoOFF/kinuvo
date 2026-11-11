@@ -7,6 +7,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
+import kinuvo.protocol.agent.AgentId
 
 class ContainerBackendTest {
     @Test
@@ -24,7 +25,7 @@ class ContainerBackendTest {
         val ws = Files.createTempDirectory("harness-cws").toFile().canonicalFile
         File(ws, "host.txt").writeText("from host")
         val id = "test-${System.nanoTime()}"
-        val backend = ContainerBackend(id, listOf(ws), "docker.io/library/debian:stable-slim", network = false, env = mapOf("GREETING" to "hola"))
+        val backend = ContainerBackend(AgentId(id), listOf(ws), "docker.io/library/debian:stable-slim", network = false, env = mapOf("GREETING" to "hola"))
         runBlocking {
             try {
                 val root = backend.roots.single()

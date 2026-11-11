@@ -21,6 +21,9 @@ import kinuvo.protocol.plugin.PluginInstanceId
 import kinuvo.protocol.reflection.ReflectionResult
 import kinuvo.protocol.usage.RequestMetrics
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
@@ -42,7 +45,7 @@ class CodexReflectionLiveTest {
             val chatId = System.getenv("KINUVO_MODEL") ?: AgentConfig().model
             val smallId = System.getenv("KINUVO_SMALL_MODEL") ?: "gpt-6-luna"
             val config = AgentConfig(model = chatId, reasoning = "low", tools = listOf(ToolNames.MEMORY, ToolNames.KNOWLEDGE, ToolNames.SKILLS))
-            val agent = Agent("benchmark", "Benchmark", config)
+            val agent = Agent(AgentId("benchmark"), "Benchmark", config)
             fun model(agent: Agent) = provider.model(agent.config, catalog.firstOrNull { it.id == agent.config.model })
             val chatModel = model(agent)
             val chat = fixture(Path(root, "chat"), agent)
@@ -125,15 +128,15 @@ class CodexReflectionLiveTest {
         SessionEntry.UserMessage("Ana leads our Harbour migration project. We agreed the launch deadline is 15 December 2026; record that ownership and deadline for future planning."),
         SessionEntry.AssistantMessage("I'll use Ana as Harbour's lead and 15 December 2026 as its launch deadline."),
         SessionEntry.UserMessage("Verify the release in order: run ./kotlin test -m core -p jvm, then ./kotlin test -m codex -p jvm. Stop if either fails; don't publish until both pass. Never run an unfiltered build."),
-        SessionEntry.ToolCall("core-check", "shell", """{"command":"./kotlin test -m core -p jvm"}"""),
-        SessionEntry.ToolResult("core-check", "shell", "Exit 0. All 179 core JVM tests passed."),
-        SessionEntry.ToolCall("codex-check", "shell", """{"command":"./kotlin test -m codex -p jvm"}"""),
-        SessionEntry.ToolResult("codex-check", "shell", "Exit 0. All Codex JVM tests passed; live tests were gated off."),
+        SessionEntry.ToolCall(ToolCallId("core-check"), "shell", """{"command":"./kotlin test -m core -p jvm"}"""),
+        SessionEntry.ToolResult(ToolCallId("core-check"), "shell", "Exit 0. All 179 core JVM tests passed."),
+        SessionEntry.ToolCall(ToolCallId("codex-check"), "shell", """{"command":"./kotlin test -m codex -p jvm"}"""),
+        SessionEntry.ToolResult(ToolCallId("codex-check"), "shell", "Exit 0. All Codex JVM tests passed; live tests were gated off."),
         SessionEntry.AssistantMessage("Both checks passed in order. The release verification is complete; nothing has been published."),
     )
 }
 
-private suspend fun Reflection.reflect(agent: Agent, model: AgentModel, sessionId: String, entries: List<SessionEntry>): ReflectionResult {
+private suspend fun Reflection.reflect(agent: Agent, model: AgentModel, sessionId: SessionId, entries: List<SessionEntry>): ReflectionResult {
     val run = turn(agent, sessionId, entries)
     runReflection(run, agent, model, sessionId, null)
     return run.finish()

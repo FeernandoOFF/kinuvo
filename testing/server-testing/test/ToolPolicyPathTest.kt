@@ -22,6 +22,9 @@ import kinuvo.protocol.session.SessionInfo
 import kinuvo.protocol.session.SessionParams
 import kinuvo.protocol.session.SessionStatus
 import kinuvo.protocol.approval.approval
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.filter
@@ -44,14 +47,14 @@ class ToolPolicyPathTest {
     private val deploy = FakeTool("deploy", Risk.High, reason = "Pushes to production") { "deployed" }
     private val appCall = "app-call"
 
-    private fun KinuvoClient.entries(sessionId: String) =
+    private fun KinuvoClient.entries(sessionId: SessionId) =
         events(Api.Update).filter { it.sessionId == sessionId }.mapNotNull { (it.change as? SessionChange.Entry)?.entry }
 
     private suspend inline fun <reified E : SessionEntry> ReceiveTurbine<SessionEntry>.awaitEntry(): E {
         while (true) (awaitItem() as? E)?.let { return it }
     }
 
-    private fun appRequest(session: SessionInfo) = McpAppToolRequest(McpAppRequest("work", session.id, appCall), "deploy")
+    private fun appRequest(session: SessionInfo) = McpAppToolRequest(McpAppRequest(AgentId("work"), session.id, ToolCallId(appCall)), "deploy")
 
     private fun JsonObject.text() = getValue("content").jsonArray.single().jsonObject.getValue("text").jsonPrimitive.content
 
@@ -64,7 +67,7 @@ class ToolPolicyPathTest {
             scenario = {
                 val work = agent("work")
                 withoutDefaultAgent()
-                session = session(work) { entry(SessionEntry.ToolResult(appCall, "deploy", "", app = McpAppRef("server", "ui://deploy", "hash"))) }
+                session = session(work) { entry(SessionEntry.ToolResult(ToolCallId(appCall), "deploy", "", app = McpAppRef("server", "ui://deploy", "hash"))) }
             },
         )
         server.use {
@@ -72,8 +75,8 @@ class ToolPolicyPathTest {
                 val client = server.client().also { it.connect() }
                 val approvals = client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }
                 approvals.test {
-                    client.call(Api.CatchUp, CatchUpParams("work", session.id))
-                    client.call(Api.Send, SendParams("work", session.id, "please deploy"))
+                    client.call(Api.CatchUp, CatchUpParams(AgentId("work"), session.id))
+                    client.call(Api.Send, SendParams(AgentId("work"), session.id, "please deploy"))
                     val chat = awaitItem()
                     assertEquals("deploy", chat.toolCallName)
                     assertEquals("Pushes to production", chat.reason)
@@ -83,7 +86,7 @@ class ToolPolicyPathTest {
                         assertEquals("Done", awaitEntry<SessionEntry.AssistantMessage>().text)
                         cancelAndIgnoreRemainingEvents()
                     }
-                    awaitCondition("the run to end", 5.seconds) { client.call(Api.Session, SessionParams("work", session.id)).status == SessionStatus.Idle }
+                    awaitCondition("the run to end", 5.seconds) { client.call(Api.Session, SessionParams(AgentId("work"), session.id)).status == SessionStatus.Idle }
 
                     val app = async { client.call(Api.AppCallTool, appRequest(session)) }
                     val fromApp = awaitItem()
@@ -95,9 +98,9 @@ class ToolPolicyPathTest {
                     assertEquals(false, result.getValue("isError").jsonPrimitive.boolean)
                     cancelAndIgnoreRemainingEvents()
                 }
-                val results = client.call(Api.History, HistoryParams("work", session.id, 100)).map { it.entry }.filterIsInstance<SessionEntry.ToolResult>()
-                assertEquals(listOf(appCall, "call-0"), results.map { it.id }.sorted())
-                assertEquals("deployed", results.single { it.id == "call-0" }.output)
+                val results = client.call(Api.History, HistoryParams(AgentId("work"), session.id, 100)).map { it.entry }.filterIsInstance<SessionEntry.ToolResult>()
+                assertEquals(listOf(appCall, "call-0"), results.map { it.id.value }.sorted())
+                assertEquals("deployed", results.single { it.id.value == "call-0" }.output)
             }
         }
     }
@@ -111,18 +114,18 @@ class ToolPolicyPathTest {
             scenario = {
                 val work = agent("work")
                 withoutDefaultAgent()
-                session = session(work) { entry(SessionEntry.ToolResult(appCall, "deploy", "", app = McpAppRef("server", "ui://deploy", "hash"))) }
+                session = session(work) { entry(SessionEntry.ToolResult(ToolCallId(appCall), "deploy", "", app = McpAppRef("server", "ui://deploy", "hash"))) }
             },
         )
         server.use {
             withContext(Dispatchers.Default) {
-                server.harness.trustRules.update("work") { it.copy(deny = DenyRules(tools = listOf("deploy"))) }
+                server.harness.trustRules.update(AgentId("work")) { it.copy(deny = DenyRules(tools = listOf("deploy"))) }
                 val client = server.client().also { it.connect() }
                 val approvals = client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }
                 approvals.test {
-                    client.call(Api.CatchUp, CatchUpParams("work", session.id))
+                    client.call(Api.CatchUp, CatchUpParams(AgentId("work"), session.id))
                     client.entries(session.id).test {
-                        client.call(Api.Send, SendParams("work", session.id, "please deploy"))
+                        client.call(Api.Send, SendParams(AgentId("work"), session.id, "please deploy"))
                         val chat = awaitEntry<SessionEntry.ToolResult>()
                         assertTrue(chat.isError && "Deny rule" in chat.output, chat.output)
                         assertEquals("Blocked", awaitEntry<SessionEntry.AssistantMessage>().text)
@@ -134,7 +137,7 @@ class ToolPolicyPathTest {
                     expectNoEvents()
                     cancelAndIgnoreRemainingEvents()
                 }
-                assertNull(client.call(Api.History, HistoryParams("work", session.id, 100)).map { it.entry }.filterIsInstance<SessionEntry.ToolResult>().firstOrNull { it.output == "deployed" })
+                assertNull(client.call(Api.History, HistoryParams(AgentId("work"), session.id, 100)).map { it.entry }.filterIsInstance<SessionEntry.ToolResult>().firstOrNull { it.output == "deployed" })
             }
         }
     }

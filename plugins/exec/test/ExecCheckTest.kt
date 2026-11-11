@@ -12,6 +12,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kinuvo.protocol.agent.AgentId
 
 class ExecCheckTest {
     private val files = TestStorage(Path(Files.createTempDirectory("harness-test").toFile().path))
@@ -22,7 +23,7 @@ class ExecCheckTest {
     fun listsTheWorkspaceAndRunsTheCommand() = runTest {
         File(root, "notes.md").writeText("hi")
         File(root, "src").mkdirs()
-        val r = check.check(Agent("main", "Kinuvo", AgentConfig(exec = "host", workspace = listOf(root.path))), "echo ok")
+        val r = check.check(Agent(AgentId("main"), "Kinuvo", AgentConfig(exec = "host", workspace = listOf(root.path))), "echo ok")
         assertNull(r.error)
         assertEquals(listOf("notes.md", "src/"), r.files)
         assertEquals("ok", r.output?.trim())
@@ -31,16 +32,16 @@ class ExecCheckTest {
 
     @Test
     fun reportsSettingsThatCannotWork() = runTest {
-        val missing = check.check(Agent("main", "Kinuvo", AgentConfig(exec = "host", workspace = listOf("$root/nope"))), null)
+        val missing = check.check(Agent(AgentId("main"), "Kinuvo", AgentConfig(exec = "host", workspace = listOf("$root/nope"))), null)
         assertTrue("does not exist" in missing.error.orEmpty())
-        assertTrue("ssh" in check.check(Agent("main", "Kinuvo", AgentConfig(exec = "ssh", workspace = listOf("/tmp"))), null).error.orEmpty())
+        assertTrue("ssh" in check.check(Agent(AgentId("main"), "Kinuvo", AgentConfig(exec = "ssh", workspace = listOf("/tmp"))), null).error.orEmpty())
     }
 }
 
 private class TestStorage(override val home: Path) : PluginStorage {
     override val sharedMcp = Path(home, "mcp.json")
-    override fun mcp(agentId: String) = Path(home, "agents", agentId, "mcp.json")
-    override fun agentExists(id: String) = true
-    override fun loadEnv(agentId: String?, process: Map<String, String>) = process
+    override fun mcp(agentId: AgentId) = Path(home, "agents", agentId.value, "mcp.json")
+    override fun agentExists(id: AgentId) = true
+    override fun loadEnv(agentId: AgentId?, process: Map<String, String>) = process
     override fun knowledgeOptions() = emptyMap<String, String>()
 }

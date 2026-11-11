@@ -19,6 +19,7 @@ import kinuvo.protocol.capability.IntegrationOptions
 import kinuvo.protocol.plugin.PluginDefinition
 import kinuvo.protocol.capability.ResolvedTool
 import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.agent.AgentId
 import kotlin.time.Duration
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -28,8 +29,8 @@ class ExecPlugin(private val files: PluginStorage, private val secrets: SecretRe
     override val definition = PluginDefinition("kinuvo.exec", "Shell and files")
     override val features = setOf(ServerFeature.Shell)
     private val lock = Mutex()
-    private val backends = mutableMapOf<String, ExecBackend?>()
-    private val states = mutableMapOf<String, CapabilityState>()
+    private val backends = mutableMapOf<AgentId, ExecBackend?>()
+    private val states = mutableMapOf<AgentId, CapabilityState>()
 
     override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
         val agent = run.agent
@@ -81,7 +82,7 @@ class ExecPlugin(private val files: PluginStorage, private val secrets: SecretRe
 
     override suspend fun readFile(agent: Agent, path: String): String? = backend(agent)?.read(path, ARTIFACT_MAX_CHARS, whole = true)
 
-    override suspend fun release(agentId: String) {
+    override suspend fun release(agentId: AgentId) {
         lock.withLock { states.remove(agentId); backends.remove(agentId) }?.close()
     }
 

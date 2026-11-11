@@ -1,16 +1,19 @@
 package kinuvo.protocol.device
 
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+
 /** `kinuvo://` links that open the app at a Session, e.g. from a notification, or pair it with a Server. */
 object Links {
     private val CHAT = Regex("""kinuvo://chat/([a-z0-9][a-z0-9-]{0,31})(?:/([A-Za-z0-9_-]{1,128}))?/?(?:\?server=([A-Za-z0-9_-]{1,128}))?""")
 
     /** Opens a Session; with [serverId], on that Server, switching to it when another one is selected. */
-    fun chat(agentId: String, sessionId: String? = null, serverId: String? = null) =
+    fun chat(agentId: AgentId, sessionId: SessionId? = null, serverId: String? = null) =
         "kinuvo://chat/$agentId" + (sessionId?.let { "/$it" } ?: "") + (serverId?.let { "?server=$it" } ?: "")
 
     /** The Agent, Session and Server of a chat link; null when [url] isn't one. */
     fun parseChat(url: String): ChatLink? = CHAT.matchEntire(url.trim())?.let {
-        ChatLink(it.groupValues[1], it.groupValues[2].ifEmpty { null }, it.groupValues[3].ifEmpty { null })
+        ChatLink(AgentId(it.groupValues[1]), it.groupValues[2].ifEmpty { null }?.let(::SessionId), it.groupValues[3].ifEmpty { null })
     }
 
     /** Opens the app ready to pair with [server]; what pairing QR codes hold. */

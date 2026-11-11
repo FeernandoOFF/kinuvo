@@ -6,10 +6,10 @@ import kinuvo.protocol.execution.ExecutionReadiness
 import kotlinx.serialization.Serializable
 
 @Serializable
-data class AgentInfo(val id: String, val name: String, val exec: String, val avatar: String? = null, val executionKind: ExecutionKind = ExecutionKind.Native, val connectionId: String? = null, val host: String? = null, val readiness: ExecutionReadiness = ExecutionReadiness(true, true))
+data class AgentInfo(val id: AgentId, val name: String, val exec: String, val avatar: String? = null, val executionKind: ExecutionKind = ExecutionKind.Native, val connectionId: String? = null, val host: String? = null, val readiness: ExecutionReadiness = ExecutionReadiness(true, true))
 
 @Serializable
-data class AgentRef(val agentId: String)
+data class AgentRef(val agentId: AgentId)
 
 /** What the user can change about an Agent; [tools] are the built-in tool groups it may use, [approvals] its risk tolerance (strict | default | relaxed | full). */
 @Serializable
@@ -36,7 +36,7 @@ data class SshSettings(val host: String, val user: String? = null, val port: Int
 /** Exec settings to try without saving them; [command] runs in the first Workspace folder. */
 @Serializable
 data class TestExecParams(
-    val agentId: String,
+    val agentId: AgentId,
     val exec: String,
     val workspace: List<String>,
     val container: ContainerSettings = ContainerSettings(),
@@ -61,12 +61,12 @@ data class AgentDetails(val info: AgentInfo, val settings: AgentSettings, val id
 
 /** A new Agent from the default template, or a copy of [cloneFrom]'s settings, Identity, Soul and Skills. */
 @Serializable
-data class CreateAgentParams(val agentId: String, val name: String? = null, val cloneFrom: String? = null)
+data class CreateAgentParams(val agentId: AgentId, val name: String? = null, val cloneFrom: AgentId? = null)
 
 /** Null fields stay as they are. [name] replaces the title of IDENTITY.md. */
 @Serializable
 data class UpdateAgentParams(
-    val agentId: String,
+    val agentId: AgentId,
     val name: String? = null,
     val model: String? = null,
     val reasoning: String? = null,

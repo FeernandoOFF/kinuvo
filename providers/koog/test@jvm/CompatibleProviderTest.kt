@@ -23,6 +23,7 @@ import kinuvo.harness.builtin.tools.RawSchemaToolDescriptor
 import kinuvo.protocol.model.CustomEndpointParams
 import kinuvo.protocol.model.ModelInfo
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.*
@@ -165,10 +166,10 @@ private fun OutgoingContent.text(): String = when (this) {
 
 private fun parallelToolHistory() = listOf(
     SessionEntry.UserMessage("Read both files"),
-    SessionEntry.ToolCall("first", "read", "{}"),
-    SessionEntry.ToolCall("second", "read", "{}"),
-    SessionEntry.ToolResult("first", "read", "one"),
-    SessionEntry.ToolResult("second", "read", "two"),
+    SessionEntry.ToolCall(ToolCallId("first"), "read", "{}"),
+    SessionEntry.ToolCall(ToolCallId("second"), "read", "{}"),
+    SessionEntry.ToolResult(ToolCallId("first"), "read", "one"),
+    SessionEntry.ToolResult(ToolCallId("second"), "read", "two"),
 )
 
 private fun assertParallelToolMessages(request: JsonObject) {

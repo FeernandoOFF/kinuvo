@@ -10,6 +10,7 @@ import kinuvo.protocol.execution.ExecutionCapabilities
 import kinuvo.protocol.model.ModelInfo
 import kinuvo.protocol.approval.Question
 import kinuvo.protocol.approval.QuestionKind
+import kinuvo.protocol.agent.AgentId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -36,7 +37,7 @@ class ExternalFlowTest {
         withoutAgent(it)
         externalAgent(harness, "e2e", "E2E Agent")
     }) {
-        server.startSession("e2e", prompt = "Start", title = "External regression")
+        server.startSession(AgentId("e2e"), prompt = "Start", title = "External regression")
         openExternalSession()
         await("Choose a retry limit")
         await("3")
@@ -62,7 +63,7 @@ class ExternalFlowTest {
     @Test fun lostExternalSessionKeepsItsTranscript() = appTest("external-session-lost", harnesses = listOf(harness), scenario = {
         withoutAgent(it)
         externalAgent(harness, "e2e", "E2E Agent")
-        lostExternalSession("e2e", title = "External regression", draft = "Unfinished external draft") {
+        lostExternalSession(AgentId("e2e"), title = "External regression", draft = "Unfinished external draft") {
             user("Start")
             assistant("External transcript retained")
         }
@@ -110,7 +111,7 @@ class ExternalFlowTest {
             withoutAgent(it)
             externalAgent(attaching, "e2e", "E2E Agent")
         }) {
-            server.startSession("e2e", prompt = "Hello", title = "External regression")
+            server.startSession(AgentId("e2e"), prompt = "Hello", title = "External regression")
             openExternalSession()
             tap("Attach")
             check()

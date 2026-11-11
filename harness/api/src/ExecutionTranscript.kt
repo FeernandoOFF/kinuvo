@@ -13,11 +13,11 @@ fun toolEntries(message: ExecutionMessage): List<SessionEntry> {
     if (native is SessionEntry.ToolCall || native is SessionEntry.ToolResult) return listOf(native)
     val id = (payload?.get("toolCallId") as? JsonPrimitive)?.content ?: message.id
     val input = payload?.get("rawInput")?.toString() ?: ""
-    val call = SessionEntry.ToolCall(id, message.text, input)
+    val call = SessionEntry.ToolCall(ToolCallId(id), message.text, input)
     val status = (payload?.get("status") as? JsonPrimitive)?.content
     if (status != "completed" && status != "failed") return listOf(call)
     val output = payload?.get("rawOutput")?.takeUnless { it is JsonNull } ?: payload?.get("content")?.takeUnless { it is JsonNull }
-    return listOf(call, SessionEntry.ToolResult(id, message.text, output?.let { (it as? JsonPrimitive)?.content ?: it.toString() } ?: "", isError = status == "failed"))
+    return listOf(call, SessionEntry.ToolResult(ToolCallId(id), message.text, output?.let { (it as? JsonPrimitive)?.content ?: it.toString() } ?: "", isError = status == "failed"))
 }
 
 fun transcript(snapshot: ExecutionSnapshot): List<SessionEntry> = snapshot.messages.flatMap { m ->

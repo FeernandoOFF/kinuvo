@@ -49,7 +49,7 @@ class SharedServerTest {
                 assertTrue(app.lastConnect!!.management)
                 val code = app.call(Api.Pairing, PairingParams()).code
                 remote = KinuvoClient("ws://127.0.0.1:$port/ws", "Laptop", pairingCode = code).also { it.connect() }
-                assertEquals("default", remote.call(Api.Agents, Unit).single().id)
+                assertEquals("default", remote.call(Api.Agents, Unit).single().id.value)
                 assertEquals(listOf("Laptop"), app.call(Api.PairedDevices, Unit).map { it.name })
                 assertEquals(listOf("Pixel"), server.runtime.harness.computers.list().map { it.name })
                 auth.pairable = false

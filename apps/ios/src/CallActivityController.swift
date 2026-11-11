@@ -40,7 +40,7 @@ final class CallActivityController {
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled, let call = latest else { return }
             defer { pending = nil }
-            let attributes = CallAttributes(agentName: call.agentName, agentId: call.agentId, sessionId: call.sessionId, ink: bridge?.ink(agentId: call.agentId) ?? 0xFFA98BF0)
+            let attributes = CallAttributes(agentName: call.agentName, agentId: call.agentKey, sessionId: call.sessionKey, ink: bridge?.ink(agentId: call.agentKey) ?? 0xFFA98BF0)
             let content = ActivityContent(state: CallAttributes.ContentState(
                 phase: call.voice.phase.name, muted: call.voice.paused,
                 caption: String((call.voice.caption.isEmpty ? call.voice.heard : call.voice.caption).prefix(160)),

@@ -73,6 +73,7 @@ import kinuvo.app.agent.ApprovalOptionStyle
 import kinuvo.app.agent.approvalOptionStyle
 import kinuvo.app.session.approvalAnswer
 import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.session.commandOf
 import kinuvo.ui.session.prettyJson
 import androidx.navigationevent.NavigationEventInfo
@@ -446,5 +447,5 @@ private fun SheetButton(label: String, filled: Boolean, onClick: () -> Unit) {
 
 /** The Agents' colours as ARGB by ID, for native call surfaces such as the Live Activity. */
 object AgentInks {
-    val byId = mutableMapOf<String, Long>()
+    val byId = mutableMapOf<AgentId, Long>()
 }

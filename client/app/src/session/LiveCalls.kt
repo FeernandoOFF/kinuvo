@@ -6,11 +6,13 @@ import kinuvo.client.userMessage
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlin.time.Clock
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 data class ActiveCall(
-    val agentId: String,
-    val sessionId: String,
-    val agentName: String = agentId,
+    val agentId: AgentId,
+    val sessionId: SessionId,
+    val agentName: String = agentId.value,
     val voice: VoiceChatState = VoiceChatState(),
     val startedAt: Long = Clock.System.now().toEpochMilliseconds(),
     val durationSeconds: Long = 0,
@@ -25,7 +27,7 @@ class LiveCalls(private val scope: CoroutineScope = CoroutineScope(SupervisorJob
     private var timer: Job? = null
     private var starting: Job? = null
 
-    fun start(agent: String, session: String, voice: VoiceChat, name: String = agent) {
+    fun start(agent: AgentId, session: SessionId, voice: VoiceChat, name: String = agent.value) {
         if (state.value?.let { it.agentId == agent && it.sessionId == session && it.voice.phase != VoicePhase.Off } == true) return
         end()
         chat = voice
@@ -63,7 +65,7 @@ class LiveCalls(private val scope: CoroutineScope = CoroutineScope(SupervisorJob
     }
     fun openSession() { state.value?.let { pendingLink.value = Route.Chat(it.agentId, it.sessionId) } }
 
-    fun attach(agent: String, session: String?, screenScope: CoroutineScope, resolve: suspend () -> Pair<String, String>?, name: suspend (String) -> String = { it }, create: (String, String) -> VoiceChat): VoiceChat = object : VoiceChat {
+    fun attach(agent: AgentId?, session: SessionId?, screenScope: CoroutineScope, resolve: suspend () -> Pair<AgentId, SessionId>?, name: suspend (AgentId) -> String = { it.value }, create: (AgentId, SessionId) -> VoiceChat): VoiceChat = object : VoiceChat {
         private val observed = MutableStateFlow(VoiceChatState())
         override val state: StateFlow<VoiceChatState> get() = observed
         private var joined = session

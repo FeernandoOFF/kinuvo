@@ -15,6 +15,8 @@ import kinuvo.protocol.session.SessionPage
 import kinuvo.protocol.session.SessionStatus
 import kinuvo.protocol.session.SessionUpdate
 import kinuvo.protocol.session.isLive
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.concurrent.atomics.AtomicReference
@@ -40,13 +42,13 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     }
 
     private val lock = Mutex()
-    private val counts = HashMap<String, Int>()
-    private val live = HashMap<String, LiveState>()
-    private val completions = HashMap<String, AgentEvent>()
-    suspend fun completion(sessionId: String): AgentEvent? = lock.withLock { completions[sessionId] }
-    private val subscribers = HashMap<String, MutableSet<Subscriber>>()
+    private val counts = HashMap<SessionId, Int>()
+    private val live = HashMap<SessionId, LiveState>()
+    private val completions = HashMap<SessionId, AgentEvent>()
+    suspend fun completion(sessionId: SessionId): AgentEvent? = lock.withLock { completions[sessionId] }
+    private val subscribers = HashMap<SessionId, MutableSet<Subscriber>>()
     private val changeListeners = AtomicReference(emptySet<(SessionInfo) -> Unit>())
-    private val eventListeners = AtomicReference(emptySet<(String, String, AgentEvent) -> Unit>())
+    private val eventListeners = AtomicReference(emptySet<(AgentId, SessionId, AgentEvent) -> Unit>())
 
     /** [listener] must not block: it's called while holding the lock. */
     fun onChange(listener: (SessionInfo) -> Unit) {
@@ -54,37 +56,37 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     }
 
     /** Sees every run event; [listener] must not block: it's called while holding the lock. */
-    fun onEvent(listener: (String, String, AgentEvent) -> Unit) {
+    fun onEvent(listener: (AgentId, SessionId, AgentEvent) -> Unit) {
         eventListeners.update { it + listener }
     }
 
     /** Whether a client in the foreground is subscribed to [sessionId]. */
-    suspend fun watched(sessionId: String): Boolean = lock.withLock { subscribers[sessionId].orEmpty().any { it.watching } }
+    suspend fun watched(sessionId: SessionId): Boolean = lock.withLock { subscribers[sessionId].orEmpty().any { it.watching } }
 
-    suspend fun pending(sessionId: String): List<PendingInteraction> = lock.withLock { live[sessionId]?.pending.orEmpty() }
+    suspend fun pending(sessionId: SessionId): List<PendingInteraction> = lock.withLock { live[sessionId]?.pending.orEmpty() }
 
-    suspend fun status(sessionId: String): SessionStatus = lock.withLock { statusOf(sessionId) }
+    suspend fun status(sessionId: SessionId): SessionStatus = lock.withLock { statusOf(sessionId) }
 
     var executionMetadata: suspend (SessionInfo) -> SessionInfo = { it }
 
-    override suspend fun session(agentId: String, sessionId: String): SessionInfo = executionMetadata(store.session(agentId, sessionId).copy(status = status(sessionId)))
+    override suspend fun session(agentId: AgentId, sessionId: SessionId): SessionInfo = executionMetadata(store.session(agentId, sessionId).copy(status = status(sessionId)))
 
     /** [before] is the last Session ID of the previous page; [routineId] picks that Routine's Sessions instead of the chats. */
-    suspend fun page(agentId: String, before: String?, limit: Int, routineId: String? = null): SessionPage {
+    suspend fun page(agentId: AgentId, before: String?, limit: Int, routineId: String? = null): SessionPage {
         val sessions = store.sessions(agentId).map { executionMetadata(it) }
         val all = lock.withLock { sessions.map { it.copy(status = statusOf(it.id)) } }
             .sortedWith(SessionOrder)
             .filter { if (routineId == null) it.inChats else it.routine?.id == routineId }
-        val from = before?.let { id -> all.indexOfFirst { it.id == id } + 1 } ?: 0
+        val from = before?.let { id -> all.indexOfFirst { it.id.value == id } + 1 } ?: 0
         val page = all.drop(from).take(limit)
         return SessionPage(page, from + page.size < all.size, if (before == null && routineId == null) all.filter { it.favorite } else emptyList())
     }
 
-    override suspend fun createSession(agentId: String, instructions: String, routine: RoutineRef?): SessionInfo =
+    override suspend fun createSession(agentId: AgentId, instructions: String, routine: RoutineRef?): SessionInfo =
         store.createSession(agentId, instructions, routine).also { info -> lock.withLock { changed(info) } }
 
-    var onDelete: suspend (String, String) -> Unit = { _, _ -> }
-    override suspend fun deleteSession(agentId: String, sessionId: String) {
+    var onDelete: suspend (AgentId, SessionId) -> Unit = { _, _ -> }
+    override suspend fun deleteSession(agentId: AgentId, sessionId: SessionId) {
         store.entries(agentId, sessionId)
         onDelete(agentId, sessionId)
         lock.withLock {
@@ -98,15 +100,15 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     }
 
     /** Drops entries from [size] on and sends subscribers a fresh window, since the entries they hold changed. */
-    override suspend fun truncate(agentId: String, sessionId: String, size: Int) = lock.withLock {
+    override suspend fun truncate(agentId: AgentId, sessionId: SessionId, size: Int) = lock.withLock {
         truncate(agentId, sessionId, size, false)
     }
 
-    suspend fun discardSilentRun(agentId: String, sessionId: String, size: Int) = lock.withLock {
+    suspend fun discardSilentRun(agentId: AgentId, sessionId: SessionId, size: Int) = lock.withLock {
         truncate(agentId, sessionId, size, true)
     }
 
-    private suspend fun truncate(agentId: String, sessionId: String, size: Int, keepSettings: Boolean) {
+    private suspend fun truncate(agentId: AgentId, sessionId: SessionId, size: Int, keepSettings: Boolean) {
         val dropped = store.entries(agentId, sessionId).drop(size)
         val kept = listOfNotNull(
             dropped.filterIsInstance<SessionEntry.Settings>().lastOrNull()?.takeIf { keepSettings },
@@ -120,7 +122,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         changed(store.session(agentId, sessionId).copy(status = statusOf(sessionId)))
     }
 
-    suspend fun updateDetails(agentId: String, sessionId: String, title: String?, favorite: Boolean?): SessionInfo = lock.withLock {
+    suspend fun updateDetails(agentId: AgentId, sessionId: SessionId, title: String?, favorite: Boolean?): SessionInfo = lock.withLock {
         val previous = store.entries(agentId, sessionId).filterIsInstance<SessionEntry.Details>().lastOrNull() ?: SessionEntry.Details()
         val next = previous.copy(writtenAt = clock(), title = if (title == null) previous.title else title.trim().take(MAX_SESSION_TITLE).ifEmpty { null }, favorite = favorite ?: previous.favorite)
         val seq = count(agentId, sessionId)
@@ -129,7 +131,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         store.session(agentId, sessionId).copy(status = statusOf(sessionId)).also { changed(it) }
     }
 
-    override suspend fun append(agentId: String, sessionId: String, entry: SessionEntry) = lock.withLock {
+    override suspend fun append(agentId: AgentId, sessionId: SessionId, entry: SessionEntry) = lock.withLock {
         val seq = count(agentId, sessionId)
         val stamped = entry.withWrittenAt(entry.writtenAt ?: clock())
         store.append(agentId, sessionId, stamped)
@@ -137,7 +139,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         metadata(agentId, sessionId, listOf(stamped))
     }
 
-    override suspend fun appendAll(agentId: String, sessionId: String, entries: List<SessionEntry>): List<SessionEntry> = lock.withLock {
+    override suspend fun appendAll(agentId: AgentId, sessionId: SessionId, entries: List<SessionEntry>): List<SessionEntry> = lock.withLock {
         val seq = count(agentId, sessionId)
         val added = store.appendAll(agentId, sessionId, entries.map { it.withWrittenAt(it.writtenAt ?: clock()) })
         added.forEachIndexed { index, entry -> saved(agentId, sessionId, seq + index, entry) }
@@ -145,7 +147,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         added
     }
 
-    private fun saved(agentId: String, sessionId: String, seq: Int, entry: SessionEntry) {
+    private fun saved(agentId: AgentId, sessionId: SessionId, seq: Int, entry: SessionEntry) {
         counts[sessionId] = seq + 1
         live[sessionId]?.let {
             val state = it.on(entry)
@@ -155,12 +157,12 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         deliver(SessionUpdate(agentId, sessionId, SessionChange.Entry(seq, entry)))
     }
 
-    private suspend fun metadata(agentId: String, sessionId: String, entries: List<SessionEntry>) {
+    private suspend fun metadata(agentId: AgentId, sessionId: SessionId, entries: List<SessionEntry>) {
         if (entries.any { it is SessionEntry.UserMessage || it is SessionEntry.Settings || it is SessionEntry.Details })
             changed(store.session(agentId, sessionId).copy(status = statusOf(sessionId)))
     }
 
-    suspend fun publish(agentId: String, sessionId: String, event: AgentEvent) = lock.withLock {
+    suspend fun publish(agentId: AgentId, sessionId: SessionId, event: AgentEvent) = lock.withLock {
         store.entries(agentId, sessionId)
         when(event) {
             is AgentEvent.RunStarted -> completions.remove(sessionId)
@@ -180,7 +182,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
      * Sends [subscriber] the entries from [after] on (or a [SessionChange.Reset] window of the last [limit]) and the live
      * state, then keeps it subscribed.
      */
-    suspend fun subscribe(agentId: String, sessionId: String, after: Int?, limit: Int, subscriber: Subscriber) = lock.withLock {
+    suspend fun subscribe(agentId: AgentId, sessionId: SessionId, after: Int?, limit: Int, subscriber: Subscriber) = lock.withLock {
         // Reads the whole file to send a window of it; a DB fetches just the range.
         val entries = store.entries(agentId, sessionId)
         counts[sessionId] = entries.size
@@ -188,7 +190,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         send(agentId, sessionId, entries, after, limit, subscriber)
     }
 
-    private fun send(agentId: String, sessionId: String, entries: List<SessionEntry>, after: Int?, limit: Int, subscriber: Subscriber) {
+    private fun send(agentId: AgentId, sessionId: SessionId, entries: List<SessionEntry>, after: Int?, limit: Int, subscriber: Subscriber) {
         val from = if (after == null || after > entries.size || entries.size - after > limit) maxOf(0, entries.size - limit) else after
         val changes = buildList {
             if (from != after) add(SessionChange.Reset(from))
@@ -198,7 +200,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         for (change in changes) if (!subscriber.offer(SessionUpdate(agentId, sessionId, change))) return removeEverywhere(subscriber)
     }
 
-    suspend fun unsubscribe(sessionId: String, subscriber: Subscriber) = lock.withLock {
+    suspend fun unsubscribe(sessionId: SessionId, subscriber: Subscriber) = lock.withLock {
         subscribers[sessionId]?.remove(subscriber)
         Unit
     }
@@ -206,7 +208,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     suspend fun unsubscribeAll(subscriber: Subscriber) = lock.withLock { removeEverywhere(subscriber) }
 
     /** Up to [limit] entries before seq [before]. Entries never change, so this needs no lock. */
-    suspend fun history(agentId: String, sessionId: String, before: Int, limit: Int): List<SessionChange.Entry> {
+    suspend fun history(agentId: AgentId, sessionId: SessionId, before: Int, limit: Int): List<SessionChange.Entry> {
         // Reads the whole file for one page; a DB fetches just the range.
         val entries = store.entries(agentId, sessionId)
         val to = before.coerceIn(0, entries.size)
@@ -214,11 +216,11 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
         return entries.subList(from, to).mapIndexed { i, entry -> SessionChange.Entry(from + i, entry) }
     }
 
-    private fun statusOf(sessionId: String) = live[sessionId]?.status ?: SessionStatus.Idle
+    private fun statusOf(sessionId: SessionId) = live[sessionId]?.status ?: SessionStatus.Idle
 
     private fun removeEverywhere(subscriber: Subscriber) = subscribers.values.forEach { it.remove(subscriber) }
 
-    private suspend fun count(agentId: String, sessionId: String): Int {
+    private suspend fun count(agentId: AgentId, sessionId: SessionId): Int {
         val entries = store.entries(agentId, sessionId)
         return entries.size.also { counts[sessionId] = it }
     }

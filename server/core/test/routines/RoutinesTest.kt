@@ -11,6 +11,8 @@ import kinuvo.protocol.plugin.PluginInstanceId
 import kinuvo.server.plugin.readText
 import kinuvo.protocol.routine.RoutineApprovals
 import kinuvo.protocol.routine.Trigger
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -30,7 +32,7 @@ class RoutinesTest {
     private val now = 1_790_000_000_000L
     private val zone = TimeZone.of("Europe/Dublin")
     private val routines = Routines(home.routineRepository, home.docs, defaultZone = { zone }, clock = { now })
-    private val changes = mutableListOf<String>().also { list -> routines.onChange { agent, _ -> list += agent.id } }
+    private val changes = mutableListOf<AgentId>().also { list -> routines.onChange { agent, _ -> list += agent.id } }
 
     private fun args(vararg pairs: Pair<String, String>) = JsonObject(pairs.associate { it.first to JsonPrimitive(it.second) })
 
@@ -76,7 +78,7 @@ class RoutinesTest {
 
     @Test
     fun toolCreatesUpdatesAndAttaches() = runTest {
-        val tool = ScheduleTool(agent, routines, { zone }, sessionId = "s1", clock = { now })
+        val tool = ScheduleTool(agent, routines, { zone }, sessionId = SessionId("s1"), clock = { now })
         tool.execute(args("action" to "create", "name" to "Brief", "prompt" to "Summarize", "cron" to "0 9 * * *", "active_hours" to "08:00-22:00"))
         val r = routines.list(agent).single { !it.heartbeat }
         assertEquals(Trigger.Cron("0 9 * * *"), r.trigger)
@@ -84,7 +86,7 @@ class RoutinesTest {
 
         tool.execute(args("action" to "update", "id" to r.id, "session" to "attach", "approvals" to "deny", "every" to "2h"))
         val updated = routines.get(agent, r.id)!!
-        assertEquals("s1", updated.sessionId)
+        assertEquals("s1", updated.sessionId?.value)
         assertEquals(RoutineApprovals.Deny, updated.approvals)
         assertEquals(Trigger.Every(120), updated.trigger)
 
@@ -93,7 +95,7 @@ class RoutinesTest {
         assertTrue(routines.list(agent).any { it.name == "Call" && it.trigger is Trigger.Once })
 
         tool.execute(args("action" to "update", "id" to r.id, "session" to "", "active_hours" to "none"))
-        assertEquals("s1", routines.get(agent, r.id)!!.sessionId)
+        assertEquals("s1", routines.get(agent, r.id)!!.sessionId?.value)
         assertNull(routines.get(agent, r.id)!!.activeHours)
     }
 

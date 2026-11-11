@@ -43,7 +43,7 @@ fun rememberBrowserDocks(key: Any?): BrowserDocks {
  */
 @Composable
 fun BrowserDockHost(browser: Route.Browser?, docks: BrowserDocks, onExpand: (Route.Browser) -> Unit, chat: @Composable (BrowserDock?) -> Unit) {
-    val agent = browser?.agentId.orEmpty()
+    val agent = browser?.agentId?.value.orEmpty()
     val open = docks.open[agent] == true
     var focus by remember(agent) { mutableStateOf<Pair<ScreenRef, String?>?>(null) }
     val density = LocalDensity.current

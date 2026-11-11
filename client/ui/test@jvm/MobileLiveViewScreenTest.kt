@@ -13,6 +13,7 @@ import kinuvo.app.screen.LiveViewState
 import kinuvo.protocol.*
 import kinuvo.protocol.browser.*
 import kinuvo.protocol.screen.*
+import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.design.HarnessTheme
 import kinuvo.ui.screen.*
 import java.io.File
@@ -52,7 +53,7 @@ class MobileLiveViewScreenTest {
 
     @Test fun mobileBrowserAndComputerShareMinimalChromeAndExplicitPaste() = javax.swing.SwingUtilities.invokeAndWait {
         for (browser in listOf(false, true)) {
-            val owner = BrowserOwner("agent").takeIf { browser }
+            val owner = BrowserOwner(AgentId("agent")).takeIf { browser }
             val ref = ScreenRef(if (browser) "browser" else "computer", "one", owner)
             val frame = ScreenFrame(ref, "sub", "epoch", 1, sample())
             val info = ScreenInfo(ref, "Design", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap", "type", "scroll", "key"),
@@ -116,7 +117,7 @@ class MobileLiveViewScreenTest {
     }
 
     @Test fun canvasGesturesNeverOpenKeyboardUntilKeyboardButtonIsSelected() = javax.swing.SwingUtilities.invokeAndWait {
-        val ref = ScreenRef("browser", "one", BrowserOwner("agent"))
+        val ref = ScreenRef("browser", "one", BrowserOwner(AgentId("agent")))
         val frame = ScreenFrame(ref, "sub", "epoch", 1, sample(1000, 500))
         val info = ScreenInfo(ref, "First", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap", "type", "scroll")), ScreenStatus.Ready, ScreenControl(1, "device"))
         val state = LiveViewState(screens = listOf(info), selected = ref, connected = true, device = "device", owner = ref.owner, frame = frame, displayed = frame)
@@ -150,7 +151,7 @@ class MobileLiveViewScreenTest {
     }
 
     @Test fun tappingThumbnailImageSelectsTabAndDismissesPicker() = javax.swing.SwingUtilities.invokeAndWait {
-        val owner = BrowserOwner("agent")
+        val owner = BrowserOwner(AgentId("agent"))
         val first = ScreenRef("browser", "one", owner)
         val second = first.copy(id = "two")
         val frame = ScreenFrame(first, "sub", "epoch", 1, sample())
@@ -236,7 +237,7 @@ class MobileLiveViewScreenTest {
     }
 
     @Test fun trackpadMovesLocallyClicksAtCursorAndRecenters() = javax.swing.SwingUtilities.invokeAndWait {
-        val frame = ScreenFrame(ScreenRef("browser", "one", BrowserOwner("agent")), "sub", "epoch", 1, sample(1000, 500))
+        val frame = ScreenFrame(ScreenRef("browser", "one", BrowserOwner(AgentId("agent"))), "sub", "epoch", 1, sample(1000, 500))
         var recenter by mutableIntStateOf(0)
         val sent = mutableListOf<Pair<ScreenFrame, List<ScreenAction>>>()
         ImageComposeScene(200, 100, Density(1f), coroutineContext = Dispatchers.Main, content = { HarnessTheme {
@@ -279,7 +280,7 @@ class MobileLiveViewScreenTest {
     }
     @OptIn(androidx.compose.ui.InternalComposeUiApi::class, androidx.compose.ui.ExperimentalComposeUiApi::class)
     @Test fun pinchZoomPreservesSourceCoordinatesWhenSwitchingBackToTouch() = javax.swing.SwingUtilities.invokeAndWait {
-        val frame = ScreenFrame(ScreenRef("browser", "one", BrowserOwner("agent")), "sub", "epoch", 1, sample(1000, 500))
+        val frame = ScreenFrame(ScreenRef("browser", "one", BrowserOwner(AgentId("agent"))), "sub", "epoch", 1, sample(1000, 500))
         var trackpad by mutableStateOf(true)
         val sent = mutableListOf<ScreenAction>()
         ImageComposeScene(200, 200, Density(1f), coroutineContext = Dispatchers.Main, content = { HarnessTheme {

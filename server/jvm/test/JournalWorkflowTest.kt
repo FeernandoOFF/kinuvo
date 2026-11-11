@@ -11,6 +11,7 @@ import kinuvo.protocol.approval.*
 import kinuvo.protocol.device.*
 import kinuvo.protocol.routine.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.io.files.Path
@@ -79,7 +80,7 @@ class JournalWorkflowTest {
             val old = "<!-- kinuvo-journal:start -->\nSample workout: 30 min\n<!-- kinuvo-journal:end -->"
             val body = "## My notes\nKeep my writing.\n\n## Kinuvo\n$old\n\n## Plans\nTomorrow's plans."
             val created = harness.knowledge.create("Journal", "2026-10-05", body = body)
-            val tool = KnowledgeRewriteTool(harness.knowledge, ChangeSource("default", "test"))
+            val tool = KnowledgeRewriteTool(harness.knowledge, ChangeSource(AgentId("default"), SessionId("test")))
             tool.execute(buildJsonObject { put("ref", created.ref); put("old", old); put("new", old.replace("30 min", "35 min")) })
             val updated = harness.knowledge.find(created.ref)!!.body
             assertTrue("Keep my writing." in updated && "Tomorrow's plans." in updated)

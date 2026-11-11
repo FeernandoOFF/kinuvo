@@ -49,7 +49,7 @@ class TasksTool(private val tasks: Tasks, private val agent: Agent, private val 
             require(action == "list" || a.requireString("id") == taskId) { "This run can only manage Task $taskId" }
         }
         return when (action) {
-            "list" -> (if (taskId == null) tasks.all() else listOf(tasks.get(taskId))).filter { a.string("mine") != "true" || it.assignee == agent.id }
+            "list" -> (if (taskId == null) tasks.all() else listOf(tasks.get(taskId))).filter { a.string("mine") != "true" || it.assignee == agent.id.value }
                 .joinToString("\n") { it.describe() }.ifEmpty { "No open tasks." }
             "create" -> tasks.create(
                 a.requireString("title"), a.string("list"), a.string("notes").orEmpty(),

@@ -38,22 +38,22 @@ class ConnectedServerTest {
     @Test fun mutableTranscriptWindowsPublishAtomicallyAndRetainMessageIds() = withOwner { owner, _, _ ->
         val script = Script("A")
         connect(owner, script)
-        owner.sessions.loadSessions("agent").join()
-        owner.sessions.view("agent", "session").join()
-        owner.sessions.state.first { it.sessions["session"]?.loaded == true }
+        owner.sessions.loadSessions(AgentId("agent")).join()
+        owner.sessions.view(AgentId("agent"), SessionId("session")).join()
+        owner.sessions.state.first { it.sessions[SessionId("session")]?.loaded == true }
         val observed = mutableListOf<List<SessionEntry>>()
         val observer = CoroutineScope(currentCoroutineContext()).launch(start = CoroutineStart.UNDISPATCHED) {
-            owner.sessions.state.collect { state -> observed.add(state.sessions.getValue("session").entries) }
+            owner.sessions.state.collect { state -> observed.add(state.sessions.getValue(SessionId("session")).entries) }
         }
         val history = List(2000) { SessionEntry.AssistantMessage("history $it", "m$it") }
         repeat(20) { token ->
             val entries = history + SessionEntry.AssistantMessage("token $token", "stream")
-            script.event(Api.Update, SessionUpdate("agent", "session", SessionChange.Window(0, entries, LiveState(running = token < 19))))
-            owner.sessions.state.first { it.sessions["session"]?.entries == entries }
+            script.event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Window(0, entries, LiveState(running = token < 19))))
+            owner.sessions.state.first { it.sessions[SessionId("session")]?.entries == entries }
         }
         observer.cancelAndJoin()
         assertTrue(observed.all { it.isNotEmpty() })
-        val final = owner.sessions.state.value.sessions.getValue("session")
+        val final = owner.sessions.state.value.sessions.getValue(SessionId("session"))
         assertEquals(2001, final.entries.size)
         assertEquals("stream", (final.entries.last() as SessionEntry.AssistantMessage).messageId)
         assertFalse(final.live.running)
@@ -66,7 +66,7 @@ class ConnectedServerTest {
         for (caps in listOf(legacy, legacy.copy(attachments = mapOf("text/plain" to CapabilityState(), "image/png" to CapabilityState())))) {
             connect(owner, Script("A", caps))
             val store = store()
-            val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat("agent", null))
+            val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("agent"), null))
             store.put("session", vm)
             vm.state.first { it.capabilities == caps }
             vm.addAttachments(listOf(UploadAttachmentParams("note.txt", "aGk=")))
@@ -109,27 +109,27 @@ class ConnectedServerTest {
     @Test fun latePaginationAndHistoryCannotAlterSharedIdsOrBlockNewPages() = withOwner { owner, _, _ ->
         val a = Script("A")
         connect(owner, a)
-        owner.sessions.loadSessions("agent").join()
-        owner.sessions.view("agent", "session").join()
-        owner.sessions.state.first { it.sessions["session"]?.loaded == true }
+        owner.sessions.loadSessions(AgentId("agent")).join()
+        owner.sessions.view(AgentId("agent"), SessionId("session")).join()
+        owner.sessions.state.first { it.sessions[SessionId("session")]?.loaded == true }
         a.hold(Api.Sessions.name)
         a.hold(Api.History.name)
-        val page = owner.sessions.loadSessions("agent", more = true)
-        val history = owner.sessions.loadOlder("session")
+        val page = owner.sessions.loadSessions(AgentId("agent"), more = true)
+        val history = owner.sessions.loadOlder(SessionId("session"))
         repeat(2) { a.blocked.receive() }
         val b = Script("B")
         connect(owner, b)
-        owner.sessions.loadSessions("agent").join()
-        owner.sessions.view("agent", "session").join()
-        owner.sessions.state.first { it.sessions["session"]?.loaded == true }
+        owner.sessions.loadSessions(AgentId("agent")).join()
+        owner.sessions.view(AgentId("agent"), SessionId("session")).join()
+        owner.sessions.state.first { it.sessions[SessionId("session")]?.loaded == true }
         val expected = owner.sessions.state.value
         a.release.complete(Unit)
         page.join(); history.join()
         assertEquals(expected, owner.sessions.state.value)
-        assertFalse(owner.sessions.state.value.sessions.getValue("session").loadingOlder)
-        owner.sessions.loadSessions("agent", more = true).join()
+        assertFalse(owner.sessions.state.value.sessions.getValue(SessionId("session")).loadingOlder)
+        owner.sessions.loadSessions(AgentId("agent"), more = true).join()
         assertEquals(2, b.calls.count { it == Api.Sessions.name })
-        assertEquals("B", owner.sessions.state.value.lists.getValue("agent").sessions.single().title)
+        assertEquals("B", owner.sessions.state.value.lists.getValue(AgentId("agent")).sessions.single().title)
     }
 
     @Test fun pendingCreateAndUpdateCannotPublishOrTurnCancellationIntoUiErrors() = withOwner { owner, _, _ ->
@@ -167,8 +167,8 @@ class ConnectedServerTest {
         a.hold(Api.CreateSession.name)
         val send = CoroutineScope(currentCoroutineContext()).async {
             owner.run {
-                val id = owner.sessions.createSession("agent").id
-                owner.sessions.send("agent", id, "hello")
+                val id = owner.sessions.createSession(AgentId("agent")).id
+                owner.sessions.send(AgentId("agent"), id, "hello")
             }
         }
         a.blocked.receive()
@@ -187,13 +187,13 @@ class ConnectedServerTest {
             connect(owner, a)
             a.hold(method)
             val mutation = CoroutineScope(currentCoroutineContext()).async {
-                if (method == Api.UpdateAgent.name) owner.config.updateAgent(UpdateAgentParams("agent", name = "changed"))
-                else owner.config.saveSkill(SaveSkillParams("agent", "skill", "body", ConfigScope.Agent))
+                if (method == Api.UpdateAgent.name) owner.config.updateAgent(UpdateAgentParams(AgentId("agent"), name = "changed"))
+                else owner.config.saveSkill(SaveSkillParams(AgentId("agent"), "skill", "body", ConfigScope.Agent))
             }
             a.blocked.receive()
             val b = Script("B")
             connect(owner, b)
-            owner.config.load("agent").join()
+            owner.config.load(AgentId("agent")).join()
             val expected = owner.config.state.value
             val skills = b.calls.count { it == Api.Skills.name }
             a.release.complete(Unit)
@@ -244,7 +244,7 @@ class ConnectedServerTest {
         connect(owner, a)
         a.hold(Api.Models.name, error = true)
         val store = store()
-        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat("agent", null))
+        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("agent"), null))
         store.put("session", vm)
         a.blocked.receive()
         connect(owner, Script("B"))
@@ -267,15 +267,15 @@ class ConnectedServerTest {
         serverJobs += owner.scope.coroutineContext.job
         client.connect()
         owner.activate()
-        owner.sessions.loadSessions("agent").join()
-        owner.sessions.view("agent", "session").join()
-        owner.sessions.state.first { it.sessions["session"]?.loaded == true }
-        val data = owner.sessions.state.value.sessions.getValue("session")
+        owner.sessions.loadSessions(AgentId("agent")).join()
+        owner.sessions.view(AgentId("agent"), SessionId("session")).join()
+        owner.sessions.state.first { it.sessions[SessionId("session")]?.loaded == true }
+        val data = owner.sessions.state.value.sessions.getValue(SessionId("session"))
         first.disconnect()
         second.caughtUp.await()
         assertEquals(data.seen, second.after)
-        assertEquals(data.entries, owner.sessions.state.value.sessions.getValue("session").entries)
-        owner.sessions.state.first { it.lists["agent"]?.sessions?.single()?.title == "A" }
+        assertEquals(data.entries, owner.sessions.state.value.sessions.getValue(SessionId("session")).entries)
+        owner.sessions.state.first { it.lists[AgentId("agent")]?.sessions?.single()?.title == "A" }
     }
 
     @Test fun settingsReconnectDoesNotRetainDisconnectErrorsOrClearValidationErrors() = withOwner { owner, _, _ ->
@@ -289,7 +289,7 @@ class ConnectedServerTest {
         serverJobs += owner.scope.coroutineContext.job
         client.connect()
         owner.activate()
-        val vm = SettingsViewModel(owner.routines, owner.config, AppSchemeBrowser {}, Route.Settings("agent"))
+        val vm = SettingsViewModel(owner.routines, owner.config, AppSchemeBrowser {}, Route.Settings(AgentId("agent")))
         store().put("settings", vm)
         vm.loadModels().join()
         first.ignore(Api.SaveServerRules.name)
@@ -322,7 +322,7 @@ class ConnectedServerTest {
         a.release.complete(Unit)
         load.join()
         a.event(Api.TaskChanged, TaskInfo("task", "list", "List", "late", status = TaskStatus.Waiting))
-        a.event(Api.SessionChanged, SessionInfo("session", "agent", "late", SessionStatus.Waiting))
+        a.event(Api.SessionChanged, SessionInfo(SessionId("session"), AgentId("agent"), "late", SessionStatus.Waiting))
         yield()
         assertEquals(BoardData(), owner.board.state.value)
         assertEquals(RepositoryState(), owner.sessions.state.value)
@@ -386,27 +386,27 @@ class ConnectedServerTest {
         val app = AppViewModel(Servers(prefs, credentials = prefs.credentials), Device("test"), owner, access)
         store.put("app", app)
         try {
-            for (id in listOf("A", "B", "C")) owner.sessions.loadSessions(id).join()
+            for (id in listOf("A", "B", "C")) owner.sessions.loadSessions(AgentId(id)).join()
             yield()
-            val a = Route.Chat("A", compose = true)
+            val a = Route.Chat(AgentId("A"), compose = true)
             app.showView(a)
             var current: Route = a
             val open: (Route.Chat) -> Unit = { current = it; app.showView(it) }
             script.hold(Api.Sessions.name)
-            app.selectAgent("B", current, compact = false, open)
+            app.selectAgent(AgentId("B"), current, compact = false, open)
             script.blocked.receive()
-            assertNull(app.resolveView(a, a.copy(sessionId = "old")))
+            assertNull(app.resolveView(a, a.copy(sessionId = SessionId("old"))))
             assertNull(app.resolveView(Route.Chat(), a))
-            app.selectAgent("C", current, compact = true, open)
+            app.selectAgent(AgentId("C"), current, compact = true, open)
             val c = current
             script.release.complete(Unit)
             script.finished.await()
             yield()
             assertEquals(c, current)
-            assertEquals("C", app.state.value.agentId)
+            assertEquals("C", app.state.value.agentId?.value)
             app.showView(a)
-            assertEquals("A", app.state.value.agentId)
-            assertEquals(a, app.lastView("A"))
+            assertEquals("A", app.state.value.agentId?.value)
+            assertEquals(a, app.lastView(AgentId("A")))
         } finally { store.clearAndJoin() }
     }
 
@@ -418,19 +418,19 @@ class ConnectedServerTest {
         val app = AppViewModel(Servers(prefs, credentials = prefs.credentials), Device("test"), owner, access)
         store.put("app", app)
         try {
-            val a = Route.Chat("A")
+            val a = Route.Chat(AgentId("A"))
             app.showView(a)
             script.hold(Api.CreateSession.name)
-            val sending = CoroutineScope(currentCoroutineContext()).async { app.quickSend("A", "hello") }
+            val sending = CoroutineScope(currentCoroutineContext()).async { app.quickSend(AgentId("A"), "hello") }
             script.blocked.receive()
-            app.selectAgent("B", a, compact = true) { app.showView(it) }
+            app.selectAgent(AgentId("B"), a, compact = true) { app.showView(it) }
             script.release.complete(Unit)
-            assertEquals("new", sending.await())
+            assertEquals(SessionId("new"), sending.await())
             val sent = script.requests.single { it.method == Api.Send.name }
             val params = ProtocolJson.decodeFromJsonElement(Api.Send.params, sent.params)
-            assertEquals("A", params.agentId)
-            assertEquals("new", params.sessionId)
-            assertEquals("B", app.state.value.agentId)
+            assertEquals("A", params.agentId.value)
+            assertEquals("new", params.sessionId?.value)
+            assertEquals("B", app.state.value.agentId?.value)
         } finally { store.clearAndJoin() }
     }
 
@@ -510,7 +510,7 @@ class ConnectedServerTest {
             when (request.method) {
                 Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", name, capabilities = ServerCapabilities("test"), management = true))
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
-                Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo("agent", name, "none")))
+                Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo(AgentId("agent"), name, "none")))
                 Api.Models.name -> { reply(request, Api.Models, ModelsCatalog()); modelsLoaded.send(Unit) }
                 Api.Capabilities.name -> if (capabilities != null) reply(request, Api.Capabilities, capabilities)
                     else frames.send(Frame.Response(request.id, false, error = "Unsupported in test: ${request.method}"))
@@ -519,9 +519,9 @@ class ConnectedServerTest {
                 Api.Tasks.name -> reply(request, Api.Tasks, listOf(TaskInfo("task", "list", "List", name)))
                 Api.CreateTask.name -> reply(request, Api.CreateTask, TaskInfo("new", "list", "List", name))
                 Api.UpdateTask.name -> reply(request, Api.UpdateTask, TaskInfo("task", "list", "List", name))
-                Api.Sessions.name -> reply(request, Api.Sessions, SessionPage(listOf(SessionInfo("session", "agent", name)), true))
-                Api.Send.name -> reply(request, Api.Send, SendResult("new", "run", "message"))
-                Api.CreateSession.name -> reply(request, Api.CreateSession, SessionInfo("new", "agent", name))
+                Api.Sessions.name -> reply(request, Api.Sessions, SessionPage(listOf(SessionInfo(SessionId("session"), AgentId("agent"), name)), true))
+                Api.Send.name -> reply(request, Api.Send, SendResult(SessionId("new"), RunId("run"), "message"))
+                Api.CreateSession.name -> reply(request, Api.CreateSession, SessionInfo(SessionId("new"), AgentId("agent"), name))
                 Api.Agent.name -> reply(request, Api.Agent, details())
                 Api.UpdateAgent.name -> reply(request, Api.UpdateAgent, details())
                 Api.SaveSkill.name -> reply(request, Api.SaveSkill, SkillInfo("skill", "", scope = ConfigScope.Agent))
@@ -532,10 +532,10 @@ class ConnectedServerTest {
                     val params = ProtocolJson.decodeFromJsonElement(Api.CatchUp.params, request.params)
                     after = params.after
                     if (params.after == null) {
-                        event(Api.Update, SessionUpdate("agent", "session", SessionChange.Reset(20)))
-                        event(Api.Update, SessionUpdate("agent", "session", SessionChange.Entry(20, SessionEntry.UserMessage(name))))
+                        event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Reset(20)))
+                        event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Entry(20, SessionEntry.UserMessage(name))))
                     }
-                    event(Api.Update, SessionUpdate("agent", "session", SessionChange.Live(LiveState())))
+                    event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Live(LiveState())))
                     reply(request, Api.CatchUp, Unit)
                     caughtUp.complete(Unit)
                 }
@@ -543,7 +543,7 @@ class ConnectedServerTest {
             }
         }
 
-        private fun details() = AgentDetails(AgentInfo("agent", name, "none"), AgentSettings("model", "medium", "default", "none"), "", "")
+        private fun details() = AgentDetails(AgentInfo(AgentId("agent"), name, "none"), AgentSettings("model", "medium", "default", "none"), "", "")
         private suspend fun <P, R> reply(request: Frame.Request, method: Method<P, R>, result: R) {
             frames.send(Frame.Response(request.id, true, ProtocolJson.encodeToJsonElement(method.result, result)))
         }

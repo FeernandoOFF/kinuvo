@@ -10,6 +10,7 @@ import kinuvo.protocol.*
 import kinuvo.protocol.capability.*
 import kinuvo.protocol.connection.*
 import kinuvo.protocol.model.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -52,7 +53,7 @@ class ImageModelViewModelTest {
         val store = ViewModelStore()
         try {
             client.connect(); server.open(client, "local:test"); server.config.attach(client)
-            val vm = SettingsViewModel(server.routines, server.config, AppSchemeBrowser {}, Route.Settings("agent", SettingsSection.Images))
+            val vm = SettingsViewModel(server.routines, server.config, AppSchemeBrowser {}, Route.Settings(AgentId("agent"), SettingsSection.Images))
             store.put("settings", vm)
             runCurrent()
             assertEquals(ref, vm.state.value.imageModel)

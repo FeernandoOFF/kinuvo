@@ -10,6 +10,8 @@ import kinuvo.server.plugin.Notification
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.push.PushMessage
 import kinuvo.protocol.push.PushSubscription
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.test.runTest
 import java.nio.file.Files
 import java.security.interfaces.ECPublicKey
@@ -33,11 +35,11 @@ class DevicePushTest {
             assertEquals("high", request.headers["Urgency"])
             respond("", HttpStatusCode.Created)
         }))
-        assertEquals(Pushed(1), push.send(Notification("Kinuvo needs an Approval", "shell: rm -rf build", "agent", "session", urgent = true)))
+        assertEquals(Pushed(1), push.send(Notification("Kinuvo needs an Approval", "shell: rm -rf build", AgentId("agent"), SessionId("session"), urgent = true)))
         val (url, body) = sent.single()
         assertEquals("https://relay.test/v1/fcm/a", url)
         val message = ProtocolJson.decodeFromString(PushMessage.serializer(), WebPush.decrypt(body, keys, secret).decodeToString())
-        assertEquals(PushMessage("Kinuvo needs an Approval", "shell: rm -rf build", "agent", "session", true, "server-1"), message)
+        assertEquals(PushMessage("Kinuvo needs an Approval", "shell: rm -rf build", AgentId("agent"), SessionId("session"), true, "server-1"), message)
     }
 
     @Test fun `a gone endpoint is forgotten`() = runTest {

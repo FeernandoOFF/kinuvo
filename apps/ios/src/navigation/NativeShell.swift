@@ -42,11 +42,11 @@ final class NativeAppModel: ObservableObject {
         guard state.connection is ConnectionReady, !state.onboarding, !fullApp, let route = pendingChat else { return }
         pendingChat = nil
         app.consumeLink()
-        path.append(.session(route.agentId, route.sessionId))
+        path.append(.session(route.agentKey, route.sessionKey))
     }
 
     func open(_ route: any Route) {
-        if let chat = route as? RouteChat { path.append(.session(chat.agentId, chat.sessionId)) }
+        if let chat = route as? RouteChat { path.append(.session(chat.agentKey, chat.sessionKey)) }
         else if let knowledge = route as? RouteKnowledge { path.append(.knowledge(knowledge.note)) }
         else { fullRoute = route; fullApp = true }
     }
@@ -54,15 +54,14 @@ final class NativeAppModel: ObservableObject {
     func showDestination() {
         guard !fullApp else { return }
         if case let .session(agent, session) = path.last {
-            let remembered = agent.map { app.viewModel.lastView(agentId: $0) }
-            let route = remembered?.sessionId == session ? remembered : nil
-            app.viewModel.showView(route: route ?? RouteChat(agentId: agent, sessionId: session, slot: UUID().uuidString, compose: false))
+            let remembered = agent.map { NativeIds.shared.lastView(app: app.viewModel, agent: $0) }
+            let route = remembered?.sessionKey == session ? remembered : nil
+            app.viewModel.showView(route: route ?? NativeIds.shared.chat(agent: agent, session: session))
         } else { app.viewModel.showView(route: RouteBoard.shared) }
     }
 
     func selectAgent(_ id: String) {
-        app.viewModel.selectAgent(agentId: id,
-            current: nil, compact: true) { self.open($0) }
+        NativeIds.shared.selectAgent(app: app.viewModel, agent: id) { self.open($0) }
     }
 
     func active(_ active: Bool) {
@@ -95,8 +94,8 @@ struct NativeShell: View {
                             Button("Full app · all features") { model.fullRoute = nil; model.fullApp = true }
                         }
                         Section("Agents") {
-                            ForEach(model.state.agents, id: \.id) { agent in
-                                Button(agent.name) { model.selectAgent(agent.id) }
+                            ForEach(model.state.agents, id: \.key) { agent in
+                                Button(agent.name) { model.selectAgent(agent.key) }
                             }
                         }
                         Section("Servers") {
@@ -131,8 +130,8 @@ struct NativeShell: View {
                             onResolved: { route in
                                 guard !model.fullApp, model.path.last == .session(agent, session) else { return }
                                 model.app.viewModel.showView(route: route)
-                                if agent != route.agentId || session != route.sessionId {
-                                    model.path[model.path.count - 1] = .session(route.agentId, route.sessionId)
+                                if agent != route.agentKey || session != route.sessionKey {
+                                    model.path[model.path.count - 1] = .session(route.agentKey, route.sessionKey)
                                 }
                             },
                             onSettings: model.open, onNavigate: model.open,

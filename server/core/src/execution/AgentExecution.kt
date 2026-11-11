@@ -5,6 +5,7 @@ import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.surface.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -15,16 +16,16 @@ class AgentExecution(
     private val native: NativeExecution,
     private val management: Mutex,
 ) : ExecutionDispatch {
-    private suspend fun forAgent(agentId: String): ExecutionDispatch = if (registry.registration(agentId) != null) external else native
+    private suspend fun forAgent(agentId: AgentId): ExecutionDispatch = if (registry.registration(agentId) != null) external else native
 
-    private suspend fun forSession(sessionId: String): ExecutionDispatch = if (external.owns(sessionId)) external else native
+    private suspend fun forSession(sessionId: SessionId): ExecutionDispatch = if (external.owns(sessionId)) external else native
 
-    override suspend fun create(agentId: String): SessionInfo =
+    override suspend fun create(agentId: AgentId): SessionInfo =
         if (registry.registration(agentId) != null) management.withLock { external.create(agentId) } else native.create(agentId)
 
-    override suspend fun snapshot(agentId: String, sessionId: String) = forAgent(agentId).snapshot(agentId, sessionId)
+    override suspend fun snapshot(agentId: AgentId, sessionId: SessionId) = forAgent(agentId).snapshot(agentId, sessionId)
 
-    suspend fun snapshot(sessionId: String): ExecutionSnapshot =
+    suspend fun snapshot(sessionId: SessionId): ExecutionSnapshot =
         if (external.owns(sessionId)) external.snapshot(sessionId) else native.snapshot(native.owner(sessionId) ?: error("Unknown Session"), sessionId)
 
     override suspend fun answer(answer: RespondParams) = forSession(answer.sessionId).answer(answer)
@@ -36,5 +37,5 @@ class AgentExecution(
         if (registry.registration(params.agentId) != null) management.withLock { external.send(params) }
         else native.send(params, catalogs, onEvent)
 
-    override suspend fun stop(sessionId: String) = forSession(sessionId).stop(sessionId)
+    override suspend fun stop(sessionId: SessionId) = forSession(sessionId).stop(sessionId)
 }

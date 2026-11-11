@@ -5,6 +5,7 @@ import kinuvo.server.TestHome
 import kinuvo.server.store.FileBoard
 import kinuvo.server.store.LocalTaskApp
 import kinuvo.protocol.board.TaskStatus
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import kotlinx.io.files.Path
@@ -68,7 +69,7 @@ class TasksTest {
         val t = tasks.create("Renew passport")
         assertTrue(tasks.claim(t.id))
         assertFalse(tasks.claim(t.id))
-        tasks.started(t.id, "s1")
+        tasks.started(t.id, SessionId("s1"))
         assertEquals(TaskStatus.InProgress, tasks.get(t.id).status)
         assertTrue(tasks.ready().none { it.id == t.id })
         tasks.finished(t.id)
@@ -81,7 +82,7 @@ class TasksTest {
         assertTrue(provider.tasks("inbox", includeDone = true).single().done)
         assertTrue(tasks.all().isEmpty())
         assertEquals(TaskStatus.Todo, tasks.update(t.id, status = TaskStatus.Todo).status)
-        assertEquals(listOf("s1"), tasks.get(t.id).sessionIds)
+        assertEquals(listOf(SessionId("s1")), tasks.get(t.id).sessionIds)
     }
 
     @Test

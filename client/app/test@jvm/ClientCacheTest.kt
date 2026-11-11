@@ -25,9 +25,9 @@ class ClientCacheTest {
     private val url = "ws://home:8787/ws"
     private val cached = Snapshot(
         syncedAt = 1_000,
-        agents = listOf(AgentInfo("agent", "Cached", "none")),
-        lists = mapOf("agent" to SessionList(listOf(SessionInfo("session", "agent", "Cached chat")))),
-        sessions = mapOf("session" to CachedSession("agent", 0, listOf(SessionEntry.UserMessage("hi"), SessionEntry.AssistantMessage("hello", "m1")))),
+        agents = listOf(AgentInfo(AgentId("agent"), "Cached", "none")),
+        lists = mapOf(AgentId("agent") to SessionList(listOf(SessionInfo(SessionId("session"), AgentId("agent"), "Cached chat")))),
+        sessions = mapOf(SessionId("session") to CachedSession(AgentId("agent"), 0, listOf(SessionEntry.UserMessage("hi"), SessionEntry.AssistantMessage("hello", "m1")))),
     )
 
     @Test fun filesKeepSnapshotsPerServerAndDropOtherProtocols() = runBlocking {
@@ -55,8 +55,8 @@ class ClientCacheTest {
                 assertFalse(offline.online)
                 assertEquals(1_000, offline.syncedAt)
                 assertEquals(listOf("Cached"), offline.agents.map { it.name })
-                assertEquals(listOf("Cached chat"), offline.sessions.lists["agent"]?.sessions?.map { it.title })
-                assertEquals(2, offline.sessions.sessions["session"]?.entries?.size)
+                assertEquals(listOf("Cached chat"), offline.sessions.lists[AgentId("agent")]?.sessions?.map { it.title })
+                assertEquals(2, offline.sessions.sessions[SessionId("session")]?.entries?.size)
 
                 attempts.receive()
                 server.reachable.complete(Unit)
@@ -65,7 +65,7 @@ class ClientCacheTest {
                 assertEquals(2, server.catchUpAfter.await())
                 val saved = cache.writes.first { all -> all.any { it.agents.firstOrNull()?.name == "Live" } }.last()
                 assertTrue(saved.syncedAt > 1_000)
-                assertEquals(2, saved.sessions["session"]?.entries?.size)
+                assertEquals(2, saved.sessions[SessionId("session")]?.entries?.size)
             }
         }
     }
@@ -123,8 +123,8 @@ class ClientCacheTest {
             when (request.method) {
                 Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", "Home", capabilities = ServerCapabilities("home"), management = false))
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
-                Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo("agent", "Live", "none")))
-                Api.Sessions.name -> reply(request, Api.Sessions, SessionPage(listOf(SessionInfo("session", "agent", "Live chat")), false))
+                Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo(AgentId("agent"), "Live", "none")))
+                Api.Sessions.name -> reply(request, Api.Sessions, SessionPage(listOf(SessionInfo(SessionId("session"), AgentId("agent"), "Live chat")), false))
                 Api.CatchUp.name -> {
                     catchUpAfter.complete(ProtocolJson.decodeFromJsonElement(Api.CatchUp.params, request.params).after)
                     reply(request, Api.CatchUp, Unit)

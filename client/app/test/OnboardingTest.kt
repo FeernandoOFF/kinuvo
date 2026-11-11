@@ -54,7 +54,7 @@ class OnboardingTest {
     }
 
     @Test fun modelSelectionNeedsAvailableModelAndProviderAccess() {
-        val details = AgentDetails(AgentInfo("main", "Kinuvo", "none"), AgentSettings("model", "medium", "default", "none"), "", "")
+        val details = AgentDetails(AgentInfo(AgentId("main"), "Kinuvo", "none"), AgentSettings("model", "medium", "default", "none"), "", "")
         val state = OnboardingState(details = details, provider = "codex", model = "model", providers = listOf(ProviderInfo("codex", "Codex")))
         assertTrue(state.modelReady)
         assertFalse(state.copy(providers = emptyList()).modelReady)

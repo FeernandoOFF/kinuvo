@@ -22,8 +22,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kinuvo.server.providers.ModelProvider
 
 interface ReflectionProgress {
-    fun get(): Map<String, Int>
-    fun save(progress: Map<String, Int>)
+    fun get(): Map<SessionId, Int>
+    fun save(progress: Map<SessionId, Int>)
 }
 
 interface Attachments {

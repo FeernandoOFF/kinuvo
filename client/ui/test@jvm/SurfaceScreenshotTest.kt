@@ -34,6 +34,7 @@ import kinuvo.app.surface.sumSurfaceValues
 import kinuvo.app.surface.surfaceValues
 import kinuvo.app.session.ChatItem
 import kinuvo.protocol.surface.SurfaceAction
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.serialization.json.*
 import kinuvo.ui.surface.*
 import org.jetbrains.skia.EncodedImageFormat
@@ -315,7 +316,7 @@ class SurfaceScreenshotTest {
         val args = """{"messages":[{"createSurface":{"surfaceId":"form","catalogId":"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json","components":[{"id":"root","component":"TextField","label":"Name","value":{"path":"/name"}}],"dataModel":{"name":"Initial"}}}]}"""
         val call = ChatItem.ToolCall("tool", "call", "show_ui", args, result = "Shown")
         val saved = JsonObject(mapOf("name" to JsonPrimitive("Alex")))
-        val action = SurfaceAction("call", "form", "submit", "submit", saved, saved)
+        val action = SurfaceAction(ToolCallId("call"), "form", "submit", "submit", saved, saved)
         val cache = mutableMapOf<String, SurfaceRenderer>()
         repeat(2) { pass ->
             ImageComposeScene(780, 240, Density(2f), content = {
@@ -351,7 +352,7 @@ class SurfaceScreenshotTest {
             val renderer = cache.getValue("call").renderer
             renderer.write("form", JsonPointer.parse("/name"), JsonPrimitive("Local edit"))
             val model = buildJsonObject { put("name", "Other Device") }
-            items.value = listOf(call, ChatItem.User("new-action", "Save", action = SurfaceAction("call", "form", "save", "save", model, model)))
+            items.value = listOf(call, ChatItem.User("new-action", "Save", action = SurfaceAction(ToolCallId("call"), "form", "save", "save", model, model)))
             repeat(8) { scene.render(2_000_000_000L + it * 200_000_000L) }
             assertSame(renderer, cache.getValue("call").renderer)
             assertEquals(model, renderer.state.surfaces.getValue("form").dataModel)
@@ -384,7 +385,7 @@ class SurfaceScreenshotTest {
                 .config[SemanticsActions.OnClick].action!!.invoke()
             assertTrue(sent.isEmpty())
             val submitted = buildJsonObject { put("date", "2026-02-28") }
-            items.value = listOf(call, ChatItem.User("remote-action", "Save", action = SurfaceAction("call", "form", "save", "save", submitted, submitted)))
+            items.value = listOf(call, ChatItem.User("remote-action", "Save", action = SurfaceAction(ToolCallId("call"), "form", "save", "save", submitted, submitted)))
             repeat(8) { scene.render(4_000_000_000L + it * 200_000_000L) }
             nodes().first { it.config.getOrNull(SemanticsActions.OnClick) != null && it.config.getOrNull(SemanticsActions.SetText) == null }
                 .config[SemanticsActions.OnClick].action!!.invoke()
@@ -426,7 +427,7 @@ class SurfaceScreenshotTest {
         for (dark in listOf(false, true)) ImageComposeScene(780, 180, Density(2f), content = {
             HarnessTheme(dark = dark) {
                 Box(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
-                    ChatItemView(ChatItem.User("action", "Plan your day", action = SurfaceAction("call", "form", "submit", "submit", JsonObject(emptyMap()), JsonObject(emptyMap()))), ChatActions())
+                    ChatItemView(ChatItem.User("action", "Plan your day", action = SurfaceAction(ToolCallId("call"), "form", "submit", "submit", JsonObject(emptyMap()), JsonObject(emptyMap()))), ChatActions())
                 }
             }
         }).use { scene ->

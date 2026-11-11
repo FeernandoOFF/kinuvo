@@ -25,10 +25,10 @@ class RemoteGateway(
         val agentId = requireNotNull(p.agentId) { "Select a source Agent" }
         require(available.any { it.id == agentId }) { "Agent is not exposed" }
         if (p.action == "create") {
-            val created = create(agentId)
+            val created = create(agentId.value)
             try { links.claim(token, agentId, created.sessionId) }
             catch (e: Throwable) {
-                withContext(NonCancellable) { discard(agentId, created.sessionId) }
+                withContext(NonCancellable) { discard(agentId.value, created.sessionId.value) }
                 throw e
             }
             return RemoteExecutionResult(snapshot = created)
@@ -36,12 +36,12 @@ class RemoteGateway(
         val sessionId = requireNotNull(p.sessionId)
         require(links.owns(token, agentId, sessionId)) { "Session does not belong to this execution grant" }
         // Verify source Session ownership before cancellation or broker access.
-        val current = snapshot(agentId, sessionId)
+        val current = snapshot(agentId.value, sessionId.value)
         return when (p.action) {
             "snapshot" -> RemoteExecutionResult(snapshot = current)
-            "send" -> { send(agentId, sessionId, requireNotNull(p.text), p.surfaceAction); RemoteExecutionResult() }
-            "cancel" -> { cancel(agentId, sessionId); RemoteExecutionResult() }
-            "answer" -> RemoteExecutionResult(accepted = answer(agentId, RespondParams(sessionId, requireNotNull(p.requestId), requireNotNull(p.answer))))
+            "send" -> { send(agentId.value, sessionId.value, requireNotNull(p.text), p.surfaceAction); RemoteExecutionResult() }
+            "cancel" -> { cancel(agentId.value, sessionId.value); RemoteExecutionResult() }
+            "answer" -> RemoteExecutionResult(accepted = answer(agentId.value, RespondParams(sessionId, requireNotNull(p.requestId), requireNotNull(p.answer))))
             else -> error("Unsupported remote operation")
         }
     }

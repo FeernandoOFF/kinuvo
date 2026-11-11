@@ -12,6 +12,8 @@ import kinuvo.protocol.service.ServiceKind
 import kinuvo.protocol.service.ServiceTestResult
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.service.TestServiceParams
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -22,9 +24,9 @@ private val log = KotlinLogging.logger("kinuvo.notifications")
  * Notifies the user about Sessions no client in the foreground is watching: an Approval or `ask_user` form waiting, a
  * reply or error, and a Routine's report or failure (a quiet run sends nothing).
  */
-class Notifications(private val harness: HarnessRuntime, private val scope: CoroutineScope, private val routineOf: (sessionId: String) -> RoutineRef?, private val externalName: suspend (String) -> String? = { null }, private val devices: DevicePush? = null) {
+class Notifications(private val harness: HarnessRuntime, private val scope: CoroutineScope, private val routineOf: (sessionId: SessionId) -> RoutineRef?, private val externalName: suspend (String) -> String? = { null }, private val devices: DevicePush? = null) {
     private val attempted = ConcurrentMutableSet<String>()
-    fun on(agentId: String, sessionId: String, event: AgentEvent) {
+    fun on(agentId: AgentId, sessionId: SessionId, event: AgentEvent) {
         if (event !is AgentEvent.InteractionRequested && event !is AgentEvent.RunFinished && event !is AgentEvent.RunError) return
         val semantic = when (event) {
             is AgentEvent.InteractionRequested -> "request:${event.interaction.id}"
@@ -36,7 +38,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         val routine = routineOf(sessionId)
         scope.launch {
             val agent = harness.store.agents().firstOrNull { it.id == agentId }
-            val name = agent?.name ?: externalName(agentId) ?: return@launch
+            val name = agent?.name ?: externalName(agentId.value) ?: return@launch
             if (harness.log.watched(sessionId)) return@launch
             val notification = when (event) {
                 is AgentEvent.InteractionRequested -> when (val interaction = event.interaction) {
@@ -50,7 +52,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
                     is PendingInteraction.Unsupported -> Notification("$name needs a response", "Execution is waiting".clip(), agentId, sessionId, urgent = true)
                 }
                 // Routine runs are told by [routineRan], when they have something to report.
-                is AgentEvent.RunFinished -> if (routine != null) null else Notification(name, plainText(lastReply(agentId, sessionId).orEmpty()).clip(), agentId, sessionId)
+                is AgentEvent.RunFinished -> if (routine != null) null else Notification(name, plainText(lastReply(agentId.value, sessionId).orEmpty()).clip(), agentId, sessionId)
                 is AgentEvent.RunError -> if (routine != null) null else Notification("${name} hit an error", event.message.clip(), agentId, sessionId)
             }
             notification?.let { quietly(it) }
@@ -67,7 +69,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
     }
 
     /** A Routine found an MCP server it uses needs the user to sign in. */
-    suspend fun mcpSignInNeeded(agentId: String, server: String) {
+    suspend fun mcpSignInNeeded(agentId: AgentId, server: String) {
         quietly(Notification("MCP server '$server' needs sign-in", "Sign in from Settings → MCP servers or run `kinuvo mcp login $server`.", agentId))
     }
 
@@ -108,8 +110,8 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
         }
     }
 
-    private suspend fun lastReply(agent: String, sessionId: String) =
-        harness.store.entries(agent, sessionId).lastOrNull { it is SessionEntry.AssistantMessage }?.let { (it as SessionEntry.AssistantMessage).text }
+    private suspend fun lastReply(agent: String, sessionId: SessionId) =
+        harness.store.entries(AgentId(agent), sessionId).lastOrNull { it is SessionEntry.AssistantMessage }?.let { (it as SessionEntry.AssistantMessage).text }
 
     private fun String.clip() = trim().let { if (it.length > MAX) it.take(MAX - 1) + "…" else it }
 

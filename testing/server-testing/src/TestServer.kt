@@ -27,6 +27,7 @@ import kinuvo.protocol.FrameConnection
 import kinuvo.protocol.session.SendParams
 import kinuvo.protocol.session.SessionInfo
 import kinuvo.protocol.session.UpdateSessionParams
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -110,7 +111,7 @@ class TestServer private constructor(
      * Starts a Session of Agent [agentId] through the Server, as a management Device would, unseen by [spy]. With a
      * [prompt] the turn starts at once, so a script that waits for an Approval or a question leaves it pending.
      */
-    suspend fun startSession(agentId: String, prompt: String? = null, title: String? = null): SessionInfo {
+    suspend fun startSession(agentId: AgentId, prompt: String? = null, title: String? = null): SessionInfo {
         if (!managing) { manager.connect(); managing = true }
         val session = manager.call(Api.CreateSession, AgentRef(agentId))
         if (prompt == null) return session

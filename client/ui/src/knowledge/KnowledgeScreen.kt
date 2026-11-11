@@ -70,7 +70,7 @@ class KnowledgeActions(
     val onOpen: (String) -> Unit = {},
     val onUndo: (String) -> Unit = {},
     /** Shows one Agent's changes, or every Agent's for null. */
-    val onFilter: (String?) -> Unit = {},
+    val onFilter: (AgentId?) -> Unit = {},
     val onSettings: () -> Unit = {},
 )
 

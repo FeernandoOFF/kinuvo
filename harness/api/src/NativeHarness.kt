@@ -8,6 +8,9 @@ import kinuvo.protocol.execution.HarnessConnection
 import kinuvo.protocol.model.ModelInfo
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.surface.SurfaceAction
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.RunId
 import kotlinx.coroutines.flow.Flow
 import kotlinx.io.files.Path
 import kotlin.uuid.Uuid
@@ -20,10 +23,10 @@ fun builtInRegistration(agent: Agent) = AgentRegistration(agent.id, agent.name, 
 /** One turn of an Agent. */
 interface AgentRunner {
     fun run(
-        sessionId: String,
+        sessionId: SessionId,
         userText: String,
         activation: SessionEntry.Activation? = null,
-        runId: String = Uuid.random().toString(),
+        runId: RunId = RunId(Uuid.random().toString()),
         attachments: List<Attachment> = emptyList(),
         voice: Boolean = false,
         action: SurfaceAction? = null,
@@ -55,10 +58,10 @@ class NativeReflection(val agent: Agent, val model: ModelSelection, val traces: 
 /** What the built-in harness asks the Server that hosts it for when it runs a prompt: the Server composes tools, instructions and models. */
 interface NativeHarnessHost {
     /** The turn for a chat or Routine run of [sessionId]. */
-    suspend fun run(agentId: String, sessionId: String, input: ExecutionInput): NativeRun
+    suspend fun run(agentId: AgentId, sessionId: SessionId, input: ExecutionInput): NativeRun
 
     /** The Agent and model the Reflection of [sessionId] runs with. */
-    suspend fun reflection(agentId: String, sessionId: String): NativeReflection
+    suspend fun reflection(agentId: AgentId, sessionId: SessionId): NativeReflection
 }
 
 /** The built-in harness as a Server uses it: sessions through [open], and the loop of a composed turn through [runner]. */

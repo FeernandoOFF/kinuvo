@@ -5,6 +5,8 @@ import kinuvo.server.execution.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.device.*
 import kinuvo.protocol.execution.*
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.runTest
@@ -24,7 +26,7 @@ class ExecutionStateTest {
     }
 
     @Test fun acceptanceIsNotCompletionAndReplayIsKeyed() = runTest {
-        val state = ExecutionState("s")
+        val state = ExecutionState(SessionId("s"))
         state.update(ExecutionPhase.Running)
         state.message(ExecutionMessage("m", "assistant", "hello"))
         state.accepted()
@@ -37,7 +39,7 @@ class ExecutionStateTest {
     }
 
     @Test fun reconnectRetainsQuestionsAndOnlyOneClientClaimsAnswer() = runTest {
-        val state = ExecutionState("s")
+        val state = ExecutionState(SessionId("s"))
         state.request(PendingInteraction.Unsupported("q", "Unsupported"))
         state.update(ExecutionPhase.RequiresAction)
         assertEquals("q", state.snapshot().pending.single().id)
@@ -48,7 +50,7 @@ class ExecutionStateTest {
     }
 
     @Test fun brokerSurvivesDeviceReconnectAndResolvesOnce() = runTest {
-        val state = ExecutionState("s")
+        val state = ExecutionState(SessionId("s"))
         val broker = ExecutionBroker(state)
         val waiting = async { broker.ask(PendingInteraction.Unsupported("a", "Unsupported")) }
         testScheduler.runCurrent()
@@ -62,7 +64,7 @@ class ExecutionStateTest {
     }
 
     @Test fun lossNeverFinishesSuccessfullyOrAcceptsStaleAnswers() = runTest {
-        val state = ExecutionState("s")
+        val state = ExecutionState(SessionId("s"))
         state.update(ExecutionPhase.Running)
         state.request(PendingInteraction.Unsupported("a", "Unsupported"))
         state.lost()
@@ -76,13 +78,13 @@ class ExecutionStateTest {
         val registry = ExecutionRegistry()
         val remote = HarnessConnection("r", "Remote", ExecutionConnection.Remote("server"))
         registry.save(remote)
-        registry.register(AgentRegistration("local-id", "Agent", "r", remoteAgentId = "agent"))
-        assertFailsWith<IllegalStateException> { registry.route("local-id") }
+        registry.register(AgentRegistration(AgentId("local-id"), "Agent", "r", remoteAgentId = "agent"))
+        assertFailsWith<IllegalStateException> { registry.route(AgentId("local-id")) }
         registry.negotiated("r", ExecutionCapabilities(resume = false))
-        assertEquals(remote, registry.route("local-id"))
+        assertEquals(remote, registry.route(AgentId("local-id")))
         assertFailsWith<IllegalArgumentException> { registry.removeConnection("r") }
         registry.offline("r", "Disconnected")
-        assertFailsWith<IllegalStateException> { registry.route("local-id") }
+        assertFailsWith<IllegalStateException> { registry.route(AgentId("local-id")) }
         assertFalse(registry.catalog().connections.single().capabilities.resume)
     }
 }

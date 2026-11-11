@@ -4,6 +4,8 @@ import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.approval.InteractionAnswer
 import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.surface.SurfaceAction
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -24,7 +26,7 @@ sealed interface ExecutionConnection {
 data class HarnessConnection(val id: String, val name: String, val connection: ExecutionConnection, val host: String? = null)
 
 @Serializable
-data class AgentRegistration(val id: String, val name: String, val connectionId: String, val avatar: String? = null, val cwd: String? = null, val remoteAgentId: String? = null, val archived: Boolean = false)
+data class AgentRegistration(val id: AgentId, val name: String, val connectionId: String, val avatar: String? = null, val cwd: String? = null, val remoteAgentId: String? = null, val archived: Boolean = false)
 
 @Serializable
 data class ExecutionReadiness(val configured: Boolean, val online: Boolean, val reason: String? = null, val reasonCode: String? = null)
@@ -50,7 +52,7 @@ data class ExecutionMessage(val id: String, val role: String, val text: String, 
 
 @Serializable
 data class ExecutionSnapshot(
-    val sessionId: String,
+    val sessionId: SessionId,
     val phase: ExecutionPhase = ExecutionPhase.Idle,
     val messages: List<ExecutionMessage> = emptyList(),
     val pending: List<PendingInteraction> = emptyList(),
@@ -68,8 +70,8 @@ data class ExecutionProbe(val readiness: ExecutionReadiness, val title: String? 
 @Serializable
 data class SaveRemoteLink(val id: String, val url: String, val token: String)
 @Serializable
-data class ExposureGrant(val id: String, val agentIds: Set<String>)
+data class ExposureGrant(val id: String, val agentIds: Set<AgentId>)
 @Serializable
-data class RemoteExecutionCall(val agentId: String? = null, val sessionId: String? = null, val action: String = "list", val text: String? = null, val requestId: String? = null, val answer: InteractionAnswer? = null, val surfaceAction: SurfaceAction? = null)
+data class RemoteExecutionCall(val agentId: AgentId? = null, val sessionId: SessionId? = null, val action: String = "list", val text: String? = null, val requestId: String? = null, val answer: InteractionAnswer? = null, val surfaceAction: SurfaceAction? = null)
 @Serializable
 data class RemoteExecutionResult(val agents: List<AgentInfo> = emptyList(), val snapshot: ExecutionSnapshot? = null, val accepted: Boolean = true)

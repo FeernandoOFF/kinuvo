@@ -2,6 +2,7 @@ package kinuvo.server.execution
 
 import kinuvo.protocol.device.*
 import kinuvo.protocol.execution.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -9,15 +10,15 @@ import kotlinx.coroutines.sync.withLock
 class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList(), emptyList()), private val persist: (ExecutionCatalog) -> Unit = {}) {
     private val lock = Mutex()
     private val connections = linkedMapOf<String, HarnessConnectionStatus>()
-    private val agents = linkedMapOf<String, AgentRegistration>()
+    private val agents = linkedMapOf<AgentId, AgentRegistration>()
 
     init {
         initial.connections.forEach { connections[it.config.id] = it.copy(readiness = ExecutionReadiness(true, false, "Not connected")) }
         initial.agents.forEach { agents[it.id] = it }
     }
     private fun save() = persist(ExecutionCatalog(connections.values.toList(), agents.values.toList()))
-    suspend fun registration(id: String) = lock.withLock { agents[id]?.takeUnless { it.archived } }
-    suspend fun configured(agentId: String) = lock.withLock { connections.getValue(agents.getValue(agentId).connectionId).config }
+    suspend fun registration(id: AgentId) = lock.withLock { agents[id]?.takeUnless { it.archived } }
+    suspend fun configured(agentId: AgentId) = lock.withLock { connections.getValue(agents.getValue(agentId).connectionId).config }
 
     suspend fun catalog() = lock.withLock { ExecutionCatalog(connections.values.toList(), agents.values.toList()) }
 
@@ -31,7 +32,7 @@ class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList()
     }
 
     suspend fun register(agent: AgentRegistration): AgentRegistration = lock.withLock {
-        require(Regex("[a-z0-9][a-z0-9-]{0,31}").matches(agent.id) && agent.name.isNotBlank())
+        require(Regex("[a-z0-9][a-z0-9-]{0,31}").matches(agent.id.value) && agent.name.isNotBlank())
         require(agent.connectionId in connections) { "Unknown execution connection" }
         when (connections.getValue(agent.connectionId).config.connection) {
             is ExecutionConnection.Acp -> require(agent.cwd?.let { absoluteExecutionPath(it) } == true) { "Working folder must be absolute" }
@@ -40,7 +41,7 @@ class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList()
         agent.also { agents[it.id] = it; save() }
     }
 
-    suspend fun removeAgent(id: String) = lock.withLock { agents[id]?.let { agents[id] = it.copy(archived = true) }; save(); Unit }
+    suspend fun removeAgent(id: AgentId) = lock.withLock { agents[id]?.let { agents[id] = it.copy(archived = true) }; save(); Unit }
 
     suspend fun removeConnection(id: String) = lock.withLock {
         require(agents.values.none { it.connectionId == id && !it.archived }) { "Connection is used by an Agent" }
@@ -65,7 +66,7 @@ class ExecutionRegistry(initial: ExecutionCatalog = ExecutionCatalog(emptyList()
     }
 
     /** Lookup never falls back to another Server or Agent. */
-    suspend fun route(agentId: String): HarnessConnection = lock.withLock {
+    suspend fun route(agentId: AgentId): HarnessConnection = lock.withLock {
         val agent = requireNotNull(agents[agentId]) { "Unknown external Agent" }
         check(!agent.archived) { "Agent registration archived" }
         val status = requireNotNull(connections[agent.connectionId])

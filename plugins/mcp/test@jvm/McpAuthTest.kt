@@ -9,6 +9,7 @@ import kinuvo.protocol.agent.ConfigScope
 import kinuvo.protocol.mcp.McpAuthStatus
 import kinuvo.protocol.mcp.McpParams
 import kinuvo.protocol.mcp.McpRedirect
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -34,7 +35,7 @@ class McpAuthTest {
     private val auth = McpAuth(McpSignIns(dir, keychain))
     private val fake = FakeOAuthServer()
     private val server = McpServerConfig.Http("linear", "${fake.base}/mcp", signInId = "shared/linear")
-    private val owner = McpParams("default", "linear", ConfigScope.Shared)
+    private val owner = McpParams(AgentId("default"), "linear", ConfigScope.Shared)
 
     @AfterTest
     fun stop() = fake.stop()

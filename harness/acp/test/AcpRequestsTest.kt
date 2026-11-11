@@ -3,6 +3,7 @@ package kinuvo.harness.acp
 import kinuvo.protocol.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.SessionId
 import kinuvo.harness.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
@@ -29,7 +30,7 @@ class AcpRequestsTest {
         assertEquals("accept", prompt.encodeAnswer(ProtocolJson.parseToJsonElement("""{"opened":true}""")).jsonObject["action"]!!.jsonPrimitive.content)
     }
     @Test fun cancellationReleasesWaitersAndKeepsNextTurnUsable() = runBlocking {
-        val state = ExecutionState("s")
+        val state = ExecutionState(SessionId("s"))
         val broker = ExecutionBroker(state)
         val owner = AcpRequests(broker)
         val prompt = AcpPrompt(PendingInteraction.HarnessApproval("source", "Run?", null, listOf(ExternalApprovalOption("yes", "Allow", "allow_once"))))

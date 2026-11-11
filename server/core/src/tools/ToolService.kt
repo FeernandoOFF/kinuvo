@@ -19,6 +19,7 @@ import kinuvo.protocol.session.Attachment
 import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.Json
@@ -50,7 +51,7 @@ class ToolService(
         .map { toolsByName[it.name]?.spec(it) ?: it }
 
     override suspend fun invoke(call: SessionEntry.ToolCall, turn: ToolTurn): SessionEntry.ToolResult =
-        invoke(call.copy(identity = toolsByName[call.name]?.identity), call.id, turn)
+        invoke(call.copy(identity = toolsByName[call.name]?.identity), call.id.value, turn)
 
     private suspend fun invoke(call: SessionEntry.ToolCall, approvalId: String, turn: ToolTurn): SessionEntry.ToolResult {
         turn.emit(AgentEvent.ToolCallStart(call.id, call.name, call.args, call.identity))
@@ -83,7 +84,7 @@ class ToolService(
                         ToolKind.ComputerAction -> verdict.trustKeys.joinToString(", ") { it.removePrefix("${tool.policyKey} ") }
                         else -> ""
                     }.ifEmpty { null }
-                    turn.emit(AgentEvent.InteractionRequested(PendingInteraction.Approval(pending.id, approvalId, call.name, call.args, hint, a.risk, a.reason, verdict.trustKeys.isNotEmpty(), tool?.identity)))
+                    turn.emit(AgentEvent.InteractionRequested(PendingInteraction.Approval(pending.id, ToolCallId(approvalId), call.name, call.args, hint, a.risk, a.reason, verdict.trustKeys.isNotEmpty(), tool?.identity)))
                     val wait = approvals.wait
                     val answer = if (wait == null) pending.await() else withTimeoutOrNull(wait) { pending.await() }
                     turn.stopped("Cancelled by user")
@@ -128,13 +129,13 @@ class ToolService(
     private fun toolRun(call: SessionEntry.ToolCall, approvalId: String, turn: ToolTurn, attached: MutableList<Attachment>) = object : ToolRun {
         override suspend fun progress(content: String) { turn.progress(AgentEvent.ToolCallResult(call.id, content, false, call.identity)) }
         override fun background(started: String, work: suspend () -> String): String {
-            requireNotNull(reports) { "Background reports are unavailable in this run" }.start(call.name, call.id, work)
+            requireNotNull(reports) { "Background reports are unavailable in this run" }.start(call.name, call.id.value, work)
             return started
         }
         private var count = 0
         override val tools = callable.filter { it.name != call.name }
         override suspend fun call(name: String, args: String): SessionEntry.ToolResult {
-            val inner = SessionEntry.ToolCall("${call.id}-${++count}", name, args, toolsByName[name]?.identity)
+            val inner = SessionEntry.ToolCall(ToolCallId("${call.id}-${++count}"), name, args, toolsByName[name]?.identity)
             if (tools.none { it.name == name }) return SessionEntry.ToolResult(inner.id, name, "Unknown tool '$name'", isError = true)
             return invoke(inner, approvalId, turn).also { attached += it.attachments }
         }
@@ -142,7 +143,7 @@ class ToolService(
             requireNotNull(attach) { "Files can't be shown to the model in this run" }(name, bytes).also { attached += it }
     }
 
-    private suspend fun ask(call: SessionEntry.ToolCall, turn: ToolTurn, formId: String = call.id): SessionEntry.ToolResult {
+    private suspend fun ask(call: SessionEntry.ToolCall, turn: ToolTurn, formId: String = call.id.value): SessionEntry.ToolResult {
         val broker = questions ?: return SessionEntry.ToolResult(call.id, call.name, "There's no user to ask in this run.", isError = true)
         val (title, list) = try {
             val args = Json.parseToJsonElement(call.args.ifBlank { "{}" }).jsonObject
@@ -152,7 +153,7 @@ class ToolService(
         }
         val pending = broker.register()
         try {
-            turn.emit(AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, formId, title, list)))
+            turn.emit(AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, ToolCallId(formId), title, list)))
             val answers = pending.await()
             turn.emit(AgentEvent.InteractionResolved(pending.id))
             return SessionEntry.ToolResult(call.id, call.name, AskUserTool.result(list, answers))
@@ -167,7 +168,7 @@ class ToolService(
         val attached = mutableListOf<Attachment>()
         return try {
             val args = Json.parseToJsonElement(call.args.ifBlank { "{}" }).jsonObject
-            val result = tool.executeResult(args.clampItems(tool.itemLimits(maxItems)), call.id, toolRun(call, approvalId, turn, attached))
+            val result = tool.executeResult(args.clampItems(tool.itemLimits(maxItems)), call.id.value, toolRun(call, approvalId, turn, attached))
             result.copy(name = call.name, attachments = attached + result.attachments)
         } catch (e: CancellationException) {
             throw e

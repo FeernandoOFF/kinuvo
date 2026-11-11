@@ -13,6 +13,9 @@ import kinuvo.protocol.model.ModelTier
 import kinuvo.server.tools.ToolService
 import kinuvo.testing.harness.scriptedModel
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.flow
@@ -33,14 +36,14 @@ class ToolReportRunTest {
         } }
         val service = ToolService(emptyList())
         val host = object : NativeHarnessHost {
-            override suspend fun run(agentId: String, sessionId: String, input: ExecutionInput) =
+            override suspend fun run(agentId: AgentId, sessionId: SessionId, input: ExecutionInput) =
                 NativeRun(fixture.agent, fixture.store, ModelSelection(fixture.agent.config, null), service, service, profile = ModelProfile.of(ModelTier.Frontier))
-            override suspend fun reflection(agentId: String, sessionId: String): NativeReflection = error("No Reflection")
+            override suspend fun reflection(agentId: AgentId, sessionId: SessionId): NativeReflection = error("No Reflection")
         }
         val runs = Runs(SessionLog(fixture.store), this, NativeExecutionFactory(host, modelFactory = { model }))
         val first = runs.start(fixture.agent, session.id, ExecutionInput("start"))
         runCurrent()
-        val report = SessionEntry.ToolReport("shell", "call", "exit 0: done")
+        val report = SessionEntry.ToolReport("shell", ToolCallId("call"), "exit 0: done")
         val second = async { runs.start(fixture.agent, session.id, ExecutionInput("", kind = RunKind.Chat(report = report)), queued = true) }
         runCurrent()
         assertFalse(second.isCompleted)

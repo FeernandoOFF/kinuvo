@@ -103,7 +103,7 @@ internal class FileServerSettings(
         listOf(TaskProvider.of("local", "Kinuvo (built in)", LocalTaskApp(files.localTasks))) + external.flatMap { it.taskProviders },
         FileBoard(files.board),
         config = { files.tasksConfig() },
-        agentIds = { store.agents().map { it.id }.toSet() },
+        agentIds = { store.agents().map { it.id.value }.toSet() },
         today = { Clock.System.todayIn(timeZone) },
         host = { p, options -> external.firstOrNull { p in it.taskProviders }?.let { host(it, p, options) } ?: NoPluginHost },
     )
@@ -131,7 +131,7 @@ internal class FileServerSettings(
     /** Saves [s] once its provider accepts its options; secret options change only through [secretUpdates]. */
     override suspend fun saveTasksSettings(s: TasksSettings, secretUpdates: Map<String, SecretUpdate>): TasksSetup {
         val options = taskProvider(s.provider).merged(savedTaskOptions(s.provider), s.options, secretUpdates)
-        val agents = store.agents().map { it.id }.toSet()
+        val agents = store.agents().map { it.id.value }.toSet()
         s.lists.values.filter { it.isNotEmpty() }.forEach { require(it in agents) { "No agent '$it'" } }
         require(s.startBeforeDays in 0..365) { "Start before must be 0 to 365 days" }
         require(s.pollMinutes in 1..1440) { "Check every must be 1 to 1440 minutes" }

@@ -155,7 +155,7 @@ class RunPreparationRuntimeTest {
         try {
             val session = harness.newSession(fixture.agent)
             val context = buildJsonObject { put("name", "Alex") }
-            val action = SurfaceAction("call", "plan", "save", "submit", context, context)
+            val action = SurfaceAction(ToolCallId("call"), "plan", "save", "submit", context, context)
             harness.runner(fixture.agent, session.id).run(session.id, "Save plan", action = action).toList()
             harness.runner(fixture.agent, session.id).run(session.id, "Continue").toList()
             assertEquals(action, harness.store.entries(fixture.agent.id, session.id).filterIsInstance<SessionEntry.UserMessage>().first().action)
@@ -403,7 +403,7 @@ class RunPreparationRuntimeTest {
         it.copy(config = it.config.copy(provider = "test", model = "tools", tools = tools))
     }
     private suspend fun inspect(harness: HarnessRuntime, agent: Agent, session: String? = null, settings: SessionSettings? = null) =
-        harness.capabilities(agent, session, settings, ServerCapabilities(harness.serverId, harness.features))
+        harness.capabilities(agent, session?.let(::SessionId), settings, ServerCapabilities(harness.serverId, harness.features))
 
     @Test
     fun sessionSettingsAndFullDescriptorsDetermineEligibilityInBothPaths() = runBlocking {
@@ -426,7 +426,7 @@ class RunPreparationRuntimeTest {
             val session = harness.newSession(agent)
             for (model in listOf("tools", "text", "limited", "custom")) {
                 harness.configure(agent, session.id, SessionSettings(model = model, approvals = "strict"))
-                val capability = inspect(harness, agent, session.id).tools.single()
+                val capability = inspect(harness, agent, session.id.value).tools.single()
                 assertEquals(if (model == "text") Support.Unsupported else if (model == "custom") Support.Unknown else Support.Supported, capability.state.support)
                 harness.runner(agent, session.id).run(session.id, "hi").toList()
                 assertEquals(if (model == "text") emptyList() else listOf(capability.id), seen.last())
@@ -465,7 +465,7 @@ class RunPreparationRuntimeTest {
             val agent = agent(harness, listOf("knowledge", "tasks", "skills", "artifact", "schedule", "memory"))
             val session = harness.newSession(agent)
             // Knowledge and Tasks follow their providers, which the fixture has, rather than the feature list.
-            val offered = inspect(harness, agent, session.id).tools.mapNotNull { it.identity?.localId }.toSet()
+            val offered = inspect(harness, agent, session.id.value).tools.mapNotNull { it.identity?.localId }.toSet()
             assertTrue("memory" in offered && "knowledge" in offered && "tasks" in offered)
             assertTrue(offered.none { it in setOf("activate_skill", "artifact", "schedule") })
             harness.runner(agent, session.id).run(session.id, "hi").toList()

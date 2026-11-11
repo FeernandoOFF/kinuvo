@@ -41,15 +41,15 @@ class AgentRun(
     private val contextTokens: Int? = null,
     private val requestKind: RequestKind = RequestKind.Chat,
     private val tracing: AgentTracing? = null,
-    private val traceSessionId: String? = null,
+    private val traceSessionId: SessionId? = null,
     private val routine: RoutineTurn? = null,
     private val profile: ModelProfile = ModelProfile.of(ModelTier.Frontier),
 ) : AgentRunner {
     override fun run(
-        sessionId: String,
+        sessionId: SessionId,
         userText: String,
         activation: SessionEntry.Activation?,
-        runId: String,
+        runId: RunId,
         attachments: List<Attachment>,
         voice: Boolean,
         action: SurfaceAction?,
@@ -76,7 +76,7 @@ class AgentRun(
             report?.let { session.append(it) }
             if (routine == null && (userText.isNotBlank() || attachments.isNotEmpty())) session.append(SessionEntry.UserMessage(userText, null, attachments, voice, action = action))
             val koog = AIAgent(
-                id = agent.id,
+                id = agent.id.value,
                 promptExecutor = model.executor,
                 agentConfig = AIAgentConfig(Prompt.Empty, model.model, Int.MAX_VALUE),
                 strategy = routine?.let { routineStrategy(session, calls, it, userText) } ?: chatStrategy(session, calls),
@@ -90,7 +90,7 @@ class AgentRun(
                 install(SessionFeature) { this.session = session }
                 tracing?.install(this, agent.id, traceSessionId ?: sessionId, runId, requestKind)
             }
-            try { withContext(TokenUsageCapture()) { koog.run(Unit, runId) } }
+            try { withContext(TokenUsageCapture()) { koog.run(Unit, runId.value) } }
             finally { koog.close() }
             AgentEvent.RunFinished(runId)
         } catch (e: CancellationException) {

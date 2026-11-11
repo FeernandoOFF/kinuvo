@@ -22,6 +22,8 @@ import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Duration
 import kotlin.uuid.Uuid
 import kinuvo.protocol.approval.DenyRules
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 /** Which risk levels run without an Approval: strict asks for everything, full skips risk-based Approvals. Deny rules apply to all. */
 enum class Tolerance(val id: String, val autoUpTo: Risk?) {
@@ -39,15 +41,15 @@ enum class Tolerance(val id: String, val autoUpTo: Risk?) {
 
 /** Each Agent's Trust rules: what "Always allow" saved; plus the Server's, which every Agent follows. */
 interface TrustRulesRepository {
-    suspend fun get(agentId: String): TrustRules
+    suspend fun get(agentId: AgentId): TrustRules
     /** Read-modify-write in one step. */
-    suspend fun update(agentId: String, transform: (TrustRules) -> TrustRules)
+    suspend fun update(agentId: AgentId, transform: (TrustRules) -> TrustRules)
     suspend fun server(): TrustRules = TrustRules()
     suspend fun updateServer(transform: (TrustRules) -> TrustRules): Unit = error("Server rules can't be changed here")
 }
 
 /** [agentId]'s rules with the Server's added; Deny rules are checked first, so a Server block wins over any Trust rule. */
-suspend fun TrustRulesRepository.effective(agentId: String): TrustRules {
+suspend fun TrustRulesRepository.effective(agentId: AgentId): TrustRules {
     val (a, s) = get(agentId) to server()
     fun join(x: List<String>, y: List<String>) = (x + y).distinct()
     return TrustRules(join(a.trusted, s.trusted), join(a.shell, s.shell), DenyRules(join(a.deny.tools, s.deny.tools), join(a.deny.shell, s.deny.shell)))
@@ -124,11 +126,11 @@ private fun TrustRules.trusting(tool: Tool, keys: List<String>) =
 /** Trust rules from "Allow for this Session", per Session; kept in memory, so they end when the Server restarts. */
 @OptIn(ExperimentalAtomicApi::class)
 class SessionTrust {
-    private val rules = AtomicReference(emptyMap<String, TrustRules>())
+    private val rules = AtomicReference(emptyMap<SessionId, TrustRules>())
 
-    fun scope(sessionId: String) = Scope(sessionId)
+    fun scope(sessionId: SessionId) = Scope(sessionId)
 
-    inner class Scope internal constructor(private val sessionId: String) {
+    inner class Scope internal constructor(private val sessionId: SessionId) {
         fun get() = rules.load()[sessionId] ?: TrustRules()
         fun update(transform: (TrustRules) -> TrustRules) = rules.update { it + (sessionId to transform(it[sessionId] ?: TrustRules())) }
     }

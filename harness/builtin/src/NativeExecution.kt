@@ -23,6 +23,8 @@ import kinuvo.protocol.execution.ExecutionCapabilities
 import kinuvo.protocol.execution.ExecutionConnection
 import kinuvo.protocol.execution.HarnessConnection
 import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.RunId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -63,7 +65,7 @@ class NativeExecutionFactory(
     }
 }
 
-private class NativeExecutionSession(private val factory: NativeExecutionFactory, private val host: NativeHarnessHost, private val agentId: String, private val state: ExecutionState) : ExecutionSession {
+private class NativeExecutionSession(private val factory: NativeExecutionFactory, private val host: NativeHarnessHost, private val agentId: AgentId, private val state: ExecutionState) : ExecutionSession {
     override val capabilities = ExecutionCapabilities(cancel = true, questions = true, approvals = true)
     private var turn: Job? = null
 
@@ -91,7 +93,7 @@ private class NativeExecutionSession(private val factory: NativeExecutionFactory
             }
             is RunKind.Chat, is RunKind.Routine -> {
                 val sink = state.boundSink()
-                val runId = input.runId ?: Uuid.random().toString()
+                val runId = input.runId ?: RunId(Uuid.random().toString())
                 val run = try { factory.runner(host.run(agentId, sessionId, input)) }
                 catch (e: CancellationException) { throw e }
                 catch (e: Exception) {

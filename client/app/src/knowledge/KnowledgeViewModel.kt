@@ -9,6 +9,7 @@ import androidx.lifecycle.viewModelScope
 import kinuvo.protocol.knowledge.Note
 import kinuvo.protocol.knowledge.NoteSummary
 import kinuvo.protocol.knowledge.KnowledgeChange
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,9 +27,9 @@ data class KnowledgeState(
     val note: Note? = null,
     val errors: List<String> = emptyList(),
     /** Shows only this Agent's [changes]; null for every Agent's. */
-    val agent: String? = null,
+    val agent: AgentId? = null,
 ) {
-    val shownChanges get() = changes?.filter { agent == null || it.agentId == agent }
+    val shownChanges get() = changes?.filter { agent == null || it.agentId?.value == agent.value }
 }
 
 class KnowledgeViewModel(private val repo: KnowledgeRepository, route: Route.Knowledge) : ViewModel() {
@@ -36,7 +37,7 @@ class KnowledgeViewModel(private val repo: KnowledgeRepository, route: Route.Kno
         field = MutableStateFlow(KnowledgeState(route))
     private var searching: Job? = null
 
-    fun filter(agent: String?) = state.update { it.copy(agent = agent) }
+    fun filter(agent: AgentId?) = state.update { it.copy(agent = agent) }
 
     init {
         repo.connection.bind(viewModelScope)

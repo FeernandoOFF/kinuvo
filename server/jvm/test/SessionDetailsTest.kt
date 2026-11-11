@@ -31,7 +31,7 @@ class SessionDetailsTest {
             assertEquals("Trip plans", harness.update(agent, session, "  Trip plans ", null).title)
             assertTrue(harness.update(agent, session, null, true).let { it.favorite && it.title == "Trip plans" })
             assertEquals(listOf(session), harness.log.page(agent.id, null, 1).favorites.map { it.id })
-            assertEquals(emptyList(), harness.log.page(agent.id, older, 1).favorites)
+            assertEquals(emptyList(), harness.log.page(agent.id, older.value, 1).favorites)
 
             harness.runner(agent, session).run(session, "again").toList()
             assertEquals(listOf("first message", "again"), seen.last().filterIsInstance<Message.User>().map { it.textContent() })

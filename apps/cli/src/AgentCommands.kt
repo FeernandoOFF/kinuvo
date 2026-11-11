@@ -9,6 +9,7 @@ import kinuvo.protocol.agent.AgentRef
 import kinuvo.protocol.Api
 import kinuvo.protocol.agent.CreateAgentParams
 import kinuvo.protocol.agent.UpdateAgentParams
+import kinuvo.protocol.agent.AgentId
 
 internal class AgentCommands : Group(
     "agents", "List, create, change and delete Agents (Hermes: profile).",
@@ -18,7 +19,7 @@ internal class AgentCommands : Group(
 private class ListAgents : ServerCommand("list", "List the Agents.") {
     override suspend fun run() {
         val agents = session.call { client.call(Api.Agents, Unit) }
-        echo(table(listOf("ID", "NAME", "EXEC"), agents.map { listOf(it.id, it.name, it.exec) }))
+        echo(table(listOf("ID", "NAME", "EXEC"), agents.map { listOf(it.id.value, it.name, it.exec) }))
     }
 }
 
@@ -26,9 +27,9 @@ private class ShowAgent : ServerCommand("show", "Show an Agent's settings, Ident
     private val id by argument("ID")
 
     override suspend fun run() {
-        val a = session.call { client.call(Api.Agent, AgentRef(id)) }
+        val a = session.call { client.call(Api.Agent, AgentRef(AgentId(id))) }
         val s = a.settings
-        echo(table(listOf("ID", a.info.id), listOf(
+        echo(table(listOf("ID", a.info.id.value), listOf(
             listOf("name", a.info.name),
             listOf("model", s.model),
             listOf("reasoning", s.reasoning),
@@ -47,7 +48,7 @@ private class CreateAgent : ServerCommand("create", "Create an Agent from the de
     private val clone by option("--clone", metavar = "FROM", help = "Copy this Agent's settings, Identity, Soul, Skills and MCP servers")
 
     override suspend fun run() {
-        val agent = session.call { client.call(Api.CreateAgent, CreateAgentParams(id, name, clone)) }
+        val agent = session.call { client.call(Api.CreateAgent, CreateAgentParams(AgentId(id), name, clone?.let(::AgentId))) }
         echo("Created agent '${agent.id}' (${agent.name}).")
     }
 }
@@ -60,7 +61,7 @@ private class SetAgent : ServerCommand("set", "Change one setting: name, model, 
     override suspend fun run() {
         val v = textOrStdin(value)
         val list = v.split(",").map { it.trim() }.filter { it.isNotEmpty() }
-        val p = UpdateAgentParams(id)
+        val p = UpdateAgentParams(AgentId(id))
         val params = when (key) {
             "name" -> p.copy(name = v)
             "model" -> p.copy(model = v)
@@ -83,7 +84,7 @@ private class DeleteAgent : ServerCommand("delete", "Delete an Agent with all it
 
     override suspend fun run() {
         if (!yes && !confirm("Delete agent '$id' and all its data?")) throw CliktError("Cancelled")
-        session.call { client.call(Api.DeleteAgent, AgentRef(id)) }
+        session.call { client.call(Api.DeleteAgent, AgentRef(AgentId(id))) }
         echo("Deleted agent '$id'.")
     }
 }

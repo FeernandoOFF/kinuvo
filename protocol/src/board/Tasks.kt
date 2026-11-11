@@ -2,6 +2,8 @@ package kinuvo.protocol.board
 
 import kinuvo.protocol.settings.SecretUpdate
 import kinuvo.protocol.settings.SettingsProvider
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.serialization.Serializable
 
 /** Where a Task stands on the Board. [Waiting] means it needs the user. */
@@ -22,11 +24,11 @@ data class TaskInfo(
     val due: String? = null,
     val status: TaskStatus = TaskStatus.Todo,
     val assignee: String? = null,
-    val sessionIds: List<String> = emptyList(),
+    val sessionIds: List<SessionId> = emptyList(),
 )
 
 @Serializable
-data class TaskListInfo(val id: String, val name: String, val agentId: String? = null)
+data class TaskListInfo(val id: String, val name: String, val agentId: AgentId? = null)
 
 @Serializable
 data class TasksParams(val includeDone: Boolean = false)

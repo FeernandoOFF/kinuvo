@@ -213,7 +213,7 @@ internal fun OnboardingScreen(app: AppViewModel, onboarding: OnboardingViewModel
 
 /** The Settings section for [section] over the onboarding, without the other sections. */
 @Composable
-private fun ConnectSetup(app: AppViewModel, agentId: String, section: kinuvo.app.navigation.SettingsSection, editing: Boolean = false, item: String? = null, onDone: () -> Unit) {
+private fun ConnectSetup(app: AppViewModel, agentId: AgentId, section: kinuvo.app.navigation.SettingsSection, editing: Boolean = false, item: String? = null, onDone: () -> Unit) {
     var route by remember(section) { mutableStateOf(Route.Settings(agentId, section, item, editing = editing)) }
     // The overlay owns its ViewModels: each route's is cleared when the route changes or the overlay closes.
     val owner = remember(route) { object : ViewModelStoreOwner { override val viewModelStore = ViewModelStore() } }
@@ -255,7 +255,7 @@ internal fun ConnectList(s: OnboardingState, available: (kinuvo.app.navigation.S
 
 /** A new Agent: where it runs, then the onboarding's Identity and Soul steps for Kinuvo's own, or a working folder for an ACP agent. */
 @Composable
-internal fun NewAgentScreen(app: AppViewModel, onboarding: OnboardingViewModel, onClose: () -> Unit, onCreated: (String) -> Unit) {
+internal fun NewAgentScreen(app: AppViewModel, onboarding: OnboardingViewModel, onClose: () -> Unit, onCreated: (AgentId) -> Unit) {
     val a by app.state.collectAsState()
     val s by onboarding.state.collectAsState()
     val from = a.agents.firstOrNull { it.id == a.agentId } ?: a.agents.firstOrNull()
@@ -334,7 +334,7 @@ internal fun PickAgents(s: OnboardingState, onEdit: ((OnboardingState) -> Onboar
     if (shared.isEmpty()) return Text("$host doesn't share any Agents with ${s.server} yet. Pick some in its Settings › Harnesses › Share Agents.", color = color(mutedColor))
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8)) {
         RowGroup { shared.forEach { agent ->
-            val added = s.added(agent.id, registrations) != null
+            val added = s.added(agent.id.value, registrations) != null
             val on = added || agent.id in s.picked
             ChoiceRow(Lucide.Bot, agent.name, if (added) "Added" else "Runs on $host", on, enabled = !added,
                 trailing = { if (!added && !agent.readiness.online) ReadinessPill(readiness(agent.readiness.state(), agent.name, host, agent.name)) }) {

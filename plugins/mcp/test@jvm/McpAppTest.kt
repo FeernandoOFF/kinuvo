@@ -3,6 +3,7 @@ package kinuvo.plugins.mcp
 import kinuvo.harness.ToolSpec
 import kinuvo.server.plugin.ToolRun
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.*
@@ -13,7 +14,7 @@ import kotlin.test.*
 class McpAppTest {
     private val run = object : ToolRun {
         override val tools = emptyList<ToolSpec>()
-        override suspend fun call(name: String, args: String) = SessionEntry.ToolResult(name, name, "", isError = true)
+        override suspend fun call(name: String, args: String) = SessionEntry.ToolResult(ToolCallId(name), name, "", isError = true)
     }
 
     @Test

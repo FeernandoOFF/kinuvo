@@ -10,6 +10,7 @@ import java.nio.file.Files
 import java.nio.file.Paths
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kinuvo.protocol.agent.AgentId
 
 class DeleteTreeTest {
     @Test
@@ -17,10 +18,10 @@ class DeleteTreeTest {
         val home = TestHome()
         val agent = home.store.createAgent("work")
         val shared = Files.createTempDirectory("shared-skill").also { Files.writeString(it.resolve("SKILL.md"), "keep") }
-        home.files.skills("work").createDirectories()
-        Files.createSymbolicLink(Paths.get(Path(home.files.skills("work"), "linked").toString()), shared)
+        home.files.skills(AgentId("work")).createDirectories()
+        Files.createSymbolicLink(Paths.get(Path(home.files.skills(AgentId("work")), "linked").toString()), shared)
         home.store.deleteAgent(agent)
-        assertEquals(false, home.files.agent("work").exists())
+        assertEquals(false, home.files.agent(AgentId("work")).exists())
         assertEquals("keep", Files.readString(shared.resolve("SKILL.md")))
     }
 

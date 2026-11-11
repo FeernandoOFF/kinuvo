@@ -77,7 +77,7 @@ struct NativeBoard: View {
             TextField("Task title", text: $title)
             Picker("Agent", selection: $assignee) {
                 Text("Unassigned").tag("")
-                ForEach(agents, id: \.id) { Text($0.name).tag($0.id) }
+                ForEach(agents, id: \.key) { Text($0.name).tag($0.key) }
             }
             Button("Add task") {
                 model.viewModel?.add(params: CreateTaskParams(title: title, list: nil, notes: "", due: nil, assignee: assignee.isEmpty ? nil : assignee))
@@ -94,7 +94,7 @@ struct NativeBoard: View {
             })) {
                 ForEach(TaskStatus.entries, id: \.name) { Text(statusTitle($0)).tag($0) }
             }
-            if let session = task.sessionIds.last {
+            if let session = NativeIds.shared.sessions(task: task).last {
                 Button("Open session") { openSession(task.assignee, session) }
             }
         }

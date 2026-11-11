@@ -23,6 +23,7 @@ import kinuvo.app.artifacts.ArtifactsState
 import kinuvo.app.navigation.Route
 import kinuvo.protocol.artifact.ArtifactData
 import kinuvo.protocol.artifact.ArtifactInfo
+import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.artifacts.ArtifactsActions
 import kinuvo.ui.artifacts.ArtifactsContent
 import kinuvo.ui.design.HarnessTheme
@@ -39,7 +40,7 @@ class ArtifactSelectionTest {
             }
         }
         val text = "Copy this passage."
-        val info = ArtifactInfo("a1", "Document", "md", "main", null, 0, 0)
+        val info = ArtifactInfo("a1", "Document", "md", AgentId("main"), null, 0, 0)
         val state = ArtifactsState(Route.Artifacts(info.id), open = ArtifactData(info, "**$text**"))
         ImageComposeScene(600, 500, Density(1f), content = {
             CompositionLocalProvider(LocalClipboard provides clipboard) {

@@ -26,6 +26,7 @@ import kinuvo.protocol.approval.DenyRules
 import kinuvo.protocol.approval.TrustRules
 import kinuvo.protocol.agent.UpdateAgentParams
 import kinuvo.protocol.device.Platform
+import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.design.*
 import androidx.compose.ui.Alignment
 
@@ -215,13 +216,13 @@ private fun ExecTestResultView(t: ExecTestResult) {
 internal fun NewAgentForm(p: Pane) {
     val id = rememberTextFieldState()
     val name = rememberTextFieldState()
-    var from by remember { mutableStateOf<String?>(null) }
-    val save = { p.actions.onCreateAgent(CreateAgentParams(id.value(), name.value().ifEmpty { null }, from)) }
+    var from by remember { mutableStateOf<AgentId?>(null) }
+    val save = { p.actions.onCreateAgent(CreateAgentParams(AgentId(id.value()), name.value().ifEmpty { null }, from)) }
     DetailPane(p.back, "New agent", error = p.ui.error, trailing = { FormActions("Create agent", id.value().isNotEmpty(), p.ui.state.saved, onSave = save, onCancel = p.cancel, dirty = formChanged(listOf(id.text.toString(), name.text.toString(), from), p.ui.state.saved)) }) {
         FormField("ID", "Lowercase letters, digits and hyphens; names its folder.") { Input(id, "work") }
         FormField("Name") { Input(name, "Work", capitalize = true) }
         FormField("Start from") {
-            Picker(listOf<String?>(null) + p.ui.agents.map { it.id }, from, { a -> a?.let { "Copy of ${p.ui.agents.first { it.id == a }.name}" } ?: "Default template" }, { from = it })
+            Picker(listOf<AgentId?>(null) + p.ui.agents.map { it.id }, from, { a -> a?.let { "Copy of ${p.ui.agents.first { it.id == a }.name}" } ?: "Default template" }, { from = it })
         }
     }
 }

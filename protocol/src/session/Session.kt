@@ -7,14 +7,15 @@ import kinuvo.protocol.routine.Routine
 import kinuvo.protocol.routine.RoutineRef
 import kinuvo.protocol.surface.SurfaceAction
 import kinuvo.protocol.usage.RequestMetrics
+import kinuvo.protocol.agent.AgentId
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
 @Serializable
 data class SessionInfo(
-    val id: String,
-    val agentId: String,
+    val id: SessionId,
+    val agentId: AgentId,
     val title: String,
     val status: SessionStatus = SessionStatus.Idle,
     /** The Routine that started this Session; null for Sessions the user started. */
@@ -94,7 +95,7 @@ sealed interface SessionEntry {
     data class Reasoning(val text: String, val id: String? = null, val encrypted: String? = null, val messageId: String? = null, override val writtenAt: Long? = null) : SessionEntry
 
     @Serializable @SerialName("tool_call")
-    data class ToolCall(val id: String, val name: String, val args: String, val identity: ToolIdentity? = null, override val writtenAt: Long? = null) : SessionEntry
+    data class ToolCall(val id: ToolCallId, val name: String, val args: String, val identity: ToolIdentity? = null, override val writtenAt: Long? = null) : SessionEntry
 
     /** The compressed model history; earlier transcript entries remain available to clients. */
     @Serializable @SerialName("compaction")
@@ -112,7 +113,7 @@ sealed interface SessionEntry {
     data class Activation(val name: String, val content: String, override val writtenAt: Long? = null) : SessionEntry
 
     @Serializable @SerialName("tool_report")
-    data class ToolReport(val tool: String, val callId: String?, val content: String, override val writtenAt: Long? = null) : SessionEntry
+    data class ToolReport(val tool: String, val callId: ToolCallId?, val content: String, override val writtenAt: Long? = null) : SessionEntry
 
     /** The Session's settings from here on; the model doesn't see it. */
     @Serializable @SerialName("settings")
@@ -128,14 +129,14 @@ sealed interface SessionEntry {
 
     /** [attachments] are files the tool shows the model, e.g. an image from a note. */
     @Serializable @SerialName("tool_result")
-    data class ToolResult(val id: String, val name: String, val output: String, val isError: Boolean = false, val attachments: List<Attachment> = emptyList(), val identity: ToolIdentity? = null, override val writtenAt: Long? = null, val app: McpAppRef? = null, val appResult: JsonObject? = null) : SessionEntry
+    data class ToolResult(val id: ToolCallId, val name: String, val output: String, val isError: Boolean = false, val attachments: List<Attachment> = emptyList(), val identity: ToolIdentity? = null, override val writtenAt: Long? = null, val app: McpAppRef? = null, val appResult: JsonObject? = null) : SessionEntry
 }
 
 /** Shared by persisted listings and clients; legacy UUIDs carry no creation time. */
 val SessionOrder: Comparator<SessionInfo> = compareByDescending<SessionInfo> { it.createdAt != null }
     .thenByDescending { it.createdAt }
     .thenBy { it.legacyOrder ?: Long.MAX_VALUE }
-    .thenBy { it.id }
+    .thenBy { it.id.value }
 
 /** Type is part of identity: a tool call and its result deliberately share a tool ID. */
 @Serializable
@@ -146,8 +147,8 @@ fun SessionEntry.identity(): SessionEntryIdentity? = when (this) {
     is SessionEntry.UserMessage -> submissionId?.let { SessionEntryIdentity("user", it) }
     is SessionEntry.AssistantMessage -> messageId?.let { SessionEntryIdentity("assistant", it) }
     is SessionEntry.Reasoning -> (messageId ?: id)?.let { SessionEntryIdentity("reasoning", it) }
-    is SessionEntry.ToolCall -> SessionEntryIdentity("tool_call", id)
-    is SessionEntry.ToolResult -> SessionEntryIdentity("tool_result", id)
+    is SessionEntry.ToolCall -> SessionEntryIdentity("tool_call", id.value)
+    is SessionEntry.ToolResult -> SessionEntryIdentity("tool_result", id.value)
     is SessionEntry.Notice -> SessionEntryIdentity("notice", id)
     else -> null
 }

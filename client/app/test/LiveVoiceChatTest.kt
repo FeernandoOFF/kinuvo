@@ -12,6 +12,8 @@ import kinuvo.protocol.capability.*
 import kinuvo.protocol.connection.*
 import kinuvo.protocol.usage.*
 import kinuvo.protocol.voice.*
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -84,7 +86,7 @@ class LiveVoiceChatTest {
         try {
             client.connect(); server.open(client, "local:test")
             val audio = Audio()
-            val chat = LiveVoiceChat(server, audio, testScheduler.timeSource) { "agent" to "session" }
+            val chat = LiveVoiceChat(server, audio, testScheduler.timeSource) { AgentId("agent") to SessionId("session") }
             chat.start()
             advanceTimeBy(1_000); runCurrent()
             assertEquals(VoicePhase.Starting, chat.state.value.phase)
@@ -310,17 +312,17 @@ class LiveVoiceChatTest {
             chat.speaker(true)
             val owner = LiveCalls(backgroundScope)
             repeat(3) {
-                owner.start("agent", "session", chat)
+                owner.start(AgentId("agent"), SessionId("session"), chat)
                 runCurrent()
                 assertEquals(VoicePhase.Listening, owner.state.value?.voice?.phase)
                 output(LiveVoiceOutput.Ended("call", null))
                 runCurrent()
                 assertNull(owner.state.value)
             }
-            owner.start("agent", "session", chat)
+            owner.start(AgentId("agent"), SessionId("session"), chat)
             runCurrent()
             owner.end()
-            owner.start("agent", "session", chat)
+            owner.start(AgentId("agent"), SessionId("session"), chat)
             runCurrent()
             assertEquals(VoicePhase.Listening, owner.state.value?.voice?.phase)
             owner.end()
@@ -434,7 +436,7 @@ class LiveVoiceChatTest {
                 override fun background() {}
                 override fun foreground() {}
             }
-            val live = calls.attach("agent", "session", backgroundScope, { "agent" to "session" }) { _, _ -> LiveVoiceChat(server, audio) { "agent" to "session" } }
+            val live = calls.attach(AgentId("agent"), SessionId("session"), backgroundScope, { AgentId("agent") to SessionId("session") }) { _, _ -> LiveVoiceChat(server, audio) { AgentId("agent") to SessionId("session") } }
             val selection = CompletableDeferred<Unit>()
             val screen = PickedVoiceChat(speech, live, backgroundScope) { selection.await(); true }
             screen.start()
@@ -484,10 +486,10 @@ class LiveVoiceChatTest {
                 override fun stopSpeaking() { error("Unrelated speech must not stop playback") }
                 override fun stop() { error("Unrelated speech must not release audio") }
             }
-            val owned = LiveVoiceChat(server, engine) { "agent" to "session" }
+            val owned = LiveVoiceChat(server, engine) { AgentId("agent") to SessionId("session") }
             owned.start()
             runCurrent()
-            val unrelated = VoiceViewModel(engine, SessionViewModel(client, server.sessions, Route.Chat("agent", "other")))
+            val unrelated = VoiceViewModel(engine, SessionViewModel(client, server.sessions, Route.Chat(AgentId("agent"), SessionId("other"))))
             unrelated.chat.start()
             ViewModelStore().apply { put("voice", unrelated); clear() }
             val dictation = DictationViewModel(engine)

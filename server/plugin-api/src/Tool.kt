@@ -8,6 +8,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kinuvo.protocol.session.Attachment
 import kinuvo.protocol.plugin.ToolIdentity
+import kinuvo.protocol.session.ToolCallId
 
 /**
  * One thing a call does, e.g. one command of a shell chain. Trust rules match it by [words]: as a prefix, or all of
@@ -50,7 +51,7 @@ interface Tool {
     fun assess(args: JsonObject): Assessment = Assessment(listOf(Action(risk, listOf(descriptor.name))))
     suspend fun bind(args: JsonObject): suspend () -> Unit = {}
     suspend fun executeResult(args: JsonObject, callId: String, run: ToolRun): SessionEntry.ToolResult =
-        SessionEntry.ToolResult(callId, descriptor.name, execute(args, callId, run))
+        SessionEntry.ToolResult(ToolCallId(callId), descriptor.name, execute(args, callId, run))
     suspend fun execute(args: JsonObject): String
     suspend fun execute(args: JsonObject, callId: String): String = execute(args)
     /** Lets a tool call the [run]'s other tools, e.g. from a Script. */

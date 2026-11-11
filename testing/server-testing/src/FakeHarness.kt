@@ -19,6 +19,8 @@ import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.execution.HarnessConnection
 import kinuvo.protocol.approval.Question
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.RunId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -94,7 +96,7 @@ class FakeExternalSession internal constructor(
         prompts += input
         val number = turns.incrementAndGet()
         job = scope.launch {
-            sink.publish(AgentEvent.RunStarted(runId))
+            sink.publish(AgentEvent.RunStarted(RunId(runId)))
             turn(input.text)
             finish("end_turn")
         }
@@ -129,7 +131,7 @@ class FakeExternalSession internal constructor(
     /** Asks a form of [questions], like an `ask_user` call. */
     suspend fun askQuestions(title: String, vararg questions: Question): JsonElement {
         val id = "request-${requests.incrementAndGet()}"
-        return ask(PendingInteraction.Questions(id, id, title, questions.toList()))
+        return ask(PendingInteraction.Questions(id, ToolCallId(id), title, questions.toList()))
     }
 
     /** Asks the user to pick one of [options] for [title], like a permission request. */
@@ -139,7 +141,7 @@ class FakeExternalSession internal constructor(
     }
 
     private suspend fun finish(reason: String) {
-        sink.publish(AgentEvent.RunFinished(runId))
+        sink.publish(AgentEvent.RunFinished(RunId(runId)))
         sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
         state.update(ExecutionPhase.Idle, reason)
     }

@@ -1,6 +1,8 @@
 package kinuvo.protocol.artifact
 
 import kotlinx.serialization.Serializable
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 /** A file an Agent made for the user, kept in `~/.kinuvo/artifacts`; only its latest content is kept. Times are epoch ms. */
 @Serializable
@@ -9,9 +11,9 @@ data class ArtifactInfo(
     val title: String,
     /** File extension: html, svg, md, csv, json or txt. */
     val type: String,
-    val agentId: String,
+    val agentId: AgentId,
     /** The Session it was last saved from. */
-    val sessionId: String? = null,
+    val sessionId: SessionId? = null,
     val created: Long,
     val updated: Long,
 )

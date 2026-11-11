@@ -8,6 +8,7 @@ import kinuvo.protocol.mcp.McpParams
 import kinuvo.protocol.mcp.McpRedirect
 import kinuvo.protocol.mcp.McpServerInfo
 import kinuvo.protocol.mcp.McpTestResult
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
@@ -62,7 +63,7 @@ class McpFiles(private val file: Path, private val scope: ConfigScope) {
         oauth = (o["oauth"] as? JsonObject)?.let { a ->
             a.str("clientId")?.let { McpOAuthClient(it, a.str("clientSecret"), a.strings("scopes").orEmpty()) }
         },
-        agents = o.strings("agents"),
+        agents = o.strings("agents")?.map(::AgentId),
     )
 
     companion object {
@@ -81,7 +82,7 @@ class McpFiles(private val file: Path, private val scope: ConfigScope) {
             s.includeTools?.let { put("includeTools", JsonArray(it.map(::JsonPrimitive))) }
             if (s.excludeTools.isNotEmpty()) put("excludeTools", JsonArray(s.excludeTools.map(::JsonPrimitive)))
             s.approval?.let { put("approval", it) }
-            s.agents?.let { put("agents", JsonArray(it.map(::JsonPrimitive))) }
+            s.agents?.let { put("agents", JsonArray(it.map { id -> JsonPrimitive(id.value) })) }
             s.oauth?.takeIf { s.command.isNullOrBlank() }?.let { a ->
                 put("oauth", buildJsonObject {
                     put("clientId", a.clientId)

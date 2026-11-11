@@ -79,14 +79,14 @@ data class HomeUi(
     val tasks: Boolean = false,
     val error: String? = null,
 ) {
-    fun agent(id: String?) = agents.firstOrNull { it.id == id }
+    fun agent(id: String?) = agents.firstOrNull { it.id.value == id }
 }
 
 class HomeActions(
-    val onOpenSession: (agentId: String, sessionId: String) -> Unit = { _, _ -> },
+    val onOpenSession: (agentId: AgentId, sessionId: SessionId) -> Unit = { _, _ -> },
     val onOpenTask: (taskId: String) -> Unit = {},
     val onBoard: () -> Unit = {},
-    val onRoutine: (agentId: String, routineId: String) -> Unit = { _, _ -> },
+    val onRoutine: (agentId: AgentId, routineId: String) -> Unit = { _, _ -> },
 )
 
 /**
@@ -134,7 +134,7 @@ private fun NeedsYou(ui: HomeUi, actions: HomeActions) {
         if (items.isEmpty()) Empty("Nothing is waiting on you.")
         items.forEach { a ->
             when (a) {
-                is Attention.Waiting -> AttentionCard(ui.agent(a.session.agentId), a.session.title, a.session.kind(), "Open Session") {
+                is Attention.Waiting -> AttentionCard(ui.agent(a.session.agentId.value), a.session.title, a.session.kind(), "Open Session") {
                     actions.onOpenSession(a.session.agentId, a.session.id)
                 }
                 is Attention.TaskWaiting -> AttentionCard(ui.agent(a.task.assignee), a.task.title, "Task · ${a.task.listName}", "Open Task") { actions.onOpenTask(a.task.id) }
@@ -168,7 +168,7 @@ private fun RunningNow(ui: HomeUi, actions: HomeActions) {
     val running = ui.today.running
     Section(Lucide.Activity, "Running now", running.size.takeIf { it > 0 }) {
         running.forEach { r ->
-            val agent = ui.agent(r.agentId)
+            val agent = ui.agent(r.agentId.value)
             val kind = r.session?.kind() ?: "Routine run"
             HomeRow(agent, r.title, kind, { actions.onOpenSession(r.agentId, r.sessionId) }, lead = agent?.name) { Spinner(Modifier.semantics { contentDescription = "Running" }, size = 12.dp, tint = color(accentColor)) }
         }
@@ -182,7 +182,7 @@ private fun NextUp(ui: HomeUi, actions: HomeActions) {
         next.groupBy { it.day }.forEach { (day, runs) ->
             SubLabel(ui.dayLabel(day))
             runs.forEach { u ->
-                val agent = ui.agent(u.routine.agentId)
+                val agent = ui.agent(u.routine.agentId.value)
                 HomeRow(agent, u.routine.name, "${ui.time(u.at)} · ${u.routine.trigger.describe()} · ${agent?.name ?: u.routine.agentId}",
                     { actions.onRoutine(u.routine.agentId, u.routine.id) }, icon = Lucide.Circle)
             }
@@ -217,7 +217,7 @@ private fun Results(ui: HomeUi, actions: HomeActions) {
             when (o) {
                 is Outcome.RoutineRun -> {
                     val r = o.routine
-                    val agent = ui.agent(r.agentId)
+                    val agent = ui.agent(r.agentId.value)
                     val failed = r.lastStatus == RunStatus.Error
                     val outcome = when (r.lastStatus) {
                         RunStatus.Error -> r.lastError
@@ -225,10 +225,10 @@ private fun Results(ui: HomeUi, actions: HomeActions) {
                         else -> r.lastReport?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim() ?: "Reported"
                     }
                     HomeRow(agent, r.name, listOfNotNull(agent?.name ?: r.agentId, relative(r.lastRunAt ?: ui.now, ui.now), outcome).joinToString(" · "),
-                        { actions.onOpenSession(r.agentId, r.lastSessionId!!) }, flag = "Failed".takeIf { failed })
+                        { actions.onOpenSession(r.agentId, SessionId(r.lastSessionId!!.value)) }, flag = "Failed".takeIf { failed })
                 }
                 is Outcome.Finished -> {
-                    val agent = ui.agent(o.session.agentId)
+                    val agent = ui.agent(o.session.agentId.value)
                     HomeRow(agent, o.session.title, "${agent?.name ?: o.session.agentId} · Finished while you were away", { actions.onOpenSession(o.session.agentId, o.session.id) }) {
                         Icon(Lucide.Check, Modifier.size(14.dp), tint = color(successColor), contentDescription = "Finished")
                     }

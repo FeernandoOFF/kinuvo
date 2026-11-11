@@ -65,7 +65,7 @@ data class AgentDraft(
     }
 
     /** Why it can't be saved: a name that's missing, too long or another Agent's, no model, or an ACP Agent's working folder. */
-    fun problems(agentId: String, agents: List<AgentInfo>): List<String> = buildList {
+    fun problems(agentId: AgentId, agents: List<AgentInfo>): List<String> = buildList {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) add("Name is required")
         else if (trimmed.length > MaxName) add("Name is at most $MaxName characters")
@@ -87,7 +87,7 @@ data class AgentDraft(
 /** What would end the inspector with unsaved changes, until the user saves, discards or keeps editing. */
 sealed interface InspectorExit {
     data object Close : InspectorExit
-    data class Inspect(val agentId: String) : InspectorExit
+    data class Inspect(val agentId: AgentId) : InspectorExit
     /** The host leaves, e.g. to another Server or the full Settings; it runs its own action once [InspectorState.left]. */
     data object Leave : InspectorExit
 }
@@ -100,7 +100,7 @@ enum class GuardChoice { Save, Discard, Keep }
  * the user because of them. [left] is set once a guarded [InspectorExit.Leave] may go ahead.
  */
 data class InspectorState(
-    val agentId: String? = null,
+    val agentId: AgentId? = null,
     val pages: List<InspectorPage> = emptyList(),
     val details: AgentDetails? = null,
     val draft: AgentDraft? = null,
@@ -145,7 +145,7 @@ class AgentInspectorViewModel(private val config: ConfigRepository) : ViewModel(
     }
 
     /** Shows [agentId]; false while unsaved edits to another Agent wait on the user. */
-    fun inspect(agentId: String): Boolean {
+    fun inspect(agentId: AgentId): Boolean {
         val s = state.value
         if (s.agentId == agentId) return true
         if (s.dirty) return guard(InspectorExit.Inspect(agentId))
@@ -223,7 +223,7 @@ class AgentInspectorViewModel(private val config: ConfigRepository) : ViewModel(
         InspectorExit.Leave -> { reset(); state.update { it.copy(left = true) } }
     }
 
-    private fun open(agentId: String) {
+    private fun open(agentId: AgentId) {
         watching?.cancel()
         state.value = InspectorState(agentId, models = state.value.models)
         config.load(agentId)

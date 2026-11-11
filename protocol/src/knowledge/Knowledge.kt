@@ -2,6 +2,8 @@ package kinuvo.protocol.knowledge
 
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 /** A property notes can have, as the knowledge provider defines it; [format] is e.g. text, number, date or objects. */
 @Serializable
@@ -33,8 +35,8 @@ data class KnowledgeChange(
     val summary: String,
     val ref: String,
     val title: String,
-    val agentId: String? = null,
-    val sessionId: String? = null,
+    val agentId: AgentId? = null,
+    val sessionId: SessionId? = null,
     val undone: Boolean = false,
     /** The provider and space the change was made in. */
     val scope: String,

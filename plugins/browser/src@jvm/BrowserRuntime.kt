@@ -22,6 +22,7 @@ import kinuvo.server.plugin.ScreenSource
 import kinuvo.protocol.*
 import kinuvo.protocol.browser.*
 import kinuvo.protocol.screen.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Semaphore
@@ -42,7 +43,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
     private var closed = false
     private var authorizeOwner: suspend (BrowserOwner) -> Unit = {}
     private var changed: (BrowserOwner) -> Unit = {}
-    private val profiles = mutableMapOf<String, Profile>()
+    private val profiles = mutableMapOf<AgentId, Profile>()
     private val tabs = linkedMapOf<String, Entry>()
     private val opening = mutableMapOf<BrowserOwner, ScreenGate>()
     private val streamSlots = Semaphore(8)
@@ -52,7 +53,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
     private val records = File(home, "kdriver-tabs.json")
     private val saved = if (records.isFile) ProtocolJson.decodeFromString<List<SavedTab>>(records.readText()).toMutableList() else mutableListOf()
     private val presentationFile = File(home, "kdriver-presentation.json")
-    private val presentations = if (presentationFile.isFile) ProtocolJson.decodeFromString<Map<String, BrowserPresentation>>(presentationFile.readText()).toMutableMap() else mutableMapOf()
+    private val presentations = if (presentationFile.isFile) ProtocolJson.decodeFromString<Map<AgentId, BrowserPresentation>>(presentationFile.readText()).toMutableMap() else mutableMapOf()
     private val streams = mutableMapOf<String, SharedFlow<Result<ScreenSample>>>()
     private data class Profile(val browser: Browser, val process: Process, val job: Job, val headless: Boolean)
     private data class Entry(val id: String, val owner: BrowserOwner, val page: Tab, val gate: ScreenGate,
@@ -75,9 +76,9 @@ class BrowserRuntime(private val home: File) : BrowserService {
         return result["result"]?.jsonObject?.get("value") ?: JsonNull
     }
 
-    private suspend fun profile(agent: String): Profile {
+    private suspend fun profile(agent: AgentId): Profile {
         profiles[agent]?.let { return it }
-        require(agent.matches(Regex("[A-Za-z0-9_-]{1,128}")))
+        require(agent.value.matches(Regex("[A-Za-z0-9_-]{1,128}")))
         val directory = File(home, "kdriver-profiles/$agent").apply {
             mkdirs(); setReadable(false, false); setReadable(true, true); setWritable(false, false); setWritable(true, true); setExecutable(false, false); setExecutable(true, true)
         }
@@ -95,7 +96,7 @@ class BrowserRuntime(private val home: File) : BrowserService {
         throw failure!!
     }
 
-    private suspend fun start(agent: String, directory: File, executable: File, presentation: BrowserPresentation): Profile {
+    private suspend fun start(agent: AgentId, directory: File, executable: File, presentation: BrowserPresentation): Profile {
         val log = File(directory, "chrome.log")
         val (process, port) = launchChrome(directory, executable, presentation.headless, log)
         val job = SupervisorJob(scope.coroutineContext[Job])
@@ -473,12 +474,12 @@ class BrowserRuntime(private val home: File) : BrowserService {
         profile.job.cancel()
     }
 
-    override suspend fun release(agentId: String) = mutex.withLock {
+    override suspend fun release(agentId: AgentId) = mutex.withLock {
         tabs.values.filter { it.owner.agentId == agentId }.toList().forEach { it.events?.cancel(); it.gate.close(); streams.remove(it.id); tabs.remove(it.id) }
         profiles.remove(agentId)?.let { stop(it) }
         saved.removeAll { it.owner.agentId == agentId }; restored.remove(BrowserOwner(agentId)); persist()
     }
-    override suspend fun deleteAgent(agentId: String) {
+    override suspend fun deleteAgent(agentId: AgentId) {
         mutex.withLock { deleted.add(BrowserOwner(agentId)) }
         release(agentId)
         check(File(home, "kdriver-profiles/$agentId").let { !it.exists() || it.deleteRecursively() }) { "Browser profile deletion failed" }

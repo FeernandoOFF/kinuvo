@@ -55,7 +55,7 @@ class SettingsDraftTest {
     @Test fun nestedInspectorPagesHaveOneHeaderAndRestoreTheParentScroll() = javax.swing.SwingUtilities.invokeAndWait {
         for (sheet in listOf(false, true)) {
             val nested = mutableStateOf(false)
-            val agent = AgentInfo("echo", "Echo", "host")
+            val agent = AgentInfo(AgentId("echo"), "Echo", "host")
             val details = AgentDetails(agent, AgentSettings("model", "medium", "default", "host"), "Identity", "Soul")
             val state = InspectorState(agent.id, details = details, draft = AgentDraft.of(details))
             ImageComposeScene(390, 844, Density(1f), content = {

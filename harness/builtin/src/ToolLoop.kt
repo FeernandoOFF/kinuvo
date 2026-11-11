@@ -18,6 +18,7 @@ import ai.koog.prompt.streaming.requireEndFrame
 import ai.koog.serialization.JSONObject
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.plugin.ToolIdentity
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
@@ -44,7 +45,7 @@ internal class StreamResponse(private val identity: (String) -> ToolIdentity? = 
             is StreamFrame.ReasoningComplete -> entries += SessionEntry.Reasoning(
                 (frame.summary?.takeIf { it.isNotEmpty() } ?: frame.content).joinToString("\n\n"), frame.id, frame.encrypted, messageId)
             is StreamFrame.ToolCallComplete -> entries += SessionEntry.ToolCall(
-                frame.id ?: Uuid.random().toString(), frame.name, frame.content, identity(frame.name))
+                ToolCallId(frame.id ?: Uuid.random().toString()), frame.name, frame.content, identity(frame.name))
             is StreamFrame.End -> end = frame
             else -> Unit
         }
@@ -216,15 +217,15 @@ internal const val SKIPPED_CALL = "Skipped: only one tool call is allowed per tu
 private suspend fun AIAgentGraphContextBase.toolCall(call: SessionEntry.ToolCall, name: String, execute: suspend () -> SessionEntry.ToolResult): SessionEntry.ToolResult {
     val event = Uuid.random().toString()
     val args = JSONObject(emptyMap())
-    pipeline.onToolCallStarting(event, executionInfo, this, runId, call.id, name, null, args)
+    pipeline.onToolCallStarting(event, executionInfo, this, runId, call.id.value, name, null, args)
     return try {
         execute().also {
-            if (it.isError) pipeline.onToolCallFailed(event, executionInfo, this, runId, call.id, name, null, args, "Tool failed", IllegalStateException("Tool failed"))
-            else pipeline.onToolCallCompleted(event, executionInfo, this, runId, call.id, name, null, args, null)
+            if (it.isError) pipeline.onToolCallFailed(event, executionInfo, this, runId, call.id.value, name, null, args, "Tool failed", IllegalStateException("Tool failed"))
+            else pipeline.onToolCallCompleted(event, executionInfo, this, runId, call.id.value, name, null, args, null)
         }
     } catch (e: Throwable) {
         withContext(NonCancellable) {
-            pipeline.onToolCallFailed(event, executionInfo, this@toolCall, runId, call.id, name, null, args, "Tool interrupted", e)
+            pipeline.onToolCallFailed(event, executionInfo, this@toolCall, runId, call.id.value, name, null, args, "Tool interrupted", e)
         }
         throw e
     }

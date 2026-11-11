@@ -5,6 +5,7 @@ import kinuvo.protocol.surface.SurfaceAction
 import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.session.AttachmentData
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.RunId
 
 /** Ordered SessionLog boundary. Commit appends an identity-reconciled batch; it never upserts saved entries. */
 interface ExecutionSink {
@@ -17,7 +18,7 @@ data class ExecutionInput(
     val attachments: List<AttachmentData> = emptyList(),
     val action: SurfaceAction? = null,
     val kind: RunKind = RunKind.Chat(),
-    val runId: String? = null,
+    val runId: RunId? = null,
 )
 
 /** Source insertion identity; null means unavailable, never rejection or foreground completion. */

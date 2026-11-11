@@ -7,6 +7,8 @@ import kinuvo.client.KinuvoClient
 import kinuvo.client.userMessage
 import kinuvo.protocol.*
 import kinuvo.protocol.voice.*
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -47,7 +49,7 @@ class LiveVoiceChat(
     private val audio: LiveAudio,
     private val clock: TimeSource = TimeSource.Monotonic,
     /** The Agent and Session the call joins, starting a new Session if needed. */
-    private val openSession: suspend () -> Pair<String, String>?,
+    private val openSession: suspend () -> Pair<AgentId, SessionId>?,
 ) : VoiceChat {
     override val state: StateFlow<VoiceChatState>
         field = MutableStateFlow(VoiceChatState())

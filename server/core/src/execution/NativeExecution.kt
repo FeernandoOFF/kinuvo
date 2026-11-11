@@ -13,6 +13,7 @@ import kinuvo.protocol.capability.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.surface.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,19 +28,19 @@ class NativeExecution(
     private val harness: HarnessRuntime,
     private val runs: Runs,
     private val scope: CoroutineScope,
-    private val agent: suspend (String) -> Agent,
+    private val agent: suspend (AgentId) -> Agent,
     private val capabilities: () -> ServerCapabilities,
-    private val ran: (Agent, String) -> Unit,
-    private val reported: suspend (sessionId: String, text: String) -> Unit,
+    private val ran: (Agent, SessionId) -> Unit,
+    private val reported: suspend (sessionId: SessionId, text: String) -> Unit,
 ) : ExecutionDispatch {
-    override suspend fun create(agentId: String): SessionInfo = harness.newSession(agent(agentId))
+    override suspend fun create(agentId: AgentId): SessionInfo = harness.newSession(agent(agentId))
 
-    override suspend fun snapshot(agentId: String, sessionId: String): ExecutionSnapshot {
+    override suspend fun snapshot(agentId: AgentId, sessionId: SessionId): ExecutionSnapshot {
         val snapshot = harness.log.executionSnapshot(agent(agentId), sessionId)
         return if (snapshot.phase == ExecutionPhase.Idle && runs.isActive(sessionId)) snapshot.copy(phase = ExecutionPhase.Running) else snapshot
     }
 
-    suspend fun owner(sessionId: String) = harness.store.agents().firstOrNull { a -> harness.store.sessions(a.id).any { it.id == sessionId } }?.id
+    suspend fun owner(sessionId: SessionId) = harness.store.agents().firstOrNull { a -> harness.store.sessions(a.id).any { it.id == sessionId } }?.id
 
     override suspend fun answer(answer: RespondParams): Boolean {
         owner(answer.sessionId) ?: return false
@@ -79,7 +80,7 @@ class NativeExecution(
         return SendResult(sessionId, run.id, message, activation)
     }
 
-    private fun toolReports(agent: Agent, sessionId: String, catalogs: List<UiCatalog>): ToolReports = ToolReports(scope) { report ->
+    private fun toolReports(agent: Agent, sessionId: SessionId, catalogs: List<UiCatalog>): ToolReports = ToolReports(scope) { report ->
         try {
             val kind = RunKind.Chat(report = report, catalogs = catalogs, reports = toolReports(agent, sessionId, catalogs))
             runs.start(agent, sessionId, ExecutionInput("", kind = kind), queued = true, onEvent = { event ->
@@ -89,5 +90,5 @@ class NativeExecution(
         catch (e: Exception) { log.warn(e) { "Background report could not start in Session $sessionId" } }
     }
 
-    override suspend fun stop(sessionId: String) { runs.stop(sessionId) }
+    override suspend fun stop(sessionId: SessionId) { runs.stop(sessionId) }
 }

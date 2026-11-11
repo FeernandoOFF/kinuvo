@@ -8,6 +8,7 @@ import kinuvo.server.plugin.CoreTool
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.*
+import kinuvo.protocol.agent.AgentId
 
 class InstructionsTest {
     @Test
@@ -31,7 +32,7 @@ class InstructionsTest {
 
     @Test
     fun skillGuidanceUsesAvailableToolsRatherThanConfiguredOrAssumedTools() {
-        val agent = Agent("a", "A", AgentConfig())
+        val agent = Agent(AgentId("a"), "A", AgentConfig())
         fun tool(name: String) = object : CoreTool {
             override val descriptor = toolSpec(name, "test")
             override suspend fun execute(args: JsonObject) = error("Not executed")

@@ -1,6 +1,7 @@
 package kinuvo.protocol.mcp
 
 import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.agent.AgentId
 import kotlinx.serialization.Serializable
 
 /** One `mcpServers` entry: [command] for stdio servers, [url] for HTTP ones. Values may hold `${VAR}` references. */
@@ -24,7 +25,7 @@ data class McpServerInfo(
     /** Read-only: whether the server is signed in through OAuth or needs it. */
     val auth: McpAuthStatus = McpAuthStatus.None,
     /** For a shared server, the Agents that use it; null for every Agent. */
-    val agents: List<String>? = null,
+    val agents: List<AgentId>? = null,
 )
 
 /** [clientSecret] and [scopes] are optional; values may hold `${VAR}` references. */
@@ -46,7 +47,7 @@ enum class McpRedirect(val uri: String) {
 }
 
 @Serializable
-data class McpLoginParams(val agentId: String, val name: String, val scope: ConfigScope? = null, val redirect: McpRedirect = McpRedirect.Loopback)
+data class McpLoginParams(val agentId: AgentId, val name: String, val scope: ConfigScope? = null, val redirect: McpRedirect = McpRedirect.Loopback)
 
 /** Open [url] in a browser; pass where it returns to `mcp.loginComplete`. */
 @Serializable
@@ -57,11 +58,11 @@ data class McpLogin(val url: String)
 data class McpLoginCompleteParams(val callbackUrl: String)
 
 @Serializable
-data class SaveMcpParams(val agentId: String, val server: McpServerInfo)
+data class SaveMcpParams(val agentId: AgentId, val server: McpServerInfo)
 
 /** A null [scope] means the server the Agent uses under that name. */
 @Serializable
-data class McpParams(val agentId: String, val name: String, val scope: ConfigScope? = null)
+data class McpParams(val agentId: AgentId, val name: String, val scope: ConfigScope? = null)
 
 /** The tools an MCP server offered when connected, or why it couldn't connect. */
 @Serializable

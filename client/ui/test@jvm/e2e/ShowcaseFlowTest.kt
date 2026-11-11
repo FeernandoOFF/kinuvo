@@ -9,6 +9,7 @@ import kinuvo.testing.server.showcase
 import kinuvo.protocol.Api
 import kinuvo.protocol.browser.BrowserTab
 import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.awaitCancellation
 import kotlin.test.Test
 
@@ -19,7 +20,7 @@ class ShowcaseFlowTest {
             FakeTool("shell", Risk.Medium, reason = "Books the flight under 120 EUR") { "booked" },
             FakeTool("slides") { awaitCancellation() },
         ),
-        FakeBrowserPlugin(FakeBrowser(listOf(BrowserTab("tab-docs", "e2e", "Kinuvo docs", "https://docs.kinuvo.dev/guides/migrating-to-2-0")))),
+        FakeBrowserPlugin(FakeBrowser(listOf(BrowserTab("tab-docs", AgentId("e2e"), "Kinuvo docs", "https://docs.kinuvo.dev/guides/migrating-to-2-0")))),
     )
 
     private fun showcase(flow: String, block: suspend AppTest.() -> Unit) = appTest(flow, plugins,
@@ -33,8 +34,8 @@ class ShowcaseFlowTest {
 
     /** One Session waiting for an Approval and one running, which only a live Server can produce. */
     private suspend fun AppTest.live() {
-        server.startSession("e2e", "Find a cheaper flight to Lisbon", title = "Find a cheaper flight to Lisbon")
-        server.startSession("e2e", "Build the planning deck", title = "Build the planning deck")
+        server.startSession(AgentId("e2e"), "Find a cheaper flight to Lisbon", title = "Find a cheaper flight to Lisbon")
+        server.startSession(AgentId("e2e"), "Build the planning deck", title = "Build the planning deck")
     }
 
     private suspend fun AppDriver.connect() {

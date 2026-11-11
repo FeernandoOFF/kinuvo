@@ -37,7 +37,7 @@ class TracingInstallationTest {
             assertTrue("chat scripted" in content)
             assertTrue("Chat" in content)
             assertTrue("Reflection" in content)
-            assertTrue(session.id in content)
+            assertTrue(session.id.value in content)
             assertFalse("private-" in content)
         } finally { runtime.close() }
     }

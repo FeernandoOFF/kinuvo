@@ -19,7 +19,7 @@ interface ExecutionSession {
 
 /** Execution-owned reducer. Client disconnection never changes execution state or pending requests. */
 class ExecutionState(
-    val sessionId: String,
+    val sessionId: SessionId,
     private val changed: suspend (ExecutionSnapshot) -> Unit = {},
     initial: ExecutionSnapshot = ExecutionSnapshot(sessionId),
     val generation: String = Uuid.random().toString(),

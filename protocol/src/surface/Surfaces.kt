@@ -5,6 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kinuvo.protocol.session.ToolCallId
 
 /** An A2UI v1.0 catalog a Device can render, sent inline through surfaces.catalogs after authentication; mirrors the spec's catalog document. */
 @Serializable
@@ -32,7 +33,7 @@ fun uiMessages(args: JsonObject): List<JsonObject> = (args["messages"] as? JsonA
 
 @Serializable
 data class SurfaceAction(
-    val callId: String,
+    val callId: ToolCallId,
     val surfaceId: String,
     val name: String,
     val sourceComponentId: String,

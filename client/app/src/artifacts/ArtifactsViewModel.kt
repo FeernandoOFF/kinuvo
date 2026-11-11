@@ -10,6 +10,7 @@ import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
 import kinuvo.protocol.artifact.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -24,7 +25,7 @@ data class ArtifactsState(
     val all: List<ArtifactInfo>? = null,
     val query: String = "",
     /** Only this Agent's Artifacts; null shows everyone's. */
-    val agent: String? = null,
+    val agent: AgentId? = null,
     val open: ArtifactData? = null,
     /** The open Artifact was deleted, or never existed. */
     val missing: Boolean = false,
@@ -37,7 +38,7 @@ data class ArtifactsState(
     val stale get() = draft != null && open != null && open.info.updated != draft.base
     val dirty get() = draft != null && draft.text != open?.content
 
-    val shown get() = all.orEmpty().filter { (agent == null || it.agentId == agent) && (query.isBlank() || it.title.contains(query, ignoreCase = true)) }
+    val shown get() = all.orEmpty().filter { (agent == null || it.agentId.value == agent.value) && (query.isBlank() || it.title.contains(query, ignoreCase = true)) }
 }
 
 /** Reloads on every change; a newer load cancels the one in flight, so a late reply can't undo a newer change. */
@@ -54,7 +55,7 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
 
     fun search(query: String) = state.update { it.copy(query = query) }
 
-    fun filter(agent: String?) = state.update { it.copy(agent = agent) }
+    fun filter(agent: AgentId?) = state.update { it.copy(agent = agent) }
 
     fun delete(id: String) {
         viewModelScope.launch { attempt { client.call(Api.DeleteArtifact, ArtifactRef(id)) } }

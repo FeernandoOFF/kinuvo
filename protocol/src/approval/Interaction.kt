@@ -5,6 +5,8 @@ import kinuvo.protocol.plugin.ToolIdentity
 import kinuvo.protocol.screen.ScreenRef
 import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.session.LiveState
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
@@ -23,7 +25,7 @@ sealed interface PendingInteraction {
     data class Approval(
         override val id: String,
         /** The model's ID of the tool call waiting on this Approval. */
-        val toolCallId: String,
+        val toolCallId: ToolCallId,
         val toolCallName: String,
         val args: String,
         /** What "Always allow" trusts (e.g. a shell prefix); null = the whole tool. */
@@ -39,7 +41,7 @@ sealed interface PendingInteraction {
     /** A form, such as `ask_user`'s or an external harness's; answered with [InteractionAnswer.Questions]. */
     @Serializable @SerialName("questions")
     data class Questions(
-        override val id: String, val toolCallId: String, val title: String?, val questions: List<Question>, val screen: ScreenRef? = null,
+        override val id: String, val toolCallId: ToolCallId, val title: String?, val questions: List<Question>, val screen: ScreenRef? = null,
     ) : PendingInteraction
 
     /**
@@ -92,7 +94,7 @@ sealed interface InteractionAnswer {
 
 /** Answers [requestId] in [sessionId]; true when this call claimed it, false when it was answered already or is gone. */
 @Serializable
-data class RespondParams(val sessionId: String, val requestId: String, val answer: InteractionAnswer)
+data class RespondParams(val sessionId: SessionId, val requestId: String, val answer: InteractionAnswer)
 
 val AgentEvent.approval: PendingInteraction.Approval? get() = (this as? AgentEvent.InteractionRequested)?.interaction as? PendingInteraction.Approval
 

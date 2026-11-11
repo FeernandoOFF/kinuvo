@@ -17,6 +17,8 @@ import kinuvo.protocol.session.SessionInfo
 import kinuvo.protocol.board.TaskInfo
 import kinuvo.protocol.board.TaskStatus
 import kinuvo.protocol.routine.Trigger
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.datetime.LocalDate
 import kotlinx.io.files.Path
 
@@ -28,9 +30,9 @@ class Transcript internal constructor() {
 
     fun assistant(text: String, messageId: String? = "reply-${entries.size}") { entries += SessionEntry.AssistantMessage(text, messageId) }
 
-    fun toolCall(id: String, name: String, args: String = "{}") { entries += SessionEntry.ToolCall(id, name, args) }
+    fun toolCall(id: String, name: String, args: String = "{}") { entries += SessionEntry.ToolCall(ToolCallId(id), name, args) }
 
-    fun toolResult(id: String, name: String, output: String, isError: Boolean = false) { entries += SessionEntry.ToolResult(id, name, output, isError) }
+    fun toolResult(id: String, name: String, output: String, isError: Boolean = false) { entries += SessionEntry.ToolResult(ToolCallId(id), name, output, isError) }
 
     fun entry(entry: SessionEntry) { entries += entry }
 }
@@ -48,14 +50,14 @@ class Scenario internal constructor(
     /** Adds an Agent whose Identity names it [name]. */
     suspend fun agent(id: String, name: String = id, soul: String? = null, config: (AgentConfig) -> AgentConfig = { it }): Agent {
         val created = harness.store.createAgent(id)
-        harness.docs.write(id, AgentDoc.Identity, "# $name\n")
-        soul?.let { harness.docs.write(id, AgentDoc.Soul, it) }
+        harness.docs.write(AgentId(id), AgentDoc.Identity, "# $name\n")
+        soul?.let { harness.docs.write(AgentId(id), AgentDoc.Soul, it) }
         return harness.store.saveConfig(created, config(created.config)).copy(name = name)
     }
 
     /** Removes the Agent every fresh Server starts with, for scenarios that list only their own. */
     suspend fun withoutDefaultAgent() {
-        harness.store.agents().firstOrNull { it.id == "default" }?.let { harness.store.deleteAgent(it) }
+        harness.store.agents().firstOrNull { it.id.value == "default" }?.let { harness.store.deleteAgent(it) }
     }
 
     suspend fun withoutAgent(agent: Agent) { harness.store.deleteAgent(agent) }
@@ -94,7 +96,7 @@ class Scenario internal constructor(
     /** Registers [harness]'s connection and an external Agent on it, working in the Server's home. */
     suspend fun externalAgent(harness: FakeHarness, id: String, name: String = id): AgentRegistration {
         if (executions.catalog().connections.none { it.config.id == harness.id }) connection(harness)
-        return executions.register(AgentRegistration(id, name, harness.id, cwd = home.toString()))
+        return executions.register(AgentRegistration(AgentId(id), name, harness.id, cwd = home.toString()))
     }
 
     /**
@@ -102,7 +104,7 @@ class Scenario internal constructor(
      * [draft] is the output that was never confirmed. [support] is what its harness reported, e.g. the file types it takes.
      */
     suspend fun lostExternalSession(
-        agentId: String,
+        agentId: AgentId,
         title: String? = null,
         draft: String? = null,
         support: ExecutionCapabilities = ExecutionCapabilities(cancel = true, questions = true),

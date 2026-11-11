@@ -52,7 +52,7 @@ class InspectorHost(
     /** The selected Server's machine, as labels name it. */
     val server: String = "this Server",
     /** Opens one of the Agent's Settings sections, after any unsaved edits are settled. */
-    val onSection: (agentId: String, section: SettingsSection) -> Unit = { _, _ -> },
+    val onSection: (agentId: AgentId, section: SettingsSection) -> Unit = { _, _ -> },
     val section: (@Composable () -> Unit)? = null,
     val onSectionBack: (() -> Unit)? = null,
     val onCloseRequest: (() -> Unit)? = null,
@@ -128,7 +128,7 @@ private fun InspectorHeader(state: InspectorState, host: InspectorHost, actions:
         back = actions.onBack.takeIf { state.pages.isNotEmpty() },
         subtitle = if (state.pages.isEmpty()) "Agent settings for every Session" else "${agent?.name ?: "Agent"} · every Session",
     ) {
-        if (state.dirty) SaveButton(actions.onSave, enabled = !state.saving && state.draft?.problems(state.agentId.orEmpty(), host.agents)?.isEmpty() == true)
+        if (state.dirty) SaveButton(actions.onSave, enabled = !state.saving && state.agentId?.let { id -> state.draft?.problems(id, host.agents)?.isEmpty() } == true)
         else if (state.pages.isEmpty()) HeaderButton(Lucide.X, "Close", actions.onClose)
     }
 }
@@ -300,7 +300,7 @@ fun InspectorGuard(state: InspectorState, host: InspectorHost, actions: Inspecto
 
 /** A text field following the draft: edits go to [onChange], and a reset draft (discarded or saved) replaces its text. */
 @Composable
-internal fun draftField(agentId: String, name: String, value: String, onChange: (String) -> Unit): TextFieldState {
+internal fun draftField(agentId: AgentId, name: String, value: String, onChange: (String) -> Unit): TextFieldState {
     val field = key(agentId, name) { rememberTextFieldState(value) }
     val latest by rememberUpdatedState(value)
     val change by rememberUpdatedState(onChange)

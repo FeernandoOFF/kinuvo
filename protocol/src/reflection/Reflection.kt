@@ -2,6 +2,8 @@ package kinuvo.protocol.reflection
 
 import kinuvo.protocol.knowledge.Note
 import kinuvo.protocol.usage.RequestMetrics
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
@@ -37,4 +39,4 @@ data class ReflectionProposal(
 )
 
 @Serializable
-data class ReviewReflectionParams(val agentId: String, val sessionId: String, val proposalId: String, val approve: Boolean, val note: String? = null)
+data class ReviewReflectionParams(val agentId: AgentId, val sessionId: SessionId, val proposalId: String, val approve: Boolean, val note: String? = null)

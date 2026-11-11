@@ -22,6 +22,7 @@ import kinuvo.protocol.plugin.PluginDefinition
 import kinuvo.protocol.capability.ResolvedTool
 import kinuvo.protocol.capability.ServerFeature
 import kinuvo.protocol.capability.Support
+import kinuvo.protocol.agent.AgentId
 
 /** Each Agent's MCP servers (the shared ones it uses, then its own) as tools; servers connect on first use. */
 class McpPlugin(
@@ -37,25 +38,25 @@ class McpPlugin(
     override val integrations = mapOf(Integration.Mcp to
         setOfNotNull(IntegrationOptions.MCP_HTTP, IntegrationOptions.MCP_STDIO.takeIf { stdioSupported }))
     private val lock = Mutex()
-    private val managers = mutableMapOf<String, McpManager>()
+    private val managers = mutableMapOf<AgentId, McpManager>()
 
     override val apps = object : McpApps {
-        override suspend fun resource(agentId: String, ref: McpAppRef) = manager(agentId).resource(ref)
-        override suspend fun tool(agentId: String, ref: McpAppRef, name: String) = manager(agentId).appTool(ref, name)
+        override suspend fun resource(agentId: AgentId, ref: McpAppRef) = manager(agentId.value).resource(ref)
+        override suspend fun tool(agentId: AgentId, ref: McpAppRef, name: String) = manager(agentId.value).appTool(ref, name)
     }
 
     private suspend fun manager(id: String) = lock.withLock {
-        managers.getOrPut(id) {
+        managers.getOrPut(AgentId(id)) {
             McpManager(
-                listOf(files.sharedMcp, files.mcp(id)),
-                { server, value -> secrets.expand(value, files.loadEnv(id), "Kinuvo: MCP server $server (Agent $id)") },
-                auth, signInScopes(id), id,
+                listOf(files.sharedMcp, files.mcp(AgentId(id))),
+                { server, value -> secrets.expand(value, files.loadEnv(AgentId(id)), "Kinuvo: MCP server $server (Agent $id)") },
+                auth, signInScopes(AgentId(id)), AgentId(id),
             )
         }
     }
 
     private data class Inspection(val configs: List<McpServerConfig>, val generations: List<Int>, val result: PluginTools)
-    private val inspections = mutableMapOf<String, Inspection>()
+    private val inspections = mutableMapOf<AgentId, Inspection>()
 
     override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
         val id = run.agent.id
@@ -88,14 +89,14 @@ class McpPlugin(
         })
 
     private suspend fun activate(run: RunContext): PluginTools {
-        val manager = manager(run.agent.id)
+        val manager = manager(run.agent.id.value)
         val (tools, warnings) = manager.tools()
         if (run.routine != null) manager.needingSignIn().forEach { auth.signInNeeded(run.agent.id, it) }
         return PluginTools(tools, warnings, tools.map { ResolvedTool(it.descriptor.name,
             it.displayName, location = ExecutionLocation.External, identity = it.identity) })
     }
 
-    override suspend fun release(agentId: String) {
+    override suspend fun release(agentId: AgentId) {
         lock.withLock { inspections.remove(agentId); managers.remove(agentId) }?.close()
     }
 
@@ -107,8 +108,8 @@ class McpPlugin(
 
     companion object {
         /** Sign-ins follow the config's scope: one for a shared server, one per Agent for its own. */
-        fun signInScope(agentId: String, scope: ConfigScope) = if (scope == ConfigScope.Shared) "shared" else "agents/$agentId"
+        fun signInScope(agentId: AgentId, scope: ConfigScope) = if (scope == ConfigScope.Shared) "shared" else "agents/$agentId"
 
-        fun signInScopes(agentId: String) = listOf(signInScope(agentId, ConfigScope.Shared), signInScope(agentId, ConfigScope.Agent))
+        fun signInScopes(agentId: AgentId) = listOf(signInScope(agentId, ConfigScope.Shared), signInScope(agentId, ConfigScope.Agent))
     }
 }

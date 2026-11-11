@@ -15,6 +15,7 @@ import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.plugin.ToolIdentity
 import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.server.plugin.modelAlias
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -163,7 +164,7 @@ class AppleProviderTest {
         val original = ToolIdentity(PluginInstanceId("kinuvo.browser"), "browser_open").modelAlias()
         val native = Native { _, done -> done("""{"tool":"reply","reply":"Opened."}""", null) }
         model(native).request("", listOf(SessionEntry.UserMessage("Open Browser"),
-            SessionEntry.ToolCall("call", original, "{}"), SessionEntry.ToolResult("call", original, "Opened")),
+            SessionEntry.ToolCall(ToolCallId("call"), original, "{}"), SessionEntry.ToolResult(ToolCallId("call"), original, "Opened")),
             listOf(ToolDescriptor(original, "Open Browser"))).toList()
         val short = appleOffer(listOf(ToolDescriptor(original, "Open Browser"))).single().name
         assertContains(native.prompt.orEmpty(), "Agent requested $short:")
@@ -176,7 +177,7 @@ class AppleProviderTest {
         val configured = model(Native())
         val messages = kinuvo.harness.builtin.SessionMessages(configured).prompt("stable", listOf(
             SessionEntry.Context("Current facts"), SessionEntry.UserMessage("one"),
-            SessionEntry.ToolCall("c", ToolNames.MEMORY, "{}"), SessionEntry.ToolResult("c", ToolNames.MEMORY, "OK"))).messages
+            SessionEntry.ToolCall(ToolCallId("c"), ToolNames.MEMORY, "{}"), SessionEntry.ToolResult(ToolCallId("c"), ToolNames.MEMORY, "OK"))).messages
         val prompt = promptFor(messages)
         assertTrue(prompt.contains("User: one"))
         assertTrue(prompt.contains("Agent requested memory"))
@@ -188,8 +189,8 @@ class AppleProviderTest {
         val configured = model(Native())
         val messages = kinuvo.harness.builtin.SessionMessages(configured).prompt("stable", listOf(
             SessionEntry.UserMessage("what do you know about me?"), SessionEntry.AssistantMessage("I don't know anything about you."),
-            SessionEntry.UserMessage("remember my name"), SessionEntry.ToolCall("c", ToolNames.MEMORY, "{}"),
-            SessionEntry.ToolResult("c", ToolNames.MEMORY, "OK"))).messages
+            SessionEntry.UserMessage("remember my name"), SessionEntry.ToolCall(ToolCallId("c"), ToolNames.MEMORY, "{}"),
+            SessionEntry.ToolResult(ToolCallId("c"), ToolNames.MEMORY, "OK"))).messages
         val prompt = promptFor(messages)
         assertFalse("I don't know anything" in prompt, "Earlier replies are copied verbatim by the model")
         assertFalse("what do you know" in prompt)

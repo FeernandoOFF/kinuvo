@@ -8,6 +8,7 @@ import kinuvo.protocol.Api
 import kinuvo.protocol.browser.BrowserTab
 import kinuvo.protocol.computer.ComputerActionKind
 import kinuvo.protocol.session.SendParams
+import kinuvo.protocol.agent.AgentId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -59,8 +60,8 @@ class SessionFlowTest {
         tap("Board")
         await("Plan mobile tests")
         val laptop = server.client("Laptop").also { it.connect() }
-        val session = server.harness.store.sessions("e2e").single()
-        laptop.call(Api.Send, SendParams("e2e", session.id, "From the laptop"))
+        val session = server.harness.store.sessions(AgentId("e2e")).single()
+        laptop.call(Api.Send, SendParams(AgentId("e2e"), session.id, "From the laptop"))
         returnToChat()
         await("Hello from Maestro")
         await("Reply received while on Board")
@@ -107,7 +108,7 @@ class SessionFlowTest {
     }
 
     @Test fun browserDockShowsTheLiveScreen() = appTest("browser",
-        plugins = listOf(FakeBrowserPlugin(FakeBrowser(listOf(BrowserTab("browser-tab", "e2e", "Private site", "http://lab.internal"))))),
+        plugins = listOf(FakeBrowserPlugin(FakeBrowser(listOf(BrowserTab("browser-tab", AgentId("e2e"), "Private site", "http://lab.internal"))))),
     ) {
         startChat()
         tap("Browser")

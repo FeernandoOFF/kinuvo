@@ -15,6 +15,8 @@ import kinuvo.server.plugin.Tool
 import kinuvo.testing.harness.scriptedModel
 import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.RunId
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -52,7 +54,7 @@ class AgentTracingTest {
         }
         localTracing(home.files.traces).use { tracing ->
             val events = AgentRun(home.agent, home.store, model, listOf(tool), tracing = tracing)
-                .run(session.id, "private-message-secret", runId = "run-1").toList()
+                .run(session.id, "private-message-secret", runId = RunId("run-1")).toList()
             assertIs<AgentEvent.RunFinished>(events.last())
             val spans = spans()
             val agent = spans.single { it["name"]?.jsonPrimitive?.content == "invoke_agent ${home.agent.id}" }
@@ -64,8 +66,8 @@ class AgentTracingTest {
             val attributes = records().flatMap { it.getValue("resourceSpans").jsonArray }.map { it.jsonObject.getValue("resource").jsonObject }
                 .flatMap { it.getValue("attributes").jsonArray }.map { it.jsonObject }.associate { it.getValue("key").jsonPrimitive.content to it.getValue("value").jsonObject["stringValue"]?.jsonPrimitive?.content }
             assertEquals("kinuvo", attributes["service.name"])
-            assertEquals(home.agent.id, attributes["kinuvo.agent.id"])
-            assertEquals(session.id, attributes["kinuvo.session.id"])
+            assertEquals(home.agent.id.value, attributes["kinuvo.agent.id"])
+            assertEquals(session.id.value, attributes["kinuvo.session.id"])
             assertEquals("run-1", attributes["kinuvo.run.id"])
             assertEquals("Chat", attributes["kinuvo.request.kind"])
             assertFalse("private-" in contents())
@@ -124,7 +126,7 @@ class AgentTracingTest {
         val knowledge = Knowledge({ MarkdownKnowledgeSource(Path(home.files.home, "vault")) }, FileKnowledgeChangeLog(home.files.knowledgeChanges))
         localTracing(home.files.traces).use { tracing ->
             val model = scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("private-reflection-secret"), StreamFrame.End()) }
-            val result = Reflection(knowledge, home.docs).reflect(home.agent, model, "source-session",
+            val result = Reflection(knowledge, home.docs).reflect(home.agent, model, SessionId("source-session"),
                 listOf(SessionEntry.UserMessage("private-memory-secret")), tracing = tracing)
             assertNull(result.error)
             assertTrue(spans().any { it["name"]?.jsonPrimitive?.content == "chat scripted" })

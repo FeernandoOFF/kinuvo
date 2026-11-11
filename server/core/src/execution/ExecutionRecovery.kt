@@ -2,12 +2,13 @@ package kinuvo.server.execution
 
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.serialization.Serializable
 
 @Serializable
 data class ExecutionRecovery(
-    val agentId: String,
-    val sessionId: String,
+    val agentId: AgentId,
+    val sessionId: SessionId,
     val connection: HarnessConnection,
     val registration: AgentRegistration,
     val generation: String,
@@ -30,12 +31,12 @@ data class ExecutionRecovery(
 interface ExecutionRecoveryStore {
     fun load(): List<ExecutionRecovery>
     fun save(record: ExecutionRecovery)
-    fun delete(agentId: String, sessionId: String)
+    fun delete(agentId: AgentId, sessionId: SessionId)
 }
 
 class MemoryExecutionRecovery : ExecutionRecoveryStore {
-    private val records = mutableMapOf<String, ExecutionRecovery>()
+    private val records = mutableMapOf<SessionId, ExecutionRecovery>()
     override fun load() = records.values.toList()
     override fun save(record: ExecutionRecovery) { records[record.sessionId] = record }
-    override fun delete(agentId: String, sessionId: String) { records.remove(sessionId) }
+    override fun delete(agentId: AgentId, sessionId: SessionId) { records.remove(sessionId) }
 }

@@ -98,7 +98,7 @@ private fun BuiltInTools(p: Pane) {
 internal enum class ToolRule { Allow, Ask, Block }
 
 /** The stable key the Server gives [tool] of this MCP server when [agentId] uses it, as trust rules name it. */
-internal fun McpServerInfo.toolKey(agentId: String, tool: String): String {
+internal fun McpServerInfo.toolKey(agentId: AgentId, tool: String): String {
     val instance = if (url != null) "${if (scope == ConfigScope.Shared) "shared" else "agents/$agentId"}/$name" else name
     return ToolIdentity(PluginInstanceId("kinuvo.mcp", instance), tool).key
 }

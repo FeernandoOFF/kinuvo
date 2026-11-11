@@ -2,10 +2,11 @@ package kinuvo.app
 
 import kinuvo.app.artifacts.*
 import kinuvo.protocol.artifact.ArtifactInfo
+import kinuvo.protocol.agent.AgentId
 import kotlin.test.*
 
 class ArtifactKindTest {
-    private fun info(type: String) = ArtifactInfo("a", "A", type, "main", null, 0, 0)
+    private fun info(type: String) = ArtifactInfo("a", "A", type, AgentId("main"), null, 0, 0)
 
     @Test fun editorTabsFollowTheType() {
         assertEquals(listOf(EditorTab.Visual, EditorTab.Source, EditorTab.Preview), info("html").editorTabs(wide = false, visual = true))

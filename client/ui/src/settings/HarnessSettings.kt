@@ -19,6 +19,7 @@ import com.composables.ui.theme.*
 import kinuvo.protocol.capability.*
 import kinuvo.protocol.device.*
 import kinuvo.protocol.execution.*
+import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.design.*
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -163,12 +164,12 @@ private fun AcpFormPane(form: AcpForm, p: Pane) {
     DetailPane(p.back, if (form.id == null) "Add ACP command" else "Edit ${form.name}", error = p.ui.error,
         trailing = { FormActions("Save", form.saveable(connections) && !form.checking, p.ui.state.saved, onSave = p.actions.onSaveAcp, onCancel = p.cancel, dirty = formChanged(listOf(form.name, form.command, form.args, form.environment), p.ui.state.saved)) }) {
         RowGroup {
-            FieldRow("Name") { Input(draftField(key, "name", form.name) { v -> p.actions.onEditAcp { it.copy(name = v) } }, "Claude Code", capitalize = true) }
+            FieldRow("Name") { Input(draftField(AgentId(key), "name", form.name) { v -> p.actions.onEditAcp { it.copy(name = v) } }, "Claude Code", capitalize = true) }
             FieldRow("Command", "A command on $host's PATH, or an absolute path. Kinuvo runs it as is, never through a shell.") {
-                Input(draftField(key, "command", form.command) { v -> p.actions.onEditAcp { it.copy(command = v) } }, "claude-code-acp", capitalize = false)
+                Input(draftField(AgentId(key), "command", form.command) { v -> p.actions.onEditAcp { it.copy(command = v) } }, "claude-code-acp", capitalize = false)
             }
             FieldRow("Arguments", "One per row, passed exactly as written.") {
-                TextArea(draftField(key, "args", form.args.joinToString("\n")) { v -> p.actions.onEditAcp { it.copy(args = v.split("\n")) } }, "Optional", lines = 2, mono = true)
+                TextArea(draftField(AgentId(key), "args", form.args.joinToString("\n")) { v -> p.actions.onEditAcp { it.copy(args = v.split("\n")) } }, "Optional", lines = 2, mono = true)
             }
         }
         Text("Runs on $host. Use an ACP adapter already installed there, e.g. claude-code-acp.", Modifier.padding(horizontal = Spacing.space6), style = TextStyles.caption, color = color(mutedColor))
@@ -176,8 +177,8 @@ private fun AcpFormPane(form: AcpForm, p: Pane) {
             form.environment.forEachIndexed { index, row ->
                 GroupBox {
                     Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space8), verticalAlignment = Alignment.CenterVertically) {
-                        Input(draftField(key, "env-key-$index", row.first) { v -> p.actions.onEditAcp { f -> f.copy(environment = f.environment.toMutableList().apply { set(index, v to row.second) }) } }, "KEY", Modifier.weight(1f))
-                        Input(draftField(key, "env-value-$index", row.second) { v -> p.actions.onEditAcp { f -> f.copy(environment = f.environment.toMutableList().apply { set(index, row.first to v) }) } }, "Value", Modifier.weight(1f))
+                        Input(draftField(AgentId(key), "env-key-$index", row.first) { v -> p.actions.onEditAcp { f -> f.copy(environment = f.environment.toMutableList().apply { set(index, v to row.second) }) } }, "KEY", Modifier.weight(1f))
+                        Input(draftField(AgentId(key), "env-value-$index", row.second) { v -> p.actions.onEditAcp { f -> f.copy(environment = f.environment.toMutableList().apply { set(index, row.first to v) }) } }, "Value", Modifier.weight(1f))
                         FieldButton(Lucide.Trash2, "Remove variable", { p.actions.onEditAcp { f -> f.copy(environment = f.environment.filterIndexed { i, _ -> i != index }) } })
                     }
                 }
@@ -217,12 +218,12 @@ private fun LinkPane(p: Pane) {
             Modifier.padding(horizontal = Spacing.space6), color = color(mutedColor), style = TextStyles.secondary)
         RowGroup {
             FieldRow("Name", "What this Server calls it, e.g. Studio. Its Agents' rows say they run there.") {
-                Input(draftField("link", "name", form.name) { v -> p.actions.onEditLink { it.copy(name = v) } }, "Studio", capitalize = true)
+                Input(draftField(AgentId("link"), "name", form.name) { v -> p.actions.onEditLink { it.copy(name = v) } }, "Studio", capitalize = true)
             }
             FieldRow("Address", "The other Server's http(s) address.") {
-                Input(draftField("link", "url", form.url) { v -> p.actions.onEditLink { it.copy(url = v) } }, "https://studio.example.com")
+                Input(draftField(AgentId("link"), "url", form.url) { v -> p.actions.onEditLink { it.copy(url = v) } }, "https://studio.example.com")
             }
-            FieldRow("Link code") { Input(draftField("link", "token", form.token) { v -> p.actions.onEditLink { it.copy(token = v) } }, "From the other Server", secret = true) }
+            FieldRow("Link code") { Input(draftField(AgentId("link"), "token", form.token) { v -> p.actions.onEditLink { it.copy(token = v) } }, "From the other Server", secret = true) }
         }
         if (form.url.isNotBlank() || form.name.isNotBlank()) problems.forEach { Text(it, Modifier.padding(horizontal = Spacing.space6), style = TextStyles.caption, color = color(destructiveColor)) }
         if (form.cleartext) Pill("Not encrypted: the link code and Agents' messages cross the network in plain text. Use https:// or a VPN such as Tailscale where you can.",
@@ -244,7 +245,7 @@ private fun SharePane(p: Pane) {
         if (token == null) {
             RowGroup {
                 FieldRow("For", "A name for this link code, e.g. the other Server's.") {
-                    Input(draftField("share", "name", form.name) { v -> p.actions.onEditShare { it.copy(name = v) } }, "Studio", capitalize = true)
+                    Input(draftField(AgentId("share"), "name", form.name) { v -> p.actions.onEditShare { it.copy(name = v) } }, "Studio", capitalize = true)
                 }
             }
             RowGroup("Agents it can run") {

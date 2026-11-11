@@ -113,6 +113,9 @@ import kinuvo.protocol.model.ModelInfo
 import kotlinx.coroutines.flow.StateFlow
 import kinuvo.protocol.plugin.PluginInstanceId
 import kinuvo.protocol.session.UploadAttachmentParams
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
 import kotlin.io.encoding.Base64
 import kotlinx.coroutines.CancellationException
 import kinuvo.server.providers.ModelProvider
@@ -177,7 +180,7 @@ open class HarnessRuntime(
     /** The built-in harness, run with this runtime's tools, instructions and models. */
     val native: NativeHarness = nativeSessions(this)
 
-    override suspend fun run(agentId: String, sessionId: String, input: ExecutionInput): NativeRun {
+    override suspend fun run(agentId: AgentId, sessionId: SessionId, input: ExecutionInput): NativeRun {
         val agent = store.agents().firstOrNull { it.id == agentId } ?: error("No agent '$agentId'")
         return when (val kind = input.kind) {
             is RunKind.Chat -> compose(agent, sessionId, taskId = kind.taskId, catalogs = kind.catalogs ?: uiCatalogs.forRun(), reports = kind.reports)
@@ -187,13 +190,13 @@ open class HarnessRuntime(
     }
 
     /** [agent] as a Session's Reflection reads it: with the Session's own settings. */
-    private suspend fun reflected(agent: Agent, sessionId: String): Effective {
+    private suspend fun reflected(agent: Agent, sessionId: SessionId): Effective {
         val resolved = try { agent.with(store.session(agent.id, sessionId).settings) }
         catch (e: CancellationException) { throw e } catch (_: Exception) { agent }
         return effective(resolved, null)
     }
 
-    override suspend fun reflection(agentId: String, sessionId: String): NativeReflection {
+    override suspend fun reflection(agentId: AgentId, sessionId: SessionId): NativeReflection {
         val chat = reflected(store.agents().firstOrNull { it.id == agentId } ?: error("No agent '$agentId'"), sessionId)
         val own = NativeReflection(chat.agent, selection(chat), dependencies.traces)
         val chosen = try {
@@ -211,7 +214,7 @@ open class HarnessRuntime(
     }
 
     /** Saves what's worth keeping from [entries] of a Session. */
-    suspend fun reflect(agent: Agent, sessionId: String, entries: List<SessionEntry>, review: ReflectionRevision? = null): ReflectionResult {
+    suspend fun reflect(agent: Agent, sessionId: SessionId, entries: List<SessionEntry>, review: ReflectionRevision? = null): ReflectionResult {
         val turn = reflection.turn(reflected(agent, sessionId).agent, sessionId, entries, reflectionPrompt, review)
         val state = ExecutionState(sessionId)
         val session = native.open(BUILT_IN_HARNESS, builtInRegistration(agent), state, ExecutionBroker(state), CoroutineScope(currentCoroutineContext()))
@@ -225,7 +228,7 @@ open class HarnessRuntime(
     }
 
     /** Replaces [sessionId]'s own settings; its next run uses them. */
-    suspend fun configure(agent: Agent, sessionId: String, settings: SessionSettings): SessionInfo {
+    suspend fun configure(agent: Agent, sessionId: SessionId, settings: SessionSettings): SessionInfo {
         val s = settings.copy(model = settings.model?.trim()?.ifEmpty { null }, reasoning = settings.reasoning?.trim()?.ifEmpty { null },
             approvals = settings.approvals?.trim()?.ifEmpty { null }, provider = settings.provider?.trim()?.ifEmpty { null }?.let(::providerId))
         s.provider?.let { requireModelProvider(it); require(s.model != null) { "Choose a model with its provider" } }
@@ -235,7 +238,7 @@ open class HarnessRuntime(
     }
 
     /** Renames [sessionId] (blank: back to its first message) or marks it a favorite. */
-    suspend fun update(agent: Agent, sessionId: String, title: String?, favorite: Boolean?): SessionInfo {
+    suspend fun update(agent: Agent, sessionId: SessionId, title: String?, favorite: Boolean?): SessionInfo {
         val before = store.entries(agent.id, sessionId).filterIsInstance<SessionEntry.Details>().lastOrNull() ?: SessionEntry.Details()
         val details = SessionEntry.Details(
             title = if (title == null) before.title else title.trim().take(MAX_SESSION_TITLE).ifEmpty { null },
@@ -260,7 +263,7 @@ open class HarnessRuntime(
      */
     private class Effective(val agent: Agent, val info: ModelInfo?, val provider: ModelProvider?, val profile: ModelProfile, val memoryCap: Int, val userCap: Int)
 
-    private suspend fun effective(agent: Agent, sessionId: String?, settings: SessionSettings? = null): Effective {
+    private suspend fun effective(agent: Agent, sessionId: SessionId?, settings: SessionSettings? = null): Effective {
         val configured = supported(agent.with(settings ?: sessionId?.let { store.session(agent.id, it).settings } ?: SessionSettings()))
             .let { it.copy(config = it.config.copy(provider = providerId(it.config.provider))) }
         val info = modelCatalog().providers.firstOrNull { it.id == configured.config.provider }?.models?.firstOrNull { it.id == configured.config.model }
@@ -283,7 +286,7 @@ open class HarnessRuntime(
     /** [tools] can all be called; the model is sent only [advertised], with catalogued tools behind the catalog's. */
     private class PreparedRun(val effective: Effective, val tools: List<Tool>, val advertised: List<Tool>, val catalog: List<ResolvedTool>, val warnings: List<String>, val chat: CapabilityState)
 
-    private suspend fun prepare(agent: Agent, sessionId: String?, settings: SessionSettings? = null,
+    private suspend fun prepare(agent: Agent, sessionId: SessionId?, settings: SessionSettings? = null,
         routine: RoutineTurn? = null, taskId: String? = null, activate: Boolean = false, catalogs: List<UiCatalog> = uiCatalogs.forRun(), scope: ToolScope = ToolScope.All): PreparedRun {
         val e = effective(agent, sessionId, settings)
         val chat = if (unmanagedModels) CapabilityState() else e.provider?.availability(e.agent.config.model)
@@ -322,7 +325,7 @@ open class HarnessRuntime(
         return PreparedRun(e, usableTools + finders, usableTools - hidden.toSet() + finders, reported, contributed.flatMap { it.warnings }, chat)
     }
 
-    suspend fun capabilities(agent: Agent, sessionId: String?, settings: SessionSettings?, server: ServerCapabilities, revision: Long = 0): SessionCapabilities {
+    suspend fun capabilities(agent: Agent, sessionId: SessionId?, settings: SessionSettings?, server: ServerCapabilities, revision: Long = 0): SessionCapabilities {
         val prepared = prepare(agent, sessionId, settings)
         val info = prepared.effective.info
         val chat = prepared.chat
@@ -349,11 +352,11 @@ open class HarnessRuntime(
      * Builds a runner with the Agent's current tools, starting what its plugins need on first use. [sessionId] is the
      * Session it runs in; [routine] is set for a Routine's run, which follows the Routine's approval mode.
      */
-    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineTurn? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
+    suspend fun runner(agent: Agent, sessionId: SessionId? = null, routine: RoutineTurn? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
         scope: ToolScope = ToolScope.All, reports: ToolReports? = null): AgentRunner =
         native.runner(compose(agent, sessionId, routine, taskId, catalogs, scope, reports))
 
-    private suspend fun compose(agent: Agent, sessionId: String? = null, routine: RoutineTurn? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
+    private suspend fun compose(agent: Agent, sessionId: SessionId? = null, routine: RoutineTurn? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
         scope: ToolScope = ToolScope.All, reports: ToolReports? = null): NativeRun {
         val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs, scope = scope)
         val e = prepared.effective
@@ -425,7 +428,7 @@ open class HarnessRuntime(
         }
         val policy = ApprovalPolicy(agent.with(store.session(agent.id, sessionId).settings), trustRules, session = sessionTrust.scope(sessionId))
         val service = ToolService(listOf(tool), approvals = Approvals(policy, approvals, wait = APP_APPROVAL_WAIT))
-        val call = SessionEntry.ToolCall("app-${request.app.callId}-${Uuid.random()}", tool.descriptor.name, request.arguments.toString(), tool.identity)
+        val call = SessionEntry.ToolCall(ToolCallId("app-${request.app.callId}-${Uuid.random()}"), tool.descriptor.name, request.arguments.toString(), tool.identity)
         val result = withAppApproval(agent, sessionId, request.name) { turn -> service.invoke(call, turn) }
         return result.appResult ?: buildJsonObject {
             put("content", buildJsonArray { add(buildJsonObject { put("type", "text"); put("text", result.output) }) })
@@ -434,7 +437,7 @@ open class HarnessRuntime(
     }
 
     /** Shows only the Approval a call needs, in its Session and one at a time: a Session shows a single pending Approval. */
-    private suspend fun <T> withAppApproval(agent: Agent, sessionId: String, name: String, call: suspend (ToolTurn) -> T): T {
+    private suspend fun <T> withAppApproval(agent: Agent, sessionId: SessionId, name: String, call: suspend (ToolTurn) -> T): T {
         val lock = appApprovalLock(sessionId)
         var pending: String? = null
         val turn = ToolTurn(emit = { event ->
@@ -470,7 +473,7 @@ open class HarnessRuntime(
 
     private val appApprovals = Mutex()
     private val appApprovalLocks = mutableMapOf<String, Mutex>()
-    private suspend fun appApprovalLock(sessionId: String) = appApprovals.withLock { appApprovalLocks.getOrPut(sessionId) { Mutex() } }
+    private suspend fun appApprovalLock(sessionId: SessionId) = appApprovals.withLock { appApprovalLocks.getOrPut(sessionId.value) { Mutex() } }
 
     /** Stops everything the plugins run, e.g. before the process exits. */
     suspend fun close() { computers.close(); try { native.close() } finally { dependencies.resources.close() } }
@@ -478,7 +481,7 @@ open class HarnessRuntime(
     /** Stops what the plugins run for the Agent, e.g. after its exec settings changed. */
     suspend fun release(agent: Agent) = dependencies.resources.release(agent.id)
 
-    private suspend fun toolsFor(e: Effective, sessionId: String?, routine: RoutineTurn?, catalogs: List<UiCatalog>): List<Tool> {
+    private suspend fun toolsFor(e: Effective, sessionId: SessionId?, routine: RoutineTurn?, catalogs: List<UiCatalog>): List<Tool> {
         val agent = e.agent
         val search = if (ToolNames.WEB_FETCH in agent.config.tools) webSearch() else null
         val available = modelCatalog().imageModels().filter { ref ->
@@ -498,7 +501,7 @@ open class HarnessRuntime(
         return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
     }
 
-    private suspend fun builtInTools(e: Effective, sessionId: String?, routine: RoutineTurn?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {
+    private suspend fun builtInTools(e: Effective, sessionId: SessionId?, routine: RoutineTurn?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {
         when (it) {
             ToolNames.MEMORY -> MemoryTool(agent, docs, memoryCap = e.memoryCap, userCap = e.userCap)
             ToolNames.WEB_FETCH -> dependencies.webFetch(search)

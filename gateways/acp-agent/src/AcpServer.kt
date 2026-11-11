@@ -10,8 +10,9 @@ import kotlinx.coroutines.*
 import kotlinx.io.asSink
 import kotlinx.io.asSource
 import kotlinx.io.buffered
+import kinuvo.protocol.agent.AgentId
 
-suspend fun serveAcp(dispatch: ExecutionDispatch, agentId: String) = coroutineScope {
+suspend fun serveAcp(dispatch: ExecutionDispatch, agentId: AgentId) = coroutineScope {
     val transport = StdioTransport(this, Dispatchers.IO, System.`in`.asSource().buffered(), System.out.asSink().buffered())
     val closed = CompletableDeferred<Unit>()
     transport.onClose { closed.complete(Unit) }

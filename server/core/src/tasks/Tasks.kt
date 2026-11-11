@@ -10,6 +10,8 @@ import kinuvo.server.update
 import kinuvo.protocol.board.TaskInfo
 import kinuvo.protocol.board.TaskListInfo
 import kinuvo.protocol.board.TaskStatus
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.DateTimeUnit
@@ -36,7 +38,7 @@ data class TasksConfig(
 
 /** What Kinuvo keeps about a Task on top of the provider: status, an assignee set on the Board ("" = nobody), and its runs. */
 @Serializable
-data class TaskState(val status: TaskStatus = TaskStatus.Todo, val assignee: String? = null, val sessionIds: List<String> = emptyList())
+data class TaskState(val status: TaskStatus = TaskStatus.Todo, val assignee: String? = null, val sessionIds: List<SessionId> = emptyList())
 
 /** The Board's state per Task, keyed by `<provider id>:<task id>`. */
 interface BoardRepository {
@@ -133,7 +135,7 @@ class Tasks(
     }
 
     /** A run on [id] started in [sessionId]. */
-    suspend fun started(id: String, sessionId: String) = lock.withLock {
+    suspend fun started(id: String, sessionId: SessionId) = lock.withLock {
         val p = provider()
         board.update { states ->
             val s = states[key(p, id)] ?: TaskState(TaskStatus.InProgress)
@@ -186,7 +188,7 @@ class Tasks(
 
     private suspend fun lists(p: Connected, config: TasksConfig): List<TaskListInfo> =
         p.lists().filter { config.lists.isEmpty() || it.name in config.lists || it.id in config.lists }
-            .map { TaskListInfo(it.id, it.name, (config.lists[it.name] ?: config.lists[it.id])?.ifBlank { null }) }
+            .map { TaskListInfo(it.id, it.name, (config.lists[it.name] ?: config.lists[it.id])?.ifBlank { null }?.let(::AgentId)) }
 
     private suspend fun get(p: Connected, id: String): TaskInfo {
         val task = p.task(id) ?: error("No task '$id'")
@@ -206,7 +208,7 @@ class Tasks(
     private fun info(p: Connected, task: ProviderTask, list: TaskListInfo, state: TaskState?, agents: Set<String>): TaskInfo {
         val mentioned = MENTION.findAll("${task.title} ${task.notes}").map { it.groupValues[1] }.firstOrNull { it in agents }
         val assignee = when (state?.assignee) {
-            null -> mentioned ?: list.agentId
+            null -> mentioned ?: list.agentId?.value
             "" -> null
             else -> state.assignee
         }

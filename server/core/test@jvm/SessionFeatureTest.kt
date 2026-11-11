@@ -35,8 +35,8 @@ class SessionFeatureTest {
         AgentRun(home.agent, home.store, model, listOf(tool)).run(session.id, "go").collect { event ->
             if (event is AgentEvent.ToolCallStart) {
                 val all = home.store.entries(home.agent.id, session.id)
-                assertEquals(listOf("first", "second"), all.filterIsInstance<SessionEntry.ToolCall>().map { it.id })
-                if (event.toolCallId == "second") assertEquals("first", all.filterIsInstance<SessionEntry.ToolResult>().single().id)
+                assertEquals(listOf("first", "second"), all.filterIsInstance<SessionEntry.ToolCall>().map { it.id.value })
+                if (event.toolCallId.value == "second") assertEquals("first", all.filterIsInstance<SessionEntry.ToolResult>().single().id.value)
             }
         }
     }
@@ -49,7 +49,7 @@ class SessionFeatureTest {
             StreamFrame.ToolCallComplete("second", "read", "{}"), StreamFrame.End()) }
         AgentRun(home.agent, home.store, model, emptyList()).run(session.id, "go").first { it is AgentEvent.ToolCallStart }
         val results = home.store.entries(home.agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>()
-        assertEquals(listOf("first", "second"), results.map { it.id })
+        assertEquals(listOf("first", "second"), results.map { it.id.value })
         assertTrue(results.all { it.isError })
         assertEquals(listOf("Cancelled by user", "Not run: the turn was cancelled"), results.map { it.output })
     }
@@ -73,7 +73,7 @@ class SessionFeatureTest {
         val results = home.store.entries(home.agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>()
         assertEquals(0, executed)
         assertEquals(listOf("Denied (stopped)", "Not run: the turn was cancelled"), results.map { it.output })
-        assertEquals(listOf("first"), seen.filterIsInstance<AgentEvent.ToolCallStart>().map { it.toolCallId })
+        assertEquals(listOf("first"), seen.filterIsInstance<AgentEvent.ToolCallStart>().map { it.toolCallId.value })
     }
 
     @Test
@@ -89,7 +89,7 @@ class SessionFeatureTest {
         assertIs<AgentEvent.RunFinished>(events.last())
         val entries = home.store.entries(home.agent.id, session.id)
         val call = entries.filterIsInstance<SessionEntry.ToolCall>().single()
-        assertTrue(call.id.isNotBlank())
+        assertTrue(call.id.value.isNotBlank())
         assertEquals(call.id, entries.filterIsInstance<SessionEntry.ToolResult>().single().id)
     }
 
@@ -109,13 +109,13 @@ class SessionFeatureTest {
             if (event is AgentEvent.RunError) {
                 failed = true
                 val results = home.store.entries(home.agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>()
-                assertEquals(listOf("first", "second"), results.map { it.id })
+                assertEquals(listOf("first", "second"), results.map { it.id.value })
                 assertTrue(results.all { it.isError })
             }
         }
         assertTrue(failed)
-        assertEquals(listOf("first", "second"), seen.filterIsInstance<AgentEvent.ToolCallStart>().map { it.toolCallId })
-        assertEquals(listOf("first", "second"), seen.filterIsInstance<AgentEvent.ToolCallResult>().map { it.toolCallId })
+        assertEquals(listOf("first", "second"), seen.filterIsInstance<AgentEvent.ToolCallStart>().map { it.toolCallId.value })
+        assertEquals(listOf("first", "second"), seen.filterIsInstance<AgentEvent.ToolCallResult>().map { it.toolCallId.value })
     }
 
     @Test
