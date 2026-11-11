@@ -1,6 +1,11 @@
 package kinuvo.server.execution
 
+import arrow.core.raise.Raise
+import arrow.core.raise.context.raise
+import kinuvo.server.AgentError
 import kinuvo.server.ServerError
+import kinuvo.server.SessionError
+import kinuvo.server.throwing
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.harness.Agent
 import kinuvo.harness.ExecutionDispatch
@@ -29,14 +34,20 @@ class NativeExecution(
     private val harness: HarnessRuntime,
     private val runs: Runs,
     private val scope: CoroutineScope,
-    private val agent: suspend (AgentId) -> Agent,
+    private val agent: suspend context(Raise<AgentError>) (AgentId) -> Agent,
     private val capabilities: () -> ServerCapabilities,
     private val ran: (Agent, SessionId) -> Unit,
     private val reported: suspend (sessionId: SessionId, text: String) -> Unit,
 ) : ExecutionDispatch {
-    override suspend fun create(agentId: AgentId): SessionInfo = harness.newSession(agent(agentId))
+    context(_: Raise<AgentError>)
+    suspend fun open(agentId: AgentId): SessionInfo = harness.newSession(agent(agentId))
 
-    override suspend fun snapshot(agentId: AgentId, sessionId: SessionId): ExecutionSnapshot {
+    override suspend fun create(agentId: AgentId): SessionInfo = throwing<AgentError, _> { open(agentId) }
+
+    override suspend fun snapshot(agentId: AgentId, sessionId: SessionId): ExecutionSnapshot = throwing<AgentError, _> { snapshotOf(agentId, sessionId) }
+
+    context(_: Raise<AgentError>)
+    suspend fun snapshotOf(agentId: AgentId, sessionId: SessionId): ExecutionSnapshot {
         val snapshot = harness.log.executionSnapshot(agent(agentId), sessionId)
         return if (snapshot.phase == ExecutionPhase.Idle && runs.isActive(sessionId)) snapshot.copy(phase = ExecutionPhase.Running) else snapshot
     }
@@ -59,8 +70,9 @@ class NativeExecution(
         }
     }
 
-    override suspend fun send(params: SendParams): SendResult = send(params, null) {}
+    override suspend fun send(params: SendParams): SendResult = throwing<ServerError, _> { send(params, null) {} }
 
+    context(_: Raise<AgentError>, _: Raise<SessionError>)
     suspend fun send(p: SendParams, requested: List<UiCatalog>?, onEvent: suspend (AgentEvent) -> Unit): SendResult {
         val catalogs = requested ?: harness.uiCatalogs.forRun()
         val agent = agent(p.agentId)
@@ -70,7 +82,7 @@ class NativeExecution(
         val attachments = withContext(Dispatchers.Default) { p.attachments.map(harness.attachments::get) }
         require(attachments.sumOf { it.size } <= MAX_ATTACHMENT_TOTAL_BYTES) { "Attachments must total 20 MB or less" }
         val sessionId = p.sessionId?.also { id ->
-            if (harness.store.sessions(agent.id).none { it.id == id }) throw ServerError.NotFound("No session '$id' for agent '${agent.id}'")
+            if (harness.store.sessions(agent.id).none { it.id == id }) raise(SessionError.NotOfAgent(id, agent.id))
         } ?: harness.newSession(agent).id
         val effective = harness.capabilities(agent, sessionId, null, capabilities())
         effective.chat.requireReady()

@@ -8,6 +8,7 @@ aliases:
 dependencies:
   - ../../harness/api: exported
   - ../plugin-api: exported
+  - io.arrow-kt:arrow-core:2.3.0: exported
   - org.jetbrains.kotlinx:kotlinx-datetime:0.8.0
   - io.ktor:ktor-client-core:3.6.0
   - io.github.oshai:kotlin-logging:8.0.4

@@ -1,5 +1,7 @@
 package kinuvo.server
 
+import arrow.core.raise.Raise
+import arrow.core.raise.context.raise
 import kinuvo.harness.Agent
 import kinuvo.server.plugin.CUSTOM_PROVIDERS
 import kinuvo.server.plugin.McpManagement
@@ -167,7 +169,8 @@ open class HarnessRuntime(
     private val providers get() = dependencies.modelProviders.associateBy { it.id }
     suspend fun modelCatalog(refresh: Boolean = false) = dependencies.modelCatalog(refresh)
     val modelProviders get() = dependencies.modelProviders
-    val customEndpoints get() = dependencies.plugins.firstNotNullOfOrNull { it.customEndpoints } ?: throw ServerError.Unavailable("Custom providers are unavailable on this Server")
+    context(_: Raise<ProviderError>)
+    fun customEndpoints() = dependencies.plugins.firstNotNullOfOrNull { it.customEndpoints } ?: raise(ProviderError.NoCustomEndpoints)
     fun requireModelProvider(id: String) { require(providerId(id) in providers) { "No model provider '$id'" } }
     /** A custom provider's bare ID, as agent.yaml named it before custom IDs were prefixed, still finds it. */
     fun providerId(id: String) = if (id !in providers && CUSTOM_PROVIDERS + id in providers) CUSTOM_PROVIDERS + id else id
@@ -181,7 +184,7 @@ open class HarnessRuntime(
     val native: NativeHarness = nativeSessions(this)
 
     override suspend fun run(agentId: AgentId, sessionId: SessionId, input: ExecutionInput): NativeRun {
-        val agent = store.agents().firstOrNull { it.id == agentId } ?: throw ServerError.NotFound("No agent '$agentId'")
+        val agent = store.agents().firstOrNull { it.id == agentId } ?: throw ServerException(AgentError.NotFound(agentId))
         return when (val kind = input.kind) {
             is RunKind.Chat -> compose(agent, sessionId, taskId = kind.taskId, catalogs = kind.catalogs ?: uiCatalogs.forRun(), reports = kind.reports)
             is RunKind.Routine -> compose(agent, sessionId, routine = kind.turn)
@@ -197,7 +200,7 @@ open class HarnessRuntime(
     }
 
     override suspend fun reflection(agentId: AgentId, sessionId: SessionId): NativeReflection {
-        val chat = reflected(store.agents().firstOrNull { it.id == agentId } ?: throw ServerError.NotFound("No agent '$agentId'"), sessionId)
+        val chat = reflected(store.agents().firstOrNull { it.id == agentId } ?: throw ServerException(AgentError.NotFound(agentId)), sessionId)
         val own = NativeReflection(chat.agent, selection(chat), dependencies.traces)
         val chosen = try {
             val selected = reflectionModel

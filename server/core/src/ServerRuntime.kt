@@ -1,5 +1,7 @@
 package kinuvo.server
 
+import arrow.core.raise.Raise
+import arrow.core.raise.context.raise
 import kinuvo.server.devices.*
 import kinuvo.server.reflection.*
 import kinuvo.server.screens.*
@@ -88,7 +90,7 @@ class ServerRuntime(
     private val installedFactory = object : ExecutionFactory {
         override suspend fun probe(config: HarnessConnection) = if (config.connection is ExecutionConnection.Remote) remoteFactory?.probe(config) ?: ExecutionProbe(ExecutionReadiness(true, false, "Remote Servers unavailable", "unsupported")) else executionFactory?.probe(config) ?: ExecutionProbe(ExecutionReadiness(true, false, "ACP unavailable", "unsupported"))
         override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
-            if (config.connection is ExecutionConnection.Remote) (remoteFactory ?: throw ServerError.Unavailable("Remote Servers unavailable")).open(config, registration, state, broker, scope) else requireNotNull(executionFactory).open(config, registration, state, broker, scope)
+            if (config.connection is ExecutionConnection.Remote) (remoteFactory ?: throw ServerException(ExecutionError.NoRemoteServers)).open(config, registration, state, broker, scope) else requireNotNull(executionFactory).open(config, registration, state, broker, scope)
     }
     private val remoteGateway = RemoteGateway(remoteLinks,
         { execution.agents() },
@@ -119,7 +121,7 @@ class ServerRuntime(
     private val logins = ProviderLogins(harness.modelProviders, scope) { broadcast(Api.ProvidersChanged, it); changedCapabilities() }
     private val reflector = Reflector(harness, scope, runs::isActive)
     private val dispatch = AgentExecution(executions, external,
-        NativeExecution(harness, runs, scope, admin::agent, { capabilities }, reflector::ran) { sessionId, text ->
+        NativeExecution(harness, runs, scope, { admin.agent(it) }, { capabilities }, reflector::ran) { sessionId, text ->
             clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveVoice?.notify(text) }
         }, executionManagement)
     private val dispatcher = TaskDispatcher(harness, runs, scope)
@@ -157,8 +159,10 @@ class ServerRuntime(
     init {
         harness.log.executionMetadata = { info -> if (external.owns(info.id)) info.copy(legacyOrder = external.record(info.id).legacyOrder) else info }
         harness.browser?.authorize { owner ->
-            browserAccess.validate(owner)
-            if ("browser" !in admin.agent(owner.agentId).config.tools) throw ServerError.Unavailable("Browser is disabled for this Agent")
+            throwing<ServerError, Unit> {
+                browserAccess.validate(owner)
+                if ("browser" !in admin.agent(owner.agentId).config.tools) raise(BrowserError.Disabled)
+            }
         }
         harness.log.onDelete = { a, id -> external.delete(a, id) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
         if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) scope.launch { dispatch.stop(it.id) } }
@@ -235,7 +239,7 @@ class ServerRuntime(
         val outbox = Channel<Frame>(OUTBOX_SIZE)
         val liveAudio = AtomicInt(0)
         val screenFrames = ScreenFrameLane()
-        override val screens = Screens(harness.computers, { harness.browser }, browserAccess::validate, scope, { requireNotNull(deviceId) }, screenBudget,
+        override val screens = Screens(harness.computers, { harness.browser }, { owner -> throwing<ServerError, Unit> { browserAccess.validate(owner) } }, scope, { requireNotNull(deviceId) }, screenBudget,
             screenFrames::offer, { screenFrames.remove(it.subscription); offer(frame(Api.ScreenStatus, it)) })
         @Volatile override var watching = true
         @Volatile var token: String? = null
@@ -318,17 +322,19 @@ class ServerRuntime(
             return authenticated(auth::paired).map { it.copy(connected = it.id in connected) }
         }
 
+        context(_: Raise<AccessError>, _: Raise<DeviceError>)
         override fun revokeDevice(id: String, requestId: String) {
-            if (!authenticated(auth::management) && deviceId != id) throw ServerError.Forbidden()
+            if (!authenticated(auth::management) && deviceId != id) raise(AccessError.ManagementRequired)
             if (deviceId == id) closeAfterResponse = requestId
-            if (!auth.revoke(id)) throw ServerError.NotFound("No paired Device '$id'")
+            if (!auth.revoke(id)) raise(DeviceError.NotFound(id))
             clients.block { it.filter { c -> c.deviceId == id && c !== this } }.forEach { it.disconnect() }
             if (deviceId == id) closeAfterResponse = requestId
             broadcast(Api.DevicesChanged, Unit)
         }
 
+        context(_: Raise<DeviceError>)
         override fun rotateToken(): String {
-            if (browser) throw ServerError.Unavailable("Rotate browser credentials over HTTPS")
+            if (browser) raise(DeviceError.BrowserCredentials)
             val replacement = authenticated { auth.rotate(it).also { replacement -> token = replacement } }
             clients.block { it.filter { c -> c.deviceId == deviceId && c !== this } }.forEach { it.disconnect() }
             return replacement
@@ -336,10 +342,12 @@ class ServerRuntime(
 
         override fun unwatchScreen(id: String) = screenFrames.remove(id)
 
+        context(_: Raise<VoiceError>, _: Raise<AgentError>)
         override suspend fun startLiveVoice(params: LiveVoiceParams) = startLiveVoice(this, params)
 
         override fun endLiveVoice(callId: String) { if (liveVoice?.id == callId) liveVoice?.close() }
 
+        context(_: Raise<ExecutionError>)
         override suspend fun remoteExecution(call: RemoteExecutionCall) = execution.remoteExecution(requireNotNull(token), call)
 
         override fun offer(update: SessionUpdate) = offer(frame(Api.Update, update))
@@ -449,12 +457,12 @@ class ServerRuntime(
                 if (!authed && request.method != Api.Connect.name) { connection.close(); return@collect }
                 if (request.method == Api.Connect.name) {
                     val response = respond(request, Api.Connect) { p ->
-                        if (authed) throw ServerError.Conflict("Already connected")
-                        if (!ProtocolVersion.isCompatible(p.protocolVersion)) throw ServerError.ProtocolMismatch()
+                        if (authed) raise(ConnectError.AlreadyConnected)
+                        if (!ProtocolVersion.isCompatible(p.protocolVersion)) raise(ConnectError.ProtocolMismatch)
                         val supplied = connection.credential ?: p.token
                         client.linked = supplied?.let { remoteLinks.exposure(it) != null } == true
                         val token = (if (client.linked) supplied else auth.authenticate(p.device, supplied, if (connection.credential == null) p.pairingCode else null))
-                            ?: throw ServerError.Forbidden(if (p.token != null) "This device was unpaired" else "Invalid or expired pairing code")
+                            ?: raise(if (p.token != null) ConnectError.Unpaired else ConnectError.InvalidPairing)
                         client.token = token
                         if (!client.linked) client.refreshTools(p.deviceTools, initial = true)
                         if (!client.linked && auth.management(token)) p.timeZone?.let { zone -> runCatching { harness.timeZone = TimeZone.of(zone) } }
@@ -476,7 +484,7 @@ class ServerRuntime(
                 }
                 val voice = request.method == Api.Transcribe.name || request.method == Api.Synthesize.name
                 if (voice && request.id in voiceRequests) {
-                    client.outbox.send(request.failure(ServerError.Conflict("Voice request is already active")))
+                    client.outbox.send(request.failure(VoiceError.RequestActive))
                     return@collect
                 }
                 val stateful = request.method in setOf(Api.LiveVoiceStart.name, Api.LiveVoiceEnd.name, Api.CatchUp.name, Api.Unsubscribe.name, Api.Send.name, Api.Stop.name, Api.Presence.name, Api.DeviceTools.name, Api.SurfaceCatalogs.name, Api.RevokeDevice.name, Api.RotateToken.name)
@@ -507,17 +515,18 @@ class ServerRuntime(
     private suspend fun handle(r: Frame.Request, client: Client): Frame.Response {
         val access = routes.access(r.method)
         if (client.linked) {
-            if (access?.linked != true) return r.failure(ServerError.Forbidden("Execution link does not allow this operation"))
+            if (access?.linked != true) return r.failure(AccessError.LinkRestricted)
         } else {
-            if (access?.management != false && !client.authenticated(auth::management)) return r.failure(ServerError.Forbidden())
-            if (access == null || access == RouteAccess.Linked) return r.failure(ServerError.NotFound("Unknown method ${r.method}"))
+            if (access?.management != false && !client.authenticated(auth::management)) return r.failure(AccessError.ManagementRequired)
+            if (access == null || access == RouteAccess.Linked) return r.failure(AccessError.UnknownMethod(r.method))
         }
         return routes.dispatch(Call(services, client, r.id), r)
     }
 
+    context(_: Raise<VoiceError>, _: Raise<AgentError>)
     private suspend fun startLiveVoice(client: Client, p: LiveVoiceParams): LiveVoiceCall {
-        if (client.liveVoice?.active == true) throw ServerError.Conflict("A live voice call is already active on this connection")
-        val provider = voice.providers.speechToSpeech ?: throw ServerError.Unavailable("Live voice is unavailable or disabled on this Server")
+        if (client.liveVoice?.active == true) raise(VoiceError.CallActive)
+        val provider = voice.providers.speechToSpeech ?: raise(VoiceError.NoLiveVoice)
         val registration = executions.registration(p.agentId)
         val name = registration?.let { execution.externalInfo(it).name } ?: admin.agent(p.agentId).name
         dispatch.snapshot(p.agentId, p.sessionId)
@@ -550,12 +559,14 @@ class ServerRuntime(
                 var reply = "The Agent finished without a reply."
                 var failure: String? = null
                 val updates = NativeVoiceProgress()
-                dispatch.send(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true), null) {
-                    updates.update(it).forEach { update -> progress(update) }
-                    when (it) {
-                        is AgentEvent.TextMessageEnd -> reply = it.text
-                        is AgentEvent.RunError -> failure = "The Agent could not finish the request"
-                        else -> Unit
+                throwing<ServerError, SendResult> {
+                    dispatch.send(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true), null) {
+                        updates.update(it).forEach { update -> progress(update) }
+                        when (it) {
+                            is AgentEvent.TextMessageEnd -> reply = it.text
+                            is AgentEvent.RunError -> failure = "The Agent could not finish the request"
+                            else -> Unit
+                        }
                     }
                 }
                 runs.join(p.sessionId)

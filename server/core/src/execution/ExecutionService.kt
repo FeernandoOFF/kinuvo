@@ -9,7 +9,12 @@ import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.server.Admin
 import kinuvo.server.HarnessRuntime
-import kinuvo.server.ServerError
+import arrow.core.raise.Raise
+import arrow.core.raise.context.raise
+import kinuvo.server.AccessError
+import kinuvo.server.AgentError
+import kinuvo.server.ExecutionError
+import kinuvo.server.SessionError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.currentCoroutineContext
@@ -60,19 +65,22 @@ class ExecutionService internal constructor(
 
     suspend fun catalog() = registry.catalog()
 
+    context(_: Raise<SessionError>)
     suspend fun resume(id: String) = management.withLock { external.resume(SessionId(id)) }
 
     suspend fun closeExecution(id: String) = management.withLock { external.closeExecution(SessionId(id)) }
 
+    context(_: Raise<SessionError>, _: Raise<AgentError>)
     suspend fun snapshot(id: String) = dispatch.snapshot(SessionId(id))
 
     /** Deciding any Approval takes management access, however the answer is shaped. */
+    context(_: Raise<AccessError>)
     suspend fun respond(answer: RespondParams, management: Boolean): Boolean {
         if (!management) {
             val pending = if (external.owns(answer.sessionId)) external.snapshot(answer.sessionId).pending else harness.log.pending(answer.sessionId)
             val approving = answer.answer is InteractionAnswer.Approval ||
                 pending.any { p -> p.id == answer.requestId && (p is PendingInteraction.Approval || p is PendingInteraction.HarnessApproval) }
-            if (approving) throw ServerError.Forbidden()
+            if (approving) raise(AccessError.ManagementRequired)
         }
         return dispatch.answer(answer)
     }
@@ -86,52 +94,62 @@ class ExecutionService internal constructor(
 
     fun revoke(id: String) = remoteLinks.revoke(id)
 
+    context(_: Raise<ExecutionError>)
     suspend fun saveRemoteLink(link: SaveRemoteLink) = management.withLock {
         val connections = registry.catalog().connections.filter { (it.config.connection as? ExecutionConnection.Remote)?.serverId == link.id }
-        if (connections.any { external.inUse(it.config.id) }) throw ServerError.Conflict("Connection has live Sessions")
+        if (connections.any { external.inUse(it.config.id) }) raise(ExecutionError.ConnectionInUse)
         remoteLinks.save(link)
     }
 
-    suspend fun discoverRemote(id: String) = (remote ?: throw ServerError.Unavailable("Remote Servers unavailable")).discover(id)
+    context(_: Raise<ExecutionError>)
+    suspend fun discoverRemote(id: String) = (remote ?: raise(ExecutionError.NoRemoteServers)).discover(id)
 
+    context(_: Raise<ExecutionError>)
     suspend fun remoteExecution(token: String, call: RemoteExecutionCall) = gateway.call(token, call)
 
+    context(_: Raise<ExecutionError>)
     suspend fun saveConnection(config: HarnessConnection) = management.withLock {
-        if (external.inUse(config.id)) throw ServerError.Conflict("Connection has live Sessions")
+        if (external.inUse(config.id)) raise(ExecutionError.ConnectionInUse)
         registry.save(config).also { catalogChanged() }
     }
 
+    context(_: Raise<ExecutionError>)
     suspend fun deleteConnection(id: String) = management.withLock {
-        if (external.inUse(id)) throw ServerError.Conflict("Connection has live Sessions")
+        if (external.inUse(id)) raise(ExecutionError.ConnectionInUse)
         registry.removeConnection(id).also { catalogChanged() }
     }
 
+    context(_: Raise<ExecutionError>)
     suspend fun registerAgent(registration: AgentRegistration) = management.withLock {
         val existing = registry.registration(registration.id)
-        if (existing != null && external.agentInUse(existing.id)) throw ServerError.Conflict("Agent has live Sessions")
-        if (harness.store.agents().any { it.id == registration.id }) throw ServerError.Conflict("Agent ID belongs to a native Agent")
+        if (existing != null && external.agentInUse(existing.id)) raise(ExecutionError.AgentInUse)
+        if (harness.store.agents().any { it.id == registration.id }) raise(ExecutionError.NativeAgentId)
         registry.register(registration).also { external.restore(it.id); catalogChanged() }
     }
 
+    context(_: Raise<ExecutionError>)
     suspend fun unregisterAgent(id: String) = management.withLock {
         val agent = registry.registration(AgentId(id))
-        if (agent != null && external.agentInUse(agent.id)) throw ServerError.Conflict("Agent has live Sessions")
+        if (agent != null && external.agentInUse(agent.id)) raise(ExecutionError.AgentInUse)
         external.archive(AgentId(id))
         registry.removeAgent(AgentId(id)).also { catalogChanged() }
     }
 
     suspend fun agents(): List<AgentInfo> = admin.agents() + externalAgents()
 
+    context(_: Raise<AgentError>)
     suspend fun agentDetails(id: AgentId): AgentDetails =
         external.registrationOrArchived(id)?.let { a ->
             AgentDetails(externalInfo(a), AgentSettings("", "", "", "external"), "", "", managed = true, cwd = a.cwd, remoteAgentId = a.remoteAgentId)
         } ?: admin.details(admin.agent(id))
 
+    context(_: Raise<ExecutionError>, _: Raise<AgentError>)
     suspend fun createAgent(p: CreateAgentParams): AgentInfo {
-        if (registry.catalog().agents.any { it.id == p.agentId }) throw ServerError.Conflict("Agent ID is reserved by an external registration")
+        if (registry.catalog().agents.any { it.id == p.agentId }) raise(ExecutionError.ReservedAgentId)
         return admin.create(p)
     }
 
+    context(_: Raise<AgentError>)
     suspend fun sessionCapabilities(p: CapabilitiesParams): SessionCapabilities {
         val registration = external.registrationOrArchived(p.agentId)
         return if (registration == null) harness.capabilities(admin.agent(p.agentId), p.sessionId, p.settings, capabilities(), sequence())

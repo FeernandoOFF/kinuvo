@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import arrow.core.getOrElse
+import arrow.core.raise.context.either
 import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.testing.harness.*
 import ai.koog.prompt.message.Message
@@ -26,6 +28,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.fail
 import kinuvo.server.Admin
 import kinuvo.server.Runs
 import kinuvo.server.providers.ModelProvider
@@ -51,7 +54,7 @@ class SessionSettingsTest {
         var harness = Harness(Path(home.path), providers = ModelProviders.of(plugins), plugins = plugins)
         try {
             val admin = Admin(harness, Runs(harness.log, scope, harness.native)) {}
-            admin.update(UpdateAgentParams(AgentId("default"), provider = "first", model = "shared-id"))
+            either { admin.update(UpdateAgentParams(AgentId("default"), provider = "first", model = "shared-id")) }.getOrElse { fail(it.message) }
             val agent = harness.store.agents().single()
             val session = harness.newSession(agent).id
             harness.configure(agent, session, SessionSettings(provider = "second", model = "shared-id"))

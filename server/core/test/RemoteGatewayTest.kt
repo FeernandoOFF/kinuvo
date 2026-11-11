@@ -1,5 +1,8 @@
 package kinuvo.server
 
+import arrow.core.Either
+import arrow.core.getOrElse
+import arrow.core.raise.context.either
 import kinuvo.harness.*
 import kinuvo.server.execution.*
 import kinuvo.protocol.*
@@ -16,6 +19,10 @@ import kotlinx.serialization.json.put
 import kotlin.test.*
 
 class RemoteGatewayTest {
+    private suspend fun RemoteGateway.attempt(token: String, call: RemoteExecutionCall): Either<ExecutionError, RemoteExecutionResult> = either { call(token, call) }
+
+    private suspend fun RemoteGateway.result(token: String, call: RemoteExecutionCall) = attempt(token, call).getOrElse { fail(it.message) }
+
     @Test fun surfaceActionSurvivesRemoteWireAndSend() = runTest {
         val links = RemoteLinks()
         val token = links.grant(ExposureGrant("friend", setOf(AgentId("agent"))))
@@ -29,7 +36,7 @@ class RemoteGatewayTest {
             { _, _ -> }, { _, _ -> true })
         val original = RemoteExecutionCall(AgentId("agent"), SessionId("session"), "send", "Save plan", surfaceAction = action)
         val decoded = ProtocolJson.decodeFromString(RemoteExecutionCall.serializer(), ProtocolJson.encodeToString(RemoteExecutionCall.serializer(), original))
-        gateway.call(token, decoded)
+        gateway.result(token, decoded)
         assertEquals(action, received)
     }
 
@@ -53,7 +60,7 @@ class RemoteGatewayTest {
             { _, id -> ExecutionSnapshot(SessionId(id)) },
             { _, _, _, _ -> }, { _, _ -> }, { _, _ -> true },
             { agent, id -> assertEquals("agent", agent); assertEquals("created", id); disposed = true })
-        assertFailsWith<IllegalArgumentException> { gateway.call(token, RemoteExecutionCall(AgentId("agent"), action = "create")) }
+        assertFailsWith<IllegalArgumentException> { gateway.attempt(token, RemoteExecutionCall(AgentId("agent"), action = "create")) }
         assertTrue(disposed)
         assertFalse(links.owns(token, AgentId("agent"), SessionId("created")))
         assertTrue(links.grants().isEmpty())
@@ -69,19 +76,19 @@ class RemoteGatewayTest {
             { creates++; ExecutionSnapshot(SessionId("source-session")) },
             { agent, id -> require(agent == "allowed" && id == "source-session"); ExecutionSnapshot(SessionId(id)) },
             { _, _, _, _ -> }, { _, _ -> }, { _, _ -> true })
-        assertEquals(listOf("allowed"), gateway.call(token, RemoteExecutionCall()).agents.map { it.id.value })
-        assertFailsWith<ServerError.Forbidden> { gateway.call(token, RemoteExecutionCall(AgentId("private"), action = "create")) }
-        assertFailsWith<ServerError.Forbidden> { gateway.call(token, RemoteExecutionCall(AgentId("cycle"), action = "create")) }
+        assertEquals(listOf("allowed"), gateway.result(token, RemoteExecutionCall()).agents.map { it.id.value })
+        assertEquals(ExecutionError.NotExposed, gateway.attempt(token, RemoteExecutionCall(AgentId("private"), action = "create")).leftOrNull())
+        assertEquals(ExecutionError.NotExposed, gateway.attempt(token, RemoteExecutionCall(AgentId("cycle"), action = "create")).leftOrNull())
         assertEquals(0, creates)
-        assertEquals("source-session", gateway.call(token, RemoteExecutionCall(AgentId("allowed"), action = "create")).snapshot?.sessionId?.value)
-        assertFailsWith<ServerError.Forbidden> { gateway.call(token, RemoteExecutionCall(AgentId("allowed"), SessionId("other-session"), "cancel")) }
+        assertEquals("source-session", gateway.result(token, RemoteExecutionCall(AgentId("allowed"), action = "create")).snapshot?.sessionId?.value)
+        assertEquals(ExecutionError.NotGranted, gateway.attempt(token, RemoteExecutionCall(AgentId("allowed"), SessionId("other-session"), "cancel")).leftOrNull())
         assertTrue(RemoteLinks(persisted).owns(token, AgentId("allowed"), SessionId("source-session")))
         val otherToken = links.grant(ExposureGrant("other", setOf(AgentId("allowed"))))
         for (action in listOf("snapshot", "send", "cancel", "answer")) {
-            assertFailsWith<ServerError.Forbidden> { gateway.call(otherToken, RemoteExecutionCall(AgentId("allowed"), SessionId("source-session"), action, text = "bad", requestId = "q", answer = InteractionAnswer.Harness(JsonNull))) }
+            assertEquals(ExecutionError.NotGranted, gateway.attempt(otherToken, RemoteExecutionCall(AgentId("allowed"), SessionId("source-session"), action, text = "bad", requestId = "q", answer = InteractionAnswer.Harness(JsonNull))).leftOrNull())
         }
         links.revoke("friend")
-        assertFailsWith<ServerError.Forbidden> { gateway.call(token, RemoteExecutionCall(AgentId("allowed"), SessionId("source-session"), "snapshot")) }
+        assertEquals(ExecutionError.AccessRevoked, gateway.attempt(token, RemoteExecutionCall(AgentId("allowed"), SessionId("source-session"), "snapshot")).leftOrNull())
     }
 
     @Test fun normalizedNullAnswerSurvivesRemoteWireDecoding() = runTest {
@@ -94,7 +101,7 @@ class RemoteGatewayTest {
             { _, answer -> received = answer; true })
         val original = RemoteExecutionCall(AgentId("agent"), SessionId("session"), "answer", requestId = "request", answer = InteractionAnswer.Harness(JsonNull))
         val decoded = ProtocolJson.decodeFromString(RemoteExecutionCall.serializer(), ProtocolJson.encodeToString(RemoteExecutionCall.serializer(), original))
-        assertTrue(gateway.call(token, decoded).accepted)
+        assertTrue(gateway.result(token, decoded).accepted)
         assertEquals(RespondParams(SessionId("session"), "request", InteractionAnswer.Harness(JsonNull)), received)
     }
 

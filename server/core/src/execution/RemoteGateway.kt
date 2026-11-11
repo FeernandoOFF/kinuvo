@@ -4,7 +4,9 @@ import kinuvo.protocol.agent.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.surface.*
-import kinuvo.server.ServerError
+import arrow.core.raise.Raise
+import arrow.core.raise.context.raise
+import kinuvo.server.ExecutionError
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 
@@ -19,12 +21,13 @@ class RemoteGateway(
     private val answer: suspend (String, RespondParams) -> Boolean,
     private val discard: suspend (String, String) -> Unit = cancel,
 ) {
+    context(_: Raise<ExecutionError>)
     suspend fun call(token: String, p: RemoteExecutionCall): RemoteExecutionResult {
-        val exposed = links.exposure(token) ?: throw ServerError.Forbidden("Remote access revoked")
+        val exposed = links.exposure(token) ?: raise(ExecutionError.AccessRevoked)
         val available = agents().filter { it.id in exposed && it.executionKind != ExecutionKind.Remote }
         if (p.action == "list") return RemoteExecutionResult(agents = available)
         val agentId = requireNotNull(p.agentId) { "Select a source Agent" }
-        if (available.none { it.id == agentId }) throw ServerError.Forbidden("Agent is not exposed")
+        if (available.none { it.id == agentId }) raise(ExecutionError.NotExposed)
         if (p.action == "create") {
             val created = create(agentId.value)
             try { links.claim(token, agentId, created.sessionId) }
@@ -35,7 +38,7 @@ class RemoteGateway(
             return RemoteExecutionResult(snapshot = created)
         }
         val sessionId = requireNotNull(p.sessionId)
-        if (!links.owns(token, agentId, sessionId)) throw ServerError.Forbidden("Session does not belong to this execution grant")
+        if (!links.owns(token, agentId, sessionId)) raise(ExecutionError.NotGranted)
         // Verify source Session ownership before cancellation or broker access.
         val current = snapshot(agentId.value, sessionId.value)
         return when (p.action) {

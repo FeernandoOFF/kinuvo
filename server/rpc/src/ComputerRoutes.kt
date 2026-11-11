@@ -1,11 +1,12 @@
 package kinuvo.server.rpc
 
 import kinuvo.protocol.Api
-import kinuvo.server.ServerError
+import arrow.core.raise.context.raise
+import kinuvo.server.ComputerError
 
 internal fun RouteBuilder.computerRoutes() {
     handle(Api.Computers) { server.harness.computers.list() }
-    handle(Api.WatchComputer) { throw ServerError.Unavailable("Use bounded screens.watch") }
-    handle(Api.ComputerInput) { throw ServerError.Unavailable("Use frame-bound screens.input") }
-    handle(Api.Takeover) { throw ServerError.Unavailable("Use generation-bound screens.control") }
+    handle(Api.WatchComputer) { raise(ComputerError.UseWatch) }
+    handle(Api.ComputerInput) { raise(ComputerError.UseInput) }
+    handle(Api.Takeover) { raise(ComputerError.UseControl) }
 }

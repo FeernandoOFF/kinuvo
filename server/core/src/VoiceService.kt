@@ -1,5 +1,7 @@
 package kinuvo.server
 
+import arrow.core.raise.Raise
+import arrow.core.raise.context.raise
 import kinuvo.server.plugin.Audio
 import kinuvo.server.plugin.AudioFormat
 import kinuvo.server.voice.MAX_RECORDING_BYTES
@@ -10,7 +12,8 @@ import kotlin.io.encoding.Base64
 /** Speech through the models the Server downloaded and runs itself, else its configured OpenAI-compatible providers. */
 class VoiceService internal constructor(private val harness: HarnessRuntime, private val changed: () -> Unit) {
     private val downloaded get() = harness.serverVoice
-    private val local get() = downloaded ?: throw ServerError.Unavailable("Downloaded voice models are unavailable on this Server")
+    context(_: Raise<VoiceError>)
+    private fun local() = downloaded ?: raise(VoiceError.NoDownloads)
 
     /** A selected downloaded model takes precedence over configured OpenAI-compatible providers. */
     val providers get() = downloaded?.providers.let { local ->
@@ -29,24 +32,31 @@ class VoiceService internal constructor(private val harness: HarnessRuntime, pri
 
     fun setup() = providers.setup
 
-    suspend fun download(id: String) = local.download(id)
+    context(_: Raise<VoiceError>)
+    suspend fun download(id: String) = local().download(id)
 
-    fun cancelDownload() = local.cancelDownload()
+    context(_: Raise<VoiceError>)
+    fun cancelDownload() = local().cancelDownload()
 
-    suspend fun remove(id: String) { local.remove(id); changed() }
+    context(_: Raise<VoiceError>)
+    suspend fun remove(id: String) { local().remove(id); changed() }
 
-    suspend fun select(selection: VoiceSelection) { local.select(selection); changed() }
+    context(_: Raise<VoiceError>)
+    suspend fun select(selection: VoiceSelection) { local().select(selection); changed() }
 
-    fun language(language: String) = local.language(language)
+    context(_: Raise<VoiceError>)
+    fun language(language: String) = local().language(language)
 
+    context(_: Raise<VoiceError>)
     suspend fun transcribe(p: TranscribeParams): String {
-        val provider = providers.transcriber ?: throw ServerError.Unavailable("Server transcription is not configured")
+        val provider = providers.transcriber ?: raise(VoiceError.NoTranscription)
         require(p.base64.length <= (MAX_RECORDING_BYTES + 2) / 3 * 4) { "Recording is too large" }
         return provider.transcribe(Audio(Base64.decode(p.base64), AudioFormat.Wav))
     }
 
+    context(_: Raise<VoiceError>)
     suspend fun synthesize(p: SynthesizeParams): SpeechAudio {
-        val provider = providers.synthesizer ?: throw ServerError.Unavailable("Server synthesis is not configured")
+        val provider = providers.synthesizer ?: raise(VoiceError.NoSynthesis)
         return SpeechAudio(Base64.encode(provider.synthesize(p.text).bytes))
     }
 }

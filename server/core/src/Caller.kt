@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import arrow.core.raise.Raise
 import kinuvo.protocol.device.DeviceToolKind
 import kinuvo.protocol.device.PairedDeviceInfo
 import kinuvo.protocol.execution.RemoteExecutionCall
@@ -28,10 +29,14 @@ interface Caller {
     suspend fun setDeviceTools(tools: Set<DeviceToolKind>)
     fun setPush(subscription: PushSubscription?)
     fun pairedDevices(): List<PairedDeviceInfo>
+    context(_: Raise<AccessError>, _: Raise<DeviceError>)
     fun revokeDevice(id: String, requestId: String)
+    context(_: Raise<DeviceError>)
     fun rotateToken(): String
     fun unwatchScreen(id: String)
+    context(_: Raise<VoiceError>, _: Raise<AgentError>)
     suspend fun startLiveVoice(params: LiveVoiceParams): LiveVoiceCall
     fun endLiveVoice(callId: String)
+    context(_: Raise<ExecutionError>)
     suspend fun remoteExecution(call: RemoteExecutionCall): RemoteExecutionResult
 }

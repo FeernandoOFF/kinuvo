@@ -1,8 +1,11 @@
 package kinuvo.protocol
 
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 
 class WireErrorTest {
     @Test fun responsesCarryTheCodeMessageAndData() {
@@ -16,5 +19,12 @@ class WireErrorTest {
         assertEquals(WireError(WireErrorCode.ProtocolMismatch, ProtocolVersion.Mismatch), (mismatch as Frame.Response).error)
         val other = ProtocolJson.decodeFromString(Frame.serializer(), """{"type":"res","id":"1","ok":false,"error":"No agent"}""")
         assertEquals(WireError(WireErrorCode.Internal, "No agent"), (other as Frame.Response).error)
+    }
+
+    @Test fun aForbiddenSaysWhyInItsData() {
+        val management = WireError(WireErrorCode.Forbidden, "No", buildJsonObject { put("reason", WireErrorReason.Management) })
+        assertEquals(WireErrorReason.Management, management.reason)
+        assertNull(WireError(WireErrorCode.Forbidden, "No").reason)
+        assertNull(WireError(WireErrorCode.Forbidden, "No", JsonPrimitive("main")).reason)
     }
 }

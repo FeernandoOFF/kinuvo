@@ -25,6 +25,13 @@ object WireErrorCode {
     const val Internal = "internal"
 }
 
+/** Why a `forbidden` was refused, in [WireError.data]'s `reason`, so a client words only the refusals it understands. */
+object WireErrorReason {
+    const val Management = "management"
+}
+
+val WireError.reason: String? get() = ((data as? JsonObject)?.get("reason") as? JsonPrimitive)?.contentOrNull
+
 /** Reads the plain string error of an older peer, so a protocol mismatch still reads as one. */
 object WireErrorSerializer : JsonTransformingSerializer<WireError>(WireError.serializer()) {
     override fun transformDeserialize(element: JsonElement): JsonElement {

@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import arrow.core.raise.context.either
 import kinuvo.harness.*
 import kinuvo.server.store.InMemoryStore
 import kinuvo.server.execution.*
@@ -100,7 +101,7 @@ class ExecutionCoordinatorTest {
         assertFalse(oldFailure.isCompleted)
         states.first().lost()
         runCurrent()
-        coordinator.resume(id)
+        assertNull(either { coordinator.resume(id) }.leftOrNull())
         oldFailure.complete(Unit)
         runCurrent()
         assertEquals(ExecutionPhase.Idle, coordinator.snapshot(id).phase)
