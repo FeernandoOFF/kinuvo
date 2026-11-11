@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.server.rpc.serverRoutes
 import kinuvo.server.devices.*
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
@@ -51,7 +52,7 @@ class ServerSecurityTest {
                 check(release.await(5, java.util.concurrent.TimeUnit.SECONDS))
             }
         }
-        val runtime = ServerRuntime(Harness(Path(home.toString())), peers, security = ConnectionSecurity(validationIntervalMillis = 1))
+        val runtime = ServerRuntime(Harness(Path(home.toString())), peers, serverRoutes(), security = ConnectionSecurity(validationIntervalMillis = 1))
         runtime.start()
         val requests = Channel<Frame>(Channel.UNLIMITED)
         val responses = Channel<Frame>(Channel.UNLIMITED)

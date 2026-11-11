@@ -16,7 +16,7 @@ import kotlin.time.Duration
 import kotlin.time.TimeSource
 
 /** One authenticated connection's subscriptions and control claims. */
-internal class Screens(
+class Screens internal constructor(
     private val computers: Computers,
     private val browser: () -> BrowserService?,
     private val validate: suspend (BrowserOwner) -> Unit,

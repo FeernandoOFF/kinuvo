@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.server.rpc.serverRoutes
 import kinuvo.server.plugin.toolSpec
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.AgentDoc
@@ -130,7 +131,7 @@ class RuntimeDependenciesTest {
             override suspend fun send(frame: Frame) { responses.send(frame) }
             override suspend fun close() { requests.close(); responses.close() }
         }
-        val server = ServerRuntime(fixture.runtime(), peers)
+        val server = ServerRuntime(fixture.runtime(), peers, serverRoutes())
         server.start()
         val serving = launch { server.serve(connection) }
         try {
@@ -166,7 +167,7 @@ class RuntimeDependenciesTest {
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
         }
-        val server = ServerRuntime(fixture.runtime(), peers)
+        val server = ServerRuntime(fixture.runtime(), peers, serverRoutes())
         server.start()
         collecting.await()
         server.close()
@@ -190,7 +191,7 @@ class RuntimeDependenciesTest {
             override fun authenticate(device: String, token: String?, pairingCode: String?): String? = null
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
-        })
+        }, serverRoutes())
         assertFailsWith<IllegalStateException> { server.start() }
         server.close()
         assertEquals(2, closes)

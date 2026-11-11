@@ -4,6 +4,7 @@ product:
 
 dependencies:
   - ../core: exported
+  - ../rpc
   - ../../harness/builtin: exported
   - ../../harness/remote
   - ../../providers/codex

@@ -41,6 +41,7 @@ modules:
   - server/embedded
   - server/jvm
   - server/plugin-api
+  - server/rpc
   - testing/fixture-server
   - testing/harness-testing
   - testing/server-testing

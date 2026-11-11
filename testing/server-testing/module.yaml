@@ -2,6 +2,7 @@ product: jvm/lib
 
 dependencies:
   - ../../server/core: exported
+  - ../../server/rpc
   - ../harness-testing: exported
   - ../../client/sdk: exported
   - ../../harness/remote

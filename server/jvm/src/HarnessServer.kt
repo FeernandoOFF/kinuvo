@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.server.rpc.serverRoutes
 import kotlinx.coroutines.*
 import kinuvo.server.execution.ExecutionStorage
 import kinuvo.server.execution.remoteLinks
@@ -19,7 +20,7 @@ class HarnessServer(val harness: Harness, val auth: DeviceAuth = DeviceAuth(File
     private val executionStorage = ExecutionStorage(harness.files.home)
     private val activity = ProcessActivity("Serving a live voice call")
     private val links = remoteLinks(harness.files.home)
-    val runtime: ServerRuntime = ServerRuntime(harness, auth, name,
+    val runtime: ServerRuntime = ServerRuntime(harness, auth, serverRoutes(), name,
         remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, security = security, prepareAttachment = ::prepareAttachment, keepAwake = activity::hold,
         executionRegistry = executionStorage.registry, executionFactory = AcpExecutionFactory(persistAttachment = ::persistExecutionAttachment), executionStorage = executionStorage)
     private suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData) = runtime.persistExecutionAttachment(state, data)

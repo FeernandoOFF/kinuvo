@@ -1,5 +1,6 @@
 package kinuvo.testing.server
 
+import kinuvo.server.rpc.serverRoutes
 import kinuvo.client.KinuvoClient
 import kinuvo.harness.builtin.NativeExecutionFactory
 import kinuvo.harness.remote.RemoteExecutionFactory
@@ -165,7 +166,7 @@ class TestServer private constructor(
                 Scenario(harness, directory, registry, recovery).scenario()
                 val auth = DeviceAuth(File(directory.toString(), "server-devices.json"))
                 val links = RemoteLinks()
-                val runtime = ServerRuntime(harness, auth, "Test Server", remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, executionRegistry = registry, executionStorage = recovery,
+                val runtime = ServerRuntime(harness, auth, serverRoutes(), "Test Server", remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, executionRegistry = registry, executionStorage = recovery,
                     executionFactory = harnesses.takeIf { it.isNotEmpty() }?.let(::FakeHarnesses))
                 runtime.start(schedule = schedule)
                 withContext(Dispatchers.Default) {

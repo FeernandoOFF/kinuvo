@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.server.rpc.serverRoutes
 import kinuvo.harness.ToolSpec
 import kinuvo.harness.requiredNames
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -126,7 +127,7 @@ class RunPreparationRuntimeTest {
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
         }
-        val server = ServerRuntime(harness, peers)
+        val server = ServerRuntime(harness, peers, serverRoutes())
         val catalogs = listOf(UiCatalog("test", description = "x".repeat(30_000),
             components = mapOf("Text" to buildJsonObject { put("type", "object") })))
         val client = KinuvoClient("local:test", "Device", uiCatalogs = catalogs,

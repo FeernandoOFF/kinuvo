@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.server.rpc.serverRoutes
 import kinuvo.server.plugin.Audio
 import kinuvo.server.plugin.AudioFormat
 import kinuvo.server.plugin.SpeechToSpeech
@@ -66,7 +67,7 @@ class VoiceRpcTest {
         })
         val fixture = RuntimeFixture(voice = voice)
         fixture.settings.liveVoiceEnabled = true
-        val server = ServerRuntime(fixture.runtime(), voicePeers(), executionRegistry = registry, executionFactory = factory)
+        val server = ServerRuntime(fixture.runtime(), voicePeers(), serverRoutes(), executionRegistry = registry, executionFactory = factory)
         val device = VoiceDevice()
         server.start()
         val serving = launch { server.serve(device.connection) }
@@ -101,7 +102,7 @@ class VoiceRpcTest {
             else flowOf(StreamFrame.TextDelta("Known reply"), StreamFrame.End())
         })
         val session = harness.newSession(fixture.agent)
-        val server = ServerRuntime(harness, voicePeers())
+        val server = ServerRuntime(harness, voicePeers(), serverRoutes())
         val device = VoiceDevice()
         server.start()
         val serving = launch { server.serve(device.connection) }
@@ -139,7 +140,7 @@ class VoiceRpcTest {
         fixture.settings.liveVoiceEnabled = true
         val harness = fixture.runtime()
         val session = harness.newSession(fixture.agent)
-        val server = ServerRuntime(harness, voicePeers())
+        val server = ServerRuntime(harness, voicePeers(), serverRoutes())
         val a = VoiceDevice()
         val b = VoiceDevice()
         server.start()
@@ -185,7 +186,7 @@ class VoiceRpcTest {
         val harness = fixture.runtime()
         val session = harness.newSession(fixture.agent)
         var awake = 0
-        val server = ServerRuntime(harness, voicePeers(), keepAwake = { awake++; AutoCloseable { awake-- } })
+        val server = ServerRuntime(harness, voicePeers(), serverRoutes(), keepAwake = { awake++; AutoCloseable { awake-- } })
         val stalled = CompletableDeferred<Unit>()
         val device = VoiceDevice(stalled)
         server.start()
@@ -249,7 +250,7 @@ class VoiceRpcTest {
         val fixture = RuntimeFixture(voice = voice)
         val harness = fixture.runtime()
         val session = harness.newSession(fixture.agent)
-        val server = ServerRuntime(harness, peers, security = ConnectionSecurity(liveVoiceInputsPerMinute = 2))
+        val server = ServerRuntime(harness, peers, serverRoutes(), security = ConnectionSecurity(liveVoiceInputsPerMinute = 2))
         val client = KinuvoClient("local:test", "test", connection = { clientConnection })
         server.start()
         val serving = launch { server.serve(serverConnection) }
@@ -294,7 +295,7 @@ class VoiceRpcTest {
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
         }
-        val server = ServerRuntime(RuntimeFixture(voice = voice).runtime(), peers, security = ConnectionSecurity(concurrentRequests = 1))
+        val server = ServerRuntime(RuntimeFixture(voice = voice).runtime(), peers, serverRoutes(), security = ConnectionSecurity(concurrentRequests = 1))
         val client = KinuvoClient("local:test", "test", connection = { clientConnection })
         server.start()
         val serving = launch { server.serve(serverConnection) }
@@ -340,7 +341,7 @@ class VoiceRpcTest {
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
         }
-        val server = ServerRuntime(RuntimeFixture(voice = voice).runtime(), peers)
+        val server = ServerRuntime(RuntimeFixture(voice = voice).runtime(), peers, serverRoutes())
         var id = 0
         suspend fun <P, R> call(method: Method<P, R>, params: P): Frame.Response {
             val requestId = (++id).toString()

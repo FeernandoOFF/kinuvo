@@ -4,6 +4,7 @@ product: jvm/lib
 dependencies:
   - ../../harness/builtin: exported
   - ../core: exported
+  - ../rpc
   - ../../harness/acp
   - ../../harness/remote
   - ../../plugins/browser

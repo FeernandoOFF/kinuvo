@@ -1,5 +1,6 @@
 package kinuvo.server.embedded
 
+import kinuvo.server.rpc.serverRoutes
 import kinuvo.harness.AgentConfig
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.exists
@@ -77,7 +78,7 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
                 val auth = peers(EmbeddedPeers(token))
                 val executionStorage = ExecutionStorage(home)
                 val links = remoteLinks(home)
-                val runtime = ServerRuntime(harness, auth, "On this device", foregroundOnly = !continuous,
+                val runtime = ServerRuntime(harness, auth, serverRoutes(), "On this device", foregroundOnly = !continuous,
                     remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, executionRegistry = executionStorage.registry,
                     executionStorage = executionStorage)
                 runtime.start(schedule = continuous)
