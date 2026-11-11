@@ -24,9 +24,9 @@ Target layout:
 
 **Two SPIs.** Providers implement `ModelSource` (in `harness/builtin`) and `ProviderAdmin` (in `server/plugin-api`: auth, keys, usage, downloads, images). Plugins depend only on `server/plugin-api`, which is Koog-free and holds contracts and pure helpers; stateful implementations live in `server/core`.
 
-**Core and hosts.** `server/core` depends on `harness/api` only. Hosts register each provider's `ModelSource` with builtin and hand core an `ExecutionFactory`. Core starts chat, Reflection and Routine runs through it, with the run kind in the request. Apps provide the embedded Server through the existing `EmbeddedServer` interface; `client/ui` never depends on Server modules.
+**Core and hosts.** `server/core` depends on `harness/api` only. Hosts register each provider's `ModelSource` with builtin and hand core an `ExecutionFactory`. Core starts chat, Reflection and Routine runs through it, with the run kind in the request. Apps provide the embedded Server through the existing `EmbeddedServer` interface, bound by one Koin module (`apps/android-embedded`) or framework module (`apps/ios-embedded`) that depends on `client/ui` and `server/embedded`; `client/*` never depends on Server modules.
 
-**Enforcement.** A test parses `module.yaml` dependency edges against an explicit allowed-edge list, including adapter and host edges.
+**Enforcement.** `ModuleEdgesTest` in `testing/server-testing` parses `module.yaml` dependency edges against explicit per-layer rules, including the adapter and host edges, and checks that `harness/api` and `harness/builtin` reach only `harness/*` and `protocol`, and that `client/*` reaches only `client/*` and `protocol`. Test dependencies may also reach `testing/*`, and Server-side modules may use `client/*` in tests. Edges outside the rules need a commented entry in the test's exception list; `server/core -> harness/builtin` is the one today, until core reaches the built-in harness only through `ExecutionFactory`.
 
 Where today's `harness/core` code goes (the plugin-facing contract goes to plugin-api, its stateful implementation to core):
 
@@ -42,4 +42,4 @@ Plugin-facing contracts extracted from implementation code: `PluginStorage` repl
 
 ## Consequences
 
-The built-in harness can run without a Server. Providers receive credentials and never read agent files. Removing UI-to-Server edges moves iOS and Android host code into the embedded host and app modules. New edges require an entry in the allowed-edge list.
+The built-in harness can run without a Server. Providers receive credentials and never read agent files. Removing UI-to-Server edges moves iOS and Android host code into the embedded host and app modules: the Android WebView browser runtime into `server/embedded`, `ServerService` and the Server binding into `apps/android-embedded`, and the Swift bridges and iOS Server start into `apps/ios-embedded`. Web Push encryption lives in `protocol` because both the Server and the client app use it. A new edge must fit a rule in the test or be added to it together with this ADR.

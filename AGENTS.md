@@ -5,13 +5,13 @@ Self-hosted personal AI assistant. Terms: `CONTEXT.md`. Decisions: `docs/adr/`.
 ## Layout
 
 - `protocol/`: wire and domain values (KMP, incl. web).
-- `client/`: `sdk` (transport), `app` (Compose-free feature logic), `ui` (Compose Multiplatform, matching feature packages; `android-computer`).
+- `client/`: `sdk` (transport), `app` (Compose-free feature logic, the `EmbeddedServer` interface), `ui` (Compose Multiplatform, matching feature packages; `android-computer`). No dependency on Server, harness, plugin or provider modules.
 - `harness/`: runs Agents, no Server dependencies: `api` (execution contracts), `builtin` (the built-in harness, KMP), `acp` (external ACP harnesses), `remote` (another Kinuvo Server as a harness, KMP; hosts register it).
 - `gateways/`: clients of a Server that expose it elsewhere: `acp-agent` (serves an Agent as an ACP agent over stdio, `kinuvo.gateways.acp`).
-- `server/`: `plugin-api` (Server plugin SPI, `kinuvo.server.plugin`, Koog-free; plugins depend on it, never on `harness/builtin`), `core` (KMP implementations), `jvm` host, `embedded` on-device host with each phone's plugin list.
+- `server/`: `plugin-api` (Server plugin SPI, `kinuvo.server.plugin`, Koog-free; plugins depend on it, never on `harness/builtin`), `core` (KMP implementations), `jvm` host, `embedded` on-device host with each phone's plugin list and the Android WebView browser runtime.
 - `models/`: verified model downloads. `providers/` (apple, codex, koog, litert) and `plugins/` (anytype, bitwarden, browser, caldav, exec, executor, firecrawl, mcp, ntfy, onepassword, protonpass, reminders, todoist, voice; `cua` is the desktop Computer driver).
-- `testing/`: `harness-testing` (scripted models), `server-testing` (real in-process Server fixtures, module-edge test), `fixture-server` (Maestro launcher).
-- `apps/`: platform shells (desktop, android, ios, web) and `cli`, the `kinuvo` command (headless server + management commands).
+- `testing/`: `harness-testing` (scripted models), `server-testing` (real in-process Server fixtures; `ModuleEdgesTest` enforces the module layering of ADR 0029), `fixture-server` (Maestro launcher).
+- `apps/`: platform shells (desktop, android, android-play, ios, web) and `cli`, the `kinuvo` command (headless server + management commands). `android-embedded` and `ios-embedded` provide each phone's embedded Server.
 
 ## Build
 
@@ -40,7 +40,7 @@ Kotlin Toolchain (not Gradle): `./kotlin build`, `./kotlin test -m <module> -p j
 - Use the `CONTEXT.md` terms in code and docs.
 - Document current behavior and decisions, with future work clearly identified. Omit POC narratives, abandoned implementations, stash references and development-session history.
 - Use imports instead of fully qualified type names in code, except where names conflict.
-- Keep apps thin: platform code goes in `expect`/`actual` + Koin modules in `client/ui`. Don't pass platform dependencies through composables. The shared Koin graph (`appModule`) lives in `client/app/src/AppModule.kt`; `client/ui` adds `platformModule`.
+- Keep apps thin: client platform code goes in `expect`/`actual` + Koin modules in `client/ui`. Don't pass platform dependencies through composables. The shared Koin graph (`appModule`) lives in `client/app/src/AppModule.kt`; `client/ui` adds `platformModule`. Apps provide the embedded Server: Android passes `androidEmbeddedServerModule` (`apps/android-embedded`) to `startKinuvo`, iOS calls `startKinuvoWithEmbeddedServer` from the `apps/ios-embedded` framework module; desktop passes its own module. Server code never goes in `client/*`.
 - The embedded server is just another `Server`. No special cases in ViewModels; UI labels only.
 - ViewModels expose one state data class with orthogonal fields, using explicit backing fields (`val state: StateFlow<S>` / `field = MutableStateFlow(...)`), not `_state` pairs.
 - Write minimal code with few comments, and match the surrounding style.
