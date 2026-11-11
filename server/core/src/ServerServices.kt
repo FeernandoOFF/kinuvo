@@ -20,6 +20,7 @@ class ServerServices internal constructor(
     val dispatch: AgentExecution,
     val sessions: SessionService,
     val routines: RoutineService,
+    val workflows: Workflows,
     val browser: BrowserAccess,
     val voice: VoiceService,
     val reflection: ReflectionReview,

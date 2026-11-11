@@ -40,10 +40,13 @@ class Scheduler(
     private val scope: CoroutineScope,
     private val onRan: (RoutineRan) -> Unit = {},
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
+    private val workflowTick: suspend () -> Long? = { null },
 ) {
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private val firing = ConcurrentMutableMap<String, Job>()
     private var loop: Job? = null
+
+    fun wakeUp() { wake.trySend(Unit) }
 
     fun start() {
         harness.routines.onChange { _, _ -> wake.trySend(Unit) }
@@ -63,7 +66,7 @@ class Scheduler(
     /** Starts every due run and returns when the next one is due. */
     suspend fun tick(): Long? {
         val now = clock()
-        var soonest: Long? = null
+        var soonest: Long? = workflowTick()
         for (agent in harness.store.agents()) for (routine in harness.routines.list(agent)) {
             if (routine.runRequested) {
                 harness.routines.update(agent, routine.id) { it.copy(runRequested = false) }

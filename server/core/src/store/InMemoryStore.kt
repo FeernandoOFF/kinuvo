@@ -20,6 +20,10 @@ class InMemoryStore(private val clock: () -> Long = { Clock.System.now().toEpoch
     private val lock = Mutex()
     private val sessions = LinkedHashMap<SessionId, MutableList<SessionEntry>>()
 
+    private var workflowData = WorkflowData()
+    override suspend fun workflows() = lock.withLock { workflowData }
+    override suspend fun saveWorkflows(data: WorkflowData) = lock.withLock { workflowData = data }
+
     override suspend fun agents(): List<Agent> = emptyList()
     override suspend fun createAgent(id: String, from: Agent?): Agent = unsupported()
     override suspend fun deleteAgent(agent: Agent) = unsupported()
