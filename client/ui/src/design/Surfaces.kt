@@ -1,5 +1,6 @@
 package kinuvo.ui.design
 
+import kinuvo.client.ManagementAccessMessage
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -122,7 +123,7 @@ fun Badge(text: String, icon: ImageVector? = null, modifier: Modifier = Modifier
 /** An error message that remains readable at phone widths. */
 @Composable
 fun ErrorMessage(text: String, modifier: Modifier = Modifier) {
-    if (text == "This action requires management access") {
+    if (text == ManagementAccessMessage) {
         ManagementAccessRequired()
         return
     }

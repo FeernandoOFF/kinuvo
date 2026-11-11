@@ -1,5 +1,6 @@
 package kinuvo.app.surface
 
+import kinuvo.client.KinuvoException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -151,7 +152,7 @@ class AppHost(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                failure(id, -32000, e.message ?: "Tool call failed")
+                failure(id, if (e is KinuvoException.InvalidParams) -32602 else -32000, e.message ?: "Tool call failed")
             }
             if (generation == owner) deliver(response)
         }

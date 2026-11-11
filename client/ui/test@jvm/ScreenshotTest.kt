@@ -1,5 +1,6 @@
 package kinuvo.ui
 
+import kinuvo.client.ManagementAccessMessage
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
@@ -380,10 +381,10 @@ class ScreenshotTest {
         }
         render("settings-tasks-management", 420, 760) {
             val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Tasks))
-            HarnessTheme(dark = true) { SettingsContent(ui.copy(management = false, state = ui.state.copy(tasks = null, errors = listOf("This action requires management access"))), SettingsActions(), sidebar = false) }
+            HarnessTheme(dark = true) { SettingsContent(ui.copy(management = false, state = ui.state.copy(tasks = null, errors = listOf(ManagementAccessMessage))), SettingsActions(), sidebar = false) }
         }
         render("settings-voice-management", 420, 760) {
-            HarnessTheme(dark = true) { kinuvo.ui.settings.DetailPane(null, "Voice") { kinuvo.ui.design.LoadFailure("This action requires management access") {} } }
+            HarnessTheme(dark = true) { kinuvo.ui.settings.DetailPane(null, "Voice") { kinuvo.ui.design.LoadFailure(ManagementAccessMessage) {} } }
         }
         render("settings-medium-dark", 900, 760) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines)), SettingsActions()) } }
         render("settings-narrow-detail", 420, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines, "heartbeat")), SettingsActions()) } }
