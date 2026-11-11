@@ -137,7 +137,8 @@ class ServerRuntime(
         broadcast(Api.AgentsChanged, agents)
         changedCapabilities()
     }
-    private val services = ServerServices(harness, auth, admin, execution, dispatch, sessions, routines, workflows, browserAccess, voice, reflectionReview, logins, notifications, prepareAttachment, ::changedCapabilities)
+    private val teams = Teams(harness, dispatch, scope, runs::join, execution::agents) { broadcast(Api.TeamChanged, it) }.also { teams -> harness.teams = teams; runs.onFinish = { agent, session, cancelled -> subAgents.finish(agent, session, cancelled); teams.finished(session, cancelled) } }
+    private val services = ServerServices(harness, auth, admin, execution, dispatch, sessions, teams, routines, workflows, browserAccess, voice, reflectionReview, logins, notifications, prepareAttachment, ::changedCapabilities)
     private var scheduling = false
     private var started = false
     private var closed = false

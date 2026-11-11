@@ -3,6 +3,7 @@ package kinuvo.protocol.tool
 import kinuvo.protocol.routine.Routine
 
 object ToolNames {
+    const val TEAM_HANDOFF = "team_handoff"
     const val GENERATE_IMAGE = "generate_image"
     const val AGENTS_SPAWN = "agents_spawn"
     const val AGENTS_WAIT = "agents_wait"

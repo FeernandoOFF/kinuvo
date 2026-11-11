@@ -186,7 +186,7 @@ This Device's own name for a remote Server, independent of the names other Devic
 Unpair a Device from a Server, ending its access until it pairs again.
 
 **Team**:
-Planned: a lasting conversation space with the user and one or more Agents as members; each member has its own Session and the Team keeps the shared log. Not implemented yet; Sessions belong to an Agent.
+A lasting conversation space with the user and one or more Agents as members; each member has its own Session and the Team keeps the shared log.
 _Avoid_: Room, Chat, channel, group
 
 **Sub-agent**:
@@ -200,11 +200,11 @@ A private Session used by a Sub-agent, kept on-device and out of normal Session 
 The shared limit on tool executions by one root run and all its Sub-agents. Exhausting it stops the whole tree.
 
 **Handoff**:
-Planned: an Agent passing the floor of a Team to another member with a brief. Not a Takeover, which is the user controlling a Screen.
+An Agent passing the floor of a Team to another member with a brief. Not a Takeover, which is the user controlling a Screen.
 _Avoid_: Takeover, transfer
 
 **Session**:
-One bounded conversation with an Agent (later, one per member of a Team); its transcript does not carry into the next Session, only Memory does.
+One bounded conversation with an Agent, including one per member of a Team; its transcript does not carry into the next Session, only Memory does.
 _Avoid_: Conversation, context
 
 **Session settings**:

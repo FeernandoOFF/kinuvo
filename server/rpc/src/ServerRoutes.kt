@@ -5,6 +5,7 @@ import kinuvo.server.Routes
 /** Every route of a Server, grouped by feature. */
 fun serverRoutes(): Routes = routes {
     sessionRoutes()
+    teamRoutes()
     agentRoutes()
     skillRoutes()
     executionRoutes()

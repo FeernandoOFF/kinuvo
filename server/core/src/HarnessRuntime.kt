@@ -148,6 +148,7 @@ open class HarnessRuntime(
     private val unmanagedModels: Boolean = false,
 ) : ServerSettings by dependencies.settings, NativeHarnessHost {
     var subAgents: SubAgents? = null
+    var teams: Teams? = null
     val log = SessionLog(dependencies.store, dependencies.clock)
     val store: Store = log
     val docs = dependencies.docs
@@ -530,7 +531,7 @@ open class HarnessRuntime(
                 } }
             }, attachments::bytes) else null
         val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() }?.let(::ShowUiTool)
-        return (sessionId?.let { subAgents?.tools(agent.id, it) }.orEmpty()) + builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
+        return (sessionId?.let { teams?.tools(agent.id, it) }.orEmpty()) + (sessionId?.let { subAgents?.tools(agent.id, it) }.orEmpty()) + builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
     }
 
     private suspend fun builtInTools(e: Effective, sessionId: SessionId?, routine: RoutineTurn?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {

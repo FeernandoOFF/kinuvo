@@ -39,10 +39,17 @@ class SubAgents internal constructor(
     private val join: suspend (SessionId) -> Unit,
     private val activationLimit: Int = 64,
 ) {
+    var onBudgetExhausted: suspend (SessionId) -> Unit = {}
     private class Budget(var left: Int)
     private val lock = Mutex()
     private val stopped = mutableSetOf<SessionId>()
     private val budgets = mutableMapOf<SessionId, Budget>()
+    private val groups = mutableMapOf<SessionId, SessionId>()
+    suspend fun shareBudget(id: SessionId, root: SessionId) = lock.withLock { groups[id] = root; stopped -= id }
+    suspend fun releaseBudget(id: SessionId) = lock.withLock {
+        val root = groups.remove(id)
+        if (root != null && root !in groups.values) budgets.remove(root)
+    }
     private val parents = mutableMapOf<SessionId, SessionParent>()
     private val queued = mutableMapOf<SessionId, Job>()
     private val interactions = mutableMapOf<Pair<SessionId, InteractionId>, SessionId>()
@@ -71,13 +78,13 @@ class SubAgents internal constructor(
     }
 
     suspend fun begin(id: SessionId) = lock.withLock {
-        if (id !in parents) { budgets[id] = Budget(activationLimit); stopped -= id }
+        if (id !in parents && id !in groups) { budgets[id] = Budget(activationLimit); stopped -= id }
         else if (ancestors(id).any { it in stopped }) throw CancellationException("Parent run cancelled")
     }
 
     private fun ancestors(id: SessionId): List<SessionId> = parents[id]?.sessionId?.let { listOf(it) + ancestors(it) }.orEmpty()
 
-    private fun root(id: SessionId): SessionId = parents[id]?.sessionId?.let(::root) ?: id
+    private fun root(id: SessionId): SessionId = parents[id]?.sessionId?.let(::root) ?: groups[id] ?: id
 
     suspend fun consume(id: SessionId) {
         val exhausted = lock.withLock {
@@ -85,6 +92,7 @@ class SubAgents internal constructor(
             (--budget.left < 0).let { if (it) root(id) else null }
         }
         if (exhausted != null) {
+            onBudgetExhausted(exhausted)
             dispatch.stop(exhausted)
             throw CancellationException(SubAgentError.Budget.message)
         }
