@@ -23,7 +23,7 @@ data class TaskInfo(
     val notes: String = "",
     val due: String? = null,
     val status: TaskStatus = TaskStatus.Todo,
-    val assignee: String? = null,
+    val assignee: AgentId? = null,
     val sessionIds: List<SessionId> = emptyList(),
 )
 
@@ -35,7 +35,7 @@ data class TasksParams(val includeDone: Boolean = false)
 
 /** [list] is a list name or id; the default list when null. [due] is an ISO date. */
 @Serializable
-data class CreateTaskParams(val title: String, val list: String? = null, val notes: String = "", val due: String? = null, val assignee: String? = null)
+data class CreateTaskParams(val title: String, val list: String? = null, val notes: String = "", val due: String? = null, val assignee: AgentId? = null)
 
 /** Fields to change; null leaves one as it is. An empty [assignee] clears it; an empty [due] removes the date. */
 @Serializable
@@ -43,7 +43,7 @@ data class UpdateTaskParams(
     val taskId: String,
     val title: String? = null,
     val status: TaskStatus? = null,
-    val assignee: String? = null,
+    val assignee: AgentId? = null,
     val due: String? = null,
 )
 

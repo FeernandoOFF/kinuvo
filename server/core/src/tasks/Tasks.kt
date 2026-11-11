@@ -39,7 +39,7 @@ data class TasksConfig(
 
 /** What Kinuvo keeps about a Task on top of the provider: status, an assignee set on the Board ("" = nobody), and its runs. */
 @Serializable
-data class TaskState(val status: TaskStatus = TaskStatus.Todo, val assignee: String? = null, val sessionIds: List<SessionId> = emptyList())
+data class TaskState(val status: TaskStatus = TaskStatus.Todo, val assignee: AgentId? = null, val sessionIds: List<SessionId> = emptyList())
 
 /** The Board's state per Task, keyed by `<provider id>:<task id>`. */
 interface BoardRepository {
@@ -84,7 +84,7 @@ class Tasks(
     /** Tasks an Agent should start now: to do, assigned, and due within the start window (or undated). */
     suspend fun ready(): List<TaskInfo> = all().filter(::isReady)
 
-    suspend fun create(title: String, list: String? = null, notes: String = "", due: LocalDate? = null, assignee: String? = null): TaskInfo = lock.withLock {
+    suspend fun create(title: String, list: String? = null, notes: String = "", due: LocalDate? = null, assignee: AgentId? = null): TaskInfo = lock.withLock {
         require(title.isNotBlank()) { "title is required" }
         assignee?.let { checkAgent(it) }
         val p = provider()
@@ -100,7 +100,7 @@ class Tasks(
      * Changes a Task. [assignee] "" leaves it with nobody; [due] "" removes the date. Setting [TaskStatus.Done] completes
      * it in the provider, and any other status reopens it.
      */
-    suspend fun update(id: String, title: String? = null, status: TaskStatus? = null, assignee: String? = null, due: String? = null): TaskInfo = lock.withLock {
+    suspend fun update(id: String, title: String? = null, status: TaskStatus? = null, assignee: AgentId? = null, due: String? = null): TaskInfo = lock.withLock {
         val p = provider()
         val old = get(p, id)
         assignee?.let { checkAgent(it) }
@@ -200,7 +200,7 @@ class Tasks(
     private fun isReady(t: TaskInfo) = t.status == TaskStatus.Todo && t.assignee != null &&
         (t.due?.let { LocalDate.parse(it).minus(config().startBeforeDays, DateTimeUnit.DAY) <= today() } ?: true)
 
-    private suspend fun checkAgent(id: String) = require(id.isEmpty() || id in agentIds()) { "No agent '$id'" }
+    private suspend fun checkAgent(id: AgentId) = require(id.value.isEmpty() || id.value in agentIds()) { "No agent '$id'" }
 
     private suspend fun changed(p: Connected, id: String): TaskInfo = get(p, id).also { t -> listeners.load().forEach { it(t) } }
 
@@ -208,10 +208,10 @@ class Tasks(
 
     private fun info(p: Connected, task: ProviderTask, list: TaskListInfo, state: TaskState?, agents: Set<String>): TaskInfo {
         val mentioned = MENTION.findAll("${task.title} ${task.notes}").map { it.groupValues[1] }.firstOrNull { it in agents }
-        val assignee = when (state?.assignee) {
-            null -> mentioned ?: list.agentId?.value
-            "" -> null
-            else -> state.assignee
+        val assignee = when (val saved = state?.assignee) {
+            null -> mentioned?.let(::AgentId) ?: list.agentId
+            AgentId("") -> null
+            else -> saved
         }
         val status = when {
             task.done -> TaskStatus.Done

@@ -55,7 +55,7 @@ class TaskDispatcher(private val harness: HarnessRuntime, private val runs: Runs
     }
 
     private suspend fun start(task: TaskInfo) {
-        val agent = harness.store.agents().firstOrNull { it.id.value == task.assignee } ?: return
+        val agent = harness.store.agents().firstOrNull { it.id == task.assignee } ?: return
         if (!active.add(task.id)) return
         var claimed = false
         var started = false

@@ -1,5 +1,7 @@
 package kinuvo.ui.session
 
+import kinuvo.protocol.session.ToolCallId
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.app.surface.SurfaceImages
 import kinuvo.protocol.mcp.McpAppResource
 import kotlinx.serialization.json.JsonObject
@@ -221,8 +223,8 @@ class ChatActions(
     val onSend: (String) -> Unit = {},
     val onSurfaceAction: (String, SurfaceAction) -> Unit = { _, _ -> },
     /** The HTML of the MCP App a tool call shows, and its calls to its own MCP server's tools. */
-    val onAppResource: suspend (callId: String) -> McpAppResource = { error("MCP Apps are unavailable") },
-    val onAppTool: suspend (callId: String, name: String, arguments: JsonObject) -> JsonObject = { _, _, _ -> error("MCP Apps are unavailable") },
+    val onAppResource: suspend (callId: ToolCallId) -> McpAppResource = { error("MCP Apps are unavailable") },
+    val onAppTool: suspend (callId: ToolCallId, name: String, arguments: JsonObject) -> JsonObject = { _, _, _ -> error("MCP Apps are unavailable") },
     val onAttach: (AttachmentSource) -> Unit = {},
     val onDropAttachments: (List<UploadAttachmentParams>, String?) -> Unit = { _, _ -> },
     val onRemoveAttachment: (String) -> Unit = {},
@@ -234,11 +236,11 @@ class ChatActions(
     val onConfigure: (SessionSettings) -> Unit = {},
     val onRefreshModels: () -> Unit = {},
     val onStop: () -> Unit = {},
-    val onDecision: (String, ApprovalDecision) -> Unit = { _, _ -> },
+    val onDecision: (InteractionId, ApprovalDecision) -> Unit = { _, _ -> },
     val onReviewReflection: (String, Boolean, String?) -> Unit = { _, _, _ -> },
     /** The open `ask_user` form's answers by question ID; null skips it. */
     val onAnswer: (Map<String, List<String>>?) -> Unit = {},
-    val onEditAnswer: (questionsId: String, questionId: String, value: List<String>) -> Unit = { _, _, _ -> },
+    val onEditAnswer: (questionsId: InteractionId, questionId: String, value: List<String>) -> Unit = { _, _, _ -> },
     val onOpenArtifact: (id: String) -> Unit = {},
     /** Opens Live view of the Computers an Agent controls. */
     val onWatch: () -> Unit = {},

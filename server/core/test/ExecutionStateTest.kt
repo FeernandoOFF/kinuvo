@@ -40,37 +40,37 @@ class ExecutionStateTest {
 
     @Test fun reconnectRetainsQuestionsAndOnlyOneClientClaimsAnswer() = runTest {
         val state = ExecutionState(SessionId("s"))
-        state.request(PendingInteraction.Unsupported("q", "Unsupported"))
+        state.request(PendingInteraction.Unsupported(InteractionId("q"), "Unsupported"))
         state.update(ExecutionPhase.RequiresAction)
-        assertEquals("q", state.snapshot().pending.single().id)
-        val claims = List(10) { async { state.resolve("q") } }.awaitAll()
+        assertEquals(InteractionId("q"), state.snapshot().pending.single().id)
+        val claims = List(10) { async { state.resolve(InteractionId("q")) } }.awaitAll()
         assertEquals(1, claims.count { it })
-        state.request(PendingInteraction.Unsupported("q", "Unsupported"))
+        state.request(PendingInteraction.Unsupported(InteractionId("q"), "Unsupported"))
         assertTrue(state.snapshot().pending.isEmpty())
     }
 
     @Test fun brokerSurvivesDeviceReconnectAndResolvesOnce() = runTest {
         val state = ExecutionState(SessionId("s"))
         val broker = ExecutionBroker(state)
-        val waiting = async { broker.ask(PendingInteraction.Unsupported("a", "Unsupported")) }
+        val waiting = async { broker.ask(PendingInteraction.Unsupported(InteractionId("a"), "Unsupported")) }
         testScheduler.runCurrent()
         val token = state.snapshot().pending.single().id
-        assertNotEquals("a", token)
+        assertNotEquals(InteractionId("a"), token)
         assertTrue(broker.answer(token, JsonNull))
         assertFalse(broker.answer(token, JsonNull))
         assertEquals(JsonNull, waiting.await())
         broker.lost()
-        assertFailsWith<IllegalStateException> { broker.ask(PendingInteraction.Unsupported("b", "Unsupported")) }
+        assertFailsWith<IllegalStateException> { broker.ask(PendingInteraction.Unsupported(InteractionId("b"), "Unsupported")) }
     }
 
     @Test fun lossNeverFinishesSuccessfullyOrAcceptsStaleAnswers() = runTest {
         val state = ExecutionState(SessionId("s"))
         state.update(ExecutionPhase.Running)
-        state.request(PendingInteraction.Unsupported("a", "Unsupported"))
+        state.request(PendingInteraction.Unsupported(InteractionId("a"), "Unsupported"))
         state.lost()
         assertEquals(ExecutionPhase.Lost, state.snapshot().phase)
         assertNull(state.snapshot().stopReason)
-        assertFalse(state.resolve("a"))
+        assertFalse(state.resolve(InteractionId("a")))
         assertFailsWith<IllegalStateException> { state.update(ExecutionPhase.Idle, "end_turn") }
     }
 

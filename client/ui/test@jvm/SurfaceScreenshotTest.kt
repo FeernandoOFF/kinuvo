@@ -265,8 +265,8 @@ class SurfaceScreenshotTest {
         for (variant in listOf("shortText", "number")) {
             val args = """{"messages":[{"createSurface":{"surfaceId":"form","catalogId":"${kinuvoCatalogDefinition.catalogId}","components":[
                 {"id":"root","component":"TextField","variant":"$variant","value":{"path":"/value"}}],"dataModel":{"value":${if (variant == "number") "700.0" else "\"12.00\""}}}}]}"""
-            val call = ChatItem.ToolCall("tool", "call", "show_ui", args, result = "Shown")
-            val cache = mutableMapOf<String, SurfaceRenderer>()
+            val call = ChatItem.ToolCall("tool", ToolCallId("call"), "show_ui", args, result = "Shown")
+            val cache = mutableMapOf<ToolCallId, SurfaceRenderer>()
             ImageComposeScene(780, 300, Density(2f), content = {
                 HarnessTheme(dark = false) {
                     SelectionContainer {
@@ -289,7 +289,7 @@ class SurfaceScreenshotTest {
                 }
                 field().config[SemanticsActions.SetSelection].action!!.invoke(1, 1, false)
                 settle()
-                cache.getValue("call").renderer.write("form", JsonPointer.parse("/value"),
+                cache.getValue(ToolCallId("call")).renderer.write("form", JsonPointer.parse("/value"),
                     if (variant == "number") JsonPrimitive(12.0) else JsonPrimitive("12.00"))
                 settle()
                 assertEquals("12.00", field().config[SemanticsProperties.EditableText].text)
@@ -299,12 +299,12 @@ class SurfaceScreenshotTest {
                 assertEquals("132.00", field().config[SemanticsProperties.EditableText].text)
                 assertEquals(TextRange(2), field().config[SemanticsProperties.TextSelectionRange])
                 assertEquals(if (variant == "number") JsonPrimitive(132.0) else JsonPrimitive("132.00"),
-                    cache.getValue("call").renderer.state.surfaces.getValue("form").dataModel["value"])
+                    cache.getValue(ToolCallId("call")).renderer.state.surfaces.getValue("form").dataModel["value"])
                 if (variant == "number") {
-                    cache.getValue("call").renderer.write("form", JsonPointer.parse("/value"), JsonPrimitive(420.0))
+                    cache.getValue(ToolCallId("call")).renderer.write("form", JsonPointer.parse("/value"), JsonPrimitive(420.0))
                     settle()
                     assertEquals("420", field().config[SemanticsProperties.EditableText].text)
-                    cache.getValue("call").renderer.write("form", JsonPointer.parse("/value"), JsonPrimitive(420.5))
+                    cache.getValue(ToolCallId("call")).renderer.write("form", JsonPointer.parse("/value"), JsonPrimitive(420.5))
                     settle()
                     assertEquals("420.5", field().config[SemanticsProperties.EditableText].text)
                 }
@@ -314,10 +314,10 @@ class SurfaceScreenshotTest {
 
     @Test fun restoresSubmittedInputsAndKeepsCachedEdits() = javax.swing.SwingUtilities.invokeAndWait {
         val args = """{"messages":[{"createSurface":{"surfaceId":"form","catalogId":"https://a2ui.org/specification/v1_0/catalogs/basic/catalog.json","components":[{"id":"root","component":"TextField","label":"Name","value":{"path":"/name"}}],"dataModel":{"name":"Initial"}}}]}"""
-        val call = ChatItem.ToolCall("tool", "call", "show_ui", args, result = "Shown")
+        val call = ChatItem.ToolCall("tool", ToolCallId("call"), "show_ui", args, result = "Shown")
         val saved = JsonObject(mapOf("name" to JsonPrimitive("Alex")))
         val action = SurfaceAction(ToolCallId("call"), "form", "submit", "submit", saved, saved)
-        val cache = mutableMapOf<String, SurfaceRenderer>()
+        val cache = mutableMapOf<ToolCallId, SurfaceRenderer>()
         repeat(2) { pass ->
             ImageComposeScene(780, 240, Density(2f), content = {
                 HarnessTheme(dark = false) {
@@ -328,7 +328,7 @@ class SurfaceScreenshotTest {
                 }
             }).use { scene ->
                 repeat(8) { scene.render(it * 200_000_000L) }
-                val renderer = cache.getValue("call").renderer
+                val renderer = cache.getValue(ToolCallId("call")).renderer
                 assertEquals(JsonPrimitive(if (pass == 0) "Alex" else "Unsaved edit"), renderer.state.surfaces.getValue("form").dataModel["name"])
                 renderer.write("form", JsonPointer.parse("/name"), JsonPrimitive("Unsaved edit"))
             }
@@ -338,9 +338,9 @@ class SurfaceScreenshotTest {
 
     @Test fun cachedRendererAppliesActionArrivingAfterComposition() = javax.swing.SwingUtilities.invokeAndWait {
         val args = """{"messages":[{"createSurface":{"surfaceId":"form","catalogId":"${kinuvoCatalogDefinition.catalogId}","components":[{"id":"root","component":"TextField","value":{"path":"/name"}}],"dataModel":{"name":"Initial"}}}]}"""
-        val call = ChatItem.ToolCall("tool", "call", "show_ui", args, result = "Shown")
+        val call = ChatItem.ToolCall("tool", ToolCallId("call"), "show_ui", args, result = "Shown")
         val items = mutableStateOf<List<ChatItem>>(listOf(call))
-        val cache = mutableMapOf<String, SurfaceRenderer>()
+        val cache = mutableMapOf<ToolCallId, SurfaceRenderer>()
         ImageComposeScene(780, 240, Density(2f), content = {
             HarnessTheme(dark = false) {
                 CompositionLocalProvider(LocalSurfaceRenderers provides cache, LocalSurfaceItems provides items.value) {
@@ -349,12 +349,12 @@ class SurfaceScreenshotTest {
             }
         }).use { scene ->
             repeat(8) { scene.render(it * 200_000_000L) }
-            val renderer = cache.getValue("call").renderer
+            val renderer = cache.getValue(ToolCallId("call")).renderer
             renderer.write("form", JsonPointer.parse("/name"), JsonPrimitive("Local edit"))
             val model = buildJsonObject { put("name", "Other Device") }
             items.value = listOf(call, ChatItem.User("new-action", "Save", action = SurfaceAction(ToolCallId("call"), "form", "save", "save", model, model)))
             repeat(8) { scene.render(2_000_000_000L + it * 200_000_000L) }
-            assertSame(renderer, cache.getValue("call").renderer)
+            assertSame(renderer, cache.getValue(ToolCallId("call")).renderer)
             assertEquals(model, renderer.state.surfaces.getValue("form").dataModel)
         }
     }
@@ -365,7 +365,7 @@ class SurfaceScreenshotTest {
             {"id":"date","component":"DateTimeInput","enableDate":true,"value":{"path":"/date"}},
             {"id":"save","component":"Button","child":"label","action":{"event":{"name":"save"}}},
             {"id":"label","component":"Text","text":"Save"}],"dataModel":{"date":"2026-02-28"}}}]}"""
-        val call = ChatItem.ToolCall("tool", "call", "show_ui", args, result = "Shown")
+        val call = ChatItem.ToolCall("tool", ToolCallId("call"), "show_ui", args, result = "Shown")
         val sent = mutableListOf<SurfaceAction>()
         val items = mutableStateOf<List<ChatItem>>(listOf(call))
         ImageComposeScene(780, 500, Density(2f), content = {
@@ -405,7 +405,7 @@ class SurfaceScreenshotTest {
             val args = """{"messages":[{"createSurface":{"surfaceId":"form","catalogId":"${kinuvoCatalogDefinition.catalogId}","components":[
                 {"id":"root","component":"Button","child":"label","action":{"functionCall":{"call":"openUrl","args":{"url":"$url"}}}},
                 {"id":"label","component":"Text","text":"Open"}]}}]}"""
-            val call = ChatItem.ToolCall("tool", url, "show_ui", args, result = "Shown")
+            val call = ChatItem.ToolCall("tool", ToolCallId(url), "show_ui", args, result = "Shown")
             ImageComposeScene(780, 240, Density(2f), content = {
                 HarnessTheme(dark = false) {
                     CompositionLocalProvider(LocalUriHandler provides object : UriHandler {

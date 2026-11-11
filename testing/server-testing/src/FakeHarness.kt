@@ -1,5 +1,6 @@
 package kinuvo.testing.server
 
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.harness.ExecutionAcceptance
 import kinuvo.harness.ExecutionBroker
 import kinuvo.harness.ExecutionFactory
@@ -108,7 +109,7 @@ class FakeExternalSession internal constructor(
         if (state.snapshot().phase != ExecutionPhase.Idle) finish("cancelled")
     }
 
-    override suspend fun answer(requestId: String, answer: InteractionAnswer) {}
+    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
 
     /** Commits an assistant message to the Session's transcript. */
     suspend fun say(text: String) {
@@ -131,13 +132,13 @@ class FakeExternalSession internal constructor(
     /** Asks a form of [questions], like an `ask_user` call. */
     suspend fun askQuestions(title: String, vararg questions: Question): JsonElement {
         val id = "request-${requests.incrementAndGet()}"
-        return ask(PendingInteraction.Questions(id, ToolCallId(id), title, questions.toList()))
+        return ask(PendingInteraction.Questions(InteractionId(id), ToolCallId(id), title, questions.toList()))
     }
 
     /** Asks the user to pick one of [options] for [title], like a permission request. */
     suspend fun askApproval(title: String, description: String? = null, options: List<ExternalApprovalOption> = listOf(ExternalApprovalOption("allow", "Allow", "allow_once"))): JsonElement {
         val id = "request-${requests.incrementAndGet()}"
-        return ask(PendingInteraction.HarnessApproval(id, title, description, options))
+        return ask(PendingInteraction.HarnessApproval(InteractionId(id), title, description, options))
     }
 
     private suspend fun finish(reason: String) {

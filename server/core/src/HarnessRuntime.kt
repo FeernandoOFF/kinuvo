@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.protocol.approval.InteractionId
 import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
 import kinuvo.harness.Agent
@@ -442,7 +443,7 @@ open class HarnessRuntime(
     /** Shows only the Approval a call needs, in its Session and one at a time: a Session shows a single pending Approval. */
     private suspend fun <T> withAppApproval(agent: Agent, sessionId: SessionId, name: String, call: suspend (ToolTurn) -> T): T {
         val lock = appApprovalLock(sessionId)
-        var pending: String? = null
+        var pending: InteractionId? = null
         val turn = ToolTurn(emit = { event ->
             when (event) {
                 is AgentEvent.InteractionRequested -> {

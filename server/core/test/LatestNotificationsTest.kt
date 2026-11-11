@@ -25,7 +25,7 @@ class LatestNotificationsTest {
         repeat(5000) { token ->
             notifications.offer("s", ExecutionSnapshot(SessionId("s"), ExecutionPhase.Running, history + ExecutionMessage("stream", "assistant", "$token")))
         }
-        val pending = ExecutionSnapshot(SessionId("s"), ExecutionPhase.RequiresAction, history + ExecutionMessage("stream", "assistant", "4999"), listOf(PendingInteraction.Unsupported("approval", "Unsupported")))
+        val pending = ExecutionSnapshot(SessionId("s"), ExecutionPhase.RequiresAction, history + ExecutionMessage("stream", "assistant", "4999"), listOf(PendingInteraction.Unsupported(InteractionId("approval"), "Unsupported")))
         notifications.offer("s", pending)
         gate.complete(Unit)
         runCurrent()

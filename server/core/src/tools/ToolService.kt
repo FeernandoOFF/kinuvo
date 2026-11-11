@@ -1,5 +1,6 @@
 package kinuvo.server.tools
 
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.harness.ToolSpec
 import kinuvo.server.plugin.Tool
 import kinuvo.server.plugin.ToolKind

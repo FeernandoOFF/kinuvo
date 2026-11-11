@@ -111,7 +111,7 @@ class ServerSecurityTest {
             assertFalse(ordinary.connect().management)
             assertTrue(ordinary.call(Api.Agents, Unit).isNotEmpty())
             assertFails { ordinary.call(Api.Pairing, PairingParams(management = true)) }
-            assertFails { ordinary.call(Api.Respond, RespondParams(SessionId("missing"), "missing", InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
+            assertFails { ordinary.call(Api.Respond, RespondParams(SessionId("missing"), InteractionId("missing"), InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
             assertFails { ordinary.call(Api.LoginProvider, ProviderRef("codex")) }
             ordinary.rotateToken()
             val current = ordinary.call(Api.PairedDevices, Unit).single { it.current }

@@ -128,12 +128,12 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                     ExecutionAcceptance()
                 }
                 override suspend fun cancel() { commands.withLock { client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "cancel")) } }
-                override suspend fun respond(requestId: String, answer: InteractionAnswer): Boolean {
+                override suspend fun respond(requestId: InteractionId, answer: InteractionAnswer): Boolean {
                     val accepted = client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "answer", requestId = requestId, answer = answer)).accepted
                     if (accepted) state.resolve(requestId)
                     return accepted
                 }
-                override suspend fun answer(requestId: String, answer: InteractionAnswer) { respond(requestId, answer) }
+                override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) { respond(requestId, answer) }
                 override suspend fun close() { polling.cancelAndJoin(); client.close() }
             }
         } catch (e: Throwable) { client.close(); throw e }

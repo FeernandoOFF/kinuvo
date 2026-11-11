@@ -1,5 +1,6 @@
 package kinuvo.protocol.plugin
 
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.session.AgentEvent
@@ -15,7 +16,7 @@ class PluginIdentityTest {
         assertEquals("tool:example.plugin/a%2Fb/c", first.key)
         val entry = SessionEntry.ToolCall(ToolCallId("call"), "model_alias", "{}", first)
         assertEquals(entry, ProtocolJson.decodeFromString(SessionEntry.serializer(), ProtocolJson.encodeToString(SessionEntry.serializer(), entry)))
-        val event = AgentEvent.InteractionRequested(PendingInteraction.Approval("approval", ToolCallId("call"), "model_alias", "{}", identity = first))
+        val event = AgentEvent.InteractionRequested(PendingInteraction.Approval(InteractionId("approval"), ToolCallId("call"), "model_alias", "{}", identity = first))
         assertEquals(event, ProtocolJson.decodeFromString(AgentEvent.serializer(), ProtocolJson.encodeToString(AgentEvent.serializer(), event)))
     }
 }

@@ -11,6 +11,7 @@ import kinuvo.server.plugin.string
 import kinuvo.server.plugin.policyKey
 import kinuvo.server.plugin.withToolKey
 import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.approval.Risk
 import kinuvo.protocol.approval.TrustRules
 import kotlinx.coroutines.CompletableDeferred
@@ -139,22 +140,22 @@ class SessionTrust {
 /** Hands pending Approvals (or `ask_user` forms) to the UI and resumes the waiting run when the user answers. */
 @OptIn(ExperimentalAtomicApi::class)
 class Broker<T> {
-    private val pending = AtomicReference(emptyMap<String, CompletableDeferred<T>>())
+    private val pending = AtomicReference(emptyMap<InteractionId, CompletableDeferred<T>>())
 
     fun register(): Pending {
-        val id = Uuid.random().toString()
+        val id = InteractionId(Uuid.random().toString())
         val deferred = CompletableDeferred<T>()
         pending.update { it + (id to deferred) }
         return Pending(id, deferred)
     }
 
-    inner class Pending internal constructor(val id: String, private val deferred: CompletableDeferred<T>) {
+    inner class Pending internal constructor(val id: InteractionId, private val deferred: CompletableDeferred<T>) {
         suspend fun await(): T = deferred.await()
         fun close() = pending.update { it - id }
     }
 
     /** Returns false when nothing is waiting under [id] or it was already answered. */
-    fun respond(id: String, answer: T): Boolean = pending.load()[id]?.complete(answer) == true
+    fun respond(id: InteractionId, answer: T): Boolean = pending.load()[id]?.complete(answer) == true
 }
 
 typealias ApprovalBroker = Broker<ApprovalDecision>

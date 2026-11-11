@@ -1,5 +1,6 @@
 package kinuvo.ui.surface
 
+import kinuvo.protocol.session.ToolCallId
 import androidx.compose.ui.platform.LocalUriHandler
 import kinuvo.app.surface.SurfaceDrafts
 import kinuvo.app.surface.SurfaceSubmissions
@@ -25,7 +26,7 @@ internal class SurfaceRenderer(val renderer: A2uiRenderer) {
 }
 
 internal val LocalSurfaceDrafts = staticCompositionLocalOf<SurfaceDrafts?> { null }
-internal val LocalSurfaceRenderers = staticCompositionLocalOf<MutableMap<String, SurfaceRenderer>> { mutableMapOf() }
+internal val LocalSurfaceRenderers = staticCompositionLocalOf<MutableMap<ToolCallId, SurfaceRenderer>> { mutableMapOf() }
 
 @Composable
 internal fun SurfaceCall(call: ChatItem.ToolCall, send: (String, SurfaceAction) -> Unit, fallback: @Composable () -> Unit) {

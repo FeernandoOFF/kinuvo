@@ -1,5 +1,6 @@
 package kinuvo.protocol.execution
 
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.approval.InteractionAnswer
 import kinuvo.protocol.approval.PendingInteraction
@@ -76,6 +77,6 @@ data class SaveRemoteLink(val id: String, val url: String, val token: String)
 @Serializable
 data class ExposureGrant(val id: String, val agentIds: Set<AgentId>)
 @Serializable
-data class RemoteExecutionCall(val agentId: AgentId? = null, val sessionId: SessionId? = null, val action: String = "list", val text: String? = null, val requestId: String? = null, val answer: InteractionAnswer? = null, val surfaceAction: SurfaceAction? = null)
+data class RemoteExecutionCall(val agentId: AgentId? = null, val sessionId: SessionId? = null, val action: String = "list", val text: String? = null, val requestId: InteractionId? = null, val answer: InteractionAnswer? = null, val surfaceAction: SurfaceAction? = null)
 @Serializable
 data class RemoteExecutionResult(val agents: List<AgentInfo> = emptyList(), val snapshot: ExecutionSnapshot? = null, val accepted: Boolean = true)

@@ -2,6 +2,7 @@
 
 package kinuvo.gateways.acp
 
+import kinuvo.protocol.approval.InteractionId
 import com.agentclientprotocol.agent.v2.*
 import com.agentclientprotocol.client.v2.ClientInfo
 import com.agentclientprotocol.model.ElicitationScope
@@ -53,7 +54,7 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
                     if (!cancelled) dispatch.send(SendParams(agentId, KinuvoSessionId(id), content.filterIsInstance<ContentBlock.Text>().joinToString("\n") { it.text }))
                 }
                 emit(SessionUpdate.StateUpdate(StateUpdate.Running()))
-                val answered = mutableSetOf<String>()
+                val answered = mutableSetOf<InteractionId>()
                 coroutineScope {
                     while (true) {
                         val snapshot = dispatch.snapshot(agentId, KinuvoSessionId(id))

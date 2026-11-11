@@ -1,5 +1,6 @@
 package kinuvo.protocol.execution
 
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.approval.Question
@@ -28,11 +29,11 @@ class ExecutionContractsTest {
         ))
         assertEquals(notice, ProtocolJson.decodeFromString(SessionEntry.serializer(), ProtocolJson.encodeToString(SessionEntry.serializer(), notice)))
         val interactions = listOf(
-            PendingInteraction.Approval("p", ToolCallId("tool"), "shell", "{}", risk = Risk.High),
-            PendingInteraction.Questions("q", ToolCallId("tool"), "Form", listOf(Question("x", "X"))),
-            PendingInteraction.HarnessApproval("a", "Allow", null, listOf(ExternalApprovalOption("once", "Once", "allow_once"))),
-            PendingInteraction.OpenLink("u", "Sign in", "https://example.com/", "example.com"),
-            PendingInteraction.Unsupported("x", "Unsupported"),
+            PendingInteraction.Approval(InteractionId("p"), ToolCallId("tool"), "shell", "{}", risk = Risk.High),
+            PendingInteraction.Questions(InteractionId("q"), ToolCallId("tool"), "Form", listOf(Question("x", "X"))),
+            PendingInteraction.HarnessApproval(InteractionId("a"), "Allow", null, listOf(ExternalApprovalOption("once", "Once", "allow_once"))),
+            PendingInteraction.OpenLink(InteractionId("u"), "Sign in", "https://example.com/", "example.com"),
+            PendingInteraction.Unsupported(InteractionId("x"), "Unsupported"),
         )
         interactions.forEach { interaction ->
             val snapshot = ExecutionSnapshot(SessionId("s"), pending = listOf(interaction))
@@ -68,12 +69,12 @@ class ExecutionContractsTest {
     }
 
     @Test fun pendingRequestsAreIndependentAndLossClearsThem() {
-        val a = PendingInteraction.Unsupported("a", "Unsupported")
-        val b = a.copy(id = "b")
+        val a = PendingInteraction.Unsupported(InteractionId("a"), "Unsupported")
+        val b = a.copy(id = InteractionId("b"))
         val live = LiveState().on(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Running))
             .on(AgentEvent.InteractionRequested(a)).on(AgentEvent.InteractionRequested(b))
         assertEquals(SessionStatus.Waiting, live.status)
-        assertEquals(listOf(b), live.on(AgentEvent.InteractionResolved("a")).pending)
+        assertEquals(listOf(b), live.on(AgentEvent.InteractionResolved(InteractionId("a"))).pending)
         assertEquals(emptyList(), live.on(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Lost)).pending)
         assertEquals(SessionStatus.Idle, live.on(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Lost)).status)
     }

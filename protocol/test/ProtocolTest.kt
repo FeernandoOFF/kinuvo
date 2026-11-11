@@ -1,5 +1,6 @@
 package kinuvo.protocol
 
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.approval.ApprovalDecision
 import kinuvo.protocol.approval.InteractionAnswer
 import kinuvo.protocol.approval.PendingInteraction
@@ -61,7 +62,7 @@ class ProtocolTest {
 
     @Test
     fun framesAndPayloadsRoundTrip() {
-        val event = SessionUpdate(AgentId("default"), SessionId("s1"), SessionChange.Event(AgentEvent.InteractionRequested(PendingInteraction.Approval("a1", ToolCallId("c1"), "shell", "{}", "git status"))))
+        val event = SessionUpdate(AgentId("default"), SessionId("s1"), SessionChange.Event(AgentEvent.InteractionRequested(PendingInteraction.Approval(InteractionId("a1"), ToolCallId("c1"), "shell", "{}", "git status"))))
         val frame = Frame.Event(Api.Update.name, ProtocolJson.encodeToJsonElement(Api.Update.payload, event), 7)
         val text = ProtocolJson.encodeToString(Frame.serializer(), frame)
         val decoded = ProtocolJson.decodeFromString(Frame.serializer(), text) as Frame.Event
@@ -75,7 +76,7 @@ class ProtocolTest {
             InteractionAnswer.Harness(JsonObject(mapOf("optionId" to JsonPrimitive("once")))),
             InteractionAnswer.Harness(JsonNull),
         ).forEach { answer ->
-            val params = RespondParams(SessionId("s1"), "c1", answer)
+            val params = RespondParams(SessionId("s1"), InteractionId("c1"), answer)
             assertEquals(params, ProtocolJson.decodeFromString(RespondParams.serializer(), ProtocolJson.encodeToString(RespondParams.serializer(), params)))
         }
         val entry = SessionUpdate(AgentId("default"), SessionId("s1"), SessionChange.Entry(3, SessionEntry.Activation("tdd", "x")))
@@ -98,16 +99,16 @@ class ProtocolTest {
 
     @Test
     fun openFormMakesTheSessionWait() {
-        val asked = AgentEvent.InteractionRequested(PendingInteraction.Questions("q1", ToolCallId("c1"), null, listOf(Question("a", "A"))))
+        val asked = AgentEvent.InteractionRequested(PendingInteraction.Questions(InteractionId("q1"), ToolCallId("c1"), null, listOf(Question("a", "A"))))
         val live = LiveState().on(AgentEvent.RunStarted(RunId("r1"))).on(asked)
         assertEquals(SessionStatus.Waiting, live.status)
-        assertEquals(SessionStatus.Running, live.on(AgentEvent.InteractionResolved("q1")).status)
+        assertEquals(SessionStatus.Running, live.on(AgentEvent.InteractionResolved(InteractionId("q1"))).status)
         assertEquals(emptyList(), live.on(AgentEvent.RunFinished(RunId("r1"))).pending)
     }
 
     @Test
     fun liveStateFoldsDeltasAndClearsAsEntriesLand() {
-        val approval = AgentEvent.InteractionRequested(PendingInteraction.Approval("a1", ToolCallId("c1"), "shell", "{}", null))
+        val approval = AgentEvent.InteractionRequested(PendingInteraction.Approval(InteractionId("a1"), ToolCallId("c1"), "shell", "{}", null))
         val live = listOf(
             AgentEvent.RunStarted(RunId("r1")),
             AgentEvent.ThinkingContent("m1", "hm"),

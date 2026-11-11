@@ -1,5 +1,6 @@
 package kinuvo.app
 
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.app.session.*
 
 import kinuvo.protocol.plugin.ToolIdentity
@@ -17,12 +18,12 @@ import kotlin.test.assertEquals
 class SessionDataTest {
     @Test fun backgroundReportsAreChatItems() {
         val data = SessionData(AgentId("main"), entries = listOf(SessionEntry.ToolReport("shell", ToolCallId("call"), "done")))
-        assertEquals(ChatItem.ToolReport("entry-0", "shell", "call", "done"), data.items.single())
+        assertEquals(ChatItem.ToolReport("entry-0", "shell", ToolCallId("call"), "done"), data.items.single())
     }
 
     @Test fun surfacesStayOutsideStepsOnlyAfterSuccess() {
         for (name in listOf("show_ui", "show_html")) {
-            val pending = ChatItem.ToolCall("ui", "call", name, "{}")
+            val pending = ChatItem.ToolCall("ui", ToolCallId("call"), name, "{}")
             val shown = pending.copy(result = "Shown to the user.")
             assertEquals(listOf(ChatRow.Single(shown)), listOf(shown).rows())
             assertEquals(true, listOf(pending).rows().single() is ChatRow.Steps)
@@ -31,7 +32,7 @@ class SessionDataTest {
     }
 
     private val identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell")
-    private val approval = PendingInteraction.Approval("a1", ToolCallId("c1"), "model_alias", "{}", identity = identity)
+    private val approval = PendingInteraction.Approval(InteractionId("a1"), ToolCallId("c1"), "model_alias", "{}", identity = identity)
 
     @Test
     fun savedTimeWinsOverReceiptAndHistoryNeedsNoReceipt() {
@@ -99,7 +100,7 @@ class SessionDataTest {
 
     @Test
     fun openFormJoinsItsCall() {
-        val asked = PendingInteraction.Questions("q1", ToolCallId("c1"), null, emptyList())
+        val asked = PendingInteraction.Questions(InteractionId("q1"), ToolCallId("c1"), null, emptyList())
         val data = SessionData(AgentId("main"), entries = listOf(SessionEntry.ToolCall(ToolCallId("c1"), "ask_user", "{}")), live = LiveState(running = true, pending = listOf(asked)))
         assertEquals(asked, (data.items.single() as ChatItem.ToolCall).questions)
     }

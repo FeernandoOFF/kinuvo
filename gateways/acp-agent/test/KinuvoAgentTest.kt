@@ -47,9 +47,9 @@ class KinuvoAgentTest {
                 session.prompt(listOf(ContentBlock.Text("hello")))
                 backend.started.await()
                 assertEquals(ExecutionPhase.Running, backend.state.phase)
-                backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(PendingInteraction.HarnessApproval("approval", "Run", null, listOf(ExternalApprovalOption("allow_once", "Allow once", "allow_once")))))
+                backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(PendingInteraction.HarnessApproval(InteractionId("approval"), "Run", null, listOf(ExternalApprovalOption("allow_once", "Allow once", "allow_once")))))
                 backend.approval.await()
-                backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(PendingInteraction.Questions("form", ToolCallId("tool"), "Name", listOf(Question("name", "Name")))))
+                backend.state = backend.state.copy(phase = ExecutionPhase.RequiresAction, pending = listOf(PendingInteraction.Questions(InteractionId("form"), ToolCallId("tool"), "Name", listOf(Question("name", "Name")))))
                 backend.form.await()
                 assertEquals(mapOf("name" to listOf("Ada")), (backend.answers.last().answer as InteractionAnswer.Questions).answers)
                 assertEquals(InteractionAnswer.Harness(buildJsonObject { put("optionId", "allow_once") }), backend.answers.first().answer)
@@ -86,7 +86,7 @@ class KinuvoAgentTest {
         override suspend fun stop(sessionId: SessionId) { stopped.add(sessionId.value); state = state.copy(phase = ExecutionPhase.Idle) }
         override suspend fun answer(answer: RespondParams): Boolean {
             answers.add(answer); state = state.copy(phase = ExecutionPhase.Running, pending = emptyList())
-            if (answer.requestId == "approval") approval.complete(Unit) else form.complete(Unit)
+            if (answer.requestId == InteractionId("approval")) approval.complete(Unit) else form.complete(Unit)
             return true
         }
     }

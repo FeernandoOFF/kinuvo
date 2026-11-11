@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.testing.server.AgentRun
 import kinuvo.server.plugin.toolSpec
 import kinuvo.harness.Agent
@@ -117,9 +118,9 @@ class ApprovalsTest {
     @Test
     fun unsolicitedAndDuplicateResponses() = runTest {
         val broker = ApprovalBroker()
-        assertFalse(broker.respond("not-registered", ApprovalDecision.AllowOnce))
+        assertFalse(broker.respond(InteractionId("not-registered"), ApprovalDecision.AllowOnce))
         val pending = broker.register()
-        assertFalse(broker.respond("not-registered", ApprovalDecision.AllowOnce))
+        assertFalse(broker.respond(InteractionId("not-registered"), ApprovalDecision.AllowOnce))
         assertTrue(broker.respond(pending.id, ApprovalDecision.Deny("first")))
         assertFalse(broker.respond(pending.id, ApprovalDecision.AlwaysAllow))
         assertEquals(ApprovalDecision.Deny("first"), pending.await())
@@ -148,7 +149,7 @@ class ApprovalsTest {
         assertEquals("same", store.entries(a.id, firstSession).filterIsInstance<SessionEntry.ToolCall>().single().id.value)
         assertEquals("same", store.entries(a.id, secondSession).filterIsInstance<SessionEntry.ToolCall>().single().id.value)
         assertTrue(first.id != second.id)
-        assertFalse(broker.respond("same", ApprovalDecision.AllowOnce))
+        assertFalse(broker.respond(InteractionId("same"), ApprovalDecision.AllowOnce))
         assertTrue(broker.respond(first.id, ApprovalDecision.Deny()))
         assertTrue(broker.respond(second.id, ApprovalDecision.AllowOnce))
         jobs.forEach { it.join() }

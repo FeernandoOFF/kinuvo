@@ -1,5 +1,6 @@
 package kinuvo.ui.session
 
+import kinuvo.protocol.approval.InteractionId
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -73,13 +74,13 @@ internal class RequestInput(note: String = "") {
 
 /** The [RequestInput] of each open request, by request ID. */
 internal class RequestInputs {
-    private val inputs = HashMap<String, RequestInput>()
+    private val inputs = HashMap<InteractionId, RequestInput>()
 
     fun of(request: PendingRequest) = inputs.getOrPut(request.id) {
         RequestInput((request as? PendingRequest.Takeover)?.asked?.questions?.firstOrNull()?.default?.firstOrNull().orEmpty())
     }
 
-    fun retain(ids: Set<String>) = inputs.keys.retainAll(ids)
+    fun retain(ids: Set<InteractionId>) = inputs.keys.retainAll(ids)
 }
 
 /**
@@ -219,7 +220,7 @@ private fun RequestHeader(request: PendingRequest, count: Int, onClose: (() -> U
 }
 
 @Composable
-private fun RequestBody(request: PendingRequest, drafts: Map<String, Map<String, List<String>>>, input: RequestInput, actions: ChatActions, wide: Boolean) {
+private fun RequestBody(request: PendingRequest, drafts: Map<InteractionId, Map<String, List<String>>>, input: RequestInput, actions: ChatActions, wide: Boolean) {
     when (request) {
         is PendingRequest.Approval -> ApprovalBody(request.event, input, wide) { actions.onDecision(request.id, it) }
         is PendingRequest.Questions -> QuestionsBody(request.asked, drafts, input, wide, actions)
@@ -290,7 +291,7 @@ private fun ApprovalBody(event: PendingInteraction.Approval, input: RequestInput
 }
 
 @Composable
-private fun QuestionsBody(asked: PendingInteraction.Questions, drafts: Map<String, Map<String, List<String>>>, input: RequestInput, wide: Boolean, actions: ChatActions) {
+private fun QuestionsBody(asked: PendingInteraction.Questions, drafts: Map<InteractionId, Map<String, List<String>>>, input: RequestInput, wide: Boolean, actions: ChatActions) {
     val answers = asked.questions.associate { it.id to it.default } + drafts[asked.id].orEmpty()
     fun ready(q: Question) = !q.required || answers[q.id].orEmpty().any(String::isNotBlank)
     val stepped = !wide && asked.questions.size > 1

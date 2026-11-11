@@ -6,11 +6,11 @@ import kinuvo.protocol.surface.SurfaceAction
 import kinuvo.protocol.session.ToolCallId
 import kotlinx.serialization.json.JsonObject
 
-fun ActionMessage.surfaceAction(callId: String, dataModel: JsonObject): SurfaceAction =
-    SurfaceAction(ToolCallId(callId), surfaceId, name, sourceComponentId, context, dataModel)
+fun ActionMessage.surfaceAction(callId: ToolCallId, dataModel: JsonObject): SurfaceAction =
+    SurfaceAction(callId, surfaceId, name, sourceComponentId, context, dataModel)
 
-fun List<ChatItem>.surfaceDataModels(callId: String): Map<String, JsonObject> =
-    filterIsInstance<ChatItem.User>().mapNotNull { it.action }.filter { it.callId.value == callId }
+fun List<ChatItem>.surfaceDataModels(callId: ToolCallId): Map<String, JsonObject> =
+    filterIsInstance<ChatItem.User>().mapNotNull { it.action }.filter { it.callId == callId }
         .associate { it.surfaceId to it.dataModel }
 
 class SurfaceDrafts {
@@ -35,7 +35,7 @@ fun openSurfaceUrl(url: String, open: (String) -> Unit) {
     if (url.startsWith("https://", ignoreCase = true) || url.startsWith("http://", ignoreCase = true)) open(url)
 }
 
-fun List<ChatItem>.surfaceSubmissions(callId: String): Map<String, Pair<String, JsonObject>> =
+fun List<ChatItem>.surfaceSubmissions(callId: ToolCallId): Map<String, Pair<String, JsonObject>> =
     filterIsInstance<ChatItem.User>().mapNotNull { item ->
-        item.action?.takeIf { it.callId.value == callId }?.let { it.surfaceId to (item.id to it.dataModel) }
+        item.action?.takeIf { it.callId == callId }?.let { it.surfaceId to (item.id to it.dataModel) }
     }.toMap()

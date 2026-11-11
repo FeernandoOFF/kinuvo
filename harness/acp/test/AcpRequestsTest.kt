@@ -33,7 +33,7 @@ class AcpRequestsTest {
         val state = ExecutionState(SessionId("s"))
         val broker = ExecutionBroker(state)
         val owner = AcpRequests(broker)
-        val prompt = AcpPrompt(PendingInteraction.HarnessApproval("source", "Run?", null, listOf(ExternalApprovalOption("yes", "Allow", "allow_once"))))
+        val prompt = AcpPrompt(PendingInteraction.HarnessApproval(InteractionId("source"), "Run?", null, listOf(ExternalApprovalOption("yes", "Allow", "allow_once"))))
         val first = async { owner.ask(prompt) }
         withTimeout(1000) { while (state.snapshot().pending.isEmpty()) yield() }
         val old = state.snapshot().pending.single().id

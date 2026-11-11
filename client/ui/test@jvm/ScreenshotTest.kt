@@ -122,7 +122,7 @@ class ScreenshotTest {
         }
         val bytes = ByteArrayOutputStream().also { ImageIO.write(bitmap, "png", it) }.toByteArray()
         val attachment = Attachment("generated", "generated-1.png", "image/png", bytes.size)
-        val item = ChatItem.ToolCall("image", "image", "generate_image", "{}", result = "Image attachment: generated", attachments = listOf(attachment))
+        val item = ChatItem.ToolCall("image", ToolCallId("image"), "generate_image", "{}", result = "Image attachment: generated", attachments = listOf(attachment))
         render("chat-generated-image", 420, 860) {
             HarnessTheme(dark = true) {
                 ChatContent(state.copy(items = listOf(ChatItem.User("user", "Draw a golden sun"), item), running = false),
@@ -132,7 +132,7 @@ class ScreenshotTest {
     }
 
     @Test fun backgroundReportInChat() {
-        val report = ChatItem.ToolReport("report", "shell", "call", "[bg1 exit 0] ./kotlin test -m core -p jvm\n[ 277 tests successful ]\n[ 0 tests failed ]")
+        val report = ChatItem.ToolReport("report", "shell", ToolCallId("call"), "[bg1 exit 0] ./kotlin test -m core -p jvm\n[ 277 tests successful ]\n[ 0 tests failed ]")
         render("chat-tool-report", 420, 620) {
             HarnessTheme(dark = true) {
                 ChatContent(state.copy(items = listOf(ChatItem.User("user", "Run the core tests"), ChatItem.Assistant("started", "Started the tests in the background."), report,
@@ -142,7 +142,7 @@ class ScreenshotTest {
     }
 
     @Test fun generatingImageInChat() {
-        val item = ChatItem.ToolCall("image", "image", "generate_image", "{}")
+        val item = ChatItem.ToolCall("image", ToolCallId("image"), "generate_image", "{}")
         render("chat-generating-image", 420, 860) {
             HarnessTheme(dark = true) {
                 ChatContent(state.copy(items = listOf(ChatItem.User("user", "Draw a golden sun"), item), running = true), ConnectionState.Connected("x"), null, ChatActions())
@@ -184,8 +184,8 @@ class ScreenshotTest {
         items = listOf(
             ChatItem.User("u1", "Can you check what's **uncommitted** in the repo and summarise it?"),
             ChatItem.Reasoning("r1", "The user wants a summary of git status. I'll run git status first."),
-            ChatItem.ToolCall("t1", "t1", "shell", """{"command":"git status --short"}""", result = " M core/src/Harness.kt\n?? ui/src/design/", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell")),
-            ChatItem.ToolCall("t2", "t2", "github__list_pull_requests", """{"repo":"harness"}""", result = "[]", identity = ToolIdentity(PluginInstanceId("kinuvo.mcp", "shared/github"), "list_pull_requests")),
+            ChatItem.ToolCall("t1", ToolCallId("t1"), "shell", """{"command":"git status --short"}""", result = " M core/src/Harness.kt\n?? ui/src/design/", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell")),
+            ChatItem.ToolCall("t2", ToolCallId("t2"), "github__list_pull_requests", """{"repo":"harness"}""", result = "[]", identity = ToolIdentity(PluginInstanceId("kinuvo.mcp", "shared/github"), "list_pull_requests")),
             ChatItem.Assistant(
                 "a1",
                 """
@@ -207,8 +207,8 @@ class ScreenshotTest {
                 """.trimIndent(),
             ),
             ChatItem.ToolCall(
-                "t3", "t3", "shell", """{"command":"git commit -am wip"}""", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"),
-                approval = PendingInteraction.Approval("a1", ToolCallId("t3"), "shell", """{"command":"git commit -am wip"}""", "git commit", Risk.Medium, "git can change things"),
+                "t3", ToolCallId("t3"), "shell", """{"command":"git commit -am wip"}""", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"),
+                approval = PendingInteraction.Approval(InteractionId("a1"), ToolCallId("t3"), "shell", """{"command":"git commit -am wip"}""", "git commit", Risk.Medium, "git can change things"),
             ),
             ChatItem.Error("e1", "Tool failed: permission denied"),
         ),
@@ -450,7 +450,7 @@ class ScreenshotTest {
                 ChatContent(state.copy(items = listOf(ChatItem.User("u1", "Summarize my unread email.", "Morning brief"), ChatItem.Assistant("a1", "Three new emails; nothing urgent."))), ConnectionState.Connected("x"), null, ChatActions())
             }
         }
-        val form = PendingInteraction.Questions("q1", ToolCallId("c1"), "Plan the Lisbon trip", listOf(
+        val form = PendingInteraction.Questions(InteractionId("q1"), ToolCallId("c1"), "Plan the Lisbon trip", listOf(
             Question("dates", "When do you leave?", QuestionKind.Date, required = true),
             Question("budget", "Budget", QuestionKind.Single, listOf("Under €300", "€300–600", "Flexible"), default = listOf("Under €300")),
             Question("extras", "Also book", QuestionKind.Multi, listOf("Hotel", "Airport transfer", "Restaurant"), default = listOf("Hotel")),
@@ -459,9 +459,9 @@ class ScreenshotTest {
         ))
         val asking = """{"title":"Plan the Lisbon trip","questions":[{"id":"budget","label":"Budget","kind":"single","options":["Under €300","Flexible"]},{"id":"extras","label":"Also book","kind":"multi","options":["Hotel","Car"]}]}"""
         val cards = listOf(
-            ChatItem.ToolCall("t1", "c0", "ask_user", asking, """{"budget":"Flexible","extras":["Hotel","Car"]}"""),
-            ChatItem.ToolCall("t2", "c2", "artifact", """{"action":"create","title":"Lisbon options"}""", """{"id":"lisbon-options-3f2a","title":"Lisbon options","type":"html"}"""),
-            ChatItem.ToolCall("t3", "c1", "ask_user", "{}", questions = form),
+            ChatItem.ToolCall("t1", ToolCallId("c0"), "ask_user", asking, """{"budget":"Flexible","extras":["Hotel","Car"]}"""),
+            ChatItem.ToolCall("t2", ToolCallId("c2"), "artifact", """{"action":"create","title":"Lisbon options"}""", """{"id":"lisbon-options-3f2a","title":"Lisbon options","type":"html"}"""),
+            ChatItem.ToolCall("t3", ToolCallId("c1"), "ask_user", "{}", questions = form),
         )
         render("chat-ask-user", 1000, 1100) { HarnessTheme(dark = false) { ChatContent(state.copy(items = cards), ConnectionState.Connected("x"), null, ChatActions()) } }
         render("chat-ask-user-dark", 420, 1200) { HarnessTheme(dark = true) { ChatContent(state.copy(items = cards), ConnectionState.Connected("x"), null, ChatActions()) } }
@@ -601,9 +601,9 @@ class ScreenshotTest {
             Routine("brief", AgentId("hearth"), "Home upkeep", "Review the house checklist.", Trigger.Cron("0 9 * * *"), "Europe/Dublin", nextRunAt = at + 15 * 3_600_000),
         )
         val tasks = listOf(
-            TaskInfo("review", "writing", "Writing", "Review and publish", "Review the outline, check references and publish the finished article.", "2026-10-27", TaskStatus.InProgress, "echo", listOf(runs[6].id, runs[0].id)),
-            TaskInfo("launch", "work", "Launch", "Draft launch email", due = "2026-10-29", assignee = "echo"),
-            TaskInfo("boiler", "house", "Home", "Book boiler service", due = "2026-10-30", status = TaskStatus.Waiting, assignee = "hearth", sessionIds = listOf(runs[7].id)),
+            TaskInfo("review", "writing", "Writing", "Review and publish", "Review the outline, check references and publish the finished article.", "2026-10-27", TaskStatus.InProgress, AgentId("echo"), listOf(runs[6].id, runs[0].id)),
+            TaskInfo("launch", "work", "Launch", "Draft launch email", due = "2026-10-29", assignee = AgentId("echo")),
+            TaskInfo("boiler", "house", "Home", "Book boiler service", due = "2026-10-30", status = TaskStatus.Waiting, assignee = AgentId("hearth"), sessionIds = listOf(runs[7].id)),
             TaskInfo("receipts", "house", "Home", "File October receipts", due = "2026-10-31"),
         )
         val byAgent = runs.groupBy { it.agentId }
@@ -794,11 +794,11 @@ class ScreenshotTest {
     /** What the Agent waits on, in place of the chat input: morphed Composer on phones, tray over it on desktop. */
     private fun renderRequests(form: PendingInteraction.Questions) {
         val shell = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell")
-        val approval = PendingInteraction.Approval("a1", ToolCallId("t1"), "shell", """{"command":"git push origin feat/request-composer"}""", "git push", Risk.High, "Pushes commits to a remote", identity = shell)
-        val takeover = PendingInteraction.Questions("q2", ToolCallId("t2"), "Take over Browser: Sign in to GitHub.", listOf(Question("note", "Note")), ScreenRef("browser", "b1"))
-        val push = ChatItem.ToolCall("t1", "t1", "shell", approval.args, identity = shell, approval = approval)
-        val ask = ChatItem.ToolCall("t3", "c1", "ask_user", "{}", questions = form)
-        val hand = ChatItem.ToolCall("t2", "t2", "request_takeover", """{"reason":"Sign in to GitHub"}""", questions = takeover)
+        val approval = PendingInteraction.Approval(InteractionId("a1"), ToolCallId("t1"), "shell", """{"command":"git push origin feat/request-composer"}""", "git push", Risk.High, "Pushes commits to a remote", identity = shell)
+        val takeover = PendingInteraction.Questions(InteractionId("q2"), ToolCallId("t2"), "Take over Browser: Sign in to GitHub.", listOf(Question("note", "Note")), ScreenRef("browser", "b1"))
+        val push = ChatItem.ToolCall("t1", ToolCallId("t1"), "shell", approval.args, identity = shell, approval = approval)
+        val ask = ChatItem.ToolCall("t3", ToolCallId("c1"), "ask_user", "{}", questions = form)
+        val hand = ChatItem.ToolCall("t2", ToolCallId("t2"), "request_takeover", """{"reason":"Sign in to GitHub"}""", questions = takeover)
         val talk = listOf(ChatItem.User("u1", "Push the branch and open the release PR."), ChatItem.Assistant("a1", "Tests are green. I'll push the branch next."))
         val approving = state.copy(items = talk + push, running = false, pending = listOf(approval, form))
         val asking = state.copy(items = talk + ask, running = false, pending = listOf(form))
@@ -818,14 +818,14 @@ class ScreenshotTest {
     /** Tool calls and reasoning grouped into compact rows, at iPhone width. */
     private fun renderSteps() {
         val think = ChatItem.Reasoning("r1", "Checking git status and open PRs before summarising.")
-        val status = ChatItem.ToolCall("t1", "t1", "shell", """{"command":"git status --short"}""", result = " M core/src/Harness.kt", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"))
-        val prs = ChatItem.ToolCall("t2", "t2", "github__list_pull_requests", """{"repo":"harness"}""", result = "[]", identity = ToolIdentity(PluginInstanceId("kinuvo.mcp", "shared/github"), "list_pull_requests"))
-        val read = ChatItem.ToolCall("t3", "t3", "read_file", """{"path":"DESIGN.md"}""", result = "# Kinuvo")
-        val failed = ChatItem.ToolCall("t4", "t4", "shell", """{"command":"./kotlin test -m core"}""", result = "exit 1: 2 tests failed", isError = true, identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"))
-        val fetch = ChatItem.ToolCall("t5", "t5", "web_fetch", """{"url":"https://kotlinlang.org"}""", result = "ok")
+        val status = ChatItem.ToolCall("t1", ToolCallId("t1"), "shell", """{"command":"git status --short"}""", result = " M core/src/Harness.kt", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"))
+        val prs = ChatItem.ToolCall("t2", ToolCallId("t2"), "github__list_pull_requests", """{"repo":"harness"}""", result = "[]", identity = ToolIdentity(PluginInstanceId("kinuvo.mcp", "shared/github"), "list_pull_requests"))
+        val read = ChatItem.ToolCall("t3", ToolCallId("t3"), "read_file", """{"path":"DESIGN.md"}""", result = "# Kinuvo")
+        val failed = ChatItem.ToolCall("t4", ToolCallId("t4"), "shell", """{"command":"./kotlin test -m core"}""", result = "exit 1: 2 tests failed", isError = true, identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"))
+        val fetch = ChatItem.ToolCall("t5", ToolCallId("t5"), "web_fetch", """{"url":"https://kotlinlang.org"}""", result = "ok")
         val push = ChatItem.ToolCall(
-            "t6", "t6", "shell", """{"command":"git push origin tier1"}""", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"),
-            approval = PendingInteraction.Approval("a1", ToolCallId("t6"), "shell", """{"command":"git push origin tier1"}""", "git push", Risk.High, "Pushes to a remote"),
+            "t6", ToolCallId("t6"), "shell", """{"command":"git push origin tier1"}""", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"),
+            approval = PendingInteraction.Approval(InteractionId("a1"), ToolCallId("t6"), "shell", """{"command":"git push origin tier1"}""", "git push", Risk.High, "Pushes to a remote"),
         )
         val items = listOf(
             ChatItem.User("u1", "What's uncommitted, and are the tests green?"),
@@ -837,7 +837,7 @@ class ScreenshotTest {
         )
         val phone = state.copy(items = items, running = false, pending = listOfNotNull(push.approval))
         render("chat-steps-phone", 390, 844) { HarnessTheme(dark = false) { ChatContent(phone, ConnectionState.Connected("x"), null, ChatActions()) } }
-        val running = state.copy(items = items.take(4) + status.copy(id = "t7", callId = "t7", args = """{"command":"git diff --stat HEAD~3"}""", result = null), running = true)
+        val running = state.copy(items = items.take(4) + status.copy(id = "t7", callId = ToolCallId("t7"), args = """{"command":"git diff --stat HEAD~3"}""", result = null), running = true)
         render("chat-steps-running-dark", 390, 600) { HarnessTheme(dark = true) { ChatContent(running, ConnectionState.Connected("x"), null, ChatActions()) } }
         render("chat-steps-expanded", 390, 520) {
             HarnessTheme(dark = false) {
@@ -854,11 +854,11 @@ class ScreenshotTest {
             BoardData(
                 lists = listOf(TaskListInfo("l1", "Errands", AgentId("main")), TaskListInfo("l2", "Travel", AgentId("research"))),
                 tasks = listOf(
-                    TaskInfo("t1", "l1", "Errands", "Buy a birthday present for Ana", due = "2026-10-08", assignee = "main"),
-                    TaskInfo("t2", "l2", "Travel", "Book flights to Lisbon", "Under €300, window seat.", "2026-10-20", TaskStatus.InProgress, "research", listOf(SessionId("s1"))),
-                    TaskInfo("t3", "l2", "Travel", "Renew passport", "Kinuvo: Form drafted. Needs a new photo.", "2026-11-20", TaskStatus.Waiting, "research", listOf(SessionId("s2"))),
+                    TaskInfo("t1", "l1", "Errands", "Buy a birthday present for Ana", due = "2026-10-08", assignee = AgentId("main")),
+                    TaskInfo("t2", "l2", "Travel", "Book flights to Lisbon", "Under €300, window seat.", "2026-10-20", TaskStatus.InProgress, AgentId("research"), listOf(SessionId("s1"))),
+                    TaskInfo("t3", "l2", "Travel", "Renew passport", "Kinuvo: Form drafted. Needs a new photo.", "2026-11-20", TaskStatus.Waiting, AgentId("research"), listOf(SessionId("s2"))),
                     TaskInfo("t4", "l1", "Errands", "Cancel the gym membership"),
-                    TaskInfo("t5", "l1", "Errands", "Pay the electricity bill", status = TaskStatus.Done, assignee = "main"),
+                    TaskInfo("t5", "l1", "Errands", "Pay the electricity bill", status = TaskStatus.Done, assignee = AgentId("main")),
                 ),
             ),
             showDone = true,
@@ -969,7 +969,7 @@ class ScreenshotTest {
         val state = ChatState(loaded = true, items = listOf(
             ChatItem.User("user", "Show me a quick example."),
             ChatItem.Assistant("step", "I'll put one together."),
-            ChatItem.ToolCall("tool", "tool", "exec", "", "done"),
+            ChatItem.ToolCall("tool", ToolCallId("tool"), "exec", "", "done"),
             ChatItem.Assistant("reply", "Here is the **result**.\n\n```kotlin\nval greeting = \"Hello\"\n```", at = 1_790_000_000_000L),
         ))
         for (dark in listOf(false, true)) render("chat-footer-${if (dark) "dark" else "light"}", 420, 640) {
@@ -1120,7 +1120,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         call("live-call-muted-dark", listening.copy(paused = true))
         call("live-call-holding-dark", listening.copy(holding = true))
         render("live-call-light", 390, 844) { HarnessTheme(dark = false) { LiveCallScreen("Kinuvo", AvatarInk[2], listening, 75, false, {}, {}, {}, {}, {}, time = 3f) } }
-        val event = PendingInteraction.Approval("ap", ToolCallId("t"), "calendar_update", """{"event":"Dentist","start":"2026-11-07T10:00"}""", reason = "Dentist → Friday, 10:00")
+        val event = PendingInteraction.Approval(InteractionId("ap"), ToolCallId("t"), "calendar_update", """{"event":"Dentist","start":"2026-11-07T10:00"}""", reason = "Dentist → Friday, 10:00")
         render("live-call-approval-dark", 390, 844) {
             HarnessTheme(dark = true) { Box { LiveCallScreen("Kinuvo", ink, VoiceChatState(VoicePhase.Thinking, live = true), 182, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event, {}, {}) } }
         }
@@ -1130,7 +1130,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         render("live-call-approval-long-small-dark", 375, 560) {
             HarnessTheme(dark = true) { Box { LiveCallScreen("Kinuvo", ink, listening, 40, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event.copy(args = (1..30).joinToString(",", "{", "}") { "\"field$it\":\"value $it\"" }, reason = "Update the event with a long list of changed fields that wraps across several lines of the sheet."), {}, {}) } }
         }
-        val external = PendingInteraction.HarnessApproval("x1", "Edit config.yaml", "Replace 3 lines in config.yaml", listOf(
+        val external = PendingInteraction.HarnessApproval(InteractionId("x1"), "Edit config.yaml", "Replace 3 lines in config.yaml", listOf(
             ExternalApprovalOption("allow_always", "Always allow edits", "allow_always"), ExternalApprovalOption("allow_once", "Allow", "allow_once"), ExternalApprovalOption("reject_once", "Reject", "reject_once")))
         render("live-call-approval-external-dark", 390, 844) {
             HarnessTheme(dark = true) { Box { LiveCallScreen("Claude Code", AvatarInk[1], VoiceChatState(VoicePhase.Thinking, live = true), 95, false, {}, {}, {}, {}, {}, time = 3f); CallExternalApprovalSheet("Claude Code", external, {}, {}) } }

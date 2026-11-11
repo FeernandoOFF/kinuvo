@@ -83,7 +83,7 @@ class ChatChromeTest {
         var downloaded: String? = null
         ImageComposeScene(600, 600, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
-                StepsView(ChatRow.Steps(listOf(ChatItem.ToolCall("tool", "t", "Image output", "", result = "", attachments = listOf(attachment)))),
+                StepsView(ChatRow.Steps(listOf(ChatItem.ToolCall("tool", ToolCallId("t"), "Image output", "", result = "", attachments = listOf(attachment)))),
                     active = false, actions = ChatActions(onLoadAttachment = { loaded = it }, onPreviewAttachment = { previewed = it }, onSaveAttachment = { downloaded = it }))
             }
         }).use { scene ->
@@ -326,14 +326,14 @@ class ChatChromeTest {
 
     @Test fun externalRequestsAndNoticesRenderWithoutNativeSettings() = javax.swing.SwingUtilities.invokeAndWait {
         val agent = AgentInfo(AgentId("a"), "External", "external", executionKind = ExecutionKind.Acp)
-        val prompt = PendingInteraction.Questions("q", ToolCallId("t"), "Travel details", listOf(Question("seat", "Seat", QuestionKind.Text)))
+        val prompt = PendingInteraction.Questions(InteractionId("q"), ToolCallId("t"), "Travel details", listOf(Question("seat", "Seat", QuestionKind.Text)))
         val caps = SessionCapabilities(server = ServerCapabilities("s"), execution = ExecutionCapabilities())
         ImageComposeScene(1000, 1400, Density(1f), coroutineContext = Dispatchers.Main, content = {
             HarnessTheme(dark = true) {
                 ChatContent(ChatState(agent = agent, selected = SessionId("s"), loaded = true, capabilities = caps,
                     defaults = AgentSettings("model", "medium", "default", "provider"),
                     items = listOf(ChatItem.Notice("n", "history_gap", "Earlier history is unavailable")),
-                    pending = listOf(prompt, PendingInteraction.Unsupported("other", "Another request"))),
+                    pending = listOf(prompt, PendingInteraction.Unsupported(InteractionId("other"), "Another request"))),
                     ConnectionState.Connected("Test"), null, ChatActions(), wide = true)
             }
         }).use { scene ->

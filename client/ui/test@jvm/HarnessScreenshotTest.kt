@@ -120,9 +120,9 @@ class HarnessScreenshotTest {
     }
 
     @Test fun renderSession() {
-        val approval = PendingInteraction.HarnessApproval("p1", "Run ./kotlin build", "In /Users/fer/dev/kinuvo",
+        val approval = PendingInteraction.HarnessApproval(InteractionId("p1"), "Run ./kotlin build", "In /Users/fer/dev/kinuvo",
             listOf(ExternalApprovalOption("once", "Allow once", "allow_once"), ExternalApprovalOption("always", "Always allow here", "allow_always"), ExternalApprovalOption("no", "Reject", "reject_once")))
-        val form = PendingInteraction.Questions("q1", ToolCallId("t1"), "Which branch should I review?", listOf(
+        val form = PendingInteraction.Questions(InteractionId("q1"), ToolCallId("t1"), "Which branch should I review?", listOf(
             Question("branch", "Branch", QuestionKind.Single, listOf("main", "acp-v2"), required = true),
             Question("fix", "Fix lint too?", QuestionKind.YesNo, default = listOf("Yes"))))
         val base = ChatState(agent = builder, harness = "Claude Code", selected = SessionId("s1"), loaded = true, running = true, defaults = AgentSettings("", "", "", "external"),
@@ -130,7 +130,7 @@ class HarnessScreenshotTest {
             items = listOf(ChatItem.User("u1", "Review the open PR and fix lint."), ChatItem.Assistant("a1", "Looking at the diff. I'll run the build first.")))
         render("harness-chat-approval-phone", 390, 844) { theme(touch = true) { ChatContent(base.copy(pending = listOf(approval)), ConnectionState.Connected("x"), null, ChatActions()) } }
         render("harness-chat-form-desktop", 900, 760) { theme { ChatContent(base.copy(pending = listOf(form)), ConnectionState.Connected("x"), null, ChatActions(), wide = true) } }
-        val openUrl = PendingInteraction.HarnessApproval("p2", "MCP server requests to open a URL", "Reconnect Slack on ChatGPT to restore access for this request.",
+        val openUrl = PendingInteraction.HarnessApproval(InteractionId("p2"), "MCP server requests to open a URL", "Reconnect Slack on ChatGPT to restore access for this request.",
             listOf(ExternalApprovalOption("accept", "Allow", "allow_once"), ExternalApprovalOption("decline", "Deny", "reject_once"), ExternalApprovalOption("cancel", "Cancel", "reject_once")),
             site = "chatgpt.com", server = "codex_apps")
         render("harness-chat-open-url-desktop", 900, 760) { theme { ChatContent(base.copy(agent = reviewer, harness = "Codex", pending = listOf(openUrl)), ConnectionState.Connected("x"), null, ChatActions(), wide = true) } }

@@ -1,5 +1,6 @@
 package kinuvo.ui.surface
 
+import kinuvo.protocol.session.ToolCallId
 import arrow.core.Either
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.DisableSelection
@@ -38,9 +39,9 @@ internal class HtmlBridge(val receive: (String) -> List<String>) {
     fun receive(raw: String) { receive.invoke(raw).forEach { post(it) } }
 }
 
-internal val LocalHtmlSurfaces = staticCompositionLocalOf { mutableStateListOf<String>() }
+internal val LocalHtmlSurfaces = staticCompositionLocalOf { mutableStateListOf<ToolCallId>() }
 
-internal val LocalHtmlHeights = staticCompositionLocalOf<MutableMap<String, Int>> { mutableMapOf() }
+internal val LocalHtmlHeights = staticCompositionLocalOf<MutableMap<ToolCallId, Int>> { mutableMapOf() }
 
 @Composable
 internal expect fun HtmlWebView(document: String, bridge: HtmlBridge, modifier: Modifier)
@@ -60,8 +61,8 @@ internal fun HtmlSurface(call: ChatItem.ToolCall, send: (String) -> Unit, fallba
 @Composable
 internal fun McpAppSurface(
     call: ChatItem.ToolCall,
-    resource: suspend (String) -> McpAppResource,
-    callTool: suspend (String, String, JsonObject) -> JsonObject,
+    resource: suspend (ToolCallId) -> McpAppResource,
+    callTool: suspend (ToolCallId, String, JsonObject) -> JsonObject,
     send: (String) -> Unit,
     fallback: @Composable () -> Unit,
 ) {
@@ -78,7 +79,7 @@ internal fun McpAppSurface(
 
 @Composable
 private fun HtmlSurface(
-    id: String,
+    id: ToolCallId,
     html: String,
     title: String,
     caption: String,

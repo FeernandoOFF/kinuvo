@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.protocol.agent.AgentId
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.store.AgentFiles
@@ -65,12 +66,12 @@ class TaskDispatcherTimeoutTest {
         val runs = Runs(harness.log, backgroundScope, harness.native)
         val dispatcher = TaskDispatcher(harness, runs, backgroundScope)
         try {
-            var task = if (timeoutAtStartup) harness.tasks.create("Research", assignee = "default") else null
+            var task = if (timeoutAtStartup) harness.tasks.create("Research", assignee = AgentId("default")) else null
             timeoutNextRead = timeoutAtStartup
             dispatcher.start()
             runCurrent()
             if (!timeoutAtStartup) {
-                task = harness.tasks.create("Research", assignee = if (wakeByAssignment) "" else "default")
+                task = harness.tasks.create("Research", assignee = AgentId(if (wakeByAssignment) "" else "default"))
                 timeoutNextRead = true
                 runCurrent()
             }
@@ -89,7 +90,7 @@ class TaskDispatcherTimeoutTest {
             assertEquals(1, timeouts)
             val id = requireNotNull(task).id
             if (!timeoutAtStartup) assertTrue(harness.tasks.get(id).sessionIds.isEmpty())
-            if (wakeByAssignment) harness.tasks.update(id, assignee = "default")
+            if (wakeByAssignment) harness.tasks.update(id, assignee = AgentId("default"))
             else advanceTimeBy(60_000)
             runCurrent()
             assertTrue(harness.tasks.get(id).sessionIds.isNotEmpty())

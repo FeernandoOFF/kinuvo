@@ -75,7 +75,7 @@ class Scenario internal constructor(
         title: String, list: String? = null, status: TaskStatus = TaskStatus.Todo, assignee: String? = null, due: LocalDate? = null,
         notes: String = "", sessions: List<SessionInfo> = emptyList(),
     ): TaskInfo {
-        val created = harness.tasks.create(title, list, notes, due, assignee)
+        val created = harness.tasks.create(title, list, notes, due, assignee?.let(::AgentId))
         sessions.forEach { harness.tasks.started(created.id, it.id) }
         return if (status == TaskStatus.Todo) created else harness.tasks.update(created.id, status = status)
     }

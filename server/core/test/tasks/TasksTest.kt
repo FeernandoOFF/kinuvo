@@ -1,5 +1,6 @@
 package kinuvo.server.tasks
 
+import kinuvo.protocol.agent.AgentId
 import kinuvo.server.plugin.TaskProvider
 import kinuvo.server.TestHome
 import kinuvo.server.store.FileBoard
@@ -27,15 +28,15 @@ class TasksTest {
     @Test
     fun assigneeComesFromBoardThenMentionThenList() = runTest {
         val byList = tasks.create("Buy milk")
-        assertEquals("default", byList.assignee)
-        assertEquals("travel", tasks.create("Renew passport @travel").assignee)
-        assertEquals("default", tasks.create("Email @someone").assignee)
-        assertEquals("travel", tasks.update(byList.id, assignee = "travel").assignee)
-        assertNull(tasks.update(byList.id, assignee = "").assignee)
-        assertFailsWith<IllegalArgumentException> { tasks.update(byList.id, assignee = "nobody") }
-        assertFailsWith<IllegalArgumentException> { tasks.create("Ghost's", assignee = "nobody") }
-        assertNull(tasks.create("Mine, not @travel-desk's", assignee = "").assignee)
-        assertEquals("default", tasks.create("Ask @travel-desk").assignee)
+        assertEquals(AgentId("default"), byList.assignee)
+        assertEquals(AgentId("travel"), tasks.create("Renew passport @travel").assignee)
+        assertEquals(AgentId("default"), tasks.create("Email @someone").assignee)
+        assertEquals(AgentId("travel"), tasks.update(byList.id, assignee = AgentId("travel")).assignee)
+        assertNull(tasks.update(byList.id, assignee = AgentId("")).assignee)
+        assertFailsWith<IllegalArgumentException> { tasks.update(byList.id, assignee = AgentId("nobody")) }
+        assertFailsWith<IllegalArgumentException> { tasks.create("Ghost's", assignee = AgentId("nobody")) }
+        assertNull(tasks.create("Mine, not @travel-desk's", assignee = AgentId("")).assignee)
+        assertEquals(AgentId("default"), tasks.create("Ask @travel-desk").assignee)
     }
 
     @Test
@@ -51,7 +52,7 @@ class TasksTest {
         val soon = tasks.create("Soon", due = LocalDate(2026, 10, 3))
         tasks.create("Later", due = LocalDate(2026, 10, 20))
         val undated = tasks.create("Whenever")
-        tasks.update(tasks.create("Nobody's").id, assignee = "")
+        tasks.update(tasks.create("Nobody's").id, assignee = AgentId(""))
         assertEquals(setOf(soon.id, undated.id), tasks.ready().map { it.id }.toSet())
     }
 

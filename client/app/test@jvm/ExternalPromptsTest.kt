@@ -29,7 +29,7 @@ import kotlin.test.*
 @OptIn(ExperimentalCoroutinesApi::class)
 class ExternalPromptsTest {
     private val wren = AgentInfo(AgentId("wren"), "Wren", "external", executionKind = ExecutionKind.Acp, connectionId = "codex")
-    private val urlApproval = PendingInteraction.HarnessApproval("open", "Open a page", "Reconnect Slack", listOf(ExternalApprovalOption("accept", "Allow", "allow_once")))
+    private val urlApproval = PendingInteraction.HarnessApproval(InteractionId("open"), "Open a page", "Reconnect Slack", listOf(ExternalApprovalOption("accept", "Allow", "allow_once")))
 
     @Test fun reopenedSessionAndMultipleRequestsUseOnlySessionUpdates() = withServer(LiveState(executionPhase = ExecutionPhase.Running, pending = listOf(urlApproval))) { owner, script ->
         val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("wren"), SessionId("s1")))
@@ -39,15 +39,15 @@ class ExternalPromptsTest {
                 vm.state.first { !it.resolving }
                 vm.shown()
                 assertIs<PendingInteraction.HarnessApproval>(vm.state.first { it.pending.isNotEmpty() }.pending.single())
-                val request = PendingInteraction.Questions("q", ToolCallId("t"), "Details", listOf(Question("when", "When?", QuestionKind.Text, default = listOf("Tomorrow"))))
+                val request = PendingInteraction.Questions(InteractionId("q"), ToolCallId("t"), "Details", listOf(Question("when", "When?", QuestionKind.Text, default = listOf("Tomorrow"))))
                 script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.InteractionRequested(request))))
-                assertEquals(listOf("open", "q"), vm.state.first { it.pending.size == 2 }.pending.map { it.id })
+                assertEquals(listOf("open", "q").map(::InteractionId), vm.state.first { it.pending.size == 2 }.pending.map { it.id })
                 script.acceptAnswer = false
                 vm.answerExternal(urlApproval, approvalAnswer("accept"))
                 assertTrue(vm.state.first { it.errors.isNotEmpty() }.errors.last().contains("Already answered"))
                 assertEquals(2, vm.state.value.pending.size)
-                script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.InteractionResolved("open"))))
-                assertEquals("q", vm.state.first { it.pending.size == 1 }.pending.single().id)
+                script.event(Api.Update, SessionUpdate(AgentId("wren"), SessionId("s1"), SessionChange.Event(AgentEvent.InteractionResolved(InteractionId("open")))))
+                assertEquals(InteractionId("q"), vm.state.first { it.pending.size == 1 }.pending.single().id)
                 assertEquals(0, script.snapshotReads)
             } finally { clearAndJoin() }
         }

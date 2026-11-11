@@ -1,5 +1,6 @@
 package kinuvo.ui.session
 
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.ui.surface.LocalSurfaceItems
 
 import kinuvo.ui.surface.LocalSurfaceRenderers
@@ -129,9 +130,9 @@ internal fun Messages(
         if (state.loaded) EmptyState(state, modifier.padding(top = top, bottom = bottom)) else Box(modifier.fillMaxWidth())
         return
     }
-    val surfaceRenderers = remember(state.selected) { mutableMapOf<String, SurfaceRenderer>() }
-    val htmlHeights = remember(state.selected) { mutableMapOf<String, Int>() }
-    val htmlSurfaces = remember(state.selected) { mutableStateListOf<String>() }
+    val surfaceRenderers = remember(state.selected) { mutableMapOf<ToolCallId, SurfaceRenderer>() }
+    val htmlHeights = remember(state.selected) { mutableMapOf<ToolCallId, Int>() }
+    val htmlSurfaces = remember(state.selected) { mutableStateListOf<ToolCallId>() }
     CompositionLocalProvider(LocalHtmlSurfaces provides htmlSurfaces, LocalHtmlHeights provides htmlHeights, LocalSurfaceRenderers provides surfaceRenderers, LocalSurfaceItems provides items) {
         Box(modifier.fillMaxWidth()) {
             SelectionContainer {

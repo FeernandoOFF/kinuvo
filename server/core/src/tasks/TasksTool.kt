@@ -1,5 +1,6 @@
 package kinuvo.server.tasks
 
+import kinuvo.protocol.agent.AgentId
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
@@ -49,15 +50,15 @@ class TasksTool(private val tasks: Tasks, private val agent: Agent, private val 
             require(action == "list" || a.requireString("id") == taskId) { "This run can only manage Task $taskId" }
         }
         return when (action) {
-            "list" -> (if (taskId == null) tasks.all() else listOf(tasks.get(taskId))).filter { a.string("mine") != "true" || it.assignee == agent.id.value }
+            "list" -> (if (taskId == null) tasks.all() else listOf(tasks.get(taskId))).filter { a.string("mine") != "true" || it.assignee == agent.id }
                 .joinToString("\n") { it.describe() }.ifEmpty { "No open tasks." }
             "create" -> tasks.create(
                 a.requireString("title"), a.string("list"), a.string("notes").orEmpty(),
-                a.string("due")?.takeIf { it != "none" }?.let(::date), a.string("assignee")?.let { if (it == "none") "" else it },
+                a.string("due")?.takeIf { it != "none" }?.let(::date), a.string("assignee")?.let { AgentId(if (it == "none") "" else it) },
             ).let { "Created.\n${it.describe()}" }
             "update" -> tasks.update(
                 a.requireString("id"), a.string("title"), a.string("status")?.let(::status),
-                a.string("assignee")?.let { if (it == "none") "" else it }, a.string("due")?.let { if (it == "none") "" else date(it).toString() },
+                a.string("assignee")?.let { AgentId(if (it == "none") "" else it) }, a.string("due")?.let { if (it == "none") "" else date(it).toString() },
             ).let { "Updated.\n${it.describe()}" }
             else -> error("Unknown action '$action'")
         }

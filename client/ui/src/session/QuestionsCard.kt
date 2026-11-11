@@ -1,5 +1,6 @@
 package kinuvo.ui.session
 
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.app.connection.*
 import kinuvo.ui.settings.*
 import kinuvo.ui.board.*
@@ -24,8 +25,8 @@ import kinuvo.ui.design.*
 
 /** [skip] names the button that answers null. */
 @Composable
-internal fun QuestionsCard(asked: PendingInteraction.Questions, drafts: Map<String, Map<String, List<String>>>,
-    onEdit: (questionsId: String, questionId: String, value: List<String>) -> Unit, onAnswer: (Map<String, List<String>>?) -> Unit, skip: String = "Dismiss", attached: Boolean = false) {
+internal fun QuestionsCard(asked: PendingInteraction.Questions, drafts: Map<InteractionId, Map<String, List<String>>>,
+    onEdit: (questionsId: InteractionId, questionId: String, value: List<String>) -> Unit, onAnswer: (Map<String, List<String>>?) -> Unit, skip: String = "Dismiss", attached: Boolean = false) {
     val answers = asked.questions.associate { it.id to it.default } + drafts[asked.id].orEmpty()
     val ready = asked.questions.none { it.required && answers[it.id].orEmpty().none(String::isNotBlank) }
     Panel(

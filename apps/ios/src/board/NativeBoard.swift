@@ -80,7 +80,7 @@ struct NativeBoard: View {
                 ForEach(agents, id: \.key) { Text($0.name).tag($0.key) }
             }
             Button("Add task") {
-                model.viewModel?.add(params: CreateTaskParams(title: title, list: nil, notes: "", due: nil, assignee: assignee.isEmpty ? nil : assignee))
+                model.viewModel?.add(params: NativeIds.shared.createTask(title: title, assignee: assignee.isEmpty ? nil : assignee))
             }.disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
@@ -90,12 +90,12 @@ struct NativeBoard: View {
             Text(task.title)
             if !task.notes.isEmpty { Text(task.notes).font(.caption).foregroundStyle(.secondary) }
             Picker("Status", selection: Binding(get: { task.status }, set: {
-                model.viewModel?.update(params: UpdateTaskParams(taskId: task.id, title: nil, status: $0, assignee: nil, due: nil))
+                model.viewModel?.update(params: NativeIds.shared.updateStatus(task: task, status: $0))
             })) {
                 ForEach(TaskStatus.entries, id: \.name) { Text(statusTitle($0)).tag($0) }
             }
             if let session = NativeIds.shared.sessions(task: task).last {
-                Button("Open session") { openSession(task.assignee, session) }
+                Button("Open session") { openSession(NativeIds.shared.assignee(task: task), session) }
             }
         }
     }

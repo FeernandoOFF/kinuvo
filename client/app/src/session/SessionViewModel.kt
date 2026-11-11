@@ -56,7 +56,7 @@ sealed interface ChatItem {
     /** [callId] is the model's tool-call ID; [approval] or [questions] is set while the call waits on the user. */
     data class ToolCall(
         override val id: String,
-        val callId: String,
+        val callId: ToolCallId,
         val name: String,
         val args: String,
         val result: String? = null,
@@ -80,7 +80,7 @@ sealed interface ChatItem {
     data class Error(override val id: String, val message: String) : ChatItem
     data class Reflection(override val id: String, val result: ReflectionResult? = null, val reviews: Map<String, Boolean> = emptyMap(), val revised: Set<String> = emptySet()) : ChatItem
     data class Compaction(override val id: String, val summary: String) : ChatItem
-    data class ToolReport(override val id: String, val tool: String, val callId: String?, val content: String) : ChatItem
+    data class ToolReport(override val id: String, val tool: String, val callId: ToolCallId?, val content: String) : ChatItem
 
     data class Activation(override val id: String, val name: String, val content: String) : ChatItem
 }
@@ -174,7 +174,7 @@ data class ChatState(
     /** The attachment open full screen. */
     val preview: AttachmentPreview? = null,
     /** Half-filled `ask_user` forms, as in [SessionState.answers]. */
-    val answers: Map<String, Map<String, List<String>>> = emptyMap(),
+    val answers: Map<InteractionId, Map<String, List<String>>> = emptyMap(),
     /** What the Session waits on: Approvals and forms for [respond][SessionViewModel.respond] and [answer][SessionViewModel.answer], or an external Agent's harness requests. */
     val pending: List<PendingInteraction> = emptyList(),
     /** Names an external Agent's harness. */
@@ -236,7 +236,7 @@ data class SessionState(
     val unsent: String? = null,
     val capabilities: SessionCapabilities? = null,
     /** Half-filled `ask_user` forms by questions ID, then question ID, so they outlive the screen's layout. */
-    val answers: Map<String, Map<String, List<String>>> = emptyMap(),
+    val answers: Map<InteractionId, Map<String, List<String>>> = emptyMap(),
     /** A shortcut asked for voice chat in this new Session, until it starts. */
     val voiceRequested: Boolean = false,
     /** An external Agent's Session as its harness runs it, with what it waits on. */
@@ -532,19 +532,19 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     }
 
     /** The HTML of the MCP App that tool call [callId] shows. */
-    suspend fun appResource(callId: String): McpAppResource {
+    suspend fun appResource(callId: ToolCallId): McpAppResource {
         val ref = checkNotNull(state.value.items.filterIsInstance<ChatItem.ToolCall>().last { it.callId == callId }.app)
         return repo.connection.mcpApps.resource(ref, appRequest(callId))
     }
 
     /** Runs [name] on the MCP server of the app that [callId] shows, for that app. */
-    suspend fun appCallTool(callId: String, name: String, arguments: JsonObject): JsonObject =
+    suspend fun appCallTool(callId: ToolCallId, name: String, arguments: JsonObject): JsonObject =
         repo.connection.mcpApps.callTool(appRequest(callId), name, arguments)
 
-    private fun appRequest(callId: String) = McpAppRequest(checkNotNull(route.agentId), checkNotNull(route.sessionId), ToolCallId(callId))
+    private fun appRequest(callId: ToolCallId) = McpAppRequest(checkNotNull(route.agentId), checkNotNull(route.sessionId), callId)
 
     /** Keeps [value] as the answer to [questionId] in the `ask_user` form [questionsId] until it's sent. */
-    fun editAnswer(questionsId: String, questionId: String, value: List<String>) =
+    fun editAnswer(questionsId: InteractionId, questionId: String, value: List<String>) =
         state.update { it.copy(answers = it.answers + (questionsId to it.answers[questionsId].orEmpty() + (questionId to value))) }
 
     /** Sends the open `ask_user` form's [answers]; null skips it. */

@@ -1,5 +1,6 @@
 package kinuvo.protocol.session
 
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.execution.ExecutionPhase
 import kinuvo.protocol.plugin.ToolIdentity
@@ -15,7 +16,7 @@ sealed interface AgentEvent {
 
     /** [allowed] is set when an Approval was decided. */
     @Serializable @SerialName("INTERACTION_RESOLVED")
-    data class InteractionResolved(val id: String, val allowed: Boolean? = null) : AgentEvent
+    data class InteractionResolved(val id: InteractionId, val allowed: Boolean? = null) : AgentEvent
 
     @Serializable @SerialName("EXECUTION_PHASE_CHANGED")
     data class ExecutionPhaseChanged(val phase: ExecutionPhase) : AgentEvent

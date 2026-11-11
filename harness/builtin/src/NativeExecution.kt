@@ -1,5 +1,6 @@
 package kinuvo.harness.builtin
 
+import kinuvo.protocol.approval.InteractionId
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
@@ -79,7 +80,7 @@ private class NativeExecutionSession(private val factory: NativeExecutionFactory
 
     override suspend fun cancel() { turn?.cancel() }
 
-    override suspend fun answer(requestId: String, answer: InteractionAnswer) {
+    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {
         error("The built-in harness answers its pending requests through its Server")
     }
 

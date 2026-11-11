@@ -1,5 +1,6 @@
 package kinuvo.ui.voice
 
+import kinuvo.protocol.approval.InteractionId
 import arrow.core.Either
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -398,7 +399,7 @@ private class SheetChoice(val label: String, val filled: Boolean, val onClick: (
 
 @Composable
 private fun CallRequestSheet(
-    id: String, icon: ImageVector, tone: Color, title: String, scope: String?, mono: Boolean, buttons: List<SheetChoice>, onEnd: () -> Unit,
+    id: InteractionId, icon: ImageVector, tone: Color, title: String, scope: String?, mono: Boolean, buttons: List<SheetChoice>, onEnd: () -> Unit,
     modifier: Modifier = Modifier, details: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     var open by remember(id) { mutableStateOf(false) }

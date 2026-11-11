@@ -11,10 +11,10 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class PendingRequestsTest {
-    private val approval = PendingInteraction.Approval("a1", ToolCallId("c1"), "shell", """{"command":"ls"}""", trustHint = "ls", reason = "Lists files")
-    private val form = PendingInteraction.Questions("q1", ToolCallId("c2"), "Deploy?", listOf(Question("env", "Environment")))
-    private val takeover = PendingInteraction.Questions("q2", ToolCallId("c3"), "Take over Browser: Sign in.", listOf(Question("note", "Note")))
-    private val external = PendingInteraction.HarnessApproval("p1", "Allow edit?", null, emptyList())
+    private val approval = PendingInteraction.Approval(InteractionId("a1"), ToolCallId("c1"), "shell", """{"command":"ls"}""", trustHint = "ls", reason = "Lists files")
+    private val form = PendingInteraction.Questions(InteractionId("q1"), ToolCallId("c2"), "Deploy?", listOf(Question("env", "Environment")))
+    private val takeover = PendingInteraction.Questions(InteractionId("q2"), ToolCallId("c3"), "Take over Browser: Sign in.", listOf(Question("note", "Note")))
+    private val external = PendingInteraction.HarnessApproval(InteractionId("p1"), "Allow edit?", null, emptyList())
 
     private fun state(live: LiveState = LiveState(running = true), prompts: List<PendingInteraction> = emptyList(), vararg calls: SessionEntry.ToolCall) =
         ChatState(items = SessionData(AgentId("main"), entries = calls.toList(), live = live).items, pending = live.pending + prompts)
@@ -26,14 +26,14 @@ class PendingRequestsTest {
 
     @Test fun approvalCarriesWhatTheCardNeeds() {
         val request = assertIs<PendingRequest.Approval>(state(LiveState(running = true, pending = listOf(approval)), calls = arrayOf(SessionEntry.ToolCall(ToolCallId("c1"), "shell", "{}"))).requests.single())
-        assertEquals("a1", request.id)
+        assertEquals(InteractionId("a1"), request.id)
         assertEquals(approval, request.event)
         assertEquals("ls", request.event.trustHint)
     }
 
     @Test fun questionsAreAForm() {
         val request = assertIs<PendingRequest.Questions>(state(LiveState(running = true, pending = listOf(form)), calls = arrayOf(SessionEntry.ToolCall(ToolCallId("c2"), "ask_user", "{}"))).requests.single())
-        assertEquals("q1", request.id)
+        assertEquals(InteractionId("q1"), request.id)
         assertEquals(form, request.asked)
     }
 
@@ -41,7 +41,7 @@ class PendingRequestsTest {
         val request = assertIs<PendingRequest.Takeover>(
             state(LiveState(running = true, pending = listOf(takeover)), calls = arrayOf(SessionEntry.ToolCall(ToolCallId("c3"), "request_takeover", """{"reason":"Sign in"}"""))).requests.single(),
         )
-        assertEquals("q2", request.id)
+        assertEquals(InteractionId("q2"), request.id)
         assertEquals("Sign in", request.reason)
         assertEquals(takeover, request.asked)
     }
@@ -57,7 +57,7 @@ class PendingRequestsTest {
             SessionEntry.ToolCall(ToolCallId("c2"), "ask_user", "{}"),
             SessionEntry.ToolCall(ToolCallId("c1"), "shell", "{}"),
         ).requests
-        assertEquals(listOf("q1", "a1", "p1"), requests.map { it.id })
+        assertEquals(listOf("q1", "a1", "p1").map(::InteractionId), requests.map { it.id })
     }
 
     @Test fun liveRequestsWithoutACallItemStillAppear() {
@@ -87,7 +87,7 @@ class PendingRequestsTest {
             LiveState(running = true, pending = listOf(approval, takeover)),
             calls = arrayOf(SessionEntry.ToolCall(ToolCallId("c3"), "request_takeover", "{}"), SessionEntry.ToolCall(ToolCallId("c1"), "shell", "{}")),
         ).requests
-        assertEquals(listOf("q2", "a1"), requests.map { it.id })
+        assertEquals(listOf("q2", "a1").map(::InteractionId), requests.map { it.id })
         assertIs<PendingRequest.Takeover>(requests.first())
     }
 }

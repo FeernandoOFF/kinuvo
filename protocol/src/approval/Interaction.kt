@@ -18,12 +18,12 @@ import kotlinx.serialization.json.JsonElement
  */
 @Serializable
 sealed interface PendingInteraction {
-    val id: String
+    val id: InteractionId
 
     /** A tool call paused until the user decides; [id] is answered with [InteractionAnswer.Approval]. */
     @Serializable @SerialName("approval")
     data class Approval(
-        override val id: String,
+        override val id: InteractionId,
         /** The model's ID of the tool call waiting on this Approval. */
         val toolCallId: ToolCallId,
         val toolCallName: String,
@@ -41,7 +41,7 @@ sealed interface PendingInteraction {
     /** A form, such as `ask_user`'s or an external harness's; answered with [InteractionAnswer.Questions]. */
     @Serializable @SerialName("questions")
     data class Questions(
-        override val id: String, val toolCallId: ToolCallId, val title: String?, val questions: List<Question>, val screen: ScreenRef? = null,
+        override val id: InteractionId, val toolCallId: ToolCallId, val title: String?, val questions: List<Question>, val screen: ScreenRef? = null,
     ) : PendingInteraction
 
     /**
@@ -50,7 +50,7 @@ sealed interface PendingInteraction {
      */
     @Serializable @SerialName("harness_approval")
     data class HarnessApproval(
-        override val id: String, val title: String, val description: String?, val options: List<ExternalApprovalOption>,
+        override val id: InteractionId, val title: String, val description: String?, val options: List<ExternalApprovalOption>,
         val site: String? = null, val server: String? = null,
     ) : PendingInteraction {
         /** Where it leads and who asks, e.g. "Opens example.com · from slack". */
@@ -62,14 +62,14 @@ sealed interface PendingInteraction {
      * to; [site] is what the card shows, never the full [url].
      */
     @Serializable @SerialName("open_link")
-    data class OpenLink(override val id: String, val message: String, val url: String, val site: String) : PendingInteraction
+    data class OpenLink(override val id: InteractionId, val message: String, val url: String, val site: String) : PendingInteraction
 
     /** A request this client can't fill in; it can only be declined. */
     @Serializable @SerialName("unsupported")
-    data class Unsupported(override val id: String, val message: String) : PendingInteraction
+    data class Unsupported(override val id: InteractionId, val message: String) : PendingInteraction
 }
 
-fun PendingInteraction.withId(id: String): PendingInteraction = when (this) {
+fun PendingInteraction.withId(id: InteractionId): PendingInteraction = when (this) {
     is PendingInteraction.Approval -> copy(id = id)
     is PendingInteraction.Questions -> copy(id = id)
     is PendingInteraction.HarnessApproval -> copy(id = id)
@@ -94,7 +94,7 @@ sealed interface InteractionAnswer {
 
 /** Answers [requestId] in [sessionId]; true when this call claimed it, false when it was answered already or is gone. */
 @Serializable
-data class RespondParams(val sessionId: SessionId, val requestId: String, val answer: InteractionAnswer)
+data class RespondParams(val sessionId: SessionId, val requestId: InteractionId, val answer: InteractionAnswer)
 
 val AgentEvent.approval: PendingInteraction.Approval? get() = (this as? AgentEvent.InteractionRequested)?.interaction as? PendingInteraction.Approval
 

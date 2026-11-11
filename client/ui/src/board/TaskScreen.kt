@@ -69,10 +69,10 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Agen
                         Text("Status", Modifier.width(FieldLabelWidth), style = TextStyles.secondary, color = color(mutedColor))
                         Picker(TaskStatus.entries, task.status, { it.label() }, { s -> onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())
                     }
-                    val assignee = ui.agents.firstOrNull { it.id.value == task.assignee }
+                    val assignee = ui.agents.firstOrNull { it.id == task.assignee }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                         Text("Assignee", Modifier.width(FieldLabelWidth), style = TextStyles.secondary, color = color(mutedColor))
-                        Picker(listOf<AgentInfo?>(null) + ui.agents, assignee, { it?.name ?: "Unassigned" }, { a -> onUpdate(UpdateTaskParams(task.id, assignee = a?.id?.value ?: "")) }, icon = Lucide.User)
+                        Picker(listOf<AgentInfo?>(null) + ui.agents, assignee, { it?.name ?: "Unassigned" }, { a -> onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: AgentId(""))) }, icon = Lucide.User)
                     }
                     if (task.notes.isNotBlank()) Text(task.notes.trim(), style = TextStyles.secondary)
                     // Rows carry their own inset; the list starts at the page edge so their text lines up with the title.
@@ -81,7 +81,7 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Agen
                         if (task.sessionIds.isEmpty()) Text("No Agent has worked on it yet.", Modifier.padding(horizontal = Spacing.space10), color = color(mutedColor), style = TextStyles.secondary)
                         task.sessionIds.asReversed().forEachIndexed { i, id ->
                             val session = ui.sessions[id]
-                            val agentId = session?.agentId ?: task.assignee?.let(::AgentId)
+                            val agentId = session?.agentId ?: task.assignee
                             ListRow(false, { agentId?.let { onOpenSession(it, id) } }, enabled = agentId != null, leading = { Icon(Lucide.MessageSquare, Modifier.size(16.dp)) }) {
                                 val run = if (i == 0) "Latest run" else "Run ${task.sessionIds.size - i}"
                                 // Runs are usually titled after the Task, so those just say which run they are.

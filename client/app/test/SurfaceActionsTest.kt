@@ -22,7 +22,7 @@ class SurfaceActionsTest {
 
     @Test fun buildsActionWithResolvedContextAndFullModel() {
         val message = ActionMessage(name = "save", surfaceId = "form", sourceComponentId = "submit", timestamp = "2026-11-06T00:00:00Z", context = context, userMessage = "Save plan")
-        val action = message.surfaceAction("call", model)
+        val action = message.surfaceAction(ToolCallId("call"), model)
         assertEquals(ToolCallId("call"), action.callId)
         assertEquals("form", action.surfaceId)
         assertEquals("submit", action.sourceComponentId)
@@ -32,7 +32,7 @@ class SurfaceActionsTest {
     }
 
     @Test fun latestModelsAreScopedByCallAndSurfaceAfterSessionReload() {
-        val action = ActionMessage(name = "save", surfaceId = "form", sourceComponentId = "submit", timestamp = "now", context = context).surfaceAction("call", model)
+        val action = ActionMessage(name = "save", surfaceId = "form", sourceComponentId = "submit", timestamp = "now", context = context).surfaceAction(ToolCallId("call"), model)
         val old = JsonObject(mapOf("name" to JsonPrimitive("Old")))
         val entries = listOf(
             SessionEntry.UserMessage("old", action = action.copy(dataModel = old)),
@@ -43,8 +43,8 @@ class SurfaceActionsTest {
         )
         val items = SessionData(AgentId("session"), entries = entries).items
         assertEquals(action, (items[2] as ChatItem.User).action)
-        assertEquals(mapOf("form" to model, "other" to old), items.surfaceDataModels("call"))
-        assertEquals(emptyMap(), items.surfaceDataModels("missing"))
+        assertEquals(mapOf("form" to model, "other" to old), items.surfaceDataModels(ToolCallId("call")))
+        assertEquals(emptyMap(), items.surfaceDataModels(ToolCallId("missing")))
     }
 
     @Test fun invalidDateDraftBlocksSubmissionUntilCorrected() {

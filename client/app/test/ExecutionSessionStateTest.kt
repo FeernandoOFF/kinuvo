@@ -83,7 +83,7 @@ class ExecutionSessionStateTest {
     }
 
     @Test fun deniedToolKeepsTheUsersNote() {
-        val call = ChatItem.ToolCall("t", "t", "shell", "{}", result = "The user denied this call. Note: not now", isError = true)
+        val call = ChatItem.ToolCall("t", ToolCallId("t"), "shell", "{}", result = "The user denied this call. Note: not now", isError = true)
         assertTrue(call.denied)
         assertEquals("not now", call.denialNote)
         assertNull(call.copy(result = "The user denied this call.").denialNote)

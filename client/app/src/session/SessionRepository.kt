@@ -175,7 +175,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
     suspend fun close(sessionId: SessionId) = call { it.call(Api.CloseExecution, ExecutionRef(sessionId.value)) }
 
     /** Answers the pending request [requestId]; false when another Device answered first or it is gone. */
-    suspend fun respond(sessionId: SessionId, requestId: String, answer: InteractionAnswer): Boolean =
+    suspend fun respond(sessionId: SessionId, requestId: InteractionId, answer: InteractionAnswer): Boolean =
         call { it.call(Api.Respond, RespondParams(sessionId, requestId, answer)) }
 
     suspend fun stop(sessionId: SessionId) = call { it.call(Api.Stop, StopParams(sessionId)) }
@@ -324,16 +324,16 @@ private fun SessionData.chatItems(): List<ChatItem> {
             is SessionEntry.VoiceCall -> items += ChatItem.VoiceCall(entry.id, entry.turns, entry.startedAt, entry.durationMillis)
             is SessionEntry.AssistantMessage -> items += ChatItem.Assistant(key(entry.messageId?.let { "text-$it" }, seq), entry.text, at = entry.writtenAt)
             is SessionEntry.Reasoning -> items += ChatItem.Reasoning(key((entry.messageId ?: entry.id)?.let { "reasoning-$it" }, seq), entry.text)
-            is SessionEntry.ToolCall -> items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id.value, entry.name, entry.args, identity = entry.identity)
+            is SessionEntry.ToolCall -> items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id, entry.name, entry.args, identity = entry.identity)
             is SessionEntry.ToolResult -> {
-                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == entry.id.value && it.result == null }
+                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == entry.id && it.result == null }
                 if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(result = entry.output, isError = entry.isError, attachments = entry.attachments, app = entry.app, appResult = entry.appResult)
-                else items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id.value, entry.name, "", entry.output, entry.isError, identity = entry.identity, attachments = entry.attachments, app = entry.app, appResult = entry.appResult)
+                else items += ChatItem.ToolCall(key("tool-${entry.id}", seq), entry.id, entry.name, "", entry.output, entry.isError, identity = entry.identity, attachments = entry.attachments, app = entry.app, appResult = entry.appResult)
             }
             is SessionEntry.Measurement -> items += ChatItem.Measurement(key("metrics-${entry.metrics.id}", seq), entry.metrics)
             is SessionEntry.Reflection -> items += ChatItem.Reflection(key("reflection-${entry.id}", seq), entry.result, reviews, revised)
             is SessionEntry.Compaction -> items += ChatItem.Compaction(key(null, seq), entry.summary)
-            is SessionEntry.ToolReport -> items += ChatItem.ToolReport(key(null, seq), entry.tool, entry.callId?.value, entry.content)
+            is SessionEntry.ToolReport -> items += ChatItem.ToolReport(key(null, seq), entry.tool, entry.callId, entry.content)
             is SessionEntry.Activation -> items += ChatItem.Activation(key(null, seq), entry.name, entry.content)
             is SessionEntry.ReflectionReview -> entry.result?.takeIf { it.proposals.isNotEmpty() }?.let {
                 items += ChatItem.Reflection(key("reflection-review-${entry.proposalId}", seq), it, reviews, revised)
@@ -345,13 +345,13 @@ private fun SessionData.chatItems(): List<ChatItem> {
     live.pending.forEach { request ->
         when (request) {
             is PendingInteraction.Approval -> {
-                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId.value && it.result == null }
+                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
                 if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(approval = request)
                 // An MCP App's own tool call asks outside a run, with no call in the list yet.
-                else items += ChatItem.ToolCall(key("approval-${request.id}", -4), request.toolCallId.value, request.toolCallName, request.args, approval = request, identity = request.identity)
+                else items += ChatItem.ToolCall(key("approval-${request.id}", -4), request.toolCallId, request.toolCallName, request.args, approval = request, identity = request.identity)
             }
             is PendingInteraction.Questions -> {
-                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId.value && it.result == null }
+                val call = items.indexOfLast { it is ChatItem.ToolCall && it.callId == request.toolCallId && it.result == null }
                 if (call >= 0) items[call] = (items[call] as ChatItem.ToolCall).copy(questions = request)
             }
             else -> Unit

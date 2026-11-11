@@ -55,7 +55,7 @@ class VoiceRpcTest {
                     return ExecutionAcceptance("accepted")
                 }
                 override suspend fun cancel() {}
-                override suspend fun answer(requestId: String, answer: InteractionAnswer) {}
+                override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
             }
         }
         val voice = VoiceProviders(speechToSpeech = object : SpeechToSpeech {
