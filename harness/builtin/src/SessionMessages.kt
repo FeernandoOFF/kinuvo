@@ -8,6 +8,7 @@ import kinuvo.protocol.session.Attachment
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.ToolCallId
 import kotlin.uuid.Uuid
+import kinuvo.harness.limitResult
 import kinuvo.harness.ResultLimits
 import kinuvo.harness.modelText
 

@@ -66,7 +66,7 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
             val info = connection.client.agentInfo.await()
             val adapter = AcpSession(session, previous, requireNotNull(registration.cwd), operations, connection, state, broker, reducer, requests::cancel, ExecutionCapabilities(
                 resume = connection.supportsResume(), cancel = true, questions = true, approvals = true,
-                supportedMimeTypes = info.capabilities.session?.prompt.supportedMimeTypes()))
+                supportedMimeTypes = info.capabilities.session?.prompt.supportedMimeTypes()), acceptsMcp = connection.supportsMcp())
             val collecting = scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 try { adapter.collect() }
                 finally { withContext(NonCancellable) { try { reducer.lost(broker::lost) } finally { connection.close() } } }

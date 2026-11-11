@@ -9,6 +9,7 @@ import kotlin.uuid.Uuid
 
 /** Implementations are native in-process, JVM ACP, or an explicitly selected remote Agent. */
 interface ExecutionSession {
+    val acceptsMcp: Boolean get() = false
     val capabilities: ExecutionCapabilities
     suspend fun close() {}
     suspend fun prompt(input: ExecutionInput): ExecutionAcceptance

@@ -1,13 +1,11 @@
-package kinuvo.harness.builtin
+package kinuvo.harness
 
-import kinuvo.harness.ResultLimits
-
-internal suspend fun String.limitResult(tokens: Int, paging: Boolean, estimate: suspend (String) -> Int): String {
+suspend fun String.limitResult(tokens: Int, paging: Boolean, estimate: suspend (String) -> Int): String {
     if ((length + 3) / 4 <= tokens / 2) return this
     val size = estimate(this)
     if (size <= tokens) return this
     fun cut(keep: Int): String {
-        val head = takeWhole(keep / 2)
+        val head = take((keep / 2).let { if (it in 1 until length && this[it - 1].isHighSurrogate()) it - 1 else it })
         var start = length - (keep - head.length)
         if (start in 1 until length && this[start].isLowSurrogate() && this[start - 1].isHighSurrogate()) start++
         val tail = substring(start)

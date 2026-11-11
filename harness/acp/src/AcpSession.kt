@@ -35,6 +35,7 @@ class AcpSession internal constructor(
     private val reducer: AcpReducer,
     private val cancelRequests: suspend () -> Unit,
     override val capabilities: ExecutionCapabilities,
+    override val acceptsMcp: Boolean = false,
 ) : ExecutionSession {
     private val commands = Mutex()
     private val sessions = MutableStateFlow(session)
