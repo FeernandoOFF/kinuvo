@@ -66,6 +66,7 @@ import kinuvo.protocol.capability.supports
 import kinuvo.ui.design.*
 import kinuvo.protocol.session.UploadAttachmentParams
 import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -155,6 +156,8 @@ fun ChatScreen(
         phase = current.phase,
         resume = current.capabilities?.execution?.resume,
         resuming = current.resuming,
+        children = current.data?.children.orEmpty(),
+        interactionChildren = current.data?.live?.interactionChildren.orEmpty(),
     )
     CompositionLocalProvider(LocalSurfaceImages provides getKoin().getOrNull<SurfaceImages>()) {
         ChatContent(
@@ -205,6 +208,8 @@ fun ChatScreen(
                 onExternal = session::answerExternal,
                 onCheckHarness = { appState.agents.firstOrNull { it.id == route.agentId }?.connectionId?.let(session::checkHarness) },
                 onCloseSession = session::closeExternal,
+                agents = appState.agents,
+                onOpenSession = { agentId, id -> onOpen(Route.Chat(agentId, id)) },
             ),
             wide = wide,
             compose = route.compose && route.sessionId == null,
@@ -265,6 +270,9 @@ class ChatActions(
     /** Reopens an external Session whose harness process ended. */
     /** Ends an external Session's harness process; its transcript stays. */
     val onCloseSession: () -> Unit = {},
+    /** Names Sub-agents' Agents, and opens a child or parent Session. */
+    val agents: List<AgentInfo> = emptyList(),
+    val onOpenSession: (AgentId, SessionId) -> Unit = { _, _ -> },
 )
 
 /** The Browser panel beside a wide chat: [toggle] shows or hides it; [show] opens it on the Screen a card points at. */
@@ -427,6 +435,7 @@ fun ChatContent(
                         }
                     }
                     else Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8), horizontalAlignment = Alignment.CenterHorizontally) {
+                    SubAgentFooter(SubAgents(state.children, state.interactionChildren.values.toSet()), actions.agents, actions.onOpenSession, Modifier.widthIn(max = ContentWidth))
                     RequestComposer(state, actions, requestInputs, Modifier.widthIn(max = ContentWidth), notice = requestNotice) {
                         val over = state.ended?.takeIf { it.resume == false && !state.resumeOnSend }
                         if (over != null) EndedComposer(over.blocked, actions.onNew, Modifier.widthIn(max = ContentWidth))

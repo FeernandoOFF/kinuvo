@@ -133,7 +133,8 @@ internal fun Messages(
     val surfaceRenderers = remember(state.selected) { mutableMapOf<ToolCallId, SurfaceRenderer>() }
     val htmlHeights = remember(state.selected) { mutableMapOf<ToolCallId, Int>() }
     val htmlSurfaces = remember(state.selected) { mutableStateListOf<ToolCallId>() }
-    CompositionLocalProvider(LocalHtmlSurfaces provides htmlSurfaces, LocalHtmlHeights provides htmlHeights, LocalSurfaceRenderers provides surfaceRenderers, LocalSurfaceItems provides items) {
+    val subAgents = remember(state.children, state.interactionChildren) { SubAgents(state.children, state.interactionChildren.values.toSet()) }
+    CompositionLocalProvider(LocalHtmlSurfaces provides htmlSurfaces, LocalHtmlHeights provides htmlHeights, LocalSurfaceRenderers provides surfaceRenderers, LocalSurfaceItems provides items, LocalSubAgents provides subAgents) {
         Box(modifier.fillMaxWidth()) {
             SelectionContainer {
                 LazyColumn(
@@ -143,6 +144,9 @@ internal fun Messages(
                     verticalArrangement = Arrangement.spacedBy(Spacing.space14),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    state.info?.takeIf { it.parent != null }?.let { info ->
+                        item(key = "sub-agent-parent") { Box(Modifier.widthIn(max = ContentWidth).fillMaxWidth()) { ParentBanner(info, actions.agents, actions.onOpenSession) } }
+                    }
                     items(rows, key = { it.key }, contentType = {
                         when (it) {
                             is ChatRow.Single -> it.item::class
@@ -285,6 +289,7 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
             item.name == "show_html" && item.result != null && !item.isError -> HtmlSurface(item, actions.onSend) { ToolCallView(item, actions = actions) }
             item.app != null && item.result != null && !item.isError -> McpAppSurface(item, actions.onAppResource, actions.onAppTool, actions.onSend) { ToolCallView(item, actions = actions) }
             item.name == "show_ui" && item.result != null && !item.isError -> SurfaceCall(item, actions.onSurfaceAction) { ToolCallView(item, actions = actions) }
+            item.name in SUB_AGENT_TOOLS -> SubAgentCard(item, actions)
             item.name == "artifact" && item.result != null && !item.isError -> Column { ArtifactCard(item, actions.onOpenArtifact); ToolAttachments(item.attachments, actions) }
             else -> ToolCallView(item, actions = actions)
         }

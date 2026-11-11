@@ -102,7 +102,9 @@ internal fun RequestComposer(
     val request = requests.firstOrNull()?.takeUnless { it is PendingRequest.External }
     LaunchedEffect(requests) { inputs.retain(requests.map { it.id }.toSet()) }
     val body: @Composable (PendingRequest, Boolean) -> Unit = { current, wide ->
-        RequestHeader(current, requests.size, onClose = if (current is PendingRequest.Questions) ({ actions.onAnswer(null) }) else null)
+        val child = state.interactionChildren[current.id]?.let { state.children[it] }
+        RequestHeader(current, requests.size, from = child?.let { "From Sub-agent ${actions.agents.firstOrNull { a -> a.id == it.agentId }?.name ?: it.agentId.value}: ${it.goal.lineSequence().first()}" },
+            onClose = if (current is PendingRequest.Questions) ({ actions.onAnswer(null) }) else null)
         RequestBody(current, state.answers, inputs.of(current), actions, wide)
     }
     BoxWithConstraints(modifier.fillMaxWidth()) {
@@ -193,7 +195,8 @@ private fun PendingRequest.title(): String = when (this) {
 }
 
 private fun PendingRequest.detail(): String? = when (this) {
-    is PendingRequest.Approval -> event.reason
+    // The card shows the preview itself, so only why it asks stays here.
+    is PendingRequest.Approval -> event.preview.let { p -> if (p == null) event.reason else event.reason?.removeSuffix(p.text())?.trim()?.ifEmpty { null } }
     is PendingRequest.Takeover -> reason ?: asked.title
     else -> null
 }
@@ -201,7 +204,7 @@ private fun PendingRequest.detail(): String? = when (this) {
 private fun PendingInteraction.Approval.isShell() = identity?.instance?.pluginId == "kinuvo.exec" && identity?.localId == "shell"
 
 @Composable
-private fun RequestHeader(request: PendingRequest, count: Int, onClose: (() -> Unit)?) {
+private fun RequestHeader(request: PendingRequest, count: Int, from: String? = null, onClose: (() -> Unit)?) {
     val tone = request.tone()
     Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(Spacing.space10)) {
         Box(Modifier.size(30.dp).background(tone.copy(alpha = 0.14f), CircleShape), contentAlignment = Alignment.Center) { Icon(request.icon(), Modifier.size(16.dp), tint = tone) }
@@ -211,6 +214,7 @@ private fun RequestHeader(request: PendingRequest, count: Int, onClose: (() -> U
                 if (request is PendingRequest.Approval) Pill("${request.event.risk.name} risk", tone = when (request.event.risk) { Risk.Low -> Tone.Neutral; Risk.Medium -> Tone.Warning; Risk.High -> Tone.Danger })
                 if (count > 1) Text("1 of $count", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
             }
+            from?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
             request.detail()?.let { Text(it, style = TextStyles.caption, color = color(mutedColor), maxLines = 2, overflow = TextOverflow.Ellipsis) }
         }
         if (onClose != null) IconButton(onClick = onClose, style = ButtonStyle.Ghost, shape = CircleShape, contentColor = color(mutedColor), modifier = Modifier.size(32.dp)) {
@@ -248,6 +252,7 @@ private fun ApprovalBody(event: PendingInteraction.Approval, input: RequestInput
     val label = identity?.let { "${it.instance.pluginId} › ${it.instance.instanceId} › ${it.localId}" }
     val always = event.trustHint?.let { if (identity?.instance?.pluginId == "kinuvo.computer" && identity.localId == "computer_act") "Always allow in $it" else "Always allow `$it …`" } ?: "Always allow"
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
+        event.preview?.let { ChangePreviewView(it) }
         val command = if (event.isShell()) commandOf(event.args) else null
         if (command != null) {
             Text("$ $command", Modifier.fillMaxWidth().clip(RoundedCornerShape(Radius.menu)).background(color(codeColor)).padding(horizontal = Spacing.space12, vertical = 9.dp),
@@ -255,7 +260,7 @@ private fun ApprovalBody(event: PendingInteraction.Approval, input: RequestInput
         }
         val json = prettyJson(event.args)
         val toggle = when {
-            command != null -> if (input.arguments) "Hide arguments" else "Arguments"
+            command != null || event.preview != null -> if (input.arguments) "Hide arguments" else "Arguments"
             json.lines().size > ArgumentLines -> if (input.arguments) "Show less" else "Show all"
             else -> null
         }
@@ -266,8 +271,8 @@ private fun ApprovalBody(event: PendingInteraction.Approval, input: RequestInput
                 Icon(if (input.arguments) Lucide.ChevronUp else Lucide.ChevronDown, Modifier.size(14.dp))
             } }
         }
-        // Without a command to show, the arguments are what's being approved.
-        if (command == null || input.arguments) CodeBlock(json, language = "Arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
+        // Without a command or preview to show, the arguments are what's being approved.
+        if ((command == null && event.preview == null) || input.arguments) CodeBlock(json, language = "Arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
         // The two answers side by side; a note for a denial is one tap away and goes above them.
         if (input.noting) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             Text("Note for the Agent, sent with Deny", style = TextStyles.caption, color = color(mutedColor))

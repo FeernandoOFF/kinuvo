@@ -26,6 +26,7 @@ import kinuvo.protocol.session.*
 import kinuvo.protocol.skill.*
 import kinuvo.protocol.surface.*
 import kinuvo.protocol.usage.*
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.app.session.CompletionSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -141,10 +142,14 @@ fun List<ChatItem>.requestMetrics(): List<RequestMetrics> = flatMap {
 
 private fun ChatItem.isStep() = when (this) {
     is ChatItem.Reasoning -> true
-    is ChatItem.ToolCall -> if (name == "generate_image") waiting || isError
+    // Sub-agent calls stay on their own row, so the children they run are never folded away.
+    is ChatItem.ToolCall -> if (name in SUB_AGENT_TOOLS) false
+        else if (name == "generate_image") waiting || isError
         else !waiting && !((name in setOf("ask_user", "artifact", "show_ui", "show_html") || app != null) && result != null && !isError)
     else -> false
 }
+
+val SUB_AGENT_TOOLS = setOf(ToolNames.AGENTS_SPAWN, ToolNames.AGENTS_WAIT, ToolNames.AGENTS_SEND)
 
 /** [loaded] is false until the Session's first catch-up, so the empty state doesn't flash. */
 data class ChatState(
@@ -184,6 +189,9 @@ data class ChatState(
     /** Whether the harness can resume saved Sessions; null when this Device can't tell. */
     val resume: Boolean? = null,
     val resuming: Boolean = false,
+    /** This Session's Sub-agents by child Session id, and the child each pending interaction came from. */
+    val children: Map<SessionId, SubAgentState> = emptyMap(),
+    val interactionChildren: Map<InteractionId, SessionId> = emptyMap(),
 ) {
     /** An external Agent's harness and readiness, which replace Kinuvo's model and Risk tolerance settings. */
     val external get() = agent?.external == true
