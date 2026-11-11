@@ -224,7 +224,8 @@ class LiveViewModel(private val repository: ScreensRepository, private val owner
 
     fun input(frame: ScreenFrame, actions: List<ScreenAction>) {
         val s = state.value
-        if (!s.interactive || s.displayed != frame || actions.isEmpty() || actions.size > 32 || actions.any { it.kind.action !in s.screen!!.capabilities.inputs }) return
+        val pointer = actions.any { it.kind != ScreenActionKind.Key && it.kind != ScreenActionKind.Type }
+        if (!s.interactive || (pointer && s.displayed != frame) || actions.isEmpty() || actions.size > 32 || actions.any { it.kind.action !in s.screen!!.capabilities.inputs }) return
         if (inputs.size >= 64) {
             inputs.clear()
             state.update { it.copy(error = "Input is arriving too quickly. Observe the page before continuing.", displayed = null) }

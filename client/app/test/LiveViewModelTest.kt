@@ -163,6 +163,16 @@ class LiveViewModelTest {
         assertEquals(2, fake.inputs.size)
     }
 
+    @Test fun keysSentFromAnOlderFrameStillArriveButPointerInputDoesNot() = run { fake, vm ->
+        fake.screens = listOf(ScreenInfo(fake.ref, "Screen", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap", "key")), ScreenStatus.Ready, fake.control))
+        vm.retry(); runCurrent()
+        val old = fake.frame(); fake.frames.emit(old); runCurrent(); vm.drawn(old); runCurrent()
+        val newer = fake.frame().copy(sequence = old.sequence + 1); fake.frames.emit(newer); runCurrent(); vm.drawn(newer); runCurrent()
+        vm.input(old, listOf(ScreenAction(ScreenActionKind.Tap, x = 10, y = 20))); runCurrent()
+        assertTrue(fake.inputs.isEmpty())
+        vm.input(old, listOf(ScreenAction(ScreenActionKind.Key, key = "Home"))); runCurrent()
+        assertEquals(1, fake.inputs.size)
+    }
     @Test fun successfulInputKeepsStreamAndConsumesSequencesInOrder() = run { fake, vm ->
         val frame = fake.frame(); fake.frames.emit(frame); runCurrent(); vm.drawn(frame); runCurrent()
         val epoch = fake.epoch
