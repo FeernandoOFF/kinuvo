@@ -11,6 +11,43 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class McpGatewayTest {
+    @Test fun externalCallerCanSpawnAndWaitThroughServerTools() = runBlocking {
+        lateinit var agent: Agent
+        TestServer.start(script = { reply("child answer") }, scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
+            val session = server.startSession(agent.id)
+            val composed = server.harness.compose(agent, session.id, scope = ToolScope.only("agents_spawn", "agents_wait"))
+            val access = McpAccess()
+            val endpoint = McpEndpoint(access)
+            val run = McpAccess.Run(composed.tools, composed.gate, ToolTurn(emit = { server.harness.log.publish(agent.id, session.id, it) }), SupervisorJob())
+            val token = access.issue(run)
+            suspend fun call(name: String, args: JsonObject): String {
+                val response = endpoint.handle("Bearer $token", buildJsonObject {
+                    put("jsonrpc", "2.0"); put("id", 1); put("method", "tools/call")
+                    putJsonObject("params") { put("name", name); put("arguments", args) }
+                }.toString())
+                assertEquals(200, response.status)
+                return Json.parseToJsonElement(response.body!!).jsonObject.getValue("result").jsonObject.getValue("content").jsonArray.single().jsonObject.getValue("text").jsonPrimitive.content
+            }
+            val spawned = Json.parseToJsonElement(call("agents_spawn", buildJsonObject { put("goal", "work") })).jsonObject
+            val id = spawned.getValue("sessionId").jsonPrimitive.content
+            val waiting = async { call("agents_wait", buildJsonObject { put("session_ids", JsonArray(listOf(JsonPrimitive(id)))); put("timeout_seconds", "5") }) }
+            val review = withTimeout(5000) {
+                while (true) {
+                    server.harness.log.pending(session.id).filterIsInstance<PendingInteraction.Approval>().firstOrNull()?.let { return@withTimeout it }
+                    yield()
+                }
+                error("unreachable")
+            }
+            assertTrue(review.args.contains("child answer"))
+            assertEquals("child answer", review.preview?.body)
+            server.harness.approvals.respond(review.id, ApprovalDecision.AllowOnce)
+            val result = Json.parseToJsonElement(waiting.await()).jsonArray.single().jsonObject
+            assertEquals(id, result.getValue("sessionId").jsonPrimitive.content)
+            assertEquals("child answer", result.getValue("result").jsonPrimitive.content)
+            access.revoke(run)
+        }
+    }
+
     @Test fun scopePolicyApprovalAuditAndRevocationUseTheRealServer() = runBlocking {
         lateinit var agent: Agent
         val output = "deployed" + "😀".repeat(5000) + "TAIL"
