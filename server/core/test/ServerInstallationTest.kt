@@ -24,7 +24,7 @@ class ServerInstallationTest {
             VoiceProviderConfig(model = "test", apiKey = "\${UNRESOLVED_VOICE_KEY}"))) }
         val dependencies = ServerInstallation.assemble(files)
         try {
-            assertEquals(VoiceSetup(synthesizer = true), HarnessRuntime(dependencies).voice.setup)
+            assertEquals(VoiceSetup(synthesizer = true), testRuntime(dependencies).voice.setup)
             files.updateConfig { it.copy(timezone = "Europe/Dublin") }
             assertNotNull(files.config().voice.synthesis)
         } finally { dependencies.resources.close() }
@@ -61,7 +61,7 @@ class ServerInstallationTest {
         var dependencies = ServerInstallation.assemble(files)
         val id = dependencies.serverId
         try {
-            val runtime = HarnessRuntime(dependencies)
+            val runtime = testRuntime(dependencies)
             runtime.timeZone = TimeZone.of("Europe/Dublin")
             runtime.saveTasksSettings(TasksSettings(pollMinutes = 17))
             runtime.saveKnowledgeSettings(KnowledgeSettings(reflection = false))

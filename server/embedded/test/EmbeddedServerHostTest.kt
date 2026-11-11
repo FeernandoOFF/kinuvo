@@ -34,7 +34,7 @@ class EmbeddedServerHostTest {
     private val home = Path(SystemTemporaryDirectory, "kinuvo-local-${Uuid.random()}")
     private val seen = mutableListOf<List<Message>>()
     private val offered = mutableListOf<List<String>>()
-    private val provider = object : ModelProvider {
+    private val provider = object : TestModelProvider {
         override val id = "test"
         override suspend fun models() = listOf(ModelInfo("local"))
         override fun model(config: AgentConfig) = scriptedModel { prompt, tools ->
@@ -61,19 +61,19 @@ class EmbeddedServerHostTest {
             override val definition = kinuvo.protocol.PluginDefinition("test.localservertest.1", "Test")
             override suspend fun close() { closes++ }
         }
-        val failing = object : ModelProvider by provider {
+        val failing = object : TestModelProvider by provider {
             override suspend fun models(): List<ModelInfo> = throw CancellationException("Discovery cancelled")
         }
-        assertFailsWith<CancellationException> { EmbeddedServerHost.create(home, listOf(failing), listOf(plugin)) }
+        assertFailsWith<CancellationException> { EmbeddedServerHost.create(home, listOf(failing), listOf(plugin), modelSources = { listOf(provider) }) }
         assertEquals(1, closes)
     }
 
     @Test
     fun freshInstallationKeepsTheDefaultModelBeforeSignIn() = runBlocking {
-        val signedOut = object : ModelProvider by provider {
+        val signedOut = object : TestModelProvider by provider {
             override suspend fun models(): List<ModelInfo> = error("No login")
         }
-        val server = EmbeddedServerHost.create(home, listOf(signedOut))
+        val server = EmbeddedServerHost.create(home, listOf(signedOut), modelSources = { listOf(provider) })
         try {
             val config = server.runtime.harness.store.agents().single().config
             assertEquals(provider.id, config.provider)
@@ -90,10 +90,10 @@ class EmbeddedServerHostTest {
                 override val definition = kinuvo.protocol.PluginDefinition("test.localservertest.2", "Test")
                 override suspend fun close() { yield(); closes++ }
             }
-            val waiting = object : ModelProvider by provider {
+            val waiting = object : TestModelProvider by provider {
                 override suspend fun models(): List<ModelInfo> { discovering.complete(Unit); awaitCancellation() }
             }
-            val creation = launch { EmbeddedServerHost.create(home, listOf(waiting), listOf(plugin)) }
+            val creation = launch { EmbeddedServerHost.create(home, listOf(waiting), listOf(plugin), modelSources = { listOf(provider) }) }
             discovering.await()
             creation.cancelAndJoin()
             assertEquals(1, closes)
@@ -103,7 +103,7 @@ class EmbeddedServerHostTest {
     @Test
     fun thePhoneRunningTheServerIsItsOwnComputer(): Unit = runBlocking {
         withTimeout(10_000) {
-            val server = EmbeddedServerHost.create(home, listOf(provider), continuous = true)
+            val server = EmbeddedServerHost.create(home, listOf(provider), continuous = true, modelSources = { listOf(provider) })
             val client = KinuvoClient("local://kinuvo", "Pixel", token = server.token, connection = server::connect,
                 deviceTools = { setOf(DeviceToolKind.Computer) }, computer = { ComputerResult(DeviceToolStatus.Ready, screen = ComputerScreen("a1", 10, 20, app = "com.example")) })
             try {
@@ -119,7 +119,7 @@ class EmbeddedServerHostTest {
     @Test
     fun memoryAndSessionsSurviveServerRecreation(): Unit = runBlocking {
         withTimeout(10_000) {
-            var server = EmbeddedServerHost.create(home, listOf(provider))
+            var server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             var client = client(server)
             try {
                 assertEquals("test", client.call(Api.Agent, AgentRef("default")).settings.provider)
@@ -131,7 +131,7 @@ class EmbeddedServerHostTest {
                 assertEquals("- Prefers tea\n", FileAgentDocs(AgentFiles(home)).read("default", AgentDoc.UserNotes))
                 client.close()
                 server.close()
-                server = EmbeddedServerHost.create(home, listOf(provider))
+                server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
                 client = client(server)
                 assertTrue(client.call(Api.Sessions, SessionsParams("default")).sessions.any { it.id == id })
                 val second = client.call(Api.CreateSession, AgentRef("default")).id
@@ -147,7 +147,7 @@ class EmbeddedServerHostTest {
     @Test
     fun pendingApprovalSurvivesReconnectAndAnApprovedRunFinishesInTheBackground(): Unit = runBlocking {
         withTimeout(10_000) {
-            val server = EmbeddedServerHost.create(home, listOf(provider))
+            val server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             var client = client(server)
             try {
                 val id = client.call(Api.CreateSession, AgentRef("default")).id
@@ -176,7 +176,7 @@ class EmbeddedServerHostTest {
     @Test
     fun backgroundCancellationDoesNotSaveUnapprovedMemory(): Unit = runBlocking {
         withTimeout(10_000) {
-            val server = EmbeddedServerHost.create(home, listOf(provider))
+            val server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             val client = client(server)
             try {
                 val id = client.call(Api.CreateSession, AgentRef("default")).id
@@ -197,7 +197,7 @@ class EmbeddedServerHostTest {
     @Test
     fun offersNoToolsForFeaturesTheServerLacks(): Unit = runBlocking {
         withTimeout(10_000) {
-            val server = EmbeddedServerHost.create(home, listOf(provider))
+            val server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             val client = client(server)
             try {
                 run(client, client.call(Api.CreateSession, AgentRef("default")).id, "hi")
@@ -212,7 +212,7 @@ class EmbeddedServerHostTest {
     @Test
     fun advertisesDeviceToolsAndTextOnlyInput(): Unit = runBlocking {
         withTimeout(10_000) {
-            val server = EmbeddedServerHost.create(home, listOf(provider))
+            val server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             val client = client(server)
             try {
                 assertEquals(setOf(ServerFeature.DeviceTools, ServerFeature.Computer, ServerFeature.Knowledge, ServerFeature.Tasks, ServerFeature.Screens), client.lastConnect?.capabilities?.features)
@@ -238,7 +238,7 @@ class EmbeddedServerHostTest {
                 override suspend fun login(show: (DeviceCode) -> Unit) { show(DeviceCode("https://sign.in", "ABCD", 0)); approve.await(); signedIn = true }
                 override suspend fun logout() { signedIn = false }
             }
-            val server = EmbeddedServerHost.create(home, listOf(object : ModelProvider by provider { override val auth = auth }))
+            val server = EmbeddedServerHost.create(home, listOf(object : TestModelProvider by provider { override val auth = auth }), modelSources = { listOf(provider) })
             val client = client(server)
             try {
                 assertEquals(ProviderAccount(false), client.call(Api.Providers, Unit).single().account)
@@ -260,7 +260,7 @@ class EmbeddedServerHostTest {
             override suspend fun save(value: String) { keyValue(value) }
             private fun keyValue(next: String) { value = next }
         }
-        val server = EmbeddedServerHost.create(home, listOf(object : ModelProvider by provider { override val apiKey = key }))
+        val server = EmbeddedServerHost.create(home, listOf(object : TestModelProvider by provider { override val apiKey = key }), modelSources = { listOf(provider) })
         val client = client(server)
         try {
             assertFalse(client.call(Api.Providers, Unit).single().apiKey!!.configured)

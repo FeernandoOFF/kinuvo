@@ -14,6 +14,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 import java.io.File
+import kinuvo.harness.ModelProfile
 
 internal object LiteRt : LLMProvider("local", "On this device")
 

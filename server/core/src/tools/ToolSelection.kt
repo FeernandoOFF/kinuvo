@@ -1,12 +1,8 @@
 package kinuvo.server.tools
 
 import kinuvo.server.plugin.Tool
-import kinuvo.harness.builtin.SchemaLevel
-import kinuvo.harness.builtin.ToolPolicy
-import kinuvo.harness.ToolSpec
-import kinuvo.harness.builtin.tools.simplified
-import kinuvo.harness.builtin.tools.toDescriptor
-import kinuvo.harness.builtin.tools.toSpec
+import kinuvo.harness.ToolPolicy
+import kinuvo.harness.simplified
 
 /**
  * The tools a run offers, narrowed in turn by [scope], the policy's groups and schema level, the provider's
@@ -19,12 +15,4 @@ fun ToolPolicy.select(tools: List<Tool>, scope: ToolScope = ToolScope.All, accep
     val limit = cap ?: return tools.filter { it in internal || it in allowed }
     val order = compareBy<Tool> { !scope.named(it) }.thenBy { preferred.indexOf(it.localName).let { i -> if (i < 0) preferred.size else i } }.thenBy { it.localName }
     return internal + allowed.sortedWith(order).take(limit)
-}
-
-fun ToolSpec.simplified(level: SchemaLevel): ToolSpec? {
-    if (level == SchemaLevel.Full) return this
-    if (verbatim) return null
-    val full = toDescriptor()
-    val flat = full.simplified(level) ?: return null
-    return if (flat === full) this else copy(schema = flat.toSpec().schema)
 }

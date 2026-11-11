@@ -7,6 +7,7 @@ import kinuvo.protocol.SessionEntry
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
+import kinuvo.harness.ResultLimits
 
 class ResultLimitsTest {
     @Test fun tierBudgets() {

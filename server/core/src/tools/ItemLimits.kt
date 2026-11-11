@@ -1,14 +1,11 @@
 package kinuvo.server.tools
 
+import kinuvo.harness.parameterSchema
+import kinuvo.harness.requiredNames
+import kinuvo.harness.schemaProperties
 import kinuvo.harness.ToolSpec
 import kinuvo.server.plugin.Tool
-import ai.koog.agents.core.tools.ToolDescriptor
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
 import kotlinx.serialization.json.*
-import kinuvo.harness.builtin.tools.RawSchemaToolDescriptor
-import kinuvo.harness.builtin.tools.toDescriptor
-import kinuvo.harness.builtin.tools.toSpec
 
 private val limitNames = setOf("limit", "max_results", "maxResults", "top_k", "page_size")
 
@@ -20,30 +17,32 @@ fun Tool.itemLimits(maxItems: Int?): Map<String, Int> {
         if (name !in limitNames || property["type"]?.jsonPrimitive?.content != "integer") null
         else name to minOf(maxItems, property["maximum"]?.jsonPrimitive?.intOrNull ?: maxItems)
     }.toMap()
-    val koog = descriptor.toDescriptor()
-    return (koog.requiredParameters + koog.optionalParameters).filter { it.name in limitNames && it.type == ToolParameterType.Integer }
-        .associate { it.name to maxItems }
+    return descriptor.schemaProperties.filter { (name, property) -> name in limitNames && property["type"]?.jsonPrimitive?.contentOrNull == "integer" }
+        .mapValues { maxItems }
 }
 
-fun ToolSpec.withItemLimits(limits: Map<String, Int>): ToolSpec =
-    if (limits.isEmpty()) this else copy(schema = toDescriptor().withItemLimits(limits).toSpec().schema)
-
-fun ToolDescriptor.withItemLimits(limits: Map<String, Int>): ToolDescriptor {
+fun ToolSpec.withItemLimits(limits: Map<String, Int>): ToolSpec {
     if (limits.isEmpty()) return this
     fun description(old: String, max: Int) = old.replace(Regex("""\(default \d+[^)]*\)"""), "").trim() + " (default $max, max $max for this model)"
-    if (this is RawSchemaToolDescriptor) {
+    if (verbatim) {
         val properties = schema["properties"] as? JsonObject ?: return this
-        return RawSchemaToolDescriptor(name, this.description, JsonObject(schema + ("properties" to JsonObject(properties.mapValues { (name, value) ->
+        return copy(schema = JsonObject(schema + ("properties" to JsonObject(properties.mapValues { (name, value) ->
             val max = limits[name]
             if (max == null || value !is JsonObject) value else JsonObject(value + mapOf(
                 "description" to JsonPrimitive(description(value["description"]?.jsonPrimitive?.content.orEmpty(), max)),
                 "default" to JsonPrimitive(max), "maximum" to JsonPrimitive(max)))
         }))))
     }
-    fun parameter(p: ToolParameterDescriptor) = limits[p.name]?.let { ToolParameterDescriptor(p.name, description(p.description, it), p.type) } ?: p
-    val missing = limits.filterKeys { key -> (requiredParameters + optionalParameters).none { it.name == key } }
-        .map { (name, max) -> ToolParameterDescriptor(name, "Result count (default $max, max $max)", ToolParameterType.Integer) }
-    return ToolDescriptor(name, this.description, requiredParameters.map(::parameter), optionalParameters.map(::parameter) + missing)
+    val properties = schemaProperties
+    val required = properties.keys.filter { it in requiredNames }
+    val optional = properties.keys.filter { it !in requiredNames }
+    val limited = properties.mapValues { (name, property) ->
+        limits[name]?.let { max -> JsonObject(property + ("description" to JsonPrimitive(description(property["description"]?.jsonPrimitive?.contentOrNull.orEmpty(), max)))) } ?: property
+    }
+    val missing = limits.filterKeys { it !in properties }.mapValues { (_, max) ->
+        JsonObject(mapOf("type" to JsonPrimitive("integer"), "description" to JsonPrimitive("Result count (default $max, max $max)")))
+    }
+    return copy(schema = parameterSchema(limited + missing, required, optional + missing.keys))
 }
 
 internal fun JsonObject.clampItems(limits: Map<String, Int>): JsonObject = JsonObject(this + limits.mapValues { (name, max) ->

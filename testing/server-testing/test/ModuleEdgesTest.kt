@@ -38,9 +38,7 @@ class ModuleEdgesTest {
     )
 
     /** Edges that break a rule today; each needs its reason, and the test fails once one is no longer needed. */
-    private val exceptions = mapOf(
-        "server/core -> harness/builtin" to "Core builds tool descriptors and runs Reflection and voice through the built-in harness; ADR 0029 has core depend on harness/api only.",
-    )
+    private val exceptions = emptyMap<String, String>()
 
     private val root = generateSequence(File("").absoluteFile) { it.parentFile }.first { File(it, "project.yaml").isFile }
 

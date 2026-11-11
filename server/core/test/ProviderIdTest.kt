@@ -13,7 +13,7 @@ import kotlin.test.*
 import kinuvo.server.providers.ModelProvider
 
 class ProviderIdTest {
-    private fun provider(id: String) = object : ModelProvider {
+    private fun provider(id: String) = object : TestModelProvider {
         override val id = id
         override fun model(config: AgentConfig): AgentModel = error("Not used")
     }

@@ -1,6 +1,8 @@
 package kinuvo.harness.builtin
 
 import kinuvo.harness.Agent
+import kinuvo.harness.AgentRunner
+import kinuvo.harness.ModelProfile
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.agent.exception.AIAgentMaxNumberOfIterationsReachedException
@@ -39,16 +41,16 @@ class AgentRun(
     private val traceSessionId: String? = null,
     private val routine: RoutineTurn? = null,
     private val profile: ModelProfile = ModelProfile.of(ModelTier.Frontier),
-) {
-    fun run(
+) : AgentRunner {
+    override fun run(
         sessionId: String,
         userText: String,
-        activation: SessionEntry.Activation? = null,
-        runId: String = Uuid.random().toString(),
-        attachments: List<Attachment> = emptyList(),
-        voice: Boolean = false,
-        action: SurfaceAction? = null,
-        report: SessionEntry.ToolReport? = null,
+        activation: SessionEntry.Activation?,
+        runId: String,
+        attachments: List<Attachment>,
+        voice: Boolean,
+        action: SurfaceAction?,
+        report: SessionEntry.ToolReport?,
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.RunStarted(runId))
         warnings.forEach { send(AgentEvent.Warning(it)) }

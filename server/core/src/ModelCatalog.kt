@@ -1,6 +1,6 @@
 package kinuvo.server
 
-import kinuvo.harness.builtin.inferTier
+import kinuvo.harness.inferTier
 import kinuvo.server.plugin.CUSTOM_PROVIDERS
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically

@@ -124,8 +124,8 @@ class AgentTracingTest {
         val knowledge = Knowledge({ MarkdownKnowledgeSource(Path(home.files.home, "vault")) }, FileKnowledgeChangeLog(home.files.knowledgeChanges))
         localTracing(home.files.traces).use { tracing ->
             val model = scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("private-reflection-secret"), StreamFrame.End()) }
-            val result = Reflection(knowledge, home.docs, tracing = tracing).reflect(home.agent, model, "source-session",
-                listOf(SessionEntry.UserMessage("private-memory-secret")))
+            val result = Reflection(knowledge, home.docs).reflect(home.agent, model, "source-session",
+                listOf(SessionEntry.UserMessage("private-memory-secret")), tracing = tracing)
             assertNull(result.error)
             assertTrue(spans().any { it["name"]?.jsonPrimitive?.content == "chat scripted" })
             assertTrue("source-session" in contents())

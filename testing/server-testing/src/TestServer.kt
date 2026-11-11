@@ -156,7 +156,8 @@ class TestServer private constructor(
             val modelScript = ModelScript().apply(script)
             val dependencies = ServerInstallation.assemble(files, plugins = plugins, modelSources = { plugins.filterIsInstance<FakeModels>().flatMap { it.modelSources } }, userHome = directory)
             val prompts = PromptLog()
-            val harness = HarnessRuntime(dependencies, modelFactory = { modelScript.model }, nativeSessions = { NativeExecutionFactory(it).recording(prompts) })
+            val models = { plugins.filterIsInstance<FakeModels>().flatMap { it.modelSources } }
+            val harness = HarnessRuntime(dependencies, { NativeExecutionFactory(it, models, { modelScript.model }).recording(prompts) }, unmanagedModels = true)
             val registry = ExecutionRegistry()
             val recovery = MemoryExecutionRecovery()
             try {

@@ -27,9 +27,9 @@ import kotlinx.serialization.json.put
 import kotlin.test.*
 import kinuvo.harness.builtin.ANSWER_NOW
 import kinuvo.harness.builtin.ANSWER_NUDGE
-import kinuvo.harness.builtin.ModelProfile
 import kinuvo.harness.builtin.SEARCHED
 import kinuvo.harness.builtin.withoutBlockedRepeats
+import kinuvo.harness.ModelProfile
 
 class SmallModelAnswerTest {
     @Test fun searchRegionsFollowServerZones() {

@@ -16,7 +16,7 @@ import kinuvo.protocol.TrustRules
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.*
-import kinuvo.harness.builtin.ModelProfile
+import kinuvo.harness.ModelProfile
 
 class CoreToolRegistryTest {
     private fun tool(name: String) = object : CoreTool {

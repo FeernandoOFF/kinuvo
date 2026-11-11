@@ -26,8 +26,10 @@ import kinuvo.protocol.*
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kinuvo.server.providers.ModelProvider
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
-internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), providers: List<ModelProvider> = emptyList(), closeNetwork: () -> Unit = {}, voice: VoiceProviders = VoiceProviders()) {
+internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), private val providers: List<ModelProvider> = emptyList(), closeNetwork: () -> Unit = {}, voice: VoiceProviders = VoiceProviders()) {
     val agent = Agent("test", "Test", AgentConfig(provider = "test", model = "tools", tools = emptyList()))
     val transcripts = InMemoryStore()
     val store = object : Store by transcripts {
@@ -117,5 +119,20 @@ internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), provid
             ModelsCatalog(providers.map { ProviderModels(it.id, it.name, it.models(), false) })
         }, { fetch(it) }, voice = voice)
     fun runtime(model: AgentModel? = null, features: Set<ServerFeature> = BUILT_IN_FEATURES) =
-        HarnessRuntime(dependencies, modelFactory = model?.let { { _: AgentConfig -> it } }, builtInFeatures = features)
+        testRuntime(dependencies, { providers.filterIsInstance<ModelSource>() }, model?.let { { _: AgentConfig -> it } }, builtInFeatures = features)
+}
+
+internal fun testRuntime(
+    dependencies: RuntimeDependencies,
+    sources: () -> List<ModelSource> = { emptyList() },
+    modelFactory: ((AgentConfig) -> AgentModel)? = null,
+    builtInFeatures: Set<ServerFeature> = BUILT_IN_FEATURES,
+    routineApprovalWait: Duration = 30.minutes,
+) = HarnessRuntime(dependencies, { NativeExecutionFactory(it, sources, modelFactory) }, builtInFeatures = builtInFeatures, routineApprovalWait = routineApprovalWait, unmanagedModels = modelFactory != null)
+
+/** [Reflection.turn] run on the built-in harness's Reflection graph with [model]. */
+internal suspend fun Reflection.reflect(agent: Agent, model: AgentModel, sessionId: String, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, review: ReflectionRevision? = null, tracing: AgentTracing? = null): ReflectionResult {
+    val run = turn(agent, sessionId, entries, prompt, review)
+    runReflection(run, agent, model, sessionId, tracing)
+    return run.finish()
 }

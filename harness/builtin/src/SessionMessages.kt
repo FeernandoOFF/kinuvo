@@ -7,6 +7,8 @@ import ai.koog.prompt.message.*
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.SessionEntry
 import kotlin.uuid.Uuid
+import kinuvo.harness.ResultLimits
+import kinuvo.harness.modelText
 
 /** Session conversion belongs to the persistence feature, including files shown after tool results. */
 /** With [imageReferences], user images are listed by ID so the model can pass them to `generate_image`. */

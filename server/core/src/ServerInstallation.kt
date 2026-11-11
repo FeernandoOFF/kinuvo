@@ -5,14 +5,13 @@ import kinuvo.server.plugin.PluginHosts
 import kinuvo.server.plugin.checkPluginInstances
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
-import kinuvo.harness.builtin.plugin.*
 import kinuvo.server.plugin.*
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsChannel
 import io.ktor.utils.io.readBuffer
-import kinuvo.harness.builtin.*
+import kinuvo.harness.ModelPolicy
 import kinuvo.server.artifacts.Artifacts
 import kinuvo.server.routines.Routines
 import kinuvo.server.store.*
@@ -37,19 +36,17 @@ object ServerInstallation {
         store: Store? = null,
         plugins: List<HarnessPlugin> = emptyList(),
         modelProviders: List<ModelProvider> = emptyList(),
-        modelSources: () -> List<ModelSource> = { emptyList() },
+        modelSources: () -> List<ModelPolicy> = { emptyList() },
         secrets: Secrets = Secrets(),
         userHome: Path = files.home,
         clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
     ): RuntimeDependencies {
         var http: HttpClient? = null
         var hosts: PluginHosts? = null
-        var tracing: AgentTracing? = null
         var voice: OpenAICompatibleVoice? = null
-        val resources = ServerResources(plugins) { try { tracing?.close() } finally { voice?.close(); hosts?.close(); http?.close() } }
+        val resources = ServerResources(plugins) { try { voice?.close() } finally { try { hosts?.close() } finally { http?.close() } } }
         try {
             plugins.checkPluginInstances()
-            tracing = if (files.config().tracing) localTracing(files.traces) else null
             val installedStore = store ?: FileStore(files, clock)
             val docs = FileAgentDocs(files)
             val providers = object : AbstractList<ModelProvider>() {
@@ -93,7 +90,7 @@ object ServerInstallation {
                     override fun get(id: String) = attachmentFiles.get(id)
                     override fun download(id: String) = attachmentFiles.download(id)
                     override fun bytes(attachment: Attachment) = attachmentFiles.bytes(attachment)
-                }, settings, secrets, progress, serverId, resources, providers, { catalog.list(it) }, { WebFetchTool(client, reader = it) }, tracing, voiceProviders, clock)
+                }, settings, secrets, progress, serverId, resources, providers, { catalog.list(it) }, { WebFetchTool(client, reader = it) }, files.traces.takeIf { files.config().tracing }, voiceProviders, clock)
         } catch (e: Throwable) {
             try { resources.close() } catch (cleanup: Throwable) { e.addSuppressed(cleanup) }
             throw e

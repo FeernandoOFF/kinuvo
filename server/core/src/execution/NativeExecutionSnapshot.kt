@@ -1,6 +1,6 @@
 package kinuvo.server.execution
 
-import kinuvo.harness.builtin.modelText
+import kinuvo.harness.modelText
 
 import kinuvo.harness.Agent
 import kinuvo.server.SessionLog

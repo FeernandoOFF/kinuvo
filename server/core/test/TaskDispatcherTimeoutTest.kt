@@ -59,7 +59,7 @@ class TaskDispatcherTimeoutTest {
             override val taskProviders = listOf(provider)
         }
         files.saveTasksConfig(TasksConfig(provider = provider.id, pollMinutes = 1))
-        val harness = HarnessRuntime(ServerInstallation.assemble(files, plugins = listOf(plugin)), modelFactory = {
+        val harness = testRuntime(ServerInstallation.assemble(files, plugins = listOf(plugin)), modelFactory = {
             scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("Result"), StreamFrame.End()) }
         })
         val runs = Runs(harness.log, backgroundScope, harness.native)

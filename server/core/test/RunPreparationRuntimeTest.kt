@@ -1,5 +1,7 @@
 package kinuvo.server
 
+import kinuvo.harness.ToolSpec
+import kinuvo.harness.requiredNames
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
@@ -70,7 +72,7 @@ class RunPreparationRuntimeTest {
                 override suspend fun execute(args: JsonObject): String { executed = true; return "read" }
             }))
         }
-        val provider = object : ModelProvider {
+        val provider = object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true))
             override fun model(config: AgentConfig) = scriptedModel { _, tools ->
@@ -245,7 +247,7 @@ class RunPreparationRuntimeTest {
         val first = ToolIdentity(PluginInstanceId("example.ping", "first"), "ping")
         val second = ToolIdentity(PluginInstanceId("example.ping", "second"), "ping")
         val offered = mutableListOf<List<String>>()
-        val provider = object : ModelProvider {
+        val provider = object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true), ModelInfo("limited", tools = true, toolIds = setOf(second.key)))
             override fun model(config: AgentConfig) = scriptedModel { prompt, tools ->
@@ -307,10 +309,10 @@ class RunPreparationRuntimeTest {
 
     @Test fun skillCatalogFollowsTheAdvertisedActivateSkillTool() = runBlocking {
         val systems = mutableListOf<String>()
-        fun provider(strip: Boolean) = object : ModelProvider {
+        fun provider(strip: Boolean) = object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true))
-            override fun accepts(model: String, tool: ToolDescriptor) = !strip || tool.name != ToolNames.ACTIVATE_SKILL
+            override fun accepts(model: String, tool: ToolSpec) = !strip || tool.name != ToolNames.ACTIVATE_SKILL
             override fun model(config: AgentConfig) = scriptedModel { prompt, _ ->
                 systems += prompt.messages.filterIsInstance<Message.System>().joinToString("\n") { it.textContent() }
                 flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
@@ -347,7 +349,7 @@ class RunPreparationRuntimeTest {
 
     @Test fun tierSetsThePromptStyle() = runBlocking {
         val systems = mutableListOf<String>()
-        val harness = harness(providers = listOf(object : ModelProvider {
+        val harness = harness(providers = listOf(object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true))
             override fun model(config: AgentConfig) = scriptedModel { prompt, _ ->
@@ -369,15 +371,15 @@ class RunPreparationRuntimeTest {
 
     private val seen = mutableListOf<List<String>>()
     private var modelsBuilt = 0
-    private val provider = object : ModelProvider {
+    private val provider = object : TestModelProvider {
         override val id = "test"
         override suspend fun models() = listOf(
             ModelInfo("tools", tools = true, context = 100_000),
             ModelInfo("text", tools = false),
             ModelInfo("limited", tools = true, toolIds = setOf(ToolIdentity(PluginInstanceId("test.runpreparationruntimetest.3"), "ping").key)),
         )
-        override fun accepts(model: String, tool: ToolDescriptor) =
-            tool.name != "ping" || tool.requiredParameters.any { p -> p.name == "message" }
+        override fun accepts(model: String, tool: ToolSpec) =
+            tool.name != "ping" || "message" in tool.requiredNames
         override fun model(config: AgentConfig): AgentModel {
             modelsBuilt++
             return scriptedModel { _, tools ->
@@ -427,7 +429,7 @@ class RunPreparationRuntimeTest {
     @Test
     fun unavailableModelIsInspectedWithoutActivationAndCannotExecute() = runBlocking {
         var activated = false
-        val unavailable = object : ModelProvider by provider {
+        val unavailable = object : TestModelProvider by provider {
             override suspend fun availability(model: String) = CapabilityState.unavailable("Model is not downloaded")
         }
         val plugin = object : HarnessPlugin {
@@ -465,7 +467,7 @@ class RunPreparationRuntimeTest {
 
     @Test fun runsInheritLatestAgentEffortAndRetainExplicitSessionEffort() = runBlocking {
         val efforts = mutableListOf<String>()
-        val configured = object : ModelProvider by provider {
+        val configured = object : TestModelProvider by provider {
             override suspend fun models() = listOf(ModelInfo("tools", reasoning = listOf("low", "medium", "high"), defaultReasoning = "medium"))
             override fun model(config: AgentConfig, info: ModelInfo?): AgentModel {
                 efforts += config.reasoning

@@ -1,4 +1,4 @@
-package kinuvo.harness.builtin
+package kinuvo.harness
 
 import kinuvo.protocol.ExecutionLocation
 import kinuvo.protocol.ModelInfo

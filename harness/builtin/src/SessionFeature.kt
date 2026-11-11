@@ -1,5 +1,6 @@
 package kinuvo.harness.builtin
 
+import kinuvo.harness.modelText
 import kinuvo.harness.Agent
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.agent.entity.createStorageKey
@@ -19,6 +20,9 @@ import kinuvo.protocol.SessionEntry
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kinuvo.harness.ModelProfile
+import kinuvo.harness.PromptStyle
+import kinuvo.harness.liveVoiceInstructions
 
 class SessionFeature private constructor() {
     class Config : FeatureConfig() {

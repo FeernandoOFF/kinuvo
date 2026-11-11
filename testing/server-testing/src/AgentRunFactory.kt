@@ -6,7 +6,6 @@ import kinuvo.harness.builtin.AgentTracing
 import kinuvo.server.Approvals
 import kinuvo.harness.Agent
 import kinuvo.server.Broker
-import kinuvo.harness.builtin.ModelProfile
 import kinuvo.server.routines.RoutineRun
 import kinuvo.server.store.Store
 import kinuvo.server.plugin.Tool
@@ -16,6 +15,7 @@ import kinuvo.server.tools.ToolService
 import kinuvo.protocol.Attachment
 import kinuvo.protocol.ModelTier
 import kinuvo.protocol.RequestKind
+import kinuvo.harness.ModelProfile
 
 /** An [AgentRun] over a [ToolService] built from [tools] and the run's policy, for tests that exercise the whole path. */
 fun AgentRun(

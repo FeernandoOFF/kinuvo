@@ -24,7 +24,7 @@ import kinuvo.server.providers.ModelProvider
 /** The phone's Server shared on the network, which needs the JVM and Android listener. */
 class SharedServerTest {
     private val home = Path(SystemTemporaryDirectory, "kinuvo-shared-${Uuid.random()}")
-    private val provider = object : ModelProvider {
+    private val provider = object : TestModelProvider {
         override val id = "test"
         override suspend fun models() = listOf(ModelInfo("local"))
         override fun model(config: AgentConfig) = scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("Reply."), StreamFrame.End()) }
@@ -37,7 +37,7 @@ class SharedServerTest {
     fun otherDevicesPairOverTheNetworkWhileTheAppKeepsItsOwnConnection(): Unit = runBlocking {
         withTimeout(10_000) {
             val auth = DeviceAuth(java.io.File(home.toString(), "server-devices.json"))
-            val server = EmbeddedServerHost.create(home, listOf(provider), continuous = true, peers = { SharedPeers(it, auth) })
+            val server = EmbeddedServerHost.create(home, listOf(provider), continuous = true, peers = { SharedPeers(it, auth) }, modelSources = { listOf(provider) })
             val listener = NetworkListener(server.runtime, auth)
             val port = listener.start("127.0.0.1", listOf(0))
             val app = KinuvoClient("local://kinuvo", "Pixel", token = server.token, connection = server::connect, deviceTools = { setOf(DeviceToolKind.Computer) })

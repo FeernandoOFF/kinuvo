@@ -21,7 +21,7 @@ class ReflectionReviewLearningTest {
     @Test
     fun oneOffReviewNotesUseReflectionModelAndKeepTwentyFeedbackEntries() = runTest {
         val configs = mutableListOf<AgentConfig>()
-        val provider = object : ModelProvider {
+        val provider = object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools"), ModelInfo("reflection"))
             override fun model(config: AgentConfig): AgentModel {

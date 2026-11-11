@@ -4,6 +4,7 @@ product:
 
 dependencies:
   - ../core: exported
+  - ../../harness/builtin: exported
   - ../../harness/remote
   - ../../providers/codex
   - ../../providers/koog

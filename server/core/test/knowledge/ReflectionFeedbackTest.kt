@@ -1,5 +1,6 @@
 package kinuvo.server.knowledge
 
+import kinuvo.server.reflect
 import kinuvo.harness.AgentDoc
 import kinuvo.server.TestHome
 import kinuvo.testing.harness.*

@@ -1,9 +1,8 @@
 package kinuvo.server.knowledge
 
-import kinuvo.harness.builtin.tools.toDescriptor
-import kinuvo.harness.builtin.tools.toSpec
-import ai.koog.agents.core.tools.ToolParameterDescriptor
-import ai.koog.agents.core.tools.ToolParameterType
+import kinuvo.harness.parameterSchema
+import kinuvo.harness.requiredNames
+import kinuvo.harness.schemaProperties
 import kinuvo.harness.Agent
 import kinuvo.server.skills.Skill
 import kinuvo.server.skills.SkillRepository
@@ -15,6 +14,8 @@ import kinuvo.protocol.ConfigScope
 import kinuvo.protocol.ReflectionProposal
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import kotlin.uuid.Uuid
 
 /** Reflection can read freely, but its Knowledge and Skill writes only produce drafts. */
@@ -23,13 +24,18 @@ class ReflectionChanges(private val agent: Agent, private val knowledge: Knowled
 
     fun staging(tool: Tool): Tool = object : Tool {
         override val risk = tool.risk
-        override val descriptor = tool.descriptor.toDescriptor().copy(
-            description = tool.descriptor.description + " Writes only stage a proposal for the user's Approval; nothing is applied or activated. Include reason and evidence on writes.",
-            optionalParameters = tool.descriptor.toDescriptor().optionalParameters.filterNot { it.name in listOf("reason", "evidence") } + listOf(
-                ToolParameterDescriptor("reason", "Why this durable change is worth keeping", ToolParameterType.String),
-                ToolParameterDescriptor("evidence", "Source identifiers and what they establish; use user-N or tool call IDs from the transcript", ToolParameterType.String),
-            ),
-        ).toSpec()
+        override val descriptor = tool.descriptor.let { spec ->
+            val parameters = spec.schemaProperties
+            val required = parameters.keys.filter { it in spec.requiredNames }
+            val optional = parameters.filterKeys { it !in spec.requiredNames && it !in listOf("reason", "evidence") } + mapOf(
+                "reason" to stringParameter("Why this durable change is worth keeping"),
+                "evidence" to stringParameter("Source identifiers and what they establish; use user-N or tool call IDs from the transcript"),
+            )
+            spec.copy(
+                description = spec.description + " Writes only stage a proposal for the user's Approval; nothing is applied or activated. Include reason and evidence on writes.",
+                schema = parameterSchema(parameters.filterKeys { it in required } + optional, required, optional.keys.toList()),
+            )
+        }
 
         override suspend fun execute(args: JsonObject): String {
             val action = args.requireString("action")
@@ -80,4 +86,9 @@ class ReflectionChanges(private val agent: Agent, private val knowledge: Knowled
             return "Proposed for Approval. Not saved or activated."
         }
     }
+}
+
+private fun stringParameter(description: String) = buildJsonObject {
+    put("type", "string")
+    put("description", description)
 }

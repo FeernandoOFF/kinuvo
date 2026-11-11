@@ -1,5 +1,6 @@
 package kinuvo.server.knowledge
 
+import kinuvo.server.reflect
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.server.TestHome

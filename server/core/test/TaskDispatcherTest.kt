@@ -49,7 +49,7 @@ class TaskDispatcherTest {
             StreamFrame.ToolCallComplete("c1", "tasks", """{"action":"update","id":"$id","status":"done"}"""), StreamFrame.End(),
         ) else flowOf(StreamFrame.TextDelta("On it."), StreamFrame.End())
     }
-    private val harness = runBlocking { HarnessRuntime(ServerInstallation.assemble(AgentFiles(home)), modelFactory = { model }) }
+    private val harness = runBlocking { testRuntime(ServerInstallation.assemble(AgentFiles(home)), modelFactory = { model }) }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val runs = Runs(harness.log, scope, harness.native)
     private val dispatcher = TaskDispatcher(harness, runs, scope)

@@ -36,7 +36,7 @@ class SessionSettingsTest {
     @Test
     fun modelPairsRouteAcrossPluginsAndSurviveRestart() = runBlocking {
         val used = mutableListOf<String>()
-        fun plugin(id: String) = object : ProviderPlugin, ModelProvider {
+        fun plugin(id: String) = object : ProviderPlugin, TestModelProvider {
             override val definition = kinuvo.protocol.PluginDefinition("test.$id", "Test")
             override val id = id
             override val providerAdmins get() = listOf(this)

@@ -102,7 +102,7 @@ class RuntimeDependenciesTest {
     fun activeProtocolRequestsFinishBeforeResourcesClose() = runTest {
         val entered = CompletableDeferred<Unit>()
         val actions = mutableListOf<String>()
-        val provider = object : ModelProvider {
+        val provider = object : TestModelProvider {
             override val id = "test"
             override suspend fun models(): List<ModelInfo> {
                 entered.complete(Unit)
@@ -143,7 +143,7 @@ class RuntimeDependenciesTest {
         val collecting = CompletableDeferred<Unit>()
         val actions = mutableListOf<String>()
         val state = kotlinx.coroutines.flow.MutableStateFlow<Usage?>(null)
-        val provider = object : ModelProvider {
+        val provider = object : TestModelProvider {
             override val id = "test"
             override val usage = object : kotlinx.coroutines.flow.StateFlow<Usage?> by state {
                 override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<Usage?>): Nothing {

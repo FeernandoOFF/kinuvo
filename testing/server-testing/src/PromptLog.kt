@@ -1,7 +1,7 @@
 package kinuvo.testing.server
 
 import kinuvo.harness.ExecutionBroker
-import kinuvo.harness.ExecutionFactory
+import kinuvo.harness.NativeHarness
 import kinuvo.harness.ExecutionAcceptance
 import kinuvo.harness.ExecutionInput
 import kinuvo.harness.ExecutionSession
@@ -21,9 +21,9 @@ class PromptLog {
     internal fun add(input: ExecutionInput) = seen.update { it + input }
 }
 
-internal fun ExecutionFactory.recording(log: PromptLog): ExecutionFactory {
+internal fun NativeHarness.recording(log: PromptLog): NativeHarness {
     val factory = this
-    return object : ExecutionFactory {
+    return object : NativeHarness by factory {
         override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession {
             val session = factory.open(config, registration, state, broker, scope)
             return object : ExecutionSession by session {

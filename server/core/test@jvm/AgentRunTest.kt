@@ -30,8 +30,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kinuvo.harness.builtin.ANSWER_NOW
-import kinuvo.harness.builtin.ModelProfile
-import kinuvo.harness.builtin.liveVoiceInstructions
+import kinuvo.harness.ModelProfile
+import kinuvo.harness.liveVoiceInstructions
 
 class AgentRunTest {
     @Test fun requestLimitAnswersWithoutTools() = runTest {

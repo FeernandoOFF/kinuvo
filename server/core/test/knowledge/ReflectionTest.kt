@@ -1,5 +1,6 @@
 package kinuvo.server.knowledge
 
+import kinuvo.server.reflect
 import kinuvo.testing.harness.*
 import ai.koog.prompt.message.Message
 

@@ -8,7 +8,6 @@ import kinuvo.server.plugin.indexedTools
 import kinuvo.server.plugin.modelAlias
 import kinuvo.server.plugin.policyKey
 import kinuvo.server.plugin.string
-import kinuvo.harness.builtin.*
 import kinuvo.server.*
 import kinuvo.harness.ToolGate
 import kinuvo.harness.ToolProvider

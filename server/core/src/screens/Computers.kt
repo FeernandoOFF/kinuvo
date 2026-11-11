@@ -1,5 +1,6 @@
 package kinuvo.server.screens
 
+import kinuvo.harness.SCREENSHOT_PREFIX
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
@@ -19,8 +20,6 @@ import kinuvo.server.plugin.ToolRun
 import kinuvo.server.plugin.requireString
 import kinuvo.server.plugin.string
 import kinuvo.server.*
-import kinuvo.harness.builtin.*
-import kinuvo.harness.builtin.tools.*
 import kinuvo.server.tools.*
 import kinuvo.protocol.*
 import kotlinx.coroutines.*

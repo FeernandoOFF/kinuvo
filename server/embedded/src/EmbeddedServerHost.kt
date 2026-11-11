@@ -4,7 +4,8 @@ import kinuvo.harness.AgentConfig
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.exists
 import kinuvo.server.devices.*
-import kinuvo.harness.builtin.plugin.*
+import kinuvo.harness.builtin.NativeExecutionFactory
+import kinuvo.harness.builtin.plugin.ModelSource
 import kinuvo.server.plugin.*
 import kinuvo.server.execution.ExecutionStorage
 import kinuvo.harness.remote.RemoteExecutionFactory
@@ -59,7 +60,7 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
             }
             val dependencies = ServerInstallation.assemble(files, plugins = plugins, modelProviders = providers, modelSources = modelSources)
             try {
-                val harness = HarnessRuntime(dependencies, builtInFeatures = features)
+                val harness = HarnessRuntime(dependencies, { NativeExecutionFactory(it, modelSources) }, builtInFeatures = features)
                 if (fresh) {
                     val provider = harness.modelProviders.first()
                     val agent = harness.store.agents().single()

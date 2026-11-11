@@ -132,3 +132,9 @@ class CodexReflectionLiveTest {
         SessionEntry.AssistantMessage("Both checks passed in order. The release verification is complete; nothing has been published."),
     )
 }
+
+private suspend fun Reflection.reflect(agent: Agent, model: AgentModel, sessionId: String, entries: List<SessionEntry>): ReflectionResult {
+    val run = turn(agent, sessionId, entries)
+    runReflection(run, agent, model, sessionId, null)
+    return run.finish()
+}

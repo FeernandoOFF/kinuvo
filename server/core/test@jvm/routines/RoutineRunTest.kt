@@ -9,7 +9,6 @@ import kinuvo.harness.builtin.AgentRun
 import kinuvo.server.ApprovalBroker
 import kinuvo.server.ApprovalPolicy
 import kinuvo.server.Approvals
-import kinuvo.harness.builtin.ModelProfile
 import kinuvo.protocol.ModelTier
 import kinuvo.server.TestHome
 import kinuvo.server.Tolerance
@@ -39,6 +38,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kinuvo.harness.ModelProfile
 
 class RoutineRunTest {
     private val home = TestHome()

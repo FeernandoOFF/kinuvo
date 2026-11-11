@@ -1,11 +1,11 @@
 package kinuvo.providers.litert
 
-import kinuvo.harness.builtin.ModelProfile
 import kinuvo.protocol.ModelTier
 import kotlinx.coroutines.test.runTest
 import kinuvo.harness.AgentConfig
 import java.nio.file.Files
 import kotlin.test.*
+import kinuvo.harness.ModelProfile
 
 class LiteRtToolsTest {
     private fun provider() = LiteRtProvider(Files.createTempDirectory("kinuvo-litert").toFile())

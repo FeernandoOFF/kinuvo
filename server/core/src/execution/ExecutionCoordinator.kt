@@ -1,7 +1,7 @@
 package kinuvo.server.execution
 
 
-import kinuvo.harness.builtin.liveVoiceInstructions
+import kinuvo.harness.liveVoiceInstructions
 import kinuvo.harness.*
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.store.SessionCommitConflict

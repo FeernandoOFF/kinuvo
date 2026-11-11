@@ -2,9 +2,7 @@ package kinuvo.server
 
 import kinuvo.harness.AgentDocs
 import kinuvo.server.plugin.McpManagement
-import kinuvo.harness.builtin.plugin.*
 import kinuvo.server.plugin.*
-import kinuvo.harness.builtin.*
 import kinuvo.server.artifacts.Artifacts
 import kinuvo.server.knowledge.Knowledge
 import kinuvo.server.routines.Routines
@@ -16,6 +14,7 @@ import kinuvo.server.plugin.WebSearch
 import kinuvo.server.plugin.VoiceProviders
 import kinuvo.protocol.*
 import kotlin.time.Clock
+import kotlinx.io.files.Path
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kinuvo.server.providers.ModelProvider
@@ -51,7 +50,8 @@ class RuntimeDependencies(
     val modelProviders: List<ModelProvider>,
     val modelCatalog: suspend (Boolean) -> ModelsCatalog,
     val webFetch: (WebSearch?) -> Tool,
-    val tracing: AgentTracing? = null,
+    /** Where the built-in harness records traces; null when tracing is off. */
+    val traces: Path? = null,
     var voice: VoiceProviders = VoiceProviders(),
     val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) {

@@ -30,9 +30,11 @@ import kinuvo.plugins.voice.DownloadedVoice
 import java.io.File
 import kotlinx.io.files.Path
 import kinuvo.server.providers.ModelProviders
+import kinuvo.server.providers.plus
+import kinuvo.harness.builtin.plugin.ModelSource
 
 /** The model providers a JVM host offers. */
-fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (HarnessPlugin) -> Unit = {}): ModelProviders {
+fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (HarnessPlugin) -> Unit = {}): ModelProviders<ModelSource> {
     val attachments = FileAttachments(Path(files.home, "attachments"))::bytes
     val keys = ProviderKeys(files, secrets) { Keychain.system("kinuvo", it) }
     val endpoints = compatibleProviders(keys, files, attachments)
@@ -43,7 +45,7 @@ fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (Ha
 }
 
 /** What a JVM host (desktop, the `kinuvo` command) runs with. */
-fun jvmPlugins(files: AgentFiles, secrets: Secrets, providers: ModelProviders = jvmProviders(files, secrets), installed: (HarnessPlugin) -> Unit = {}): List<HarnessPlugin> =
+fun jvmPlugins(files: AgentFiles, secrets: Secrets, providers: ModelProviders<ModelSource> = jvmProviders(files, secrets), installed: (HarnessPlugin) -> Unit = {}): List<HarnessPlugin> =
     providers.plugins.onEach(installed) + listOf(
         { BrowserPlugin(File(files.home.toString(), "browser")) },
         { ExecPlugin(files, secrets) }, { McpPlugin(files, secrets, Keychain.system("kinuvo", "mcp-oauth")) }, { RemindersPlugin() }, { TodoistPlugin() }, { CalDavPlugin() },

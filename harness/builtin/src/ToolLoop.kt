@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.*
 import kotlin.uuid.Uuid
+import kinuvo.harness.queryWords
 
 internal class StreamResponse(private val identity: (String) -> ToolIdentity? = { null }) {
     var messageId: String? = null
@@ -241,10 +242,6 @@ internal fun searchWords(args: String): Set<String> = runCatching {
     val query = Json.parseToJsonElement(args).jsonObject["query"]?.jsonPrimitive?.content.orEmpty()
     queryWords(query)
 }.getOrDefault(emptySet())
-
-fun queryWords(query: String): Set<String> =
-    query.lowercase().split(Regex("[^\\p{L}\\p{N}]+"))
-        .filter { it.isNotBlank() && it !in setOf("a", "an", "the", "is", "who", "what", "of", "in", "on", "for", "to", "and") }.toSet()
 
 internal fun similarSearch(a: Set<String>, b: Set<String>) = a.isNotEmpty() && b.isNotEmpty() &&
     a.intersect(b).size.toDouble() / a.union(b).size >= 0.6

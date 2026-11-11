@@ -51,7 +51,7 @@ class SchedulerTest {
         else flow { during(); emit(StreamFrame.TextDelta(reply)); emit(StreamFrame.End()) }
     }
     private var now = 1_790_000_000_000L
-    private val harness = runBlocking { HarnessRuntime(ServerInstallation.assemble(AgentFiles(home), clock = { now }), modelFactory = { model }, routineApprovalWait = 200.milliseconds) }.apply { timeZone = TimeZone.UTC }
+    private val harness = runBlocking { testRuntime(ServerInstallation.assemble(AgentFiles(home), clock = { now }), modelFactory = { model }, routineApprovalWait = 200.milliseconds) }.apply { timeZone = TimeZone.UTC }
     private val agent = runBlocking { harness.store.agents().single() }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val ran = mutableListOf<RoutineRan>()

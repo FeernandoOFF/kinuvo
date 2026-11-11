@@ -29,7 +29,7 @@ import kinuvo.server.providers.ModelProviders
 class PluginsTest {
     private val released = mutableListOf<String>()
 
-    private val plugin = object : ProviderPlugin, ModelProvider {
+    private val plugin = object : ProviderPlugin, TestModelProvider {
         override val definition = kinuvo.protocol.PluginDefinition("test.pluginstest.1", "Test")
         override val id = "fake"
         override val providerAdmins get() = listOf(this)

@@ -1,5 +1,6 @@
 package kinuvo.server.knowledge
 
+import kinuvo.server.reflect
 import kinuvo.server.plugin.BodyEdit
 import kinuvo.server.plugin.KnowledgeSource
 import kinuvo.server.plugin.NoteEdit

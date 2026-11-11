@@ -18,11 +18,11 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.*
-import kinuvo.harness.builtin.ModelProfile
-import kinuvo.harness.builtin.ResultLimits
-import kinuvo.harness.builtin.SCREENSHOT_PREFIX
 import kinuvo.harness.builtin.activeHistory
 import kinuvo.harness.builtin.recentScreens
+import kinuvo.harness.ModelProfile
+import kinuvo.harness.ResultLimits
+import kinuvo.harness.SCREENSHOT_PREFIX
 
 class CompactionTest {
     @Test

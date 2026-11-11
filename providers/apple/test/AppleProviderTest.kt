@@ -1,5 +1,6 @@
 package kinuvo.providers.apple
 
+import kinuvo.harness.builtin.tools.toSpec
 import kinuvo.harness.builtin.ANSWER_NUDGE
 import kinuvo.testing.harness.*
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -9,7 +10,6 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.RequestMetaInfo
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.AgentConfig
-import kinuvo.harness.builtin.ModelProfile
 import kinuvo.protocol.ModelTier
 import kinuvo.protocol.ToolNames
 import kinuvo.protocol.SessionEntry
@@ -24,6 +24,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.test.*
 import kotlin.test.*
+import kinuvo.harness.ModelProfile
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppleProviderTest {
@@ -126,9 +127,9 @@ class AppleProviderTest {
         val nested = ToolParameterDescriptor("filter", "Filter", ToolParameterType.Object(listOf(text)))
         val memory = ToolDescriptor(ToolNames.MEMORY, "Memory", listOf(ToolParameterDescriptor("action", "Action", ToolParameterType.Enum(arrayOf("add", "remove")))))
         val provider = AppleProvider(Native())
-        assertTrue(provider.accepts(SYSTEM, memory))
-        assertTrue(provider.accepts(SYSTEM, ToolDescriptor("optional", "Optional", optionalParameters = listOf(nested))))
-        assertFalse(provider.accepts(SYSTEM, ToolDescriptor("nested", "Nested", listOf(nested))))
+        assertTrue(provider.accepts(SYSTEM, memory.toSpec()))
+        assertTrue(provider.accepts(SYSTEM, ToolDescriptor("optional", "Optional", optionalParameters = listOf(nested)).toSpec()))
+        assertFalse(provider.accepts(SYSTEM, ToolDescriptor("nested", "Nested", listOf(nested)).toSpec()))
         val native = Native { _, done -> done("""{"tool":"reply","reply":""}""", null) }
         runBlocking { model(native).request("", emptyList(), listOf(memory)).toList() }
         assertTrue(native.tools!!.contains("""["add","remove"]"""))

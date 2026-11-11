@@ -1,5 +1,9 @@
 package kinuvo.server.jvm
 
+import kinuvo.harness.builtin.NativeExecutionFactory
+import kinuvo.harness.builtin.plugin.ModelSource
+import kinuvo.harness.ToolSpec
+import kinuvo.harness.requiredNames
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.server.plugin.SecretProvider
 import kinuvo.server.plugin.toolSpec
@@ -35,7 +39,7 @@ import kinuvo.server.providers.ModelProvider
 class RunPreparationTest {
     @Test
     fun attachmentCapabilitiesCombineModalitiesAndEndpointFormats() = runBlocking {
-        val provider = object : ModelProvider {
+        val provider = object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", input = listOf("text", "image")))
             override fun fileTypes(model: ModelInfo?) = setOf("application/pdf")
@@ -58,15 +62,15 @@ class RunPreparationTest {
     private val home = Files.createTempDirectory("run-preparation").toFile()
     private val seen = mutableListOf<List<String>>()
     private var modelsBuilt = 0
-    private val provider = object : ModelProvider {
+    private val provider = object : TestModelProvider {
         override val id = "test"
         override suspend fun models() = listOf(
             ModelInfo("tools", tools = true, context = 100_000),
             ModelInfo("text", tools = false),
             ModelInfo("limited", tools = true, toolIds = setOf("ping")),
         )
-        override fun accepts(model: String, tool: ToolDescriptor) =
-            tool.name != "ping" || tool.requiredParameters.any { p -> p.name == "message" }
+        override fun accepts(model: String, tool: ToolSpec) =
+            tool.name != "ping" || "message" in tool.requiredNames
         override fun model(config: AgentConfig): AgentModel {
             modelsBuilt++
             return scriptedModel { _, tools ->
@@ -76,7 +80,7 @@ class RunPreparationTest {
         }
     }
     private suspend fun harness(plugins: List<HarnessPlugin> = emptyList(), providers: List<ModelProvider> = listOf(provider)) =
-        HarnessRuntime(ServerInstallation.assemble(AgentFiles(Path(home.path)), plugins = plugins, modelProviders = providers))
+        HarnessRuntime(ServerInstallation.assemble(AgentFiles(Path(home.path)), plugins = plugins, modelProviders = providers), { NativeExecutionFactory(it, { providers.filterIsInstance<ModelSource>() }) })
     private suspend fun agent(harness: HarnessRuntime, tools: List<String> = emptyList()) = harness.store.agents().single().let {
         it.copy(config = it.config.copy(provider = "test", model = "tools", tools = tools))
     }
@@ -221,10 +225,10 @@ class RunPreparationTest {
 
     @Test
     fun coreToolsAProviderLeavesOutAreReportedUnsupported() = runBlocking {
-        val narrow = object : ModelProvider {
+        val narrow = object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true))
-            override fun accepts(model: String, tool: ToolDescriptor) = tool.name != "memory"
+            override fun accepts(model: String, tool: ToolSpec) = tool.name != "memory"
             override fun model(config: AgentConfig) = scriptedModel { _, _ -> flowOf(StreamFrame.End()) }
         }
         val harness = harness(providers = listOf(narrow))

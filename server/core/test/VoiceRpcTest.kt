@@ -7,7 +7,6 @@ import kinuvo.server.plugin.VoiceContext
 import kinuvo.server.plugin.VoiceInput
 import kinuvo.server.plugin.VoiceOutput
 import kinuvo.server.plugin.VoiceProviders
-import kinuvo.harness.builtin.liveVoiceInstructions
 import kinuvo.server.plugin.AgentProgress
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.*
