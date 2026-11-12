@@ -280,4 +280,4 @@ internal fun ToolRuleGroups(trusted: TextFieldState, blocked: TextFieldState, sa
 
 private val TOOL_ICONS = mapOf("memory" to Lucide.Brain, "web_fetch" to Lucide.Globe, "skills" to Lucide.BookOpen, "schedule" to Lucide.AlarmClock,
     "knowledge" to Lucide.Library, "tasks" to Lucide.SquareKanban, "ask_user" to Lucide.MessageCircleQuestionMark, "artifact" to Lucide.Shapes,
-    "device_tools" to Lucide.Smartphone, "run_code" to Lucide.Code, "computer" to Lucide.MonitorSmartphone, "browser" to Lucide.PanelsTopLeft)
+    "device_tools" to Lucide.Smartphone, "run_code" to Lucide.Code, "computer" to Lucide.MonitorSmartphone, "browser" to Lucide.PanelsTopLeft, "reminders" to Lucide.ListChecks, "calendar" to Lucide.Calendar)

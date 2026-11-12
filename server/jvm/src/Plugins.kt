@@ -1,6 +1,8 @@
 package kinuvo.server.jvm
 
 import kinuvo.plugins.anytype.AnytypePlugin
+import kinuvo.plugins.apple.ApplePlugin
+import kinuvo.plugins.apple.loadAppleSystem
 import kinuvo.providers.apple.fmProvider
 import kinuvo.plugins.bitwarden.Bitwarden
 import kinuvo.plugins.browser.BrowserPlugin
@@ -24,7 +26,6 @@ import kinuvo.plugins.mcp.McpPlugin
 import kinuvo.plugins.ntfy.NtfyPlugin
 import kinuvo.plugins.onepassword.OnePassword
 import kinuvo.plugins.protonpass.ProtonPass
-import kinuvo.plugins.reminders.RemindersPlugin
 import kinuvo.plugins.todoist.TodoistPlugin
 import kinuvo.plugins.voice.DownloadedVoice
 import java.io.File
@@ -48,7 +49,7 @@ fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (Ha
 fun jvmPlugins(files: AgentFiles, secrets: Secrets, providers: ModelProviders<ModelSource> = jvmProviders(files, secrets), installed: (HarnessPlugin) -> Unit = {}): List<HarnessPlugin> =
     providers.plugins.onEach(installed) + listOf(
         { BrowserPlugin(File(files.home.toString(), "browser")) },
-        { ExecPlugin(files, secrets) }, { McpPlugin(files, secrets, Keychain.system("kinuvo", "mcp-oauth")) }, { RemindersPlugin() }, { TodoistPlugin() }, { CalDavPlugin() },
+        { ExecPlugin(files, secrets) }, { McpPlugin(files, secrets, Keychain.system("kinuvo", "mcp-oauth")) }, { ApplePlugin(loadAppleSystem()) }, { TodoistPlugin() }, { CalDavPlugin() },
         { AnytypePlugin(files, secrets) }, { FirecrawlPlugin() }, { NtfyPlugin() }, { ExecutorPlugin() }, { DownloadedVoice(File(files.home.toString())) },
     ).map { it().also(installed) }
 
