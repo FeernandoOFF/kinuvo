@@ -158,6 +158,8 @@ fun ChatScreen(
         resuming = current.resuming,
         children = current.data?.children.orEmpty(),
         interactionChildren = current.data?.live?.interactionChildren.orEmpty(),
+        secretProviders = current.secretProviders,
+        secretEntries = current.secretEntries,
     )
     CompositionLocalProvider(LocalSurfaceImages provides getKoin().getOrNull<SurfaceImages>()) {
         ChatContent(
@@ -184,6 +186,11 @@ fun ChatScreen(
                 onReviewReflection = session::reviewReflection,
                 onAnswer = session::answer,
                 onEditAnswer = session::editAnswer,
+                onLoadSecretProviders = session::loadSecretProviders,
+                onBrowseSecrets = session::browseSecrets,
+                onPickSecret = session::pickSecret,
+                onTypeSecret = session::typeSecret,
+                onDeclineSecret = session::declineSecret,
                 onOpenArtifact = { onNavigate(Route.Artifacts(it)) },
                 onWatch = { onNavigate(Route.Computers()) },
                 onScreen = { screen, reason ->
@@ -246,6 +253,12 @@ class ChatActions(
     /** The open `ask_user` form's answers by question ID; null skips it. */
     val onAnswer: (Map<String, List<String>>?) -> Unit = {},
     val onEditAnswer: (questionsId: InteractionId, questionId: String, value: List<String>) -> Unit = { _, _, _ -> },
+    /** A `request_secret` card: the connected password managers, the names under a path (scheme first), and its three answers. */
+    val onLoadSecretProviders: () -> Unit = {},
+    val onBrowseSecrets: (path: List<String>) -> Unit = {},
+    val onPickSecret: (InteractionId, path: List<String>) -> Unit = { _, _ -> },
+    val onTypeSecret: (InteractionId, value: String) -> Unit = { _, _ -> },
+    val onDeclineSecret: (InteractionId) -> Unit = {},
     val onOpenArtifact: (id: String) -> Unit = {},
     /** Opens Live view of the Computers an Agent controls. */
     val onWatch: () -> Unit = {},

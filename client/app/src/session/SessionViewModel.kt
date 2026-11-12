@@ -195,6 +195,9 @@ data class ChatState(
     /** This Session's Sub-agents by child Session id, and the child each pending interaction came from. */
     val children: Map<SessionId, SubAgentState> = emptyMap(),
     val interactionChildren: Map<InteractionId, SessionId> = emptyMap(),
+    /** As in [SessionState.secretProviders] and [SessionState.secretEntries], for a `request_secret` card. */
+    val secretProviders: List<SecretProviderStatus>? = null,
+    val secretEntries: Map<List<String>, List<SecretEntry>> = emptyMap(),
 ) {
     /** An external Agent's harness and readiness, which replace Kinuvo's model and Risk tolerance settings. */
     val external get() = agent?.external == true
