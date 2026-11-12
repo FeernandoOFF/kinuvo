@@ -72,6 +72,9 @@ class ToolService(
         val binding = try { if (verdict is Verdict.Block) null else tool?.bind(ProtocolJson.parseToJsonElement(call.args).jsonObject) }
         catch (e: CancellationException) { throw e }
         catch (e: Exception) { return SessionEntry.ToolResult(call.id, call.name, e.message ?: "Tool binding failed", isError = true) }
+        val preview = try { if (verdict !is Verdict.Ask) null else tool?.preview(ProtocolJson.parseToJsonElement(call.args).jsonObject) }
+        catch (e: CancellationException) { throw e }
+        catch (e: Exception) { return SessionEntry.ToolResult(call.id, call.name, e.message ?: "Invalid change", isError = true) }
         val decision = when {
             verdict is Verdict.Block -> null
             verdict !is Verdict.Ask -> ApprovalDecision.AllowOnce
@@ -86,7 +89,7 @@ class ToolService(
                         ToolKind.ComputerAction -> verdict.trustKeys.joinToString(", ") { it.removePrefix("${tool.policyKey} ") }
                         else -> ""
                     }.ifEmpty { null }
-                    turn.emit(AgentEvent.InteractionRequested(PendingInteraction.Approval(pending.id, ToolCallId(approvalId), call.name, call.args, hint, a.risk, a.reason, verdict.trustKeys.isNotEmpty(), tool?.identity)))
+                    turn.emit(AgentEvent.InteractionRequested(PendingInteraction.Approval(pending.id, ToolCallId(approvalId), call.name, if (preview == null) call.args else "{}", hint, a.risk, a.reason, verdict.trustKeys.isNotEmpty(), tool?.identity, preview)))
                     val wait = approvals.wait
                     val answer = if (wait == null) pending.await() else withTimeoutOrNull(wait) { pending.await() }
                     turn.stopped("Cancelled by user")
