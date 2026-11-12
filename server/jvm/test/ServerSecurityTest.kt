@@ -243,7 +243,7 @@ class ServerSecurityTest {
                 setBody("""{"device":"legacy","pairingCode":"$code"}""")
             }
             assertEquals(HttpStatusCode.Conflict, incompatible.status)
-            assertEquals(ProtocolVersion.Mismatch, incompatible.bodyAsText())
+            assertEquals(ProtocolRange(ProtocolVersion.Minimum, ProtocolVersion.Current), ProtocolJson.decodeFromString(ProtocolRange.serializer(), incompatible.bodyAsText()))
             assertNull(incompatible.headers[HttpHeaders.SetCookie])
             assertEquals(code, server.auth.pairingCode)
             val accepted = http.post("http://127.0.0.1:$port/auth/session") {

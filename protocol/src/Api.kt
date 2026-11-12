@@ -38,12 +38,17 @@ import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.SetSerializer
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.JsonTransformingSerializer
+import kotlinx.serialization.json.contentOrNull
 
 /** WebSocket text frames: requests, responses and server-pushed events (OpenClaw-style). */
 @Serializable
@@ -60,6 +65,8 @@ sealed interface Frame {
 
 val ProtocolJson = Json {
     ignoreUnknownKeys = true
+    /** A newer peer's enum value reads as the field's default instead of failing the whole message. */
+    coerceInputValues = true
     encodeDefaults = true
     explicitNulls = false
     classDiscriminator = "type"
@@ -69,11 +76,24 @@ class Method<P, R>(val name: String, val params: KSerializer<P>, val result: KSe
 
 class EventType<T>(val name: String, val payload: KSerializer<T>)
 
+/**
+ * The wire protocol a Server and Device speak. Each side speaks [Minimum] through [Current]; a connection uses the newest
+ * version both speak. Additive changes go through [ServerCapabilities] instead of a new version.
+ */
 object ProtocolVersion {
     const val Current = 8
+    const val Minimum = 8
     const val Mismatch = "protocol_mismatch: Update the Server and Device to matching versions"
-    fun isCompatible(version: Int) = version == Current
-    fun requireCompatible(version: Int) { require(isCompatible(version)) { Mismatch } }
+
+    /** The version to speak with a peer that speaks [minimum] through [version], or null when the ranges don't overlap. */
+    fun negotiate(version: Int, minimum: Int = version): Int? = minOf(Current, version).takeIf { it >= maxOf(Minimum, minimum) }
+}
+
+/** A set of enum values that drops the ones this build doesn't know, so a newer peer's additions don't fail the message. */
+open class KnownEnumSet<E : Enum<E>>(element: KSerializer<E>) : JsonTransformingSerializer<Set<E>>(SetSerializer(element)) {
+    private val names = (0 until element.descriptor.elementsCount).map(element.descriptor::getElementName).toSet()
+    override fun transformDeserialize(element: JsonElement) =
+        if (element is JsonArray) JsonArray(element.filter { (it as? JsonPrimitive)?.contentOrNull in names }) else element
 }
 
 /** Requests a Device may have unanswered on one connection; the Server drops a connection that sends more. */

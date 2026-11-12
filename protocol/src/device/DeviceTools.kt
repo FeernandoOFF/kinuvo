@@ -1,5 +1,6 @@
 package kinuvo.protocol.device
 
+import kinuvo.protocol.KnownEnumSet
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonObject
 
@@ -7,7 +8,9 @@ import kotlinx.serialization.json.JsonObject
 enum class DeviceToolKind { Contacts, Workouts, Sleep, Computer }
 
 @Serializable
-data class DeviceToolsParams(val tools: Set<DeviceToolKind> = emptySet())
+data class DeviceToolsParams(@Serializable(with = DeviceToolKinds::class) val tools: Set<DeviceToolKind> = emptySet())
+
+object DeviceToolKinds : KnownEnumSet<DeviceToolKind>(DeviceToolKind.serializer())
 
 @Serializable
 data class DeviceToolRequest(
@@ -33,4 +36,4 @@ data class DeviceToolResult(
 )
 
 @Serializable
-data class ToolDevice(val id: String, val name: String, val tools: Set<DeviceToolKind>, val available: Boolean = false)
+data class ToolDevice(val id: String, val name: String, @Serializable(with = DeviceToolKinds::class) val tools: Set<DeviceToolKind>, val available: Boolean = false)

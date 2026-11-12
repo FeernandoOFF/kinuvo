@@ -205,6 +205,22 @@ class ChatChromeTest {
         }
     }
 
+    @Test fun aVersionMismatchShowsRightAway() = javax.swing.SwingUtilities.invokeAndWait {
+        runTest {
+            val reason = "This Server is too old for this app. Update the Server."
+            ImageComposeScene(390, 844, Density(1f), coroutineContext = UnconfinedTestDispatcher(testScheduler), content = {
+                HarnessTheme(dark = false) {
+                    ChatContent(ChatState(loaded = true, items = listOf(ChatItem.User("u1", "Hello"))),
+                        ConnectionState.Disconnected(reason, incompatible = true), null, ChatActions())
+                }
+            }).use { scene ->
+                repeat(5) { scene.render(testScheduler.currentTime * 1_000_000); testScheduler.advanceTimeBy(100) }
+                assertNotNull(scene.node("$reason Retrying…"))
+                scene.screenshot("chat-incompatible-snackbar", testScheduler.currentTime * 1_000_000)
+            }
+        }
+    }
+
     @Test fun phoneAgentPillUsesTheSpaceAndSettingsStayInTheComposer() = javax.swing.SwingUtilities.invokeAndWait {
         val agent = AgentInfo(AgentId("echo"), "Echo", "host")
         val session = SessionInfo(SessionId("journal"), agent.id, "Evening journal")

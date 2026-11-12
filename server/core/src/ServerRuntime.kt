@@ -462,7 +462,7 @@ class ServerRuntime(
                 if (request.method == Api.Connect.name) {
                     val response = respond(request, Api.Connect) { p ->
                         if (authed) raise(ConnectError.AlreadyConnected)
-                        if (!ProtocolVersion.isCompatible(p.protocolVersion)) raise(ConnectError.ProtocolMismatch)
+                        val version = ProtocolVersion.negotiate(p.protocolVersion, p.minProtocolVersion ?: p.protocolVersion) ?: raise(ConnectError.ProtocolMismatch)
                         val supplied = connection.credential ?: p.token
                         client.linked = supplied?.let { remoteLinks.exposure(it) != null } == true
                         val token = (if (client.linked) supplied else auth.authenticate(p.device, supplied, if (connection.credential == null) p.pairingCode else null))
@@ -470,7 +470,7 @@ class ServerRuntime(
                         client.token = token
                         if (!client.linked) client.refreshTools(p.deviceTools, initial = true)
                         if (!client.linked && auth.management(token)) p.timeZone?.let { zone -> runCatching { harness.timeZone = TimeZone.of(zone) } }
-                        ConnectResult(token, name, harness.usage.value, capabilities, !client.linked && auth.management(token), deviceId = client.deviceId)
+                        ConnectResult(token, name, harness.usage.value, capabilities, !client.linked && auth.management(token), version, client.deviceId)
                     }
                     if (!response.ok) client.closeAfterResponse = request.id
                     client.outbox.send(response)
