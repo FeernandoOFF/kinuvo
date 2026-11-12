@@ -1,6 +1,7 @@
 package kinuvo.plugins.apple
 
-import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -68,14 +69,11 @@ data class AppleEvent(
 @Serializable
 data class AppleAuthorization(val status: String, val message: String? = null)
 
-/** Where a call that can block, e.g. on a permission prompt, runs. */
-internal expect val blocking: CoroutineDispatcher
-
 internal val AppleJson = Json { ignoreUnknownKeys = true }
 
 /** The typed face of an [AppleSystem]: each method name is a Swift core method, its parameters that method's. */
 class Apple(private val system: AppleSystem) {
-    suspend fun call(method: String, params: JsonObject = JsonObject(emptyMap())): JsonElement = withContext(blocking) {
+    suspend fun call(method: String, params: JsonObject = JsonObject(emptyMap())): JsonElement = withContext(Dispatchers.IO) {
         val response = AppleJson.parseToJsonElement(system.call(method, params.toString())).jsonObject
         response["error"]?.jsonObject?.let {
             throw AppleException(it["code"]?.jsonPrimitive?.contentOrNull ?: "failed", it["message"]?.jsonPrimitive?.contentOrNull ?: "Apple's frameworks failed")
