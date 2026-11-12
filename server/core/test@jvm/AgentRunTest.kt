@@ -7,17 +7,18 @@ import kinuvo.testing.harness.*
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.RequestKind
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.withWrittenAt
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.usage.RequestKind
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.withWrittenAt
 
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.server.tools.MemoryTool
 import kinuvo.server.plugin.Tool
 import kinuvo.server.plugin.ToolRun
-import kinuvo.protocol.Attachment
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
@@ -30,8 +31,8 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kinuvo.harness.builtin.ANSWER_NOW
-import kinuvo.harness.builtin.ModelProfile
-import kinuvo.harness.builtin.liveVoiceInstructions
+import kinuvo.harness.ModelProfile
+import kinuvo.harness.liveVoiceInstructions
 
 class AgentRunTest {
     @Test fun requestLimitAnswersWithoutTools() = runTest {
@@ -260,7 +261,7 @@ class AgentRunTest {
 
         assertIs<AgentEvent.RunStarted>(events.first())
         assertIs<AgentEvent.RunFinished>(events.last())
-        assertTrue(events.contains(AgentEvent.ToolCallStart("c1", "memory", """{"action":"add","target":"user","content":"Likes tea"}""")))
+        assertTrue(events.contains(AgentEvent.ToolCallStart(ToolCallId("c1"), "memory", """{"action":"add","target":"user","content":"Likes tea"}""")))
         assertEquals("- Likes tea\n", home.docs.read(agent.id, AgentDoc.UserNotes))
         assertEquals(2, seenHistories.size)
 
@@ -308,6 +309,6 @@ class AgentRunTest {
         val session = store.createSession(agent.id, "")
         AgentRun(agent, store, model, listOf(slowTool)).run(session.id, "go").first { it is AgentEvent.ToolCallStart }
 
-        assertEquals(SessionEntry.ToolResult("c1", "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last().withWrittenAt(null))
+        assertEquals(SessionEntry.ToolResult(ToolCallId("c1"), "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last().withWrittenAt(null))
     }
 }

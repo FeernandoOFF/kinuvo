@@ -2,15 +2,17 @@ package kinuvo.app.navigation
 
 import kinuvo.app.connection.*
 
-import kinuvo.protocol.Integration
-import kinuvo.protocol.ServerCapabilities
-import kinuvo.protocol.ServerFeature
-import kinuvo.protocol.offers
-import kinuvo.protocol.supports
+import kinuvo.protocol.capability.Integration
+import kinuvo.protocol.capability.ServerCapabilities
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.capability.offers
+import kinuvo.protocol.capability.supports
 import kotlinx.serialization.Serializable
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
-import kinuvo.protocol.ScreenRef
+import kinuvo.protocol.screen.ScreenRef
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 /** A destination in the app's back stack; saved across configuration changes and process death. */
 @Serializable
@@ -32,14 +34,14 @@ sealed interface Route {
      * [compose] marks a new Session the user asked for: it shows without a transition, ready to type in.
      */
     @Serializable
-    data class Chat(val agentId: String? = null, val sessionId: String? = null, val slot: String = newSlot(), val compose: Boolean = false) : Route
+    data class Chat(val agentId: AgentId? = null, val sessionId: SessionId? = null, val slot: String = newSlot(), val compose: Boolean = false) : Route
 
     /**
      * One Agent's settings: [section] null lists the sections, [item] opens one of the section's items. With [editing],
      * the item's form is open, or a form for a new item when [item] is null.
      */
     @Serializable
-    data class Settings(val agentId: String, val section: SettingsSection? = null, val item: String? = null, val editing: Boolean = false) : Route
+    data class Settings(val agentId: AgentId, val section: SettingsSection? = null, val item: String? = null, val editing: Boolean = false) : Route
 
     /** The onboarding's Identity and Soul steps, for a new Agent. */
     @Serializable
@@ -62,7 +64,7 @@ sealed interface Route {
     data class Computers(val computer: String? = null, val reason: String? = null) : Route
 
     @Serializable
-    data class Browser(val agentId: String, val sessionId: String? = null, val screen: ScreenRef? = null, val reason: String? = null) : Route
+    data class Browser(val agentId: AgentId, val sessionId: SessionId? = null, val screen: ScreenRef? = null, val reason: String? = null) : Route
 
     companion object {
         fun chat(view: LastView?) = Chat(view?.agentId, view?.sessionId)

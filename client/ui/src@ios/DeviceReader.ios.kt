@@ -6,7 +6,7 @@ import kinuvo.app.device.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import kinuvo.protocol.*
-
+import kinuvo.protocol.device.*
 private var nativeReader: DeviceReader? = null
 
 fun installDeviceReader(reader: DeviceReader) { nativeReader = reader }

@@ -1,10 +1,10 @@
 package kinuvo.app.connection
 
-import kinuvo.protocol.WebPush
-import kinuvo.protocol.Links
+import kinuvo.protocol.push.WebPush
+import kinuvo.protocol.device.Links
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.PushMessage
-import kinuvo.protocol.PushSubscription
+import kinuvo.protocol.push.PushMessage
+import kinuvo.protocol.push.PushSubscription
 import java.security.KeyPair
 import java.security.interfaces.ECPublicKey
 

@@ -17,7 +17,7 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.VerticalSeparator
 import kinuvo.app.navigation.Route
 import kinuvo.app.screen.LiveViewModel
-import kinuvo.protocol.ScreenRef
+import kinuvo.protocol.screen.ScreenRef
 import kinuvo.ui.navigation.PageAction
 import kinuvo.ui.session.BrowserDock
 import org.koin.compose.viewmodel.koinViewModel
@@ -43,7 +43,7 @@ fun rememberBrowserDocks(key: Any?): BrowserDocks {
  */
 @Composable
 fun BrowserDockHost(browser: Route.Browser?, docks: BrowserDocks, onExpand: (Route.Browser) -> Unit, chat: @Composable (BrowserDock?) -> Unit) {
-    val agent = browser?.agentId.orEmpty()
+    val agent = browser?.agentId?.value.orEmpty()
     val open = docks.open[agent] == true
     var focus by remember(agent) { mutableStateOf<Pair<ScreenRef, String?>?>(null) }
     val density = LocalDensity.current

@@ -1,7 +1,7 @@
 package kinuvo.server
 
 import kinuvo.server.plugin.VoiceProviders
-import kinuvo.protocol.VoiceSetup
+import kinuvo.protocol.voice.VoiceSetup
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

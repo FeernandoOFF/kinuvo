@@ -2,7 +2,7 @@ package kinuvo.server.skills
 
 import kinuvo.server.TestHome
 import kinuvo.server.plugin.writeAtomically
-import kinuvo.protocol.ConfigScope
+import kinuvo.protocol.agent.ConfigScope
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import java.nio.file.Files

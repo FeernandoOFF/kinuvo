@@ -7,6 +7,11 @@ import kinuvo.app.device.*
 import kinuvo.app.navigation.*
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.artifact.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -20,7 +25,7 @@ class ArtifactsViewModelTest {
     @Test fun editsKeepTheDraftWhenTheArtifactChangesUnderneath() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
         val frames = Channel<Frame>(Channel.UNLIMITED)
-        var info = ArtifactInfo("a1", "Page", "html", "main", "s1", 1, 1)
+        var info = ArtifactInfo("a1", "Page", "html", AgentId("main"), SessionId("s1"), 1, 1)
         var content = "<p>a</p>"
         var failSave = false
         val transport = object : FrameConnection {
@@ -33,13 +38,13 @@ class ArtifactsViewModelTest {
                     Api.Artifacts.name -> ProtocolJson.encodeToJsonElement(listOf(info))
                     Api.Artifact.name -> ProtocolJson.encodeToJsonElement(ArtifactData(info, content))
                     Api.SaveArtifact.name -> {
-                        if (failSave) { frames.send(Frame.Response(request.id, false, error = "Too big")); return }
+                        if (failSave) { frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Too big"))); return }
                         val save = ProtocolJson.decodeFromJsonElement<ArtifactSave>(request.params)
                         content = save.content
                         info = info.copy(updated = info.updated + 1)
                         ProtocolJson.encodeToJsonElement(info)
                     }
-                    else -> { frames.send(Frame.Response(request.id, false, error = "Unused in test")); return }
+                    else -> { frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unused in test"))); return }
                 }
                 frames.send(Frame.Response(request.id, true, payload))
             }

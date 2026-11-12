@@ -8,7 +8,9 @@ import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.instance
 import kinuvo.server.plugin.ownedBy
 import kinuvo.server.plugin.policyKey
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.test.*
@@ -16,18 +18,18 @@ import kotlin.test.*
 class BrowserPolicyTest {
     @Test fun browserToolsUseApprovalTrustAndServerDenyAndRequireSession(): Unit = runBlocking {
         val plugin = BrowserPlugin(File(System.getenv("KINUVO_HOME") ?: System.getProperty("java.io.tmpdir"), "policy-browser"))
-        val agent = Agent("policy-agent", "Agent", AgentConfig(tools = listOf("browser")))
+        val agent = Agent(AgentId("policy-agent"), "Agent", AgentConfig(tools = listOf("browser")))
         var saved = TrustRules()
         var global = TrustRules()
         val rules = object : TrustRulesRepository {
-            override suspend fun get(agentId: String) = saved
-            override suspend fun update(agentId: String, transform: (TrustRules) -> TrustRules) { saved = transform(saved) }
+            override suspend fun get(agentId: AgentId) = saved
+            override suspend fun update(agentId: AgentId, transform: (TrustRules) -> TrustRules) { saved = transform(saved) }
             override suspend fun server() = global
         }
         try {
             assertTrue(plugin.prepare(RunContext(agent, null), false).tools.isEmpty())
-            assertTrue(plugin.prepare(RunContext(agent.copy(config = agent.config.copy(tools = emptyList())), "s"), false).tools.isEmpty())
-            val tools = plugin.prepare(RunContext(agent, "s"), false).ownedBy(plugin.instance).tools
+            assertTrue(plugin.prepare(RunContext(agent.copy(config = agent.config.copy(tools = emptyList())), SessionId("s")), false).tools.isEmpty())
+            val tools = plugin.prepare(RunContext(agent, SessionId("s")), false).ownedBy(plugin.instance).tools
             val readNames = setOf("browser_tabs", "browser_open", "browser_capture", "browser_navigate", "browser_scroll", "browser_wait", "browser_back", "browser_forward")
             val reads = tools.filter { it.identity?.localId in readNames }
             assertEquals(readNames, reads.map { it.identity!!.localId }.toSet())

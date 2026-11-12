@@ -4,6 +4,10 @@ import kinuvo.harness.*
 import kinuvo.client.KinuvoClient
 import kinuvo.client.ConnectionState
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.sync.Mutex
@@ -44,10 +48,10 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
         val client = connect(remote.serverId)
         try {
             val agentId = requireNotNull(registration.remoteAgentId)
-            val created = client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, action = "create"))
+            val created = client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), action = "create"))
             val snapshot = requireNotNull(created.snapshot)
             val sessionId = snapshot.sessionId
-            state.reference(sessionId)
+            state.reference(sessionId.value)
             val sink = state.boundSink()
             val queue = Mutex()
             val commands = Mutex()
@@ -70,10 +74,10 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                         val stopReason = snapshot.stopReason
                         if (stopReason?.startsWith("error:") == true) {
                             sink.commit(listOf(SessionEntry.Notice(runId, "remote_execution_failed", stopReason.removePrefix("error:"), entries)))
-                            sink.publish(AgentEvent.RunError(runId, stopReason.removePrefix("error:")))
+                            sink.publish(AgentEvent.RunError(RunId(runId), stopReason.removePrefix("error:")))
                         } else {
                             sink.commit(entries)
-                            sink.publish(AgentEvent.RunFinished(runId))
+                            sink.publish(AgentEvent.RunFinished(RunId(runId)))
                         }
                         fresh.forEach { committed[it.id] = it }
                         sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
@@ -87,8 +91,8 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                     val draft = state.live().entries
                     if (draft.isNotEmpty() || snapshot.stopReason?.startsWith("error:") == true) {
                         sink.commit(listOf(SessionEntry.Notice(runId, "remote_output_unconfirmed", "The source ended this turn without confirming its live output.", draft)))
-                        sink.publish(AgentEvent.RunError(runId, "Source output was not confirmed"))
-                    } else sink.publish(AgentEvent.RunFinished(runId))
+                        sink.publish(AgentEvent.RunError(RunId(runId), "Source output was not confirmed"))
+                    } else sink.publish(AgentEvent.RunFinished(RunId(runId)))
                     sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle)); activeTurn = false
                 }
             }
@@ -99,7 +103,7 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                         delay(200)
                         if (client.state.value is ConnectionState.Connected) {
                             try {
-                                val snapshot = requireNotNull(withTimeout(10_000) { client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "snapshot")) }.snapshot)
+                                val snapshot = requireNotNull(withTimeout(10_000) { client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "snapshot")) }.snapshot)
                                 reconcile(snapshot)
                                 if (snapshot.phase != ExecutionPhase.Lost) readiness(config.id, true, "")
                             }
@@ -120,16 +124,16 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
                 override val capabilities = ExecutionCapabilities(cancel = true, questions = true, approvals = true)
                 override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance = commands.withLock {
                     require(input.attachments.isEmpty()) { "Remote attachments are unsupported" }
-                    client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "send", input.text, surfaceAction = input.action))
+                    client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "send", input.text, surfaceAction = input.action))
                     ExecutionAcceptance()
                 }
-                override suspend fun cancel() { commands.withLock { client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "cancel")) } }
-                override suspend fun respond(requestId: String, answer: InteractionAnswer): Boolean {
-                    val accepted = client.call(Api.RemoteExecution, RemoteExecutionCall(agentId, sessionId, "answer", requestId = requestId, answer = answer)).accepted
+                override suspend fun cancel() { commands.withLock { client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "cancel")) } }
+                override suspend fun respond(requestId: InteractionId, answer: InteractionAnswer): Boolean {
+                    val accepted = client.call(Api.RemoteExecution, RemoteExecutionCall(AgentId(agentId), sessionId, "answer", requestId = requestId, answer = answer)).accepted
                     if (accepted) state.resolve(requestId)
                     return accepted
                 }
-                override suspend fun answer(requestId: String, answer: InteractionAnswer) { respond(requestId, answer) }
+                override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) { respond(requestId, answer) }
                 override suspend fun close() { polling.cancelAndJoin(); client.close() }
             }
         } catch (e: Throwable) { client.close(); throw e }
@@ -140,15 +144,15 @@ internal fun remoteEntries(messages: List<ExecutionMessage>, generation: String)
     messages.flatMap { m ->
         if (m.role == "user") emptyList() else {
             val native = m.payload?.let { runCatching { ProtocolJson.decodeFromJsonElement(SessionEntry.serializer(), it) }.getOrNull() }
-            val entries = if (native != null) listOf(native) else transcript(ExecutionSnapshot("", messages = listOf(m)))
+            val entries = if (native != null) listOf(native) else transcript(ExecutionSnapshot(SessionId(""), messages = listOf(m)))
             entries.flatMap { entry -> if (entry is SessionEntry.ToolResult && entry.attachments.isNotEmpty()) listOf(
                 entry.copy(attachments = emptyList()),
                 SessionEntry.Notice("remote-media:$generation:${entry.id}", "unsupported_content", "Attachments on the source Server cannot be transferred through this connection."),
             ) else listOf(entry) }.map { entry -> when (entry) {
                 is SessionEntry.AssistantMessage -> entry.copy(messageId = "remote:$generation:${m.id}")
                 is SessionEntry.Reasoning -> entry.copy(messageId = "remote:$generation:${m.id}")
-                is SessionEntry.ToolCall -> entry.copy(id = "remote:$generation:${entry.id}")
-                is SessionEntry.ToolResult -> entry.copy(id = "remote:$generation:${entry.id}")
+                is SessionEntry.ToolCall -> entry.copy(id = ToolCallId("remote:$generation:${entry.id}"))
+                is SessionEntry.ToolResult -> entry.copy(id = ToolCallId("remote:$generation:${entry.id}"))
                 else -> entry
             } }
         }

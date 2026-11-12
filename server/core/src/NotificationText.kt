@@ -1,6 +1,6 @@
 package kinuvo.server
 
-import kinuvo.protocol.PendingInteraction
+import kinuvo.protocol.approval.PendingInteraction
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive

@@ -5,6 +5,10 @@ import kinuvo.testing.harness.*
 
 import kinuvo.server.plugin.RunContext
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.io.files.Path
@@ -22,7 +26,7 @@ class DeviceToolsTest {
         val agent = harness.store.agents().single()
         val session = harness.newSession(agent)
         harness.log.onEvent { _, _, event -> events.trySend(event) }
-        harness.log.publish(agent.id, session.id, AgentEvent.RunStarted("run"))
+        harness.log.publish(agent.id, session.id, AgentEvent.RunStarted(RunId("run")))
         harness.devices.paired = { listOf(device) }
         return harness.devices.prepare(RunContext(agent, session.id), activate = true).tools.single { it.descriptor.name == "contacts_lookup" }
     }
@@ -36,7 +40,7 @@ class DeviceToolsTest {
         withTimeout(5_000) {
             val tool = tool()
             val result = async { tool.execute(buildJsonObject { put("query", "Ada") }, "call") }
-            assertEquals("call", waiting().toolCallId)
+            assertEquals("call", waiting().toolCallId.value)
             harness.devices.connect(device.id, device.tools, true) { DeviceToolResult(DeviceToolStatus.Ready, buildJsonObject { put("contacts", JsonArray(emptyList())) }) }
             val read = ProtocolJson.decodeFromString(DeviceToolResult.serializer(), result.await())
             assertEquals(DeviceToolStatus.Ready, read.status)
@@ -98,6 +102,25 @@ class DeviceToolsTest {
             }
             val result = async { tool.execute(buildJsonObject { put("query", "Ada") }, "call") }
             harness.questions.respond(waiting().id, emptyMap())
+            assertEquals(DeviceToolStatus.Ready, ProtocolJson.decodeFromString(DeviceToolResult.serializer(), result.await()).status)
+            assertEquals(2, reads)
+        }
+    }
+
+    @Test
+    fun aRefreshDuringAnUnavailableReadStillLetsTheReadRetry() = runBlocking {
+        withTimeout(5_000) {
+            val tool = tool()
+            var reads = 0
+            lateinit var read: suspend (DeviceToolRequest) -> DeviceToolResult
+            read = {
+                if (++reads == 1) {
+                    harness.devices.connect(device.id, device.tools, true, read)
+                    DeviceToolResult(DeviceToolStatus.Unavailable)
+                } else DeviceToolResult(DeviceToolStatus.Ready)
+            }
+            harness.devices.connect(device.id, device.tools, true, read)
+            val result = async { tool.execute(buildJsonObject { put("query", "Ada") }, "call") }
             assertEquals(DeviceToolStatus.Ready, ProtocolJson.decodeFromString(DeviceToolResult.serializer(), result.await()).status)
             assertEquals(2, reads)
         }

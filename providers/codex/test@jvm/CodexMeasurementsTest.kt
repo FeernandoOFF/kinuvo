@@ -17,9 +17,10 @@ import kinuvo.harness.Agent
 import kinuvo.harness.builtin.AgentModel
 import kinuvo.harness.builtin.AgentRun
 import kinuvo.server.store.InMemoryStore
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.RequestMetrics
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.usage.RequestMetrics
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -143,7 +144,7 @@ class CodexMeasurementsTest {
 
     private suspend fun AgentModel.measure(): Pair<List<AgentEvent>, RequestMetrics> {
         val store = InMemoryStore()
-        val agent = Agent("test", "Test", AgentConfig())
+        val agent = Agent(AgentId("test"), "Test", AgentConfig())
         val session = store.createSession(agent.id, "Help the user")
         val events = AgentRun(agent, store, this, emptyList()).run(session.id, "Hi").toList()
         return events to store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Measurement>().single().metrics

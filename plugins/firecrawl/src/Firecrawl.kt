@@ -6,7 +6,9 @@ import kinuvo.server.plugin.SearchRegion
 import kinuvo.server.plugin.WebResult
 import kinuvo.server.plugin.WebSearch
 import kinuvo.server.plugin.WebSearchProvider
-import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.settings.*
 import kotlinx.serialization.json.*
 
 class FirecrawlPlugin : HarnessPlugin {

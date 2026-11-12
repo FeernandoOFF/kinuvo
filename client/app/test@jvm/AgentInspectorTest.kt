@@ -7,6 +7,11 @@ import kinuvo.app.device.*
 import androidx.lifecycle.ViewModelStore
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
@@ -19,10 +24,10 @@ import kotlin.test.*
 @OptIn(ExperimentalCoroutinesApi::class)
 class AgentInspectorTest {
     private val serverJobs = mutableListOf<Job>()
-    private val agents = listOf(AgentInfo("ada", "Ada", "none"), AgentInfo("bob", "Bob", "none"))
+    private val agents = listOf(AgentInfo(AgentId("ada"), "Ada", "none"), AgentInfo(AgentId("bob"), "Bob", "none"))
 
     @Test fun dirtyCloseWaitsOnTheUserAndKeepKeepsTheDraft() = withInspector { vm, _ ->
-        vm.openAndEdit("ada") { it.copy(name = "Ava") }
+        vm.openAndEdit(AgentId("ada")) { it.copy(name = "Ava") }
         assertFalse(vm.close())
         assertEquals(InspectorExit.Close, vm.state.value.guard)
         assertTrue(vm.state.value.open)
@@ -33,7 +38,7 @@ class AgentInspectorTest {
     }
 
     @Test fun discardClosesAndDropsTheDraft() = withInspector { vm, script ->
-        vm.openAndEdit("ada") { it.copy(name = "Ava") }
+        vm.openAndEdit(AgentId("ada")) { it.copy(name = "Ava") }
         assertFalse(vm.close())
         vm.resolve(GuardChoice.Discard, agents)
         assertEquals(InspectorState(models = vm.state.value.models), vm.state.value)
@@ -41,37 +46,37 @@ class AgentInspectorTest {
     }
 
     @Test fun cleanInspectorClosesAndLeavesWithoutAsking() = withInspector { vm, _ ->
-        vm.open("ada")
-        assertTrue(vm.inspect("ada"))
+        vm.open(AgentId("ada"))
+        assertTrue(vm.inspect(AgentId("ada")))
         assertTrue(vm.close())
         assertFalse(vm.state.value.open)
         assertTrue(vm.leave())
-        vm.open("ada")
+        vm.open(AgentId("ada"))
         assertTrue(vm.leave())
         assertFalse(vm.state.value.open)
         assertNull(vm.state.value.guard)
     }
 
     @Test fun inspectingAnotherAgentWhileDirtyAsksThenDiscardSwitches() = withInspector { vm, _ ->
-        vm.openAndEdit("ada") { it.copy(soul = "Firm") }
-        assertTrue(vm.inspect("ada"))
-        assertFalse(vm.inspect("bob"))
-        assertEquals(InspectorExit.Inspect("bob"), vm.state.value.guard)
-        assertEquals("ada", vm.state.value.agentId)
+        vm.openAndEdit(AgentId("ada")) { it.copy(soul = "Firm") }
+        assertTrue(vm.inspect(AgentId("ada")))
+        assertFalse(vm.inspect(AgentId("bob")))
+        assertEquals(InspectorExit.Inspect(AgentId("bob")), vm.state.value.guard)
+        assertEquals("ada", vm.state.value.agentId?.value)
         vm.resolve(GuardChoice.Keep, agents)
-        assertEquals("ada", vm.state.value.agentId)
-        assertFalse(vm.inspect("bob"))
+        assertEquals("ada", vm.state.value.agentId?.value)
+        assertFalse(vm.inspect(AgentId("bob")))
         vm.resolve(GuardChoice.Discard, agents)
-        assertEquals("bob", vm.state.value.agentId)
+        assertEquals("bob", vm.state.value.agentId?.value)
         vm.state.first { it.draft != null }
         assertEquals("Bob", vm.state.value.draft?.name)
         assertFalse(vm.state.value.dirty)
         assertNull(vm.state.value.guard)
-        assertTrue(vm.inspect("ada"))
+        assertTrue(vm.inspect(AgentId("ada")))
     }
 
     @Test fun leavingWhileDirtyAsksThenDiscardSignalsLeft() = withInspector { vm, _ ->
-        vm.openAndEdit("ada") { it.copy(approvals = "strict") }
+        vm.openAndEdit(AgentId("ada")) { it.copy(approvals = "strict") }
         assertFalse(vm.leave())
         assertEquals(InspectorExit.Leave, vm.state.value.guard)
         assertFalse(vm.state.value.left)
@@ -84,7 +89,7 @@ class AgentInspectorTest {
     }
 
     @Test fun backPopsPagesBeforeGuardingTheClose() = withInspector { vm, _ ->
-        vm.openAndEdit("ada") { it.copy(reasoning = "high") }
+        vm.openAndEdit(AgentId("ada")) { it.copy(reasoning = "high") }
         vm.push(InspectorPage.Model)
         vm.push(InspectorPage.Model)
         vm.push(InspectorPage.Approvals)
@@ -100,16 +105,16 @@ class AgentInspectorTest {
     }
 
     @Test fun saveSendsOnlyTheChangesThenProceeds() = withInspector { vm, script ->
-        vm.openAndEdit("ada") { it.copy(name = " Ava ", model = "better") }
+        vm.openAndEdit(AgentId("ada")) { it.copy(name = " Ava ", model = "better") }
         assertFalse(vm.close())
         vm.resolve(GuardChoice.Save, agents)
         vm.state.first { !it.open }
-        assertEquals(UpdateAgentParams("ada", name = "Ava", model = "better"), script.updates.receive())
+        assertEquals(UpdateAgentParams(AgentId("ada"), name = "Ava", model = "better"), script.updates.receive())
         assertNull(vm.state.value.guard)
     }
 
     @Test fun saveWithProblemsStaysOpenAndKeepsTheGuard() = withInspector { vm, script ->
-        vm.openAndEdit("ada") { it.copy(name = "bob") }
+        vm.openAndEdit(AgentId("ada")) { it.copy(name = "bob") }
         assertFalse(vm.leave())
         vm.resolve(GuardChoice.Save, agents)
         assertEquals(listOf("Another Agent is called bob"), vm.state.value.errors)
@@ -120,7 +125,7 @@ class AgentInspectorTest {
     }
 
     @Test fun saveLeavingProceedsWithTheLeave() = withInspector { vm, _ ->
-        vm.openAndEdit("ada") { it.copy(soul = "Firm") }
+        vm.openAndEdit(AgentId("ada")) { it.copy(soul = "Firm") }
         assertFalse(vm.leave())
         vm.resolve(GuardChoice.Save, agents)
         vm.state.first { it.left }
@@ -128,7 +133,7 @@ class AgentInspectorTest {
     }
 
     @Test fun savingWithoutChangesJustRuns() = withInspector { vm, script ->
-        vm.open("ada")
+        vm.open(AgentId("ada"))
         vm.state.first { it.draft != null }
         var ran = false
         vm.save(agents) { ran = true }
@@ -137,24 +142,24 @@ class AgentInspectorTest {
     }
 
     @Test fun anUneditedDraftFollowsSavedSettingsButAnEditedOneStays() = withInspector { vm, _, owner ->
-        vm.open("ada")
+        vm.open(AgentId("ada"))
         vm.state.first { it.draft != null }
-        owner.config.updateAgent(UpdateAgentParams("ada", model = "m2"))
+        owner.config.updateAgent(UpdateAgentParams(AgentId("ada"), model = "m2"))
         vm.state.first { it.draft?.model == "m2" }
         assertFalse(vm.state.value.dirty)
         vm.edit { it.copy(name = "Ava") }
-        owner.config.updateAgent(UpdateAgentParams("ada", model = "m3"))
+        owner.config.updateAgent(UpdateAgentParams(AgentId("ada"), model = "m3"))
         vm.state.first { it.details?.settings?.model == "m3" }
         assertEquals("m2", vm.state.value.draft?.model)
         assertEquals("Ava", vm.state.value.draft?.name)
     }
 
-    private suspend fun AgentInspectorViewModel.open(agentId: String) {
+    private suspend fun AgentInspectorViewModel.open(agentId: AgentId) {
         assertTrue(inspect(agentId))
         state.first { it.agentId == agentId && it.draft != null }
     }
 
-    private suspend fun AgentInspectorViewModel.openAndEdit(agentId: String, change: (AgentDraft) -> AgentDraft) {
+    private suspend fun AgentInspectorViewModel.openAndEdit(agentId: AgentId, change: (AgentDraft) -> AgentDraft) {
         open(agentId)
         assertFalse(state.value.dirty)
         edit(change)
@@ -203,8 +208,8 @@ class AgentInspectorTest {
         override val incoming = frames.receiveAsFlow()
         val updates = Channel<UpdateAgentParams>(Channel.UNLIMITED)
         private val details = mutableMapOf(
-            "ada" to AgentDetails(AgentInfo("ada", "Ada", "none"), AgentSettings("m1", "medium", "default", "none"), "Curious", "Kind"),
-            "bob" to AgentDetails(AgentInfo("bob", "Bob", "none"), AgentSettings("m1", "low", "strict", "none"), "Blunt", "Fair"),
+            "ada" to AgentDetails(AgentInfo(AgentId("ada"), "Ada", "none"), AgentSettings("m1", "medium", "default", "none"), "Curious", "Kind"),
+            "bob" to AgentDetails(AgentInfo(AgentId("bob"), "Bob", "none"), AgentSettings("m1", "low", "strict", "none"), "Blunt", "Fair"),
         )
         override suspend fun send(frame: Frame) {
             val request = frame as Frame.Request
@@ -212,17 +217,17 @@ class AgentInspectorTest {
                 Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", "inspector", capabilities = ServerCapabilities("test"), management = true))
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
                 Api.Agents.name -> reply(request, Api.Agents, details.values.map { it.info })
-                Api.Agent.name -> reply(request, Api.Agent, details.getValue(ProtocolJson.decodeFromJsonElement(Api.Agent.params, request.params).agentId))
+                Api.Agent.name -> reply(request, Api.Agent, details.getValue(ProtocolJson.decodeFromJsonElement(Api.Agent.params, request.params).agentId.value))
                 Api.UpdateAgent.name -> {
                     val p = ProtocolJson.decodeFromJsonElement(Api.UpdateAgent.params, request.params)
                     updates.send(p)
-                    val old = details.getValue(p.agentId)
+                    val old = details.getValue(p.agentId.value)
                     val next = old.copy(
                         info = old.info.copy(name = p.name ?: old.info.name),
                         settings = old.settings.copy(model = p.model ?: old.settings.model, provider = p.provider ?: old.settings.provider, reasoning = p.reasoning ?: old.settings.reasoning, approvals = p.approvals ?: old.settings.approvals),
                         identity = p.identity ?: old.identity, soul = p.soul ?: old.soul,
                     )
-                    details[p.agentId] = next
+                    details[p.agentId.value] = next
                     reply(request, Api.UpdateAgent, next)
                 }
                 Api.Models.name -> reply(request, Api.Models, ModelsCatalog())
@@ -230,7 +235,7 @@ class AgentInspectorTest {
                 Api.Skills.name -> reply(request, Api.Skills, emptyList())
                 Api.McpServers.name -> reply(request, Api.McpServers, emptyList())
                 Api.CatchUp.name -> reply(request, Api.CatchUp, Unit)
-                else -> frames.send(Frame.Response(request.id, false, error = "Unsupported in test: ${request.method}"))
+                else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))
             }
         }
         private suspend fun <P, R> reply(request: Frame.Request, method: Method<P, R>, result: R) {

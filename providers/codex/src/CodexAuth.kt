@@ -14,8 +14,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kinuvo.server.plugin.ProviderAuth
-import kinuvo.protocol.DeviceCode
-import kinuvo.protocol.ProviderAccount
+import kinuvo.protocol.model.DeviceCode
+import kinuvo.protocol.model.ProviderAccount
 import kotlinx.serialization.json.*
 import kinuvo.server.plugin.Keychain
 import kotlin.io.encoding.Base64

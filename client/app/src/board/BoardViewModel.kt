@@ -3,8 +3,8 @@ package kinuvo.app.board
 import kinuvo.client.userMessage
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kinuvo.protocol.CreateTaskParams
-import kinuvo.protocol.UpdateTaskParams
+import kinuvo.protocol.board.CreateTaskParams
+import kinuvo.protocol.board.UpdateTaskParams
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update

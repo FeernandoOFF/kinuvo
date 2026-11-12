@@ -12,7 +12,8 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.AgentInfo
+import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.agent.AgentAvatar
 import kinuvo.ui.design.*
 import kinuvo.ui.design.HeaderButton
@@ -28,7 +29,7 @@ val LocalHomeChrome = staticCompositionLocalOf<HomeChrome?> { null }
 class PageAction(val icon: ImageVector, val label: String, val onClick: () -> Unit)
 
 /** The Agent a page shows, picked in its header; with [everyone], also none, e.g. "All agents". */
-class AgentScope(val agents: List<AgentInfo>, val agentId: String?, val everyone: String? = null, val onSelect: (String?) -> Unit) {
+class AgentScope(val agents: List<AgentInfo>, val agentId: AgentId?, val everyone: String? = null, val onSelect: (AgentId?) -> Unit) {
     val agent get() = agents.firstOrNull { it.id == agentId }
     val label get() = agent?.name ?: everyone.orEmpty()
 }

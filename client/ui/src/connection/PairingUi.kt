@@ -36,7 +36,8 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import io.github.alexzhirkevich.qrose.rememberQrCodePainter
-import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
 import kinuvo.ui.design.*
 import kotlinx.coroutines.delay
 import kotlin.time.Clock

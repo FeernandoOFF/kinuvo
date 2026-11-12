@@ -5,8 +5,8 @@ import kinuvo.server.plugin.runProcess
 import kinuvo.server.plugin.sha256
 import java.io.File
 import kotlinx.io.files.Path
-import kinuvo.protocol.Platform
-import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 
 internal actual fun systemKeychain(service: String, account: String): Keychain? {
     return when (currentPlatform) {

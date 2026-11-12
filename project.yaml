@@ -12,6 +12,7 @@ modules:
   - client/ui
   - client/ui/android-computer
   - gateways/acp-agent
+  - gateways/kinuvo-mcp
   - harness/acp
   - harness/api
   - harness/builtin
@@ -41,6 +42,7 @@ modules:
   - server/embedded
   - server/jvm
   - server/plugin-api
+  - server/rpc
   - testing/fixture-server
   - testing/harness-testing
   - testing/server-testing

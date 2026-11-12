@@ -9,6 +9,8 @@ import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.plugins.voice.DownloadedVoice
 import kinuvo.protocol.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.voice.*
 import kotlinx.coroutines.*
 import kotlinx.io.files.Path
 import java.nio.file.Files

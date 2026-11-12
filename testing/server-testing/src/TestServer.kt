@@ -1,6 +1,8 @@
 package kinuvo.testing.server
 
+import kinuvo.server.rpc.serverRoutes
 import kinuvo.client.KinuvoClient
+import kinuvo.harness.ExecutionFactory
 import kinuvo.harness.builtin.NativeExecutionFactory
 import kinuvo.harness.remote.RemoteExecutionFactory
 import kinuvo.server.plugin.HarnessPlugin
@@ -16,17 +18,18 @@ import kinuvo.server.execution.ExecutionRegistry
 import kinuvo.server.execution.MemoryExecutionRecovery
 import kinuvo.server.execution.RemoteLinks
 import kinuvo.testing.harness.ModelScript
-import kinuvo.protocol.AgentRef
+import kinuvo.protocol.agent.AgentRef
 import kinuvo.protocol.Api
-import kinuvo.protocol.ComputerRequest
-import kinuvo.protocol.ComputerResult
-import kinuvo.protocol.DeviceToolKind
-import kinuvo.protocol.DeviceToolStatus
+import kinuvo.protocol.computer.ComputerRequest
+import kinuvo.protocol.computer.ComputerResult
+import kinuvo.protocol.device.DeviceToolKind
+import kinuvo.protocol.device.DeviceToolStatus
 import kinuvo.protocol.Frame
 import kinuvo.protocol.FrameConnection
-import kinuvo.protocol.SendParams
-import kinuvo.protocol.SessionInfo
-import kinuvo.protocol.UpdateSessionParams
+import kinuvo.protocol.session.SendParams
+import kinuvo.protocol.session.SessionInfo
+import kinuvo.protocol.session.UpdateSessionParams
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -110,7 +113,7 @@ class TestServer private constructor(
      * Starts a Session of Agent [agentId] through the Server, as a management Device would, unseen by [spy]. With a
      * [prompt] the turn starts at once, so a script that waits for an Approval or a question leaves it pending.
      */
-    suspend fun startSession(agentId: String, prompt: String? = null, title: String? = null): SessionInfo {
+    suspend fun startSession(agentId: AgentId, prompt: String? = null, title: String? = null): SessionInfo {
         if (!managing) { manager.connect(); managing = true }
         val session = manager.call(Api.CreateSession, AgentRef(agentId))
         if (prompt == null) return session
@@ -148,6 +151,7 @@ class TestServer private constructor(
             script: ModelScript.() -> Unit = {},
             harnesses: List<FakeHarness> = emptyList(),
             schedule: Boolean = false,
+            executionFactory: ((HarnessRuntime) -> ExecutionFactory)? = null,
             scenario: suspend Scenario.() -> Unit = {},
         ): TestServer {
             val directory = home ?: Path(Files.createTempDirectory("kinuvo-test-server").toString())
@@ -156,15 +160,16 @@ class TestServer private constructor(
             val modelScript = ModelScript().apply(script)
             val dependencies = ServerInstallation.assemble(files, plugins = plugins, modelSources = { plugins.filterIsInstance<FakeModels>().flatMap { it.modelSources } }, userHome = directory)
             val prompts = PromptLog()
-            val harness = HarnessRuntime(dependencies, modelFactory = { modelScript.model }, nativeSessions = { NativeExecutionFactory(it).recording(prompts) })
+            val models = { plugins.filterIsInstance<FakeModels>().flatMap { it.modelSources } }
+            val harness = HarnessRuntime(dependencies, { NativeExecutionFactory(it, models, { modelScript.model }).recording(prompts) }, unmanagedModels = true)
             val registry = ExecutionRegistry()
             val recovery = MemoryExecutionRecovery()
             try {
                 Scenario(harness, directory, registry, recovery).scenario()
                 val auth = DeviceAuth(File(directory.toString(), "server-devices.json"))
                 val links = RemoteLinks()
-                val runtime = ServerRuntime(harness, auth, "Test Server", remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, executionRegistry = registry, executionStorage = recovery,
-                    executionFactory = harnesses.takeIf { it.isNotEmpty() }?.let(::FakeHarnesses))
+                val runtime = ServerRuntime(harness, auth, serverRoutes(), "Test Server", remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, executionRegistry = registry, executionStorage = recovery,
+                    executionFactory = executionFactory?.invoke(harness) ?: harnesses.takeIf { it.isNotEmpty() }?.let(::FakeHarnesses))
                 runtime.start(schedule = schedule)
                 withContext(Dispatchers.Default) {
                     withTimeout(5_000) { while (registry.catalog().connections.any { it.readiness.reasonCode == "checking" }) delay(10) }

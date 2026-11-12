@@ -1,7 +1,7 @@
 package kinuvo.cli
 
 import com.github.ajalt.clikt.core.CliktError
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.routine.Trigger
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone

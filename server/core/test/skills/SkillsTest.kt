@@ -1,6 +1,7 @@
 package kinuvo.server.skills
 
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.server.TestHome
 import kinuvo.harness.builtin.activations
 import kinuvo.server.plugin.exists
@@ -121,10 +122,10 @@ class SkillsTest {
         val history = listOf(
             SessionEntry.Activation("grill-me", "grill text"),
             SessionEntry.UserMessage("go"),
-            SessionEntry.ToolCall("c1", "activate_skill", """{"name":"grilling"}""", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "activate_skill")),
-            SessionEntry.ToolResult("c1", "activate_skill", "grilling text"),
-            SessionEntry.ToolCall("c2", "activate_skill", """{"name":"nope"}""", kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("kinuvo.core"), "activate_skill")),
-            SessionEntry.ToolResult("c2", "activate_skill", "Error", isError = true),
+            SessionEntry.ToolCall(ToolCallId("c1"), "activate_skill", """{"name":"grilling"}""", kinuvo.protocol.plugin.ToolIdentity(kinuvo.protocol.plugin.PluginInstanceId("kinuvo.core"), "activate_skill")),
+            SessionEntry.ToolResult(ToolCallId("c1"), "activate_skill", "grilling text"),
+            SessionEntry.ToolCall(ToolCallId("c2"), "activate_skill", """{"name":"nope"}""", kinuvo.protocol.plugin.ToolIdentity(kinuvo.protocol.plugin.PluginInstanceId("kinuvo.core"), "activate_skill")),
+            SessionEntry.ToolResult(ToolCallId("c2"), "activate_skill", "Error", isError = true),
         )
         assertEquals(
             listOf(SessionEntry.Activation("grill-me", "grill text"), SessionEntry.Activation("grilling", "grilling text")),

@@ -1,19 +1,40 @@
 package kinuvo.protocol
 
-import kinuvo.protocol.SurfaceImage as SurfaceImageResult
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.SessionInfo
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.artifact.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.mcp.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.push.*
+import kinuvo.protocol.reflection.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.screen.*
+import kinuvo.protocol.secret.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.skill.*
+import kinuvo.protocol.surface.*
+import kinuvo.protocol.usage.*
+import kinuvo.protocol.voice.*
+import kinuvo.protocol.surface.SurfaceImage as SurfaceImageResult
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.nullable
-import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 
 /** WebSocket text frames: requests, responses and server-pushed events (OpenClaw-style). */
 @Serializable
@@ -22,7 +43,7 @@ sealed interface Frame {
     data class Request(val id: String, val method: String, val params: JsonElement = JsonNull) : Frame
 
     @Serializable @SerialName("res")
-    data class Response(val id: String, val ok: Boolean, val payload: JsonElement = JsonNull, val error: String? = null) : Frame
+    data class Response(val id: String, val ok: Boolean, val payload: JsonElement = JsonNull, @Serializable(with = WireErrorSerializer::class) val error: WireError? = null) : Frame
 
     @Serializable @SerialName("event")
     data class Event(val event: String, val payload: JsonElement, val seq: Long) : Frame
@@ -39,132 +60,33 @@ class Method<P, R>(val name: String, val params: KSerializer<P>, val result: KSe
 
 class EventType<T>(val name: String, val payload: KSerializer<T>)
 
-@Serializable
-data class AgentInfo(val id: String, val name: String, val exec: String, val avatar: String? = null, val executionKind: ExecutionKind = ExecutionKind.Native, val connectionId: String? = null, val host: String? = null, val readiness: ExecutionReadiness = ExecutionReadiness(true, true))
-
 object ProtocolVersion {
-    const val Current = 7
+    const val Current = 8
     const val Mismatch = "protocol_mismatch: Update the Server and Device to matching versions"
-    fun requireCompatible(version: Int) { require(version == Current) { Mismatch } }
+    fun isCompatible(version: Int) = version == Current
+    fun requireCompatible(version: Int) { require(isCompatible(version)) { Mismatch } }
 }
 
 /** Requests a Device may have unanswered on one connection; the Server drops a connection that sends more. */
 const val MAX_CONCURRENT_REQUESTS = 8
 
-@Serializable
-data class SurfaceCatalogsParams(val catalogs: List<UiCatalog>)
-
-/** Exactly one of [token] or [pairingCode] is set. [timeZone] is the Device's IANA zone. */
-@Serializable
-data class ConnectParams(val device: String, val token: String? = null, val pairingCode: String? = null, val timeZone: String? = null, val deviceTools: Set<DeviceToolKind> = emptySet(),
-    @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current)
-
-@Serializable
-data class ConnectResult(val token: String, val serverName: String, val usage: Usage? = null, val capabilities: ServerCapabilities, val management: Boolean, @kotlinx.serialization.Required val protocolVersion: Int = ProtocolVersion.Current, val deviceId: String? = null)
-
-@Serializable
-data class AgentRef(val agentId: String)
-
-/** A Skill an Agent can use; [userInvocable] ones can be activated with `/name`. [active] is false when a Skill of the same name shadows it. */
-@Serializable
-data class SkillInfo(
-    val name: String,
-    val description: String,
-    val userInvocable: Boolean = true,
-    val modelInvocable: Boolean = true,
-    val scope: ConfigScope = ConfigScope.Agent,
-    val active: Boolean = true,
-)
-
-/** [voice] marks [text] as transcribed from voice chat. */
-@Serializable
-data class SendParams(val agentId: String, val sessionId: String? = null, val text: String, val attachments: List<String> = emptyList(), val voice: Boolean = false, val submissionId: String? = null, val action: SurfaceAction? = null)
-
-/** [activation] is set when the text was a `/skill` command; [message] is what was sent to the model. */
-@Serializable
-data class SendResult(val sessionId: String, val runId: String, val message: String, val activation: SessionEntry.Activation? = null)
-
-/** [active] is false while the app is in the background, so the Server notifies instead of counting it as watching. */
-@Serializable
-data class PresenceParams(val active: Boolean)
-
-/** Replaces the Session's [SessionSettings]; they apply from its next run. */
-@Serializable
-data class ConfigureSessionParams(val agentId: String, val sessionId: String, val settings: SessionSettings)
-
-/** Renames the Session (blank: back to its first message) or marks it a favorite; null fields stay as they are. */
-@Serializable
-data class UpdateSessionParams(val agentId: String, val sessionId: String, val title: String? = null, val favorite: Boolean? = null)
-
-@Serializable
-data class StopParams(val sessionId: String)
-
-/** [before] is the last Session ID of the previous page. Lists the user's Sessions, or with [routineId] that Routine's. */
-@Serializable
-data class SessionsParams(val agentId: String, val before: String? = null, val limit: Int = 30, val routineId: String? = null)
-
-@Serializable
-data class SessionParams(val agentId: String, val sessionId: String)
-
-/**
- * Subscribes to a Session: the server sends, as [Api.Update]s, the entries from [after] on and then the live state,
- * followed by live updates until [Api.Unsubscribe]. With no [after], or more than [limit] entries behind, it sends
- * [SessionChange.Reset] and only the last [limit] entries; older ones load with [Api.History].
- */
-@Serializable
-data class CatchUpParams(val agentId: String, val sessionId: String, val after: Int? = null, val limit: Int = 100)
-
-@Serializable
-data class UnsubscribeParams(val sessionId: String)
-
-/** Up to [limit] entries before seq [before]. */
-@Serializable
-data class HistoryParams(val agentId: String, val sessionId: String, val before: Int, val limit: Int = 100)
-
-/** One change to a Session, pushed in order to the clients subscribed to it. */
-@Serializable
-data class SessionUpdate(val agentId: String, val sessionId: String, val change: SessionChange)
-
-@Serializable
-sealed interface SessionChange {
-    /** Atomically replaces a mutable transcript window and its live state. */
-    @Serializable @SerialName("window")
-    data class Window(val firstSeq: Int, val entries: List<SessionEntry>, val state: LiveState) : SessionChange
-
-    /** A persisted entry; [seq] is its position in the Session. */
-    @Serializable @SerialName("entry")
-    data class Entry(val seq: Int, val entry: SessionEntry) : SessionChange
-
-    /** A run event not covered by entries, e.g. a text delta. */
-    @Serializable @SerialName("event")
-    data class Event(val event: AgentEvent) : SessionChange
-
-    /** The catch-up starts a fresh window at [firstSeq]; drop what was held before. */
-    @Serializable @SerialName("reset")
-    data class Reset(val firstSeq: Int) : SessionChange
-
-    /** Replaces the client's live state; sent at the end of a catch-up. */
-    @Serializable @SerialName("live")
-    data class Live(val state: LiveState) : SessionChange
-}
-
 object Api {
-    val ScreenOpen = Method("screens.open", kinuvo.protocol.ScreenOpen.serializer(), ScreenInfo.serializer())
+    val ScreenOpen = Method("screens.open", kinuvo.protocol.screen.ScreenOpen.serializer(), ScreenInfo.serializer())
     val Screens = Method("screens.list", BrowserOwner.serializer().nullable, ListSerializer(ScreenInfo.serializer()))
-    val ScreenWatch = Method("screens.watch", kinuvo.protocol.ScreenWatch.serializer(), ScreenSubscription.serializer())
+    val ScreenWatch = Method("screens.watch", kinuvo.protocol.screen.ScreenWatch.serializer(), ScreenSubscription.serializer())
     val ScreenUnwatch = Method("screens.unwatch", String.serializer(), Unit.serializer())
     val ScreenAck = Method("screens.ack", ScreenFrameAck.serializer(), Unit.serializer())
-    val ScreenControl = Method("screens.control", ScreenControlRequest.serializer(), kinuvo.protocol.ScreenControl.serializer())
+    val ScreenControl = Method("screens.control", ScreenControlRequest.serializer(), kinuvo.protocol.screen.ScreenControl.serializer())
     val ScreenInput = Method("screens.input", ScreenInputRequest.serializer(), ScreenInputResult.serializer())
-    val ScreenCommand = Method("screens.command", kinuvo.protocol.ScreenCommand.serializer(), Unit.serializer())
+    val ScreenCommand = Method("screens.command", kinuvo.protocol.screen.ScreenCommand.serializer(), Unit.serializer())
     val ScreensChanged = EventType("screens.changed", BrowserOwner.serializer().nullable)
-    val ScreenFrame = EventType("screens.frame", kinuvo.protocol.ScreenFrame.serializer())
+    val ScreenFrame = EventType("screens.frame", kinuvo.protocol.screen.ScreenFrame.serializer())
     val ScreenStatus = EventType("screens.status", ScreenStreamStatus.serializer())
 
-    val BrowserPresentation = Method("browser.presentation", BrowserOwner.serializer(), kinuvo.protocol.BrowserPresentation.serializer())
-    val SaveBrowserPresentation = Method("browser.savePresentation", BrowserPresentationRequest.serializer(), kinuvo.protocol.BrowserPresentation.serializer())
+    val BrowserPresentation = Method("browser.presentation", BrowserOwner.serializer(), kinuvo.protocol.browser.BrowserPresentation.serializer())
+    val SaveBrowserPresentation = Method("browser.savePresentation", BrowserPresentationRequest.serializer(), kinuvo.protocol.browser.BrowserPresentation.serializer())
     val BrowserTabs = Method("browser.tabs", BrowserOwner.serializer(), ListSerializer(BrowserTab.serializer()))
-    val BrowserCommand = Method("browser.command", kinuvo.protocol.BrowserCommand.serializer(), BrowserFrame.serializer().nullable)
+    val BrowserCommand = Method("browser.command", kinuvo.protocol.browser.BrowserCommand.serializer(), BrowserFrame.serializer().nullable)
     val BrowserChanged = EventType("browser.changed", BrowserOwner.serializer())
 
     val VoiceModels = Method("voice.models", Unit.serializer(), VoiceModelsState.serializer())
@@ -173,17 +95,17 @@ object Api {
     val VoiceRemove = Method("voice.remove", String.serializer(), Unit.serializer())
     val VoiceSelect = Method("voice.select", VoiceSelection.serializer(), Unit.serializer())
     val VoiceLanguage = Method("voice.language", String.serializer(), Unit.serializer())
-    val VoiceSetup = Method("voice.setup", Unit.serializer(), kinuvo.protocol.VoiceSetup.serializer())
+    val VoiceSetup = Method("voice.setup", Unit.serializer(), kinuvo.protocol.voice.VoiceSetup.serializer())
     val Transcribe = Method("voice.transcribe", TranscribeParams.serializer(), String.serializer())
     val Synthesize = Method("voice.synthesize", SynthesizeParams.serializer(), SpeechAudio.serializer())
     val CancelVoice = Method("voice.cancel", CancelVoiceParams.serializer(), Unit.serializer())
     val LiveVoiceStart = Method("voice.live.start", LiveVoiceParams.serializer(), LiveVoiceCall.serializer())
-    val LiveVoiceSettings = Method("voice.live.settings", Unit.serializer(), kinuvo.protocol.LiveVoiceSettings.serializer())
-    val SaveLiveVoice = Method("voice.live.save", Boolean.serializer(), kinuvo.protocol.LiveVoiceSettings.serializer())
+    val LiveVoiceSettings = Method("voice.live.settings", Unit.serializer(), kinuvo.protocol.voice.LiveVoiceSettings.serializer())
+    val SaveLiveVoice = Method("voice.live.save", Boolean.serializer(), kinuvo.protocol.voice.LiveVoiceSettings.serializer())
     val LiveVoiceEnd = Method("voice.live.end", LiveVoiceRef.serializer(), Unit.serializer())
     /** Sent by the Device, unlike other events. */
-    val LiveVoiceInput = EventType("voice.live.input", kinuvo.protocol.LiveVoiceInput.serializer())
-    val LiveVoiceOutput = EventType("voice.live.output", kinuvo.protocol.LiveVoiceOutput.serializer())
+    val LiveVoiceInput = EventType("voice.live.input", kinuvo.protocol.voice.LiveVoiceInput.serializer())
+    val LiveVoiceOutput = EventType("voice.live.output", kinuvo.protocol.voice.LiveVoiceOutput.serializer())
     val Capabilities = Method("session.capabilities", CapabilitiesParams.serializer(), SessionCapabilities.serializer())
     val CapabilitiesChanged = EventType("capabilities.changed", Unit.serializer())
     val Models = Method("models.list", ModelsParams.serializer(), ModelsCatalog.serializer())
@@ -198,7 +120,7 @@ object Api {
     val DownloadProviderModel = Method("providers.download", ProviderModelRef.serializer(), Unit.serializer())
     val CancelProviderDownload = Method("providers.cancelDownload", ProviderRef.serializer(), Unit.serializer())
     val RemoveProviderModel = Method("providers.removeModel", ProviderModelRef.serializer(), Unit.serializer())
-    val UploadAttachment = Method("attachments.upload", UploadAttachmentParams.serializer(), kinuvo.protocol.Attachment.serializer())
+    val UploadAttachment = Method("attachments.upload", UploadAttachmentParams.serializer(), kinuvo.protocol.session.Attachment.serializer())
     val AppResource = Method("apps.resource", McpAppRequest.serializer(), McpAppResource.serializer())
     val AppCallTool = Method("apps.callTool", McpAppToolRequest.serializer(), JsonObject.serializer())
     val SurfaceImage = Method("surfaces.image", SurfaceImageParams.serializer(), SurfaceImageResult.serializer())
@@ -286,9 +208,9 @@ object Api {
     val ProviderLists = Method("tasks.providerLists", TaskProviderRef.serializer(), ListSerializer(TaskListInfo.serializer()))
     val AuthorizeTasks = Method("tasks.authorize", TaskProviderRef.serializer(), ListSerializer(TaskListInfo.serializer()))
     val KnowledgeSettings = Method("knowledge.settings", Unit.serializer(), KnowledgeSetup.serializer())
-    val SaveKnowledgeSettings = Method("knowledge.saveSettings", kinuvo.protocol.KnowledgeSettings.serializer(), KnowledgeSetup.serializer())
+    val SaveKnowledgeSettings = Method("knowledge.saveSettings", kinuvo.protocol.knowledge.KnowledgeSettings.serializer(), KnowledgeSetup.serializer())
     /** Reads the schema with unsaved settings, so a broken setup shows in Settings rather than to Agents. */
-    val TestKnowledge = Method("knowledge.test", kinuvo.protocol.KnowledgeSettings.serializer(), KnowledgeTestResult.serializer())
+    val TestKnowledge = Method("knowledge.test", kinuvo.protocol.knowledge.KnowledgeSettings.serializer(), KnowledgeTestResult.serializer())
     /** The Server's password managers for Secret references. */
     val SecretProviders = Method("secrets.status", Unit.serializer(), ListSerializer(SecretProviderStatus.serializer()))
     val ConnectSecrets = Method("secrets.connect", ConnectSecretsParams.serializer(), SecretProviderStatus.serializer())
@@ -303,18 +225,18 @@ object Api {
     val TestService = Method("service.test", TestServiceParams.serializer(), ServiceTestResult.serializer())
 
     val ProbeHarnessConnection = Method("execution.connection.check", HarnessConnection.serializer(), ExecutionProbe.serializer())
-    val ExecutionCatalogChanged = EventType("execution.catalog.changed", kinuvo.protocol.ExecutionCatalog.serializer())
-    val ResumeExecution = Method("execution.resume", ExecutionRef.serializer(), kinuvo.protocol.ExecutionSnapshot.serializer())
+    val ExecutionCatalogChanged = EventType("execution.catalog.changed", kinuvo.protocol.execution.ExecutionCatalog.serializer())
+    val ResumeExecution = Method("execution.resume", ExecutionRef.serializer(), kinuvo.protocol.execution.ExecutionSnapshot.serializer())
     val CloseExecution = Method("execution.close", ExecutionRef.serializer(), Unit.serializer())
-    val ExecutionSnapshot = Method("execution.snapshot", ExecutionRef.serializer(), kinuvo.protocol.ExecutionSnapshot.serializer())
-    val ExecutionChanged = EventType("execution.changed", kinuvo.protocol.ExecutionSnapshot.serializer())
-    val SaveRemoteLink = Method("execution.remote.save", kinuvo.protocol.SaveRemoteLink.serializer(), Unit.serializer())
+    val ExecutionSnapshot = Method("execution.snapshot", ExecutionRef.serializer(), kinuvo.protocol.execution.ExecutionSnapshot.serializer())
+    val ExecutionChanged = EventType("execution.changed", kinuvo.protocol.execution.ExecutionSnapshot.serializer())
+    val SaveRemoteLink = Method("execution.remote.save", kinuvo.protocol.execution.SaveRemoteLink.serializer(), Unit.serializer())
     val GrantExecution = Method("execution.exposure.grant", ExposureGrant.serializer(), String.serializer())
     val ExecutionGrants = Method("execution.exposure.list", Unit.serializer(), ListSerializer(ExposureGrant.serializer()))
     val RevokeExecution = Method("execution.exposure.revoke", ExecutionRef.serializer(), Unit.serializer())
     val RemoteExecution = Method("execution.remote.call", RemoteExecutionCall.serializer(), RemoteExecutionResult.serializer())
     val DiscoverRemote = Method("execution.remote.discover", ExecutionRef.serializer(), RemoteExecutionResult.serializer())
-    val ExecutionCatalog = Method("execution.catalog", Unit.serializer(), kinuvo.protocol.ExecutionCatalog.serializer())
+    val ExecutionCatalog = Method("execution.catalog", Unit.serializer(), kinuvo.protocol.execution.ExecutionCatalog.serializer())
     val SaveHarnessConnection = Method("execution.connection.save", HarnessConnection.serializer(), HarnessConnectionStatus.serializer())
     val DeleteHarnessConnection = Method("execution.connection.delete", ExecutionRef.serializer(), Unit.serializer())
     val RegisterExternalAgent = Method("execution.agent.save", AgentRegistration.serializer(), AgentRegistration.serializer())
@@ -323,12 +245,12 @@ object Api {
     val Update = EventType("session.update", SessionUpdate.serializer())
     /** A Session was created, renamed or changed status; sent to every client. */
     val SessionChanged = EventType("session.changed", SessionInfo.serializer())
-    val Usage = EventType("usage", kinuvo.protocol.Usage.serializer())
+    val Usage = EventType("usage", kinuvo.protocol.usage.Usage.serializer())
     val ProvidersChanged = EventType("providers.changed", ListSerializer(ProviderInfo.serializer()))
     /** Every Agent, after one was created, renamed or deleted. */
     val AgentsChanged = EventType("agents.changed", ListSerializer(AgentInfo.serializer()))
-    val RoutinesChanged = EventType("routines.changed", kinuvo.protocol.RoutinesChanged.serializer())
-    val RoutineRan = EventType("routine.ran", kinuvo.protocol.RoutineRan.serializer())
+    val RoutinesChanged = EventType("routines.changed", kinuvo.protocol.routine.RoutinesChanged.serializer())
+    val RoutineRan = EventType("routine.ran", kinuvo.protocol.routine.RoutineRan.serializer())
     /** An Agent changed Knowledge, or a change was undone. */
     val KnowledgeChanged = EventType("knowledge.changed", KnowledgeChange.serializer())
     /** An Artifact was saved or deleted. */

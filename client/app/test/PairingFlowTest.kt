@@ -5,8 +5,8 @@ import kinuvo.app.device.*
 import kinuvo.app.navigation.*
 
 import androidx.lifecycle.ViewModelStore
-import kinuvo.protocol.Links
-import kinuvo.protocol.PairLink
+import kinuvo.protocol.device.Links
+import kinuvo.protocol.device.PairLink
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*

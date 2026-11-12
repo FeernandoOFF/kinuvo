@@ -1,7 +1,6 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.*
-
+import kinuvo.protocol.voice.*
 /** Speech models the Server downloads and runs itself, managed from any client. */
 interface ServerVoice {
     val providers: VoiceProviders

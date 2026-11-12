@@ -1,8 +1,8 @@
 package kinuvo.server
 
 import co.touchlab.stately.collections.ConcurrentMutableMap
-import kinuvo.protocol.DeviceCode
-import kinuvo.protocol.ProviderInfo
+import kinuvo.protocol.model.DeviceCode
+import kinuvo.protocol.model.ProviderInfo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope

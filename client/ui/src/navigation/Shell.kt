@@ -56,13 +56,15 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
-import kinuvo.protocol.AgentInfo
-import kinuvo.protocol.Routine
-import kinuvo.protocol.ServerCapabilities
-import kinuvo.protocol.ServerFeature
-import kinuvo.protocol.supports
-import kinuvo.protocol.SessionInfo
-import kinuvo.protocol.SessionStatus
+import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.capability.ServerCapabilities
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.capability.supports
+import kinuvo.protocol.session.SessionInfo
+import kinuvo.protocol.session.SessionStatus
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kinuvo.ui.design.*
 import kotlinx.coroutines.delay
 import org.koin.compose.koinInject
@@ -75,12 +77,12 @@ import org.koin.compose.koinInject
 data class ShellState(
     val agents: List<AgentInfo> = emptyList(),
     val agent: AgentInfo? = null,
-    val lists: Map<String, SessionList> = emptyMap(),
-    val finished: Set<String> = emptySet(),
+    val lists: Map<AgentId, SessionList> = emptyMap(),
+    val finished: Set<SessionId> = emptySet(),
     val view: Route? = null,
     val servers: ServerMenuState = ServerMenuState(),
     val capabilities: ServerCapabilities? = null,
-    val routines: Map<String, List<Routine>> = emptyMap(),
+    val routines: Map<AgentId, List<Routine>> = emptyMap(),
     /** Whether this Device has management access, which watching and taking over Computers needs. */
     val management: Boolean = true,
     val home: Boolean = false,
@@ -99,13 +101,13 @@ data class ShellState(
     val running get() = everySession.filter { it.status == SessionStatus.Running }
 
     /** An Agent has news when one of its Sessions runs, waits on the user or finished while elsewhere. */
-    fun hasNews(agentId: String) = lists[agentId]?.sessions.orEmpty().any { it.status != SessionStatus.Idle || it.id in finished }
+    fun hasNews(agentId: AgentId) = lists[agentId]?.sessions.orEmpty().any { it.status != SessionStatus.Idle || it.id in finished }
 
-    fun avatarState(agentId: String) = kinuvo.app.agent.avatarState(lists[agentId]?.sessions.orEmpty().map { it.status })
+    fun avatarState(agentId: AgentId) = kinuvo.app.agent.avatarState(lists[agentId]?.sessions.orEmpty().map { it.status })
 }
 
 class ShellActions(
-    val onSelectAgent: (String) -> Unit = {},
+    val onSelectAgent: (AgentId) -> Unit = {},
     val onAddAgent: () -> Unit = {},
     val onNew: () -> Unit = {},
     val onSelect: (String) -> Unit = {},
@@ -123,7 +125,7 @@ class ShellActions(
     val onRoutines: () -> Unit = {},
     val onTools: () -> Unit = {},
     /** Opens one Agent's Session from Home's column. */
-    val onOpenSession: (agentId: String, sessionId: String) -> Unit = { _, _ -> },
+    val onOpenSession: (agentId: AgentId, sessionId: SessionId) -> Unit = { _, _ -> },
     val onSelectServer: (Server) -> Unit = {},
     val onAddServer: () -> Unit = {},
     /** Opens a saved Server's settings. */
@@ -131,7 +133,7 @@ class ShellActions(
     val onRenameServer: (Server.Remote, String) -> Unit = { _, _ -> },
     val onForgetServer: (Server.Remote) -> Unit = {},
     /** Starts a Session with the shown Agent by sending the text, opening it when asked; false when it couldn't. */
-    val onQuickSend: suspend (agentId: String, text: String, open: Boolean) -> Boolean = { _, _, _ -> false },
+    val onQuickSend: suspend (agentId: AgentId, text: String, open: Boolean) -> Boolean = { _, _, _ -> false },
 )
 
 /**
@@ -318,7 +320,7 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
                     ListRow(selected, { actions.onOpenSession(s.agentId, s.id) }, leading = { AgentAvatar(byId[s.agentId], 18.dp) }) {
                         Column(Modifier.weight(1f)) {
                             Text(s.title, singleLine = true, overflow = TextOverflow.Ellipsis)
-                            Text(byId[s.agentId]?.name ?: s.agentId, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+                            Text(byId[s.agentId]?.name ?: s.agentId.value, style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
                         }
                         SessionStatusIcon(s.status, false)
                     }
@@ -363,7 +365,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
         LazyColumn(Modifier.weight(1f), list, contentPadding = PaddingValues(start = Spacing.space8, top = Spacing.space4, end = Spacing.space8, bottom = Spacing.space8 + bottom), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             val selected = (state.view as? Route.Chat)?.sessionId
             fun LazyListScope.rows(sessions: List<SessionInfo>, prefix: String = "") = items(sessions, key = { prefix + it.id }) { session ->
-                SessionRow(session, session.id == selected, session.id in state.finished) { actions.onSelect(session.id) }
+                SessionRow(session, session.id == selected, session.id in state.finished) { actions.onSelect(session.id.value) }
             }
             if (searching) {
                 val found = (favorites + chats + state.sessions.filter { s -> attached.any { it.sessionId == s.id } }).distinctBy { it.id }.search(query)
@@ -393,7 +395,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                     val key = group.session.routine?.id
                     val open = key != null && (key in chrome.expanded || group.earlier.any { it.id == selected })
                     item(key = group.session.id) {
-                        SessionRow(group.session, group.session.id == selected, group.session.id in state.finished) { actions.onSelect(group.session.id) }
+                        SessionRow(group.session, group.session.id == selected, group.session.id in state.finished) { actions.onSelect(group.session.id.value) }
                     }
                     if (key != null && group.earlier.isNotEmpty()) {
                         item(key = "earlier:$key") {
@@ -403,7 +405,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                             }
                         }
                         if (open) items(group.earlier, key = { it.id }) { run ->
-                            Box(Modifier.padding(start = Spacing.space16)) { SessionRow(run, run.id == selected, run.id in state.finished) { actions.onSelect(run.id) } }
+                            Box(Modifier.padding(start = Spacing.space16)) { SessionRow(run, run.id == selected, run.id in state.finished) { actions.onSelect(run.id.value) } }
                         }
                     }
                 }
@@ -426,7 +428,7 @@ private fun AgentColumn(state: ShellState, actions: ShellActions, chrome: ShellC
                 items(shown, key = { "routine:${it.id}" }) { r ->
                     val session = byId[r.sessionId]
                     ShellRow(Lucide.AlarmClock, r.name, session?.status ?: SessionStatus.Idle, r.sessionId == selected, r.sessionId in state.finished) {
-                        actions.onSelect(r.sessionId!!)
+                        actions.onSelect(r.sessionId!!.value)
                     }
                 }
             }

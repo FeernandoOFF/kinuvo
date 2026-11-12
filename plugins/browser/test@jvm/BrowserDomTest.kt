@@ -5,7 +5,8 @@ import dev.kdriver.core.browser.defaultBrowserSearchConfig
 import java.io.File
 import java.net.InetSocketAddress
 import java.nio.file.Files
-import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlin.test.*
@@ -39,7 +40,7 @@ class BrowserDomTest {
             exchange.responseBody.use { it.write(html) }
         }
         server.start()
-        val owner = BrowserOwner("fixture")
+        val owner = BrowserOwner(AgentId("fixture"))
         try {
             var frame = runtime.command(BrowserCommand(owner, BrowserAction.Open, text = "http://127.0.0.1:${server.address.port}"))!!
             val tab = frame.tab.id

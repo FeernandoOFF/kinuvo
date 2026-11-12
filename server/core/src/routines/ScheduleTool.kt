@@ -5,17 +5,18 @@ import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
 import kinuvo.server.plugin.CoreTool
 import kinuvo.harness.Agent
-import kinuvo.protocol.Risk
+import kinuvo.protocol.approval.Risk
 import kinuvo.server.plugin.Tool
 import kinuvo.server.plugin.Action
 import kinuvo.server.plugin.Assessment
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.requireString
 import kinuvo.server.plugin.string
-import kinuvo.protocol.Routine
-import kinuvo.protocol.RoutineApprovals
-import kinuvo.protocol.RoutineSpec
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.RoutineApprovals
+import kinuvo.protocol.routine.RoutineSpec
+import kinuvo.protocol.routine.Trigger
+import kinuvo.protocol.session.SessionId
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.datetime.LocalDate
@@ -35,7 +36,7 @@ class ScheduleTool(
     private val agent: Agent,
     private val routines: Routines,
     private val defaultZone: () -> TimeZone,
-    private val sessionId: String? = null,
+    private val sessionId: SessionId? = null,
     private val routine: Routine? = null,
     private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() },
 ) : CoreTool {
@@ -128,7 +129,7 @@ class ScheduleTool(
         session = when (args.string("session")) {
             null -> null
             "new" -> NEW_SESSIONS
-            "attach" -> args.string("session_id") ?: sessionId ?: error("No current Session to attach to; give session_id")
+            "attach" -> args.string("session_id") ?: sessionId?.value ?: error("No current Session to attach to; give session_id")
             else -> error("session must be new or attach")
         },
     )

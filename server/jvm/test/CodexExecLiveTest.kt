@@ -2,7 +2,7 @@ package kinuvo.server.jvm
 
 import kinuvo.providers.codex.*
 
-import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.session.AgentEvent
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import java.io.File

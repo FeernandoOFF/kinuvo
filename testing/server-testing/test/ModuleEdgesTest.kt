@@ -27,9 +27,11 @@ class ModuleEdgesTest {
         Rule("harness/acp", listOf("harness/api", "protocol"), harnessTests),
         Rule("harness/remote", listOf("harness/api", "protocol", "client/sdk"), serverTests),
         Rule("server/plugin-api", listOf("harness/api", "protocol"), serverTests),
-        Rule("server/core", listOf("server/plugin-api", "harness/api", "protocol"), serverTests),
+        Rule("server/core", listOf("server/plugin-api", "harness/api", "protocol"), serverTests + "server/rpc"),
+        Rule("server/rpc", listOf("server/core", "server/plugin-api", "harness/api", "protocol"), serverTests),
         Rule("providers/*", listOf("harness/builtin", "harness/api", "server/plugin-api", "models", "protocol"), serverTests),
         Rule("plugins/*", listOf("server/plugin-api", "models", "protocol"), serverTests),
+        Rule("gateways/kinuvo-mcp", listOf("server/core", "harness/api", "protocol"), serverTests + "harness/acp"),
         Rule("gateways/*", listOf("client/sdk", "harness/api", "protocol"), serverTests),
         Rule("server/jvm", hostTo, serverTests),
         Rule("server/embedded", hostTo, serverTests),
@@ -38,9 +40,7 @@ class ModuleEdgesTest {
     )
 
     /** Edges that break a rule today; each needs its reason, and the test fails once one is no longer needed. */
-    private val exceptions = mapOf(
-        "server/core -> harness/builtin" to "Core builds tool descriptors and runs Reflection and voice through the built-in harness; ADR 0029 has core depend on harness/api only.",
-    )
+    private val exceptions = emptyMap<String, String>()
 
     private val root = generateSequence(File("").absoluteFile) { it.parentFile }.first { File(it, "project.yaml").isFile }
 

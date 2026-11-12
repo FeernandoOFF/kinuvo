@@ -3,7 +3,7 @@ package kinuvo.ui
 import kinuvo.app.device.*
 
 import androidx.compose.runtime.Composable
-import kinuvo.protocol.DeviceToolKind
+import kinuvo.protocol.device.DeviceToolKind
 
 @Composable
 internal actual fun rememberDeviceAuthorization(reader: DeviceReader): (DeviceToolKind, (String?) -> Unit) -> Unit =

@@ -13,6 +13,7 @@ import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import kinuvo.protocol.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext

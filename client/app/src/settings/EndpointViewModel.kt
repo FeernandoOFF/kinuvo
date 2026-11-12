@@ -3,9 +3,9 @@ package kinuvo.app.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kinuvo.app.agent.ConfigRepository
-import kinuvo.protocol.CustomEndpointParams
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.ProviderRef
+import kinuvo.protocol.model.CustomEndpointParams
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.model.ProviderRef
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow

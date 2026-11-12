@@ -1,10 +1,11 @@
 package kinuvo.server
 
+import kinuvo.harness.simplified
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
 import kinuvo.server.plugin.rawSchemaSpec
 import kinuvo.server.plugin.toolSpec
-import kinuvo.protocol.ToolGroup
+import kinuvo.protocol.tool.ToolGroup
 import kinuvo.server.plugin.CoreToolRegistry
 import kinuvo.server.plugin.Tool
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -12,16 +13,16 @@ import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
 import kinuvo.harness.builtin.tools.*
 import kinuvo.server.tools.*
-import kinuvo.protocol.ExecutionLocation
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.ModelTier
+import kinuvo.protocol.capability.ExecutionLocation
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.model.ModelTier
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kinuvo.harness.builtin.ModelProfile
-import kinuvo.harness.builtin.SchemaLevel
+import kinuvo.harness.ModelProfile
+import kinuvo.harness.SchemaLevel
 
 class ToolSelectionTest {
     private fun tool(name: String, group: ToolGroup, vararg required: ToolParameter) = object : Tool {

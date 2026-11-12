@@ -7,14 +7,17 @@ import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.ScreenGate
 import kinuvo.server.plugin.instance
 import kinuvo.server.plugin.ownedBy
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class BrowserPluginContractTest {
-    private val owner = BrowserOwner("agent")
-    private val agent = Agent("agent", "Agent", AgentConfig(tools = listOf("browser")))
+    private val owner = BrowserOwner(AgentId("agent"))
+    private val agent = Agent(AgentId("agent"), "Agent", AgentConfig(tools = listOf("browser")))
     private class Browser : BrowserService {
         val gate = ScreenGate()
         val commands = mutableListOf<BrowserCommand>()
@@ -33,15 +36,15 @@ class BrowserPluginContractTest {
         val browser = Browser()
         val plugin = BrowserPlugin(browser)
         assertTrue(plugin.prepare(RunContext(agent, null), false).tools.isEmpty())
-        assertTrue(plugin.prepare(RunContext(agent.copy(config = agent.config.copy(tools = emptyList())), "session"), false).tools.isEmpty())
-        val tools = plugin.prepare(RunContext(agent, "session"), false).ownedBy(plugin.instance).tools
+        assertTrue(plugin.prepare(RunContext(agent.copy(config = agent.config.copy(tools = emptyList())), SessionId("session")), false).tools.isEmpty())
+        val tools = plugin.prepare(RunContext(agent, SessionId("session")), false).ownedBy(plugin.instance).tools
         val capture = tools.single { it.identity?.localId == "browser_capture" }
         val result = capture.execute(buildJsonObject { put("tab", "tab") })
         assertEquals(owner, browser.commands.single().owner)
         assertFalse(result.contains("private-screenshot"))
         assertFalse(result.contains("private-thumbnail"))
         assertTrue(result.contains("Page text"))
-        val second = plugin.prepare(RunContext(agent, "another-session"), false).ownedBy(plugin.instance).tools
+        val second = plugin.prepare(RunContext(agent, SessionId("another-session")), false).ownedBy(plugin.instance).tools
         second.single { it.identity?.localId == "browser_capture" }.execute(buildJsonObject { put("tab", "tab") })
         assertEquals(listOf(owner, owner), browser.commands.map { it.owner })
         val firstGate = browser.gate(browser.commands.first().owner, "tab")
@@ -53,7 +56,7 @@ class BrowserPluginContractTest {
     @Test fun historyToolsOnlyNeedTheAgentOwnedTab() = runTest {
         val browser = Browser()
         val plugin = BrowserPlugin(browser)
-        val tools = plugin.prepare(RunContext(agent, "session"), false).ownedBy(plugin.instance).tools
+        val tools = plugin.prepare(RunContext(agent, SessionId("session")), false).ownedBy(plugin.instance).tools
         for (name in listOf("browser_back", "browser_forward")) {
             val tool = tools.single { it.identity?.localId == name }
             assertEquals(Risk.Low, tool.risk)
@@ -67,7 +70,7 @@ class BrowserPluginContractTest {
     @Test fun anApprovalCannotSurviveTakeoverAndHandback() = runTest {
         val browser = Browser()
         val plugin = BrowserPlugin(browser)
-        val click = plugin.prepare(RunContext(agent, "session"), false).ownedBy(plugin.instance).tools.single { it.identity?.localId == "browser_click" }
+        val click = plugin.prepare(RunContext(agent, SessionId("session")), false).ownedBy(plugin.instance).tools.single { it.identity?.localId == "browser_click" }
         val bound = click.bind(buildJsonObject { put("tab", "tab"); put("ref", "e1"); put("revision", "revision") })
         val held = browser.gate.acquire("device", 0)
         browser.gate.release("device", held.generation)

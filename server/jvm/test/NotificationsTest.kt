@@ -15,6 +15,15 @@ import kinuvo.server.plugin.NotificationProvider
 import kinuvo.server.store.serviceConfig
 import kinuvo.server.plugin.Notifier
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.settings.*
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
@@ -44,12 +53,12 @@ class NotificationsTest {
 
     @Test
     fun notifiesWhenARoutineFindsAnMcpServerNeedingSignIn() = runBlocking {
-        var signInNeeded: (suspend (String, String) -> Unit)? = null
+        var signInNeeded: (suspend (AgentId, String) -> Unit)? = null
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.notificationstest.1", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.notificationstest.1", "Test")
             override val notifications = listOf(provider)
             override val mcp = object : McpManagement by McpManagement.Unavailable {
-                override fun onSignInNeeded(listener: suspend (agentId: String, server: String) -> Unit) { signInNeeded = listener }
+                override fun onSignInNeeded(listener: suspend (agentId: AgentId, server: String) -> Unit) { signInNeeded = listener }
             }
         }
         val harness = Harness(Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), plugins = listOf(plugin))
@@ -57,7 +66,7 @@ class NotificationsTest {
         val server = HarnessServer(harness)
         server.start("127.0.0.1", 0, schedule = false)
         try {
-            signInNeeded!!("default", "linear")
+            signInNeeded!!(AgentId("default"), "linear")
             assertEquals("MCP server 'linear' needs sign-in", withTimeout(5_000) { sent.receive() }.title)
         } finally {
             server.stop()
@@ -68,7 +77,7 @@ class NotificationsTest {
     fun notifiesWhenNoClientInTheForegroundWatches() = runBlocking {
         val model = scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("All done"), StreamFrame.End()) }
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.notificationstest.2", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.notificationstest.2", "Test")
             override val notifications = listOf(provider) }
         val harness = Harness(Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }, plugins = listOf(plugin))
         val server = HarnessServer(harness)
@@ -93,11 +102,11 @@ class NotificationsTest {
             phone.call(Api.SaveService, SaveServiceParams(ServiceKind.Notifications, ServiceSettings("test", mapOf("topic" to "t2")),
                 mapOf("token" to SecretUpdate.Remove)))
             assertNull(harness.files.serviceConfig(ServiceKind.Notifications).options["token"])
-            val sessionId = phone.call(Api.CreateSession, AgentRef("default")).id
-            phone.call(Api.CatchUp, CatchUpParams("default", sessionId))
+            val sessionId = phone.call(Api.CreateSession, AgentRef(AgentId("default"))).id
+            phone.call(Api.CatchUp, CatchUpParams(AgentId("default"), sessionId))
             suspend fun turn() = coroutineScope {
                 val idle = async(start = CoroutineStart.UNDISPATCHED) { phone.events(Api.SessionChanged).filter { it.id == sessionId && it.status == SessionStatus.Idle }.first() }
-                phone.call(Api.Send, SendParams("default", sessionId, "hi"))
+                phone.call(Api.Send, SendParams(AgentId("default"), sessionId, "hi"))
                 withTimeout(10_000) { idle.await() }
             }
             turn()
@@ -119,7 +128,7 @@ class NotificationsTest {
     @Test
     fun aRoutineRunInTheUsersSessionIsNotToldAsAReply(): Unit = runBlocking {
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.notificationstest.3", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.notificationstest.3", "Test")
             override val notifications = listOf(provider) }
         val harness = Harness(Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), plugins = listOf(plugin))
         harness.saveService(ServiceKind.Notifications, ServiceSettings("test"))
@@ -128,12 +137,12 @@ class NotificationsTest {
         harness.store.append(agent.id, session, SessionEntry.AssistantMessage("Nothing today"))
         var routine: RoutineRef? = RoutineRef("hb", "Heartbeat")
         val notifications = Notifications(harness, this, routineOf = { routine })
-        notifications.on(agent.id, session, AgentEvent.RunFinished("r1"))
+        notifications.on(agent.id, session, AgentEvent.RunFinished(RunId("r1")))
         assertNull(withTimeoutOrNull(500) { sent.receive() })
-        notifications.on(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Questions("q1", "f1", "Which flight?", emptyList())))
+        notifications.on(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Questions(InteractionId("q1"), ToolCallId("f1"), "Which flight?", emptyList())))
         assertEquals(listOf("Kinuvo has questions", "Which flight?"), withTimeout(5_000) { sent.receive() }.let { listOf(it.title, it.body) })
         routine = null
-        notifications.on(agent.id, session, AgentEvent.RunFinished("r2"))
+        notifications.on(agent.id, session, AgentEvent.RunFinished(RunId("r2")))
         assertEquals("Nothing today", withTimeout(5_000) { sent.receive() }.body)
     }
 }

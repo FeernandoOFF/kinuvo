@@ -1,6 +1,6 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.VoiceSetup
+import kinuvo.protocol.voice.VoiceSetup
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.channels.ReceiveChannel
 

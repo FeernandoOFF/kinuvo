@@ -2,19 +2,21 @@ package kinuvo.plugins.mcp
 
 import kinuvo.server.plugin.rawSchemaSpec
 import kinuvo.server.plugin.modelAlias
-import kinuvo.protocol.PluginInstanceId
-import kinuvo.protocol.ToolIdentity
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.plugin.ToolIdentity
 
-import kinuvo.protocol.Risk
+import kinuvo.protocol.approval.Risk
 import kinuvo.server.plugin.Tool
 import io.modelcontextprotocol.kotlin.sdk.types.CallToolResult
 import io.modelcontextprotocol.kotlin.sdk.types.ImageContent
 import io.modelcontextprotocol.kotlin.sdk.types.TextContent
 import kotlinx.coroutines.CancellationException
-import kinuvo.protocol.McpAppRef
-import kinuvo.protocol.McpAppResource
+import kinuvo.protocol.mcp.McpAppRef
+import kinuvo.protocol.mcp.McpAppResource
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.server.plugin.ToolRun
 import kotlinx.serialization.json.*
 import kotlinx.io.files.Path
@@ -46,7 +48,7 @@ class McpTool(
     override suspend fun executeResult(args: JsonObject, callId: String, run: ToolRun): SessionEntry.ToolResult {
         val result = server.callTool(toolName, args)
         val shown = if (app != null && result.isError != true) "\n\nThe user sees this result in the tool's interactive app in the chat." else ""
-        return SessionEntry.ToolResult(callId, descriptor.name, render(result) + shown, isError = result.isError == true,
+        return SessionEntry.ToolResult(ToolCallId(callId), descriptor.name, render(result) + shown, isError = result.isError == true,
             app = app, appResult = ProtocolJson.encodeToJsonElement(CallToolResult.serializer(), result).jsonObject)
     }
 
@@ -76,7 +78,7 @@ class McpManager(
     private val expand: (suspend (server: String, value: String) -> String)? = null,
     private val auth: McpAuth? = null,
     private val signInScopes: List<String> = emptyList(),
-    private val agentId: String? = null,
+    private val agentId: AgentId? = null,
 ) {
     private var servers: Map<String, McpServer> = emptyMap()
     private val apps = McpAppCache()

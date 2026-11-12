@@ -2,17 +2,20 @@ package kinuvo.server
 
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import kinuvo.harness.Agent
-import kinuvo.harness.builtin.BUILT_IN_HARNESS
-import kinuvo.harness.builtin.builtInRegistration
+import kinuvo.harness.BUILT_IN_HARNESS
+import kinuvo.harness.builtInRegistration
 import kinuvo.harness.ExecutionBroker
 import kinuvo.harness.ExecutionFactory
 import kinuvo.harness.ExecutionInput
 import kinuvo.harness.ExecutionSink
 import kinuvo.harness.ExecutionState
 import kinuvo.harness.RunKind
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.RoutineRef
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.routine.RoutineRef
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.RunId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -31,7 +34,7 @@ data class RunActivity(val runs: Int = 0, val steps: Long = 0)
 
 /** The active runs, at most one per Session. They belong to the server: they outlive the client that started them. */
 class Runs(private val log: SessionLog, private val scope: CoroutineScope, private val factory: ExecutionFactory) {
-    class Run(val id: String, val job: Job)
+    class Run(val id: RunId, val job: Job)
 
     val activity: StateFlow<RunActivity>
         field = MutableStateFlow(RunActivity())
@@ -39,26 +42,29 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
     /** The run was stopped while it was being set up, so nothing ran; its onDone has been called. */
     class StoppedBeforeStart : IllegalStateException("Stopped before it started")
 
-    private val active = ConcurrentMutableMap<String, Job>()
+    var onBegin: suspend (AgentId, SessionId) -> Unit = { _, _ -> }
+    var onFinish: suspend (AgentId, SessionId, Boolean) -> Unit = { _, _, _ -> }
+    var onCancel: suspend (SessionId) -> Unit = {}
+    private val active = ConcurrentMutableMap<SessionId, Job>()
     /** The Routine behind each active run a Routine started, by Session. */
-    private val routines = ConcurrentMutableMap<String, RoutineRef>()
+    private val routines = ConcurrentMutableMap<SessionId, RoutineRef>()
     /** Agents that can't start runs, e.g. while being deleted. */
-    private val closed = mutableSetOf<String>()
+    private val closed = mutableSetOf<AgentId>()
 
     /** Stops [agent] from starting runs, unless one of [sessionIds] has a run going; returns whether it closed. */
-    fun close(agent: Agent, sessionIds: Collection<String>): Boolean = active.block { runs ->
+    fun close(agent: Agent, sessionIds: Collection<SessionId>): Boolean = active.block { runs ->
         sessionIds.none(runs::containsKey).also { if (it) closed += agent.id }
     }
 
-    fun reopen(agentId: String) = active.block { closed -= agentId }
+    fun reopen(agentId: AgentId) = active.block { closed -= agentId }
 
     /** Whether any of [sessionIds] has a run going. */
-    fun anyActive(sessionIds: Collection<String>) = sessionIds.any(active::containsKey)
+    fun anyActive(sessionIds: Collection<SessionId>) = sessionIds.any(active::containsKey)
 
-    fun isActive(sessionId: String) = active.containsKey(sessionId)
+    fun isActive(sessionId: SessionId) = active.containsKey(sessionId)
 
     /** The Routine that started the active run in [sessionId]; null for the user's runs. */
-    fun routine(sessionId: String): RoutineRef? = routines[sessionId]
+    fun routine(sessionId: SessionId): RoutineRef? = routines[sessionId]
 
     /**
      * Starts a run of [input] in [sessionId], or fails when one is already active there. [onEvent] sees every event of the
@@ -67,7 +73,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
      */
     suspend fun start(
         agent: Agent,
-        sessionId: String,
+        sessionId: SessionId,
         input: ExecutionInput,
         queued: Boolean = false,
         reserved: suspend () -> Unit = {},
@@ -91,6 +97,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
         val counted = Job().also { activity.update { a -> a.copy(runs = a.runs + 1) } }
         counted.invokeOnCompletion { activity.update { a -> a.copy(runs = a.runs - 1) } }
         try {
+            onBegin(agent.id, sessionId)
             reserved()
             val sink = object : ExecutionSink {
                 override suspend fun publish(event: AgentEvent) {
@@ -100,7 +107,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
             }
             val state = ExecutionState(sessionId, sink = sink)
             val session = factory.open(BUILT_IN_HARNESS, builtInRegistration(agent), state, ExecutionBroker(state), scope)
-            val runId = input.runId ?: Uuid.random().toString()
+            val runId = input.runId ?: RunId(Uuid.random().toString())
             if (!reservation.isActive) stoppedEarly(sessionId, reservation, onDone)
             val job = scope.launch(start = CoroutineStart.LAZY) {
                 var stopped = false
@@ -110,7 +117,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
                     stopped = true
                     throw e
                 } finally {
-                    withContext(NonCancellable) { try { session.close() } finally { onDone(stopped) } }
+                    withContext(NonCancellable) { try { session.close() } finally { if (stopped) onCancel(sessionId); onFinish(agent.id, sessionId, stopped); onDone(stopped) } }
                 }
             }
             (input.kind as? RunKind.Routine)?.let { routines[sessionId] = it.turn.ref }
@@ -129,17 +136,17 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
         }
     }
 
-    private suspend fun stoppedEarly(sessionId: String, reservation: Job, onDone: suspend (Boolean) -> Unit): Nothing {
-        try { onDone(true) } finally { active.removeExact(sessionId, reservation) }
+    private suspend fun stoppedEarly(sessionId: SessionId, reservation: Job, onDone: suspend (Boolean) -> Unit): Nothing {
+        try { onCancel(sessionId); onDone(true) } finally { active.removeExact(sessionId, reservation) }
         throw StoppedBeforeStart()
     }
 
-    fun stop(sessionId: String) = active.block { it[sessionId]?.cancel() }
+    fun stop(sessionId: SessionId) = active.block { it[sessionId]?.cancel() }
 
-    fun sessions(): Set<String> = active.block { it.keys.toSet() }
+    fun sessions(): Set<SessionId> = active.block { it.keys.toSet() }
 
     /** Waits for the active run in [sessionId], if any. */
-    suspend fun join(sessionId: String) = active[sessionId]?.join()
+    suspend fun join(sessionId: SessionId) = active[sessionId]?.join()
 
     /** Stops every run and waits for them to save their partial output. */
     suspend fun stopAll() {

@@ -18,6 +18,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import kinuvo.protocol.*
+import kinuvo.protocol.device.*
 import kotlinx.serialization.json.*
 import java.util.concurrent.Executors
 import android.content.Intent

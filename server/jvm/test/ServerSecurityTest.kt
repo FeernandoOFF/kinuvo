@@ -1,7 +1,9 @@
 package kinuvo.server.jvm
 
+import kinuvo.server.rpc.serverRoutes
 import kinuvo.server.devices.*
 import io.ktor.client.HttpClient
+import io.ktor.client.plugins.websocket.DefaultClientWebSocketSession
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.*
@@ -12,6 +14,11 @@ import io.ktor.websocket.readText
 import io.ktor.websocket.close
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -22,6 +29,14 @@ import kinuvo.server.ConnectionSecurity
 import kinuvo.server.DeviceAuth
 import kinuvo.server.NetworkSecurity
 import kinuvo.server.ServerRuntime
+
+private suspend fun DefaultClientWebSocketSession.sendUnlessClosed(frame: WsFrame) {
+    try { send(frame) } catch (e: CancellationException) { currentCoroutineContext().ensureActive() }
+}
+
+private suspend fun DefaultClientWebSocketSession.awaitClosed() = withTimeout(5_000) {
+    try { closeReason.await() } catch (e: CancellationException) { currentCoroutineContext().ensureActive() }
+}
 
 class ServerSecurityTest {
     @Test
@@ -37,7 +52,7 @@ class ServerSecurityTest {
                 check(release.await(5, java.util.concurrent.TimeUnit.SECONDS))
             }
         }
-        val runtime = ServerRuntime(Harness(Path(home.toString())), peers, security = ConnectionSecurity(validationIntervalMillis = 1))
+        val runtime = ServerRuntime(Harness(Path(home.toString())), peers, serverRoutes(), security = ConnectionSecurity(validationIntervalMillis = 1))
         runtime.start()
         val requests = Channel<Frame>(Channel.UNLIMITED)
         val responses = Channel<Frame>(Channel.UNLIMITED)
@@ -96,7 +111,7 @@ class ServerSecurityTest {
             assertFalse(ordinary.connect().management)
             assertTrue(ordinary.call(Api.Agents, Unit).isNotEmpty())
             assertFails { ordinary.call(Api.Pairing, PairingParams(management = true)) }
-            assertFails { ordinary.call(Api.Respond, RespondParams("missing", "missing", InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
+            assertFails { ordinary.call(Api.Respond, RespondParams(SessionId("missing"), InteractionId("missing"), InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
             assertFails { ordinary.call(Api.LoginProvider, ProviderRef("codex")) }
             ordinary.rotateToken()
             val current = ordinary.call(Api.PairedDevices, Unit).single { it.current }
@@ -118,7 +133,7 @@ class ServerSecurityTest {
             val agent = harness.store.agents().first()
             val session = harness.newSession(agent).id
             val approval = harness.approvals.register()
-            harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Approval(approval.id, "call", "shell", "{}")))
+            harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Approval(approval.id, ToolCallId("call"), "shell", "{}")))
             val harnessAnswer = InteractionAnswer.Harness(kotlinx.serialization.json.JsonObject(mapOf("optionId" to kotlinx.serialization.json.JsonPrimitive("allow_once"))))
             assertFails { ordinary.call(Api.Respond, RespondParams(session, approval.id, harnessAnswer)) }
             assertFails { ordinary.call(Api.Respond, RespondParams(session, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))) }
@@ -126,7 +141,7 @@ class ServerSecurityTest {
             approval.close()
 
             val form = harness.questions.register()
-            harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Questions(form.id, "ask", "Which?", emptyList())))
+            harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(PendingInteraction.Questions(form.id, ToolCallId("ask"), "Which?", emptyList())))
             assertTrue(ordinary.call(Api.Respond, RespondParams(session, form.id, InteractionAnswer.Questions(null))))
             form.close()
         } finally { ordinary?.close(); owner.close(); server.stop() }
@@ -139,13 +154,13 @@ class ServerSecurityTest {
         val http = HttpClient { install(WebSockets) }
         try {
             val idle = http.webSocketSession("ws://127.0.0.1:$port/ws")
-            withTimeout(5_000) { idle.closeReason.await() }
+            idle.awaitClosed()
             val rejected = http.webSocketSession("ws://127.0.0.1:$port/ws")
             rejected.send(WsFrame.Text(ProtocolJson.encodeToString(Frame.serializer(), Frame.Request("auth", Api.Connect.name,
                 ProtocolJson.encodeToJsonElement(ConnectParams.serializer(), ConnectParams("attacker", pairingCode = "wrong"))))))
             val response = ProtocolJson.decodeFromString(Frame.serializer(), (rejected.incoming.receive() as WsFrame.Text).readText()) as Frame.Response
             assertFalse(response.ok)
-            withTimeout(5_000) { rejected.closeReason.await() }
+            rejected.awaitClosed()
             Unit
         } finally { http.close(); server.stop() }
     }
@@ -159,15 +174,15 @@ class ServerSecurityTest {
             val code = server.auth.currentPairingCode()
             val socket = http.webSocketSession("ws://127.0.0.1:$port/ws")
             for ((id, secret) in listOf("bad" to "wrong", "retry" to code)) {
-                socket.send(WsFrame.Text(ProtocolJson.encodeToString(Frame.serializer(), Frame.Request(id, Api.Connect.name,
+                socket.sendUnlessClosed(WsFrame.Text(ProtocolJson.encodeToString(Frame.serializer(), Frame.Request(id, Api.Connect.name,
                     ProtocolJson.encodeToJsonElement(ConnectParams.serializer(), ConnectParams("attacker", pairingCode = secret))))))
             }
-            withTimeout(5_000) { socket.closeReason.await() }
+            socket.awaitClosed()
             assertTrue(server.auth.devices().isEmpty())
             assertEquals(code, server.auth.pairingCode)
             val oversized = http.webSocketSession("ws://127.0.0.1:$port/ws")
             oversized.send(WsFrame.Text("x".repeat(4097)))
-            withTimeout(5_000) { oversized.closeReason.await() }
+            oversized.awaitClosed()
             assertTrue(server.auth.devices().isEmpty())
             Unit
         } finally { http.close(); server.stop() }
@@ -186,7 +201,7 @@ class ServerSecurityTest {
             socket.send(WsFrame.Text(ProtocolJson.encodeToString(Frame.serializer(), Frame.Request("one", Api.Agents.name))))
             socket.incoming.receive()
             socket.send(WsFrame.Text(ProtocolJson.encodeToString(Frame.serializer(), Frame.Request("two", Api.Agents.name))))
-            withTimeout(5_000) { socket.closeReason.await() }
+            socket.awaitClosed()
             Unit
         } finally { http.close(); server.stop() }
     }
@@ -282,7 +297,7 @@ class ServerSecurityTest {
             assertFalse(server.auth.valid(token))
             assertTrue(server.auth.valid(replacement))
             assertEquals(id, server.auth.devices().single().id)
-            withTimeout(5_000) { other.closeReason.await() }
+            other.awaitClosed()
             val reconnected = browserSocket(replacementCookie)
             val replay = http.post("http://127.0.0.1:$port/auth/session") {
                 header("Origin", "https://kinuvo.example.com"); header("X-Forwarded-Proto", "https")
@@ -292,8 +307,8 @@ class ServerSecurityTest {
             assertEquals(HttpStatusCode.Unauthorized, replay.status)
             server.auth.revoke(id)
             assertFalse(server.auth.valid(replacement))
-            reconnected.send(WsFrame.Text(ProtocolJson.encodeToString(Frame.serializer(), Frame.Request("revoked", Api.Agents.name))))
-            withTimeout(5_000) { reconnected.closeReason.await() }
+            reconnected.sendUnlessClosed(WsFrame.Text(ProtocolJson.encodeToString(Frame.serializer(), Frame.Request("revoked", Api.Agents.name))))
+            reconnected.awaitClosed()
             Unit
         } finally { http.close(); server.stop() }
     }

@@ -1,9 +1,13 @@
 package kinuvo.server.execution
 
+import kotlinx.coroutines.CancellationException
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.harness.transcript
 import kinuvo.protocol.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kinuvo.server.plugin.children
 import kinuvo.server.plugin.exists
 import kinuvo.server.plugin.isDirectory
@@ -30,11 +34,11 @@ class ExecutionStorage(private val home: Path) : ExecutionRecoveryStore {
         ?: ExecutionCatalog(emptyList(), emptyList())) {
         writeAtomically(catalogFile, ProtocolJson.encodeToString(ExecutionCatalog.serializer(), it))
     }
-    private fun path(agentId: String, sessionId: String): Path {
-        require(Regex("[a-z0-9][a-z0-9-]{0,31}").matches(agentId)) { "Invalid external Agent ID" }
-        require(Regex("[A-Za-z0-9_-]{1,128}").matches(sessionId)) { "Invalid Session ID" }
+    private fun path(agentId: AgentId, sessionId: SessionId): Path {
+        require(Regex("[a-z0-9][a-z0-9-]{0,31}").matches(agentId.value)) { "Invalid external Agent ID" }
+        require(Regex("[A-Za-z0-9_-]{1,128}").matches(sessionId.value)) { "Invalid Session ID" }
         val root = Path(home, "agents")
-        val result = Path(root, agentId, "sessions", "$sessionId.execution.json")
+        val result = Path(root, agentId.value, "sessions", "$sessionId.execution.json")
         require(isInside(root, result)) { "Execution recovery path escapes storage" }
         return result
     }
@@ -43,11 +47,11 @@ class ExecutionStorage(private val home: Path) : ExecutionRecoveryStore {
     override fun load(): List<ExecutionRecovery> {
         val errors = mutableListOf<String>()
         val records = mutableListOf<ExecutionRecovery>()
-        val conflicts = mutableSetOf<String>()
+        val conflicts = mutableSetOf<SessionId>()
         Path(home, "agents").children().filter { it.isDirectory() }.forEach { owner ->
             Path(owner, "sessions").children().filter { it.name.endsWith(".execution.json") }.forEach { file ->
-                val localId = file.name.removeSuffix(".execution.json")
-                var claimedId: String? = null
+                val localId = SessionId(file.name.removeSuffix(".execution.json"))
+                var claimedId: SessionId? = null
                 try {
                     val record = ProtocolJson.decodeFromString(ExecutionRecovery.serializer(), requireNotNull(file.readTextOrNull()))
                     claimedId = record.sessionId
@@ -72,7 +76,7 @@ class ExecutionStorage(private val home: Path) : ExecutionRecoveryStore {
         return records.filter { it.sessionId !in conflicts }
     }
     override fun save(record: ExecutionRecovery) = writeAtomically(path(record.agentId, record.sessionId), ProtocolJson.encodeToString(ExecutionRecovery.serializer(), record), private = true)
-    override fun delete(agentId: String, sessionId: String) { SystemFileSystem.delete(path(agentId, sessionId), mustExist = false) }
+    override fun delete(agentId: AgentId, sessionId: SessionId) { SystemFileSystem.delete(path(agentId, sessionId), mustExist = false) }
 
     /** Legacy blob stays read-only; each destination sidecar identifies its own import. */
     suspend fun migrate(log: SessionLog): List<String> {
@@ -99,7 +103,7 @@ class ExecutionStorage(private val home: Path) : ExecutionRecoveryStore {
                 val record = existing ?: ExecutionRecovery(old.agentId, id, registry.configured(old.agentId), registration,
                     "migration:$index", old.snapshot.externalSessionId, lost = true, archived = registration.archived, legacyOrder = (array.size - index - 1).toLong(), migrationId = identity,
                     checkpoint = transcript(old.snapshot).mapIndexed { seq, entry -> if (entry is SessionEntry.UserMessage) entry.copy(submissionId = "migration:$index:$seq") else entry })
-                val transcriptFile = Path(home, "agents", old.agentId, "sessions", "$id.jsonl")
+                val transcriptFile = Path(home, "agents", old.agentId.value, "sessions", "$id.jsonl")
                 if (existing == null) {
                     require(!transcriptFile.exists()) { "Transcript destination already exists" }
                     require(Path(home, "agents").children().none { Path(it, "sessions", "$id.jsonl").exists() }) { "Session ID collision" }
@@ -110,7 +114,8 @@ class ExecutionStorage(private val home: Path) : ExecutionRecoveryStore {
                 save(record.copy(checkpoint = emptyList()))
                 completed += identity
                 writeAtomically(receiptFile, ProtocolJson.encodeToString(receiptSerializer, completed.sorted()), private = true)
-            } catch (e: Exception) { failures += "Legacy record $index: ${e.message}" }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { failures += "Legacy record $index: ${e.message}" }
         }
         return failures
     }

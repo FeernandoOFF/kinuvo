@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.protocol.agent.AgentId
 import kotlin.time.Duration.Companion.seconds
 import kinuvo.testing.harness.*
 import ai.koog.prompt.message.Message
@@ -10,9 +11,9 @@ import kinuvo.harness.ExecutionFactory
 import kinuvo.harness.ExecutionInput
 import kinuvo.harness.ExecutionSession
 import kinuvo.harness.ExecutionState
-import kinuvo.protocol.AgentRegistration
-import kinuvo.protocol.HarnessConnection
-import kinuvo.protocol.TaskStatus
+import kinuvo.protocol.execution.AgentRegistration
+import kinuvo.protocol.execution.HarnessConnection
+import kinuvo.protocol.board.TaskStatus
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.CoroutineScope
@@ -49,7 +50,7 @@ class TaskDispatcherTest {
             StreamFrame.ToolCallComplete("c1", "tasks", """{"action":"update","id":"$id","status":"done"}"""), StreamFrame.End(),
         ) else flowOf(StreamFrame.TextDelta("On it."), StreamFrame.End())
     }
-    private val harness = runBlocking { HarnessRuntime(ServerInstallation.assemble(AgentFiles(home)), modelFactory = { model }) }
+    private val harness = runBlocking { testRuntime(ServerInstallation.assemble(AgentFiles(home)), modelFactory = { model }) }
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val runs = Runs(harness.log, scope, harness.native)
     private val dispatcher = TaskDispatcher(harness, runs, scope)
@@ -58,7 +59,7 @@ class TaskDispatcherTest {
     fun agentsWorkOnReadyTasks() = runBlocking {
         val agent = harness.store.agents().single()
         harness.store.saveConfig(agent, agent.config.copy(tools = emptyList()))
-        val done = harness.tasks.create("Renew passport", notes = "Original instructions", assignee = "default")
+        val done = harness.tasks.create("Renew passport", notes = "Original instructions", assignee = AgentId("default"))
         finish = false
         dispatcher.tick()
         awaitCondition("the first run to finish") { harness.tasks.get(done.id).let { it.status != TaskStatus.InProgress && it.sessionIds.isNotEmpty() } }
@@ -74,7 +75,7 @@ class TaskDispatcherTest {
         assertEquals("Original instructions\n\n${agent.name}: On it.\n\n${agent.name}: On it.", task.notes)
         assertTrue(harness.tasks.all().isEmpty())
 
-        harness.tasks.create("Unassigned", assignee = "")
+        harness.tasks.create("Unassigned", assignee = AgentId(""))
         dispatcher.tick()
         assertTrue(harness.tasks.all().single().sessionIds.isEmpty())
     }
@@ -83,7 +84,7 @@ class TaskDispatcherTest {
     fun failedRunsKeepPartialRepliesInTheSession() = runBlocking {
         val agent = harness.store.agents().single()
         harness.store.saveConfig(agent, agent.config.copy(tools = emptyList()))
-        val task = harness.tasks.create("Research", notes = "Original instructions", assignee = "default")
+        val task = harness.tasks.create("Research", notes = "Original instructions", assignee = AgentId("default"))
         fail = true
         dispatcher.tick()
         awaitCondition("the run to finish") { harness.tasks.get(task.id).sessionIds.let { it.isNotEmpty() && !runs.isActive(it.last()) } }

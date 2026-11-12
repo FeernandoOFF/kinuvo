@@ -21,8 +21,8 @@ import com.google.firebase.FirebaseApp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import kinuvo.protocol.PushMessage
-import kinuvo.protocol.PushSubscription
+import kinuvo.protocol.push.PushMessage
+import kinuvo.protocol.push.PushSubscription
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.koin.mp.KoinPlatform.getKoin
@@ -103,7 +103,7 @@ class KinuvoMessagingService : FirebaseMessagingService() {
         )
         val intent = push.link?.let { Intent(Intent.ACTION_VIEW, Uri.parse(it)).setPackage(packageName) }
             ?: packageManager.getLaunchIntentForPackage(packageName) ?: return
-        val tag = push.sessionId ?: push.agentId
+        val tag = push.sessionId?.value ?: push.agentId?.value
         val open = PendingIntent.getActivity(this, tag.hashCode(), intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val notification = Notification.Builder(this, id)
             .setSmallIcon(android.R.drawable.stat_notify_chat)

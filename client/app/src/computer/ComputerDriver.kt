@@ -1,7 +1,7 @@
 package kinuvo.app.computer
 
-import kinuvo.protocol.ComputerRequest
-import kinuvo.protocol.ComputerResult
+import kinuvo.protocol.computer.ComputerRequest
+import kinuvo.protocol.computer.ComputerResult
 
 /** Lets Agents see and control this Device's screen: Android's Accessibility service, or cua-driver on desktops. */
 interface ComputerDriver {

@@ -1,8 +1,8 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.Risk
-import kinuvo.protocol.ToolGroup
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.tool.ToolGroup
+import kinuvo.protocol.tool.ToolNames
 
 /** A tool's result-count parameter; [lines] counts lines of text, which the Result limits' text budget bounds instead of maxItems. */
 data class ItemLimit(val parameter: String, val max: Int, val lines: Boolean = false)
@@ -23,6 +23,10 @@ data class CoreToolEntry(
 
 object CoreToolRegistry {
     val entries = listOf(
+        CoreToolEntry(ToolNames.AGENTS_SPAWN, ToolGroup.Core, Risk.Medium, ToolKind.Standard, true, "Start a Sub-agent."),
+        CoreToolEntry(ToolNames.AGENTS_WAIT, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "Wait for Sub-agents."),
+        CoreToolEntry(ToolNames.AGENTS_SEND, ToolGroup.Core, Risk.Medium, ToolKind.Standard, true, "Continue a Sub-agent."),
+        CoreToolEntry(ToolNames.AGENTS_LIST, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "List or cancel Sub-agents."),
         CoreToolEntry(ToolNames.ARTIFACT, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Create or update an Artifact for the user."),
         CoreToolEntry(ToolNames.TASKS, ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "Read and manage Tasks on the Board.", hint = "Tasks live in the user's task provider and appear on the Board. Agents can work assigned Tasks; waiting on the user leaves the provider Task incomplete."),
         CoreToolEntry(ToolNames.SHOW_HTML, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Show an interactive HTML Surface in the chat."),

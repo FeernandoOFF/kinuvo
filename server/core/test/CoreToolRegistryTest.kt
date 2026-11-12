@@ -1,22 +1,22 @@
 package kinuvo.server
 
 import kinuvo.server.plugin.toolSpec
-import kinuvo.protocol.ToolGroup
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolGroup
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.CoreTool
 import kinuvo.server.plugin.CoreToolRegistry
 import kinuvo.server.plugin.Tool
 import kinuvo.server.plugin.policyKey
 import kinuvo.harness.builtin.tools.*
 import kinuvo.server.tools.*
-import kinuvo.protocol.PluginInstanceId
-import kinuvo.protocol.ToolIdentity
-import kinuvo.protocol.DenyRules
-import kinuvo.protocol.TrustRules
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.plugin.ToolIdentity
+import kinuvo.protocol.approval.DenyRules
+import kinuvo.protocol.approval.TrustRules
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
 import kotlin.test.*
-import kinuvo.harness.builtin.ModelProfile
+import kinuvo.harness.ModelProfile
 
 class CoreToolRegistryTest {
     private fun tool(name: String) = object : CoreTool {
@@ -26,7 +26,7 @@ class CoreToolRegistryTest {
     }
 
     @Test fun scopeNamedToolsWinTheCap() {
-        val policy = ModelProfile.of(kinuvo.protocol.ModelTier.Small).tools.copy(cap = 1)
+        val policy = ModelProfile.of(kinuvo.protocol.model.ModelTier.Small).tools.copy(cap = 1)
         val selected = policy.select(listOf(tool("memory"), tool("schedule")), ToolScope(names = setOf("schedule"), groups = setOf(ToolGroup.Core)))
         assertEquals(listOf("schedule"), selected.map { it.descriptor.name })
     }
@@ -40,7 +40,7 @@ class CoreToolRegistryTest {
         }
         assertFalse(ToolScope.only("memory").allows(external))
         assertTrue(ToolScope.only(external.identity.key).allows(external))
-        assertTrue(ModelProfile.of(kinuvo.protocol.ModelTier.Micro).tools.select(listOf(external)).isEmpty())
+        assertTrue(ModelProfile.of(kinuvo.protocol.model.ModelTier.Micro).tools.select(listOf(external)).isEmpty())
         val other = object : Tool {
             override val identity = ToolIdentity(PluginInstanceId("mcp.other"), "memory")
             override val descriptor = toolSpec("memory", "Other memory")

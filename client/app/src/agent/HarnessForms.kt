@@ -3,7 +3,9 @@ package kinuvo.app.agent
 import kinuvo.app.onboarding.*
 import kinuvo.app.connection.*
 import kinuvo.protocol.*
-
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
 /** An external Agent's instructions, Memory, Skills and tools belong to its harness, not Kinuvo. */
 val AgentInfo.external get() = executionKind != ExecutionKind.Native
 
@@ -13,6 +15,7 @@ fun sessionBrowserAvailable(agent: AgentInfo?, server: ServerCapabilities?) =
 val HarnessConnectionStatus.kind get() = when (config.connection) {
     is ExecutionConnection.Acp -> ExecutionKind.Acp
     is ExecutionConnection.Remote -> ExecutionKind.Remote
+    ExecutionConnection.BuiltIn -> ExecutionKind.Native
 }
 
 /** The selected Server's machine as labels name it: its own name, or "this device" only when it's embedded here. */
@@ -204,7 +207,7 @@ data class LinkForm(val name: String = "", val url: String = "", val token: Stri
 }
 
 /** Agents this Server shares with another one, as one link code; [token] is shown once, after it's made. */
-data class ShareForm(val name: String = "", val agents: Set<String> = emptySet(), val token: String? = null, val id: String? = null) {
+data class ShareForm(val name: String = "", val agents: Set<AgentId> = emptySet(), val token: String? = null, val id: String? = null) {
     fun problems(): List<String> = buildList {
         if (name.isBlank()) add("Say who it's for, e.g. the other Server's name")
         if (agents.isEmpty()) add("Pick at least one Agent")

@@ -2,12 +2,13 @@ package kinuvo.plugins.mcp
 
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.server.plugin.writeAtomically
-import kinuvo.protocol.ConfigScope
-import kinuvo.protocol.McpOAuthClient
-import kinuvo.protocol.McpParams
-import kinuvo.protocol.McpRedirect
-import kinuvo.protocol.McpServerInfo
-import kinuvo.protocol.McpTestResult
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.mcp.McpOAuthClient
+import kinuvo.protocol.mcp.McpParams
+import kinuvo.protocol.mcp.McpRedirect
+import kinuvo.protocol.mcp.McpServerInfo
+import kinuvo.protocol.mcp.McpTestResult
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
@@ -62,7 +63,7 @@ class McpFiles(private val file: Path, private val scope: ConfigScope) {
         oauth = (o["oauth"] as? JsonObject)?.let { a ->
             a.str("clientId")?.let { McpOAuthClient(it, a.str("clientSecret"), a.strings("scopes").orEmpty()) }
         },
-        agents = o.strings("agents"),
+        agents = o.strings("agents")?.map(::AgentId),
     )
 
     companion object {
@@ -81,7 +82,7 @@ class McpFiles(private val file: Path, private val scope: ConfigScope) {
             s.includeTools?.let { put("includeTools", JsonArray(it.map(::JsonPrimitive))) }
             if (s.excludeTools.isNotEmpty()) put("excludeTools", JsonArray(s.excludeTools.map(::JsonPrimitive)))
             s.approval?.let { put("approval", it) }
-            s.agents?.let { put("agents", JsonArray(it.map(::JsonPrimitive))) }
+            s.agents?.let { put("agents", JsonArray(it.map { id -> JsonPrimitive(id.value) })) }
             s.oauth?.takeIf { s.command.isNullOrBlank() }?.let { a ->
                 put("oauth", buildJsonObject {
                     put("clientId", a.clientId)
@@ -104,6 +105,8 @@ class McpFiles(private val file: Path, private val scope: ConfigScope) {
 suspend fun testMcp(server: McpServerInfo, expand: suspend (String) -> String, auth: McpAuth? = null, signInScope: String? = null): McpTestResult {
     val connection = try {
         McpServer(McpConfig.parse(server.name, McpFiles.entry(server), signInScope, expand), auth)
+    } catch (e: CancellationException) {
+        throw e
     } catch (e: Exception) {
         return McpTestResult(error = e.message ?: e.toString())
     }

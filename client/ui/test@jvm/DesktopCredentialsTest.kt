@@ -1,7 +1,7 @@
 package kinuvo.ui
 
-import kinuvo.protocol.Platform
-import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermissions
 import java.util.UUID

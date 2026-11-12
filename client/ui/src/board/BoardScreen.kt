@@ -32,7 +32,9 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.session.SessionId
 import kinuvo.ui.design.*
 import kotlinx.coroutines.launch
 
@@ -66,7 +68,7 @@ class BoardActions(
     val onAdding: (Boolean) -> Unit = {},
     val onAdd: (CreateTaskParams) -> Unit = {},
     val onUpdate: (UpdateTaskParams) -> Unit = {},
-    val onOpenSession: (agentId: String, sessionId: String) -> Unit = { _, _ -> },
+    val onOpenSession: (agentId: AgentId, sessionId: SessionId) -> Unit = { _, _ -> },
     val onSettings: () -> Unit = {},
     /** Opens a Task with all its runs. */
     val onOpenTask: (taskId: String) -> Unit = {},
@@ -153,7 +155,7 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
             // One row: a long assignee shortens rather than pushing the run link onto a line of its own.
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space6), verticalAlignment = Alignment.CenterVertically) {
                 Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->
-                    actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: ""))
+                    actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: AgentId("")))
                 }, icon = Lucide.User, modifier = Modifier.widthIn(max = 160.dp), style = if (task.assignee == null) ButtonStyle.Ghost else ButtonStyle.Outlined)
                 // Phones show the status as the tab; it changes from the Task itself.
                 if (LocalInteractionMode.current != InteractionMode.Touch)

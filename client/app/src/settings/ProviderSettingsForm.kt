@@ -4,7 +4,10 @@ import kinuvo.app.agent.*
 import io.ktor.http.URLBuilder
 import io.ktor.http.Url
 import io.ktor.http.appendPathSegments
-import kinuvo.protocol.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.settings.*
 import kotlin.uuid.Uuid
 
 /**

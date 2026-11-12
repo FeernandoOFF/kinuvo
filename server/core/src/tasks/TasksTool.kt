@@ -1,15 +1,16 @@
 package kinuvo.server.tasks
 
+import kinuvo.protocol.agent.AgentId
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
 import kinuvo.server.plugin.CoreTool
 import kinuvo.harness.Agent
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.requireString
 import kinuvo.server.plugin.string
-import kinuvo.protocol.TaskInfo
-import kinuvo.protocol.TaskStatus
+import kinuvo.protocol.board.TaskInfo
+import kinuvo.protocol.board.TaskStatus
 import kotlinx.datetime.LocalDate
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -53,11 +54,11 @@ class TasksTool(private val tasks: Tasks, private val agent: Agent, private val 
                 .joinToString("\n") { it.describe() }.ifEmpty { "No open tasks." }
             "create" -> tasks.create(
                 a.requireString("title"), a.string("list"), a.string("notes").orEmpty(),
-                a.string("due")?.takeIf { it != "none" }?.let(::date), a.string("assignee")?.let { if (it == "none") "" else it },
+                a.string("due")?.takeIf { it != "none" }?.let(::date), a.string("assignee")?.let { AgentId(if (it == "none") "" else it) },
             ).let { "Created.\n${it.describe()}" }
             "update" -> tasks.update(
                 a.requireString("id"), a.string("title"), a.string("status")?.let(::status),
-                a.string("assignee")?.let { if (it == "none") "" else it }, a.string("due")?.let { if (it == "none") "" else date(it).toString() },
+                a.string("assignee")?.let { AgentId(if (it == "none") "" else it) }, a.string("due")?.let { if (it == "none") "" else date(it).toString() },
             ).let { "Updated.\n${it.describe()}" }
             else -> error("Unknown action '$action'")
         }

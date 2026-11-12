@@ -7,34 +7,36 @@ import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.test
 import kinuvo.client.AuthException
 import kinuvo.client.KinuvoClient
-import kinuvo.protocol.AgentRef
-import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.agent.AgentRef
+import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.Api
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.InteractionAnswer
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.RespondParams
-import kinuvo.protocol.approval
-import kinuvo.protocol.BrowserOwner
-import kinuvo.protocol.BrowserTab
-import kinuvo.protocol.Risk
-import kinuvo.protocol.SendParams
-import kinuvo.protocol.SessionChange
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.SessionsParams
-import kinuvo.protocol.TaskStatus
-import kinuvo.protocol.TasksParams
-import kinuvo.protocol.KnowledgeSearchParams
-import kinuvo.protocol.CatchUpParams
-import kinuvo.protocol.HistoryParams
-import kinuvo.protocol.ModelsParams
-import kinuvo.protocol.SessionParams
-import kinuvo.protocol.ExecutionCapabilities
-import kinuvo.protocol.ExecutionPhase
-import kinuvo.protocol.ExecutionRef
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.Question
-import kinuvo.protocol.QuestionKind
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.approval.RespondParams
+import kinuvo.protocol.approval.approval
+import kinuvo.protocol.browser.BrowserOwner
+import kinuvo.protocol.browser.BrowserTab
+import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.session.SendParams
+import kinuvo.protocol.session.SessionChange
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionsParams
+import kinuvo.protocol.board.TaskStatus
+import kinuvo.protocol.board.TasksParams
+import kinuvo.protocol.knowledge.KnowledgeSearchParams
+import kinuvo.protocol.session.CatchUpParams
+import kinuvo.protocol.session.HistoryParams
+import kinuvo.protocol.model.ModelsParams
+import kinuvo.protocol.session.SessionParams
+import kinuvo.protocol.execution.ExecutionCapabilities
+import kinuvo.protocol.execution.ExecutionPhase
+import kinuvo.protocol.execution.ExecutionRef
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.approval.Question
+import kinuvo.protocol.approval.QuestionKind
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.agent.AgentId
 import kotlinx.serialization.json.JsonObject
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filter
@@ -50,7 +52,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class TestServerTest {
-    private fun KinuvoClient.entries(sessionId: String) =
+    private fun KinuvoClient.entries(sessionId: SessionId) =
         events(Api.Update).filter { it.sessionId == sessionId }.mapNotNull { (it.change as? SessionChange.Entry)?.entry }
 
     private suspend inline fun <reified E : SessionEntry> ReceiveTurbine<SessionEntry>.awaitEntry(): E {
@@ -70,7 +72,7 @@ class TestServerTest {
                 val connected = client.connect()
                 assertEquals("Test Server", connected.serverName)
                 assertEquals(listOf("E2E Agent"), client.call(Api.Agents, Unit).map { it.name })
-                val sessions = client.call(Api.Sessions, SessionsParams("e2e")).sessions
+                val sessions = client.call(Api.Sessions, SessionsParams(AgentId("e2e"))).sessions
                 assertEquals(listOf("Planning"), sessions.map { it.title })
                 assertEquals(1, server.spy.count(Api.Sessions))
                 assertEquals(1, server.spy.count(Api.Connect))
@@ -85,10 +87,10 @@ class TestServerTest {
         server.use {
             withContext(Dispatchers.Default) {
                 val client = server.client().also { it.connect() }
-                val session = client.call(Api.CreateSession, AgentRef("default"))
+                val session = client.call(Api.CreateSession, AgentRef(AgentId("default")))
                 client.entries(session.id).test {
-                    client.call(Api.CatchUp, CatchUpParams("default", session.id))
-                    client.call(Api.Send, SendParams("default", session.id, "Hello there"))
+                    client.call(Api.CatchUp, CatchUpParams(AgentId("default"), session.id))
+                    client.call(Api.Send, SendParams(AgentId("default"), session.id, "Hello there"))
                     assertEquals("Hello there", awaitEntry<SessionEntry.UserMessage>().text)
                     assertEquals("Hello from the script", awaitEntry<SessionEntry.AssistantMessage>().text)
                     cancelAndIgnoreRemainingEvents()
@@ -110,10 +112,10 @@ class TestServerTest {
         server.use {
             withContext(Dispatchers.Default) {
                 val client = server.client().also { it.connect() }
-                val session = client.call(Api.CreateSession, AgentRef("default"))
+                val session = client.call(Api.CreateSession, AgentRef(AgentId("default")))
                 client.entries(session.id).test {
-                    client.call(Api.CatchUp, CatchUpParams("default", session.id))
-                    client.call(Api.Send, SendParams("default", session.id, "please remember tea"))
+                    client.call(Api.CatchUp, CatchUpParams(AgentId("default"), session.id))
+                    client.call(Api.Send, SendParams(AgentId("default"), session.id, "please remember tea"))
                     assertEquals("memory", awaitEntry<SessionEntry.ToolCall>().name)
                     assertEquals("memory", awaitEntry<SessionEntry.ToolResult>().name)
                     assertEquals("Remembered", awaitEntry<SessionEntry.AssistantMessage>().text)
@@ -160,7 +162,7 @@ class TestServerTest {
 
     @Test
     fun listsFakeBrowserTabsAndPairedComputersAsScreens() = runTest {
-        val tab = BrowserTab("tab", "default", "Private site", "http://lab.internal")
+        val tab = BrowserTab("tab", AgentId("default"), "Private site", "http://lab.internal")
         val server = TestServer.start(plugins = listOf(FakeBrowserPlugin(FakeBrowser(listOf(tab)))))
         server.use {
             withContext(Dispatchers.Default) {
@@ -168,7 +170,7 @@ class TestServerTest {
                 server.computer("Pixel")
                 val screens = client.call(Api.Screens, null)
                 assertEquals(setOf("Pixel", "Private site"), screens.map { it.title }.toSet())
-                assertEquals(listOf("default"), client.call(Api.Screens, BrowserOwner("default")).mapNotNull { it.ref.owner?.agentId })
+                assertEquals(listOf(AgentId("default")), client.call(Api.Screens, BrowserOwner(AgentId("default"))).mapNotNull { it.ref.owner?.agentId })
             }
         }
     }
@@ -182,11 +184,11 @@ class TestServerTest {
         server.use {
             withContext(Dispatchers.Default) {
                 val client = server.client().also { it.connect() }
-                val session = client.call(Api.CreateSession, AgentRef("default"))
+                val session = client.call(Api.CreateSession, AgentRef(AgentId("default")))
                 val approvals = client.events(Api.Update).mapNotNull { ((it.change as? SessionChange.Event)?.event?.approval) }
                 approvals.test {
-                    client.call(Api.CatchUp, CatchUpParams("default", session.id))
-                    client.call(Api.Send, SendParams("default", session.id, "please run it"))
+                    client.call(Api.CatchUp, CatchUpParams(AgentId("default"), session.id))
+                    client.call(Api.Send, SendParams(AgentId("default"), session.id, "please run it"))
                     val request = awaitItem()
                     assertEquals("Runs a test command", request.reason)
                     client.entries(session.id).test {
@@ -209,7 +211,7 @@ class TestServerTest {
                 val url = server.listen()
                 val client = KinuvoClient(url, "socket-phone", pairingCode = server.pairingCode)
                 client.connect()
-                assertEquals(listOf("default"), client.call(Api.Agents, Unit).map { it.id })
+                assertEquals(listOf("default"), client.call(Api.Agents, Unit).map { it.id.value })
                 assertEquals(0, server.spy.count(Api.Agents))
                 client.close()
             }
@@ -226,17 +228,17 @@ class TestServerTest {
         val server = TestServer.start(harnesses = listOf(harness), scenario = { externalAgent(harness, "ext", "External") })
         server.use {
             withContext(Dispatchers.Default) {
-                val session = server.startSession("ext", "Start", title = "External run")
+                val session = server.startSession(AgentId("ext"), "Start", title = "External run")
                 val client = server.client().also { it.connect() }
                 assertEquals(true, client.call(Api.ProbeHarnessConnection, harness.connection).readiness.online)
-                val pending = awaitValue("a pending request", 5.seconds) { client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).pending.takeIf { it.isNotEmpty() } }.single()
+                val pending = awaitValue("a pending request", 5.seconds) { client.call(Api.ExecutionSnapshot, ExecutionRef(session.id.value)).pending.takeIf { it.isNotEmpty() } }.single()
                 assertIs<PendingInteraction.Questions>(pending)
-                assertEquals(ExecutionPhase.RequiresAction, client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).phase)
+                assertEquals(ExecutionPhase.RequiresAction, client.call(Api.ExecutionSnapshot, ExecutionRef(session.id.value)).phase)
                 assertTrue(client.call(Api.Respond, RespondParams(session.id, pending.id, InteractionAnswer.Questions(emptyMap()))))
-                awaitCondition("the run to go idle", 5.seconds) { client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).phase == ExecutionPhase.Idle }
-                val entries = client.call(Api.History, HistoryParams("ext", session.id, 100)).map { it.entry }
+                awaitCondition("the run to go idle", 5.seconds) { client.call(Api.ExecutionSnapshot, ExecutionRef(session.id.value)).phase == ExecutionPhase.Idle }
+                val entries = client.call(Api.History, HistoryParams(AgentId("ext"), session.id, 100)).map { it.entry }
                 assertEquals(listOf("Working on Start", "Limit accepted"), entries.filterIsInstance<SessionEntry.AssistantMessage>().map { it.text })
-                assertEquals("External run", client.call(Api.Session, SessionParams("ext", session.id)).title)
+                assertEquals("External run", client.call(Api.Session, SessionParams(AgentId("ext"), session.id)).title)
                 assertEquals(1, server.spy.count(Api.Respond))
                 assertEquals(0, server.spy.count(Api.Send))
             }
@@ -248,15 +250,15 @@ class TestServerTest {
         val harness = FakeHarness("fake", capabilities = ExecutionCapabilities(supportedMimeTypes = setOf("text/plain")))
         val server = TestServer.start(harnesses = listOf(harness), scenario = {
             externalAgent(harness, "ext", "External")
-            lostExternalSession("ext", title = "Lost run", draft = "Half an answer", support = harness.capabilities) { user("Start"); assistant("Saved reply") }
+            lostExternalSession(AgentId("ext"), title = "Lost run", draft = "Half an answer", support = harness.capabilities) { user("Start"); assistant("Saved reply") }
         })
         server.use {
             withContext(Dispatchers.Default) {
                 val client = server.client().also { it.connect() }
-                val session = client.call(Api.Sessions, SessionsParams("ext")).sessions.single()
+                val session = client.call(Api.Sessions, SessionsParams(AgentId("ext"))).sessions.single()
                 assertEquals("Lost run", session.title)
-                assertEquals(ExecutionPhase.Lost, client.call(Api.ExecutionSnapshot, ExecutionRef(session.id)).phase)
-                val notice = client.call(Api.History, HistoryParams("ext", session.id, 100)).map { it.entry }.filterIsInstance<SessionEntry.Notice>().single()
+                assertEquals(ExecutionPhase.Lost, client.call(Api.ExecutionSnapshot, ExecutionRef(session.id.value)).phase)
+                val notice = client.call(Api.History, HistoryParams(AgentId("ext"), session.id, 100)).map { it.entry }.filterIsInstance<SessionEntry.Notice>().single()
                 assertEquals("Half an answer", (notice.draft.single() as SessionEntry.AssistantMessage).text)
             }
         }

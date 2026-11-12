@@ -7,6 +7,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.*
 import kotlin.test.*
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 class LiveCallsTest {
     private class Chat : VoiceChat {
@@ -26,7 +28,7 @@ class LiveCallsTest {
     @Test fun failedCallStaysLiveUntilEnded() = runTest {
         val calls = LiveCalls(backgroundScope)
         val failed = Chat()
-        calls.start("agent", "one", failed)
+        calls.start(AgentId("agent"), SessionId("one"), failed)
         runCurrent()
         failed.state.value = VoiceChatState(error = "The call dropped.", live = true)
         advanceTimeBy(5_000); runCurrent()
@@ -38,7 +40,7 @@ class LiveCallsTest {
         assertEquals(1, failed.ends)
 
         val next = Chat()
-        calls.start("agent", "one", next)
+        calls.start(AgentId("agent"), SessionId("one"), next)
         runCurrent()
         assertEquals(VoicePhase.Listening, calls.state.value?.voice?.phase)
         assertNull(calls.state.value?.voice?.error)
@@ -46,7 +48,7 @@ class LiveCallsTest {
 
     @Test fun failedStartStaysLiveUntilEnded() = runTest {
         val calls = LiveCalls(backgroundScope)
-        val screen = calls.attach("agent", null, backgroundScope, { error("Pick an Agent first") }) { _, _ -> Chat() }
+        val screen = calls.attach(AgentId("agent"), null, backgroundScope, { error("Pick an Agent first") }) { _, _ -> Chat() }
         screen.start()
         runCurrent()
         assertEquals(VoiceChatState(error = "Pick an Agent first", live = true), screen.state.value)
@@ -63,21 +65,21 @@ class LiveCallsTest {
     @Test fun oneCallSurvivesDestinationAndSwitchesSessions() = runTest {
         val calls = LiveCalls(backgroundScope)
         val first = Chat()
-        calls.start("agent", "one", first)
+        calls.start(AgentId("agent"), SessionId("one"), first)
         runCurrent()
         val screenScope = CoroutineScope(SupervisorJob() + StandardTestDispatcher(testScheduler))
-        val screen = calls.attach("agent", "one", screenScope, { "agent" to "one" }) { _, _ -> error("Already active") }
+        val screen = calls.attach(AgentId("agent"), SessionId("one"), screenScope, { AgentId("agent") to SessionId("one") }) { _, _ -> error("Already active") }
         runCurrent()
         screen.background()
         screenScope.cancel()
         assertEquals(VoicePhase.Listening, calls.state.value?.voice?.phase)
-        calls.start("agent", "one", Chat())
+        calls.start(AgentId("agent"), SessionId("one"), Chat())
         assertEquals(0, first.ends)
         val next = Chat()
-        calls.start("agent", "two", next)
+        calls.start(AgentId("agent"), SessionId("two"), next)
         runCurrent()
         assertEquals(1, first.ends)
-        assertEquals("two", calls.state.value?.sessionId)
+        assertEquals("two", calls.state.value?.sessionId?.value)
         calls.mute(true)
         runCurrent()
         assertEquals(true, calls.state.value?.voice?.paused)

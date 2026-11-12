@@ -6,7 +6,7 @@ import kinuvo.harness.builtin.RunSession
 import kinuvo.harness.builtin.chatTurn
 import kinuvo.harness.builtin.ToolCalls
 import kinuvo.harness.RoutineTurn
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 
 /** Gather the run's context, work through the shared tool loop, decide the outcome, deliver it. */
 internal fun routineStrategy(session: RunSession, calls: ToolCalls, run: RoutineTurn, prompt: String) = strategy<Unit, Unit>("kinuvoRoutine") {

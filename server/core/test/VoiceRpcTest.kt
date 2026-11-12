@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.server.rpc.serverRoutes
 import kinuvo.server.plugin.Audio
 import kinuvo.server.plugin.AudioFormat
 import kinuvo.server.plugin.SpeechToSpeech
@@ -7,7 +8,6 @@ import kinuvo.server.plugin.VoiceContext
 import kinuvo.server.plugin.VoiceInput
 import kinuvo.server.plugin.VoiceOutput
 import kinuvo.server.plugin.VoiceProviders
-import kinuvo.harness.builtin.liveVoiceInstructions
 import kinuvo.server.plugin.AgentProgress
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.*
@@ -18,6 +18,13 @@ import kinuvo.server.devices.*
 import kinuvo.server.voice.*
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.voice.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -32,7 +39,7 @@ class VoiceRpcTest {
     @Test fun liveCallsDelegateThroughExternalDispatch() = runTest {
         val registry = ExecutionRegistry().also {
             it.save(HarnessConnection("c", "ACP", ExecutionConnection.Acp(listOf("mock"))))
-            it.register(AgentRegistration("external", "Agent", "c", cwd = "/tmp"))
+            it.register(AgentRegistration(AgentId("external"), "Agent", "c", cwd = "/tmp"))
         }
         val factory = object : ExecutionFactory {
             override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope): ExecutionSession = object : ExecutionSession {
@@ -48,7 +55,7 @@ class VoiceRpcTest {
                     return ExecutionAcceptance("accepted")
                 }
                 override suspend fun cancel() {}
-                override suspend fun answer(requestId: String, answer: InteractionAnswer) {}
+                override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
             }
         }
         val voice = VoiceProviders(speechToSpeech = object : SpeechToSpeech {
@@ -60,17 +67,17 @@ class VoiceRpcTest {
         })
         val fixture = RuntimeFixture(voice = voice)
         fixture.settings.liveVoiceEnabled = true
-        val server = ServerRuntime(fixture.runtime(), voicePeers(), executionRegistry = registry, executionFactory = factory)
+        val server = ServerRuntime(fixture.runtime(), voicePeers(), serverRoutes(), executionRegistry = registry, executionFactory = factory)
         val device = VoiceDevice()
         server.start()
         val serving = launch { server.serve(device.connection) }
         try {
             device.call(Api.Connect, ConnectParams("test"))
-            val session = device.call(Api.CreateSession, AgentRef("external"))
-            val call = device.call(Api.LiveVoiceStart, LiveVoiceParams("external", session.id))
+            val session = device.call(Api.CreateSession, AgentRef(AgentId("external")))
+            val call = device.call(Api.LiveVoiceStart, LiveVoiceParams(AgentId("external"), session.id))
             assertEquals(LiveVoiceOutput.Transcript(call.callId, "reply", "external reply", false), device.outputs.receive())
             device.outputs.receive()
-            val entries = fixture.transcripts.entries("external", session.id)
+            val entries = fixture.transcripts.entries(AgentId("external"), session.id)
             assertTrue(entries.filterIsInstance<SessionEntry.UserMessage>().single().voice)
             assertEquals("external reply", entries.filterIsInstance<SessionEntry.VoiceCall>().single().turns.single().text)
         } finally { server.close(); serving.cancelAndJoin() }
@@ -95,7 +102,7 @@ class VoiceRpcTest {
             else flowOf(StreamFrame.TextDelta("Known reply"), StreamFrame.End())
         })
         val session = harness.newSession(fixture.agent)
-        val server = ServerRuntime(harness, voicePeers())
+        val server = ServerRuntime(harness, voicePeers(), serverRoutes())
         val device = VoiceDevice()
         server.start()
         val serving = launch { server.serve(device.connection) }
@@ -133,7 +140,7 @@ class VoiceRpcTest {
         fixture.settings.liveVoiceEnabled = true
         val harness = fixture.runtime()
         val session = harness.newSession(fixture.agent)
-        val server = ServerRuntime(harness, voicePeers())
+        val server = ServerRuntime(harness, voicePeers(), serverRoutes())
         val a = VoiceDevice()
         val b = VoiceDevice()
         server.start()
@@ -179,7 +186,7 @@ class VoiceRpcTest {
         val harness = fixture.runtime()
         val session = harness.newSession(fixture.agent)
         var awake = 0
-        val server = ServerRuntime(harness, voicePeers(), keepAwake = { awake++; AutoCloseable { awake-- } })
+        val server = ServerRuntime(harness, voicePeers(), serverRoutes(), keepAwake = { awake++; AutoCloseable { awake-- } })
         val stalled = CompletableDeferred<Unit>()
         val device = VoiceDevice(stalled)
         server.start()
@@ -243,7 +250,7 @@ class VoiceRpcTest {
         val fixture = RuntimeFixture(voice = voice)
         val harness = fixture.runtime()
         val session = harness.newSession(fixture.agent)
-        val server = ServerRuntime(harness, peers, security = ConnectionSecurity(liveVoiceInputsPerMinute = 2))
+        val server = ServerRuntime(harness, peers, serverRoutes(), security = ConnectionSecurity(liveVoiceInputsPerMinute = 2))
         val client = KinuvoClient("local:test", "test", connection = { clientConnection })
         server.start()
         val serving = launch { server.serve(serverConnection) }
@@ -288,7 +295,7 @@ class VoiceRpcTest {
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
         }
-        val server = ServerRuntime(RuntimeFixture(voice = voice).runtime(), peers, security = ConnectionSecurity(concurrentRequests = 1))
+        val server = ServerRuntime(RuntimeFixture(voice = voice).runtime(), peers, serverRoutes(), security = ConnectionSecurity(concurrentRequests = 1))
         val client = KinuvoClient("local:test", "test", connection = { clientConnection })
         server.start()
         val serving = launch { server.serve(serverConnection) }
@@ -334,7 +341,7 @@ class VoiceRpcTest {
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
         }
-        val server = ServerRuntime(RuntimeFixture(voice = voice).runtime(), peers)
+        val server = ServerRuntime(RuntimeFixture(voice = voice).runtime(), peers, serverRoutes())
         var id = 0
         suspend fun <P, R> call(method: Method<P, R>, params: P): Frame.Response {
             val requestId = (++id).toString()

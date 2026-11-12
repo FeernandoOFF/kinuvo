@@ -3,8 +3,8 @@ package kinuvo.server.tasks
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.PluginDefinition
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.plugin.PluginDefinition
 
 /** Task runs can manage their assigned Task even without general access to the Board. */
 class TasksPlugin(private val tasks: Tasks) : HarnessPlugin {

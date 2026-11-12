@@ -1,7 +1,7 @@
 package kinuvo.ui.e2e
 
 import kinuvo.protocol.Api
-import kinuvo.protocol.TaskStatus
+import kinuvo.protocol.board.TaskStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

@@ -1,6 +1,6 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*

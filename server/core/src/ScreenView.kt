@@ -1,7 +1,7 @@
 package kinuvo.server
 
 import kinuvo.server.plugin.ScreenGate
-import kinuvo.protocol.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.CancellationException

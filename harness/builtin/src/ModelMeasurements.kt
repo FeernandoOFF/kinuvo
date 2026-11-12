@@ -3,8 +3,8 @@ package kinuvo.harness.builtin
 import kinuvo.harness.AgentConfig
 import ai.koog.prompt.streaming.StreamFrame
 import ai.koog.prompt.message.Message
-import kinuvo.protocol.RequestKind
-import kinuvo.protocol.RequestMetrics
+import kinuvo.protocol.usage.RequestKind
+import kinuvo.protocol.usage.RequestMetrics
 import kotlin.coroutines.AbstractCoroutineContextElement
 import kotlin.coroutines.CoroutineContext
 import kotlin.time.Clock

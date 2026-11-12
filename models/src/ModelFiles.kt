@@ -1,6 +1,6 @@
 package kinuvo.models
 
-import kinuvo.protocol.ModelFile
+import kinuvo.protocol.voice.ModelFile
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

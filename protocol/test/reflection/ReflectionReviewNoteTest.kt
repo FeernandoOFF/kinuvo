@@ -1,0 +1,21 @@
+package kinuvo.protocol.reflection
+
+import kinuvo.protocol.ProtocolJson
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+import kotlin.test.*
+import kotlinx.serialization.json.JsonObject
+
+class ReflectionReviewNoteTest {
+    @Test
+    fun oldReviewsKeepDefaultsAndNotedReviewsRoundTripWithPendingDrafts() {
+        val old = ProtocolJson.decodeFromString(SessionEntry.serializer(), """{"type":"reflection_review","proposalId":"p","approved":false}""")
+        assertEquals(SessionEntry.ReflectionReview("p", false), old)
+        val proposal = ReflectionProposal("new", "conventions", JsonObject(emptyMap()), "Organization", "Review note", conventionsBefore = "Before")
+        val entry: SessionEntry = SessionEntry.ReflectionReview("p", true, "Correction", ReflectionResult(proposals = listOf(proposal)))
+        assertEquals(entry, ProtocolJson.decodeFromString(SessionEntry.serializer(), ProtocolJson.encodeToString(SessionEntry.serializer(), entry)))
+        val params = ReviewReflectionParams(AgentId("agent"), SessionId("session"), "p", true, "Correction")
+        assertEquals(params, ProtocolJson.decodeFromString(ReviewReflectionParams.serializer(), ProtocolJson.encodeToString(ReviewReflectionParams.serializer(), params)))
+    }
+}

@@ -1,8 +1,8 @@
 package kinuvo.server.routines
 
-import kinuvo.protocol.ActiveHours
-import kinuvo.protocol.Routine
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.routine.ActiveHours
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.Trigger
 import kotlinx.datetime.DateTimeUnit
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime

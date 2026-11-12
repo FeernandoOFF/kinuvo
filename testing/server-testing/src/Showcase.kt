@@ -1,11 +1,11 @@
 package kinuvo.testing.server
 
 import kinuvo.harness.Agent
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.ConfigScope
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.TaskStatus
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.board.TaskStatus
+import kinuvo.protocol.routine.Trigger
 import kotlinx.datetime.DatePeriod
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
@@ -147,14 +147,14 @@ suspend fun Scenario.showcase(agent: Agent) {
     task("Renew passport before the summer trip, including new photos and the appointment", notes = "Bring the old passport and two photos.", due = due(-2))
     task("Book dentist appointment", due = due(1))
     task("Repot the plants")
-    task("Prepare the quarterly planning slides", status = TaskStatus.InProgress, assignee = agent.id, due = due(3), notes = "Use last quarter's template; numbers are in the finance sheet.", sessions = listOf(slides))
-    task("Triage crash reports from the beta", status = TaskStatus.InProgress, assignee = agent.id, due = due(0), sessions = listOf(crash, slides))
-    task("Find a cheaper flight to Lisbon", status = TaskStatus.Waiting, assignee = research.id, due = due(2), notes = "Waiting on you: approve the booking under 120 EUR?")
-    task("Review the contractor agreement and flag anything unusual in the payment terms", status = TaskStatus.Waiting, assignee = agent.id, due = due(-1), sessions = listOf(contract))
-    task("Monthly budget", status = TaskStatus.Done, assignee = agent.id, due = due(-5))
+    task("Prepare the quarterly planning slides", status = TaskStatus.InProgress, assignee = agent.id.value, due = due(3), notes = "Use last quarter's template; numbers are in the finance sheet.", sessions = listOf(slides))
+    task("Triage crash reports from the beta", status = TaskStatus.InProgress, assignee = agent.id.value, due = due(0), sessions = listOf(crash, slides))
+    task("Find a cheaper flight to Lisbon", status = TaskStatus.Waiting, assignee = research.id.value, due = due(2), notes = "Waiting on you: approve the booking under 120 EUR?")
+    task("Review the contractor agreement and flag anything unusual in the payment terms", status = TaskStatus.Waiting, assignee = agent.id.value, due = due(-1), sessions = listOf(contract))
+    task("Monthly budget", status = TaskStatus.Done, assignee = agent.id.value, due = due(-5))
     task("Car insurance renewal", status = TaskStatus.Done, notes = "Switched to the cheaper plan.", sessions = listOf(trip))
-    task("Sort holiday photos", status = TaskStatus.Done, assignee = agent.id)
-    task("Fix the garden watering timer", assignee = home.id, due = due(5))
+    task("Sort holiday photos", status = TaskStatus.Done, assignee = agent.id.value)
+    task("Fix the garden watering timer", assignee = home.id.value, due = due(5))
     task("Email the landlord about the heating", due = due(0))
 
     routine(agent, "Morning brief", "Summarize my calendar, inbox and the weather.", Trigger.Cron("0 7 * * *"))

@@ -7,8 +7,9 @@ import kinuvo.harness.builtin.tools.*
 import kinuvo.server.tools.*
 import kinuvo.harness.ToolReports
 import kinuvo.harness.ToolTurn
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -31,13 +32,13 @@ class ToolReportsTest {
         }
         val executor = ToolService(listOf(tool), reports = ToolReports(this) { reports += it })
         assertEquals("regular", tool.execute(JsonObject(emptyMap())))
-        assertEquals("started", executor.invoke(SessionEntry.ToolCall("1", "worker", "{}"), ToolTurn(emit = { events += it })).output)
+        assertEquals("started", executor.invoke(SessionEntry.ToolCall(ToolCallId("1"), "worker", "{}"), ToolTurn(emit = { events += it })).output)
         runCurrent()
         assertTrue(reports.isEmpty())
         assertEquals(listOf("first", "second", "started"), events.filterIsInstance<AgentEvent.ToolCallResult>().map { it.content })
         done.complete("finished")
         runCurrent()
-        assertEquals(listOf(SessionEntry.ToolReport("worker", "1", "finished")), reports)
+        assertEquals(listOf(SessionEntry.ToolReport("worker", ToolCallId("1"), "finished")), reports)
     }
 
     @Test fun failureReportsOnce() = runTest {

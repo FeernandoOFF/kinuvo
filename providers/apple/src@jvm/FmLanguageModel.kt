@@ -1,6 +1,6 @@
 package kinuvo.providers.apple
 
-import kinuvo.protocol.CapabilityState
+import kinuvo.protocol.capability.CapabilityState
 import ai.koog.prompt.Prompt
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.protocol.ProtocolJson

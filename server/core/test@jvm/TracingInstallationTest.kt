@@ -7,7 +7,7 @@ import kinuvo.server.plugin.readText
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.server.store.*
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.session.AgentEvent
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -23,7 +23,7 @@ class TracingInstallationTest {
 
     @Test
     fun installationTracesChatAndReflectionByDefault() = runBlocking {
-        val runtime = HarnessRuntime(ServerInstallation.assemble(files), modelFactory = {
+        val runtime = testRuntime(ServerInstallation.assemble(files), modelFactory = {
             scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("private-response-secret"), StreamFrame.End()) }
         })
         try {
@@ -37,7 +37,7 @@ class TracingInstallationTest {
             assertTrue("chat scripted" in content)
             assertTrue("Chat" in content)
             assertTrue("Reflection" in content)
-            assertTrue(session.id in content)
+            assertTrue(session.id.value in content)
             assertFalse("private-" in content)
         } finally { runtime.close() }
     }
@@ -46,9 +46,9 @@ class TracingInstallationTest {
     fun configCanDisableTracingWithoutCreatingTraceFiles() = runBlocking {
         files.updateConfig { it.copy(tracing = false) }
         val dependencies = ServerInstallation.assemble(files)
-        val runtime = HarnessRuntime(dependencies, modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.End()) } })
+        val runtime = testRuntime(dependencies, modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.End()) } })
         try {
-            assertNull(dependencies.tracing)
+            assertNull(dependencies.traces)
             val agent = runtime.store.agents().single()
             val session = runtime.newSession(agent)
             assertIs<AgentEvent.RunFinished>(runtime.runner(agent, session.id).run(session.id, "go").toList().last())

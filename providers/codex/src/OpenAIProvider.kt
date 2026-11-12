@@ -29,12 +29,12 @@ import io.ktor.http.content.OutgoingContent
 import io.ktor.utils.io.readBuffer
 import kinuvo.harness.builtin.*
 import kinuvo.server.*
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.CapabilityState
-import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.capability.CapabilityState
+import kinuvo.protocol.model.ModelInfo
 import kotlinx.io.readByteArray
 import kotlinx.serialization.json.*
-import kinuvo.protocol.PluginDefinition
+import kinuvo.protocol.plugin.PluginDefinition
 
 /** OpenAI API access shares the Responses adapter with the ChatGPT subscription provider. */
 class OpenAIProvider(

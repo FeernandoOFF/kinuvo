@@ -1,8 +1,8 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.ComputerRequest
-import kinuvo.protocol.ComputerResult
-import kinuvo.protocol.ComputerActionKind
+import kinuvo.protocol.computer.ComputerRequest
+import kinuvo.protocol.computer.ComputerResult
+import kinuvo.protocol.computer.ComputerActionKind
 
 /** A screen an Agent can see and control: a paired Device that allowed it, e.g. a phone or a desktop. */
 interface Computer {

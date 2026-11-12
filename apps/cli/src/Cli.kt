@@ -9,6 +9,7 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.versionOption
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.Api
+import kinuvo.protocol.agent.AgentId
 
 /** Opens a connection to the Server for one command and closes it afterwards. */
 interface ServerAccess {
@@ -55,7 +56,7 @@ internal class Session(private val access: ServerAccess, private val agent: Stri
 }
 
 internal class Calls(val client: KinuvoClient, private val agent: String?) {
-    suspend fun agentId(): String = agent ?: client.call(Api.Agents, Unit).firstOrNull()?.id ?: error("The Server has no Agents")
+    suspend fun agentId(): AgentId = agent?.let(::AgentId) ?: client.call(Api.Agents, Unit).firstOrNull()?.id ?: error("The Server has no Agents")
 }
 
 /** A command that talks to the Server. */

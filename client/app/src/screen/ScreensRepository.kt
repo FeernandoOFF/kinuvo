@@ -3,6 +3,8 @@ package kinuvo.app.screen
 import kinuvo.app.connection.ConnectedServer
 import kinuvo.client.*
 import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.flow.*
 
 interface ScreensRepository {

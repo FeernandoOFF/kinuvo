@@ -8,13 +8,14 @@ import kinuvo.harness.ExecutionInput
 import kinuvo.harness.RunKind
 import kinuvo.server.routines.Schedule
 import kinuvo.server.routines.formatTime
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.Routine
-import kinuvo.protocol.RoutineRan
-import kinuvo.protocol.RoutineRef
-import kinuvo.protocol.RunStatus
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.RoutineRan
+import kinuvo.protocol.routine.RoutineRef
+import kinuvo.protocol.routine.RunStatus
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.routine.Trigger
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -129,7 +130,7 @@ class Scheduler(
         val sessionId = attached ?: harness.newSession(agent, ref).id
         val before = harness.store.entries(agent.id, sessionId).size
         var error: String? = null
-        var kept: String? = sessionId
+        var kept: SessionId? = sessionId
         var status = RunStatus.Ok
         var report: String? = null
         val routineRun = RoutineRun(routine, clock) { onRan(RoutineRan(agent.id, ref, RunStatus.Ok, sessionId, summary = it.summary)) }
@@ -158,7 +159,7 @@ class Scheduler(
         if (status == RunStatus.Error) onRan(RoutineRan(agent.id, ref, status, kept, error))
     }
 
-    private suspend fun record(agent: Agent, routine: Routine, status: RunStatus, error: String?, at: Long? = null, sessionId: String? = null) {
+    private suspend fun record(agent: Agent, routine: Routine, status: RunStatus, error: String?, at: Long? = null, sessionId: SessionId? = null) {
         harness.routines.update(agent, routine.id) {
             it.copy(lastStatus = status, lastError = error, lastRunAt = at ?: it.lastRunAt, lastSessionId = sessionId ?: it.lastSessionId)
         }

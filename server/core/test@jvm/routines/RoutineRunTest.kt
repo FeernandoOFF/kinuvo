@@ -9,24 +9,25 @@ import kinuvo.harness.builtin.AgentRun
 import kinuvo.server.ApprovalBroker
 import kinuvo.server.ApprovalPolicy
 import kinuvo.server.Approvals
-import kinuvo.harness.builtin.ModelProfile
-import kinuvo.protocol.ModelTier
+import kinuvo.protocol.model.ModelTier
 import kinuvo.server.TestHome
 import kinuvo.server.Tolerance
 import kinuvo.server.plugin.Tool
 import kinuvo.testing.harness.scriptedModel
 import kinuvo.testing.harness.toolResults
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.approval
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.PluginInstanceId
-import kinuvo.protocol.Risk
-import kinuvo.protocol.Routine
-import kinuvo.protocol.RunStatus
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.withWrittenAt
-import kinuvo.protocol.ToolIdentity
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.approval.approval
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.RunStatus
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.withWrittenAt
+import kinuvo.protocol.plugin.ToolIdentity
+import kinuvo.protocol.routine.Trigger
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -39,6 +40,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
+import kinuvo.harness.ModelProfile
 
 class RoutineRunTest {
     private val home = TestHome()
@@ -74,7 +76,7 @@ class RoutineRunTest {
             .also { sessionId = session.id }
     }
 
-    private var sessionId = ""
+    private var sessionId = SessionId("")
     private suspend fun entries() = store.entries(agent.id, sessionId)
 
     @Test
@@ -180,7 +182,7 @@ class RoutineRunTest {
         val stuck = scriptedModel { _, _ -> flowOf(StreamFrame.ToolCallComplete("c1", "slow", "{}"), StreamFrame.End()) }
         AgentRun(agent, store, stuck, listOf(slow, RoutineReportTool(run)), routine = run).run(session.id, "go").first { it is AgentEvent.ToolCallStart }
 
-        assertEquals(SessionEntry.ToolResult("c1", "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last().withWrittenAt(null))
+        assertEquals(SessionEntry.ToolResult(ToolCallId("c1"), "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last().withWrittenAt(null))
         assertTrue(store.entries(agent.id, session.id).none { it is SessionEntry.Outcome })
         assertTrue(notified.isEmpty())
         assertNull(run.outcome)

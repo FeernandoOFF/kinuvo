@@ -2,7 +2,7 @@ package kinuvo.server.screens
 
 import co.touchlab.stately.concurrency.Lock
 import co.touchlab.stately.concurrency.withLock
-import kinuvo.protocol.ScreenFrame
+import kinuvo.protocol.screen.ScreenFrame
 import kotlinx.coroutines.channels.Channel
 
 /** Replaceable images never enter the durable outbox. */

@@ -1,6 +1,6 @@
 package kinuvo.server
 
-import kinuvo.protocol.SurfaceImage
+import kinuvo.protocol.surface.SurfaceImage
 
 internal const val MAX_SURFACE_IMAGE_BYTES = 5 * 1024 * 1024
 internal val SURFACE_IMAGE_TYPES = setOf("image/png", "image/jpeg", "image/webp", "image/gif", "image/avif", "image/bmp")

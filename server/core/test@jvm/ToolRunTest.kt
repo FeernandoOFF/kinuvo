@@ -7,15 +7,15 @@ import kinuvo.testing.harness.*
 
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.server.plugin.Tool
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.ToolRun
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.approval
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.DenyRules
-import kinuvo.protocol.Risk
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.approval.approval
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.approval.DenyRules
+import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -37,13 +37,13 @@ class ToolRunTest {
     private val home = TestHome()
     private var calls = 0
     private val target = object : Tool {
-        override val identity get() = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), descriptor.name)
+        override val identity get() = kinuvo.protocol.plugin.ToolIdentity(kinuvo.protocol.plugin.PluginInstanceId("test.tools"), descriptor.name)
         override val descriptor = toolSpec("change", "Change something")
         override val risk = Risk.Medium
         override suspend fun execute(args: JsonObject): String { calls++; return "changed" }
     }
     private val bridge = object : Tool {
-        override val identity get() = kinuvo.protocol.ToolIdentity(kinuvo.protocol.PluginInstanceId("test.tools"), descriptor.name)
+        override val identity get() = kinuvo.protocol.plugin.ToolIdentity(kinuvo.protocol.plugin.PluginInstanceId("test.tools"), descriptor.name)
         override val descriptor = toolSpec("bridge", "Call another tool")
         override val risk = Risk.Low
         override suspend fun execute(args: JsonObject): String = error("Needs a run")
@@ -78,7 +78,7 @@ class ToolRunTest {
             }
         }
         assertEquals(listOf("change"), requests.map { it.toolCallName })
-        assertEquals(listOf("c1"), requests.map { it.toolCallId })
+        assertEquals(listOf("c1"), requests.map { it.toolCallId.value })
         assertEquals(listOf(target.identity.key), home.trustRules.get(agent.id).trusted)
         assertEquals(2, calls)
 

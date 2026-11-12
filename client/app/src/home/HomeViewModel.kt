@@ -5,8 +5,8 @@ import kinuvo.app.connection.*
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kinuvo.protocol.ServerFeature
-import kinuvo.protocol.supports
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.capability.supports
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine

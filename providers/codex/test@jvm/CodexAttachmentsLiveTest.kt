@@ -3,7 +3,8 @@ package kinuvo.providers.codex
 import kinuvo.testing.harness.*
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.AgentConfig
-import kinuvo.protocol.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.runBlocking
 import java.awt.Color
 import java.awt.image.BufferedImage

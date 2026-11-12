@@ -6,6 +6,9 @@ import kinuvo.app.connection.*
 import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -83,7 +86,7 @@ class HarnessRepository(internal val connection: ConnectedServer) {
     suspend fun discover(linkId: String) = connection.call { it.call(Api.DiscoverRemote, ExecutionRef(linkId)) }.agents
 
     /** A link code another Server uses to run [agentIds]; making one again under [id] revokes the old one. */
-    suspend fun share(id: String, agentIds: Set<String>) = connection.call { it.call(Api.GrantExecution, ExposureGrant(id, agentIds)) }
+    suspend fun share(id: String, agentIds: Set<AgentId>) = connection.call { it.call(Api.GrantExecution, ExposureGrant(id, agentIds)) }
 
     suspend fun revoke(id: String) = connection.call { it.call(Api.RevokeExecution, ExecutionRef(id)) }
 

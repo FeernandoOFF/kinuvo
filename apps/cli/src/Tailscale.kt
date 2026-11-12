@@ -3,8 +3,8 @@ package kinuvo.cli
 import com.github.ajalt.clikt.core.CliktError
 import kinuvo.server.plugin.ProcessOutput
 import kinuvo.server.plugin.runProcess
-import kinuvo.protocol.Platform
-import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.*
 import java.io.File

@@ -25,9 +25,10 @@ import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.http.parameters
 import io.ktor.http.parseQueryString
-import kinuvo.protocol.McpAuthStatus
-import kinuvo.protocol.McpParams
-import kinuvo.protocol.McpRedirect
+import kinuvo.protocol.mcp.McpAuthStatus
+import kinuvo.protocol.mcp.McpParams
+import kinuvo.protocol.mcp.McpRedirect
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -79,7 +80,7 @@ class McpAuth(
     private val writing = Mutex()
 
     /** Told once per server when a Routine run finds it needs sign-in, until it's signed in. */
-    var onSignInNeeded: (suspend (agentId: String, server: String) -> Unit)? = null
+    var onSignInNeeded: (suspend (agentId: AgentId, server: String) -> Unit)? = null
 
     /** Changes with every sign-in and sign-out, so connections made with older tokens are replaced. */
     fun generation(id: String) = generations[id] ?: 0
@@ -100,7 +101,7 @@ class McpAuth(
         return true
     }
 
-    suspend fun signInNeeded(agentId: String, server: McpServerConfig.Http) {
+    suspend fun signInNeeded(agentId: AgentId, server: McpServerConfig.Http) {
         if (notified.add(server.signInId)) onSignInNeeded?.invoke(agentId, server.name)
     }
 

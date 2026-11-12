@@ -4,8 +4,8 @@ import kinuvo.server.plugin.Keychain
 import kinuvo.server.plugin.ProcessOutput
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
-import kinuvo.protocol.Platform
-import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import java.nio.file.Files
 import java.util.Base64
 import kotlin.test.*

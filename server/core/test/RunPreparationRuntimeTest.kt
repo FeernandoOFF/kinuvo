@@ -1,5 +1,8 @@
 package kinuvo.server
 
+import kinuvo.server.rpc.serverRoutes
+import kinuvo.harness.ToolSpec
+import kinuvo.harness.requiredNames
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
@@ -18,10 +21,19 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.builtin.*
 import kinuvo.server.plugin.Tool
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.ToolGroup
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.tool.ToolGroup
 import kinuvo.server.tools.ToolScope
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.surface.*
+import kinuvo.protocol.tool.*
 import kinuvo.client.KinuvoClient
 import kinuvo.server.devices.*
 import kotlinx.coroutines.*
@@ -70,7 +82,7 @@ class RunPreparationRuntimeTest {
                 override suspend fun execute(args: JsonObject): String { executed = true; return "read" }
             }))
         }
-        val provider = object : ModelProvider {
+        val provider = object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true))
             override fun model(config: AgentConfig) = scriptedModel { _, tools ->
@@ -115,7 +127,7 @@ class RunPreparationRuntimeTest {
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
         }
-        val server = ServerRuntime(harness, peers)
+        val server = ServerRuntime(harness, peers, serverRoutes())
         val catalogs = listOf(UiCatalog("test", description = "x".repeat(30_000),
             components = mapOf("Text" to buildJsonObject { put("type", "object") })))
         val client = KinuvoClient("local:test", "Device", uiCatalogs = catalogs,
@@ -144,7 +156,7 @@ class RunPreparationRuntimeTest {
         try {
             val session = harness.newSession(fixture.agent)
             val context = buildJsonObject { put("name", "Alex") }
-            val action = SurfaceAction("call", "plan", "save", "submit", context, context)
+            val action = SurfaceAction(ToolCallId("call"), "plan", "save", "submit", context, context)
             harness.runner(fixture.agent, session.id).run(session.id, "Save plan", action = action).toList()
             harness.runner(fixture.agent, session.id).run(session.id, "Continue").toList()
             assertEquals(action, harness.store.entries(fixture.agent.id, session.id).filterIsInstance<SessionEntry.UserMessage>().first().action)
@@ -245,7 +257,7 @@ class RunPreparationRuntimeTest {
         val first = ToolIdentity(PluginInstanceId("example.ping", "first"), "ping")
         val second = ToolIdentity(PluginInstanceId("example.ping", "second"), "ping")
         val offered = mutableListOf<List<String>>()
-        val provider = object : ModelProvider {
+        val provider = object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true), ModelInfo("limited", tools = true, toolIds = setOf(second.key)))
             override fun model(config: AgentConfig) = scriptedModel { prompt, tools ->
@@ -293,7 +305,7 @@ class RunPreparationRuntimeTest {
             override suspend fun execute(args: JsonObject) = "pong"
         }
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.runpreparationruntimetest.2", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runpreparationruntimetest.2", "Test")
             override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(tool, tool))
         }
         val harness = harness(listOf(plugin))
@@ -307,10 +319,10 @@ class RunPreparationRuntimeTest {
 
     @Test fun skillCatalogFollowsTheAdvertisedActivateSkillTool() = runBlocking {
         val systems = mutableListOf<String>()
-        fun provider(strip: Boolean) = object : ModelProvider {
+        fun provider(strip: Boolean) = object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true))
-            override fun accepts(model: String, tool: ToolDescriptor) = !strip || tool.name != ToolNames.ACTIVATE_SKILL
+            override fun accepts(model: String, tool: ToolSpec) = !strip || tool.name != ToolNames.ACTIVATE_SKILL
             override fun model(config: AgentConfig) = scriptedModel { prompt, _ ->
                 systems += prompt.messages.filterIsInstance<Message.System>().joinToString("\n") { it.textContent() }
                 flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
@@ -347,7 +359,7 @@ class RunPreparationRuntimeTest {
 
     @Test fun tierSetsThePromptStyle() = runBlocking {
         val systems = mutableListOf<String>()
-        val harness = harness(providers = listOf(object : ModelProvider {
+        val harness = harness(providers = listOf(object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true))
             override fun model(config: AgentConfig) = scriptedModel { prompt, _ ->
@@ -369,15 +381,15 @@ class RunPreparationRuntimeTest {
 
     private val seen = mutableListOf<List<String>>()
     private var modelsBuilt = 0
-    private val provider = object : ModelProvider {
+    private val provider = object : TestModelProvider {
         override val id = "test"
         override suspend fun models() = listOf(
             ModelInfo("tools", tools = true, context = 100_000),
             ModelInfo("text", tools = false),
             ModelInfo("limited", tools = true, toolIds = setOf(ToolIdentity(PluginInstanceId("test.runpreparationruntimetest.3"), "ping").key)),
         )
-        override fun accepts(model: String, tool: ToolDescriptor) =
-            tool.name != "ping" || tool.requiredParameters.any { p -> p.name == "message" }
+        override fun accepts(model: String, tool: ToolSpec) =
+            tool.name != "ping" || "message" in tool.requiredNames
         override fun model(config: AgentConfig): AgentModel {
             modelsBuilt++
             return scriptedModel { _, tools ->
@@ -392,13 +404,13 @@ class RunPreparationRuntimeTest {
         it.copy(config = it.config.copy(provider = "test", model = "tools", tools = tools))
     }
     private suspend fun inspect(harness: HarnessRuntime, agent: Agent, session: String? = null, settings: SessionSettings? = null) =
-        harness.capabilities(agent, session, settings, ServerCapabilities(harness.serverId, harness.features))
+        harness.capabilities(agent, session?.let(::SessionId), settings, ServerCapabilities(harness.serverId, harness.features))
 
     @Test
     fun sessionSettingsAndFullDescriptorsDetermineEligibilityInBothPaths() = runBlocking {
         val modes = mutableListOf<Boolean>()
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.runpreparationruntimetest.3", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runpreparationruntimetest.3", "Test")
             override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
                 modes += activate
                 assertEquals("strict", run.agent.config.approvals)
@@ -415,7 +427,7 @@ class RunPreparationRuntimeTest {
             val session = harness.newSession(agent)
             for (model in listOf("tools", "text", "limited", "custom")) {
                 harness.configure(agent, session.id, SessionSettings(model = model, approvals = "strict"))
-                val capability = inspect(harness, agent, session.id).tools.single()
+                val capability = inspect(harness, agent, session.id.value).tools.single()
                 assertEquals(if (model == "text") Support.Unsupported else if (model == "custom") Support.Unknown else Support.Supported, capability.state.support)
                 harness.runner(agent, session.id).run(session.id, "hi").toList()
                 assertEquals(if (model == "text") emptyList() else listOf(capability.id), seen.last())
@@ -427,11 +439,11 @@ class RunPreparationRuntimeTest {
     @Test
     fun unavailableModelIsInspectedWithoutActivationAndCannotExecute() = runBlocking {
         var activated = false
-        val unavailable = object : ModelProvider by provider {
+        val unavailable = object : TestModelProvider by provider {
             override suspend fun availability(model: String) = CapabilityState.unavailable("Model is not downloaded")
         }
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.runpreparationruntimetest.4", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runpreparationruntimetest.4", "Test")
             override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
                 activated = activated || activate
                 return PluginTools()
@@ -454,7 +466,7 @@ class RunPreparationRuntimeTest {
             val agent = agent(harness, listOf("knowledge", "tasks", "skills", "artifact", "schedule", "memory"))
             val session = harness.newSession(agent)
             // Knowledge and Tasks follow their providers, which the fixture has, rather than the feature list.
-            val offered = inspect(harness, agent, session.id).tools.mapNotNull { it.identity?.localId }.toSet()
+            val offered = inspect(harness, agent, session.id.value).tools.mapNotNull { it.identity?.localId }.toSet()
             assertTrue("memory" in offered && "knowledge" in offered && "tasks" in offered)
             assertTrue(offered.none { it in setOf("activate_skill", "artifact", "schedule") })
             harness.runner(agent, session.id).run(session.id, "hi").toList()
@@ -465,7 +477,7 @@ class RunPreparationRuntimeTest {
 
     @Test fun runsInheritLatestAgentEffortAndRetainExplicitSessionEffort() = runBlocking {
         val efforts = mutableListOf<String>()
-        val configured = object : ModelProvider by provider {
+        val configured = object : TestModelProvider by provider {
             override suspend fun models() = listOf(ModelInfo("tools", reasoning = listOf("low", "medium", "high"), defaultReasoning = "medium"))
             override fun model(config: AgentConfig, info: ModelInfo?): AgentModel {
                 efforts += config.reasoning

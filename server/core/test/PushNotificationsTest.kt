@@ -1,7 +1,9 @@
 package kinuvo.server
 
 import kinuvo.server.plugin.Notification
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
@@ -18,11 +20,11 @@ class PushNotificationsTest {
 
     @Test fun pushesOnlyWhileTurnedOn() = runTest {
         val notifications = Notifications(fixture.runtime(), this, routineOf = { null }, devices = push)
-        notifications.on(fixture.agent.id, "s1", AgentEvent.InteractionRequested(PendingInteraction.Questions("q1", "f1", "Which flight?", emptyList())))
+        notifications.on(fixture.agent.id, SessionId("s1"), AgentEvent.InteractionRequested(PendingInteraction.Questions(InteractionId("q1"), ToolCallId("f1"), "Which flight?", emptyList())))
         advanceUntilIdle()
         assertEquals(listOf("Which flight?"), pushed.map { it.body })
         fixture.push = false
-        notifications.on(fixture.agent.id, "s1", AgentEvent.InteractionRequested(PendingInteraction.Questions("q2", "f2", "Which seat?", emptyList())))
+        notifications.on(fixture.agent.id, SessionId("s1"), AgentEvent.InteractionRequested(PendingInteraction.Questions(InteractionId("q2"), ToolCallId("f2"), "Which seat?", emptyList())))
         advanceUntilIdle()
         assertEquals(1, pushed.size)
     }

@@ -7,7 +7,7 @@ import io.ktor.client.request.setBody
 import io.ktor.client.request.header
 import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
-import kinuvo.protocol.ConnectParams
+import kinuvo.protocol.connection.ConnectParams
 import kinuvo.protocol.ProtocolJson
 import kotlinx.browser.window
 

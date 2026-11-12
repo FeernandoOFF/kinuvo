@@ -1,7 +1,7 @@
 package kinuvo.app.screen
 
-import kinuvo.protocol.ScreenAction
-import kinuvo.protocol.ScreenActionKind
+import kinuvo.protocol.screen.ScreenAction
+import kinuvo.protocol.screen.ScreenActionKind
 import kotlin.math.roundToInt
 
 /** Normalized position on the source image, independent of its delivery resolution. */

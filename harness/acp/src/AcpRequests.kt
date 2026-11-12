@@ -1,7 +1,9 @@
 package kinuvo.harness.acp
 
 import java.net.URI
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.harness.ExecutionBroker
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
@@ -32,7 +34,7 @@ internal fun decodePrompt(id: String, kind: AcpRequestKind, payload: JsonElement
         val title = body["title"].shown() ?: call?.get("title").shown() ?: body["toolCallName"].shown() ?: "Wants to act"
         val description = (body["description"].shown() ?: body["reason"].shown())?.let(::withoutAddresses) ?: body["args"].shown()?.let(::withoutAddresses)
             ?: (input?.get("description").shown() ?: content ?: call?.get("title").shown()?.takeIf { it != title })?.let(::withoutAddresses)
-        return AcpPrompt(PendingInteraction.HarnessApproval(id, withoutAddresses(title), description, options.map { it.copy(label = withoutAddresses(it.label)) }, input?.get("url").text()?.let(::host), input?.get("serverName").shown()?.let(::withoutAddresses)))
+        return AcpPrompt(PendingInteraction.HarnessApproval(InteractionId(id), withoutAddresses(title), description, options.map { it.copy(label = withoutAddresses(it.label)) }, input?.get("url").text()?.let(::host), input?.get("serverName").shown()?.let(::withoutAddresses)))
     }
     val message = body["message"].text() ?: "Questions for you"
     if (body["mode"].text() == "url") {
@@ -40,16 +42,16 @@ internal fun decodePrompt(id: String, kind: AcpRequestKind, payload: JsonElement
             val uri = URI(value)
             uri.scheme in setOf("https", "http") && !uri.host.isNullOrBlank() && uri.rawUserInfo == null
         }.getOrDefault(false) }
-        val site = url?.let(::host) ?: return AcpPrompt(PendingInteraction.Unsupported(id, withoutAddresses(message)))
-        return AcpPrompt(PendingInteraction.OpenLink(id, withoutAddresses(message), url, site))
+        val site = url?.let(::host) ?: return AcpPrompt(PendingInteraction.Unsupported(InteractionId(id), withoutAddresses(message)))
+        return AcpPrompt(PendingInteraction.OpenLink(InteractionId(id), withoutAddresses(message), url, site))
     }
-    val schema = body["requestedSchema"] as? JsonObject ?: return AcpPrompt(PendingInteraction.Unsupported(id, withoutAddresses(message)))
-    val properties = schema["properties"] as? JsonObject ?: return AcpPrompt(PendingInteraction.Unsupported(id, withoutAddresses(message)))
+    val schema = body["requestedSchema"] as? JsonObject ?: return AcpPrompt(PendingInteraction.Unsupported(InteractionId(id), withoutAddresses(message)))
+    val properties = schema["properties"] as? JsonObject ?: return AcpPrompt(PendingInteraction.Unsupported(InteractionId(id), withoutAddresses(message)))
     if (properties.values.any { value ->
         val property = value as? JsonObject
         property?.get("type").text() !in setOf("string", "number", "integer", "boolean", "array") ||
             (property?.get("type").text() == "array" && ((property?.get("items") as? JsonObject)?.get("type").text() !in setOf(null, "string")))
-    }) return AcpPrompt(PendingInteraction.Unsupported(id, withoutAddresses(message)))
+    }) return AcpPrompt(PendingInteraction.Unsupported(InteractionId(id), withoutAddresses(message)))
     val required = (schema["required"] as? JsonArray)?.mapNotNull { it.text() }.orEmpty()
     val types = mutableMapOf<String, String>()
     val values = mutableMapOf<String, Map<String, String>>()
@@ -71,7 +73,7 @@ internal fun decodePrompt(id: String, kind: AcpRequestKind, payload: JsonElement
             .map { v -> choices.entries.firstOrNull { it.value == v }?.key ?: if (kind == QuestionKind.YesNo) (if (v == "true") "Yes" else "No") else v }
         Question(key, withoutAddresses(p["title"].text() ?: key), kind, choices.keys.toList(), key in required, p["description"].text()?.let(::withoutAddresses), default)
     }
-    return AcpPrompt(PendingInteraction.Questions(id, id, withoutAddresses(message), questions), types, values)
+    return AcpPrompt(PendingInteraction.Questions(InteractionId(id), ToolCallId(id), withoutAddresses(message), questions), types, values)
 }
 
 /** Option label to value, from `enum` (label = value) or titled `oneOf`/`anyOf` options. */

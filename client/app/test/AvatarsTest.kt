@@ -1,6 +1,6 @@
 package kinuvo.app.agent
 
-import kinuvo.protocol.SessionStatus
+import kinuvo.protocol.session.SessionStatus
 import kotlin.test.Test
 import kotlin.test.assertEquals
 

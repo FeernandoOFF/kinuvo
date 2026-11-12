@@ -1,9 +1,9 @@
 package kinuvo.server
 
 import kinuvo.server.plugin.AgentProgress
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.ExecutionSnapshot
-import kinuvo.protocol.PendingInteraction
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.execution.ExecutionSnapshot
+import kinuvo.protocol.approval.PendingInteraction
 
 /** A native run's progress; a message is reported only once more work follows it, since the last one is the reply. */
 internal class NativeVoiceProgress {

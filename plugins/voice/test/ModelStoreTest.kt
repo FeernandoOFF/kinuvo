@@ -1,7 +1,7 @@
 package kinuvo.plugins.voice
 
 
-import kinuvo.protocol.VoiceModelKind
+import kinuvo.protocol.voice.VoiceModelKind
 
 import kotlinx.coroutines.*
 import java.nio.file.Files

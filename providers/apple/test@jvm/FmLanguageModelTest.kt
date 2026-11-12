@@ -71,7 +71,7 @@ class FmLanguageModelTest {
         val provider = AppleProvider(native, Dispatchers.IO)
         try {
             val frames = provider.model(AgentConfig(provider = "apple", model = SYSTEM))
-                .request("Full instructions", listOf(kinuvo.protocol.SessionEntry.Context("Be helpful")), emptyList()).toList()
+                .request("Full instructions", listOf(kinuvo.protocol.session.SessionEntry.Context("Be helpful")), emptyList()).toList()
             assertEquals("Hello!", frames.filterIsInstance<StreamFrame.TextComplete>().single().text)
             val args = assertNotNull(response)
             assertEquals("Be helpful", args[args.indexOf("--instructions") + 1])

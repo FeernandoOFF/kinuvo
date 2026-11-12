@@ -25,6 +25,7 @@ import kotlinx.io.files.Path
 import java.nio.file.Files
 import kotlin.test.*
 import kinuvo.server.providers.ModelProviders
+import kinuvo.protocol.agent.AgentId
 
 class AcpServerTest {
     @Test fun nativeServerReplyReachesSdkClient() = runBlocking {
@@ -44,7 +45,7 @@ class AcpServerTest {
                 val ap = Protocol(scope, StdioTransport(scope, Dispatchers.Default, incoming.receiveAsFlow(), outgoing::send))
                 val cp = Protocol(scope, StdioTransport(scope, Dispatchers.Default, outgoing.receiveAsFlow(), incoming::send))
                 agentProtocol = ap; clientProtocol = cp
-                Agent(ap, KinuvoAgent(connection.acpDispatch(), "default"))
+                Agent(ap, KinuvoAgent(connection.acpDispatch(), AgentId("default")))
                 val client = Client(cp, object : ElicitationHandler {
                     override suspend fun createElicitation(request: CreateElicitationRequest): CreateElicitationResponse = error("Unexpected form")
                 })

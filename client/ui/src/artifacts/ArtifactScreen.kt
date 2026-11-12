@@ -43,11 +43,13 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
-import kinuvo.protocol.AgentInfo
+import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.Api
-import kinuvo.protocol.ArtifactData
-import kinuvo.protocol.ArtifactInfo
-import kinuvo.protocol.ArtifactRef
+import kinuvo.protocol.artifact.ArtifactData
+import kinuvo.protocol.artifact.ArtifactInfo
+import kinuvo.protocol.artifact.ArtifactRef
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kinuvo.ui.design.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -61,9 +63,9 @@ class ArtifactsActions(
     val onBack: (() -> Unit)? = null,
     val onOpen: (String) -> Unit = {},
     val onSearch: (String) -> Unit = {},
-    val onFilter: (String?) -> Unit = {},
+    val onFilter: (AgentId?) -> Unit = {},
     val onDelete: (String) -> Unit = {},
-    val onOpenSession: (agentId: String, sessionId: String) -> Unit = { _, _ -> },
+    val onOpenSession: (agentId: AgentId, sessionId: SessionId) -> Unit = { _, _ -> },
     val onFullScreen: (Boolean) -> Unit = {},
     val onEdit: () -> Unit = {},
     val onChange: (String) -> Unit = {},
@@ -125,7 +127,7 @@ private fun ArtifactList(state: ArtifactsState, agents: List<AgentInfo>, now: Lo
                 }
                 else -> itemsIndexed(state.shown, key = { _, a -> a.id }) { i, a ->
                     Box(Modifier.groupItem(i, state.shown.size)) {
-                        GroupRow(a.title, { actions.onOpen(a.id) }, "${agents.name(a.agentId)} · ${relative(a.updated, now)}", a.type.icon(), selected = a.id == state.route.artifact, titleLines = 2)
+                        GroupRow(a.title, { actions.onOpen(a.id) }, "${agents.name(a.agentId.value)} · ${relative(a.updated, now)}", a.type.icon(), selected = a.id == state.route.artifact, titleLines = 2)
                     }
                 }
             }
@@ -221,7 +223,7 @@ private fun ArtifactMenu(data: ArtifactData, agents: List<AgentInfo>, now: Long,
             DropdownMenuPanel {
                 Column(Modifier.padding(horizontal = Spacing.space10, vertical = Spacing.space6)) {
                     Text(info.title, fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis)
-                    Text("${info.type} · ${agents.name(info.agentId)} · ${relative(info.updated, now)}", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
+                    Text("${info.type} · ${agents.name(info.agentId.value)} · ${relative(info.updated, now)}", style = TextStyles.caption, color = color(mutedColor), singleLine = true)
                 }
                 HorizontalSeparator()
                 MenuAction(if (full) Lucide.Minimize2 else Lucide.Maximize2, if (full) "Exit full screen" else "Full screen") { open = false; actions.onFullScreen(!full) }
@@ -304,7 +306,7 @@ private fun SourceEditor(initial: String, onChange: (String) -> Unit, modifier: 
     )
 }
 
-private fun List<AgentInfo>.name(id: String) = firstOrNull { it.id == id }?.name ?: id
+private fun List<AgentInfo>.name(id: String) = firstOrNull { it.id.value == id }?.name ?: id
 
 private fun String.icon(): ImageVector = when (this) {
     "html" -> Lucide.AppWindow

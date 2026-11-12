@@ -1,7 +1,7 @@
 package kinuvo.server
 
 import kinuvo.server.tools.ShowHtmlTool
-import kinuvo.protocol.Risk
+import kinuvo.protocol.approval.Risk
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*

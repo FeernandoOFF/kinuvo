@@ -1,7 +1,7 @@
 package kinuvo.app
 
 import kinuvo.app.session.ChatState
-import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
 import kotlin.test.*
 
 class AttachmentCapabilitiesTest {

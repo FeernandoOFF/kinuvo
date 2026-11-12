@@ -7,9 +7,13 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.builtin.*
 import kinuvo.server.store.ReflectionConfig
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.testing.harness.*
-import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.reflection.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.tool.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
@@ -20,7 +24,7 @@ class ReflectionModelTest {
     fun configuredDefaultAndUnavailableModelsUseFreshPrompts() = runTest {
         val configs = mutableListOf<AgentConfig>()
         var unavailable = false
-        val provider = object : ModelProvider {
+        val provider = object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools"), ModelInfo("small"), ModelInfo("custom"))
             override suspend fun availability(model: String) = if (unavailable) CapabilityState.unavailable("offline") else CapabilityState()
@@ -36,7 +40,7 @@ class ReflectionModelTest {
                 }
             }
         }
-        val fixture = RuntimeFixture(providers = listOf(provider, object : ModelProvider by provider { override val id = "other" }))
+        val fixture = RuntimeFixture(providers = listOf(provider, object : TestModelProvider by provider { override val id = "other" }))
         val harness = fixture.runtime()
         try {
             val agent = fixture.agent.copy(config = fixture.agent.config.copy(tools = listOf(ToolNames.MEMORY)))

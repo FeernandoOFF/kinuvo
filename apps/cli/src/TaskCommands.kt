@@ -1,11 +1,12 @@
 package kinuvo.cli
 
+import kinuvo.protocol.agent.AgentId
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.enum
 import kinuvo.protocol.*
-
+import kinuvo.protocol.board.*
 internal class TaskCommands : Group(
     "tasks", "The Board: your Tasks from your task app (config.yaml) and the Agents working on them.",
     ListTasks(), TaskLists(), AddTask(), AssignTask(), SetTaskStatus(),
@@ -19,7 +20,7 @@ private class ListTasks : ServerCommand("list", "List open Tasks.") {
     override suspend fun run() {
         val tasks = session.call { client.call(Api.Tasks, TasksParams(all)) }
         echo(table(listOf("ID", "LIST", "STATUS", "AGENT", "DUE", "TITLE"), tasks.map { t ->
-            listOf(t.id.take(8), t.listName, t.status.label(), t.assignee ?: "-", t.due ?: "-", t.title)
+            listOf(t.id.take(8), t.listName, t.status.label(), t.assignee?.value ?: "-", t.due ?: "-", t.title)
         }))
     }
 }
@@ -27,7 +28,7 @@ private class ListTasks : ServerCommand("list", "List open Tasks.") {
 private class TaskLists : ServerCommand("lists", "List the task lists the Board shows and their Agents.") {
     override suspend fun run() {
         val lists = session.call { client.call(Api.TaskLists, Unit) }
-        echo(table(listOf("LIST", "AGENT"), lists.map { listOf(it.name, it.agentId ?: "-") }))
+        echo(table(listOf("LIST", "AGENT"), lists.map { listOf(it.name, it.agentId?.value ?: "-") }))
     }
 }
 
@@ -39,7 +40,7 @@ private class AddTask : ServerCommand("add", "Add a Task; @agent in the title as
     private val assignee by option("--agent", help = "Agent to assign")
 
     override suspend fun run() {
-        val t = session.call { client.call(Api.CreateTask, CreateTaskParams(title, list, notes.orEmpty(), due, assignee)) }
+        val t = session.call { client.call(Api.CreateTask, CreateTaskParams(title, list, notes.orEmpty(), due, assignee?.let(::AgentId))) }
         echo("Added ${t.id.take(8)} to ${t.listName}" + (t.assignee?.let { ", assigned to $it" } ?: ""))
     }
 }
@@ -49,7 +50,7 @@ private class AssignTask : ServerCommand("assign", "Assign a Task to an Agent; n
     private val agent by argument("AGENT")
 
     override suspend fun run() {
-        val t = session.call { client.call(Api.UpdateTask, UpdateTaskParams(taskId(id), assignee = if (agent == "none") "" else agent)) }
+        val t = session.call { client.call(Api.UpdateTask, UpdateTaskParams(taskId(id), assignee = AgentId(if (agent == "none") "" else agent))) }
         echo("${t.title}: ${t.assignee ?: "unassigned"}")
     }
 }

@@ -5,7 +5,7 @@ import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import kinuvo.protocol.*
-
+import kinuvo.protocol.knowledge.*
 internal class KnowledgeCommands : Group(
     "knowledge", "Search your Knowledge and review or undo what Agents changed in it.",
     SearchKnowledge(), ShowNote(), KnowledgeChanges(), UndoChange(),
@@ -38,7 +38,7 @@ private class KnowledgeChanges : ServerCommand("changes", "List the latest chang
     override suspend fun run() {
         val changes = session.call { client.call(Api.KnowledgeChanges, KnowledgeChangesParams(limit)) }
         echo(table(listOf("ID", "WHEN", "BY", "CHANGE"), changes.map { c ->
-            listOf(c.id.take(8), time(c.at, "UTC"), c.agentId ?: "-", c.summary + if (c.undone) " (undone)" else "")
+            listOf(c.id.take(8), time(c.at, "UTC"), c.agentId?.value ?: "-", c.summary + if (c.undone) " (undone)" else "")
         }))
     }
 }

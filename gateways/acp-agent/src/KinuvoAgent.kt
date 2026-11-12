@@ -2,26 +2,29 @@
 
 package kinuvo.gateways.acp
 
+import kinuvo.protocol.approval.InteractionId
 import com.agentclientprotocol.agent.v2.*
 import com.agentclientprotocol.client.v2.ClientInfo
 import com.agentclientprotocol.model.ElicitationScope
 import com.agentclientprotocol.model.Implementation
 import com.agentclientprotocol.model.SessionId
 import com.agentclientprotocol.model.MessageId
-import com.agentclientprotocol.model.ToolCallId
+import com.agentclientprotocol.model.ToolCallId as AcpToolCallId
 import com.agentclientprotocol.model.PermissionOptionId
 import com.agentclientprotocol.model.v2.*
 import com.agentclientprotocol.protocol.jsonRpcInvalidParams
 import com.agentclientprotocol.rpc.ACPJson
 import kinuvo.harness.ExecutionDispatch
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.QuestionKind
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.approval.QuestionKind
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.SendParams
-import kinuvo.protocol.ExecutionPhase
-import kinuvo.protocol.InteractionAnswer
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.RespondParams
+import kinuvo.protocol.session.SendParams
+import kinuvo.protocol.execution.ExecutionPhase
+import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.approval.RespondParams
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId as KinuvoSessionId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -29,32 +32,32 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.*
 
 /** One selected native Agent; only Sessions created by this connection are reachable. */
-class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: String) : AgentSupport {
+class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: AgentId) : AgentSupport {
     override suspend fun initialize(clientInfo: ClientInfo) = com.agentclientprotocol.agent.v2.AgentInfo(Implementation("kinuvo", "0.1"))
 
     override suspend fun createSession(parameters: SessionCreationParameters, client: ClientOperations): AgentSession {
         require(parameters.mcpServers.isEmpty() && parameters.additionalDirectories.isEmpty()) { "Client MCP servers and additional directories are unsupported" }
-        return NativeSession(dispatch.create(agentId).id, client)
+        return NativeSession(dispatch.create(agentId).id.value, client)
     }
 
     private inner class NativeSession(private val id: String, private val client: ClientOperations) : AgentSession {
         override val sessionId = SessionId(id)
         @Volatile private var cancelled = false
         private val commands = Mutex()
-        override suspend fun cancel() = commands.withLock { cancelled = true; dispatch.stop(id) }
+        override suspend fun cancel() = commands.withLock { cancelled = true; dispatch.stop(KinuvoSessionId(id)) }
         override fun prompt(content: List<ContentBlock>, _meta: JsonElement?): Flow<SessionUpdate> {
             if (content.isEmpty() || content.any { it !is ContentBlock.Text }) jsonRpcInvalidParams("Only text prompts are supported")
             cancelled = false
             return flow {
-                val previous = dispatch.snapshot(agentId, id).messages.associateBy { it.id }.toMutableMap()
+                val previous = dispatch.snapshot(agentId, KinuvoSessionId(id)).messages.associateBy { it.id }.toMutableMap()
                 commands.withLock {
-                    if (!cancelled) dispatch.send(SendParams(agentId, id, content.filterIsInstance<ContentBlock.Text>().joinToString("\n") { it.text }))
+                    if (!cancelled) dispatch.send(SendParams(agentId, KinuvoSessionId(id), content.filterIsInstance<ContentBlock.Text>().joinToString("\n") { it.text }))
                 }
                 emit(SessionUpdate.StateUpdate(StateUpdate.Running()))
-                val answered = mutableSetOf<String>()
+                val answered = mutableSetOf<InteractionId>()
                 coroutineScope {
                     while (true) {
-                        val snapshot = dispatch.snapshot(agentId, id)
+                        val snapshot = dispatch.snapshot(agentId, KinuvoSessionId(id))
                         for (message in snapshot.messages) {
                             if (previous.put(message.id, message) == message) continue
                             val blocks = MaybeUndefined.Value(listOf(ContentBlock.Text(message.text)))
@@ -64,8 +67,8 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
                                 "tool" -> {
                                     val entry = message.payload?.let { ProtocolJson.decodeFromJsonElement(SessionEntry.serializer(), it) }
                                     when (entry) {
-                                        is SessionEntry.ToolCall -> SessionUpdate.ToolCallUpdate(ToolCallUpdate(ToolCallId(entry.id), title = MaybeUndefined.Value(entry.name), status = MaybeUndefined.Value(ToolCallStatus.InProgress), rawInput = MaybeUndefined.Value(JsonPrimitive(entry.args))))
-                                        is SessionEntry.ToolResult -> SessionUpdate.ToolCallUpdate(ToolCallUpdate(ToolCallId(entry.id), status = MaybeUndefined.Value(if (entry.isError) ToolCallStatus.Failed else ToolCallStatus.Completed), rawOutput = MaybeUndefined.Value(JsonPrimitive(entry.output))))
+                                        is SessionEntry.ToolCall -> SessionUpdate.ToolCallUpdate(ToolCallUpdate(AcpToolCallId(entry.id.value), title = MaybeUndefined.Value(entry.name), status = MaybeUndefined.Value(ToolCallStatus.InProgress), rawInput = MaybeUndefined.Value(JsonPrimitive(entry.args))))
+                                        is SessionEntry.ToolResult -> SessionUpdate.ToolCallUpdate(ToolCallUpdate(AcpToolCallId(entry.id.value), status = MaybeUndefined.Value(if (entry.isError) ToolCallStatus.Failed else ToolCallStatus.Completed), rawOutput = MaybeUndefined.Value(JsonPrimitive(entry.output))))
                                         else -> error("Unexpected native tool entry")
                                     }
                                 }
@@ -87,7 +90,7 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
                                 is PendingInteraction.Questions -> answerQuestions(request)
                                 else -> InteractionAnswer.Harness(JsonNull)
                             }
-                            dispatch.answer(RespondParams(id, request.id, answer))
+                            dispatch.answer(RespondParams(KinuvoSessionId(id), request.id, answer))
                         }
                         delay(100)
                     }

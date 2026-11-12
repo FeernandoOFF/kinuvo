@@ -1,7 +1,9 @@
 package kinuvo.server
 
+import kinuvo.protocol.approval.InteractionId
+import arrow.core.raise.Raise
+import arrow.core.raise.context.raise
 import kinuvo.harness.Agent
-import kinuvo.harness.AgentConfig
 import kinuvo.server.plugin.CUSTOM_PROVIDERS
 import kinuvo.server.plugin.McpManagement
 import kinuvo.server.plugin.PluginTools
@@ -12,16 +14,26 @@ import kinuvo.server.plugin.ownedBy
 import kinuvo.server.plugin.withModelNames
 import kinuvo.server.devices.*
 import kinuvo.server.screens.*
-import kinuvo.harness.builtin.plugin.*
 import kinuvo.server.plugin.*
-import kinuvo.protocol.ATTACHMENT_MIME_TYPES
-import kinuvo.protocol.attachmentInput
+import kinuvo.protocol.session.ATTACHMENT_MIME_TYPES
+import kinuvo.protocol.session.attachmentInput
 
-import kinuvo.harness.builtin.*
+import kinuvo.harness.BUILT_IN_HARNESS
+import kinuvo.harness.AgentRunner
+import kinuvo.harness.ModelProfile
+import kinuvo.harness.ModelSelection
+import kinuvo.harness.NativeHarness
+import kinuvo.harness.NativeHarnessHost
+import kinuvo.harness.NativeReflection
+import kinuvo.harness.NativeRun
+import kinuvo.harness.PromptStyle
+import kinuvo.harness.ResultLimits
+import kinuvo.harness.builtInRegistration
+import kinuvo.harness.inferTier
 import kinuvo.server.tools.GenerateImageTool
 import kinuvo.server.tools.ShowUiTool
 import kinuvo.server.tools.ShowHtmlTool
-import kinuvo.protocol.UiCatalog
+import kinuvo.protocol.surface.UiCatalog
 import kinuvo.server.routines.RoutineReportTool
 import kinuvo.server.routines.ScheduleTool
 import kinuvo.server.skills.ActivateSkillTool
@@ -39,29 +51,27 @@ import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.Uuid
-import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.session.AgentEvent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
-import kinuvo.protocol.SessionStatus
+import kinuvo.protocol.session.SessionStatus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import kinuvo.protocol.ReflectionResult
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.McpAppRef
-import kinuvo.protocol.McpAppRequest
-import kinuvo.protocol.McpAppResource
-import kinuvo.protocol.McpAppToolRequest
+import kinuvo.protocol.reflection.ReflectionResult
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.mcp.McpAppRef
+import kinuvo.protocol.mcp.McpAppRequest
+import kinuvo.protocol.mcp.McpAppResource
+import kinuvo.protocol.mcp.McpAppToolRequest
 import kinuvo.server.plugin.McpApps
 import kinuvo.server.plugin.ToolRun
-import kinuvo.harness.builtin.tools.simplified
-import kinuvo.server.tools.simplified
-import kinuvo.harness.builtin.tools.toDescriptor
+import kinuvo.harness.simplified
 import kinuvo.harness.with
 import kinuvo.server.tools.ToolScope
 import kinuvo.server.tools.select
-import kinuvo.protocol.ModelTier
+import kinuvo.protocol.model.ModelTier
 import kotlinx.serialization.json.*
 import kinuvo.server.store.Store
 import kinuvo.server.artifacts.ArtifactTool
@@ -73,40 +83,47 @@ import kinuvo.server.tools.Toolsets
 import kinuvo.harness.ToolReports
 import kinuvo.server.tools.ToolService
 import kinuvo.harness.ExecutionBroker
-import kinuvo.harness.ExecutionFactory
 import kinuvo.harness.ExecutionInput
 import kinuvo.harness.ExecutionState
 import kinuvo.harness.RoutineTurn
 import kinuvo.harness.RunKind
 import kinuvo.harness.ToolTurn
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.tools.ToolCatalog
 import kinuvo.server.plugin.WebSearch
 import kinuvo.server.plugin.SearchRegion
 import kinuvo.server.tools.WebSearchTool
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.RoutineApprovals
-import kinuvo.protocol.RoutineRef
-import kinuvo.protocol.SessionInfo
-import kinuvo.protocol.SessionSettings
-import kinuvo.protocol.Usage
-import kinuvo.protocol.ServerFeature
-import kinuvo.protocol.Integration
-import kinuvo.protocol.CapabilityState
-import kinuvo.protocol.Support
-import kinuvo.protocol.Authorization
-import kinuvo.protocol.ResolvedTool
-import kinuvo.protocol.SessionCapabilities
-import kinuvo.protocol.ServerCapabilities
-import kinuvo.protocol.Platform
-import kinuvo.protocol.currentPlatform
-import kinuvo.protocol.ProviderModelRef
-import kinuvo.protocol.imageModels
-import kinuvo.protocol.resolveImageModel
-import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.server.execution.forHarness
+import kinuvo.server.execution.approvalDecision
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.routine.RoutineApprovals
+import kinuvo.protocol.routine.RoutineRef
+import kinuvo.protocol.session.SessionInfo
+import kinuvo.protocol.session.SessionSettings
+import kinuvo.protocol.usage.Usage
+import kinuvo.protocol.capability.ExecutionLocation
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.capability.Integration
+import kinuvo.protocol.capability.CapabilityState
+import kinuvo.protocol.capability.Support
+import kinuvo.protocol.capability.Authorization
+import kinuvo.protocol.capability.ResolvedTool
+import kinuvo.protocol.capability.SessionCapabilities
+import kinuvo.protocol.capability.ServerCapabilities
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
+import kinuvo.protocol.model.ProviderModelRef
+import kinuvo.protocol.model.imageModels
+import kinuvo.protocol.model.resolveImageModel
+import kinuvo.protocol.model.ModelInfo
 import kotlinx.coroutines.flow.StateFlow
-import kinuvo.protocol.PluginInstanceId
-import kinuvo.protocol.UploadAttachmentParams
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.session.UploadAttachmentParams
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
 import kotlin.io.encoding.Base64
 import kotlinx.coroutines.CancellationException
 import kinuvo.server.providers.ModelProvider
@@ -117,7 +134,8 @@ val BUILT_IN_FEATURES = setOf(ServerFeature.Attachments, ServerFeature.Skills,
 /** Executes Agents with the repositories and resources supplied by the Server installation. */
 open class HarnessRuntime(
     private val dependencies: RuntimeDependencies,
-    private val modelFactory: ((AgentConfig) -> AgentModel)? = null,
+    /** Builds the built-in harness for this runtime, with the model sources a host registered with it. */
+    nativeSessions: (NativeHarnessHost) -> NativeHarness,
     val platform: Platform = currentPlatform,
     val memoryCap: Int = 4000,
     val userCap: Int = 4000,
@@ -126,9 +144,10 @@ open class HarnessRuntime(
     private val platformDescription: String = platform.displayName,
     /** How long an unattended Routine run waits for an Approval before skipping the call. */
     private val routineApprovalWait: Duration = 30.minutes,
-    /** Builds the built-in harness's factory, e.g. to observe what it is asked to run. */
-    nativeSessions: (NativeHarnessHost) -> ExecutionFactory = ::NativeExecutionFactory,
+    /** The harness builds models without a registered provider, e.g. scripted ones in tests, so no provider is asked whether it is ready. */
+    private val unmanagedModels: Boolean = false,
 ) : ServerSettings by dependencies.settings, NativeHarnessHost {
+    var subAgents: SubAgents? = null
     val log = SessionLog(dependencies.store, dependencies.clock)
     val store: Store = log
     val docs = dependencies.docs
@@ -153,43 +172,43 @@ open class HarnessRuntime(
     val devices = DeviceTools(log, { questions }, { timeZone })
     val computers = Computers(log) { questions }
     private val plugins = (listOf(KnowledgePlugin(knowledge), TasksPlugin(tasks), devices, computers) + external).also { it.checkPluginInstances() }
-    private val reflection = Reflection(knowledge, docs, skills, { trustRules.effective(it.id).deny }, tracing = dependencies.tracing) { Clock.System.todayIn(timeZone) }
+    private val reflection = Reflection(knowledge, docs, skills, { trustRules.effective(it.id).deny }) { Clock.System.todayIn(timeZone) }
     private val providers get() = dependencies.modelProviders.associateBy { it.id }
     suspend fun modelCatalog(refresh: Boolean = false) = dependencies.modelCatalog(refresh)
     val modelProviders get() = dependencies.modelProviders
-    val customEndpoints get() = dependencies.plugins.firstNotNullOfOrNull { it.customEndpoints } ?: error("Custom providers are unavailable on this Server")
+    context(_: Raise<ProviderError>)
+    fun customEndpoints() = dependencies.plugins.firstNotNullOfOrNull { it.customEndpoints } ?: raise(ProviderError.NoCustomEndpoints)
     fun requireModelProvider(id: String) { require(providerId(id) in providers) { "No model provider '$id'" } }
     /** A custom provider's bare ID, as agent.yaml named it before custom IDs were prefixed, still finds it. */
     fun providerId(id: String) = if (id !in providers && CUSTOM_PROVIDERS + id in providers) CUSTOM_PROVIDERS + id else id
     val usage: StateFlow<Usage?> = dependencies.usage
-    private val modelFactoryOverride = modelFactory != null
-    private fun model(e: Effective): AgentModel = modelFactory?.invoke(e.agent.config)
-        ?: (e.provider ?: error("No model provider '${e.agent.config.provider}'")).model(e.agent.config, e.info)
+    private fun selection(e: Effective) = ModelSelection(e.agent.config, e.info)
 
     /** Whether conversations with [agent] are reflected on afterwards. */
     fun reflects(agent: Agent) = ServerFeature.Knowledge in features && agent.config.tools.any { it in setOf(ToolNames.KNOWLEDGE, ToolNames.MEMORY, ToolNames.SKILLS) } && reflectionEnabled
 
     /** The built-in harness, run with this runtime's tools, instructions and models. */
-    val native: ExecutionFactory = nativeSessions(this)
+    val native: NativeHarness = nativeSessions(this)
 
-    override suspend fun run(agentId: String, sessionId: String, input: ExecutionInput): AgentRun {
-        val agent = store.agents().firstOrNull { it.id == agentId } ?: error("No agent '$agentId'")
+    override suspend fun run(agentId: AgentId, sessionId: SessionId, input: ExecutionInput): NativeRun {
+        val agent = store.agents().firstOrNull { it.id == agentId } ?: throw ServerException(AgentError.NotFound(agentId))
         return when (val kind = input.kind) {
-            is RunKind.Chat -> runner(agent, sessionId, taskId = kind.taskId, catalogs = kind.catalogs ?: uiCatalogs.forRun(), reports = kind.reports)
-            is RunKind.Routine -> runner(agent, sessionId, routine = kind.turn)
+            is RunKind.Chat -> compose(agent, sessionId, taskId = kind.taskId, catalogs = kind.catalogs ?: uiCatalogs.forRun(), reports = kind.reports)
+            is RunKind.Routine -> compose(agent, sessionId, routine = kind.turn)
             is RunKind.Reflection -> error("A Reflection has no chat run")
         }
     }
 
     /** [agent] as a Session's Reflection reads it: with the Session's own settings. */
-    private suspend fun reflected(agent: Agent, sessionId: String): Effective {
+    private suspend fun reflected(agent: Agent, sessionId: SessionId): Effective {
         val resolved = try { agent.with(store.session(agent.id, sessionId).settings) }
         catch (e: CancellationException) { throw e } catch (_: Exception) { agent }
         return effective(resolved, null)
     }
 
-    override suspend fun reflection(agentId: String, sessionId: String): ReflectionModel {
-        val chat = reflected(store.agents().firstOrNull { it.id == agentId } ?: error("No agent '$agentId'"), sessionId)
+    override suspend fun reflection(agentId: AgentId, sessionId: SessionId): NativeReflection {
+        val chat = reflected(store.agents().firstOrNull { it.id == agentId } ?: throw ServerException(AgentError.NotFound(agentId)), sessionId)
+        val own = NativeReflection(chat.agent, selection(chat), dependencies.traces)
         val chosen = try {
             val selected = reflectionModel
             val provider = providers[providerId(selected.provider ?: chat.agent.config.provider)]
@@ -198,15 +217,14 @@ open class HarnessRuntime(
             val info = catalog.firstOrNull { it.id == id && it.tools != false && it.state.actionable }
             if (provider != null && info != null && provider.availability(info.id).actionable) {
                 val reflected = chat.agent.copy(config = chat.agent.config.copy(provider = provider.id, model = info.id))
-                reflected to model(Effective(reflected, info, provider, chat.profile, chat.memoryCap, chat.userCap))
+                NativeReflection(reflected, selection(Effective(reflected, info, provider, chat.profile, chat.memoryCap, chat.userCap)), dependencies.traces, fallback = own)
             } else null
         } catch (e: CancellationException) { throw e } catch (_: Exception) { null }
-        val (agent, model) = chosen ?: (chat.agent to model(chat))
-        return ReflectionModel(agent, model, dependencies.tracing)
+        return chosen ?: own
     }
 
     /** Saves what's worth keeping from [entries] of a Session. */
-    suspend fun reflect(agent: Agent, sessionId: String, entries: List<SessionEntry>, review: ReflectionRevision? = null): ReflectionResult {
+    suspend fun reflect(agent: Agent, sessionId: SessionId, entries: List<SessionEntry>, review: ReflectionRevision? = null): ReflectionResult {
         val turn = reflection.turn(reflected(agent, sessionId).agent, sessionId, entries, reflectionPrompt, review)
         val state = ExecutionState(sessionId)
         val session = native.open(BUILT_IN_HARNESS, builtInRegistration(agent), state, ExecutionBroker(state), CoroutineScope(currentCoroutineContext()))
@@ -220,7 +238,8 @@ open class HarnessRuntime(
     }
 
     /** Replaces [sessionId]'s own settings; its next run uses them. */
-    suspend fun configure(agent: Agent, sessionId: String, settings: SessionSettings): SessionInfo {
+    suspend fun configure(agent: Agent, sessionId: SessionId, settings: SessionSettings): SessionInfo {
+        if (store.session(agent.id, sessionId).hidden) require(settings == store.session(agent.id, sessionId).settings) { "Hidden Session settings are pinned" }
         val s = settings.copy(model = settings.model?.trim()?.ifEmpty { null }, reasoning = settings.reasoning?.trim()?.ifEmpty { null },
             approvals = settings.approvals?.trim()?.ifEmpty { null }, provider = settings.provider?.trim()?.ifEmpty { null }?.let(::providerId))
         s.provider?.let { requireModelProvider(it); require(s.model != null) { "Choose a model with its provider" } }
@@ -230,9 +249,9 @@ open class HarnessRuntime(
     }
 
     /** Renames [sessionId] (blank: back to its first message) or marks it a favorite. */
-    suspend fun update(agent: Agent, sessionId: String, title: String?, favorite: Boolean?): SessionInfo {
+    suspend fun update(agent: Agent, sessionId: SessionId, title: String?, favorite: Boolean?): SessionInfo {
         val before = store.entries(agent.id, sessionId).filterIsInstance<SessionEntry.Details>().lastOrNull() ?: SessionEntry.Details()
-        val details = SessionEntry.Details(
+        val details = before.copy(
             title = if (title == null) before.title else title.trim().take(MAX_SESSION_TITLE).ifEmpty { null },
             favorite = favorite ?: before.favorite,
         )
@@ -249,13 +268,25 @@ open class HarnessRuntime(
     val questions = Broker<Map<String, List<String>>?>()
     val uiCatalogs = SurfaceCatalogs()
 
+    /** Answers a Server tool's interaction, including the neutral form used by external harness clients. */
+    fun respondToTool(pending: PendingInteraction, answer: InteractionAnswer): Boolean = when {
+        pending is PendingInteraction.Approval && answer is InteractionAnswer.Approval -> approvals.respond(pending.id, answer.decision)
+        pending is PendingInteraction.Approval && answer is InteractionAnswer.Harness -> {
+            val option = (answer.answer as? JsonObject)?.get("optionId")?.jsonPrimitive?.content
+            require(option == null || pending.forHarness().options.any { it.id == option })
+            approvals.respond(pending.id, approvalDecision(option))
+        }
+        pending is PendingInteraction.Questions && answer is InteractionAnswer.Questions -> questions.respond(pending.id, answer.answers)
+        else -> false
+    }
+
     /**
      * The Agent as a Session runs it: its settings applied, tool groups this Server lacks dropped, and compaction and
      * Memory limits fitted to the model's context window, and its [profile] resolved once. Capabilities, instructions and runs all start from this.
      */
     private class Effective(val agent: Agent, val info: ModelInfo?, val provider: ModelProvider?, val profile: ModelProfile, val memoryCap: Int, val userCap: Int)
 
-    private suspend fun effective(agent: Agent, sessionId: String?, settings: SessionSettings? = null): Effective {
+    private suspend fun effective(agent: Agent, sessionId: SessionId?, settings: SessionSettings? = null): Effective {
         val configured = supported(agent.with(settings ?: sessionId?.let { store.session(agent.id, it).settings } ?: SessionSettings()))
             .let { it.copy(config = it.config.copy(provider = providerId(it.config.provider))) }
         val info = modelCatalog().providers.firstOrNull { it.id == configured.config.provider }?.models?.firstOrNull { it.id == configured.config.model }
@@ -272,21 +303,22 @@ open class HarnessRuntime(
     private fun usable(e: Effective, tools: List<Tool>, scope: ToolScope = ToolScope.All): Set<String> {
         if (e.profile.tier == ModelTier.NoTools || e.info?.tools == false) return emptySet()
         val listed = tools.filter { t -> e.info?.toolIds?.let { t.identity?.key in it } != false }
-        return e.profile.tools.select(listed, scope) { e.provider?.accepts(e.agent.config.model, it.descriptor.toDescriptor()) != false }.map { it.descriptor.name }.toSet()
+        return e.profile.tools.select(listed, scope) { e.provider?.accepts(e.agent.config.model, it.descriptor) != false }.map { it.descriptor.name }.toSet()
     }
 
     /** [tools] can all be called; the model is sent only [advertised], with catalogued tools behind the catalog's. */
     private class PreparedRun(val effective: Effective, val tools: List<Tool>, val advertised: List<Tool>, val catalog: List<ResolvedTool>, val warnings: List<String>, val chat: CapabilityState)
 
-    private suspend fun prepare(agent: Agent, sessionId: String?, settings: SessionSettings? = null,
-        routine: RoutineTurn? = null, taskId: String? = null, activate: Boolean = false, catalogs: List<UiCatalog> = uiCatalogs.forRun(), scope: ToolScope = ToolScope.All): PreparedRun {
+    private suspend fun prepare(agent: Agent, sessionId: SessionId?, settings: SessionSettings? = null,
+        routine: RoutineTurn? = null, taskId: String? = null, activate: Boolean = false, catalogs: List<UiCatalog> = uiCatalogs.forRun(), scope: ToolScope = ToolScope.All, requireModel: Boolean = true): PreparedRun {
+        val privateSession = sessionId?.let { store.session(agent.id, it).hidden } == true
         val e = effective(agent, sessionId, settings)
-        val chat = if (modelFactoryOverride) CapabilityState() else e.provider?.availability(e.agent.config.model)
+        val chat = if (unmanagedModels) CapabilityState() else e.provider?.availability(e.agent.config.model)
             ?: CapabilityState.unsupported("No model provider '${e.agent.config.provider}'; this model provider is not installed")
-        if (activate) chat.requireReady()
+        if (activate && requireModel) chat.requireReady()
         val run = RunContext(e.agent, sessionId, routine?.routine, taskId)
-        val contributed = plugins.map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
-        val own = PluginTools(toolsFor(e, sessionId, routine, catalogs)).ownedBy(PluginInstanceId("kinuvo.core")).tools
+        val contributed = (if (privateSession) emptyList() else plugins).map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
+        val own = PluginTools(if (privateSession) subAgents?.tools(agent.id, requireNotNull(sessionId)).orEmpty() + listOf(AskUserTool()) else toolsFor(e, sessionId, routine, catalogs)).ownedBy(PluginInstanceId("kinuvo.core")).tools
         val aliased = own + contributed.flatMap { it.tools }
         val all = aliased.withModelNames().also { it.indexedTools() }
         val renamed = aliased.zip(all).filter { (a, b) -> a !== b }.associate { (a, b) -> a.descriptor.name to b.descriptor.name }
@@ -317,7 +349,7 @@ open class HarnessRuntime(
         return PreparedRun(e, usableTools + finders, usableTools - hidden.toSet() + finders, reported, contributed.flatMap { it.warnings }, chat)
     }
 
-    suspend fun capabilities(agent: Agent, sessionId: String?, settings: SessionSettings?, server: ServerCapabilities, revision: Long = 0): SessionCapabilities {
+    suspend fun capabilities(agent: Agent, sessionId: SessionId?, settings: SessionSettings?, server: ServerCapabilities, revision: Long = 0): SessionCapabilities {
         val prepared = prepare(agent, sessionId, settings)
         val info = prepared.effective.info
         val chat = prepared.chat
@@ -344,9 +376,14 @@ open class HarnessRuntime(
      * Builds a runner with the Agent's current tools, starting what its plugins need on first use. [sessionId] is the
      * Session it runs in; [routine] is set for a Routine's run, which follows the Routine's approval mode.
      */
-    suspend fun runner(agent: Agent, sessionId: String? = null, routine: RoutineTurn? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
-        scope: ToolScope = ToolScope.All, reports: ToolReports? = null): AgentRun {
-        val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs, scope = scope)
+    suspend fun runner(agent: Agent, sessionId: SessionId? = null, routine: RoutineTurn? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
+        scope: ToolScope = ToolScope.All, reports: ToolReports? = null): AgentRunner =
+        native.runner(compose(agent, sessionId, routine, taskId, catalogs, scope, reports))
+
+    suspend fun compose(agent: Agent, sessionId: SessionId? = null, routine: RoutineTurn? = null, taskId: String? = null, catalogs: List<UiCatalog> = uiCatalogs.forRun(),
+        scope: ToolScope = ToolScope.All, reports: ToolReports? = null, requireModel: Boolean = true): NativeRun {
+        if (sessionId != null && store.session(agent.id, sessionId).hidden) requireOnDevice(agent, sessionId)
+        val prepared = prepare(agent, sessionId, routine = routine, taskId = taskId, activate = true, catalogs = catalogs, scope = scope, requireModel = requireModel)
         val e = prepared.effective
         val agent = e.agent
         val tools = prepared.tools.map(secrets::redacting)
@@ -356,7 +393,6 @@ open class HarnessRuntime(
         val context = if (e.profile.prompt != PromptStyle.Full) basicContextFor(agent, docs, advertised, today, identity = e.profile.prompt == PromptStyle.BasicWithIdentity)
         else personalContextFor(agent, docs) + "\n" + capabilitiesFor(agent, advertised) + "\nServer platform: $platformDescription. Today is ${Clock.System.todayIn(timeZone)} ($timeZone).\n" + sections.joinToString("\n\n") { "## ${it.title}\n\n${it.body}" } +
             if (advertised.any { it.descriptor.name == ToolNames.ACTIVATE_SKILL }) "\n\nCurrent Skills:\n" + skillCatalogFor(skills.load(agent)) else ""
-        val model = model(e)
         val service = ToolService(
             tools = tools,
             advertisedTools = advertised.mapNotNull { it.descriptor.simplified(e.profile.tools.schema) },
@@ -373,15 +409,16 @@ open class HarnessRuntime(
             maxItems = e.profile.resultLimits.maxItems,
             callsPerTurn = e.profile.tools.callsPerTurn,
             reports = reports,
+            consume = { sessionId?.let { subAgents?.consume(it) } },
         )
-        return AgentRun(
+        return NativeRun(
             agent = agent,
             store = store,
-            model = model,
+            model = selection(e),
             tools = service,
             gate = service,
             contextTokens = e.info?.context,
-            tracing = dependencies.tracing,
+            traces = dependencies.traces,
             context = secrets.redact(context),
             warnings = prepared.warnings.map { secrets.redact(it) },
             routine = routine,
@@ -417,7 +454,7 @@ open class HarnessRuntime(
         }
         val policy = ApprovalPolicy(agent.with(store.session(agent.id, sessionId).settings), trustRules, session = sessionTrust.scope(sessionId))
         val service = ToolService(listOf(tool), approvals = Approvals(policy, approvals, wait = APP_APPROVAL_WAIT))
-        val call = SessionEntry.ToolCall("app-${request.app.callId}-${Uuid.random()}", tool.descriptor.name, request.arguments.toString(), tool.identity)
+        val call = SessionEntry.ToolCall(ToolCallId("app-${request.app.callId}-${Uuid.random()}"), tool.descriptor.name, request.arguments.toString(), tool.identity)
         val result = withAppApproval(agent, sessionId, request.name) { turn -> service.invoke(call, turn) }
         return result.appResult ?: buildJsonObject {
             put("content", buildJsonArray { add(buildJsonObject { put("type", "text"); put("text", result.output) }) })
@@ -426,9 +463,9 @@ open class HarnessRuntime(
     }
 
     /** Shows only the Approval a call needs, in its Session and one at a time: a Session shows a single pending Approval. */
-    private suspend fun <T> withAppApproval(agent: Agent, sessionId: String, name: String, call: suspend (ToolTurn) -> T): T {
+    private suspend fun <T> withAppApproval(agent: Agent, sessionId: SessionId, name: String, call: suspend (ToolTurn) -> T): T {
         val lock = appApprovalLock(sessionId)
-        var pending: String? = null
+        var pending: InteractionId? = null
         val turn = ToolTurn(emit = { event ->
             when (event) {
                 is AgentEvent.InteractionRequested -> {
@@ -462,15 +499,21 @@ open class HarnessRuntime(
 
     private val appApprovals = Mutex()
     private val appApprovalLocks = mutableMapOf<String, Mutex>()
-    private suspend fun appApprovalLock(sessionId: String) = appApprovals.withLock { appApprovalLocks.getOrPut(sessionId) { Mutex() } }
+    private suspend fun appApprovalLock(sessionId: SessionId) = appApprovals.withLock { appApprovalLocks.getOrPut(sessionId.value) { Mutex() } }
 
     /** Stops everything the plugins run, e.g. before the process exits. */
-    suspend fun close() { computers.close(); dependencies.resources.close() }
+    suspend fun close() { computers.close(); try { native.close() } finally { dependencies.resources.close() } }
+
+    suspend fun requireOnDevice(agent: Agent, sessionId: SessionId? = null) {
+        val e = effective(agent, sessionId)
+        if (!(unmanagedModels && e.info == null) && e.info?.location != ExecutionLocation.ServerHost)
+            throw ServerException(SubAgentError.Privacy(agent.name))
+    }
 
     /** Stops what the plugins run for the Agent, e.g. after its exec settings changed. */
     suspend fun release(agent: Agent) = dependencies.resources.release(agent.id)
 
-    private suspend fun toolsFor(e: Effective, sessionId: String?, routine: RoutineTurn?, catalogs: List<UiCatalog>): List<Tool> {
+    private suspend fun toolsFor(e: Effective, sessionId: SessionId?, routine: RoutineTurn?, catalogs: List<UiCatalog>): List<Tool> {
         val agent = e.agent
         val search = if (ToolNames.WEB_FETCH in agent.config.tools) webSearch() else null
         val available = modelCatalog().imageModels().filter { ref ->
@@ -487,10 +530,10 @@ open class HarnessRuntime(
                 } }
             }, attachments::bytes) else null
         val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() }?.let(::ShowUiTool)
-        return builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
+        return (sessionId?.let { subAgents?.tools(agent.id, it) }.orEmpty()) + builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
     }
 
-    private suspend fun builtInTools(e: Effective, sessionId: String?, routine: RoutineTurn?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {
+    private suspend fun builtInTools(e: Effective, sessionId: SessionId?, routine: RoutineTurn?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {
         when (it) {
             ToolNames.MEMORY -> MemoryTool(agent, docs, memoryCap = e.memoryCap, userCap = e.userCap)
             ToolNames.WEB_FETCH -> dependencies.webFetch(search)

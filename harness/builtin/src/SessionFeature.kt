@@ -1,5 +1,6 @@
 package kinuvo.harness.builtin
 
+import kinuvo.harness.modelText
 import kinuvo.harness.Agent
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.agent.entity.createStorageKey
@@ -12,13 +13,19 @@ import ai.koog.prompt.message.RequestMetaInfo
 import kinuvo.harness.SessionStorage
 import kinuvo.harness.builtin.tools.toDescriptor
 import kinuvo.harness.ToolProvider
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.RequestKind
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.usage.RequestKind
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.RunId
+import kinuvo.protocol.session.ToolCallId
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
+import kinuvo.harness.ModelProfile
+import kinuvo.harness.PromptStyle
+import kinuvo.harness.liveVoiceInstructions
 
 class SessionFeature private constructor() {
     class Config : FeatureConfig() {
@@ -50,8 +57,8 @@ class SessionFeature private constructor() {
 internal class RunSession(
     private val agent: Agent,
     private val store: SessionStorage,
-    private val sessionId: String,
-    private val runId: String,
+    private val sessionId: SessionId,
+    private val runId: RunId,
     private val model: AgentModel,
     provider: ToolProvider,
     private val kind: RequestKind,
@@ -76,7 +83,7 @@ internal class RunSession(
         append(SessionEntry.Measurement(it))
     }
     private var responseSaved = true
-    private val startedCalls = mutableSetOf<String>()
+    private val startedCalls = mutableSetOf<ToolCallId>()
     private var compressing = false
     private var before: Prompt? = null
     private var retained: List<Message> = emptyList()
@@ -132,7 +139,7 @@ internal class RunSession(
 
     suspend fun append(entry: SessionEntry) = withContext(NonCancellable) { store.append(agent.id, sessionId, entry) }
 
-    fun toolStarted(id: String) { startedCalls += id }
+    fun toolStarted(id: ToolCallId) { startedCalls += id }
 
     suspend fun closePending(reason: String, unstarted: String, notify: suspend (AgentEvent) -> Unit) = withContext(NonCancellable) {
         val all = store.entries(agent.id, sessionId)

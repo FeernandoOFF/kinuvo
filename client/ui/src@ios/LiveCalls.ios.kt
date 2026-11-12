@@ -6,6 +6,7 @@ import kinuvo.app.native.DestinationLifetime
 import kinuvo.app.native.StateObservation
 import org.koin.mp.KoinPlatform
 import kinuvo.ui.voice.AgentInks
+import kinuvo.protocol.agent.AgentId
 
 class NativeLiveCalls {
     private val lifetime = DestinationLifetime()
@@ -16,6 +17,6 @@ class NativeLiveCalls {
     fun openSession() = calls.openSession()
     fun end() = calls.end()
     /** The Agent's colour as 0xAARRGGBB, Kinuvo's purple until the app has shown its Agents. */
-    fun ink(agentId: String): Long = AgentInks.byId[agentId] ?: 0xFFA98BF0L
+    fun ink(agentId: String): Long = AgentInks.byId[AgentId(agentId)] ?: 0xFFA98BF0L
     fun close() = lifetime.close()
 }

@@ -1,5 +1,7 @@
 package kinuvo.ui.surface
 
+import kinuvo.protocol.session.ToolCallId
+import arrow.core.Either
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.runtime.*
@@ -29,7 +31,7 @@ import com.composeunstyled.theme.Theme
 import kinuvo.ui.design.*
 import kinuvo.app.session.ChatItem
 import kinuvo.app.surface.AppHost
-import kinuvo.protocol.McpAppResource
+import kinuvo.protocol.mcp.McpAppResource
 import kotlinx.serialization.json.*
 
 internal class HtmlBridge(val receive: (String) -> List<String>) {
@@ -37,9 +39,9 @@ internal class HtmlBridge(val receive: (String) -> List<String>) {
     fun receive(raw: String) { receive.invoke(raw).forEach { post(it) } }
 }
 
-internal val LocalHtmlSurfaces = staticCompositionLocalOf { mutableStateListOf<String>() }
+internal val LocalHtmlSurfaces = staticCompositionLocalOf { mutableStateListOf<ToolCallId>() }
 
-internal val LocalHtmlHeights = staticCompositionLocalOf<MutableMap<String, Int>> { mutableMapOf() }
+internal val LocalHtmlHeights = staticCompositionLocalOf<MutableMap<ToolCallId, Int>> { mutableMapOf() }
 
 @Composable
 internal expect fun HtmlWebView(document: String, bridge: HtmlBridge, modifier: Modifier)
@@ -59,13 +61,13 @@ internal fun HtmlSurface(call: ChatItem.ToolCall, send: (String) -> Unit, fallba
 @Composable
 internal fun McpAppSurface(
     call: ChatItem.ToolCall,
-    resource: suspend (String) -> McpAppResource,
-    callTool: suspend (String, String, JsonObject) -> JsonObject,
+    resource: suspend (ToolCallId) -> McpAppResource,
+    callTool: suspend (ToolCallId, String, JsonObject) -> JsonObject,
     send: (String) -> Unit,
     fallback: @Composable () -> Unit,
 ) {
-    val loaded by produceState<Result<McpAppResource>?>(null, call.callId) { value = runCatching { resource(call.callId) } }
-    val app = loaded?.getOrNull() ?: run { fallback(); return }
+    val loaded by produceState<McpAppResource?>(null, call.callId) { value = Either.catch { resource(call.callId) }.getOrNull() }
+    val app = loaded ?: run { fallback(); return }
     val input = remember(call.args) { runCatching { Json.parseToJsonElement(call.args).jsonObject }.getOrNull() } ?: JsonObject(emptyMap())
     val result = call.appResult ?: buildJsonObject {
         put("content", buildJsonArray { add(buildJsonObject { put("type", "text"); put("text", call.result.orEmpty()) }) })
@@ -77,7 +79,7 @@ internal fun McpAppSurface(
 
 @Composable
 private fun HtmlSurface(
-    id: String,
+    id: ToolCallId,
     html: String,
     title: String,
     caption: String,

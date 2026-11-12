@@ -1,6 +1,7 @@
 package kinuvo.plugins.executor
 
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
@@ -20,8 +21,8 @@ class ScriptTest {
     private fun run(code: String, limits: Limits = Limits(), tools: List<String> = listOf("echo", "fail"), log: MutableList<String> = mutableListOf()) = runBlocking {
         runScript(code, tools, limits) { name, args ->
             log += "$name $args"
-            if (name == "fail") SessionEntry.ToolResult("", name, "The user denied this call.", isError = true)
-            else SessionEntry.ToolResult("", name, args)
+            if (name == "fail") SessionEntry.ToolResult(ToolCallId(""), name, "The user denied this call.", isError = true)
+            else SessionEntry.ToolResult(ToolCallId(""), name, args)
         }
     }
 
@@ -110,7 +111,7 @@ class ScriptTest {
         val job = async {
             runScript("await tools.echo({}); while (true) {}", listOf("echo"), Limits(timeout = 30.seconds)) { name, _ ->
                 started.complete(Unit)
-                SessionEntry.ToolResult("", name, "ok")
+                SessionEntry.ToolResult(ToolCallId(""), name, "ok")
             }
         }
         withTimeout(30.seconds) { started.await() }
@@ -122,7 +123,7 @@ class ScriptTest {
     @Test fun toolWaitDoesNotConsumeExecutionBudget() = runBlocking {
         val result = runScript("return await tools.echo({})", listOf("echo"), Limits(timeout = 2.seconds)) { name, _ ->
             delay(2200)
-            SessionEntry.ToolResult("", name, "waited")
+            SessionEntry.ToolResult(ToolCallId(""), name, "waited")
         }
         assertEquals("waited", result.value, result.error)
     }

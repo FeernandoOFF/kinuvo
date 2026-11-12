@@ -5,6 +5,7 @@ import kinuvo.app.device.*
 
 import androidx.compose.runtime.Composable
 import kinuvo.protocol.*
+import kinuvo.protocol.device.*
 import kinuvo.app.computer.ComputerDriver
 
 internal class DesktopDeviceReader : DeviceReader {

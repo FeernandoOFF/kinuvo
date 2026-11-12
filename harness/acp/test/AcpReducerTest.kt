@@ -4,6 +4,8 @@ import java.util.Base64
 
 import kinuvo.harness.*
 import kinuvo.protocol.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import kotlin.test.*
@@ -20,7 +22,7 @@ class AcpReducerTest {
 
     @Test fun interleavingTypedToolsCommitBeforeCompletionAndNoEcho() = runBlocking {
         val sink = Recording()
-        val state = ExecutionState("s", generation = "g", sink = sink)
+        val state = ExecutionState(SessionId("s"), generation = "g", sink = sink)
         val reducer = AcpReducer(state)
         reducer.update(raw("""{"sessionUpdate":"state_update","state":"idle"}"""))
         assertTrue(sink.events.isEmpty())
@@ -36,7 +38,7 @@ class AcpReducerTest {
         val batch = sink.batches.single()
         assertEquals(listOf("assistant", "reasoning", "tool_call", "tool_result"), batch.map { it.identity()!!.type })
         assertEquals("one two", (batch.first() as SessionEntry.AssistantMessage).text)
-        assertEquals("g:1:t", (batch[2] as SessionEntry.ToolCall).id)
+        assertEquals("g:1:t", (batch[2] as SessionEntry.ToolCall).id.value)
         assertTrue(sink.order.indexOf("commit") < sink.order.indexOf("RunFinished"))
         assertTrue(state.live().entries.isEmpty())
         reducer.update(raw("""{"sessionUpdate":"agent_message","messageId":"m","content":[]}"""))
@@ -47,7 +49,7 @@ class AcpReducerTest {
     }
 
     @Test fun cancellationCommitsInterruptedDraftAndLossNeverFinishes() = runBlocking {
-        val sink = Recording(); val state = ExecutionState("s", sink = sink)
+        val sink = Recording(); val state = ExecutionState(SessionId("s"), sink = sink)
         val reducer = AcpReducer(state); val broker = ExecutionBroker(state)
         reducer.submitted()
         reducer.update(raw("""{"sessionUpdate":"agent_message_chunk","messageId":"m","content":{"type":"text","text":"draft"}}"""))
@@ -65,7 +67,7 @@ class AcpReducerTest {
     @Test fun unsupportedOrMismatchedMediaIsDroppedWithNotice() = runBlocking {
         var writes = 0
         val sink = Recording()
-        val reducer = AcpReducer(ExecutionState("s", sink = sink)) { data -> writes++; data.attachment }
+        val reducer = AcpReducer(ExecutionState(SessionId("s"), sink = sink)) { data -> writes++; data.attachment }
         reducer.submitted()
         for (mime in listOf("image/png", "application/octet-stream")) {
             reducer.update(raw("""{"sessionUpdate":"agent_message_chunk","messageId":"m","content":{"type":"image","mimeType":"$mime","data":"AA=="}}"""))
@@ -92,7 +94,7 @@ class AcpReducerTest {
     @Test fun mediaBudgetResetsAcrossRunsAndReplayDoesNotPersistAgain() = runBlocking {
         val sink = Recording()
         var writes = 0
-        val reducer = AcpReducer(ExecutionState("s", sink = sink)) { data -> writes++; data.attachment }
+        val reducer = AcpReducer(ExecutionState(SessionId("s"), sink = sink)) { data -> writes++; data.attachment }
         repeat(8) {
             reducer.submitted()
             repeat(MAX_ATTACHMENTS) { reducer.update(mediaUpdate(it)) }
@@ -107,7 +109,7 @@ class AcpReducerTest {
     @Test fun excessMediaIsDroppedAndLaterUpdatesAndRunsContinue() = runBlocking {
         val sink = Recording()
         var writes = 0
-        val reducer = AcpReducer(ExecutionState("s", sink = sink)) { data -> writes++; data.attachment }
+        val reducer = AcpReducer(ExecutionState(SessionId("s"), sink = sink)) { data -> writes++; data.attachment }
         reducer.submitted()
         repeat(MAX_ATTACHMENTS + 2) { reducer.update(mediaUpdate(it)) }
         reducer.update(raw("""{"sessionUpdate":"agent_message_chunk","messageId":"m","content":{"type":"text","text":"Still running"}}"""))
@@ -127,7 +129,7 @@ class AcpReducerTest {
     @Test fun totalMediaBytesAreBoundedAndDuplicateToolUpdatesReuseStorage() = runBlocking {
         val sink = Recording()
         var writes = 0
-        val reducer = AcpReducer(ExecutionState("s", sink = sink)) { data -> writes++; data.attachment }
+        val reducer = AcpReducer(ExecutionState(SessionId("s"), sink = sink)) { data -> writes++; data.attachment }
         reducer.submitted()
         repeat(3) { index ->
             val update = mediaUpdate(index, ByteArray(MAX_ATTACHMENT_TOTAL_BYTES / 2) { index.toByte() })
@@ -143,7 +145,7 @@ class AcpReducerTest {
     }
 
     @Test fun messageMediaChunksRetainAllLiveAndCommittedReferences() = runBlocking {
-        val sink = Recording(); val state = ExecutionState("s", sink = sink)
+        val sink = Recording(); val state = ExecutionState(SessionId("s"), sink = sink)
         val saved = mutableListOf<Attachment>()
         val reducer = AcpReducer(state) { data -> data.attachment.also { saved += it } }
         val images = listOf(
@@ -163,7 +165,7 @@ class AcpReducerTest {
     }
 
     @Test fun toolMediaUsesRuntimeStorageAndKeepsLocalReferences() = runBlocking {
-        val sink = Recording(); val state = ExecutionState("s", sink = sink)
+        val sink = Recording(); val state = ExecutionState(SessionId("s"), sink = sink)
         val saved = mutableListOf<AttachmentData>()
         val reducer = AcpReducer(state) { data -> saved += data; data.attachment.copy(id = "stored") }
         reducer.submitted()

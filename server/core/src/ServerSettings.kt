@@ -2,7 +2,12 @@ package kinuvo.server
 
 import kinuvo.server.plugin.Notifier
 import kinuvo.server.plugin.WebSearch
-import kinuvo.protocol.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.settings.*
 import kotlinx.datetime.TimeZone
 import kinuvo.server.store.ReflectionConfig
 

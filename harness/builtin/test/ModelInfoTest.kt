@@ -2,7 +2,7 @@ package kinuvo.harness.builtin
 
 import ai.koog.prompt.llm.LLMCapability
 import ai.koog.prompt.llm.LLMProvider
-import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.model.ModelInfo
 import kotlin.test.*
 
 class ModelInfoTest {

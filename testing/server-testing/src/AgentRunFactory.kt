@@ -6,16 +6,17 @@ import kinuvo.harness.builtin.AgentTracing
 import kinuvo.server.Approvals
 import kinuvo.harness.Agent
 import kinuvo.server.Broker
-import kinuvo.harness.builtin.ModelProfile
 import kinuvo.server.routines.RoutineRun
 import kinuvo.server.store.Store
 import kinuvo.server.plugin.Tool
 import kinuvo.harness.ToolReports
 import kinuvo.harness.ToolSpec
 import kinuvo.server.tools.ToolService
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.RequestKind
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.usage.RequestKind
+import kinuvo.protocol.session.SessionId
+import kinuvo.harness.ModelProfile
 
 /** An [AgentRun] over a [ToolService] built from [tools] and the run's policy, for tests that exercise the whole path. */
 fun AgentRun(
@@ -32,7 +33,7 @@ fun AgentRun(
     requestKind: RequestKind = RequestKind.Chat,
     attach: ((String, ByteArray) -> Attachment)? = null,
     tracing: AgentTracing? = null,
-    traceSessionId: String? = null,
+    traceSessionId: SessionId? = null,
     routine: RoutineRun? = null,
     reports: ToolReports? = null,
     profile: ModelProfile = ModelProfile.of(ModelTier.Frontier),

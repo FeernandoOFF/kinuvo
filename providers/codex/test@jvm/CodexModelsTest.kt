@@ -6,7 +6,7 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
 import kotlin.test.*
-import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.model.ModelInfo
 
 class CodexModelsTest {
     @Test

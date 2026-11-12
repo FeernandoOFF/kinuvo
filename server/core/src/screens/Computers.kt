@@ -1,5 +1,6 @@
 package kinuvo.server.screens
 
+import kinuvo.harness.SCREENSHOT_PREFIX
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
@@ -19,10 +20,18 @@ import kinuvo.server.plugin.ToolRun
 import kinuvo.server.plugin.requireString
 import kinuvo.server.plugin.string
 import kinuvo.server.*
-import kinuvo.harness.builtin.*
-import kinuvo.harness.builtin.tools.*
 import kinuvo.server.tools.*
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.screen.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.tool.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.channels.Channel
@@ -506,7 +515,7 @@ class Computers(
             val pending = questions().register()
             control(computer.id) { it.copy(request = reason) }
             try {
-                log.publish(context.agent.id, sessionId, AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, callId, "Take over ${computer.name}: $reason. Open Computers to watch and act, then hand it back.",
+                log.publish(context.agent.id, sessionId, AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, ToolCallId(callId), "Take over ${computer.name}: $reason. Open Computers to watch and act, then hand it back.",
                     listOf(Question("note", "Note for the Agent (optional)", placeholder = "Done, or what happened")), ScreenRef("computer", computer.id))))
                 val outcome = coroutineScope {
                     val answer = async { pending.await() }
@@ -543,7 +552,7 @@ class Computers(
         val before = gate.state.value.generation
         val pending = questions().register()
         try {
-            log.publish(context.agent.id, sessionId, AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, callId,
+            log.publish(context.agent.id, sessionId, AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, ToolCallId(callId),
                 "Take over Browser: ${reason.take(300)}", listOf(Question("note", "Note for the Agent (optional)")), ScreenRef("browser", tab, owner))))
             return coroutineScope {
                 val answer = async { pending.await() }

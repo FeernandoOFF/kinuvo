@@ -8,13 +8,13 @@ import kinuvo.server.plugin.ProviderAdmin
 import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.server.plugin.ProviderApiKey
 import kinuvo.server.plugin.ProviderAuth
-import kinuvo.protocol.CustomEndpointParams
-import kinuvo.protocol.DeviceCode
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.PluginDefinition
-import kinuvo.protocol.ProviderAccount
-import kinuvo.protocol.ProviderApiKeyStatus
-import kinuvo.protocol.ProviderRef
+import kinuvo.protocol.model.CustomEndpointParams
+import kinuvo.protocol.model.DeviceCode
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.plugin.PluginDefinition
+import kinuvo.protocol.model.ProviderAccount
+import kinuvo.protocol.model.ProviderApiKeyStatus
+import kinuvo.protocol.model.ProviderRef
 import java.util.concurrent.CopyOnWriteArrayList
 
 /**

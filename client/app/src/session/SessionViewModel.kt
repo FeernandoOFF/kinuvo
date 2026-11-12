@@ -1,6 +1,6 @@
 package kinuvo.app.session
 
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.surface.SurfaceAction
 
 import kinuvo.app.connection.*
 import kinuvo.app.agent.*
@@ -12,6 +12,21 @@ import kinuvo.client.ConnectionState
 import kinuvo.client.DisconnectedException
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.mcp.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.reflection.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.skill.*
+import kinuvo.protocol.surface.*
+import kinuvo.protocol.usage.*
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.app.session.CompletionSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,7 +57,7 @@ sealed interface ChatItem {
     /** [callId] is the model's tool-call ID; [approval] or [questions] is set while the call waits on the user. */
     data class ToolCall(
         override val id: String,
-        val callId: String,
+        val callId: ToolCallId,
         val name: String,
         val args: String,
         val result: String? = null,
@@ -66,7 +81,7 @@ sealed interface ChatItem {
     data class Error(override val id: String, val message: String) : ChatItem
     data class Reflection(override val id: String, val result: ReflectionResult? = null, val reviews: Map<String, Boolean> = emptyMap(), val revised: Set<String> = emptySet()) : ChatItem
     data class Compaction(override val id: String, val summary: String) : ChatItem
-    data class ToolReport(override val id: String, val tool: String, val callId: String?, val content: String) : ChatItem
+    data class ToolReport(override val id: String, val tool: String, val callId: ToolCallId?, val content: String) : ChatItem
 
     data class Activation(override val id: String, val name: String, val content: String) : ChatItem
 }
@@ -127,16 +142,20 @@ fun List<ChatItem>.requestMetrics(): List<RequestMetrics> = flatMap {
 
 private fun ChatItem.isStep() = when (this) {
     is ChatItem.Reasoning -> true
-    is ChatItem.ToolCall -> if (name == "generate_image") waiting || isError
+    // Sub-agent calls stay on their own row, so the children they run are never folded away.
+    is ChatItem.ToolCall -> if (name in SUB_AGENT_TOOLS) false
+        else if (name == "generate_image") waiting || isError
         else !waiting && !((name in setOf("ask_user", "artifact", "show_ui", "show_html") || app != null) && result != null && !isError)
     else -> false
 }
+
+val SUB_AGENT_TOOLS = setOf(ToolNames.AGENTS_SPAWN, ToolNames.AGENTS_WAIT, ToolNames.AGENTS_SEND)
 
 /** [loaded] is false until the Session's first catch-up, so the empty state doesn't flash. */
 data class ChatState(
     val agent: AgentInfo? = null,
     val sessions: List<SessionInfo> = emptyList(),
-    val selected: String? = null,
+    val selected: SessionId? = null,
     /** The selected Session, for when it isn't in [sessions]. */
     val info: SessionInfo? = null,
     val items: List<ChatItem> = emptyList(),
@@ -160,7 +179,7 @@ data class ChatState(
     /** The attachment open full screen. */
     val preview: AttachmentPreview? = null,
     /** Half-filled `ask_user` forms, as in [SessionState.answers]. */
-    val answers: Map<String, Map<String, List<String>>> = emptyMap(),
+    val answers: Map<InteractionId, Map<String, List<String>>> = emptyMap(),
     /** What the Session waits on: Approvals and forms for [respond][SessionViewModel.respond] and [answer][SessionViewModel.answer], or an external Agent's harness requests. */
     val pending: List<PendingInteraction> = emptyList(),
     /** Names an external Agent's harness. */
@@ -170,6 +189,9 @@ data class ChatState(
     /** Whether the harness can resume saved Sessions; null when this Device can't tell. */
     val resume: Boolean? = null,
     val resuming: Boolean = false,
+    /** This Session's Sub-agents by child Session id, and the child each pending interaction came from. */
+    val children: Map<SessionId, SubAgentState> = emptyMap(),
+    val interactionChildren: Map<InteractionId, SessionId> = emptyMap(),
 ) {
     /** An external Agent's harness and readiness, which replace Kinuvo's model and Risk tolerance settings. */
     val external get() = agent?.external == true
@@ -177,9 +199,9 @@ data class ChatState(
     val ended get() = if (external && selected != null && capabilities?.chat?.reasonCode != "archived") SessionEnd.of(phase, capabilities?.chat, resume) else null
     val resumeOnSend get() = external && resumeOnSend(phase, capabilities)
     /** Everything the open Session waits on from the user, oldest first. */
-    val requests get() = pendingRequests(items, pending, external)
+    val requests get() = pendingRequests(items, pending)
     /** The requests of an external Agent's harness, shown above its composer. */
-    val prompts get() = if (external) pending else emptyList()
+    val prompts get() = if (external) requests.filterIsInstance<PendingRequest.External>().map { it.prompt } else emptyList()
     val canStop get() = !external || capabilities?.execution?.cancel == true
     val skills get() = capabilities?.server.supports(ServerFeature.Skills)
     /** Why nothing can be sent, or null when chat works. */
@@ -222,7 +244,7 @@ data class SessionState(
     val unsent: String? = null,
     val capabilities: SessionCapabilities? = null,
     /** Half-filled `ask_user` forms by questions ID, then question ID, so they outlive the screen's layout. */
-    val answers: Map<String, Map<String, List<String>>> = emptyMap(),
+    val answers: Map<InteractionId, Map<String, List<String>>> = emptyMap(),
     /** A shortcut asked for voice chat in this new Session, until it starts. */
     val voiceRequested: Boolean = false,
     /** An external Agent's Session as its harness runs it, with what it waits on. */
@@ -337,7 +359,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         if (info.id == route.sessionId && !ordered.isLocked) state.update { it.copy(info = info, settings = info.settings) }
     }
 
-    private suspend fun loadCapabilities(agentId: String, sessionId: String?, settings: SessionSettings) {
+    private suspend fun loadCapabilities(agentId: AgentId, sessionId: SessionId?, settings: SessionSettings) {
         val defaults = state.value.defaults
         val capabilities = catching { client.call(Api.Capabilities, CapabilitiesParams(agentId, sessionId, settings)) }.getOrNull() ?: return
         state.update { if (it.route.agentId == agentId && it.route.sessionId == sessionId && it.settings == settings && it.defaults == defaults) it.copy(capabilities = capabilities) else it }
@@ -358,7 +380,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         viewModelScope.launch { attempt { ordered.withLock { apply(agent, sessionId, settings) } } }
     }
 
-    private suspend fun apply(agentId: String, sessionId: String, settings: SessionSettings) {
+    private suspend fun apply(agentId: AgentId, sessionId: SessionId, settings: SessionSettings) {
         val info = client.call(Api.ConfigureSession, ConfigureSessionParams(agentId, sessionId, settings))
         // A newer pick may be waiting; it wins.
         state.update { if (it.settings == settings) it.copy(settings = info.settings) else it }
@@ -378,7 +400,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         } }
     }
 
-    private suspend fun sessionExists(agentId: String, sessionId: String): Boolean =
+    private suspend fun sessionExists(agentId: AgentId, sessionId: SessionId): Boolean =
         catching { client.call(Api.Session, SessionParams(agentId, sessionId)) }
             .onSuccess { info -> state.update { it.copy(info = info, settings = info.settings) } }.isSuccess
 
@@ -412,12 +434,12 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     }
 
     /** The open Session's Agent and ID, starting the Session if it's new; null with no Agent. */
-    suspend fun liveSession(): Pair<String, String>? {
+    suspend fun liveSession(): Pair<AgentId, SessionId>? {
         val agent = route.agentId ?: return null
         return repo.connection.run { ordered.withLock { agent to sessionFor(agent) } }
     }
 
-    private suspend fun sessionFor(agent: String): String = route.sessionId ?: repo.createSession(agent).let { info ->
+    private suspend fun sessionFor(agent: AgentId): SessionId = route.sessionId ?: repo.createSession(agent).let { info ->
         val id = info.id
         // Set first, so a pick made while these settings save queues up behind this send instead of being dropped.
         state.update { it.copy(route = it.route.copy(sessionId = id), info = it.info?.takeIf { i -> i.id == id } ?: info) }
@@ -433,7 +455,7 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         if (allow) { consent?.grant(request.provider); send(request.text, request.voice, request.action) }
     }
 
-    private suspend fun sendNow(agent: String, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean, submissionId: String, action: SurfaceAction?) {
+    private suspend fun sendNow(agent: AgentId, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean, submissionId: String, action: SurfaceAction?) {
         val sessionId = sessionFor(agent)
         if (state.value.resumeOnSend) {
             state.update { it.copy(resuming = true) }
@@ -518,19 +540,19 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
     }
 
     /** The HTML of the MCP App that tool call [callId] shows. */
-    suspend fun appResource(callId: String): McpAppResource {
+    suspend fun appResource(callId: ToolCallId): McpAppResource {
         val ref = checkNotNull(state.value.items.filterIsInstance<ChatItem.ToolCall>().last { it.callId == callId }.app)
         return repo.connection.mcpApps.resource(ref, appRequest(callId))
     }
 
     /** Runs [name] on the MCP server of the app that [callId] shows, for that app. */
-    suspend fun appCallTool(callId: String, name: String, arguments: JsonObject): JsonObject =
+    suspend fun appCallTool(callId: ToolCallId, name: String, arguments: JsonObject): JsonObject =
         repo.connection.mcpApps.callTool(appRequest(callId), name, arguments)
 
-    private fun appRequest(callId: String) = McpAppRequest(checkNotNull(route.agentId), checkNotNull(route.sessionId), callId)
+    private fun appRequest(callId: ToolCallId) = McpAppRequest(checkNotNull(route.agentId), checkNotNull(route.sessionId), callId)
 
     /** Keeps [value] as the answer to [questionId] in the `ask_user` form [questionsId] until it's sent. */
-    fun editAnswer(questionsId: String, questionId: String, value: List<String>) =
+    fun editAnswer(questionsId: InteractionId, questionId: String, value: List<String>) =
         state.update { it.copy(answers = it.answers + (questionsId to it.answers[questionsId].orEmpty() + (questionId to value))) }
 
     /** Sends the open `ask_user` form's [answers]; null skips it. */

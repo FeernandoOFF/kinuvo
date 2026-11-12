@@ -10,9 +10,10 @@ import kinuvo.server.plugin.ToolKind
 import kinuvo.server.plugin.string
 import kinuvo.server.plugin.policyKey
 import kinuvo.server.plugin.withToolKey
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.Risk
-import kinuvo.protocol.TrustRules
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.approval.InteractionId
+import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.approval.TrustRules
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -21,7 +22,9 @@ import kotlin.concurrent.atomics.AtomicReference
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.time.Duration
 import kotlin.uuid.Uuid
-import kinuvo.protocol.DenyRules
+import kinuvo.protocol.approval.DenyRules
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 /** Which risk levels run without an Approval: strict asks for everything, full skips risk-based Approvals. Deny rules apply to all. */
 enum class Tolerance(val id: String, val autoUpTo: Risk?) {
@@ -39,15 +42,15 @@ enum class Tolerance(val id: String, val autoUpTo: Risk?) {
 
 /** Each Agent's Trust rules: what "Always allow" saved; plus the Server's, which every Agent follows. */
 interface TrustRulesRepository {
-    suspend fun get(agentId: String): TrustRules
+    suspend fun get(agentId: AgentId): TrustRules
     /** Read-modify-write in one step. */
-    suspend fun update(agentId: String, transform: (TrustRules) -> TrustRules)
+    suspend fun update(agentId: AgentId, transform: (TrustRules) -> TrustRules)
     suspend fun server(): TrustRules = TrustRules()
     suspend fun updateServer(transform: (TrustRules) -> TrustRules): Unit = error("Server rules can't be changed here")
 }
 
 /** [agentId]'s rules with the Server's added; Deny rules are checked first, so a Server block wins over any Trust rule. */
-suspend fun TrustRulesRepository.effective(agentId: String): TrustRules {
+suspend fun TrustRulesRepository.effective(agentId: AgentId): TrustRules {
     val (a, s) = get(agentId) to server()
     fun join(x: List<String>, y: List<String>) = (x + y).distinct()
     return TrustRules(join(a.trusted, s.trusted), join(a.shell, s.shell), DenyRules(join(a.deny.tools, s.deny.tools), join(a.deny.shell, s.deny.shell)))
@@ -124,11 +127,11 @@ private fun TrustRules.trusting(tool: Tool, keys: List<String>) =
 /** Trust rules from "Allow for this Session", per Session; kept in memory, so they end when the Server restarts. */
 @OptIn(ExperimentalAtomicApi::class)
 class SessionTrust {
-    private val rules = AtomicReference(emptyMap<String, TrustRules>())
+    private val rules = AtomicReference(emptyMap<SessionId, TrustRules>())
 
-    fun scope(sessionId: String) = Scope(sessionId)
+    fun scope(sessionId: SessionId) = Scope(sessionId)
 
-    inner class Scope internal constructor(private val sessionId: String) {
+    inner class Scope internal constructor(private val sessionId: SessionId) {
         fun get() = rules.load()[sessionId] ?: TrustRules()
         fun update(transform: (TrustRules) -> TrustRules) = rules.update { it + (sessionId to transform(it[sessionId] ?: TrustRules())) }
     }
@@ -137,22 +140,22 @@ class SessionTrust {
 /** Hands pending Approvals (or `ask_user` forms) to the UI and resumes the waiting run when the user answers. */
 @OptIn(ExperimentalAtomicApi::class)
 class Broker<T> {
-    private val pending = AtomicReference(emptyMap<String, CompletableDeferred<T>>())
+    private val pending = AtomicReference(emptyMap<InteractionId, CompletableDeferred<T>>())
 
     fun register(): Pending {
-        val id = Uuid.random().toString()
+        val id = InteractionId(Uuid.random().toString())
         val deferred = CompletableDeferred<T>()
         pending.update { it + (id to deferred) }
         return Pending(id, deferred)
     }
 
-    inner class Pending internal constructor(val id: String, private val deferred: CompletableDeferred<T>) {
+    inner class Pending internal constructor(val id: InteractionId, private val deferred: CompletableDeferred<T>) {
         suspend fun await(): T = deferred.await()
         fun close() = pending.update { it - id }
     }
 
     /** Returns false when nothing is waiting under [id] or it was already answered. */
-    fun respond(id: String, answer: T): Boolean = pending.load()[id]?.complete(answer) == true
+    fun respond(id: InteractionId, answer: T): Boolean = pending.load()[id]?.complete(answer) == true
 }
 
 typealias ApprovalBroker = Broker<ApprovalDecision>

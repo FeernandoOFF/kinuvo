@@ -1,6 +1,6 @@
 package kinuvo.models
 
-import kinuvo.protocol.ModelFile
+import kinuvo.protocol.voice.ModelFile
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll

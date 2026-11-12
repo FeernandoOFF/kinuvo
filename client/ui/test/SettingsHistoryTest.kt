@@ -12,45 +12,47 @@ import kinuvo.ui.navigation.*
 import androidx.compose.runtime.mutableStateListOf
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 class SettingsHistoryTest {
-    private val list = Route.Settings("main", SettingsSection.Routines)
+    private val list = Route.Settings(AgentId("main"), SettingsSection.Routines)
     private val item = list.copy(item = "heartbeat")
     private val form = item.copy(editing = true)
 
     private fun history(vararg routes: Route) = History(mutableStateListOf(*routes), mutableStateListOf())
 
     @Test fun movingAroundSettingsInPlaceGoesBackToTheChat() {
-        val chat = Route.Chat("main", "s1")
+        val chat = Route.Chat(AgentId("main"), SessionId("s1"))
         val h = history(chat)
-        h.open(Route.Settings("main"), push = true)
+        h.open(Route.Settings(AgentId("main")), push = true)
         listOf(list, item, form).forEach { h.open(it, push = false) }
         h.back()
         assertEquals(chat, h.backStack.last())
     }
 
     @Test fun pushedLevelsGoBackOneAtATime() {
-        val h = history(Route.Settings("main"))
+        val h = history(Route.Settings(AgentId("main")))
         listOf(list, item, form).forEach { h.open(it, push = true) }
         h.back()
         assertEquals(item, h.backStack.last())
     }
 
     @Test fun savingAPushedFormReturnsToItsItemOnce() {
-        val h = history(Route.Settings("main"), list, item, form)
+        val h = history(Route.Settings(AgentId("main")), list, item, form)
         h.open(item, push = false)
-        assertEquals(listOf(Route.Settings("main"), list, item), h.backStack.toList())
+        assertEquals(listOf(Route.Settings(AgentId("main")), list, item), h.backStack.toList())
     }
     @Test
     fun compactLayoutsSwitchSessionsInPlace() {
-        val history = History(mutableStateListOf(Route.Board, Route.Chat("main", "s1")), mutableStateListOf())
+        val history = History(mutableStateListOf(Route.Board, Route.Chat(AgentId("main"), SessionId("s1"))), mutableStateListOf())
         history.compact = true
-        history.open(Route.Chat("main", "s2"))
+        history.open(Route.Chat(AgentId("main"), SessionId("s2")))
         assertEquals(Route.Board, history.backStack.first())
         assertEquals(2, history.backStack.size)
-        assertEquals("s2", (history.backStack.last() as Route.Chat).sessionId)
+        assertEquals("s2", (history.backStack.last() as Route.Chat).sessionId?.value)
         history.compact = false
-        history.open(Route.Chat("main", "s3"))
+        history.open(Route.Chat(AgentId("main"), SessionId("s3")))
         assertEquals(3, history.backStack.size)
     }
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -80,15 +82,15 @@ class SettingsHistoryTest {
         val app = AppViewModel(Servers(prefs, credentials = credentials), Device("test"), owner, access)
         store.put("app", app)
         try {
-            val a = Route.Chat("A", compose = true)
+            val a = Route.Chat(AgentId("A"), compose = true)
             val h = history(Route.Board, a).apply { compact = true }
             app.showView(a)
             val select: (String) -> Unit = { id ->
-                app.selectAgent(id, h.backStack.last(), h.compact) { h.open(it); app.showView(it) }
+                app.selectAgent(AgentId(id), h.backStack.last(), h.compact) { h.open(it); app.showView(it) }
             }
             select("B")
-            assertEquals("B", (h.backStack.last() as Route.Chat).agentId)
-            assertEquals("B", app.state.value.agentId)
+            assertEquals("B", (h.backStack.last() as Route.Chat).agentId?.value)
+            assertEquals("B", app.state.value.agentId?.value)
             assertEquals(2, h.backStack.size)
             select("A")
             assertEquals(a, h.backStack.last())
@@ -98,7 +100,7 @@ class SettingsHistoryTest {
             h.forward()
             app.showView(h.backStack.last())
             assertEquals(a, h.backStack.last())
-            assertEquals("A", app.state.value.agentId)
+            assertEquals("A", app.state.value.agentId?.value)
         } finally { store.clear(); Dispatchers.resetMain() }
     }
 

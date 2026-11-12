@@ -1,8 +1,10 @@
 package kinuvo.app.connection
 
-import kinuvo.protocol.WebPush
+import kinuvo.protocol.push.WebPush
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.PushMessage
+import kinuvo.protocol.push.PushMessage
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -25,7 +27,7 @@ class PushKeysTest {
     }
 
     @Test fun `opens a Notification sealed to its subscription`() {
-        val message = PushMessage("Ada needs an Approval", "shell: rm -rf build", "ada", "s1", urgent = true)
+        val message = PushMessage("Ada needs an Approval", "shell: rm -rf build", AgentId("ada"), SessionId("s1"), urgent = true)
         assertEquals(message, keys.open(push(message)))
         assertEquals("kinuvo://chat/ada/s1", message.link)
         assertEquals("kinuvo://chat/ada/s1?server=home", message.copy(serverId = "home").link)

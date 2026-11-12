@@ -2,7 +2,7 @@ package kinuvo.app
 
 import kinuvo.app.settings.EndpointViewModel
 import kinuvo.app.onboarding.OnboardingState
-import kinuvo.protocol.*
+import kinuvo.protocol.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.*
 import kotlin.test.*

@@ -7,7 +7,10 @@ import kinuvo.server.plugin.deleteTree
 import kinuvo.server.plugin.readTextOrNull
 import kinuvo.harness.builtin.*
 import kinuvo.server.store.*
-import kinuvo.protocol.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.settings.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemTemporaryDirectory
@@ -36,7 +39,7 @@ class ServiceSettingsTest {
         }
     }
     private val plugin = object : HarnessPlugin {
-        override val definition = kinuvo.protocol.PluginDefinition("test.servicesettingstest.1", "Test")
+        override val definition = kinuvo.protocol.plugin.PluginDefinition("test.servicesettingstest.1", "Test")
             override val notifications = listOf(provider("first"), provider("second")) }
 
     @AfterTest fun cleanup() = deleteTree(files.home)
@@ -133,7 +136,7 @@ class ServiceSettingsTest {
 
     @Test fun duplicateProviderIdsFailDuringAssembly() = runTest {
         val duplicate = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.servicesettingstest.2", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.servicesettingstest.2", "Test")
             override val notifications = listOf(provider("same"), provider("same")) }
         assertFailsWith<IllegalArgumentException> { ServerInstallation.assemble(files, plugins = listOf(duplicate)) }
     }

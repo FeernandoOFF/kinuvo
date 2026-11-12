@@ -1,6 +1,6 @@
 package kinuvo.harness
 
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -10,13 +10,13 @@ import kotlin.uuid.Uuid
 /** Lives with the execution connection, never with an individual Device connection. */
 class ExecutionBroker(private val state: ExecutionState) {
     private val lock = Mutex()
-    private val pending = mutableMapOf<String, CompletableDeferred<JsonElement>>()
-    private val validators = mutableMapOf<String, (JsonElement) -> Unit>()
-    private val sourceIds = mutableSetOf<String>()
+    private val pending = mutableMapOf<InteractionId, CompletableDeferred<JsonElement>>()
+    private val validators = mutableMapOf<InteractionId, (JsonElement) -> Unit>()
+    private val sourceIds = mutableSetOf<InteractionId>()
     private var closed = false
 
     suspend fun ask(request: PendingInteraction, validate: (JsonElement) -> Unit = {}): JsonElement {
-        val id = Uuid.random().toString()
+        val id = InteractionId(Uuid.random().toString())
         val normalized = request.withId(id)
         val answer = lock.withLock {
             check(!closed) { "Execution connection was lost" }
@@ -31,7 +31,7 @@ class ExecutionBroker(private val state: ExecutionState) {
         finally { lock.withLock { pending.remove(id); validators.remove(id); sourceIds.remove(request.id) }; state.resolve(id) }
     }
 
-    suspend fun answer(id: String, value: JsonElement): Boolean = lock.withLock {
+    suspend fun answer(id: InteractionId, value: JsonElement): Boolean = lock.withLock {
         val answer = pending[id] ?: return@withLock false
         validators[id]?.invoke(value)
         if (!state.resolve(id)) return@withLock false

@@ -7,9 +7,9 @@ import kinuvo.app.session.SpeechEngine
 import kinuvo.client.LoopbackCallback
 import kinuvo.ui.session.DesktopSpeechEngine
 import kinuvo.client.oauthState
-import kinuvo.protocol.McpRedirect
-import kinuvo.protocol.Platform
-import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.mcp.McpRedirect
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.builtins.MapSerializer

@@ -12,7 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.sp
 import com.composables.ui.theme.mutedColor
 import com.composables.ui.components.*
-import kinuvo.protocol.DeviceToolKind
+import kinuvo.protocol.device.DeviceToolKind
 import kinuvo.ui.design.*
 import com.composables.icons.lucide.*
 

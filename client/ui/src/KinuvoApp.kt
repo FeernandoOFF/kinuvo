@@ -24,8 +24,8 @@ import kinuvo.ui.navigation.*
 import com.composables.icons.lucide.Globe
 import com.composables.icons.lucide.ArrowLeft
 
-import kinuvo.protocol.ServerFeature
-import kinuvo.protocol.supports
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.capability.supports
 import kinuvo.protocol.privateNetworkHost
 import kinuvo.protocol.requireSecureTransport
 
@@ -40,8 +40,10 @@ import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import kinuvo.protocol.PairLink
-import kinuvo.protocol.Links
+import kinuvo.protocol.device.PairLink
+import kinuvo.protocol.device.Links
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
@@ -221,7 +223,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             val homePage = { section: SettingsSection ->
                 (agent?.takeIf { !it.external } ?: appState.agents.firstOrNull { !it.external })?.let { guardLeave { history.switchTo(Route.Settings(it.id, section)) } }
             }
-            val inspect = { id: String -> if (inspector == null) openSettings(Route.Settings(id), true) else { inspector.inspect(id); Unit } }
+            val inspect = { id: AgentId -> if (inspector == null) openSettings(Route.Settings(id), true) else { inspector.inspect(id); Unit } }
             // Phones slide the screens aside to reveal the shell; anything picked there covers it again.
             fun cover(action: () -> Unit) = { homeEdits.leave { action(); shell.revealed = false } }
             val consent = koinInject<AiConsent>()
@@ -236,7 +238,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onAgentSettings = cover { agent?.let { inspect(it.id) } },
                 onOpenSession = { agentId, id -> cover { history.switchTo(Route.Chat(agentId, id)) }() },
                 onNew = cover { if (top !is Route.Chat || top.sessionId != null || top.agentId != agent?.id) history.switchTo(Route.Chat(agent?.id, compose = true)) },
-                onSelect = { id -> cover { history.switchTo(Route.Chat(agent?.id, id)) }() },
+                onSelect = { id -> cover { history.switchTo(Route.Chat(agent?.id, SessionId(id))) }() },
                 onLoadMore = { agent?.id?.let(app::loadMoreSessions) },
                 onSettings = cover { guardLeave { agent?.let { openSettings(Route.Settings(it.id), true) } } },
                 onBoard = cover { history.switchTo(Route.Board) },
@@ -264,7 +266,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
             SideEffect {
                 pick = { i, agents ->
                     if (agents) shellState.agents.getOrNull(i)?.let { shellActions.onSelectAgent(it.id) }
-                    else (shellState.favorites + shellState.chats).getOrNull(i)?.let { shellActions.onSelect(it.id) }
+                    else (shellState.favorites + shellState.chats).getOrNull(i)?.let { shellActions.onSelect(it.id.value) }
                 }
             }
             // Settings keeps the rail on wide layouts, its sections taking the column's place; on phones it covers the screen.
@@ -312,7 +314,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             )
                         }
                         entry<Route.Chat>(clazzContentKey = { it.slot }, metadata = { route ->
-                            mapOf(AgentKey to route.agentId.orEmpty()) +
+                            mapOf(AgentKey to route.agentId?.value.orEmpty()) +
                                 if (route.compose && route.sessionId == null) NavDisplay.transitionSpec { NoTransition } else emptyMap()
                         }) { route ->
                             val client = (connection as? Connection.Ready)?.client
@@ -397,7 +399,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                         Box(Modifier.width(360.dp).fillMaxHeight()) {
                                             ChatScreen(app, session, false, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
                                                 dock = BrowserDock(true, {
-                                                    browserDocks.open[route.agentId] = false
+                                                    browserDocks.open[route.agentId.value] = false
                                                     val previous = backStack.getOrNull(backStack.lastIndex - 1) as? Route.Chat
                                                     if (previous?.agentId == route.agentId && previous.sessionId == route.sessionId) back() else history.open(chat)
                                                 }, live::focus))

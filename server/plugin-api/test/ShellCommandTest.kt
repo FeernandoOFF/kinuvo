@@ -1,6 +1,6 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.Risk
+import kinuvo.protocol.approval.Risk
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse

@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kinuvo.client.ManagementAccessMessage
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
@@ -22,7 +23,7 @@ fun ManagementAccessRequired() = ContentUnavailable(
 
 @Composable
 fun LoadFailure(message: String, action: String = "Retry", onAction: () -> Unit) {
-    if (message == "This action requires management access") ManagementAccessRequired()
+    if (message == ManagementAccessMessage) ManagementAccessRequired()
     else ContentUnavailable(Lucide.CloudOff, "Couldn't load this page", message, action = action, onAction = onAction)
 }
 

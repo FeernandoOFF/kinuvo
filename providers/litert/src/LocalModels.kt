@@ -1,8 +1,8 @@
 package kinuvo.providers.litert
 
 import kinuvo.models.ModelDownload
-import kinuvo.protocol.ModelFile
-import kinuvo.protocol.ModelTier
+import kinuvo.protocol.voice.ModelFile
+import kinuvo.protocol.model.ModelTier
 
 /** A model the Server can download and run with LiteRT-LM; [memory] is the device RAM it needs, [tier] how capable it is and [cap] how many tools it's offered when not its tier's usual. */
 internal class LocalModel(val id: String, val name: String, repo: String, revision: String, file: String, bytes: Long, sha256: String,

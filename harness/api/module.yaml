@@ -4,6 +4,7 @@ product:
 
 dependencies:
   - ../../protocol: exported
+  - org.jetbrains.kotlinx:kotlinx-io-core:0.9.1: exported
 
 test-dependencies:
   - $kotlin.test

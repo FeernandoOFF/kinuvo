@@ -1,8 +1,9 @@
 package kinuvo.plugins.protonpass
 
+import kotlinx.coroutines.CancellationException
 import kinuvo.server.plugin.CliSecretProvider
 import kinuvo.server.plugin.Keychain
-import kinuvo.protocol.SecretEntry
+import kinuvo.protocol.secret.SecretEntry
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
@@ -89,7 +90,7 @@ class ProtonPass internal constructor(home: File, env: () -> Map<String, String>
 
     /** Runs [block], signing in again first when it failed because the session is gone. */
     private suspend fun signedIn(block: suspend () -> String): String {
-        val first = runCatching { block() }
+        val first = runCatching { block() }.onFailure { if (it is CancellationException) throw it }
         if (first.isSuccess || pass("info", check = false).isNotEmpty()) return first.getOrThrow()
         return lock.withLock {
             // Another read may have signed in while this one waited.

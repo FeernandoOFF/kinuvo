@@ -6,7 +6,7 @@ import com.dokar.quickjs.QuickJsInterruptedException
 import com.dokar.quickjs.binding.AsyncFunctionBinding
 import com.dokar.quickjs.binding.FunctionBinding
 import kinuvo.server.plugin.takeWhole
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers

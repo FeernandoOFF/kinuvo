@@ -1,5 +1,8 @@
 package kinuvo.server.plugin
 
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+
 /** A way to reach the user when no client is watching, e.g. ntfy now, APNs later; set up in `config.yaml`. */
 interface NotificationProvider : ConfigurableProvider {
     /** The provider with [options], whose values may hold `${…}` references; fails when a required one is missing. */
@@ -14,7 +17,7 @@ fun interface Notifier {
 data class Notification(
     val title: String,
     val body: String,
-    val agentId: String? = null,
-    val sessionId: String? = null,
+    val agentId: AgentId? = null,
+    val sessionId: SessionId? = null,
     val urgent: Boolean = false,
 )

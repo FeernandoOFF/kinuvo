@@ -9,7 +9,9 @@ import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.providers.codex.CodexProvider
 import kinuvo.server.store.FileStore
-import kinuvo.protocol.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.reflection.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flow
@@ -31,7 +33,7 @@ class ReflectionActivityTest {
         val home = Files.createTempDirectory("reflection-activity").toFile()
         var outcome = "saved"
         lateinit var harness: Harness
-        var sessionId = ""
+        var sessionId = SessionId("")
         val model = scriptedModel { prompt, tools ->
             val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
             val history = prompt.messages

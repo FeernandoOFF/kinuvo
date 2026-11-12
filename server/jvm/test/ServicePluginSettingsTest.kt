@@ -5,7 +5,11 @@ import kinuvo.server.Secrets
 import kinuvo.server.store.*
 import kinuvo.plugins.firecrawl.FirecrawlPlugin
 import kinuvo.plugins.ntfy.NtfyPlugin
-import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.settings.*
 import io.ktor.server.cio.CIO
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.request.receiveText

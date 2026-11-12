@@ -1,7 +1,7 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.*
-
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.agent.AgentId
 /** Server-owned browsing, separate from paired Computers. Implementations never expose a debugging endpoint. */
 interface BrowserService {
     suspend fun presentation(owner: BrowserOwner): BrowserPresentation = error("Browser window settings unavailable")
@@ -13,8 +13,8 @@ interface BrowserService {
     suspend fun userCommand(command: BrowserCommand): BrowserFrame? = error("Screen input unavailable")
     fun screen(owner: BrowserOwner, tabId: String): ScreenSource = error("Live streaming unavailable")
     fun authorize(check: suspend (BrowserOwner) -> Unit) {}
-    suspend fun release(agentId: String) {}
-    suspend fun deleteAgent(agentId: String) { release(agentId) }
+    suspend fun release(agentId: AgentId) {}
+    suspend fun deleteAgent(agentId: AgentId) { release(agentId) }
     fun onChange(listener: (BrowserOwner) -> Unit) {}
     suspend fun owners(): List<BrowserOwner> = emptyList()
     suspend fun tabs(owner: BrowserOwner): List<BrowserTab>

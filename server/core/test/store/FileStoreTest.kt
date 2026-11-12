@@ -6,8 +6,11 @@ import kinuvo.server.plugin.readText
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.server.TestHome
 import kinuvo.harness.builtin.activeHistory
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.withWrittenAt
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.withWrittenAt
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import kotlin.test.Test
@@ -38,29 +41,29 @@ class FileStoreTest {
     fun externalBatchIsAtomicIdempotentAndKeepsConcurrentDetails() = runTest {
         val home = TestHome()
         val store = home.store
-        val session = store.createSession("external", "")
-        assertEquals(false, home.files.config("external").exists())
+        val session = store.createSession(AgentId("external"), "")
+        assertEquals(false, home.files.config(AgentId("external")).exists())
         assertEquals(listOf(home.agent.id), store.agents().map { it.id })
         val user = SessionEntry.UserMessage("same", submissionId = "submission")
         val reply = SessionEntry.AssistantMessage("reply", messageId = "reply")
-        val call = SessionEntry.ToolCall("tool", "read", "{}")
-        val result = SessionEntry.ToolResult("tool", "read", "done")
-        store.append("external", session.id, user)
+        val call = SessionEntry.ToolCall(ToolCallId("tool"), "read", "{}")
+        val result = SessionEntry.ToolResult(ToolCallId("tool"), "read", "done")
+        store.append(AgentId("external"), session.id, user)
         val details = SessionEntry.Details("Renamed", true)
-        store.append("external", session.id, details)
+        store.append(AgentId("external"), session.id, details)
         val batch = listOf(user, call, result, reply)
-        assertEquals(listOf(call, result, reply), store.appendAll("external", session.id, batch).map { it.withWrittenAt(null) })
-        assertEquals(emptyList(), store.appendAll("external", session.id, batch).map { it.withWrittenAt(null) })
-        val saved = store.entries("external", session.id)
+        assertEquals(listOf(call, result, reply), store.appendAll(AgentId("external"), session.id, batch).map { it.withWrittenAt(null) })
+        assertEquals(emptyList(), store.appendAll(AgentId("external"), session.id, batch).map { it.withWrittenAt(null) })
+        val saved = store.entries(AgentId("external"), session.id)
         assertEquals(listOf(SessionEntry.Started(""), user, details, call, result, reply), saved.map { it.withWrittenAt(null) })
         assertFailsWith<SessionCommitConflict> {
-            store.appendAll("external", session.id, listOf(SessionEntry.Notice("new", "gap", "gap"), reply.copy(text = "changed")))
+            store.appendAll(AgentId("external"), session.id, listOf(SessionEntry.Notice("new", "gap", "gap"), reply.copy(text = "changed")))
         }
-        assertEquals(saved, store.entries("external", session.id))
+        assertEquals(saved, store.entries(AgentId("external"), session.id))
         val notice = SessionEntry.Notice("notice", "gap", "Missing history", draft = listOf(reply))
-        store.appendAll("external", session.id, listOf(notice))
-        assertEquals(listOf(user, call, result, reply), store.entries("external", session.id).activeHistory().map { it.withWrittenAt(null) })
-        assertEquals("Renamed", store.session("external", session.id).title)
+        store.appendAll(AgentId("external"), session.id, listOf(notice))
+        assertEquals(listOf(user, call, result, reply), store.entries(AgentId("external"), session.id).activeHistory().map { it.withWrittenAt(null) })
+        assertEquals("Renamed", store.session(AgentId("external"), session.id).title)
         assertFailsWith<IllegalArgumentException> { store.entries(home.agent.id, session.id) }
     }
 
@@ -82,21 +85,21 @@ class FileStoreTest {
     @Test
     fun everySessionPathRejectsUnsafeOwnersAndIds() = runTest {
         val store = TestHome().store
-        assertFailsWith<IllegalArgumentException> { store.sessions("../outside") }
-        assertFailsWith<IllegalArgumentException> { store.createSession("../outside", "") }
-        assertFailsWith<IllegalArgumentException> { store.session("../outside", "safe") }
-        assertFailsWith<IllegalArgumentException> { store.appendAll("../outside", "safe", emptyList()) }
-        assertFailsWith<IllegalArgumentException> { store.deleteSession("../outside", "safe") }
-        assertFailsWith<IllegalArgumentException> { store.truncate("safe", "../outside", 0) }
+        assertFailsWith<IllegalArgumentException> { store.sessions(AgentId("../outside")) }
+        assertFailsWith<IllegalArgumentException> { store.createSession(AgentId("../outside"), "") }
+        assertFailsWith<IllegalArgumentException> { store.session(AgentId("../outside"), SessionId("safe")) }
+        assertFailsWith<IllegalArgumentException> { store.appendAll(AgentId("../outside"), SessionId("safe"), emptyList()) }
+        assertFailsWith<IllegalArgumentException> { store.deleteSession(AgentId("../outside"), SessionId("safe")) }
+        assertFailsWith<IllegalArgumentException> { store.truncate(AgentId("safe"), SessionId("../outside"), 0) }
     }
 
     @Test
     fun uuidLegacyIdsHaveNoFabricatedDate() = runTest {
         val home = TestHome()
         val id = "b55ae592-d468-49ad-ac8b-14a79c1db576"
-        home.store.append("external", id, SessionEntry.Started(""))
-        assertEquals(null, home.store.session("external", id).createdAt)
-        assertEquals(0L, home.store.sessions("external").single().legacyOrder)
+        home.store.append(AgentId("external"), SessionId(id), SessionEntry.Started(""))
+        assertEquals(null, home.store.session(AgentId("external"), SessionId(id)).createdAt)
+        assertEquals(0L, home.store.sessions(AgentId("external")).single().legacyOrder)
     }
 
     @Test
@@ -126,9 +129,9 @@ class FileStoreTest {
         val first = store.createSession(other.id, "instructions")
         val second = store.createSession(home.agent.id, "instructions")
         val third = store.createSession(home.agent.id, "instructions")
-        assertTrue(first.id.endsWith("-1234"))
-        assertEquals(first.id.dropLast(4) + "5678", second.id)
-        assertEquals(first.id.dropLast(4) + "9abc", third.id)
+        assertTrue(first.id.value.endsWith("-1234"))
+        assertEquals(first.id.value.dropLast(4) + "5678", second.id.value)
+        assertEquals(first.id.value.dropLast(4) + "9abc", third.id.value)
         assertEquals(setOf(second.id, third.id), store.sessions(home.agent.id).map { it.id }.toSet())
         assertEquals(listOf(first.id), store.sessions(other.id).map { it.id })
     }
@@ -136,7 +139,7 @@ class FileStoreTest {
     @Test
     fun routineSessionJoinsTheChatsOnceItReportsOrTheUserJoinsIn() = runTest {
         val home = TestHome()
-        val routine = kinuvo.protocol.RoutineRef("watch", "Watch")
+        val routine = kinuvo.protocol.routine.RoutineRef("watch", "Watch")
         val quiet = home.store.createSession(home.agent.id, "instructions", routine)
         home.store.append(home.agent.id, quiet.id, SessionEntry.Outcome(report = false))
         assertEquals(false, home.store.session(home.agent.id, quiet.id).inChats)
@@ -155,7 +158,7 @@ class FileStoreTest {
     fun taskRunIsTitledByItsTask() = runTest {
         val home = TestHome()
         val session = home.store.createSession(home.agent.id, "instructions")
-        home.store.append(home.agent.id, session.id, SessionEntry.UserMessage(kinuvo.protocol.taskPrompt("t1", "Renew passport") + "\nDue: 2026-10-09"))
+        home.store.append(home.agent.id, session.id, SessionEntry.UserMessage(kinuvo.protocol.session.taskPrompt("t1", "Renew passport") + "\nDue: 2026-10-09"))
         val info = home.store.session(home.agent.id, session.id)
         assertEquals("Renew passport", info.title)
         assertEquals("t1", info.task)
@@ -164,7 +167,7 @@ class FileStoreTest {
     @Test
     fun bootstrapsDefaultAgent() {
         val agent = TestHome().agent
-        assertEquals("default", agent.id)
+        assertEquals("default", agent.id.value)
         assertEquals("Kinuvo", agent.name)
         assertEquals("codex", agent.config.provider)
     }
@@ -172,12 +175,12 @@ class FileStoreTest {
     @Test
     fun clonesSettingsButNotMemory() = runTest {
         val home = TestHome()
-        home.docs.write("default", kinuvo.harness.AgentDoc.Memory, "- secret")
-        writeAtomically(Path(home.files.skills("default"), "notes", "SKILL.md"), "x")
+        home.docs.write(AgentId("default"), kinuvo.harness.AgentDoc.Memory, "- secret")
+        writeAtomically(Path(home.files.skills(AgentId("default")), "notes", "SKILL.md"), "x")
         val clone = home.store.createAgent("work", home.agent)
         assertEquals("Kinuvo", clone.name)
-        assertEquals("", home.docs.read("work", kinuvo.harness.AgentDoc.Memory))
-        assertEquals("x", Path(home.files.skills("work"), "notes", "SKILL.md").readText())
+        assertEquals("", home.docs.read(AgentId("work"), kinuvo.harness.AgentDoc.Memory))
+        assertEquals("x", Path(home.files.skills(AgentId("work")), "notes", "SKILL.md").readText())
     }
 
     @Test
@@ -185,7 +188,7 @@ class FileStoreTest {
         val home = TestHome()
         val agent = home.store.createAgent("work")
         home.store.deleteAgent(agent)
-        assertEquals(false, home.files.agent("work").exists())
+        assertEquals(false, home.files.agent(AgentId("work")).exists())
     }
 
     @Test
@@ -193,8 +196,8 @@ class FileStoreTest {
         val home = TestHome()
         val agent = home.agent
         val outside = Path(home.files.agent(agent.id), "outside.jsonl")
-        assertFailsWith<IllegalArgumentException> { home.store.entries(agent.id, "../outside") }
-        assertFailsWith<IllegalArgumentException> { home.store.append(agent.id, "../outside", SessionEntry.UserMessage("unsafe")) }
+        assertFailsWith<IllegalArgumentException> { home.store.entries(agent.id, SessionId("../outside")) }
+        assertFailsWith<IllegalArgumentException> { home.store.append(agent.id, SessionId("../outside"), SessionEntry.UserMessage("unsafe")) }
         assertEquals(false, outside.exists())
     }
 
@@ -205,13 +208,13 @@ class FileStoreTest {
         val agent = home.agent
         val session = store.createSession(agent.id, "be nice")
         store.append(agent.id, session.id, SessionEntry.UserMessage("hello there"))
-        store.append(agent.id, session.id, SessionEntry.ToolCall("c1", "memory", """{"a":1}"""))
+        store.append(agent.id, session.id, SessionEntry.ToolCall(ToolCallId("c1"), "memory", """{"a":1}"""))
 
         assertEquals(
             listOf(
                 SessionEntry.Started("be nice"),
                 SessionEntry.UserMessage("hello there"),
-                SessionEntry.ToolCall("c1", "memory", """{"a":1}"""),
+                SessionEntry.ToolCall(ToolCallId("c1"), "memory", """{"a":1}"""),
             ),
             store.entries(agent.id, session.id).map { it.withWrittenAt(null) },
         )

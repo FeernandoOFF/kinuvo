@@ -1,6 +1,6 @@
 package kinuvo.app.session
 
-import kinuvo.protocol.SessionInfo
+import kinuvo.protocol.session.SessionInfo
 
 /** A row of an Agent's Sessions: a Session, with the [earlier] runs of the same Routine folded under its latest. */
 data class SessionGroup(val session: SessionInfo, val earlier: List<SessionInfo> = emptyList())

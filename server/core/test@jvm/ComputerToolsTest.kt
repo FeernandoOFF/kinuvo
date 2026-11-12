@@ -9,6 +9,13 @@ import kinuvo.server.plugin.ToolRun
 import kinuvo.server.screens.*
 import kinuvo.harness.builtin.*
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.screen.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.tool.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout

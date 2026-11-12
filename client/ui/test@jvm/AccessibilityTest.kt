@@ -14,9 +14,10 @@ import com.composables.ui.components.Text
 import kinuvo.app.agent.*
 import kinuvo.ui.agent.*
 import kinuvo.ui.settings.*
-import kinuvo.protocol.AgentDetails
-import kinuvo.protocol.AgentInfo
-import kinuvo.protocol.AgentSettings
+import kinuvo.protocol.agent.AgentDetails
+import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.agent.AgentSettings
+import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.design.FloatingPill
 import kinuvo.ui.design.HarnessTheme
 import kinuvo.ui.design.Reveal
@@ -79,7 +80,7 @@ class AccessibilityTest {
 
     @Test fun inspectorGuardHidesPanelAndSheetUntilEditingResumes() = javax.swing.SwingUtilities.invokeAndWait {
         for (sheet in listOf(false, true)) {
-            val agent = AgentInfo("echo", "Echo", "host")
+            val agent = AgentInfo(AgentId("echo"), "Echo", "host")
             val details = AgentDetails(agent, AgentSettings("model", "medium", "default", "host"), "Identity", "Soul")
             val state = mutableStateOf(InspectorState(agent.id, details = details, draft = AgentDraft.of(details).copy(name = "Edited")))
             var resolved: GuardChoice? = null

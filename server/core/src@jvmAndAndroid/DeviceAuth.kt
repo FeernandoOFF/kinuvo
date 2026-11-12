@@ -1,7 +1,9 @@
 package kinuvo.server
 
 import kinuvo.server.devices.*
-import kinuvo.protocol.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.push.*
+import kinuvo.protocol.session.*
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import java.io.File

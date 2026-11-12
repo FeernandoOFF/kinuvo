@@ -1,6 +1,8 @@
 package kinuvo.harness.builtin
 
 import kinuvo.harness.Agent
+import kinuvo.harness.AgentRunner
+import kinuvo.harness.ModelProfile
 import ai.koog.agents.core.agent.AIAgent
 import ai.koog.agents.core.agent.config.AIAgentConfig
 import ai.koog.agents.core.agent.exception.AIAgentMaxNumberOfIterationsReachedException
@@ -12,7 +14,10 @@ import kinuvo.harness.builtin.tools.toDescriptor
 import kinuvo.harness.ToolGate
 import kinuvo.harness.ToolProvider
 import kinuvo.harness.ToolTurn
-import kinuvo.protocol.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.surface.*
+import kinuvo.protocol.usage.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
@@ -36,19 +41,19 @@ class AgentRun(
     private val contextTokens: Int? = null,
     private val requestKind: RequestKind = RequestKind.Chat,
     private val tracing: AgentTracing? = null,
-    private val traceSessionId: String? = null,
+    private val traceSessionId: SessionId? = null,
     private val routine: RoutineTurn? = null,
     private val profile: ModelProfile = ModelProfile.of(ModelTier.Frontier),
-) {
-    fun run(
-        sessionId: String,
+) : AgentRunner {
+    override fun run(
+        sessionId: SessionId,
         userText: String,
-        activation: SessionEntry.Activation? = null,
-        runId: String = Uuid.random().toString(),
-        attachments: List<Attachment> = emptyList(),
-        voice: Boolean = false,
-        action: SurfaceAction? = null,
-        report: SessionEntry.ToolReport? = null,
+        activation: SessionEntry.Activation?,
+        runId: RunId,
+        attachments: List<Attachment>,
+        voice: Boolean,
+        action: SurfaceAction?,
+        report: SessionEntry.ToolReport?,
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.RunStarted(runId))
         warnings.forEach { send(AgentEvent.Warning(it)) }
@@ -71,7 +76,7 @@ class AgentRun(
             report?.let { session.append(it) }
             if (routine == null && (userText.isNotBlank() || attachments.isNotEmpty())) session.append(SessionEntry.UserMessage(userText, null, attachments, voice, action = action))
             val koog = AIAgent(
-                id = agent.id,
+                id = agent.id.value,
                 promptExecutor = model.executor,
                 agentConfig = AIAgentConfig(Prompt.Empty, model.model, Int.MAX_VALUE),
                 strategy = routine?.let { routineStrategy(session, calls, it, userText) } ?: chatStrategy(session, calls),
@@ -85,7 +90,7 @@ class AgentRun(
                 install(SessionFeature) { this.session = session }
                 tracing?.install(this, agent.id, traceSessionId ?: sessionId, runId, requestKind)
             }
-            try { withContext(TokenUsageCapture()) { koog.run(Unit, runId) } }
+            try { withContext(TokenUsageCapture()) { koog.run(Unit, runId.value) } }
             finally { koog.close() }
             AgentEvent.RunFinished(runId)
         } catch (e: CancellationException) {

@@ -3,9 +3,10 @@ package kinuvo.server.reflection
 import kinuvo.server.*
 import co.touchlab.stately.collections.ConcurrentMutableMap
 import kinuvo.harness.Agent
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.ReflectionResult
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.reflection.ReflectionResult
+import kinuvo.protocol.session.SessionId
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.CancellationException
@@ -27,14 +28,14 @@ import kotlin.time.Duration.Companion.minutes
 class Reflector(
     private val harness: HarnessRuntime,
     private val scope: CoroutineScope,
-    private val busy: (sessionId: String) -> Boolean,
+    private val busy: (sessionId: SessionId) -> Boolean,
     private val idle: Duration = 2.minutes,
 ) {
-    private val pending = ConcurrentMutableMap<String, Job>()
+    private val pending = ConcurrentMutableMap<SessionId, Job>()
     private val lock = Mutex()
 
     /** A run in [sessionId] finished; reflect once the Session has been quiet for a while. A later run restarts the wait. */
-    fun ran(agent: Agent, sessionId: String) {
+    fun ran(agent: Agent, sessionId: SessionId) {
         if (!harness.reflects(agent)) return
         val job = scope.launch {
             delay(idle)
@@ -46,9 +47,9 @@ class Reflector(
     }
 
     /** Reflects on what [sessionId] said since last time; returns how many changes were saved immediately. */
-    suspend fun reflect(agent: Agent, sessionId: String): Int = lock.withLock {
+    suspend fun reflect(agent: Agent, sessionId: SessionId): Int = lock.withLock {
         // A turn in progress is reflected on after it ends.
-        if (busy(sessionId) || !harness.reflects(agent)) return 0
+        if (harness.store.session(agent.id, sessionId).hidden || busy(sessionId) || !harness.reflects(agent)) return 0
         val done = progress()
         val entries = harness.store.entries(agent.id, sessionId)
         val new = entries.drop(done[sessionId] ?: 0)
@@ -75,6 +76,6 @@ class Reflector(
         result.total
     }
 
-    private fun progress(): Map<String, Int> =
+    private fun progress(): Map<SessionId, Int> =
         harness.reflectionProgress.get()
 }

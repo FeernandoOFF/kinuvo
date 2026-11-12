@@ -5,8 +5,8 @@ package kinuvo.harness.acp
 import com.agentclientprotocol.client.v2.ElicitationHandler
 import com.agentclientprotocol.model.v2.CreateElicitationRequest
 import com.agentclientprotocol.model.v2.CreateElicitationResponse
-import kinuvo.protocol.ExecutionConnection
-import kinuvo.protocol.HarnessConnection
+import kinuvo.protocol.execution.ExecutionConnection
+import kinuvo.protocol.execution.HarnessConnection
 import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlinx.coroutines.*

@@ -12,6 +12,12 @@ import ai.koog.prompt.streaming.StreamFrame
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.screen.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emptyFlow
@@ -113,7 +119,7 @@ class BrowserServerTest {
             assertEquals("/first", client.call(Api.Screens, owner).single { it.ref == ref }.title)
             client.call(Api.ScreenCommand, ScreenCommand(ref, initial.control.generation, ScreenCommandKind.Forward))
             assertEquals("/second", client.call(Api.Screens, owner).single { it.ref == ref }.title)
-            assertFailsWith<IllegalStateException> { client.call(Api.Screens, owner.copy(agentId = "missing")) }
+            assertFailsWith<IllegalStateException> { client.call(Api.Screens, owner.copy(agentId = AgentId("missing"))) }
             assertFailsWith<IllegalStateException> { client.call(Api.BrowserCommand, BrowserCommand(owner, BrowserAction.Takeover, ref.id, take = false)) }
             val pairing = client.call(Api.Pairing, PairingParams(refresh = true, management = false))
             ordinary = KinuvoClient(address, "Ordinary", pairingCode = pairing.code)

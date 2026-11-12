@@ -5,10 +5,11 @@ import com.sun.net.httpserver.HttpServer
 import io.ktor.http.Url
 import io.ktor.http.parseQueryString
 import kinuvo.server.plugin.Keychain
-import kinuvo.protocol.ConfigScope
-import kinuvo.protocol.McpAuthStatus
-import kinuvo.protocol.McpParams
-import kinuvo.protocol.McpRedirect
+import kinuvo.protocol.agent.ConfigScope
+import kinuvo.protocol.mcp.McpAuthStatus
+import kinuvo.protocol.mcp.McpParams
+import kinuvo.protocol.mcp.McpRedirect
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
@@ -34,7 +35,7 @@ class McpAuthTest {
     private val auth = McpAuth(McpSignIns(dir, keychain))
     private val fake = FakeOAuthServer()
     private val server = McpServerConfig.Http("linear", "${fake.base}/mcp", signInId = "shared/linear")
-    private val owner = McpParams("default", "linear", ConfigScope.Shared)
+    private val owner = McpParams(AgentId("default"), "linear", ConfigScope.Shared)
 
     @AfterTest
     fun stop() = fake.stop()

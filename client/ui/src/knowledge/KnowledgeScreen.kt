@@ -33,7 +33,9 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.knowledge.*
 import kinuvo.ui.design.*
 import kotlinx.coroutines.delay
 import kotlin.time.Clock
@@ -68,7 +70,7 @@ class KnowledgeActions(
     val onOpen: (String) -> Unit = {},
     val onUndo: (String) -> Unit = {},
     /** Shows one Agent's changes, or every Agent's for null. */
-    val onFilter: (String?) -> Unit = {},
+    val onFilter: (AgentId?) -> Unit = {},
     val onSettings: () -> Unit = {},
 )
 

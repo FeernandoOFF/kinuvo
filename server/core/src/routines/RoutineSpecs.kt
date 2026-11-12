@@ -1,9 +1,10 @@
 package kinuvo.server.routines
 
-import kinuvo.protocol.ActiveHours
-import kinuvo.protocol.Routine
-import kinuvo.protocol.RoutineSpec
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.routine.ActiveHours
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.RoutineSpec
+import kinuvo.protocol.routine.Trigger
+import kinuvo.protocol.session.SessionId
 import kotlinx.datetime.IllegalTimeZoneException
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -19,7 +20,7 @@ fun Routine.with(spec: RoutineSpec): Routine {
     spec.activeHours?.let { c = c.copy(activeHours = activeHours(it)) }
     spec.approvals?.let { c = c.copy(approvals = it) }
     spec.enabled?.let { c = c.copy(enabled = it) }
-    spec.session?.let { c = c.copy(sessionId = it.takeUnless { s -> s == NEW_SESSIONS }) }
+    spec.session?.let { c = c.copy(sessionId = it.takeUnless { s -> s == NEW_SESSIONS }?.let(::SessionId)) }
     spec.trigger(zone(c.timeZone))?.let { c = c.copy(trigger = it) }
     return c
 }

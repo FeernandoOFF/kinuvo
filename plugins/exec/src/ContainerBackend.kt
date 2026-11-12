@@ -6,13 +6,14 @@ import java.io.File
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kinuvo.protocol.agent.AgentId
 
 /**
  * One long-lived container per Agent (`kinuvo-<agentId>`), Workspace folders mounted under /workspace.
  * It is recreated when the image, network or mounts change.
  */
 class ContainerBackend(
-    agentId: String,
+    agentId: AgentId,
     private val workspace: List<File>,
     private val image: String,
     private val network: Boolean,

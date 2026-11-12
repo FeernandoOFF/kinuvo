@@ -1,7 +1,9 @@
 package kinuvo.app
 
 import kinuvo.app.screen.*
-import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.screen.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.test.*
@@ -52,8 +54,8 @@ class LiveViewModelTest {
     }
     @Test fun computersExcludeBrowsersAndAgentsStayIsolated() = runTest {
         Dispatchers.setMain(StandardTestDispatcher(testScheduler))
-        val owner = BrowserOwner("agent")
-        val other = BrowserOwner("other-agent")
+        val owner = BrowserOwner(AgentId("agent"))
+        val other = BrowserOwner(AgentId("other-agent"))
         val first = ScreenRef("browser", "first", owner)
         val second = ScreenRef("browser", "second", other)
         val fake = Fake(first)
@@ -84,7 +86,7 @@ class LiveViewModelTest {
         val next = fake.frame(); fake.frames.emit(next); runCurrent(); vm.drawn(next); runCurrent()
         assertTrue(vm.state.value.interactive)
     }
-    @Test fun historyCommandsRequireTakeoverAndAFreshDrawAndAreSentOnce() = run(ScreenRef("browser", "one", BrowserOwner("agent"))) { fake, vm ->
+    @Test fun historyCommandsRequireTakeoverAndAFreshDrawAndAreSentOnce() = run(ScreenRef("browser", "one", BrowserOwner(AgentId("agent")))) { fake, vm ->
         vm.command(ScreenCommandKind.Back); runCurrent()
         assertTrue(fake.commands.isEmpty())
         for (action in listOf(ScreenCommandKind.Back, ScreenCommandKind.Forward)) {
@@ -163,6 +165,16 @@ class LiveViewModelTest {
         assertEquals(2, fake.inputs.size)
     }
 
+    @Test fun keysSentFromAnOlderFrameStillArriveButPointerInputDoesNot() = run { fake, vm ->
+        fake.screens = listOf(ScreenInfo(fake.ref, "Screen", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap", "key")), ScreenStatus.Ready, fake.control))
+        vm.retry(); runCurrent()
+        val old = fake.frame(); fake.frames.emit(old); runCurrent(); vm.drawn(old); runCurrent()
+        val newer = fake.frame().copy(sequence = old.sequence + 1); fake.frames.emit(newer); runCurrent(); vm.drawn(newer); runCurrent()
+        vm.input(old, listOf(ScreenAction(ScreenActionKind.Tap, x = 10, y = 20))); runCurrent()
+        assertTrue(fake.inputs.isEmpty())
+        vm.input(old, listOf(ScreenAction(ScreenActionKind.Key, key = "Home"))); runCurrent()
+        assertEquals(1, fake.inputs.size)
+    }
     @Test fun successfulInputKeepsStreamAndConsumesSequencesInOrder() = run { fake, vm ->
         val frame = fake.frame(); fake.frames.emit(frame); runCurrent(); vm.drawn(frame); runCurrent()
         val epoch = fake.epoch
@@ -225,7 +237,7 @@ class LiveViewModelTest {
     }
     @Test fun selectionRejectsForeignOwnerAndOldWatchFrame() = run { fake, vm ->
         val original = vm.state.value.selected
-        vm.select(ScreenRef("browser", "foreign", BrowserOwner("a")))
+        vm.select(ScreenRef("browser", "foreign", BrowserOwner(AgentId("a"))))
         assertEquals(original, vm.state.value.selected)
         val second = ScreenRef("computer", "two")
         fake.screens = vm.state.value.screens + vm.state.value.screens.first().copy(ref = second)

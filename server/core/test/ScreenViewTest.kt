@@ -1,7 +1,7 @@
 package kinuvo.server
 
 import kinuvo.server.plugin.ScreenGate
-import kinuvo.protocol.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
 

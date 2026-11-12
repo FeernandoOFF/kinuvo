@@ -4,10 +4,11 @@ import kinuvo.harness.Agent
 import kinuvo.harness.AgentDoc
 import kinuvo.harness.AgentDocs
 import kinuvo.server.update
-import kinuvo.protocol.ActiveHours
-import kinuvo.protocol.Routine
-import kinuvo.protocol.RoutineSpec
-import kinuvo.protocol.Trigger
+import kinuvo.protocol.routine.ActiveHours
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.RoutineSpec
+import kinuvo.protocol.routine.Trigger
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.datetime.TimeZone
@@ -18,9 +19,9 @@ import kotlin.time.Clock
 
 /** Each Agent's stored Routines, Heartbeat included (its prompt lives in [AgentDoc.Heartbeat], not here). */
 interface RoutineRepository {
-    suspend fun get(agentId: String): List<Routine>
+    suspend fun get(agentId: AgentId): List<Routine>
     /** Read-modify-write in one step; returns the new list. */
-    suspend fun update(agentId: String, transform: (List<Routine>) -> List<Routine>): List<Routine>
+    suspend fun update(agentId: AgentId, transform: (List<Routine>) -> List<Routine>): List<Routine>
 }
 
 /**

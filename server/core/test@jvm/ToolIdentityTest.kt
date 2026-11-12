@@ -18,7 +18,10 @@ import kinuvo.testing.harness.*
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.builtin.tools.*
 import kinuvo.server.tools.*
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.JsonObject
@@ -74,7 +77,7 @@ class ToolIdentityTest {
     @Test fun callsRecordedUnderAnAliasStillReachTheRenamedTool() = runTest {
         val forecast = listOf(bound()).withModelNames().single()
         assertEquals("forecast", forecast.descriptor.name)
-        val result = ToolService(listOf(forecast)).invoke(SessionEntry.ToolCall("c1", bound().descriptor.name, "{}"))
+        val result = ToolService(listOf(forecast)).invoke(SessionEntry.ToolCall(ToolCallId("c1"), bound().descriptor.name, "{}"))
         assertEquals("sunny", result.output)
         assertFalse(result.isError)
     }

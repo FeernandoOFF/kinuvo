@@ -1,5 +1,7 @@
 package kinuvo.ui.voice
 
+import kinuvo.protocol.approval.InteractionId
+import arrow.core.Either
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.ExperimentalSharedTransitionApi
@@ -64,15 +66,16 @@ import kinuvo.app.session.VoiceChatState
 import kinuvo.app.session.VoicePhase
 import kinuvo.ui.agent.ink
 import kinuvo.ui.design.*
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.AgentInfo
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.InteractionAnswer
-import kinuvo.protocol.PendingInteraction
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.app.agent.ApprovalOptionStyle
 import kinuvo.app.agent.approvalOptionStyle
 import kinuvo.app.session.approvalAnswer
-import kinuvo.protocol.Risk
+import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.session.commandOf
 import kinuvo.ui.session.prettyJson
 import androidx.navigationevent.NavigationEventInfo
@@ -341,12 +344,12 @@ fun LiveCallHost(agents: List<AgentInfo>) {
     }
     AnimatedVisibility(!minimized && approval != null, enter = fadeIn(), exit = fadeOut()) {
         approval?.let { a ->
-            CallApprovalSheet(shown.agentName, a, onDecision = { d -> scope.launch { runCatching { sessions.respond(shown.sessionId, a.id, InteractionAnswer.Approval(d)) } } }, onEnd = calls::end)
+            CallApprovalSheet(shown.agentName, a, onDecision = { d -> scope.launch { Either.catch { sessions.respond(shown.sessionId, a.id, InteractionAnswer.Approval(d)) } } }, onEnd = calls::end)
         }
     }
     AnimatedVisibility(!minimized && approval == null && external != null, enter = fadeIn(), exit = fadeOut()) {
         external?.let { p ->
-            CallExternalApprovalSheet(shown.agentName, p, onOption = { o -> scope.launch { runCatching { sessions.respond(shown.sessionId, p.id, approvalAnswer(o)) } } }, onEnd = calls::end)
+            CallExternalApprovalSheet(shown.agentName, p, onOption = { o -> scope.launch { Either.catch { sessions.respond(shown.sessionId, p.id, approvalAnswer(o)) } } }, onEnd = calls::end)
         }
     }
     if (minimized) Strip("live-call", if (shown.voice.error != null) color(mutedColor) else ink, onClick = { minimized = false }, priority = 100) {
@@ -396,7 +399,7 @@ private class SheetChoice(val label: String, val filled: Boolean, val onClick: (
 
 @Composable
 private fun CallRequestSheet(
-    id: String, icon: ImageVector, tone: Color, title: String, scope: String?, mono: Boolean, buttons: List<SheetChoice>, onEnd: () -> Unit,
+    id: InteractionId, icon: ImageVector, tone: Color, title: String, scope: String?, mono: Boolean, buttons: List<SheetChoice>, onEnd: () -> Unit,
     modifier: Modifier = Modifier, details: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     var open by remember(id) { mutableStateOf(false) }
@@ -446,5 +449,5 @@ private fun SheetButton(label: String, filled: Boolean, onClick: () -> Unit) {
 
 /** The Agents' colours as ARGB by ID, for native call surfaces such as the Live Activity. */
 object AgentInks {
-    val byId = mutableMapOf<String, Long>()
+    val byId = mutableMapOf<AgentId, Long>()
 }

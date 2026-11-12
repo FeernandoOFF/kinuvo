@@ -5,6 +5,9 @@ import com.agentclientprotocol.client.v2.*
 import com.agentclientprotocol.model.v2.*
 import kinuvo.harness.*
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.serialization.json.*
 import kotlin.uuid.Uuid
@@ -57,13 +60,13 @@ class AcpExecutionFactory(private val probeTimeoutMillis: Long = 15_000,
                 }
             }
             val previous = state.snapshot().externalSessionId
-            val session = if (previous == null) connection.newSession(requireNotNull(registration.cwd), operations)
+            val session = if (connection.supportsMcp()) null else if (previous == null) connection.newSession(requireNotNull(registration.cwd), operations)
                 else connection.resumeSession(previous, requireNotNull(registration.cwd), operations)
-            state.reference(session.sessionId.toString())
+            session?.let { state.reference(it.sessionId.toString()) }
             val info = connection.client.agentInfo.await()
-            val adapter = AcpSession(session, connection, state, broker, reducer, requests::cancel, ExecutionCapabilities(
+            val adapter = AcpSession(session, previous, requireNotNull(registration.cwd), operations, connection, state, broker, reducer, requests::cancel, ExecutionCapabilities(
                 resume = connection.supportsResume(), cancel = true, questions = true, approvals = true,
-                supportedMimeTypes = info.capabilities.session?.prompt.supportedMimeTypes()))
+                supportedMimeTypes = info.capabilities.session?.prompt.supportedMimeTypes()), acceptsMcp = connection.supportsMcp())
             val collecting = scope.launch(start = CoroutineStart.UNDISPATCHED) {
                 try { adapter.collect() }
                 finally { withContext(NonCancellable) { try { reducer.lost(broker::lost) } finally { connection.close() } } }

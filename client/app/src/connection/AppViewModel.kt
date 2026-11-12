@@ -15,6 +15,13 @@ import kinuvo.client.AuthException
 import kinuvo.client.ProtocolMismatchException
 import kinuvo.client.userMessage
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.surface.*
+import kinuvo.protocol.usage.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -52,7 +59,7 @@ data class AppState(
     val connection: Connection = Connection.Connecting(),
     val servers: List<Server> = emptyList(),
     val agents: List<AgentInfo> = emptyList(),
-    val agentId: String? = null,
+    val agentId: AgentId? = null,
     val home: Boolean = false,
     val sessions: RepositoryState = RepositoryState(),
     val usage: Usage? = null,
@@ -63,7 +70,7 @@ data class AppState(
     val devices: DevicesState = DevicesState(),
     val notice: String? = null,
     val capabilities: ServerCapabilities? = null,
-    val routines: Map<String, List<Routine>> = emptyMap(),
+    val routines: Map<AgentId, List<Routine>> = emptyMap(),
     val onboarding: Boolean = false,
     /** Counts Device resets, so each first run starts its onboarding over. */
     val firstRun: Int = 0,
@@ -282,7 +289,7 @@ class AppViewModel(
         if (route.agentId != null) route else route.copy(agentId = state.value.agentId ?: state.value.agents.firstOrNull()?.id)
 
     /** The Session last shown for [agentId], or a new one. */
-    fun lastView(agentId: String) = views[agentId] ?: Route.Chat(agentId)
+    fun lastView(agentId: AgentId) = views[agentId] ?: Route.Chat(agentId)
 
     /** A Session's unsent text, kept per Server and Session, or per screen until a new Session has an ID. */
     fun draft(route: Route.Chat): String = drafts[draftKey(route)] ?: drafts[route.slot].orEmpty()
@@ -318,7 +325,7 @@ class AppViewModel(
      * Selects the shell Agent and decides which Session the host should show: the one it last showed for [agentId], or
      * its latest. On [compact] layouts other screens stay open until a Session is picked from the column.
      */
-    fun selectAgent(agentId: String, current: Route?, compact: Boolean, onOpen: (Route.Chat) -> Unit) {
+    fun selectAgent(agentId: AgentId, current: Route?, compact: Boolean, onOpen: (Route.Chat) -> Unit) {
         val previous = state.value.agentId
         selecting?.cancel()
         val request = ++selection
@@ -336,23 +343,23 @@ class AppViewModel(
     }
 
     /** Shows [agentId] in the shell, loading its Sessions' first page and Routines once. */
-    fun showAgent(agentId: String) {
+    fun showAgent(agentId: AgentId) {
         state.update { it.copy(agentId = agentId, home = false) }
         if (agentId !in state.value.sessions.lists) repo.loadSessions(agentId)
         if (agentId !in state.value.routines) routines.load(agentId)
     }
 
-    fun loadMoreSessions(agentId: String) = repo.loadSessions(agentId, more = true)
+    fun loadMoreSessions(agentId: AgentId) = repo.loadSessions(agentId, more = true)
 
     /** The model provider [agentId] uses, empty until its settings load. */
-    fun provider(agentId: String): String = owner.config.state.value[agentId]?.details?.settings?.provider.orEmpty()
+    fun provider(agentId: AgentId): String = owner.config.state.value[agentId]?.details?.settings?.provider.orEmpty()
 
     /** Starts a Session with [agentId] by sending [text]; returns its ID, or null when it couldn't. */
-    suspend fun quickSend(agentId: String, text: String): String? =
+    suspend fun quickSend(agentId: AgentId, text: String): SessionId? =
         catching { owner.run { repo.createSession(agentId).id.also { repo.send(agentId, it, text) } } }.getOrNull()
 
     /** Offline, the latest one this Device saw. */
-    private suspend fun latestSession(agentId: String): String? =
+    private suspend fun latestSession(agentId: AgentId): SessionId? =
         catching { owner.call { it.call(Api.Sessions, SessionsParams(agentId, limit = 1)).sessions.firstOrNull()?.id } }
             .getOrElse { state.value.sessions.lists[agentId]?.sessions?.filter { it.routine == null }?.maxByOrNull { it.createdAt ?: 0 }?.id }
 

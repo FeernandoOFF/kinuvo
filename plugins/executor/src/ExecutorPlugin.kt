@@ -7,13 +7,13 @@ import kinuvo.server.plugin.CoreTool
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.ToolRun
 import kinuvo.server.plugin.requireString
-import kinuvo.protocol.Risk
+import kinuvo.protocol.approval.Risk
 import kotlinx.serialization.json.JsonObject
-import kinuvo.protocol.Integration
-import kinuvo.protocol.PluginDefinition
+import kinuvo.protocol.capability.Integration
+import kinuvo.protocol.plugin.PluginDefinition
 
 /** Contributes [RunCodeTool] to Agents with the `run_code` tool group. */
 class ExecutorPlugin(private val limits: Limits = Limits()) : HarnessPlugin {

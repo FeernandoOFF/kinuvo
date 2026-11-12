@@ -2,7 +2,9 @@ package kinuvo.app
 
 import kinuvo.app.agent.*
 
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.session.*
 import kotlin.test.*
 
 class ModelSelectionTest {

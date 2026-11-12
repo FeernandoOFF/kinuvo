@@ -1,0 +1,15 @@
+# The request routes of a Server: one handler per protocol method, calling the services of server/core.
+product:
+  type: kmp/lib
+  platforms: [jvm, android, iosArm64, iosSimulatorArm64]
+
+dependencies:
+  - ../core: exported
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json
+
+test-dependencies:
+  - $kotlin.test

@@ -1,6 +1,17 @@
 package kinuvo.client
 
+import kotlin.time.Duration
+import kotlin.random.Random
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Duration.Companion.milliseconds
+import arrow.resilience.Schedule
+import arrow.core.Either
 import kinuvo.protocol.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.surface.*
+import kinuvo.protocol.voice.*
 import kotlin.concurrent.Volatile
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.websocket.WebSockets
@@ -21,6 +32,12 @@ sealed interface ConnectionState {
     /** [rejected] when the Server refused the token, e.g. because the Device was revoked; it won't reconnect. */
     data class Disconnected(val reason: String, val rejected: Boolean = false) : ConnectionState
 }
+
+/** Reconnect attempts back off exponentially from half a second. */
+internal val ReconnectBackoff = Schedule.exponential<Unit>(500.milliseconds)
+
+/** The wait before the next reconnect attempt: [scheduled] capped at ten seconds, then cut by up to half so Devices don't reconnect in step. */
+internal fun reconnectWait(scheduled: Duration, random: Random = Random): Duration = minOf(scheduled, 10.seconds) * random.nextDouble(0.5, 1.0)
 
 /** Thrown when the server rejects the token or pairing code; retrying won't help. */
 class AuthException(message: String) : Exception(message)
@@ -91,7 +108,7 @@ class KinuvoClient(
     suspend fun connect(retry: Boolean = false): ConnectResult {
         val first = CompletableDeferred<ConnectResult>()
         loop = scope.launch {
-            var delayMs = 500L
+            var backoff = ReconnectBackoff.step
             while (isActive) {
                 _state.value = ConnectionState.Connecting
                 val connected = CompletableDeferred<Unit>()
@@ -110,15 +127,15 @@ class KinuvoClient(
                         catch (_: Exception) { }
                         finally { withContext(NonCancellable) { if (session === ws) failPending() } }
                     }
-                    val result = request(Api.Connect, prepared)
+                    val result = dispatchRequest(Api.Connect, prepared)
                     token = result.token.also(onToken)
                     if (uiCatalogs.isNotEmpty()) exchange(Api.SurfaceCatalogs, SurfaceCatalogsParams(uiCatalogs))
                     lastConnect = result
                     connected.complete(Unit)
                     _state.value = ConnectionState.Connected(result.serverName)
-                    presence.withLock { request(Api.Presence, PresenceParams(active)) }
+                    presence.withLock { dispatchRequest(Api.Presence, PresenceParams(active)) }
                     first.complete(result)
-                    delayMs = 500L
+                    backoff = ReconnectBackoff.step
                     reader.join()
                     _state.value = ConnectionState.Disconnected("Connection lost")
                 } catch (e: CancellationException) {
@@ -144,14 +161,15 @@ class KinuvoClient(
                         failPending()
                     }
                 }
-                delay(delayMs)
-                delayMs = (delayMs * 2).coerceAtMost(10_000)
+                val next = backoff(Unit) as? Schedule.Decision.Continue ?: return@launch
+                backoff = next.step
+                delay(reconnectWait(next.delay))
             }
         }
         return first.await()
     }
 
-    suspend fun <P, R> call(method: Method<P, R>, params: P): R = request(method, params)
+    suspend fun <P, R> call(method: Method<P, R>, params: P): R = dispatchRequest(method, params)
 
     suspend fun updateDeviceTools() = call(Api.DeviceTools, DeviceToolsParams(deviceTools()))
 
@@ -160,7 +178,7 @@ class KinuvoClient(
         if (this.active == active) return
         this.active = active
         // One at a time, each sending the latest value, so the Server ends up with the last one.
-        scope.launch { presence.withLock { runCatching { request(Api.Presence, PresenceParams(this@KinuvoClient.active)) } } }
+        scope.launch { presence.withLock { Either.catch { dispatchRequest(Api.Presence, PresenceParams(this@KinuvoClient.active)) } } }
     }
 
     /** Sends an event the Server takes without replying, e.g. live call audio. */
@@ -177,7 +195,7 @@ class KinuvoClient(
         scope.launch { runCatching { session?.close() } }.invokeOnCompletion { scope.cancel(); if (connection == null) http.close() }
     }
 
-    private suspend fun <P, R> request(method: Method<P, R>, params: P): R =
+    private suspend fun <P, R> dispatchRequest(method: Method<P, R>, params: P): R =
         if (method == Api.Connect) exchange(method, params) else {
             val connected = ready ?: throw DisconnectedException()
             connected.await()
@@ -210,9 +228,12 @@ class KinuvoClient(
             withContext(NonCancellable) { synchronizedPending { pending.remove(id) } }
         }
         if (!response.ok) {
-            val message = response.error ?: "Request failed"
-            if (method == Api.Connect && message.startsWith("protocol_mismatch:")) throw ProtocolMismatchException()
-            throw if (method == Api.Connect) AuthException(message) else IllegalStateException(message)
+            val error = response.error ?: WireError(WireErrorCode.Internal, "Request failed")
+            if (method == Api.Connect) {
+                if (error.code == WireErrorCode.ProtocolMismatch) throw ProtocolMismatchException()
+                throw AuthException(error.message)
+            }
+            throw error.toException()
         }
         if (method == Api.Connect) {
             val version = (response.payload as? JsonObject)?.get("protocolVersion")
@@ -243,7 +264,7 @@ class KinuvoClient(
                                 else -> error("Unsupported Device method")
                             }
                         } catch (e: CancellationException) { throw e }
-                        catch (_: Exception) { Frame.Response(f.id, false, error = "Device read failed") }
+                        catch (_: Exception) { Frame.Response(f.id, false, error = WireError(WireErrorCode.Internal, "Device read failed")) }
                         try { ws.send(response) }
                         catch (e: CancellationException) { throw e }
                         catch (_: Exception) { }

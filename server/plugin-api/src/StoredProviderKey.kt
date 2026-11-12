@@ -1,6 +1,6 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.ProviderApiKeyStatus
+import kinuvo.protocol.model.ProviderApiKeyStatus
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.io.files.Path

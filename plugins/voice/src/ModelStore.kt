@@ -2,7 +2,7 @@ package kinuvo.plugins.voice
 
 import kinuvo.models.ModelDownload
 import kinuvo.models.ModelFiles
-import kinuvo.protocol.*
+import kinuvo.protocol.voice.*
 import kotlinx.coroutines.*
 import java.io.File
 

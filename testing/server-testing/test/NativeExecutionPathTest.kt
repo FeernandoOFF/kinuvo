@@ -6,23 +6,25 @@ import kinuvo.client.KinuvoClient
 import kinuvo.harness.AgentDoc
 import kinuvo.harness.RunKind
 import kinuvo.testing.harness.awaitCondition
-import kinuvo.protocol.AgentRef
+import kinuvo.protocol.agent.AgentRef
 import kinuvo.protocol.Api
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.CatchUpParams
-import kinuvo.protocol.HistoryParams
-import kinuvo.protocol.InteractionAnswer
-import kinuvo.protocol.RespondParams
-import kinuvo.protocol.Risk
-import kinuvo.protocol.RoutineParams
-import kinuvo.protocol.RunStatus
-import kinuvo.protocol.SendParams
-import kinuvo.protocol.SessionChange
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.SessionInfo
-import kinuvo.protocol.SessionParams
-import kinuvo.protocol.SessionStatus
-import kinuvo.protocol.approval
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.session.CatchUpParams
+import kinuvo.protocol.session.HistoryParams
+import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.protocol.approval.RespondParams
+import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.routine.RoutineParams
+import kinuvo.protocol.routine.RunStatus
+import kinuvo.protocol.session.SendParams
+import kinuvo.protocol.session.SessionChange
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionInfo
+import kinuvo.protocol.session.SessionParams
+import kinuvo.protocol.session.SessionStatus
+import kinuvo.protocol.approval.approval
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -41,7 +43,7 @@ import kotlin.time.Duration.Companion.seconds
 class NativeExecutionPathTest {
     private val deploy = FakeTool("deploy", Risk.High, reason = "Pushes to production") { "deployed" }
 
-    private fun KinuvoClient.entries(sessionId: String) =
+    private fun KinuvoClient.entries(sessionId: SessionId) =
         events(Api.Update).filter { it.sessionId == sessionId }.mapNotNull { (it.change as? SessionChange.Entry)?.entry }
 
     private suspend inline fun <reified E : SessionEntry> ReceiveTurbine<SessionEntry>.awaitEntry(): E {
@@ -61,11 +63,11 @@ class NativeExecutionPathTest {
                 val client = server.client().also { it.connect() }
                 val approvals = client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }
                 approvals.test {
-                    client.call(Api.CatchUp, CatchUpParams("work", session.id))
-                    client.call(Api.Send, SendParams("work", session.id, "please deploy"))
+                    client.call(Api.CatchUp, CatchUpParams(AgentId("work"), session.id))
+                    client.call(Api.Send, SendParams(AgentId("work"), session.id, "please deploy"))
                     val approval = awaitItem()
                     assertEquals("deploy", approval.toolCallName)
-                    assertEquals(SessionStatus.Waiting, client.call(Api.Session, SessionParams("work", session.id)).status)
+                    assertEquals(SessionStatus.Waiting, client.call(Api.Session, SessionParams(AgentId("work"), session.id)).status)
                     client.entries(session.id).test {
                         assertTrue(client.call(Api.Respond, RespondParams(session.id, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
                         assertEquals("deployed", awaitEntry<SessionEntry.ToolResult>().output)
@@ -74,8 +76,8 @@ class NativeExecutionPathTest {
                     }
                     cancelAndIgnoreRemainingEvents()
                 }
-                awaitCondition("the run to end", 5.seconds) { client.call(Api.Session, SessionParams("work", session.id)).status == SessionStatus.Idle }
-                val transcript = client.call(Api.History, HistoryParams("work", session.id, 100)).map { it.entry }
+                awaitCondition("the run to end", 5.seconds) { client.call(Api.Session, SessionParams(AgentId("work"), session.id)).status == SessionStatus.Idle }
+                val transcript = client.call(Api.History, HistoryParams(AgentId("work"), session.id, 100)).map { it.entry }
                     .filter { it is SessionEntry.UserMessage || it is SessionEntry.ToolCall || it is SessionEntry.ToolResult || it is SessionEntry.AssistantMessage }
                 assertEquals(listOf("UserMessage", "ToolCall", "ToolResult", "AssistantMessage"), transcript.map { it::class.simpleName })
                 val sent = server.prompts.inputs.single()
@@ -95,15 +97,15 @@ class NativeExecutionPathTest {
         server.use {
             withContext(Dispatchers.Default) {
                 val client = server.client().also { it.connect() }
-                val routine = client.call(Api.Routines, AgentRef("work")).single { it.name == "Brief" }
+                val routine = client.call(Api.Routines, AgentRef(AgentId("work"))).single { it.name == "Brief" }
                 val ran = async(start = CoroutineStart.UNDISPATCHED) { client.events(Api.RoutineRan).first() }
-                client.call(Api.RunRoutine, RoutineParams("work", routine.id))
+                client.call(Api.RunRoutine, RoutineParams(AgentId("work"), routine.id))
                 val result = ran.await()
                 assertEquals(RunStatus.Ok, result.status)
                 assertEquals("Two things are new", result.summary)
                 val sent = server.prompts.inputs.single()
                 assertEquals(routine.id, assertIs<RunKind.Routine>(sent.kind).turn.ref.id)
-                val outcome = client.call(Api.History, HistoryParams("work", result.sessionId!!, 100)).map { it.entry }.filterIsInstance<SessionEntry.Outcome>().single()
+                val outcome = client.call(Api.History, HistoryParams(AgentId("work"), result.sessionId!!, 100)).map { it.entry }.filterIsInstance<SessionEntry.Outcome>().single()
                 assertTrue(outcome.report)
                 assertEquals("Two things are new", outcome.summary)
             }
@@ -122,11 +124,11 @@ class NativeExecutionPathTest {
             scenario = { agent("work") },
         )
         server.use {
-            val agent = server.harness.store.agents().single { it.id == "work" }
-            val result = server.harness.reflect(agent, "s1", listOf(SessionEntry.UserMessage("Remember to clear the cache after changing the SDK")))
+            val agent = server.harness.store.agents().single { it.id.value == "work" }
+            val result = server.harness.reflect(agent, SessionId("s1"), listOf(SessionEntry.UserMessage("Remember to clear the cache after changing the SDK")))
             assertEquals(null, result.error)
             assertEquals(1, result.memory)
-            assertTrue("Clear the cache after changing the SDK" in server.harness.docs.read("work", AgentDoc.Memory))
+            assertTrue("Clear the cache after changing the SDK" in server.harness.docs.read(AgentId("work"), AgentDoc.Memory))
             assertIs<RunKind.Reflection>(server.prompts.inputs.single().kind)
             Unit
         }

@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.server.rpc.serverRoutes
 import kinuvo.server.plugin.toolSpec
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.AgentDoc
@@ -16,6 +17,13 @@ import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.builtin.*
 import kinuvo.server.plugin.Tool
 import kinuvo.protocol.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.usage.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -80,21 +88,21 @@ class RuntimeDependenciesTest {
     fun resourceOwnerReleasesEveryPluginAndClosesOnceEvenWhenCancelled() = runTest {
         val actions = mutableListOf<String>()
         val first = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.runtimedependenciestest.1", "Test")
-            override suspend fun release(agentId: String) { actions += "release first"; error("Release failed") }
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runtimedependenciestest.1", "Test")
+            override suspend fun release(agentId: AgentId) { actions += "release first"; error("Release failed") }
             override suspend fun close() { actions += "close first"; yield(); error("Close failed") }
         }
         val second = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.runtimedependenciestest.2", "Test")
-            override suspend fun release(agentId: String) { actions += "release second" }
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runtimedependenciestest.2", "Test")
+            override suspend fun release(agentId: AgentId) { actions += "release second" }
             override suspend fun close() { actions += "close second"; yield() }
         }
         val owner = ServerResources(listOf(first, second, first)) { actions += "close network" }
-        assertFailsWith<IllegalStateException> { owner.release("test") }
+        assertFailsWith<IllegalStateException> { owner.release(AgentId("test")) }
         val closing = launch(start = CoroutineStart.UNDISPATCHED) { owner.close() }
         closing.cancelAndJoin()
         owner.close()
-        owner.release("test")
+        owner.release(AgentId("test"))
         assertEquals(listOf("release first", "release second", "close first", "close second", "close network"), actions)
     }
 
@@ -102,7 +110,7 @@ class RuntimeDependenciesTest {
     fun activeProtocolRequestsFinishBeforeResourcesClose() = runTest {
         val entered = CompletableDeferred<Unit>()
         val actions = mutableListOf<String>()
-        val provider = object : ModelProvider {
+        val provider = object : TestModelProvider {
             override val id = "test"
             override suspend fun models(): List<ModelInfo> {
                 entered.complete(Unit)
@@ -123,7 +131,7 @@ class RuntimeDependenciesTest {
             override suspend fun send(frame: Frame) { responses.send(frame) }
             override suspend fun close() { requests.close(); responses.close() }
         }
-        val server = ServerRuntime(fixture.runtime(), peers)
+        val server = ServerRuntime(fixture.runtime(), peers, serverRoutes())
         server.start()
         val serving = launch { server.serve(connection) }
         try {
@@ -143,7 +151,7 @@ class RuntimeDependenciesTest {
         val collecting = CompletableDeferred<Unit>()
         val actions = mutableListOf<String>()
         val state = kotlinx.coroutines.flow.MutableStateFlow<Usage?>(null)
-        val provider = object : ModelProvider {
+        val provider = object : TestModelProvider {
             override val id = "test"
             override val usage = object : kotlinx.coroutines.flow.StateFlow<Usage?> by state {
                 override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<Usage?>): Nothing {
@@ -159,7 +167,7 @@ class RuntimeDependenciesTest {
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
         }
-        val server = ServerRuntime(fixture.runtime(), peers)
+        val server = ServerRuntime(fixture.runtime(), peers, serverRoutes())
         server.start()
         collecting.await()
         server.close()
@@ -171,10 +179,10 @@ class RuntimeDependenciesTest {
     fun failedStartClosesResourcesAndCannotRestart() = runTest {
         var closes = 0
         val management = object : McpManagement by McpManagement.Unavailable {
-            override fun onSignInNeeded(listener: suspend (agentId: String, server: String) -> Unit) { error("Start failed") }
+            override fun onSignInNeeded(listener: suspend (agentId: AgentId, server: String) -> Unit) { error("Start failed") }
         }
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.runtimedependenciestest.3", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runtimedependenciestest.3", "Test")
             override val mcp = management
             override suspend fun close() { closes++ }
         }
@@ -183,7 +191,7 @@ class RuntimeDependenciesTest {
             override fun authenticate(device: String, token: String?, pairingCode: String?): String? = null
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "test"
-        })
+        }, serverRoutes())
         assertFailsWith<IllegalStateException> { server.start() }
         server.close()
         assertEquals(2, closes)

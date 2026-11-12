@@ -1,7 +1,7 @@
 package kinuvo.app.session
 
 import kinuvo.app.connection.Preferences
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.surface.SurfaceAction
 
 /** Asks once per model provider on this Device before Sessions send it messages, attachments and tool results. Apple's own models never need it. */
 class AiConsent(private val prefs: Preferences, private val required: Boolean) {

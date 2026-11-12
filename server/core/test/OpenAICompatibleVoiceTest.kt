@@ -10,7 +10,7 @@ import io.ktor.http.content.TextContent
 import io.ktor.utils.io.*
 import kinuvo.server.store.*
 import kinuvo.server.voice.*
-import kinuvo.protocol.VoiceSetup
+import kinuvo.protocol.voice.VoiceSetup
 import kotlin.test.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.CancellationException

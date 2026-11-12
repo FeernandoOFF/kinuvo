@@ -2,10 +2,10 @@ package kinuvo.app.connection
 
 import kinuvo.app.navigation.*
 
-import kinuvo.protocol.ChatLink
-import kinuvo.protocol.Links
-import kinuvo.protocol.McpRedirect
-import kinuvo.protocol.PairLink
+import kinuvo.protocol.device.ChatLink
+import kinuvo.protocol.device.Links
+import kinuvo.protocol.mcp.McpRedirect
+import kinuvo.protocol.device.PairLink
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /** The last `kinuvo://` link the platform opened the app with, until the app shows it. */

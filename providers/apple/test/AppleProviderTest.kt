@@ -1,5 +1,6 @@
 package kinuvo.providers.apple
 
+import kinuvo.harness.builtin.tools.toSpec
 import kinuvo.harness.builtin.ANSWER_NUDGE
 import kinuvo.testing.harness.*
 import ai.koog.agents.core.tools.ToolDescriptor
@@ -9,12 +10,12 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.RequestMetaInfo
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.AgentConfig
-import kinuvo.harness.builtin.ModelProfile
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.ToolIdentity
-import kinuvo.protocol.PluginInstanceId
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.plugin.ToolIdentity
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.server.plugin.modelAlias
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -24,6 +25,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.test.*
 import kotlin.test.*
+import kinuvo.harness.ModelProfile
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AppleProviderTest {
@@ -126,9 +128,9 @@ class AppleProviderTest {
         val nested = ToolParameterDescriptor("filter", "Filter", ToolParameterType.Object(listOf(text)))
         val memory = ToolDescriptor(ToolNames.MEMORY, "Memory", listOf(ToolParameterDescriptor("action", "Action", ToolParameterType.Enum(arrayOf("add", "remove")))))
         val provider = AppleProvider(Native())
-        assertTrue(provider.accepts(SYSTEM, memory))
-        assertTrue(provider.accepts(SYSTEM, ToolDescriptor("optional", "Optional", optionalParameters = listOf(nested))))
-        assertFalse(provider.accepts(SYSTEM, ToolDescriptor("nested", "Nested", listOf(nested))))
+        assertTrue(provider.accepts(SYSTEM, memory.toSpec()))
+        assertTrue(provider.accepts(SYSTEM, ToolDescriptor("optional", "Optional", optionalParameters = listOf(nested)).toSpec()))
+        assertFalse(provider.accepts(SYSTEM, ToolDescriptor("nested", "Nested", listOf(nested)).toSpec()))
         val native = Native { _, done -> done("""{"tool":"reply","reply":""}""", null) }
         runBlocking { model(native).request("", emptyList(), listOf(memory)).toList() }
         assertTrue(native.tools!!.contains("""["add","remove"]"""))
@@ -162,7 +164,7 @@ class AppleProviderTest {
         val original = ToolIdentity(PluginInstanceId("kinuvo.browser"), "browser_open").modelAlias()
         val native = Native { _, done -> done("""{"tool":"reply","reply":"Opened."}""", null) }
         model(native).request("", listOf(SessionEntry.UserMessage("Open Browser"),
-            SessionEntry.ToolCall("call", original, "{}"), SessionEntry.ToolResult("call", original, "Opened")),
+            SessionEntry.ToolCall(ToolCallId("call"), original, "{}"), SessionEntry.ToolResult(ToolCallId("call"), original, "Opened")),
             listOf(ToolDescriptor(original, "Open Browser"))).toList()
         val short = appleOffer(listOf(ToolDescriptor(original, "Open Browser"))).single().name
         assertContains(native.prompt.orEmpty(), "Agent requested $short:")
@@ -175,7 +177,7 @@ class AppleProviderTest {
         val configured = model(Native())
         val messages = kinuvo.harness.builtin.SessionMessages(configured).prompt("stable", listOf(
             SessionEntry.Context("Current facts"), SessionEntry.UserMessage("one"),
-            SessionEntry.ToolCall("c", ToolNames.MEMORY, "{}"), SessionEntry.ToolResult("c", ToolNames.MEMORY, "OK"))).messages
+            SessionEntry.ToolCall(ToolCallId("c"), ToolNames.MEMORY, "{}"), SessionEntry.ToolResult(ToolCallId("c"), ToolNames.MEMORY, "OK"))).messages
         val prompt = promptFor(messages)
         assertTrue(prompt.contains("User: one"))
         assertTrue(prompt.contains("Agent requested memory"))
@@ -187,8 +189,8 @@ class AppleProviderTest {
         val configured = model(Native())
         val messages = kinuvo.harness.builtin.SessionMessages(configured).prompt("stable", listOf(
             SessionEntry.UserMessage("what do you know about me?"), SessionEntry.AssistantMessage("I don't know anything about you."),
-            SessionEntry.UserMessage("remember my name"), SessionEntry.ToolCall("c", ToolNames.MEMORY, "{}"),
-            SessionEntry.ToolResult("c", ToolNames.MEMORY, "OK"))).messages
+            SessionEntry.UserMessage("remember my name"), SessionEntry.ToolCall(ToolCallId("c"), ToolNames.MEMORY, "{}"),
+            SessionEntry.ToolResult(ToolCallId("c"), ToolNames.MEMORY, "OK"))).messages
         val prompt = promptFor(messages)
         assertFalse("I don't know anything" in prompt, "Earlier replies are copied verbatim by the model")
         assertFalse("what do you know" in prompt)

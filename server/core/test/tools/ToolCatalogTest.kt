@@ -1,7 +1,8 @@
 package kinuvo.server.tools
 
 import kinuvo.server.plugin.rawSchemaSpec
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.server.plugin.Tool
 import kinuvo.server.plugin.ToolRun
 import kotlinx.coroutines.test.runTest
@@ -36,7 +37,7 @@ class ToolCatalogTest {
         val run = object : ToolRun {
             override val tools = catalogued.map { it.descriptor }
             override suspend fun call(name: String, args: String) =
-                kinuvo.protocol.SessionEntry.ToolResult("c", name, "done").also { calls += name to args }
+                kinuvo.protocol.session.SessionEntry.ToolResult(ToolCallId("c"), name, "done").also { calls += name to args }
         }
         val args = JsonObject(mapOf("name" to JsonPrimitive("notion__search"), "arguments" to JsonPrimitive("{\"q\":\"x\"}")))
         assertEquals("done", tools.getValue(ToolNames.CALL_TOOL).execute(args, "id", run))

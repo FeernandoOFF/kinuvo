@@ -1,5 +1,6 @@
 package kinuvo.cli
 
+import arrow.core.Either
 import io.github.oshai.kotlinlogging.KotlinLogging
 import com.github.ajalt.clikt.command.CoreSuspendingCliktCommand
 import com.github.ajalt.clikt.command.main
@@ -19,7 +20,7 @@ import kinuvo.server.jvm.Harness
 import kinuvo.server.jvm.HarnessServer
 import kinuvo.server.NetworkSecurity
 import kinuvo.server.jvm.LocalServer
-import kinuvo.protocol.Links
+import kinuvo.protocol.device.Links
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
@@ -127,7 +128,7 @@ private object LocalAccess : ServerAccess {
 
     private suspend fun connect(host: String, port: Int, token: String): KinuvoClient? {
         val client = KinuvoClient("ws://${if (':' in host) "[$host]" else host}:$port/ws", "cli", token, timeZone = TimeZone.getDefault().id)
-        return withTimeoutOrNull(3_000) { runCatching { client.connect() }.getOrNull() }?.let { client } ?: null.also { client.close() }
+        return withTimeoutOrNull(3_000) { Either.catch { client.connect() }.getOrNull() }?.let { client } ?: null.also { client.close() }
     }
 
     private suspend fun <T> KinuvoClient.use(block: suspend (KinuvoClient) -> T): T = try { block(this) } finally { close() }

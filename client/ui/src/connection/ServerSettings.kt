@@ -20,7 +20,11 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.reflection.*
+import kinuvo.protocol.secret.*
 import kinuvo.ui.design.*
 
 /** Where Tasks come from, which lists the Board shows and each list's Agent. Saved to config.yaml. */
@@ -55,7 +59,7 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
                 provider == s.provider && s.lists.isEmpty() -> ListUse.Unassigned
                 agent == null -> if (provider == s.provider) ListUse.Hidden else ListUse.Unassigned
                 agent.isEmpty() -> ListUse.Unassigned
-                else -> p.ui.agents.firstOrNull { it.id == agent }?.let { ListUse.Agent(it) } ?: ListUse.Unassigned
+                else -> p.ui.agents.firstOrNull { it.id.value == agent }?.let { ListUse.Agent(it) } ?: ListUse.Unassigned
             }
         }
     }
@@ -74,7 +78,7 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
                 when (use) {
                     ListUse.Hidden -> null
                     ListUse.Unassigned -> name to ""
-                    is ListUse.Agent -> name to use.agent.id
+                    is ListUse.Agent -> name to use.agent.id.value
                 }
             }.toMap(),
             defaultList = defaultList,

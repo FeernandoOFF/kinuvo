@@ -5,17 +5,18 @@ import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
 import kinuvo.server.plugin.CoreTool
 import kinuvo.harness.Agent
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.requireString
 import kinuvo.server.plugin.string
-import kinuvo.protocol.ArtifactInfo
+import kinuvo.protocol.artifact.ArtifactInfo
+import kinuvo.protocol.session.SessionId
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 
 /** Creates and edits Artifacts; [readWorkspace] reads a file from the Agent's Workspace. */
 class ArtifactTool(
     private val agent: Agent,
-    private val sessionId: String?,
+    private val sessionId: SessionId?,
     private val artifacts: Artifacts,
     private val readWorkspace: suspend (String) -> String,
 ) : CoreTool {

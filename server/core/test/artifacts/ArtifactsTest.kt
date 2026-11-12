@@ -3,7 +3,9 @@ package kinuvo.server.artifacts
 import kinuvo.server.TestHome
 import kinuvo.server.store.FileArtifacts
 import kinuvo.server.plugin.isFile
-import kinuvo.protocol.ArtifactChange
+import kinuvo.protocol.artifact.ArtifactChange
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.Json
@@ -22,7 +24,7 @@ class ArtifactsTest {
     private var now = 1L
     private val artifacts = Artifacts(FileArtifacts(home.files.artifacts)) { now++ }
     private val workspace = mapOf("out/chart.html" to "<svg/>")
-    private val tool = ArtifactTool(home.agent, "s1", artifacts) { workspace[it] ?: error("missing $it") }
+    private val tool = ArtifactTool(home.agent, SessionId("s1"), artifacts) { workspace[it] ?: error("missing $it") }
 
     private suspend fun call(vararg args: Pair<String, String>) = tool.execute(JsonObject(args.associate { (k, v) -> k to JsonPrimitive(v) }))
 
@@ -51,7 +53,7 @@ class ArtifactsTest {
 
     @Test
     fun userEditKeepsTheAgentAndSession() = runTest {
-        val created = artifacts.create("main", "s1", "Page", "html", "<p>a</p>")
+        val created = artifacts.create(AgentId("main"), SessionId("s1"), "Page", "html", "<p>a</p>")
         val edited = artifacts.replace(created.id, "<p>b</p>")
         assertEquals("<p>b</p>", artifacts.get(created.id).content)
         assertEquals(created.copy(updated = edited.updated), edited)
@@ -73,7 +75,7 @@ class ArtifactsTest {
 
     @Test
     fun jsonContentKeepsItsOwnFile() = runTest {
-        val id = artifacts.create("main", null, "Data", "json", """{"answer":42}""").id
+        val id = artifacts.create(AgentId("main"), null, "Data", "json", """{"answer":42}""").id
         assertEquals("""{"answer":42}""", artifacts.get(id).content)
         assertEquals(listOf(id), artifacts.list().map { it.id })
         artifacts.delete(id)

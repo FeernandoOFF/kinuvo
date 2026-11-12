@@ -1,23 +1,26 @@
 package kinuvo.harness
 
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.uuid.Uuid
 
 /** Implementations are native in-process, JVM ACP, or an explicitly selected remote Agent. */
 interface ExecutionSession {
+    val acceptsMcp: Boolean get() = false
     val capabilities: ExecutionCapabilities
     suspend fun close() {}
     suspend fun prompt(input: ExecutionInput): ExecutionAcceptance
     suspend fun cancel()
-    suspend fun respond(requestId: String, answer: InteractionAnswer): Boolean? = null
-    suspend fun answer(requestId: String, answer: InteractionAnswer)
+    suspend fun respond(requestId: InteractionId, answer: InteractionAnswer): Boolean? = null
+    suspend fun answer(requestId: InteractionId, answer: InteractionAnswer)
 }
 
 /** Execution-owned reducer. Client disconnection never changes execution state or pending requests. */
 class ExecutionState(
-    val sessionId: String,
+    val sessionId: SessionId,
     private val changed: suspend (ExecutionSnapshot) -> Unit = {},
     initial: ExecutionSnapshot = ExecutionSnapshot(sessionId),
     val generation: String = Uuid.random().toString(),
@@ -26,7 +29,7 @@ class ExecutionState(
     private val lock = Mutex()
     private var state = initial
     private var live = LiveState()
-    private val resolved = mutableSetOf<String>()
+    private val resolved = mutableSetOf<InteractionId>()
 
     suspend fun snapshot(): ExecutionSnapshot = lock.withLock { state }
 
@@ -72,7 +75,7 @@ class ExecutionState(
     }
 
     /** Claims a response exactly once, even if several reconnected clients answer. */
-    suspend fun resolve(id: String): Boolean = lock.withLock {
+    suspend fun resolve(id: InteractionId): Boolean = lock.withLock {
         if (state.phase == ExecutionPhase.Lost || state.pending.none { it.id == id } || !resolved.add(id)) false
         else {
             state = state.copy(pending = state.pending.filterNot { it.id == id })

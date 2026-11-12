@@ -1,5 +1,9 @@
 package kinuvo.server.jvm
 
+import kinuvo.harness.builtin.NativeExecutionFactory
+import kinuvo.harness.builtin.plugin.ModelSource
+import kinuvo.harness.ToolSpec
+import kinuvo.harness.requiredNames
 import ai.koog.agents.core.tools.ToolDescriptor
 import kinuvo.server.plugin.SecretProvider
 import kinuvo.server.plugin.toolSpec
@@ -22,7 +26,11 @@ import kinuvo.plugins.executor.ExecutorPlugin
 import kinuvo.plugins.mcp.McpServerConfig
 import kinuvo.plugins.mcp.McpTool
 import kinuvo.plugins.mcp.McpPlugin
-import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.secret.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -35,7 +43,7 @@ import kinuvo.server.providers.ModelProvider
 class RunPreparationTest {
     @Test
     fun attachmentCapabilitiesCombineModalitiesAndEndpointFormats() = runBlocking {
-        val provider = object : ModelProvider {
+        val provider = object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", input = listOf("text", "image")))
             override fun fileTypes(model: ModelInfo?) = setOf("application/pdf")
@@ -58,15 +66,15 @@ class RunPreparationTest {
     private val home = Files.createTempDirectory("run-preparation").toFile()
     private val seen = mutableListOf<List<String>>()
     private var modelsBuilt = 0
-    private val provider = object : ModelProvider {
+    private val provider = object : TestModelProvider {
         override val id = "test"
         override suspend fun models() = listOf(
             ModelInfo("tools", tools = true, context = 100_000),
             ModelInfo("text", tools = false),
             ModelInfo("limited", tools = true, toolIds = setOf("ping")),
         )
-        override fun accepts(model: String, tool: ToolDescriptor) =
-            tool.name != "ping" || tool.requiredParameters.any { p -> p.name == "message" }
+        override fun accepts(model: String, tool: ToolSpec) =
+            tool.name != "ping" || "message" in tool.requiredNames
         override fun model(config: AgentConfig): AgentModel {
             modelsBuilt++
             return scriptedModel { _, tools ->
@@ -76,12 +84,12 @@ class RunPreparationTest {
         }
     }
     private suspend fun harness(plugins: List<HarnessPlugin> = emptyList(), providers: List<ModelProvider> = listOf(provider)) =
-        HarnessRuntime(ServerInstallation.assemble(AgentFiles(Path(home.path)), plugins = plugins, modelProviders = providers))
+        HarnessRuntime(ServerInstallation.assemble(AgentFiles(Path(home.path)), plugins = plugins, modelProviders = providers), { NativeExecutionFactory(it, { providers.filterIsInstance<ModelSource>() }) })
     private suspend fun agent(harness: HarnessRuntime, tools: List<String> = emptyList()) = harness.store.agents().single().let {
         it.copy(config = it.config.copy(provider = "test", model = "tools", tools = tools))
     }
     private suspend fun inspect(harness: HarnessRuntime, agent: Agent, session: String? = null, settings: SessionSettings? = null) =
-        harness.capabilities(agent, session, settings, ServerCapabilities(harness.serverId, harness.features))
+        harness.capabilities(agent, session?.let(::SessionId), settings, ServerCapabilities(harness.serverId, harness.features))
 
     @Test
     fun builtInPluginToolsAreReportedAndDisabledGroupsAreAbsent() = runBlocking {
@@ -89,10 +97,10 @@ class RunPreparationTest {
         try {
             val agent = agent(harness, listOf("knowledge", "tasks", "run_code"))
             val session = harness.newSession(agent)
-            val reported = inspect(harness, agent, session.id).tools.map { it.identity!!.localId }.toSet()
+            val reported = inspect(harness, agent, session.id.value).tools.map { it.identity!!.localId }.toSet()
             assertEquals(setOf("knowledge", "knowledge_rewrite", "tasks", "run_code"), reported)
             harness.runner(agent, session.id).run(session.id, "hi").toList()
-            assertEquals(inspect(harness, agent, session.id).tools.map { it.id }.toSet(), seen.last().toSet())
+            assertEquals(inspect(harness, agent, session.id.value).tools.map { it.id }.toSet(), seen.last().toSet())
             assertEquals(emptyList(), inspect(harness, agent(harness)).tools)
         } finally { harness.close() }
     }
@@ -108,7 +116,7 @@ class RunPreparationTest {
             assertEquals(emptyList(), inspect(harness, agent(harness)).tools)
             val host = agent.copy(config = agent.config.copy(exec = "host", workspace = listOf(home.path)))
             val session = harness.newSession(host)
-            assertTrue(inspect(harness, host, session.id).tools.all { it.state.support == Support.Unknown })
+            assertTrue(inspect(harness, host, session.id.value).tools.all { it.state.support == Support.Unknown })
             harness.runner(host, session.id).run(session.id, "hi").toList()
             assertEquals(tools.map { it.id }.toSet(), seen.last().toSet())
         } finally { harness.close() }
@@ -140,21 +148,21 @@ class RunPreparationTest {
         try {
             val agent = agent(harness)
             val session = harness.newSession(agent)
-            assertEquals(Support.Unknown, inspect(harness, agent, session.id).tools.single().state.support)
+            assertEquals(Support.Unknown, inspect(harness, agent, session.id.value).tools.single().state.support)
             assertFalse(marker.exists())
             harness.runner(agent, session.id).run(session.id, "hi").toList()
             assertEquals(listOf("echo"), seen.last())
-            val cached = inspect(harness, agent, session.id).tools.single()
+            val cached = inspect(harness, agent, session.id.value).tools.single()
             assertEquals(seen.last().single(), cached.id)
             assertEquals(Support.Supported, cached.state.support)
             assertEquals(1, marker.readLines().size)
             harness.configure(agent, session.id, SessionSettings(model = "limited"))
-            assertEquals(Support.Unsupported, inspect(harness, agent, session.id).tools.single().state.support)
+            assertEquals(Support.Unsupported, inspect(harness, agent, session.id.value).tools.single().state.support)
             harness.runner(agent, session.id).run(session.id, "hi").toList()
             assertEquals(emptyList(), seen.last())
             assertEquals(1, marker.readLines().size)
             home.resolve("mcp.json").writeText("""{"mcpServers":{}}""")
-            assertEquals(emptyList(), inspect(harness, agent, session.id).tools)
+            assertEquals(emptyList(), inspect(harness, agent, session.id.value).tools)
         } finally { harness.close() }
     }
 
@@ -166,12 +174,12 @@ class RunPreparationTest {
         try {
             val agent = agent(harness)
             val session = harness.newSession(agent)
-            assertEquals(Support.Unknown, inspect(harness, agent, session.id).tools.single().state.support)
+            assertEquals(Support.Unknown, inspect(harness, agent, session.id.value).tools.single().state.support)
             assertFalse(marker.exists())
             val events = harness.runner(agent, session.id).run(session.id, "hi").toList()
             assertTrue(events.any { it is AgentEvent.Warning && "MCP server 'broken' unavailable" in it.message })
             assertEquals(emptyList(), seen.last())
-            assertEquals(Availability.Unavailable, inspect(harness, agent, session.id).tools.single().state.availability)
+            assertEquals(Availability.Unavailable, inspect(harness, agent, session.id.value).tools.single().state.availability)
             assertEquals(1, marker.readLines().size)
         } finally { harness.close() }
     }
@@ -221,10 +229,10 @@ class RunPreparationTest {
 
     @Test
     fun coreToolsAProviderLeavesOutAreReportedUnsupported() = runBlocking {
-        val narrow = object : ModelProvider {
+        val narrow = object : TestModelProvider {
             override val id = "test"
             override suspend fun models() = listOf(ModelInfo("tools", tools = true))
-            override fun accepts(model: String, tool: ToolDescriptor) = tool.name != "memory"
+            override fun accepts(model: String, tool: ToolSpec) = tool.name != "memory"
             override fun model(config: AgentConfig) = scriptedModel { _, _ -> flowOf(StreamFrame.End()) }
         }
         val harness = harness(providers = listOf(narrow))
@@ -254,7 +262,7 @@ class RunPreparationTest {
             harness.runner(agent, session.id).run(session.id, "hi").toList()
             val sent = seen.last()
             assertEquals(listOf("call_tool", "describe_tool", "find_tools", "memory"), sent.sorted())
-            assertEquals(49, inspect(harness, agent, session.id).tools.size)
+            assertEquals(49, inspect(harness, agent, session.id.value).tools.size)
         } finally { harness.close() }
     }
 }

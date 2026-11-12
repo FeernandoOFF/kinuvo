@@ -9,6 +9,7 @@ import kinuvo.server.plugin.readText
 import kinuvo.harness.builtin.*
 import kinuvo.server.store.*
 import kinuvo.protocol.*
+import kinuvo.protocol.secret.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import java.nio.file.Files

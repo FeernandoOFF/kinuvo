@@ -1,5 +1,6 @@
 package kinuvo.app.surface
 
+import kinuvo.client.KinuvoException
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
@@ -59,6 +60,7 @@ class AppHostTest {
         val host = AppHost(JsonObject(emptyMap()), JsonObject(emptyMap()), {}, {}, { name, args ->
             calls += name to args
             if (name == "fail") error("Needs an Approval")
+            if (name == "invalid") throw KinuvoException.InvalidParams("Bad arguments")
             buildJsonObject { put("content", JsonArray(emptyList())); put("structuredContent", buildJsonObject { put("ok", true) }) }
         }, this)
         host.deliver = { delivered += it }
@@ -68,13 +70,15 @@ class AppHostTest {
         assertTrue(host.receive("""{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"refresh","arguments":{"q":1}}}""").isEmpty())
         assertTrue(host.receive("""{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"fail"}}""").isEmpty())
         assertTrue(host.receive("""{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"arguments":{}}}""").single().contains("-32602"))
+        assertTrue(host.receive("""{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"invalid"}}""").isEmpty())
         testScheduler.advanceUntilIdle()
-        assertEquals(listOf("refresh", "fail"), calls.map { it.first })
+        assertEquals(listOf("refresh", "fail", "invalid"), calls.map { it.first })
         assertEquals(1, calls[0].second["q"]!!.jsonPrimitive.int)
         val ok = Json.parseToJsonElement(delivered[0]).jsonObject
         assertEquals(2, ok["id"]!!.jsonPrimitive.int)
         assertTrue(ok["result"]!!.jsonObject["structuredContent"]!!.jsonObject["ok"]!!.jsonPrimitive.boolean)
-        assertTrue(delivered[1].contains("Needs an Approval"))
+        assertTrue(delivered[1].contains("Needs an Approval") && delivered[1].contains("-32000"))
+        assertTrue(delivered[2].contains("Bad arguments") && delivered[2].contains("-32602"))
     }
 
     @Test fun staleToolRepliesCannotReachARecreatedApp() = runTest {

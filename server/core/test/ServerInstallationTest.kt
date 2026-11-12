@@ -9,7 +9,10 @@ import kinuvo.server.plugin.*
 import kinuvo.server.store.*
 import kinuvo.server.voice.VoiceConfig
 import kinuvo.server.voice.VoiceProviderConfig
-import kinuvo.protocol.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.voice.*
 import kotlin.test.*
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.test.runTest
@@ -24,7 +27,7 @@ class ServerInstallationTest {
             VoiceProviderConfig(model = "test", apiKey = "\${UNRESOLVED_VOICE_KEY}"))) }
         val dependencies = ServerInstallation.assemble(files)
         try {
-            assertEquals(VoiceSetup(synthesizer = true), HarnessRuntime(dependencies).voice.setup)
+            assertEquals(VoiceSetup(synthesizer = true), testRuntime(dependencies).voice.setup)
             files.updateConfig { it.copy(timezone = "Europe/Dublin") }
             assertNotNull(files.config().voice.synthesis)
         } finally { dependencies.resources.close() }
@@ -47,7 +50,7 @@ class ServerInstallationTest {
     fun failedAssemblyClosesInstalledPluginsOnce() = runTest {
         var closes = 0
         val plugin = object : ProviderPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.serverinstallationtest.2", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.serverinstallationtest.2", "Test")
             override val providerAdmins: List<ProviderAdmin> get() = error("Assembly failed")
             override suspend fun close() { closes++ }
         }
@@ -61,7 +64,7 @@ class ServerInstallationTest {
         var dependencies = ServerInstallation.assemble(files)
         val id = dependencies.serverId
         try {
-            val runtime = HarnessRuntime(dependencies)
+            val runtime = testRuntime(dependencies)
             runtime.timeZone = TimeZone.of("Europe/Dublin")
             runtime.saveTasksSettings(TasksSettings(pollMinutes = 17))
             runtime.saveKnowledgeSettings(KnowledgeSettings(reflection = false))

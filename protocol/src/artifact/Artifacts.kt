@@ -1,0 +1,33 @@
+package kinuvo.protocol.artifact
+
+import kotlinx.serialization.Serializable
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+
+/** A file an Agent made for the user, kept in `~/.kinuvo/artifacts`; only its latest content is kept. Times are epoch ms. */
+@Serializable
+data class ArtifactInfo(
+    val id: String,
+    val title: String,
+    /** File extension: html, svg, md, csv, json or txt. */
+    val type: String,
+    val agentId: AgentId,
+    /** The Session it was last saved from. */
+    val sessionId: SessionId? = null,
+    val created: Long,
+    val updated: Long,
+)
+
+@Serializable
+data class ArtifactData(val info: ArtifactInfo, val content: String)
+
+/** A user edit: [content] replaces the whole source. */
+@Serializable
+data class ArtifactSave(val id: String, val content: String)
+
+@Serializable
+data class ArtifactRef(val id: String)
+
+/** [info] is null when the Artifact was deleted. */
+@Serializable
+data class ArtifactChange(val id: String, val info: ArtifactInfo? = null)

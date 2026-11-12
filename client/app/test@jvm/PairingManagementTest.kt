@@ -8,6 +8,11 @@ import kinuvo.app.navigation.Route
 import androidx.lifecycle.ViewModelStore
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -133,13 +138,13 @@ class PairingManagementTest {
                 }
                 app.use(home)
                 pendingLink.value = null
-                openLink(Links.chat("kai", "s1", "office-id"))
-                pendingLink.first { it?.agentId == "kai" && it.sessionId == "s1" }
+                openLink(Links.chat(AgentId("kai"), SessionId("s1"), "office-id"))
+                pendingLink.first { it?.agentId?.value == "kai" && it.sessionId?.value == "s1" }
                 assertEquals(office.key, selected()?.key)
-                assertEquals("kai" to "s1", pendingLink.value?.let { it.agentId to it.sessionId })
-                app.openChat(ChatLink("kai", "s2", "unknown"))
+                assertEquals(AgentId("kai") to SessionId("s1"), pendingLink.value?.let { it.agentId to it.sessionId })
+                app.openChat(ChatLink(AgentId("kai"), SessionId("s2"), "unknown"))
                 assertEquals(office.key, selected()?.key)
-                assertEquals("s2", pendingLink.value?.sessionId)
+                assertEquals("s2", pendingLink.value?.sessionId?.value)
                 pendingLink.value = null
             }
         }
@@ -149,12 +154,12 @@ class PairingManagementTest {
     fun opensAChatBeforeAskingForNotifications() = runBlocking {
         var asked = 0
         withApp(permission = { asked++ }) { app, _, _ ->
-            app.showView(Route.Chat("kai"))
+            app.showView(Route.Chat(AgentId("kai")))
             assertEquals(0, asked)
             app.finishOnboarding()
             app.showView(Route.Board)
             assertEquals(0, asked)
-            app.showView(Route.Chat("kai"))
+            app.showView(Route.Chat(AgentId("kai")))
             assertEquals(1, asked)
         }
     }
@@ -206,7 +211,7 @@ class PairingManagementTest {
                     revoked = true
                     respond(request, Api.RevokeDevice, Unit)
                 }
-                else -> frames.send(Frame.Response(request.id, false, error = "Unavailable in this test"))
+                else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unavailable in this test")))
             }
         }
 

@@ -3,7 +3,9 @@ package kinuvo.harness.acp
 
 import com.agentclientprotocol.model.v2.*
 import kinuvo.harness.ExecutionInput
-import kinuvo.protocol.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.surface.*
 import java.util.Base64
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -12,7 +14,7 @@ import kotlin.test.*
 class AcpContentTest {
     @Test fun surfaceActionIncludesResolvedContext() {
         val context = buildJsonObject { put("name", "Alex") }
-        val action = SurfaceAction("call", "plan", "save", "submit", context, context)
+        val action = SurfaceAction(ToolCallId("call"), "plan", "save", "submit", context, context)
         val text = (ExecutionInput("Save plan", action = action).content(ExecutionCapabilities()).single() as ContentBlock.Text).text
         assertEquals(action.modelText("Save plan"), text)
     }

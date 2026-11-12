@@ -13,8 +13,9 @@ import io.ktor.http.content.TextContent
 import kinuvo.server.plugin.Notification
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
-import kinuvo.protocol.*
-
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 class NtfyTest {
     private val hosts = mutableListOf<PluginHosts>()
     private val requests = mutableListOf<Triple<String, String?, String>>()
@@ -42,7 +43,7 @@ class NtfyTest {
 
     @Test
     fun publishesToTheTopic() = runTest {
-        ntfy.send(Notification("Kai needs an Approval", "shell: rm -rf build", "kai", "20261005-1200-ab12", urgent = true))
+        ntfy.send(Notification("Kai needs an Approval", "shell: rm -rf build", AgentId("kai"), SessionId("20261005-1200-ab12"), urgent = true))
         assertEquals(Triple("https://ntfy.sh", null, """{"topic":"kinuvo-x7","title":"Kai needs an Approval","message":"shell: rm -rf build","priority":4,""" +
             """"click":"kinuvo://chat/kai/20261005-1200-ab12","actions":[{"action":"view","label":"Open in Kinuvo","url":"kinuvo://chat/kai/20261005-1200-ab12"}]}"""), requests.last())
 

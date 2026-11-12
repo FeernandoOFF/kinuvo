@@ -52,7 +52,10 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.borderColor
 import com.composables.ui.theme.mutedColor
 import com.composables.ui.theme.onFieldColor
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.session.*
 import kinuvo.ui.design.accentColor
 import kinuvo.ui.design.color
 import kinuvo.ui.design.GroupRow

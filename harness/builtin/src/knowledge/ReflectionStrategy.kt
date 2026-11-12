@@ -4,7 +4,7 @@ import ai.koog.agents.core.dsl.builder.node
 import ai.koog.agents.core.dsl.builder.strategy
 import ai.koog.agents.core.dsl.builder.subgraph
 import kinuvo.harness.builtin.ToolLoop
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
 
 internal fun reflectionStrategy(run: ReflectionStageRun, stage: String) = strategy<Unit, Unit>("kinuvoReflection$stage") {
     val review by reflectionStage(run, stage)

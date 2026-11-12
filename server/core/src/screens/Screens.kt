@@ -3,9 +3,10 @@ package kinuvo.server.screens
 import kinuvo.server.plugin.BrowserService
 import kinuvo.server.plugin.ScreenGate
 import kinuvo.server.plugin.ScreenSource
-import kinuvo.harness.builtin.*
 import kinuvo.server.*
-import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
@@ -15,7 +16,7 @@ import kotlin.time.Duration
 import kotlin.time.TimeSource
 
 /** One authenticated connection's subscriptions and control claims. */
-internal class Screens(
+class Screens internal constructor(
     private val computers: Computers,
     private val browser: () -> BrowserService?,
     private val validate: suspend (BrowserOwner) -> Unit,

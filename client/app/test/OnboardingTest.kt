@@ -7,7 +7,10 @@ import kinuvo.app.device.DeviceReader
 import kinuvo.client.KinuvoClient
 import kinuvo.app.onboarding.*
 
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.service.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -51,7 +54,7 @@ class OnboardingTest {
     }
 
     @Test fun modelSelectionNeedsAvailableModelAndProviderAccess() {
-        val details = AgentDetails(AgentInfo("main", "Kinuvo", "none"), AgentSettings("model", "medium", "default", "none"), "", "")
+        val details = AgentDetails(AgentInfo(AgentId("main"), "Kinuvo", "none"), AgentSettings("model", "medium", "default", "none"), "", "")
         val state = OnboardingState(details = details, provider = "codex", model = "model", providers = listOf(ProviderInfo("codex", "Codex")))
         assertTrue(state.modelReady)
         assertFalse(state.copy(providers = emptyList()).modelReady)

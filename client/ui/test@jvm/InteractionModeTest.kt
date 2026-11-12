@@ -1,7 +1,7 @@
 package kinuvo.ui
 
 import com.composables.ui.theme.InteractionMode
-import kinuvo.protocol.Platform
+import kinuvo.protocol.device.Platform
 import kinuvo.ui.design.interactionMode
 import kotlin.test.Test
 import kotlin.test.assertEquals

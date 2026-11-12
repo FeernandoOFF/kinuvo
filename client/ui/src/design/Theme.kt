@@ -19,8 +19,8 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import com.composables.compose.ripple.rememberRippleIndication
 import com.composables.interactioncapabilities.currentInteractionCapabilities
-import kinuvo.protocol.Platform
-import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import com.composables.ui.theme.*
 import com.composeunstyled.LocalTextStyle
 import com.composeunstyled.theme.Theme

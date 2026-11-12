@@ -33,10 +33,10 @@ import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
 import kinuvo.client.ConnectionState
-import kinuvo.protocol.ExecutionPhase
-import kinuvo.protocol.SessionInfo
-import kinuvo.protocol.SessionStatus
-import kinuvo.protocol.Usage
+import kinuvo.protocol.execution.ExecutionPhase
+import kinuvo.protocol.session.SessionInfo
+import kinuvo.protocol.session.SessionStatus
+import kinuvo.protocol.usage.Usage
 import kinuvo.ui.design.*
 import kotlinx.coroutines.delay
 import androidx.compose.foundation.shape.CircleShape

@@ -4,7 +4,9 @@ import kinuvo.app.agent.*
 import kinuvo.app.onboarding.*
 import kinuvo.app.session.*
 
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
 import kotlinx.serialization.json.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -15,7 +17,7 @@ import kotlin.test.assertTrue
 
 class HarnessTest {
     private val claude = HarnessConnectionStatus(HarnessConnection("claude", "Claude Code", ExecutionConnection.Acp(listOf("claude-code-acp"))), ExecutionReadiness(true, true))
-    private val acpAgent = AgentInfo("reviewer", "Reviewer", "external", executionKind = ExecutionKind.Acp, connectionId = "claude", host = "Mac mini")
+    private val acpAgent = AgentInfo(AgentId("reviewer"), "Reviewer", "external", executionKind = ExecutionKind.Acp, connectionId = "claude", host = "Mac mini")
 
     @Test fun browserRequiresNativeAgentAndServerSupport() {
         val server = ServerCapabilities("server", setOf(ServerFeature.Browser))
@@ -107,27 +109,27 @@ class HarnessTest {
     }
 
     @Test fun labelsNameTheMachineThatRunsTheAgent() {
-        val native = AgentInfo("main", "Kinuvo", "none")
+        val native = AgentInfo(AgentId("main"), "Kinuvo", "none")
         assertEquals("Kinuvo on Mac mini", runsOn(native, null, "Mac mini"))
         assertNull(railSubtitle(native, null, "Mac mini"))
         assertEquals("Claude Code on Mac mini", runsOn(acpAgent, listOf(claude), "Phone"))
         assertEquals("Claude Code · Mac mini", railSubtitle(acpAgent, listOf(claude), "Phone"))
         assertEquals("ACP agent on Mac mini", runsOn(acpAgent, null, "Phone"))
-        assertEquals("Researcher (Studio)", remoteName("Researcher", "Studio", listOf(AgentInfo("r", "researcher", "none"))))
-        assertEquals("Ada", remoteName("Ada", "Studio", listOf(AgentInfo("r", "researcher", "none"))))
+        assertEquals("Researcher (Studio)", remoteName("Researcher", "Studio", listOf(AgentInfo(AgentId("r"), "researcher", "none"))))
+        assertEquals("Ada", remoteName("Ada", "Studio", listOf(AgentInfo(AgentId("r"), "researcher", "none"))))
     }
 
     @Test fun externalDraftSavesItsRegistrationNotNativeSettings() {
         val details = AgentDetails(acpAgent, AgentSettings("", "", "", "external"), "", "", managed = true, cwd = "/Users/me/app")
         val draft = AgentDraft.of(details)
         assertEquals(ExecutionKind.Acp, draft.kind)
-        assertTrue(draft.problems("reviewer", listOf(acpAgent)).isEmpty())
+        assertTrue(draft.problems(AgentId("reviewer"), listOf(acpAgent)).isEmpty())
         assertNull(draft.registration(details))
         val moved = draft.copy(cwd = "/Users/me/other", name = "Critic")
-        assertEquals(UpdateAgentParams("reviewer"), moved.changes(details))
-        assertEquals(AgentRegistration("reviewer", "Critic", "claude", cwd = "/Users/me/other"), moved.registration(details))
-        assertEquals(listOf("Use an absolute path, e.g. /Users/you/project"), draft.copy(cwd = "app").problems("reviewer", listOf(acpAgent)))
-        val native = AgentDetails(AgentInfo("main", "Kinuvo", "none"), AgentSettings("m", "medium", "default", "none"), "", "")
+        assertEquals(UpdateAgentParams(AgentId("reviewer")), moved.changes(details))
+        assertEquals(AgentRegistration(AgentId("reviewer"), "Critic", "claude", cwd = "/Users/me/other"), moved.registration(details))
+        assertEquals(listOf("Use an absolute path, e.g. /Users/you/project"), draft.copy(cwd = "app").problems(AgentId("reviewer"), listOf(acpAgent)))
+        val native = AgentDetails(AgentInfo(AgentId("main"), "Kinuvo", "none"), AgentSettings("m", "medium", "default", "none"), "", "")
         assertNull(AgentDraft.of(native).copy(name = "Other").registration(native))
     }
 
@@ -149,11 +151,11 @@ class HarnessTest {
 
     @Test fun sharingPicksAgentsExplicitlyAndNeverRelaysRemoteOnes() {
         assertEquals(listOf("Say who it's for, e.g. the other Server's name", "Pick at least one Agent"), ShareForm().problems())
-        val remote = AgentInfo("ada", "Ada", "external", executionKind = ExecutionKind.Remote, connectionId = "studio")
-        assertEquals(listOf("main", "reviewer"), shareable(listOf(AgentInfo("main", "Kinuvo", "none"), acpAgent, remote)).map { it.id })
+        val remote = AgentInfo(AgentId("ada"), "Ada", "external", executionKind = ExecutionKind.Remote, connectionId = "studio")
+        assertEquals(listOf("main", "reviewer"), shareable(listOf(AgentInfo(AgentId("main"), "Kinuvo", "none"), acpAgent, remote)).map { it.id.value })
         val s = OnboardingState().choose(HarnessChoice.Remote("studio"))
-        assertEquals("milo-here", s.added("milo", listOf(AgentRegistration("milo-here", "Milo", "studio", remoteAgentId = "milo"))))
-        assertNull(s.added("milo", listOf(AgentRegistration("milo-here", "Milo", "other", remoteAgentId = "milo"))))
+        assertEquals(AgentId("milo-here"), s.added("milo", listOf(AgentRegistration(AgentId("milo-here"), "Milo", "studio", remoteAgentId = "milo"))))
+        assertNull(s.added("milo", listOf(AgentRegistration(AgentId("milo-here"), "Milo", "other", remoteAgentId = "milo"))))
         assertEquals("Not checked", readiness(CapabilityState.unavailable("x", "not_checked"), "Studio", "Studio").pill)
         assertEquals(listOf(ReadinessAction.Edit), readiness(CapabilityState.unavailable("x", "access_revoked"), "Studio", "Studio").actions)
     }

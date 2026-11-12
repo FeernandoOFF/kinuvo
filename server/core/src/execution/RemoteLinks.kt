@@ -3,6 +3,9 @@ package kinuvo.server.execution
 import co.touchlab.stately.concurrency.Lock
 import co.touchlab.stately.concurrency.withLock
 import kinuvo.protocol.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.serialization.Serializable
 import kotlin.uuid.Uuid
 
@@ -11,10 +14,10 @@ import kotlin.uuid.Uuid
 data class RemoteSecrets(val links: List<SaveRemoteLink> = emptyList(), val grants: List<StoredExposure> = emptyList(), val sessions: List<ExposedSession> = emptyList())
 
 @Serializable
-data class ExposedSession(val token: String, val agentId: String, val sessionId: String)
+data class ExposedSession(val token: String, val agentId: AgentId, val sessionId: SessionId)
 
 @Serializable
-data class StoredExposure(val id: String, val token: String, val agentIds: Set<String>)
+data class StoredExposure(val id: String, val token: String, val agentIds: Set<AgentId>)
 
 class RemoteLinks(initial: RemoteSecrets = RemoteSecrets(), private val persist: (RemoteSecrets) -> Unit = {}) {
     private val lock = Lock()
@@ -42,15 +45,15 @@ class RemoteLinks(initial: RemoteSecrets = RemoteSecrets(), private val persist:
         persist(next)
         secrets = next
     }
-    fun claim(token: String, agentId: String, sessionId: String) = lock.withLock {
+    fun claim(token: String, agentId: AgentId, sessionId: SessionId) = lock.withLock {
         require(secrets.grants.any { it.token == token && agentId in it.agentIds }) { "Remote access revoked" }
         require(secrets.sessions.none { it.sessionId == sessionId }) { "Session is already owned" }
         val next = secrets.copy(sessions = secrets.sessions + ExposedSession(token, agentId, sessionId))
         persist(next)
         secrets = next
     }
-    fun owns(token: String, agentId: String, sessionId: String) = lock.withLock {
+    fun owns(token: String, agentId: AgentId, sessionId: SessionId) = lock.withLock {
         secrets.sessions.any { it.token == token && it.agentId == agentId && it.sessionId == sessionId }
     }
-    fun exposure(token: String): Set<String>? = lock.withLock { secrets.grants.firstOrNull { it.token == token }?.agentIds }
+    fun exposure(token: String): Set<AgentId>? = lock.withLock { secrets.grants.firstOrNull { it.token == token }?.agentIds }
 }

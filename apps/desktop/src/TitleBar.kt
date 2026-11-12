@@ -8,8 +8,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.FrameWindowScope
 import com.jetbrains.JBR
 import kinuvo.ui.design.WindowChrome
-import kinuvo.protocol.Platform
-import kinuvo.protocol.currentPlatform
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.device.currentPlatform
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 

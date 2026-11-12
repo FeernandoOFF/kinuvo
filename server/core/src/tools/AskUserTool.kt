@@ -3,11 +3,11 @@ package kinuvo.server.tools
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.CoreTool
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.Question
-import kinuvo.protocol.QuestionKind
+import kinuvo.protocol.approval.Question
+import kinuvo.protocol.approval.QuestionKind
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject

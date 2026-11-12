@@ -1,17 +1,23 @@
 package kinuvo.server.embedded
 
+import kinuvo.server.rpc.serverRoutes
 import kinuvo.harness.AgentConfig
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.exists
 import kinuvo.server.devices.*
-import kinuvo.harness.builtin.plugin.*
+import kinuvo.harness.builtin.NativeExecutionFactory
+import kinuvo.harness.builtin.plugin.ModelSource
 import kinuvo.server.plugin.*
 import kinuvo.server.execution.ExecutionStorage
 import kinuvo.harness.remote.RemoteExecutionFactory
 import kinuvo.server.execution.remoteLinks
 import kinuvo.server.store.*
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.tool.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -53,13 +59,13 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
                            features: Set<ServerFeature> = setOf(ServerFeature.DeviceTools, ServerFeature.Computer),
                            peers: (PeerRegistry) -> PeerRegistry = { it }): EmbeddedServerHost {
             val files = AgentFiles(home)
-            val fresh = try { !files.config("default").exists() } catch (e: Throwable) {
+            val fresh = try { !files.config(AgentId("default")).exists() } catch (e: Throwable) {
                 ServerResources(plugins).close()
                 throw e
             }
             val dependencies = ServerInstallation.assemble(files, plugins = plugins, modelProviders = providers, modelSources = modelSources)
             try {
-                val harness = HarnessRuntime(dependencies, builtInFeatures = features)
+                val harness = HarnessRuntime(dependencies, { NativeExecutionFactory(it, modelSources) }, builtInFeatures = features)
                 if (fresh) {
                     val provider = harness.modelProviders.first()
                     val agent = harness.store.agents().single()
@@ -72,7 +78,7 @@ class EmbeddedServerHost(val runtime: ServerRuntime, val token: String) {
                 val auth = peers(EmbeddedPeers(token))
                 val executionStorage = ExecutionStorage(home)
                 val links = remoteLinks(home)
-                val runtime = ServerRuntime(harness, auth, "On this device", foregroundOnly = !continuous,
+                val runtime = ServerRuntime(harness, auth, serverRoutes(), "On this device", foregroundOnly = !continuous,
                     remoteLinks = links, remoteHarness = { RemoteExecutionFactory(links::link, harness.serverId, it) }, executionRegistry = executionStorage.registry,
                     executionStorage = executionStorage)
                 runtime.start(schedule = continuous)

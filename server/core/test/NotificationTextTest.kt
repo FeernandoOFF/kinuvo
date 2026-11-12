@@ -1,14 +1,16 @@
 package kinuvo.server
 
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.PluginInstanceId
-import kinuvo.protocol.ToolIdentity
+import kinuvo.protocol.approval.InteractionId
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.plugin.PluginInstanceId
+import kinuvo.protocol.plugin.ToolIdentity
+import kinuvo.protocol.session.ToolCallId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class NotificationTextTest {
     private fun approval(tool: String, args: String, plugin: String = "kinuvo.mcp", reason: String? = null) =
-        PendingInteraction.Approval("a1", "c1", tool, args, reason = reason, identity = ToolIdentity(PluginInstanceId(plugin), tool))
+        PendingInteraction.Approval(InteractionId("a1"), ToolCallId("c1"), tool, args, reason = reason, identity = ToolIdentity(PluginInstanceId(plugin), tool))
 
     @Test
     fun shellApprovalsShowTheCommand() {

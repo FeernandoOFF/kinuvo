@@ -2,11 +2,14 @@ package kinuvo.harness.builtin
 
 import ai.koog.prompt.message.MessagePart
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
 import kotlin.test.*
+import kinuvo.harness.limitResult
+import kinuvo.harness.ResultLimits
 
 class ResultLimitsTest {
     @Test fun tierBudgets() {
@@ -21,8 +24,8 @@ class ResultLimitsTest {
 
     @Test fun promptLimitsPreserveStoredResults() = runTest {
         val full = "HEAD" + "😀".repeat(4000) + "TAIL"
-        val old = SessionEntry.ToolResult("old", "read_file", full, isError = true)
-        val current = old.copy(id = "new")
+        val old = SessionEntry.ToolResult(ToolCallId("old"), "read_file", full, isError = true)
+        val current = old.copy(id = ToolCallId("new"))
         val history = listOf(old, SessionEntry.UserMessage("continue"), current)
         val messages = SessionMessages(scriptedModel { _, _ -> emptyFlow() })
         val prompt = messages.limitedPrompt("", history, ResultLimits(400, 3), setOf("read_file"))
@@ -49,7 +52,7 @@ class ResultLimitsTest {
             estimates++
             prompt.messages.sumOf { message -> message.parts.filterIsInstance<MessagePart.Text>().sumOf { it.text.length } }
         })
-        val result = SessionEntry.ToolResult("id", "search", "HEAD" + "x".repeat(4000) + "TAIL")
+        val result = SessionEntry.ToolResult(ToolCallId("id"), "search", "HEAD" + "x".repeat(4000) + "TAIL")
         val prompt = SessionMessages(model).limitedPrompt("", listOf(result), ResultLimits(400, 3), emptySet())
         val output = prompt.messages.flatMap { it.parts }.filterIsInstance<MessagePart.Tool.Result>().single().output
         assertTrue(estimates > 1)

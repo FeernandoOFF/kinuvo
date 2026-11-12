@@ -38,7 +38,9 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.*
 import kinuvo.ui.design.*
 import kotlinx.coroutines.delay
 import kotlinx.datetime.DatePeriod
@@ -77,14 +79,14 @@ data class HomeUi(
     val tasks: Boolean = false,
     val error: String? = null,
 ) {
-    fun agent(id: String?) = agents.firstOrNull { it.id == id }
+    fun agent(id: AgentId?) = agents.firstOrNull { it.id == id }
 }
 
 class HomeActions(
-    val onOpenSession: (agentId: String, sessionId: String) -> Unit = { _, _ -> },
+    val onOpenSession: (agentId: AgentId, sessionId: SessionId) -> Unit = { _, _ -> },
     val onOpenTask: (taskId: String) -> Unit = {},
     val onBoard: () -> Unit = {},
-    val onRoutine: (agentId: String, routineId: String) -> Unit = { _, _ -> },
+    val onRoutine: (agentId: AgentId, routineId: String) -> Unit = { _, _ -> },
 )
 
 /**
@@ -223,7 +225,7 @@ private fun Results(ui: HomeUi, actions: HomeActions) {
                         else -> r.lastReport?.lineSequence()?.firstOrNull { it.isNotBlank() }?.trim() ?: "Reported"
                     }
                     HomeRow(agent, r.name, listOfNotNull(agent?.name ?: r.agentId, relative(r.lastRunAt ?: ui.now, ui.now), outcome).joinToString(" · "),
-                        { actions.onOpenSession(r.agentId, r.lastSessionId!!) }, flag = "Failed".takeIf { failed })
+                        { actions.onOpenSession(r.agentId, SessionId(r.lastSessionId!!.value)) }, flag = "Failed".takeIf { failed })
                 }
                 is Outcome.Finished -> {
                     val agent = ui.agent(o.session.agentId)

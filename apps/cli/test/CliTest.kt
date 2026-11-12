@@ -52,7 +52,7 @@ class CliTest {
             assertContains(kinuvo("-a", "work", "skills", "show", "notes"), "Write them down")
             assertFailsWith<CliktError> { kinuvo("-a", "work", "skills", "remove", "nope") }
             kinuvo("agents", "delete", "work", "--yes")
-            assertEquals(listOf("default"), server.harness.store.agents().map { it.id })
+            assertEquals(listOf("default"), server.harness.store.agents().map { it.id.value })
             val pair = kinuvo("pair", "--host", "192.168.1.12", "--refresh")
             assertContains(pair, "kinuvo://pair?server=http%3A%2F%2F192.168.1.12%3A$port&code=")
             assertContains(pair, "/#pair=")

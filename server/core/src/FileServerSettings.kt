@@ -11,7 +11,6 @@ import kinuvo.server.plugin.PluginHosts
 import kinuvo.server.plugin.SecretReferences
 import kinuvo.server.plugin.instance
 import kinuvo.server.plugin.maskedOptions
-import kinuvo.harness.builtin.*
 import kinuvo.server.knowledge.Knowledge
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.plugin.createDirectories
@@ -19,16 +18,16 @@ import kinuvo.server.store.saveKnowledgeConfig
 import kinuvo.server.store.saveTasksConfig
 import kinuvo.server.plugin.TaskProvider
 import kinuvo.server.tasks.TasksConfig
-import kinuvo.protocol.ProviderModelRef
-import kinuvo.protocol.Integration
-import kinuvo.protocol.KnowledgeSettings
-import kinuvo.protocol.KnowledgeSetup
-import kinuvo.protocol.KnowledgeTestResult
+import kinuvo.protocol.model.ProviderModelRef
+import kinuvo.protocol.capability.Integration
+import kinuvo.protocol.knowledge.KnowledgeSettings
+import kinuvo.protocol.knowledge.KnowledgeSetup
+import kinuvo.protocol.knowledge.KnowledgeTestResult
 import kotlinx.coroutines.CancellationException
-import kinuvo.protocol.TaskListInfo
-import kinuvo.protocol.TaskProviderRef
-import kinuvo.protocol.TasksSettings
-import kinuvo.protocol.TasksSetup
+import kinuvo.protocol.board.TaskListInfo
+import kinuvo.protocol.board.TaskProviderRef
+import kinuvo.protocol.board.TasksSettings
+import kinuvo.protocol.board.TasksSetup
 import kinuvo.server.store.FileBoard
 import kinuvo.server.store.LocalTaskApp
 import kinuvo.server.store.tasksConfig
@@ -43,13 +42,13 @@ import kinuvo.server.store.knowledgeRoot
 import kinuvo.server.store.Store
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.server.plugin.WebSearch
-import kinuvo.protocol.ServiceKind
-import kinuvo.protocol.ServiceSettings
-import kinuvo.protocol.ServiceSetup
-import kinuvo.protocol.ServiceTestResult
-import kinuvo.protocol.TestServiceParams
-import kinuvo.protocol.SecretUpdate
-import kinuvo.protocol.SettingsProvider
+import kinuvo.protocol.service.ServiceKind
+import kinuvo.protocol.service.ServiceSettings
+import kinuvo.protocol.service.ServiceSetup
+import kinuvo.protocol.service.ServiceTestResult
+import kinuvo.protocol.service.TestServiceParams
+import kinuvo.protocol.settings.SecretUpdate
+import kinuvo.protocol.settings.SettingsProvider
 import kinuvo.server.store.serviceConfig
 import kinuvo.server.store.saveServiceConfig
 import kinuvo.server.store.config
@@ -57,7 +56,7 @@ import kinuvo.server.store.updateConfig
 import kotlinx.datetime.TimeZone
 import kotlinx.io.files.Path
 import kinuvo.server.plugin.WebSearchProvider
-import kinuvo.protocol.DEFAULT_REFLECTION_PROMPT
+import kinuvo.protocol.reflection.DEFAULT_REFLECTION_PROMPT
 import kotlin.concurrent.Volatile
 
 internal class FileServerSettings(
@@ -104,7 +103,7 @@ internal class FileServerSettings(
         listOf(TaskProvider.of("local", "Kinuvo (built in)", LocalTaskApp(files.localTasks))) + external.flatMap { it.taskProviders },
         FileBoard(files.board),
         config = { files.tasksConfig() },
-        agentIds = { store.agents().map { it.id }.toSet() },
+        agentIds = { store.agents().map { it.id.value }.toSet() },
         today = { Clock.System.todayIn(timeZone) },
         host = { p, options -> external.firstOrNull { p in it.taskProviders }?.let { host(it, p, options) } ?: NoPluginHost },
     )
@@ -132,7 +131,7 @@ internal class FileServerSettings(
     /** Saves [s] once its provider accepts its options; secret options change only through [secretUpdates]. */
     override suspend fun saveTasksSettings(s: TasksSettings, secretUpdates: Map<String, SecretUpdate>): TasksSetup {
         val options = taskProvider(s.provider).merged(savedTaskOptions(s.provider), s.options, secretUpdates)
-        val agents = store.agents().map { it.id }.toSet()
+        val agents = store.agents().map { it.id.value }.toSet()
         s.lists.values.filter { it.isNotEmpty() }.forEach { require(it in agents) { "No agent '$it'" } }
         require(s.startBeforeDays in 0..365) { "Start before must be 0 to 365 days" }
         require(s.pollMinutes in 1..1440) { "Check every must be 1 to 1440 minutes" }

@@ -3,7 +3,7 @@ package kinuvo.server.tools
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.CoreTool
 import kotlinx.serialization.json.*
 

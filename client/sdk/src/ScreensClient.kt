@@ -1,6 +1,8 @@
 package kinuvo.client
 
 import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.*
 
 /** Calls are sent once. After an unknown mutation outcome, observe before acting again. */

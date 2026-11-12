@@ -4,9 +4,13 @@ import kotlin.time.Duration.Companion.seconds
 import kinuvo.testing.harness.*
 
 import kinuvo.server.plugin.RunContext
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.ToolRun
-import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.tool.*
 import kotlinx.coroutines.*
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.*

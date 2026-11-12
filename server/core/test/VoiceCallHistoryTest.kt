@@ -1,6 +1,6 @@
 package kinuvo.server
 
-import kinuvo.protocol.*
+import kinuvo.protocol.session.*
 import kotlin.test.*
 import kinuvo.harness.builtin.activeHistory
 

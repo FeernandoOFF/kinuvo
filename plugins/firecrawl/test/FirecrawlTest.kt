@@ -15,8 +15,7 @@ import kinuvo.server.plugin.WebResult
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*
-import kinuvo.protocol.*
-
+import kinuvo.protocol.capability.*
 class FirecrawlTest {
     private val hosts = mutableListOf<PluginHosts>()
     private val requests = mutableListOf<Pair<String, JsonObject>>()

@@ -1,5 +1,6 @@
 package kinuvo.ui.session
 
+import kinuvo.protocol.session.ToolCallId
 import kinuvo.ui.surface.LocalSurfaceItems
 
 import kinuvo.ui.surface.LocalSurfaceRenderers
@@ -9,7 +10,7 @@ import kinuvo.ui.surface.McpAppSurface
 import kinuvo.ui.surface.LocalHtmlHeights
 import kinuvo.ui.surface.LocalHtmlSurfaces
 import kinuvo.ui.surface.SurfaceRenderer
-import kinuvo.protocol.Attachment
+import kinuvo.protocol.session.Attachment
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
@@ -62,7 +63,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.builtins.ListSerializer
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.Question
+import kinuvo.protocol.approval.Question
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.launch
@@ -74,7 +75,7 @@ import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
-import kinuvo.protocol.RequestMetrics
+import kinuvo.protocol.usage.RequestMetrics
 import kotlinx.serialization.json.JsonElement
 
 @Composable
@@ -129,10 +130,11 @@ internal fun Messages(
         if (state.loaded) EmptyState(state, modifier.padding(top = top, bottom = bottom)) else Box(modifier.fillMaxWidth())
         return
     }
-    val surfaceRenderers = remember(state.selected) { mutableMapOf<String, SurfaceRenderer>() }
-    val htmlHeights = remember(state.selected) { mutableMapOf<String, Int>() }
-    val htmlSurfaces = remember(state.selected) { mutableStateListOf<String>() }
-    CompositionLocalProvider(LocalHtmlSurfaces provides htmlSurfaces, LocalHtmlHeights provides htmlHeights, LocalSurfaceRenderers provides surfaceRenderers, LocalSurfaceItems provides items) {
+    val surfaceRenderers = remember(state.selected) { mutableMapOf<ToolCallId, SurfaceRenderer>() }
+    val htmlHeights = remember(state.selected) { mutableMapOf<ToolCallId, Int>() }
+    val htmlSurfaces = remember(state.selected) { mutableStateListOf<ToolCallId>() }
+    val subAgents = remember(state.children, state.interactionChildren) { SubAgents(state.children, state.interactionChildren.values.toSet()) }
+    CompositionLocalProvider(LocalHtmlSurfaces provides htmlSurfaces, LocalHtmlHeights provides htmlHeights, LocalSurfaceRenderers provides surfaceRenderers, LocalSurfaceItems provides items, LocalSubAgents provides subAgents) {
         Box(modifier.fillMaxWidth()) {
             SelectionContainer {
                 LazyColumn(
@@ -142,6 +144,9 @@ internal fun Messages(
                     verticalArrangement = Arrangement.spacedBy(Spacing.space14),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    state.info?.takeIf { it.parent != null }?.let { info ->
+                        item(key = "sub-agent-parent") { Box(Modifier.widthIn(max = ContentWidth).fillMaxWidth()) { ParentBanner(info, actions.agents, actions.onOpenSession) } }
+                    }
                     items(rows, key = { it.key }, contentType = {
                         when (it) {
                             is ChatRow.Single -> it.item::class
@@ -284,6 +289,7 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
             item.name == "show_html" && item.result != null && !item.isError -> HtmlSurface(item, actions.onSend) { ToolCallView(item, actions = actions) }
             item.app != null && item.result != null && !item.isError -> McpAppSurface(item, actions.onAppResource, actions.onAppTool, actions.onSend) { ToolCallView(item, actions = actions) }
             item.name == "show_ui" && item.result != null && !item.isError -> SurfaceCall(item, actions.onSurfaceAction) { ToolCallView(item, actions = actions) }
+            item.name in SUB_AGENT_TOOLS -> SubAgentCard(item, actions)
             item.name == "artifact" && item.result != null && !item.isError -> Column { ArtifactCard(item, actions.onOpenArtifact); ToolAttachments(item.attachments, actions) }
             else -> ToolCallView(item, actions = actions)
         }

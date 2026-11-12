@@ -17,8 +17,8 @@ import com.composables.icons.lucide.Gauge
 import com.composables.icons.lucide.Lucide
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.RequestMetrics
-import kinuvo.protocol.Usage
+import kinuvo.protocol.usage.RequestMetrics
+import kinuvo.protocol.usage.Usage
 import kinuvo.ui.design.*
 import kotlin.math.roundToInt
 

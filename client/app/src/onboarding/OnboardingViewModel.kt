@@ -7,7 +7,13 @@ import kinuvo.client.userMessage
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.service.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -90,7 +96,7 @@ data class OnboardingState(
     val server: String = "this Server",
     /** The Agents a linked Server shares, null until discovered, and those picked to add. */
     val shared: List<AgentInfo>? = null,
-    val picked: Set<String> = emptySet(),
+    val picked: Set<AgentId> = emptySet(),
     /** The Server's external Agents, to tell which shared ones were added already. */
     val registrations: List<AgentRegistration> = emptyList(),
 ) {
@@ -252,10 +258,10 @@ class OnboardingViewModel(private val config: ConfigRepository, private val noti
     }
 
     /** Creates the Agent, with an ID from its name that none of [taken] has, and opens it with [onCreated]; [agents] are the Server's, whose names a linked Server's Agents avoid. */
-    fun create(taken: List<String>, onCreated: (String) -> Unit, agents: List<AgentInfo> = emptyList()) = attempt {
+    fun create(taken: List<AgentId>, onCreated: (AgentId) -> Unit, agents: List<AgentInfo> = emptyList()) = attempt {
         val s = state.value
         require(s.agentName.isNotBlank()) { "Name your Agent." }
-        val id = uniqueId(s.agentName, taken)
+        val id = AgentId(uniqueId(s.agentName, taken.map { it.value }))
         when (val h = s.harness) {
             is HarnessChoice.Acp -> {
                 cwdProblem(s.cwd)?.let { error(it) }
@@ -266,13 +272,13 @@ class OnboardingViewModel(private val config: ConfigRepository, private val noti
                 val host = s.connection?.config?.host ?: s.connection?.config?.name ?: "the other Server"
                 val picked = s.shared.orEmpty().filter { it.id in s.picked }
                 require(picked.isNotEmpty()) { "Pick at least one Agent." }
-                val ids = taken.toMutableList()
+                val ids = taken.map { it.value }.toMutableList()
                 val names = mutableListOf<AgentInfo>()
                 picked.forEach { remote ->
                     val name = remoteName(remote.name, host, agents + names)
                     val id = uniqueId(name, ids).also { ids += it }
-                    harnesses.register(AgentRegistration(id, name, h.connectionId, remote.avatar, remoteAgentId = remote.id))
-                    names += AgentInfo(id, name, "external")
+                    harnesses.register(AgentRegistration(AgentId(id), name, h.connectionId, remote.avatar, remoteAgentId = remote.id.value))
+                    names += AgentInfo(AgentId(id), name, "external")
                 }
                 return@attempt onCreated(names.first().id)
             }
@@ -284,7 +290,7 @@ class OnboardingViewModel(private val config: ConfigRepository, private val noti
         onCreated(id)
     }
 
-    private fun update(id: String, s: OnboardingState) = UpdateAgentParams(id, name = s.agentName.trim(), provider = s.provider, model = s.model.trim(),
+    private fun update(id: AgentId, s: OnboardingState) = UpdateAgentParams(id, name = s.agentName.trim(), provider = s.provider, model = s.model.trim(),
         reasoning = s.catalog.model(s.provider, s.model)?.reasoningFor(s.details?.settings?.reasoning.orEmpty()), avatar = AvatarArtboards[s.avatar], soul = s.prompt)
 
     private fun attempt(block: suspend () -> Unit): Job = viewModelScope.launch {

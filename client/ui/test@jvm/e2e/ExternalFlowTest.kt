@@ -6,10 +6,11 @@ import kinuvo.testing.server.FakeHarness
 import kinuvo.testing.server.FakeModelProvider
 import kinuvo.testing.server.FakeModels
 import kinuvo.protocol.Api
-import kinuvo.protocol.ExecutionCapabilities
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.Question
-import kinuvo.protocol.QuestionKind
+import kinuvo.protocol.execution.ExecutionCapabilities
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.approval.Question
+import kinuvo.protocol.approval.QuestionKind
+import kinuvo.protocol.agent.AgentId
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -36,13 +37,13 @@ class ExternalFlowTest {
         withoutAgent(it)
         externalAgent(harness, "e2e", "E2E Agent")
     }) {
-        server.startSession("e2e", prompt = "Start", title = "External regression")
+        server.startSession(AgentId("e2e"), prompt = "Start", title = "External regression")
         openExternalSession()
         await("Choose a retry limit")
         await("3")
-        await(label("Submit").and(isEnabled()))
+        await(label("Send").and(isEnabled()))
         screenshot("question")
-        tap("Submit")
+        tap("Send")
         await("Retry limit accepted", 20_000)
         gone("Choose a retry limit")
         await("External transcript retained")
@@ -62,7 +63,7 @@ class ExternalFlowTest {
     @Test fun lostExternalSessionKeepsItsTranscript() = appTest("external-session-lost", harnesses = listOf(harness), scenario = {
         withoutAgent(it)
         externalAgent(harness, "e2e", "E2E Agent")
-        lostExternalSession("e2e", title = "External regression", draft = "Unfinished external draft") {
+        lostExternalSession(AgentId("e2e"), title = "External regression", draft = "Unfinished external draft") {
             user("Start")
             assistant("External transcript retained")
         }
@@ -110,7 +111,7 @@ class ExternalFlowTest {
             withoutAgent(it)
             externalAgent(attaching, "e2e", "E2E Agent")
         }) {
-            server.startSession("e2e", prompt = "Hello", title = "External regression")
+            server.startSession(AgentId("e2e"), prompt = "Hello", title = "External regression")
             openExternalSession()
             tap("Attach")
             check()

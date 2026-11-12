@@ -1,7 +1,7 @@
 package kinuvo.app.connection
 
 import kinuvo.client.oauthState
-import kinuvo.protocol.McpRedirect
+import kinuvo.protocol.mcp.McpRedirect
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope

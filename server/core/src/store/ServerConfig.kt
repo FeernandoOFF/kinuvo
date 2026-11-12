@@ -9,12 +9,12 @@ import com.charleskorn.kaml.YamlConfiguration
 import kinuvo.server.knowledge.KnowledgeConfig
 import kinuvo.server.tasks.TasksConfig
 import kinuvo.server.voice.VoiceConfig
-import kinuvo.protocol.ServiceKind
-import kinuvo.protocol.ServiceSettings
-import kinuvo.protocol.TrustRules
+import kinuvo.protocol.service.ServiceKind
+import kinuvo.protocol.service.ServiceSettings
+import kinuvo.protocol.approval.TrustRules
 import kotlinx.serialization.Serializable
 import kinuvo.server.plugin.ModelProviderConfig
-import kinuvo.protocol.ProviderModelRef
+import kinuvo.protocol.model.ProviderModelRef
 
 /** `config.yaml` in the home folder: everything set up for the whole Server. [rules] are its Trust and Deny rules, for every Agent. */
 @Serializable

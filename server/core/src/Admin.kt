@@ -1,11 +1,20 @@
 package kinuvo.server
 
+import arrow.core.raise.Raise
+import arrow.core.raise.context.raise
+
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentDoc
 import kinuvo.harness.ExecModes
 import kinuvo.server.skills.Skill
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.*
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.skill.*
+import kinuvo.protocol.tool.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -18,20 +27,23 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
 
     suspend fun agents(): List<AgentInfo> = store.agents().map { it.info() }
 
-    suspend fun agent(id: String): Agent = store.agents().firstOrNull { it.id == id } ?: error("No agent '$id'")
+    context(_: Raise<AgentError>)
+    suspend fun agent(id: AgentId): Agent = store.agents().firstOrNull { it.id == id } ?: raise(AgentError.NotFound(id))
 
     suspend fun details(agent: Agent) = AgentDetails(
         agent.info(), agent.settings(), docs.read(agent.id, AgentDoc.Identity), docs.read(agent.id, AgentDoc.Soul), harness.trustRules.get(agent.id), docs.read(agent.id, AgentDoc.UserNotes),
     )
 
+    context(_: Raise<AgentError>)
     suspend fun create(p: CreateAgentParams): AgentInfo = lock.withLock {
-        val agent = store.createAgent(p.agentId, p.cloneFrom?.let { agent(it) })
+        val agent = store.createAgent(p.agentId.value, p.cloneFrom?.let { agent(it) })
         runs.reopen(agent.id)
         p.name?.let { name -> docs.update(agent.id, AgentDoc.Identity) { titled(it, name) } }
         onAgentsChanged(agents())
         return agent(agent.id).info()
     }
 
+    context(_: Raise<AgentError>)
     suspend fun update(p: UpdateAgentParams): AgentDetails = lock.withLock {
         val agent = agent(p.agentId)
         val before = agent.info()
@@ -54,7 +66,7 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
             ssh = p.ssh ?: old.ssh,
         )
         val execChanged = config.exec != old.exec || config.workspace != old.workspace || config.container != old.container || config.ssh != old.ssh
-        check(!execChanged || !runs.anyActive(sessionIds(agent))) { "Stop the agent's runs before changing where its shell runs" }
+        if (execChanged && runs.anyActive(sessionIds(agent))) raise(AgentError.ShellInUse)
         if (config != old) store.saveConfig(agent, config)
         p.identity?.let { docs.write(agent.id, AgentDoc.Identity, it) }
         p.name?.let { name -> docs.update(agent.id, AgentDoc.Identity) { titled(it, name) } }
@@ -86,6 +98,7 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
         return harness.trustRules.server()
     }
 
+    context(_: Raise<AgentError>)
     suspend fun testExec(p: TestExecParams): ExecTestResult {
         val agent = agent(p.agentId)
         val check = harness.execCheck ?: return ExecTestResult(error = "This Server can't run a shell")
@@ -95,17 +108,18 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
         return check.check(agent.copy(config = config), p.command?.takeIf { it.isNotBlank() })
     }
 
+    context(_: Raise<AgentError>)
     suspend fun delete(id: String) = lock.withLock {
-        val agent = agent(id)
-        check(store.agents().size > 1) { "Can't delete the only Agent" }
-        check(runs.close(agent, sessionIds(agent))) { "Agent '$id' has an active run; stop it first" }
+        val agent = agent(AgentId(id))
+        if (store.agents().size <= 1) raise(AgentError.OnlyAgent)
+        if (!runs.close(agent, sessionIds(agent))) raise(AgentError.Running(agent.id))
         try {
             harness.release(agent)
             harness.browser?.deleteAgent(agent.id)
             store.deleteAgent(agent)
             harness.mcp.removeAgent(agent.id)
         } catch (e: Exception) {
-            runs.reopen(id)
+            runs.reopen(AgentId(id))
             throw e
         }
         onAgentsChanged(agents())
@@ -116,22 +130,25 @@ class Admin(private val harness: HarnessRuntime, private val runs: Runs, private
         return harness.skills.all(agent).distinctBy { it.scope to it.name }.map { it.info(active = seen.add(it.name)) }
     }
 
+    context(_: Raise<SkillError>)
     suspend fun skill(agent: Agent, name: String, scope: ConfigScope?): SkillDetails {
         val skill = harness.skills.all(agent).firstOrNull { it.name == name && (scope == null || it.scope == scope) }
-            ?: error("No skill '$name'")
+            ?: raise(SkillError.NotFound(name))
         return SkillDetails(skills(agent).first { it.name == name && it.scope == skill.scope }, harness.skills.content(skill), harness.skills.resources(skill))
     }
 
+    context(_: Raise<AgentError>)
     suspend fun saveSkill(p: SaveSkillParams): SkillInfo = lock.withLock {
         val agent = agent(p.agentId)
         harness.skills.save(agent, p.scope, p.name, p.content, p.files)
         skills(agent).first { it.name == p.name && it.scope == p.scope }
     }
 
+    context(_: Raise<AgentError>, _: Raise<SkillError>)
     suspend fun deleteSkill(p: SkillParams) = lock.withLock {
         val agent = agent(p.agentId)
-        val scope = p.scope ?: skills(agent).firstOrNull { it.name == p.name }?.scope ?: error("No skill '${p.name}'")
-        check(harness.skills.delete(agent, scope, p.name)) { "No skill '${p.name}' in ${scope.name.lowercase()} skills" }
+        val scope = p.scope ?: skills(agent).firstOrNull { it.name == p.name }?.scope ?: raise(SkillError.NotFound(p.name))
+        if (!harness.skills.delete(agent, scope, p.name)) raise(SkillError.NotInScope(p.name, scope.name.lowercase()))
     }
 
     private fun requireExec(mode: String) = require(mode == ExecModes.NONE || harness.integrations[Integration.Exec].orEmpty().contains(mode)) {

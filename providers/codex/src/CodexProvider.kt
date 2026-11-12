@@ -7,13 +7,13 @@ import kinuvo.harness.builtin.AgentModel
 import kinuvo.harness.builtin.plugin.ModelSource
 import kinuvo.server.plugin.ImageGeneration
 import kinuvo.harness.builtin.koogExecutor
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.CapabilityState
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.Usage
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.capability.CapabilityState
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.usage.Usage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kinuvo.protocol.PluginDefinition
+import kinuvo.protocol.plugin.PluginDefinition
 
 /** Builds Codex-backed [AgentModel]s sharing one authenticated client; [usage] tracks plan usage. */
 class CodexProvider(override val auth: CodexAuth = CodexAuth(), private val attachments: ((Attachment) -> ByteArray)? = null) : ModelSource, ProviderAdmin, ProviderPlugin {

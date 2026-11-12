@@ -9,8 +9,9 @@ import co.touchlab.stately.concurrency.withLock
 import com.charleskorn.kaml.Yaml
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.AgentDoc
-import kinuvo.protocol.ServiceKind
-import kinuvo.protocol.ServiceSettings
+import kinuvo.protocol.service.ServiceKind
+import kinuvo.protocol.service.ServiceSettings
+import kinuvo.protocol.agent.AgentId
 import kotlinx.io.files.Path
 import kinuvo.server.knowledge.KnowledgeConfig
 import kinuvo.server.parseDotEnv
@@ -37,19 +38,19 @@ class AgentFiles(override val home: Path) : PluginStorage, CustomProviderStore {
     /** How the user organizes notes in a knowledge [provider], in their words, for Agents to follow. */
     fun conventions(provider: String) = Path(home, "conventions", "$provider.md")
 
-    fun agent(id: String) = Path(agents, id)
-    fun config(id: String) = Path(agent(id), CONFIG_FILE)
-    fun doc(id: String, doc: AgentDoc) = Path(agent(id), doc.fileName)
-    fun sessions(id: String) = Path(agent(id), "sessions")
-    fun routines(id: String) = Path(agent(id), "routines.json")
-    fun skills(id: String) = Path(agent(id), "skills")
-    override fun mcp(id: String) = Path(agent(id), MCP_FILE)
-    fun env(id: String) = Path(agent(id), ENV_FILE)
+    fun agent(id: AgentId) = Path(agents, id.value)
+    fun config(id: AgentId) = Path(agent(id), CONFIG_FILE)
+    fun doc(id: AgentId, doc: AgentDoc) = Path(agent(id), doc.fileName)
+    fun sessions(id: AgentId) = Path(agent(id), "sessions")
+    fun routines(id: AgentId) = Path(agent(id), "routines.json")
+    fun skills(id: AgentId) = Path(agent(id), "skills")
+    override fun mcp(id: AgentId) = Path(agent(id), MCP_FILE)
+    fun env(id: AgentId) = Path(agent(id), ENV_FILE)
 
-    override fun agentExists(id: String) = config(id).exists()
+    override fun agentExists(id: AgentId) = config(id).exists()
 
     /** Variables for `${VAR}` expansion: `<home>/.env`, then the Agent's `.env`, then the process environment (strongest). */
-    override fun loadEnv(agentId: String?, process: Map<String, String>): Map<String, String> =
+    override fun loadEnv(agentId: AgentId?, process: Map<String, String>): Map<String, String> =
         dotEnv(sharedEnv) + agentId?.let { dotEnv(env(it)) }.orEmpty() + process
 
     override fun knowledgeOptions() = knowledgeConfig().options
@@ -97,10 +98,10 @@ fun AgentFiles.saveKnowledgeConfig(knowledge: KnowledgeConfig) = updateConfig { 
 
 private val agentConfigLock = Lock()
 
-fun AgentFiles.agentConfig(id: String): AgentConfig = Yaml.default.decodeFromString(AgentConfig.serializer(), config(id).readText())
+fun AgentFiles.agentConfig(id: AgentId): AgentConfig = Yaml.default.decodeFromString(AgentConfig.serializer(), config(id).readText())
 
 /** Read-modify-write of `agent.yaml`, one at a time, so the config and its rules can't overwrite each other. */
-fun AgentFiles.updateAgentConfig(id: String, transform: (AgentConfig) -> AgentConfig) = agentConfigLock.withLock {
+fun AgentFiles.updateAgentConfig(id: AgentId, transform: (AgentConfig) -> AgentConfig) = agentConfigLock.withLock {
     val old = agentConfig(id)
     transform(old).also { if (it != old) writeAtomically(config(id), Yaml.default.encodeToString(AgentConfig.serializer(), it) + "\n") }
 }

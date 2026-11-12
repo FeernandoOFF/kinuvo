@@ -1,7 +1,7 @@
 package kinuvo.plugins.cua
 
-import kinuvo.protocol.ComputerRequest
-import kinuvo.protocol.DeviceToolStatus
+import kinuvo.protocol.computer.ComputerRequest
+import kinuvo.protocol.device.DeviceToolStatus
 import kotlinx.coroutines.runBlocking
 import kotlin.io.encoding.Base64
 import kotlin.test.*

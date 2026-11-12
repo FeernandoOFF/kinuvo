@@ -9,7 +9,9 @@ import kinuvo.app.surface.dateTimeValue
 import kinuvo.app.surface.openSurfaceUrl
 import kinuvo.app.surface.surfaceAction
 import kinuvo.app.surface.surfaceDataModels
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlin.test.*
@@ -20,8 +22,8 @@ class SurfaceActionsTest {
 
     @Test fun buildsActionWithResolvedContextAndFullModel() {
         val message = ActionMessage(name = "save", surfaceId = "form", sourceComponentId = "submit", timestamp = "2026-11-06T00:00:00Z", context = context, userMessage = "Save plan")
-        val action = message.surfaceAction("call", model)
-        assertEquals("call", action.callId)
+        val action = message.surfaceAction(ToolCallId("call"), model)
+        assertEquals(ToolCallId("call"), action.callId)
         assertEquals("form", action.surfaceId)
         assertEquals("submit", action.sourceComponentId)
         assertEquals("save", action.name)
@@ -30,19 +32,19 @@ class SurfaceActionsTest {
     }
 
     @Test fun latestModelsAreScopedByCallAndSurfaceAfterSessionReload() {
-        val action = ActionMessage(name = "save", surfaceId = "form", sourceComponentId = "submit", timestamp = "now", context = context).surfaceAction("call", model)
+        val action = ActionMessage(name = "save", surfaceId = "form", sourceComponentId = "submit", timestamp = "now", context = context).surfaceAction(ToolCallId("call"), model)
         val old = JsonObject(mapOf("name" to JsonPrimitive("Old")))
         val entries = listOf(
             SessionEntry.UserMessage("old", action = action.copy(dataModel = old)),
             SessionEntry.UserMessage("other surface", action = action.copy(surfaceId = "other", dataModel = old)),
             SessionEntry.UserMessage("latest", action = action),
             SessionEntry.UserMessage("typed"),
-            SessionEntry.UserMessage("unrelated", action = action.copy(callId = "other", dataModel = old)),
+            SessionEntry.UserMessage("unrelated", action = action.copy(callId = ToolCallId("other"), dataModel = old)),
         )
-        val items = SessionData("session", entries = entries).items
+        val items = SessionData(AgentId("session"), entries = entries).items
         assertEquals(action, (items[2] as ChatItem.User).action)
-        assertEquals(mapOf("form" to model, "other" to old), items.surfaceDataModels("call"))
-        assertEquals(emptyMap(), items.surfaceDataModels("missing"))
+        assertEquals(mapOf("form" to model, "other" to old), items.surfaceDataModels(ToolCallId("call")))
+        assertEquals(emptyMap(), items.surfaceDataModels(ToolCallId("missing")))
     }
 
     @Test fun invalidDateDraftBlocksSubmissionUntilCorrected() {

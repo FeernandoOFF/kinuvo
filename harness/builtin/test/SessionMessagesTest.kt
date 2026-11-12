@@ -2,9 +2,10 @@ package kinuvo.harness.builtin
 
 import ai.koog.prompt.message.MessagePart
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.surface.SurfaceAction
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.coroutines.flow.emptyFlow
@@ -12,7 +13,7 @@ import kotlin.test.*
 
 class SessionMessagesTest {
     @Test fun backgroundReportsRemainOrdinaryHistory() {
-        val report = SessionEntry.ToolReport("shell", "call", "done")
+        val report = SessionEntry.ToolReport("shell", ToolCallId("call"), "done")
         val history = listOf(report, report, SessionEntry.UserMessage("continue"))
         assertEquals(history, history.activeHistory())
         assertEquals(listOf(history.last()), history.latestTurn())
@@ -25,7 +26,7 @@ class SessionMessagesTest {
 
     @Test fun surfaceActionContextReplaysIntoModelInput() {
         val context = JsonObject(mapOf("name" to JsonPrimitive("Alex")))
-        val action = SurfaceAction("call", "plan", "save", "submit", context, context)
+        val action = SurfaceAction(ToolCallId("call"), "plan", "save", "submit", context, context)
         val entry = SessionEntry.UserMessage("Save plan", action = action)
         for (history in listOf(listOf(entry), listOf(entry, SessionEntry.AssistantMessage("Saved"), SessionEntry.UserMessage("Continue")))) {
             val prompt = messages.prompt("", history)
@@ -42,7 +43,7 @@ class SessionMessagesTest {
     fun toolScreenshotsDoNotRequireAnAttachmentReaderForTextOnlyModels() {
         val model = scriptedModel { _, _ -> emptyFlow() }.copy(attachments = null)
         val screenshot = Attachment("image", "browser.jpg", "image/jpeg", 20)
-        val result = SessionEntry.ToolResult("open", "browser_open", "LinkedIn URL is open; semantic page text", attachments = listOf(screenshot))
+        val result = SessionEntry.ToolResult(ToolCallId("open"), "browser_open", "LinkedIn URL is open; semantic page text", attachments = listOf(screenshot))
         val prompt = SessionMessages(model).prompt("", listOf(result))
         assertTrue(prompt.messages.flatMap { it.parts }.none { it is MessagePart.Attachment })
         val tool = prompt.messages.flatMap { it.parts }.filterIsInstance<MessagePart.Tool.Result>().single()

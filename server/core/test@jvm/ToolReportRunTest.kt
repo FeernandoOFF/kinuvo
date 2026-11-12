@@ -1,15 +1,21 @@
 package kinuvo.server
 
-import kinuvo.testing.server.AgentRun
-
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.builtin.NativeExecutionFactory
-import kinuvo.harness.builtin.NativeHarnessHost
-import kinuvo.harness.builtin.ReflectionModel
 import kinuvo.harness.ExecutionInput
+import kinuvo.harness.ModelProfile
+import kinuvo.harness.ModelSelection
+import kinuvo.harness.NativeHarnessHost
+import kinuvo.harness.NativeReflection
+import kinuvo.harness.NativeRun
 import kinuvo.harness.RunKind
+import kinuvo.protocol.model.ModelTier
+import kinuvo.server.tools.ToolService
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.flow
@@ -28,14 +34,16 @@ class ToolReportRunTest {
             if (calls == 1) release.await()
             emit(StreamFrame.End())
         } }
+        val service = ToolService(emptyList())
         val host = object : NativeHarnessHost {
-            override suspend fun run(agentId: String, sessionId: String, input: ExecutionInput) = AgentRun(fixture.agent, fixture.store, model, emptyList())
-            override suspend fun reflection(agentId: String, sessionId: String): ReflectionModel = error("No Reflection")
+            override suspend fun run(agentId: AgentId, sessionId: SessionId, input: ExecutionInput) =
+                NativeRun(fixture.agent, fixture.store, ModelSelection(fixture.agent.config, null), service, service, profile = ModelProfile.of(ModelTier.Frontier))
+            override suspend fun reflection(agentId: AgentId, sessionId: SessionId): NativeReflection = error("No Reflection")
         }
-        val runs = Runs(SessionLog(fixture.store), this, NativeExecutionFactory(host))
+        val runs = Runs(SessionLog(fixture.store), this, NativeExecutionFactory(host, modelFactory = { model }))
         val first = runs.start(fixture.agent, session.id, ExecutionInput("start"))
         runCurrent()
-        val report = SessionEntry.ToolReport("shell", "call", "exit 0: done")
+        val report = SessionEntry.ToolReport("shell", ToolCallId("call"), "exit 0: done")
         val second = async { runs.start(fixture.agent, session.id, ExecutionInput("", kind = RunKind.Chat(report = report)), queued = true) }
         runCurrent()
         assertFalse(second.isCompleted)

@@ -7,7 +7,9 @@ import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.testing.harness.*
 
 import kinuvo.harness.builtin.*
-import kinuvo.protocol.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.io.files.Path
@@ -26,8 +28,8 @@ class ModelCatalogTest {
     fun runnerPassesResolvedMetadataToTheProvider() = runBlocking {
         val expected = ModelInfo("resolved", reasoning = emptyList(), input = listOf("text"), tools = false, context = 8192)
         var received: ModelInfo? = null
-        val plugin = object : ModelProvider, ProviderPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.modelcatalogtest.1", "Test")
+        val plugin = object : TestModelProvider, ProviderPlugin {
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.modelcatalogtest.1", "Test")
             override val id = "test"
             override val providerAdmins get() = listOf(this)
             override suspend fun models() = listOf(expected)
@@ -37,7 +39,7 @@ class ModelCatalogTest {
                 return scriptedModel { _, _ -> emptyFlow() }
             }
         }
-        val harness = HarnessRuntime(ServerInstallation.assemble(AgentFiles(Path(home, "installation")), plugins = listOf(plugin), modelSources = { listOf(plugin) }))
+        val harness = testRuntime(ServerInstallation.assemble(AgentFiles(Path(home, "installation")), plugins = listOf(plugin), modelSources = { listOf(plugin) }), { listOf(plugin) })
         try {
             val original = harness.store.agents().single()
             val agent = harness.store.saveConfig(original, AgentConfig(provider = "test", model = "resolved"))
@@ -48,7 +50,7 @@ class ModelCatalogTest {
 
     @Test
     fun catalogFillsTheTierWithoutReplacingADeclaredOne() = runBlocking {
-        val plugin = object : ModelProvider {
+        val plugin = object : TestModelProvider {
             override val id = "tiers"
             override fun model(config: AgentConfig) = scriptedModel { _, _ -> emptyFlow() }
             override suspend fun models() = listOf(ModelInfo("qwen2.5-7b"), ModelInfo("no-tools", tools = false), ModelInfo("big-one"),
@@ -62,7 +64,7 @@ class ModelCatalogTest {
     @Test
     fun discoveryOwnsAvailabilityAndMetadataOnlyFillsMissingFields() = runBlocking {
         val file = Path(home, "catalog.json")
-        val plugin = object : ModelProvider {
+        val plugin = object : TestModelProvider {
             override val id = "subscription"
             override val name = "Subscription"
             override val catalogId = "lab"
@@ -89,7 +91,7 @@ class ModelCatalogTest {
         var now = 1_000_000L
         var calls = 0
         var failing = false
-        val plugin = object : ModelProvider {
+        val plugin = object : TestModelProvider {
             override val id = "local"
             override fun model(config: AgentConfig) = scriptedModel { _, _ -> emptyFlow() }
             override suspend fun models(): List<ModelInfo> {

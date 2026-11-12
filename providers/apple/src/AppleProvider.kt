@@ -6,11 +6,13 @@ import kinuvo.server.plugin.ProviderAdmin
 import kinuvo.server.plugin.ProviderPlugin
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.harness.builtin.*
+import kinuvo.harness.ToolSpec
 import kinuvo.harness.builtin.tools.simplified
-import kinuvo.protocol.CapabilityState
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.ExecutionLocation
-import kinuvo.protocol.ModelTier
+import kinuvo.harness.builtin.tools.toDescriptor
+import kinuvo.protocol.capability.CapabilityState
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.capability.ExecutionLocation
+import kinuvo.protocol.model.ModelTier
 import kinuvo.protocol.ProtocolJson
 import ai.koog.prompt.Prompt
 import ai.koog.prompt.dsl.ModerationResult
@@ -40,7 +42,9 @@ import kotlinx.serialization.json.jsonPrimitive
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 import kotlin.uuid.Uuid
-import kinuvo.protocol.PluginDefinition
+import kinuvo.protocol.plugin.PluginDefinition
+import kinuvo.harness.ModelProfile
+import kinuvo.harness.SchemaLevel
 
 /**
  * Swift owns Foundation Models; Kotlin owns the agent loop, tools and persistence. [model] is [SYSTEM] (on-device) or
@@ -78,7 +82,7 @@ class AppleProvider(private val native: AppleLanguageModel, private val dispatch
 
     override fun profile(model: String, base: ModelProfile) =
         if (model == PRIVATE_CLOUD && base.tier == ModelTier.Small) base.copy(tools = base.tools.copy(cap = 16)) else base
-    override fun accepts(model: String, tool: ToolDescriptor) = tool.toApple() != null
+    override fun accepts(model: String, tool: ToolSpec) = tool.toDescriptor().toApple() != null
 
     override suspend fun availability(model: String) = withContext(dispatcher) {
         native.unavailableReason(model)?.let { CapabilityState.unavailable(it, native.unavailableCode(model) ?: "unavailable") }

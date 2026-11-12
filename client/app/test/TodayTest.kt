@@ -1,7 +1,10 @@
 package kinuvo.app
 
 import kinuvo.app.home.*
-import kinuvo.protocol.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlin.test.*
@@ -13,16 +16,16 @@ class TodayTest {
     private val minute = 60_000L
     private val hour = 60 * minute
 
-    private fun session(id: String, status: SessionStatus = SessionStatus.Idle, agent: String = "a") = SessionInfo(id, agent, "Session $id", status)
+    private fun session(id: String, status: SessionStatus = SessionStatus.Idle, agent: String = "a") = SessionInfo(SessionId(id), AgentId(agent), "Session $id", status)
     private fun routine(id: String, agent: String = "a", enabled: Boolean = true, next: Long? = null, lastAt: Long? = null, status: RunStatus? = null, last: String? = null) =
-        Routine(id, agent, "Routine $id", "prompt", Trigger.Every(60), "UTC", enabled, nextRunAt = next, lastRunAt = lastAt, lastStatus = status, lastSessionId = last)
+        Routine(id, AgentId(agent), "Routine $id", "prompt", Trigger.Every(60), "UTC", enabled, nextRunAt = next, lastRunAt = lastAt, lastStatus = status, lastSessionId = last?.let(::SessionId))
     private fun task(id: String, status: TaskStatus = TaskStatus.Todo, due: String? = null, sessions: List<String> = emptyList()) =
-        TaskInfo(id, "list", "List", "Task $id", due = due, status = status, sessionIds = sessions)
+        TaskInfo(id, "list", "List", "Task $id", due = due, status = status, sessionIds = sessions.map(::SessionId))
     private fun today(
-        sessions: Map<String, List<SessionInfo>> = emptyMap(),
-        routines: Map<String, List<Routine>> = emptyMap(),
+        sessions: Map<AgentId, List<SessionInfo>> = emptyMap(),
+        routines: Map<AgentId, List<Routine>> = emptyMap(),
         tasks: List<TaskInfo>? = emptyList(),
-        finished: Set<String> = emptySet(),
+        finished: Set<SessionId> = emptySet(),
         zone: TimeZone = utc,
     ) = Today.of(now, zone, sessions, routines, tasks, finished)
 
@@ -34,7 +37,7 @@ class TodayTest {
 
     @Test fun needsYouListsWaitingSessionsAndOnlyTasksNoWaitingSessionCovers() {
         val result = today(
-            sessions = mapOf("a" to listOf(session("s1", SessionStatus.Waiting), session("s2")), "b" to listOf(session("s1", SessionStatus.Waiting, "b"), session("s9", SessionStatus.Waiting, "b"))),
+            sessions = mapOf(AgentId("a") to listOf(session("s1", SessionStatus.Waiting), session("s2")), AgentId("b") to listOf(session("s1", SessionStatus.Waiting, "b"), session("s9", SessionStatus.Waiting, "b"))),
             tasks = listOf(
                 task("covered", TaskStatus.Waiting, sessions = listOf("s1")),
                 task("alone", TaskStatus.Waiting),
@@ -42,7 +45,7 @@ class TodayTest {
                 task("todo"),
             ),
         )
-        assertEquals(listOf("s1", "s9"), result.needsYou.filterIsInstance<Attention.Waiting>().map { it.session.id })
+        assertEquals(listOf("s1", "s9"), result.needsYou.filterIsInstance<Attention.Waiting>().map { it.session.id.value })
         assertEquals(listOf("alone", "idleSession"), result.needsYou.filterIsInstance<Attention.TaskWaiting>().map { it.task.id })
         assertEquals(4, result.needsYou.size)
         assertIs<Attention.Waiting>(result.needsYou.first())
@@ -50,15 +53,15 @@ class TodayTest {
 
     @Test fun runningListsRunningSessionsAndRoutinesThatOnlyTheRoutineSaysRun() {
         val result = today(
-            sessions = mapOf("a" to listOf(session("s1", SessionStatus.Running), session("s2"))),
-            routines = mapOf("a" to listOf(
+            sessions = mapOf(AgentId("a") to listOf(session("s1", SessionStatus.Running), session("s2"))),
+            routines = mapOf(AgentId("a") to listOf(
                 routine("listed", status = RunStatus.Running, last = "s1"),
                 routine("only", status = RunStatus.Running, last = "s7"),
                 routine("noSession", status = RunStatus.Running),
                 routine("done", status = RunStatus.Ok, last = "s2"),
             )),
         )
-        assertEquals(listOf("s1", "s7"), result.running.map { it.sessionId })
+        assertEquals(listOf("s1", "s7"), result.running.map { it.sessionId.value })
         assertEquals("Session s1", result.running[0].title)
         assertNotNull(result.running[0].session)
         assertNull(result.running[0].routine)
@@ -68,14 +71,14 @@ class TodayTest {
     }
 
     @Test fun nextSortsEnabledUpcomingRunsAndKeepsOnesJustMissed() {
-        val result = today(routines = mapOf("a" to listOf(
+        val result = today(routines = mapOf(AgentId("a") to listOf(
             routine("late", next = now + hour),
             routine("soon", next = now + 30 * minute),
             routine("disabled", enabled = false, next = now + 10 * minute),
             routine("past", next = now - 5 * minute),
             routine("justNow", next = now - 30_000),
             routine("none"),
-        ), "b" to listOf(routine("tomorrow", "b", next = now + 24 * hour))))
+        ), AgentId("b") to listOf(routine("tomorrow", "b", next = now + 24 * hour))))
         assertEquals(listOf("justNow", "soon", "late", "tomorrow"), result.next.map { it.routine.id })
         assertEquals(LocalDate(2026, 10, 27), result.next[1].day)
         assertEquals(LocalDate(2026, 10, 28), result.next.last().day)
@@ -84,7 +87,7 @@ class TodayTest {
 
     @Test fun nextDaysFollowTheTimeZoneAndAreCappedAtEight() {
         val routines = (1..10).map { routine("r$it", next = now + it * hour) }
-        val result = today(routines = mapOf("a" to routines), zone = TimeZone.of("Pacific/Auckland"))
+        val result = today(routines = mapOf(AgentId("a") to routines), zone = TimeZone.of("Pacific/Auckland"))
         assertEquals((1..8).map { "r$it" }, result.next.map { it.routine.id })
         assertEquals(LocalDate(2026, 10, 28), result.next.first().day)
     }
@@ -121,8 +124,8 @@ class TodayTest {
     @Test fun resultsKeepRecentFinishedRoutineRunsAndFinishedSessions() {
         val since = now - 48 * hour
         val result = today(
-            sessions = mapOf("a" to listOf(session("done1"), session("done2"), session("never"))),
-            routines = mapOf("a" to listOf(
+            sessions = mapOf(AgentId("a") to listOf(session("done1"), session("done2"), session("never"))),
+            routines = mapOf(AgentId("a") to listOf(
                 routine("ok", lastAt = now - hour, status = RunStatus.Ok, last = "done2"),
                 routine("error", lastAt = now - 3 * hour, status = RunStatus.Error, last = "x"),
                 routine("stopped", lastAt = since, status = RunStatus.Stopped, last = "y"),
@@ -133,9 +136,9 @@ class TodayTest {
                 routine("noSession", lastAt = now - hour, status = RunStatus.Ok),
                 routine("never", status = RunStatus.Ok, last = "z"),
             )),
-            finished = setOf("done1", "done2"),
+            finished = setOf(SessionId("done1"), SessionId("done2")),
         )
-        assertEquals(listOf("done1"), result.results.filterIsInstance<Outcome.Finished>().map { it.session.id })
+        assertEquals(listOf("done1"), result.results.filterIsInstance<Outcome.Finished>().map { it.session.id.value })
         // A failed run leads, then finished Sessions, then the other runs newest first.
         assertEquals(listOf("error", "ok", "stopped"), result.results.filterIsInstance<Outcome.RoutineRun>().map { it.routine.id })
         assertIs<Outcome.Finished>(result.results[1])
@@ -146,7 +149,7 @@ class TodayTest {
 
     @Test fun resultsAreCappedAtSix() {
         val routines = (1..9).map { routine("r$it", lastAt = now - it * minute, status = RunStatus.Ok, last = "s$it") }
-        val result = today(routines = mapOf("a" to routines))
+        val result = today(routines = mapOf(AgentId("a") to routines))
         assertEquals((1..6).map { "r$it" }, result.results.map { (it as Outcome.RoutineRun).routine.id })
     }
 }

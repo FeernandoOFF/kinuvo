@@ -3,15 +3,15 @@ package kinuvo.server.tools
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.CoreTool
 import kinuvo.server.plugin.ToolRun
 import kinuvo.server.plugin.requireString
 import kinuvo.server.plugin.string
 import kinuvo.server.plugin.GeneratedImage
 import kinuvo.server.plugin.ImageGeneration
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.MAX_ATTACHMENT_BYTES
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.session.MAX_ATTACHMENT_BYTES
 import kotlinx.serialization.json.*
 
 class GenerateImageTool(

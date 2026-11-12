@@ -1,24 +1,27 @@
 package kinuvo.testing.server
 
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.harness.ExecutionAcceptance
 import kinuvo.harness.ExecutionBroker
 import kinuvo.harness.ExecutionFactory
 import kinuvo.harness.ExecutionInput
 import kinuvo.harness.ExecutionSession
 import kinuvo.harness.ExecutionState
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.AgentRegistration
-import kinuvo.protocol.ExecutionCapabilities
-import kinuvo.protocol.ExecutionConnection
-import kinuvo.protocol.ExecutionPhase
-import kinuvo.protocol.ExecutionProbe
-import kinuvo.protocol.ExecutionReadiness
-import kinuvo.protocol.ExternalApprovalOption
-import kinuvo.protocol.InteractionAnswer
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.HarnessConnection
-import kinuvo.protocol.Question
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.execution.AgentRegistration
+import kinuvo.protocol.execution.ExecutionCapabilities
+import kinuvo.protocol.execution.ExecutionConnection
+import kinuvo.protocol.execution.ExecutionPhase
+import kinuvo.protocol.execution.ExecutionProbe
+import kinuvo.protocol.execution.ExecutionReadiness
+import kinuvo.protocol.execution.ExternalApprovalOption
+import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.execution.HarnessConnection
+import kinuvo.protocol.approval.Question
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.RunId
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelAndJoin
@@ -94,7 +97,7 @@ class FakeExternalSession internal constructor(
         prompts += input
         val number = turns.incrementAndGet()
         job = scope.launch {
-            sink.publish(AgentEvent.RunStarted(runId))
+            sink.publish(AgentEvent.RunStarted(RunId(runId)))
             turn(input.text)
             finish("end_turn")
         }
@@ -106,7 +109,7 @@ class FakeExternalSession internal constructor(
         if (state.snapshot().phase != ExecutionPhase.Idle) finish("cancelled")
     }
 
-    override suspend fun answer(requestId: String, answer: InteractionAnswer) {}
+    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {}
 
     /** Commits an assistant message to the Session's transcript. */
     suspend fun say(text: String) {
@@ -129,17 +132,17 @@ class FakeExternalSession internal constructor(
     /** Asks a form of [questions], like an `ask_user` call. */
     suspend fun askQuestions(title: String, vararg questions: Question): JsonElement {
         val id = "request-${requests.incrementAndGet()}"
-        return ask(PendingInteraction.Questions(id, id, title, questions.toList()))
+        return ask(PendingInteraction.Questions(InteractionId(id), ToolCallId(id), title, questions.toList()))
     }
 
     /** Asks the user to pick one of [options] for [title], like a permission request. */
     suspend fun askApproval(title: String, description: String? = null, options: List<ExternalApprovalOption> = listOf(ExternalApprovalOption("allow", "Allow", "allow_once"))): JsonElement {
         val id = "request-${requests.incrementAndGet()}"
-        return ask(PendingInteraction.HarnessApproval(id, title, description, options))
+        return ask(PendingInteraction.HarnessApproval(InteractionId(id), title, description, options))
     }
 
     private suspend fun finish(reason: String) {
-        sink.publish(AgentEvent.RunFinished(runId))
+        sink.publish(AgentEvent.RunFinished(RunId(runId)))
         sink.publish(AgentEvent.ExecutionPhaseChanged(ExecutionPhase.Idle))
         state.update(ExecutionPhase.Idle, reason)
     }

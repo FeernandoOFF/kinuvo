@@ -1,11 +1,13 @@
 package kinuvo.ui.session
 
+import kinuvo.protocol.session.ToolCallId
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.app.surface.SurfaceImages
-import kinuvo.protocol.McpAppResource
+import kinuvo.protocol.mcp.McpAppResource
 import kotlinx.serialization.json.JsonObject
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.surface.SurfaceAction
 
-import kinuvo.protocol.ScreenRef
+import kinuvo.protocol.screen.ScreenRef
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import org.koin.compose.koinInject
@@ -53,16 +55,19 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import kinuvo.client.ConnectionState
-import kinuvo.protocol.InteractionAnswer
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.ApprovalDecision
-import kinuvo.protocol.AgentSettings
-import kinuvo.protocol.SessionSettings
-import kinuvo.protocol.Usage
-import kinuvo.protocol.ServerFeature
-import kinuvo.protocol.supports
+import kinuvo.protocol.approval.InteractionAnswer
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.approval.ApprovalDecision
+import kinuvo.protocol.agent.AgentSettings
+import kinuvo.protocol.session.SessionSettings
+import kinuvo.protocol.usage.Usage
+import kinuvo.protocol.capability.ServerFeature
+import kinuvo.protocol.capability.supports
 import kinuvo.ui.design.*
-import kinuvo.protocol.UploadAttachmentParams
+import kinuvo.protocol.session.UploadAttachmentParams
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -90,7 +95,7 @@ fun ChatScreen(
     wide: Boolean,
     shell: ShellChrome,
     onOpen: (Route.Chat) -> Unit,
-    onSettings: (agentId: String) -> Unit,
+    onSettings: (agentId: AgentId) -> Unit,
     onNavigate: (Route) -> Unit = {},
     onToggleShell: (() -> Unit)? = null,
     onBack: (() -> Unit)? = null,
@@ -151,6 +156,8 @@ fun ChatScreen(
         phase = current.phase,
         resume = current.capabilities?.execution?.resume,
         resuming = current.resuming,
+        children = current.data?.children.orEmpty(),
+        interactionChildren = current.data?.live?.interactionChildren.orEmpty(),
     )
     CompositionLocalProvider(LocalSurfaceImages provides getKoin().getOrNull<SurfaceImages>()) {
         ChatContent(
@@ -158,7 +165,7 @@ fun ChatScreen(
             syncedAt = appState.syncedAt,
             actions = ChatActions(
                 onNew = { if (route.sessionId != null) onOpen(Route.Chat(route.agentId, compose = true)) },
-                onSelect = { id -> if (id != route.sessionId) onOpen(Route.Chat(route.agentId, id)) },
+                onSelect = { id -> if (id != route.sessionId?.value) onOpen(Route.Chat(route.agentId, SessionId(id))) },
                 onSend = session::send,
                 onSurfaceAction = { text, action -> session.send(text, action = action) },
                 onAppResource = session::appResource,
@@ -201,6 +208,8 @@ fun ChatScreen(
                 onExternal = session::answerExternal,
                 onCheckHarness = { appState.agents.firstOrNull { it.id == route.agentId }?.connectionId?.let(session::checkHarness) },
                 onCloseSession = session::closeExternal,
+                agents = appState.agents,
+                onOpenSession = { agentId, id -> onOpen(Route.Chat(agentId, id)) },
             ),
             wide = wide,
             compose = route.compose && route.sessionId == null,
@@ -219,8 +228,8 @@ class ChatActions(
     val onSend: (String) -> Unit = {},
     val onSurfaceAction: (String, SurfaceAction) -> Unit = { _, _ -> },
     /** The HTML of the MCP App a tool call shows, and its calls to its own MCP server's tools. */
-    val onAppResource: suspend (callId: String) -> McpAppResource = { error("MCP Apps are unavailable") },
-    val onAppTool: suspend (callId: String, name: String, arguments: JsonObject) -> JsonObject = { _, _, _ -> error("MCP Apps are unavailable") },
+    val onAppResource: suspend (callId: ToolCallId) -> McpAppResource = { error("MCP Apps are unavailable") },
+    val onAppTool: suspend (callId: ToolCallId, name: String, arguments: JsonObject) -> JsonObject = { _, _, _ -> error("MCP Apps are unavailable") },
     val onAttach: (AttachmentSource) -> Unit = {},
     val onDropAttachments: (List<UploadAttachmentParams>, String?) -> Unit = { _, _ -> },
     val onRemoveAttachment: (String) -> Unit = {},
@@ -228,15 +237,15 @@ class ChatActions(
     val onSaveAttachment: (String) -> Unit = {},
     /** Opens an attachment full screen; null closes it. */
     val onPreviewAttachment: (String?) -> Unit = {},
-    val downloads: Map<String, kinuvo.protocol.AttachmentData> = emptyMap(),
+    val downloads: Map<String, kinuvo.protocol.session.AttachmentData> = emptyMap(),
     val onConfigure: (SessionSettings) -> Unit = {},
     val onRefreshModels: () -> Unit = {},
     val onStop: () -> Unit = {},
-    val onDecision: (String, ApprovalDecision) -> Unit = { _, _ -> },
+    val onDecision: (InteractionId, ApprovalDecision) -> Unit = { _, _ -> },
     val onReviewReflection: (String, Boolean, String?) -> Unit = { _, _, _ -> },
     /** The open `ask_user` form's answers by question ID; null skips it. */
     val onAnswer: (Map<String, List<String>>?) -> Unit = {},
-    val onEditAnswer: (questionsId: String, questionId: String, value: List<String>) -> Unit = { _, _, _ -> },
+    val onEditAnswer: (questionsId: InteractionId, questionId: String, value: List<String>) -> Unit = { _, _, _ -> },
     val onOpenArtifact: (id: String) -> Unit = {},
     /** Opens Live view of the Computers an Agent controls. */
     val onWatch: () -> Unit = {},
@@ -261,6 +270,9 @@ class ChatActions(
     /** Reopens an external Session whose harness process ended. */
     /** Ends an external Session's harness process; its transcript stays. */
     val onCloseSession: () -> Unit = {},
+    /** Names Sub-agents' Agents, and opens a child or parent Session. */
+    val agents: List<AgentInfo> = emptyList(),
+    val onOpenSession: (AgentId, SessionId) -> Unit = { _, _ -> },
 )
 
 /** The Browser panel beside a wide chat: [toggle] shows or hides it; [show] opens it on the Screen a card points at. */
@@ -312,7 +324,7 @@ fun ChatContent(
 
         fun step(delta: Int) {
             val i = state.sessions.indexOfFirst { it.id == state.selected }
-            state.sessions.getOrNull(if (i < 0) 0 else i + delta)?.let { actions.onSelect(it.id) }
+            state.sessions.getOrNull(if (i < 0) 0 else i + delta)?.let { actions.onSelect(it.id.value) }
         }
 
         fun onKey(e: KeyEvent): Boolean {
@@ -423,6 +435,7 @@ fun ChatContent(
                         }
                     }
                     else Column(verticalArrangement = Arrangement.spacedBy(Spacing.space8), horizontalAlignment = Alignment.CenterHorizontally) {
+                    SubAgentFooter(SubAgents(state.children, state.interactionChildren.values.toSet()), actions.agents, actions.onOpenSession, Modifier.widthIn(max = ContentWidth))
                     RequestComposer(state, actions, requestInputs, Modifier.widthIn(max = ContentWidth), notice = requestNotice) {
                         val over = state.ended?.takeIf { it.resume == false && !state.resumeOnSend }
                         if (over != null) EndedComposer(over.blocked, actions.onNew, Modifier.widthIn(max = ContentWidth))

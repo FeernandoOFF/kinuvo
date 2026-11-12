@@ -1,5 +1,6 @@
 package kinuvo.ui
 
+import kinuvo.client.ManagementAccessMessage
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
@@ -50,18 +51,37 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.use
 import kotlinx.coroutines.Dispatchers
 import kinuvo.client.ConnectionState
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.CapabilityState
-import kinuvo.protocol.ServerCapabilities
-import kinuvo.protocol.SessionCapabilities
-import kinuvo.protocol.SessionInfo
-import kinuvo.protocol.SessionStatus
-import kinuvo.protocol.Usage
-import kinuvo.protocol.AgentInfo
-import kinuvo.protocol.ActiveHours
-import kinuvo.protocol.Routine
-import kinuvo.protocol.RunStatus
-import kinuvo.protocol.*
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.capability.CapabilityState
+import kinuvo.protocol.capability.ServerCapabilities
+import kinuvo.protocol.capability.SessionCapabilities
+import kinuvo.protocol.session.SessionInfo
+import kinuvo.protocol.session.SessionStatus
+import kinuvo.protocol.usage.Usage
+import kinuvo.protocol.agent.AgentInfo
+import kinuvo.protocol.routine.ActiveHours
+import kinuvo.protocol.routine.Routine
+import kinuvo.protocol.routine.RunStatus
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.artifact.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.mcp.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.reflection.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.screen.*
+import kinuvo.protocol.secret.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.settings.*
+import kinuvo.protocol.skill.*
+import kinuvo.protocol.usage.*
 import kinuvo.ui.design.HarnessTheme
 import kinuvo.ui.voice.AgentOrb
 import kinuvo.ui.voice.CallStrip
@@ -72,8 +92,8 @@ import kinuvo.ui.design.StripFrame
 import kinuvo.ui.design.LocalStrips
 import kinuvo.ui.voice.CallApprovalSheet
 import kinuvo.ui.voice.CallExternalApprovalSheet
-import kinuvo.protocol.PendingInteraction
-import kinuvo.protocol.ExternalApprovalOption
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.execution.ExternalApprovalOption
 import kinuvo.ui.voice.LiveCallScreen
 import kinuvo.ui.voice.OrbMood
 import kinuvo.ui.onboarding.AvatarInk
@@ -102,7 +122,7 @@ class ScreenshotTest {
         }
         val bytes = ByteArrayOutputStream().also { ImageIO.write(bitmap, "png", it) }.toByteArray()
         val attachment = Attachment("generated", "generated-1.png", "image/png", bytes.size)
-        val item = ChatItem.ToolCall("image", "image", "generate_image", "{}", result = "Image attachment: generated", attachments = listOf(attachment))
+        val item = ChatItem.ToolCall("image", ToolCallId("image"), "generate_image", "{}", result = "Image attachment: generated", attachments = listOf(attachment))
         render("chat-generated-image", 420, 860) {
             HarnessTheme(dark = true) {
                 ChatContent(state.copy(items = listOf(ChatItem.User("user", "Draw a golden sun"), item), running = false),
@@ -112,7 +132,7 @@ class ScreenshotTest {
     }
 
     @Test fun backgroundReportInChat() {
-        val report = ChatItem.ToolReport("report", "shell", "call", "[bg1 exit 0] ./kotlin test -m core -p jvm\n[ 277 tests successful ]\n[ 0 tests failed ]")
+        val report = ChatItem.ToolReport("report", "shell", ToolCallId("call"), "[bg1 exit 0] ./kotlin test -m core -p jvm\n[ 277 tests successful ]\n[ 0 tests failed ]")
         render("chat-tool-report", 420, 620) {
             HarnessTheme(dark = true) {
                 ChatContent(state.copy(items = listOf(ChatItem.User("user", "Run the core tests"), ChatItem.Assistant("started", "Started the tests in the background."), report,
@@ -122,7 +142,7 @@ class ScreenshotTest {
     }
 
     @Test fun generatingImageInChat() {
-        val item = ChatItem.ToolCall("image", "image", "generate_image", "{}")
+        val item = ChatItem.ToolCall("image", ToolCallId("image"), "generate_image", "{}")
         render("chat-generating-image", 420, 860) {
             HarnessTheme(dark = true) {
                 ChatContent(state.copy(items = listOf(ChatItem.User("user", "Draw a golden sun"), item), running = true), ConnectionState.Connected("x"), null, ChatActions())
@@ -142,19 +162,19 @@ class ScreenshotTest {
 
     private val out = File("build/screens").apply { mkdirs() }
 
-    private val agent = AgentInfo("main", "Kinuvo", "host")
-    private val agents = listOf(agent, AgentInfo("research", "Researcher", "container"), AgentInfo("home", "Hearth", "host"))
+    private val agent = AgentInfo(AgentId("main"), "Kinuvo", "host")
+    private val agents = listOf(agent, AgentInfo(AgentId("research"), "Researcher", "container"), AgentInfo(AgentId("home"), "Hearth", "host"))
     private val today = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE)
     private val earlier = java.time.LocalDate.now().minusDays(3).format(java.time.format.DateTimeFormatter.BASIC_ISO_DATE)
     private val sessions = listOf(
-        SessionInfo("$today-101500-a1", "main", "Refactor the exec backend"),
-        SessionInfo("$today-090000-a2", "main", "What skills do you have access to?", SessionStatus.Running),
-        SessionInfo("$today-080000-a5", "main", "Morning brief", routine = RoutineRef("r1", "Morning brief"), answered = true),
-        SessionInfo("$earlier-170000-a3", "main", "Weekly review feature", favorite = true),
-        SessionInfo("$earlier-120000-a4", "main", "Clean up the build", SessionStatus.Waiting),
-        SessionInfo("20250101-120000-a6", "main", "Plan the Lisbon trip", task = "t1"),
-        SessionInfo("20250101-090000-a7", "main", "Inbox triage"),
-        SessionInfo("20241201-090000-a8", "main", "Old chat"),
+        SessionInfo(SessionId("$today-101500-a1"), AgentId("main"), "Refactor the exec backend"),
+        SessionInfo(SessionId("$today-090000-a2"), AgentId("main"), "What skills do you have access to?", SessionStatus.Running),
+        SessionInfo(SessionId("$today-080000-a5"), AgentId("main"), "Morning brief", routine = RoutineRef("r1", "Morning brief"), answered = true),
+        SessionInfo(SessionId("$earlier-170000-a3"), AgentId("main"), "Weekly review feature", favorite = true),
+        SessionInfo(SessionId("$earlier-120000-a4"), AgentId("main"), "Clean up the build", SessionStatus.Waiting),
+        SessionInfo(SessionId("20250101-120000-a6"), AgentId("main"), "Plan the Lisbon trip", task = "t1"),
+        SessionInfo(SessionId("20250101-090000-a7"), AgentId("main"), "Inbox triage"),
+        SessionInfo(SessionId("20241201-090000-a8"), AgentId("main"), "Old chat"),
     )
     private val state = ChatState(
         agent = agent,
@@ -164,8 +184,8 @@ class ScreenshotTest {
         items = listOf(
             ChatItem.User("u1", "Can you check what's **uncommitted** in the repo and summarise it?"),
             ChatItem.Reasoning("r1", "The user wants a summary of git status. I'll run git status first."),
-            ChatItem.ToolCall("t1", "t1", "shell", """{"command":"git status --short"}""", result = " M core/src/Harness.kt\n?? ui/src/design/", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell")),
-            ChatItem.ToolCall("t2", "t2", "github__list_pull_requests", """{"repo":"harness"}""", result = "[]", identity = ToolIdentity(PluginInstanceId("kinuvo.mcp", "shared/github"), "list_pull_requests")),
+            ChatItem.ToolCall("t1", ToolCallId("t1"), "shell", """{"command":"git status --short"}""", result = " M core/src/Harness.kt\n?? ui/src/design/", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell")),
+            ChatItem.ToolCall("t2", ToolCallId("t2"), "github__list_pull_requests", """{"repo":"harness"}""", result = "[]", identity = ToolIdentity(PluginInstanceId("kinuvo.mcp", "shared/github"), "list_pull_requests")),
             ChatItem.Assistant(
                 "a1",
                 """
@@ -187,8 +207,8 @@ class ScreenshotTest {
                 """.trimIndent(),
             ),
             ChatItem.ToolCall(
-                "t3", "t3", "shell", """{"command":"git commit -am wip"}""", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"),
-                approval = PendingInteraction.Approval("a1", "t3", "shell", """{"command":"git commit -am wip"}""", "git commit", Risk.Medium, "git can change things"),
+                "t3", ToolCallId("t3"), "shell", """{"command":"git commit -am wip"}""", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"),
+                approval = PendingInteraction.Approval(InteractionId("a1"), ToolCallId("t3"), "shell", """{"command":"git commit -am wip"}""", "git commit", Risk.Medium, "git can change things"),
             ),
             ChatItem.Error("e1", "Tool failed: permission denied"),
         ),
@@ -202,13 +222,13 @@ class ScreenshotTest {
 
     private val now = 1_790_000_000_000L
     private val routines = listOf(
-        Routine("heartbeat", "main", "Heartbeat", "- Anything due in my calendar?\n- Unread mail from family", Trigger.Every(30), "Europe/Dublin",
+        Routine("heartbeat", AgentId("main"), "Heartbeat", "- Anything due in my calendar?\n- Unread mail from family", Trigger.Every(30), "Europe/Dublin",
             activeHours = ActiveHours("08:00", "22:00"), heartbeat = true, nextRunAt = now + 12 * 60_000, lastRunAt = now - 18 * 60_000, lastStatus = RunStatus.Silent),
-        Routine("r1", "main", "Morning brief", "Summarize my unread email and today's calendar. Keep it under 10 bullets.", Trigger.Cron("0 9 * * MON-FRI"), "Europe/Dublin",
-            nextRunAt = now + 14 * 3_600_000, lastRunAt = now - 10 * 3_600_000, lastStatus = RunStatus.Ok, lastSessionId = "20260920-090000-ab12"),
-        Routine("r2", "main", "Release watcher", "Check GitHub for new Kotlin releases.", Trigger.Every(360), "Europe/Dublin",
+        Routine("r1", AgentId("main"), "Morning brief", "Summarize my unread email and today's calendar. Keep it under 10 bullets.", Trigger.Cron("0 9 * * MON-FRI"), "Europe/Dublin",
+            nextRunAt = now + 14 * 3_600_000, lastRunAt = now - 10 * 3_600_000, lastStatus = RunStatus.Ok, lastSessionId = SessionId("20260920-090000-ab12")),
+        Routine("r2", AgentId("main"), "Release watcher", "Check GitHub for new Kotlin releases.", Trigger.Every(360), "Europe/Dublin",
             lastRunAt = now - 3_600_000, lastStatus = RunStatus.Error, lastError = "web_fetch: connection timed out", nextRunAt = now + 5 * 3_600_000),
-        Routine("r3", "main", "Call the dentist", "Remind me to call the dentist.", Trigger.Once(now - 3_600_000), "Europe/Dublin", enabled = false, lastRunAt = now - 3_600_000, lastStatus = RunStatus.Ok),
+        Routine("r3", AgentId("main"), "Call the dentist", "Remind me to call the dentist.", Trigger.Once(now - 3_600_000), "Europe/Dublin", enabled = false, lastRunAt = now - 3_600_000, lastStatus = RunStatus.Ok),
     )
     private val config = AgentConfig(
         details = AgentDetails(
@@ -229,8 +249,8 @@ class ScreenshotTest {
     )
     private val settings = SettingsUi(
         SettingsState(
-            Route.Settings("main", SettingsSection.Routines, "r1"), config, routines,
-            runs = listOf(SessionInfo("20260920-090000-ab12", "main", "Morning brief"), SessionInfo("20260919-090000-cd34", "main", "Morning brief")),
+            Route.Settings(AgentId("main"), SettingsSection.Routines, "r1"), config, routines,
+            runs = listOf(SessionInfo(SessionId("20260920-090000-ab12"), AgentId("main"), "Morning brief"), SessionInfo(SessionId("20260919-090000-cd34"), AgentId("main"), "Morning brief")),
             skill = SkillDetails(config.skills!!.first(), "---\nname: weekly-review\ndescription: Run the Friday review.\n---\n\n1. List open loops.\n2. Check next week's calendar.\n", listOf("checklist.md")),
             mcpTest = McpTestResult(listOf("search_issues", "create_issue", "get_pull_request")),
         ),
@@ -280,7 +300,7 @@ class ScreenshotTest {
             }
             render("connection-settings-$suffix", 1000, 1100) {
                 HarnessTheme(dark = dark) {
-                    SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Connection)).copy(
+                    SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Connection)).copy(
                         capabilities = ServerCapabilities("home", setOf(ServerFeature.Pairing)),
                         server = Server.Remote("ws://192.168.1.12:8787/ws", "token", "Home", "home"),
                         pairing = pairing, devices = DevicesState(paired), servers = saved,
@@ -290,7 +310,7 @@ class ScreenshotTest {
             val browser = Server.Remote("wss://home.example/ws", "browser-session", "Home", "home")
             render("connection-settings-browser-$suffix", 1000, 700) {
                 HarnessTheme(dark = dark) {
-                    SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Connection)).copy(
+                    SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Connection)).copy(
                         server = browser, servers = listOf(browser),
                     ), SettingsActions())
                 }
@@ -342,95 +362,95 @@ class ScreenshotTest {
             }
         }
         render("chat-empty", 1200, 700) { HarnessTheme(dark = true) { ChatContent(state.copy(items = emptyList(), running = false), ConnectionState.Connected("x"), usage, ChatActions()) } }
-        render("agent-long-name", 1400, 900) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings("main")).copy(agents = listOf(AgentInfo("main", "House Agent for the Family", "host"))), {}) } }
-        render("agent-long-name-phone", 390, 1300) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings("main")).copy(agents = listOf(AgentInfo("main", "House Agent for the Family", "host"))), {}) } }
-        render("agent-wide", 1400, 900) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings("main")), {}) } }
-        render("agent-empty-light", 1400, 900) { HarnessTheme(dark = false) { AgentContent(settingsAt(Route.Settings("main")).let { it.copy(state = it.state.copy(routines = emptyList())) }, {}) } }
-        render("agent-phone", 390, 1300) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings("main")), {}, onBack = {}) } }
-        render("settings-overview", 1600, 900) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Overview)), SettingsActions()) } }
+        render("agent-long-name", 1400, 900) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(agents = listOf(AgentInfo(AgentId("main"), "House Agent for the Family", "host"))), {}) } }
+        render("agent-long-name-phone", 390, 1300) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(agents = listOf(AgentInfo(AgentId("main"), "House Agent for the Family", "host"))), {}) } }
+        render("agent-wide", 1400, 900) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))), {}) } }
+        render("agent-empty-light", 1400, 900) { HarnessTheme(dark = false) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).let { it.copy(state = it.state.copy(routines = emptyList())) }, {}) } }
+        render("agent-phone", 390, 1300) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))), {}, onBack = {}) } }
+        render("settings-overview", 1600, 900) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Overview)), SettingsActions()) } }
         render("settings-wide", 1280, 860) { HarnessTheme(dark = false) { SettingsContent(settings, SettingsActions()) } }
         for ((name, restricted, error) in listOf(
             Triple("restricted", true, null),
             Triple("error", false, "The Server took too long to respond. Try again."),
             Triple("empty", false, null),
         )) render("routines-$name", 420, 760) {
-            val ui = settingsAt(Route.Settings("main", SettingsSection.Routines))
+            val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines))
             HarnessTheme(dark = true) {
                 SettingsContent(ui.copy(management = !restricted, state = ui.state.copy(routines = if (name == "empty") emptyList() else null, routinesError = error)), SettingsActions(), sidebar = false)
             }
         }
         render("settings-tasks-management", 420, 760) {
-            val ui = settingsAt(Route.Settings("main", SettingsSection.Tasks))
-            HarnessTheme(dark = true) { SettingsContent(ui.copy(management = false, state = ui.state.copy(tasks = null, errors = listOf("This action requires management access"))), SettingsActions(), sidebar = false) }
+            val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Tasks))
+            HarnessTheme(dark = true) { SettingsContent(ui.copy(management = false, state = ui.state.copy(tasks = null, errors = listOf(ManagementAccessMessage))), SettingsActions(), sidebar = false) }
         }
         render("settings-voice-management", 420, 760) {
-            HarnessTheme(dark = true) { kinuvo.ui.settings.DetailPane(null, "Voice") { kinuvo.ui.design.LoadFailure("This action requires management access") {} } }
+            HarnessTheme(dark = true) { kinuvo.ui.settings.DetailPane(null, "Voice") { kinuvo.ui.design.LoadFailure(ManagementAccessMessage) {} } }
         }
-        render("settings-medium-dark", 900, 760) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Routines)), SettingsActions()) } }
-        render("settings-narrow-detail", 420, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Routines, "heartbeat")), SettingsActions()) } }
-        render("settings-narrow-sections", 420, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main")), SettingsActions()) } }
+        render("settings-medium-dark", 900, 760) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines)), SettingsActions()) } }
+        render("settings-narrow-detail", 420, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines, "heartbeat")), SettingsActions()) } }
+        render("settings-narrow-sections", 420, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"))), SettingsActions()) } }
         render("settings-providers", 1280, 760) {
             val providers = listOf(
-                kinuvo.protocol.ProviderInfo("codex", "ChatGPT / Codex", kinuvo.protocol.ProviderAccount(false)),
-                kinuvo.protocol.ProviderInfo("apple", "Apple · On device"),
+                kinuvo.protocol.model.ProviderInfo("codex", "ChatGPT / Codex", kinuvo.protocol.model.ProviderAccount(false)),
+                kinuvo.protocol.model.ProviderInfo("apple", "Apple · On device"),
                 ProviderInfo("openai", "OpenAI API", apiKey = ProviderApiKeyStatus(false, "macOS Keychain")),
             )
-            val ui = settingsAt(Route.Settings("main", SettingsSection.Providers))
-            HarnessTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers, deviceCode = "codex" to kinuvo.protocol.DeviceCode("https://auth.openai.com/codex/device", "ABCD-1234", 0))), SettingsActions()) }
+            val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Providers))
+            HarnessTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers, deviceCode = "codex" to kinuvo.protocol.model.DeviceCode("https://auth.openai.com/codex/device", "ABCD-1234", 0))), SettingsActions()) }
         }
         render("settings-compatible-providers", 900, 1050) {
             val providers = listOf(
                 ProviderInfo("hosted-models", "Hosted models", apiKey = ProviderApiKeyStatus(false, "Server keychain")),
                 ProviderInfo("local-models", "Local models"),
             )
-            val ui = settingsAt(Route.Settings("main", SettingsSection.Providers))
+            val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Providers))
             HarnessTheme(dark = false) { SettingsContent(ui.copy(state = ui.state.copy(providers = providers)), SettingsActions()) }
         }
         render("settings-provider-key", 900, 850) {
-            val ui = settingsAt(Route.Settings("main", SettingsSection.Providers))
+            val ui = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Providers))
             val key = ProviderApiKeyStatus(true, "~/.kinuvo/credentials/openai-reference (reference only)", true, "\${pass://Kinuvo/OpenAI/api key}")
             val state = ui.state.copy(providers = listOf(ProviderInfo("openai", "OpenAI API", apiKey = key)), secrets = listOf(SecretProviderStatus("pass", "Proton Pass", installed = true, connected = true)))
             HarnessTheme(dark = false) { SettingsContent(ui.copy(state = state), SettingsActions()) }
         }
-        render("settings-agent", 1280, 1000) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Agent)), SettingsActions()) } }
-        render("settings-agent-phone", 420, 1100) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Agent)), SettingsActions()) } }
-        render("settings-agent-tools", 1280, 1100) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Tools)), SettingsActions()) } }
-        render("settings-agent-workspace-phone", 420, 900) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Workspace)), SettingsActions()) } }
+        render("settings-agent", 1280, 1000) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Agent)), SettingsActions()) } }
+        render("settings-agent-phone", 420, 1100) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Agent)), SettingsActions()) } }
+        render("settings-agent-tools", 1280, 1100) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Tools)), SettingsActions()) } }
+        render("settings-agent-workspace-phone", 420, 900) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Workspace)), SettingsActions()) } }
         val ssh = config.copy(details = config.details!!.copy(settings = config.details!!.settings.copy(exec = "ssh", workspace = listOf("/srv/app"), ssh = SshSettings("build.local", "alex"))))
-        val tested = settingsAt(Route.Settings("main", SettingsSection.Workspace)).let { it.copy(state = it.state.copy(config = ssh,
+        val tested = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Workspace)).let { it.copy(state = it.state.copy(config = ssh,
             execTest = ExecTestResult("build.local", listOf(".git/", "README.md", "src/"), "git status -s", " M src/main.kt\n", 0)),
             capabilities = ServerCapabilities("s", integrations = mapOf(Integration.Exec.name to setOf("host", "container", "ssh")))) }
         val mobile = ServerCapabilities("phone", setOf(ServerFeature.Mcp, ServerFeature.Tasks, ServerFeature.Knowledge, ServerFeature.Skills, ServerFeature.Routines),
             integrations = mapOf(Integration.Mcp.name to setOf("http"), Integration.Tasks.name to setOf("local"), Integration.Knowledge.name to setOf("markdown")))
         render("settings-mobile-server-mcp-new", 1280, 1100) {
-            HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Mcp, editing = true)).copy(capabilities = mobile), SettingsActions()) }
+            HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, editing = true)).copy(capabilities = mobile), SettingsActions()) }
         }
-        val hub = settingsAt(Route.Settings("main", SettingsSection.Hub)).let { ui ->
-            ui.copy(state = ui.state.copy(configs = mapOf("main" to config.copy(mcp = config.mcp!!.map { if (it.name == "fs") it.copy(agents = listOf("main")) else it })),
+        val hub = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Hub)).let { ui ->
+            ui.copy(state = ui.state.copy(configs = mapOf(AgentId("main") to config.copy(mcp = config.mcp!!.map { if (it.name == "fs") it.copy(agents = listOf(AgentId("main"))) else it })),
                 serverRules = TrustRules(deny = DenyRules(tools = listOf("skill_manage"), shell = listOf("rm -rf*")))),
                 capabilities = ServerCapabilities("s", setOf(ServerFeature.Mcp, ServerFeature.Skills, ServerFeature.Routines)))
         }
         render("settings-tool-hub", 1280, 1700) { HarnessTheme(dark = false) { SettingsContent(hub, SettingsActions()) } }
         render("settings-mcp-catalog", 1280, 1100) {
-            HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Mcp, presetItem(McpCatalog.first { it.id == "gmail" }), editing = true)), SettingsActions()) }
+            HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, presetItem(McpCatalog.first { it.id == "gmail" }), editing = true)), SettingsActions()) }
         }
         render("settings-agent-workspace-ssh", 1280, 1300) { HarnessTheme(dark = false) { SettingsContent(tested, SettingsActions()) } }
-        render("settings-new-agent", 900, 700) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Agent, editing = true)), SettingsActions()) } }
-        render("settings-routine-form", 1280, 900) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Routines, "r1", editing = true)), SettingsActions()) } }
-        render("settings-skills", 1280, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Skills, "Agent/weekly-review")), SettingsActions()) } }
-        render("settings-skill-new", 420, 860) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Skills, editing = true)), SettingsActions()) } }
-        render("settings-mcp", 1280, 860) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Mcp, "Agent/github")), SettingsActions()) } }
+        render("settings-new-agent", 900, 700) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Agent, editing = true)), SettingsActions()) } }
+        render("settings-routine-form", 1280, 900) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Routines, "r1", editing = true)), SettingsActions()) } }
+        render("settings-skills", 1280, 860) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Skills, "Agent/weekly-review")), SettingsActions()) } }
+        render("settings-skill-new", 420, 860) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Skills, editing = true)), SettingsActions()) } }
+        render("settings-mcp", 1280, 860) { HarnessTheme(dark = true) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, "Agent/github")), SettingsActions()) } }
         render("settings-mcp-signin", 1280, 860) {
-            val signingIn = settingsAt(Route.Settings("main", SettingsSection.Mcp, "Agent/linear"))
+            val signingIn = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, "Agent/linear"))
             HarnessTheme(dark = false) { SettingsContent(signingIn.copy(state = signingIn.state.copy(mcpTest = null, signInUrl = "https://mcp.linear.app/authorize?response_type=code&client_id=kinuvo&state=…")), SettingsActions()) }
         }
-        render("settings-mcp-form", 1280, 960) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Mcp, "Shared/fs", editing = true)), SettingsActions()) } }
+        render("settings-mcp-form", 1280, 960) { HarnessTheme(dark = false) { SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp, "Shared/fs", editing = true)), SettingsActions()) } }
         render("chat-routine-turn", 1000, 600) {
             HarnessTheme(dark = false) {
                 ChatContent(state.copy(items = listOf(ChatItem.User("u1", "Summarize my unread email.", "Morning brief"), ChatItem.Assistant("a1", "Three new emails; nothing urgent."))), ConnectionState.Connected("x"), null, ChatActions())
             }
         }
-        val form = PendingInteraction.Questions("q1", "c1", "Plan the Lisbon trip", listOf(
+        val form = PendingInteraction.Questions(InteractionId("q1"), ToolCallId("c1"), "Plan the Lisbon trip", listOf(
             Question("dates", "When do you leave?", QuestionKind.Date, required = true),
             Question("budget", "Budget", QuestionKind.Single, listOf("Under €300", "€300–600", "Flexible"), default = listOf("Under €300")),
             Question("extras", "Also book", QuestionKind.Multi, listOf("Hotel", "Airport transfer", "Restaurant"), default = listOf("Hotel")),
@@ -439,9 +459,9 @@ class ScreenshotTest {
         ))
         val asking = """{"title":"Plan the Lisbon trip","questions":[{"id":"budget","label":"Budget","kind":"single","options":["Under €300","Flexible"]},{"id":"extras","label":"Also book","kind":"multi","options":["Hotel","Car"]}]}"""
         val cards = listOf(
-            ChatItem.ToolCall("t1", "c0", "ask_user", asking, """{"budget":"Flexible","extras":["Hotel","Car"]}"""),
-            ChatItem.ToolCall("t2", "c2", "artifact", """{"action":"create","title":"Lisbon options"}""", """{"id":"lisbon-options-3f2a","title":"Lisbon options","type":"html"}"""),
-            ChatItem.ToolCall("t3", "c1", "ask_user", "{}", questions = form),
+            ChatItem.ToolCall("t1", ToolCallId("c0"), "ask_user", asking, """{"budget":"Flexible","extras":["Hotel","Car"]}"""),
+            ChatItem.ToolCall("t2", ToolCallId("c2"), "artifact", """{"action":"create","title":"Lisbon options"}""", """{"id":"lisbon-options-3f2a","title":"Lisbon options","type":"html"}"""),
+            ChatItem.ToolCall("t3", ToolCallId("c1"), "ask_user", "{}", questions = form),
         )
         render("chat-ask-user", 1000, 1100) { HarnessTheme(dark = false) { ChatContent(state.copy(items = cards), ConnectionState.Connected("x"), null, ChatActions()) } }
         render("chat-ask-user-dark", 420, 1200) { HarnessTheme(dark = true) { ChatContent(state.copy(items = cards), ConnectionState.Connected("x"), null, ChatActions()) } }
@@ -450,13 +470,13 @@ class ScreenshotTest {
         val artifacts = ArtifactsState(
             Route.Artifacts("plan-1"),
             all = listOf(
-                ArtifactInfo("plan-1", "Lisbon plan", "md", "main", "s1", 1_790_000_000_000L, 1_790_000_300_000L),
-                ArtifactInfo("flights-2", "Flight prices", "csv", "research", null, 1_789_990_000_000L, 1_789_990_000_000L),
-                ArtifactInfo("chart-3", "Spending chart", "html", "main", null, 1_789_900_000_000L, 1_789_900_000_000L),
+                ArtifactInfo("plan-1", "Lisbon plan", "md", AgentId("main"), SessionId("s1"), 1_790_000_000_000L, 1_790_000_300_000L),
+                ArtifactInfo("flights-2", "Flight prices", "csv", AgentId("research"), null, 1_789_990_000_000L, 1_789_990_000_000L),
+                ArtifactInfo("chart-3", "Spending chart", "html", AgentId("main"), null, 1_789_900_000_000L, 1_789_900_000_000L),
             ),
-            open = ArtifactData(ArtifactInfo("plan-1", "Lisbon plan", "md", "main", "s1", 1_790_000_000_000L, 1_790_000_300_000L), "# Lisbon\n\n- Flights under €300\n- Hotel near Alfama"),
+            open = ArtifactData(ArtifactInfo("plan-1", "Lisbon plan", "md", AgentId("main"), SessionId("s1"), 1_790_000_000_000L, 1_790_000_300_000L), "# Lisbon\n\n- Flights under €300\n- Hotel near Alfama"),
         )
-        val team = listOf(agent, AgentInfo("research", "Researcher", "container"))
+        val team = listOf(agent, AgentInfo(AgentId("research"), "Researcher", "container"))
         render("artifacts-wide", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(artifacts, team, 1_790_000_600_000L, ArtifactsActions()) } }
         val editing = artifacts.copy(draft = ArtifactDraft("# Lisbon\n\n- Flights under €250\n- Hotel near Alfama", 1_790_000_300_000L))
         render("artifacts-editing", 1280, 800) { HarnessTheme(dark = false) { ArtifactsContent(editing, team, 1_790_000_600_000L, ArtifactsActions()) } }
@@ -487,14 +507,14 @@ class ScreenshotTest {
     fun renderWindowsSettings() {
         val capabilities = ServerCapabilities("windows", setOf(ServerFeature.Shell, ServerFeature.Tasks), platform = Platform.Windows, integrations = mapOf(
             Integration.Exec.name to setOf("host", "container", "ssh"), Integration.Tasks.name to setOf("local"), Integration.Secrets.name to setOf("pass")))
-        val windows = settingsAt(Route.Settings("main", SettingsSection.Workspace)).let { ui -> ui.copy(
+        val windows = settingsAt(Route.Settings(AgentId("main"), SettingsSection.Workspace)).let { ui -> ui.copy(
             state = ui.state.copy(config = config.copy(details = config.details!!.copy(settings = config.details!!.settings.copy(workspace = emptyList())))),
             capabilities = capabilities,
         ) }
         render("settings-agent-workspace-windows", 1280, 1000) { HarnessTheme(dark = false) { SettingsContent(windows, SettingsActions()) } }
-        val tasks = windows.copy(state = windows.state.copy(route = Route.Settings("main", SettingsSection.Tasks), tasks = TasksSetup(TasksSettings(), listOf(SettingsProvider("local", "Kinuvo (built in)"))), providerLists = mapOf("local" to emptyList())))
+        val tasks = windows.copy(state = windows.state.copy(route = Route.Settings(AgentId("main"), SettingsSection.Tasks), tasks = TasksSetup(TasksSettings(), listOf(SettingsProvider("local", "Kinuvo (built in)"))), providerLists = mapOf("local" to emptyList())))
         render("settings-tasks-windows", 1280, 860) { HarnessTheme(dark = false) { SettingsContent(tasks, SettingsActions()) } }
-        val secrets = windows.copy(state = windows.state.copy(route = Route.Settings("main", SettingsSection.Secrets), secrets = listOf(
+        val secrets = windows.copy(state = windows.state.copy(route = Route.Settings(AgentId("main"), SettingsSection.Secrets), secrets = listOf(
             SecretProviderStatus("pass", "Proton Pass", installed = true, tokenStorage = "Windows secure storage"))))
         render("settings-secrets-windows", 900, 760) { HarnessTheme(dark = false) { SettingsContent(secrets, SettingsActions()) } }
     }
@@ -502,10 +522,10 @@ class ScreenshotTest {
     /** The rail of Agents and the shown Agent's column, beside a Session and alone as the phone's home screen. */
     @Test
     fun renderShell() {
-        val running = SessionInfo("x-1", "research", "Compare flights", SessionStatus.Running)
-        val shellState = ShellState(agents, agent, mapOf("main" to SessionList(sessions), "research" to SessionList(listOf(running))),
-            finished = setOf(sessions[3].id), view = Route.Chat("main", sessions.first().id), servers = servers,
-            routines = mapOf("main" to listOf(Routine("r2", "main", "Inbox triage", "Triage my inbox", Trigger.Every(60), "UTC", sessionId = "20250101-090000-a7"))))
+        val running = SessionInfo(SessionId("x-1"), AgentId("research"), "Compare flights", SessionStatus.Running)
+        val shellState = ShellState(agents, agent, mapOf(AgentId("main") to SessionList(sessions), AgentId("research") to SessionList(listOf(running))),
+            finished = setOf(sessions[3].id), view = Route.Chat(AgentId("main"), sessions.first().id), servers = servers,
+            routines = mapOf(AgentId("main") to listOf(Routine("r2", AgentId("main"), "Inbox triage", "Triage my inbox", Trigger.Every(60), "UTC", sessionId = SessionId("20250101-090000-a7")))))
         listOf(false, true).forEach { dark ->
             render("shell-wide-${if (dark) "dark" else "light"}", 1400, 900) {
                 HarnessTheme(dark = dark) {
@@ -528,7 +548,7 @@ class ScreenshotTest {
                 }
             }
         }
-        render("agent-embedded", 1400, 900) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings("main")).copy(capabilities = embedded), {}) } }
+        render("agent-embedded", 1400, 900) { HarnessTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(capabilities = embedded), {}) } }
         render("shell-phone", 390, 844) {
             HarnessTheme(dark = true) {
                 kinuvo.ui.design.Reveal(true, {}, behind = { Shell(shellState, ShellActions(), ShellChrome(androidx.compose.runtime.mutableStateOf(true)), Modifier.fillMaxSize(), fill = true) }) {
@@ -562,42 +582,42 @@ class ScreenshotTest {
     @Test fun renderOwnerRailToday() {
         val zone = kotlinx.datetime.TimeZone.of("Europe/Dublin")
         val at = kotlin.time.Instant.parse("2026-10-27T18:00:00Z").toEpochMilliseconds()
-        val owners = listOf(AgentInfo("echo", "Echo", "host"), AgentInfo("hearth", "Hearth", "host"), AgentInfo("research", "Researcher", "container"))
+        val owners = listOf(AgentInfo(AgentId("echo"), "Echo", "host"), AgentInfo(AgentId("hearth"), "Hearth", "host"), AgentInfo(AgentId("research"), "Researcher", "container"))
         val runs = listOf(
-            SessionInfo("20261027-130500-review", "echo", "Review and publish", SessionStatus.Running, task = "review"),
-            SessionInfo("20261026-210000-journal", "echo", "Evening journal", SessionStatus.Waiting, routine = RoutineRef("journal", "Evening journal")),
-            SessionInfo("20261025-210000-journal", "echo", "Evening journal", routine = RoutineRef("journal", "Evening journal"), answered = true),
-            SessionInfo("20261024-210000-journal", "echo", "Evening journal", routine = RoutineRef("journal", "Evening journal"), answered = true),
-            SessionInfo("20261025-120000-finance", "echo", "Finance plans", favorite = true),
-            SessionInfo("20261023-140000-slides", "echo", "Presentation outline"),
-            SessionInfo("20261022-160000-review", "echo", "Review outline", task = "review"),
-            SessionInfo("20261027-150000-boiler", "hearth", "Book boiler service", SessionStatus.Waiting, task = "boiler"),
-            SessionInfo("20261027-170000-groceries", "hearth", "Groceries for the week", SessionStatus.Running),
-            SessionInfo("20261027-160000-compare", "research", "Compare train routes", SessionStatus.Running),
+            SessionInfo(SessionId("20261027-130500-review"), AgentId("echo"), "Review and publish", SessionStatus.Running, task = "review"),
+            SessionInfo(SessionId("20261026-210000-journal"), AgentId("echo"), "Evening journal", SessionStatus.Waiting, routine = RoutineRef("journal", "Evening journal")),
+            SessionInfo(SessionId("20261025-210000-journal"), AgentId("echo"), "Evening journal", routine = RoutineRef("journal", "Evening journal"), answered = true),
+            SessionInfo(SessionId("20261024-210000-journal"), AgentId("echo"), "Evening journal", routine = RoutineRef("journal", "Evening journal"), answered = true),
+            SessionInfo(SessionId("20261025-120000-finance"), AgentId("echo"), "Finance plans", favorite = true),
+            SessionInfo(SessionId("20261023-140000-slides"), AgentId("echo"), "Presentation outline"),
+            SessionInfo(SessionId("20261022-160000-review"), AgentId("echo"), "Review outline", task = "review"),
+            SessionInfo(SessionId("20261027-150000-boiler"), AgentId("hearth"), "Book boiler service", SessionStatus.Waiting, task = "boiler"),
+            SessionInfo(SessionId("20261027-170000-groceries"), AgentId("hearth"), "Groceries for the week", SessionStatus.Running),
+            SessionInfo(SessionId("20261027-160000-compare"), AgentId("research"), "Compare train routes", SessionStatus.Running),
         )
         val planned = listOf(
-            Routine("journal", "echo", "Evening journal", "Reflect on today, one question at a time.", Trigger.Cron("0 21 * * *"), "Europe/Dublin",
+            Routine("journal", AgentId("echo"), "Evening journal", "Reflect on today, one question at a time.", Trigger.Cron("0 21 * * *"), "Europe/Dublin",
                 nextRunAt = at + 3 * 3_600_000, lastRunAt = at - 21 * 3_600_000, lastSessionId = runs[1].id, lastStatus = RunStatus.Ok, lastReport = "Monday's reflection is ready."),
-            Routine("brief", "hearth", "Home upkeep", "Review the house checklist.", Trigger.Cron("0 9 * * *"), "Europe/Dublin", nextRunAt = at + 15 * 3_600_000),
+            Routine("brief", AgentId("hearth"), "Home upkeep", "Review the house checklist.", Trigger.Cron("0 9 * * *"), "Europe/Dublin", nextRunAt = at + 15 * 3_600_000),
         )
         val tasks = listOf(
-            TaskInfo("review", "writing", "Writing", "Review and publish", "Review the outline, check references and publish the finished article.", "2026-10-27", TaskStatus.InProgress, "echo", listOf(runs[6].id, runs[0].id)),
-            TaskInfo("launch", "work", "Launch", "Draft launch email", due = "2026-10-29", assignee = "echo"),
-            TaskInfo("boiler", "house", "Home", "Book boiler service", due = "2026-10-30", status = TaskStatus.Waiting, assignee = "hearth", sessionIds = listOf(runs[7].id)),
+            TaskInfo("review", "writing", "Writing", "Review and publish", "Review the outline, check references and publish the finished article.", "2026-10-27", TaskStatus.InProgress, AgentId("echo"), listOf(runs[6].id, runs[0].id)),
+            TaskInfo("launch", "work", "Launch", "Draft launch email", due = "2026-10-29", assignee = AgentId("echo")),
+            TaskInfo("boiler", "house", "Home", "Book boiler service", due = "2026-10-30", status = TaskStatus.Waiting, assignee = AgentId("hearth"), sessionIds = listOf(runs[7].id)),
             TaskInfo("receipts", "house", "Home", "File October receipts", due = "2026-10-31"),
         )
         val byAgent = runs.groupBy { it.agentId }
         val routineMap = planned.groupBy { it.agentId }
         val remote = Server.Remote("ws://home:8788/ws", "test", "Home Server", "home")
         val capabilities = ServerCapabilities("home", ServerFeature.entries.toSet())
-        val shell = ShellState(owners, owners[0], byAgent.mapValues { SessionList(it.value) }, view = Route.Chat("echo", runs[1].id),
+        val shell = ShellState(owners, owners[0], byAgent.mapValues { SessionList(it.value) }, view = Route.Chat(AgentId("echo"), runs[1].id),
             servers = ServerMenuState(listOf(remote), remote), routines = routineMap, capabilities = capabilities)
         val home = HomeUi(Today.of(at, zone, byAgent, routineMap, tasks, setOf(runs[5].id)), owners, "Home Server", at, zone, tasks = true)
         val details = AgentDetails(owners[0], AgentSettings("gpt-5.6-sol", "medium", "default", "host", provider = "codex"),
             "Warm and curious; helps you think clearly.", "Be direct and kind. Ask one question at a time. Never send anything on my behalf without an Approval.")
-        val inspected = InspectorState("echo", details = details, draft = AgentDraft.of(details), models = modelCatalog)
+        val inspected = InspectorState(AgentId("echo"), details = details, draft = AgentDraft.of(details), models = modelCatalog)
         val host = InspectorHost(owners, capabilities)
-        val chat = ChatState(agent = owners[0], sessions = runs.filter { it.agentId == "echo" }, selected = runs[1].id, loaded = true,
+        val chat = ChatState(agent = owners[0], sessions = runs.filter { it.agentId.value == "echo" }, selected = runs[1].id, loaded = true,
             defaults = details.settings, models = modelCatalog, items = listOf(
                 ChatItem.User("u1", "Let's reflect on Monday before I start planning tomorrow."),
                 ChatItem.Assistant("a1", "Hey Fernando, how did Monday land? Last week's notes had you helping David through a production deployment and making room for Mockstro. What happened today that felt worth keeping?"),
@@ -636,8 +656,8 @@ class ScreenshotTest {
                 Box(Modifier.weight(1f)) { HomeContent(home, HomeActions(), wide = true) }
             } }
         }
-        val settingsRoute = Route.Settings("echo", SettingsSection.Overview)
-        val settingsUi = SettingsUi(SettingsState(settingsRoute, AgentConfig(details), routines = planned.filter { it.agentId == "echo" }), owners, at, capabilities = capabilities)
+        val settingsRoute = Route.Settings(AgentId("echo"), SettingsSection.Overview)
+        val settingsUi = SettingsUi(SettingsState(settingsRoute, AgentConfig(details), routines = planned.filter { it.agentId.value == "echo" }), owners, at, capabilities = capabilities)
         render("owner-rail-settings-desktop", 1440, 900) {
             theme { Row(Modifier.fillMaxSize()) {
                 Shell(shell.copy(view = settingsRoute), ShellActions(), remember { ShellChrome(mutableStateOf(true)) })
@@ -705,15 +725,15 @@ class ScreenshotTest {
         val github = McpServerInfo("github", url = "https://api.githubcopilot.com/mcp/", auth = McpAuthStatus.SignedIn)
         val toolsConfig = AgentConfig(
             details.copy(settings = details.settings.copy(tools = listOf("memory", "web_fetch", "skills", "schedule", "tasks")),
-                rules = TrustRules(trusted = listOf(github.toolKey("echo", "search_issues")), shell = listOf("git status"), deny = DenyRules(tools = listOf(github.toolKey("echo", "create_issue"))))),
+                rules = TrustRules(trusted = listOf(github.toolKey(AgentId("echo"), "search_issues")), shell = listOf("git status"), deny = DenyRules(tools = listOf(github.toolKey(AgentId("echo"), "create_issue"))))),
             mcp = listOf(github, McpServerInfo("linear", url = "https://mcp.linear.app/mcp", auth = McpAuthStatus.Required),
                 McpServerInfo("fs", ConfigScope.Shared, command = "npx", args = listOf("-y", "@modelcontextprotocol/server-filesystem", "~/notes"))),
         )
         val sharedRules = TrustRules(deny = DenyRules(tools = listOf("skill_manage", "delete_repository"), shell = listOf("rm -rf*")))
-        fun tools(item: String?) = SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Hub, item), toolsConfig,
+        fun tools(item: String?) = SettingsUi(SettingsState(Route.Settings(AgentId("echo"), SettingsSection.Hub, item), toolsConfig,
             mcpTest = McpTestResult(listOf("search_issues", "create_issue", "get_pull_request", "list_commits", "delete_repository")), serverRules = sharedRules), owners, at, capabilities = capabilities)
-        val echoRoutines = planned.filter { it.agentId == "echo" } + Routine("standup", "echo", "Weekday standup", "Summarize yesterday's Sessions.", Trigger.Cron("30 8 * * MON-FRI"), "Europe/Dublin", nextRunAt = at + 14 * 3_600_000)
-        fun routines(item: String?) = SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Routines, item), AgentConfig(details), routines = echoRoutines), owners, at, capabilities = capabilities)
+        val echoRoutines = planned.filter { it.agentId.value == "echo" } + Routine("stanAgentId(dup)", AgentId("echo"), "Weekday standup", "Summarize yesterday's Sessions.", Trigger.Cron("30 8 * * MON-FRI"), "Europe/Dublin", nextRunAt = at + 14 * 3_600_000)
+        fun routines(item: String?) = SettingsUi(SettingsState(Route.Settings(AgentId("echo"), SettingsSection.Routines, item), AgentConfig(details), routines = echoRoutines), owners, at, capabilities = capabilities)
         render("nav-phone-today", 390, 844) { phone { HomeContent(home, HomeActions(), wide = false) } }
         render("nav-phone-routines", 390, 844) { phone { SettingsContent(routines(null), SettingsActions(), sidebar = false) } }
         render("nav-phone-routine-detail", 390, 844) { phone { SettingsContent(routines("journal"), SettingsActions(onBack = {}), sidebar = false) } }
@@ -723,8 +743,8 @@ class ScreenshotTest {
             val computer = PluginInstanceId("kinuvo.computer")
             val rules = TrustRules(
                 trusted = listOf(ToolIdentity(PluginInstanceId("kinuvo.knowledge"), "knowledge").key, ToolIdentity(computer, "computer_capture").key,
-                    ToolIdentity(computer, "computer_act").key + " safari", github.toolKey("echo", "search_issues"), github.toolKey("echo", "list_commits")),
-                shell = listOf("git status"), deny = DenyRules(tools = listOf("skill_manage", github.toolKey("echo", "create_issue"))))
+                    ToolIdentity(computer, "computer_act").key + " safari", github.toolKey(AgentId("echo"), "search_issues"), github.toolKey(AgentId("echo"), "list_commits")),
+                shell = listOf("git status"), deny = DenyRules(tools = listOf("skill_manage", github.toolKey(AgentId("echo"), "create_issue"))))
             val ui = tools(RulesItem).let { it.copy(state = it.state.copy(config = toolsConfig.copy(details = toolsConfig.details!!.copy(rules = rules)))) }
             phone { SettingsContent(ui, SettingsActions(onBack = {}), sidebar = false) }
         }
@@ -732,24 +752,24 @@ class ScreenshotTest {
         render("nav-phone-board", 390, 844) { phone { BoardContent(board, BoardActions()) } }
         render("nav-phone-knowledge", 390, 844) { phone { KnowledgeContent(knowledge.copy(state = knowledge.state.copy(route = Route.Knowledge())), KnowledgeActions()) } }
         render("nav-phone-settings-sheet", 390, 844) {
-            phone { transcript(); BottomSheet(true, {}, header = {}) { SettingsContent(SettingsUi(SettingsState(Route.Settings("echo")), owners, at, capabilities = capabilities), SettingsActions(), sidebar = false) } }
+            phone { transcript(); BottomSheet(true, {}, header = {}) { SettingsContent(SettingsUi(SettingsState(Route.Settings(AgentId("echo"))), owners, at, capabilities = capabilities), SettingsActions(), sidebar = false) } }
         }
         @Composable fun sheet(ui: SettingsUi) = phone { transcript(); BottomSheet(true, {}, header = {}) { SettingsContent(ui, SettingsActions(onBack = {}), sidebar = false) } }
         val providers = listOf(ProviderInfo("codex", "ChatGPT / Codex", ProviderAccount(true, "me@feernandooff.com")),
             ProviderInfo("openai", "OpenAI API", apiKey = ProviderApiKeyStatus(false, "Not set")), ProviderInfo("local", "Local models"))
-        render("nav-phone-settings-sheet-nested", 390, 900) { sheet(SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Providers), providers = providers), owners, at, capabilities = capabilities)) }
+        render("nav-phone-settings-sheet-nested", 390, 900) { sheet(SettingsUi(SettingsState(Route.Settings(AgentId("echo"), SettingsSection.Providers), providers = providers), owners, at, capabilities = capabilities)) }
         val devices = DevicesState(listOf(
             PairedDeviceInfo("s", "samsung SM-F936B", "2026-10-16T09:00", "2026-10-16T10:08", tools = setOf(DeviceToolKind.Contacts)),
             PairedDeviceInfo("w", "Web browser", "2026-10-16T10:50", "2026-10-16T10:56"),
             PairedDeviceInfo("i", "iPhone", "2026-10-20T08:00", connected = true, current = true, management = true, tools = setOf(DeviceToolKind.Contacts, DeviceToolKind.Sleep)),
         ))
         render("nav-phone-settings-connection", 390, 1300) {
-            sheet(SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Connection)), owners, at, capabilities = capabilities, server = remote, servers = listOf(remote),
+            sheet(SettingsUi(SettingsState(Route.Settings(AgentId("echo"), SettingsSection.Connection)), owners, at, capabilities = capabilities, server = remote, servers = listOf(remote),
                 devices = devices, management = true))
         }
         val skill = SkillDetails(SkillInfo("evening-journal", "Run the evening journal check-in and save the reflection to Knowledge."), "---\nname: evening-journal\n---\n\nAsk one question at a time.\n")
         render("nav-phone-skill", 390, 844) {
-            sheet(SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Skills, itemKey(ConfigScope.Agent, "evening-journal")), AgentConfig(details, skills = listOf(skill.info)), skill = skill), owners, at, capabilities = capabilities))
+            sheet(SettingsUi(SettingsState(Route.Settings(AgentId("echo"), SettingsSection.Skills, itemKey(ConfigScope.Agent, "evening-journal")), AgentConfig(details, skills = listOf(skill.info)), skill = skill), owners, at, capabilities = capabilities))
         }
         val screenList = kinuvo.app.screen.LiveViewState(screens = listOf(
             ScreenInfo(ScreenRef("computer", "phone"), "Phone", ScreenCapabilities(ScreenDelivery.CaptureRefresh, setOf("tap")), ScreenStatus.Ready),
@@ -762,23 +782,23 @@ class ScreenshotTest {
         }
         render("nav-phone-mcp-new", 390, 1300) { phone { SettingsContent(tools(null).let { it.copy(state = it.state.copy(route = it.route.copy(editing = true))) }, SettingsActions(onBack = {}), sidebar = false) } }
         render("nav-phone-inspector-sheet", 390, 844) { phone { transcript(); AgentInspectorContent(inspected, host, InspectorActions(), sheet = true) } }
-        render("nav-desktop-tools-mcp", 1440, 1000) { desktop(Route.Settings("echo", SettingsSection.Hub)) { SettingsContent(tools(itemKey(ConfigScope.Agent, "github")), SettingsActions()) } }
-        render("nav-desktop-tools-builtin", 1440, 900) { desktop(Route.Settings("echo", SettingsSection.Hub)) { SettingsContent(tools(BuiltInItem), SettingsActions()) } }
-        render("nav-desktop-tools-rules", 1440, 900) { desktop(Route.Settings("echo", SettingsSection.Hub)) { SettingsContent(tools(RulesItem), SettingsActions()) } }
-        render("nav-desktop-routines", 1440, 900) { desktop(Route.Settings("echo", SettingsSection.Routines)) { SettingsContent(routines("journal"), SettingsActions()) } }
+        render("nav-desktop-tools-mcp", 1440, 1000) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Hub)) { SettingsContent(tools(itemKey(ConfigScope.Agent, "github")), SettingsActions()) } }
+        render("nav-desktop-tools-builtin", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Hub)) { SettingsContent(tools(BuiltInItem), SettingsActions()) } }
+        render("nav-desktop-tools-rules", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Hub)) { SettingsContent(tools(RulesItem), SettingsActions()) } }
+        render("nav-desktop-routines", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Routines)) { SettingsContent(routines("journal"), SettingsActions()) } }
         render("nav-desktop-today", 1440, 900) { desktop(Route.Home) { HomeContent(home, HomeActions(), wide = true) } }
         render("nav-desktop-board", 1440, 900) { desktop(Route.Board) { BoardContent(board, BoardActions()) } }
-        render("nav-desktop-settings", 1440, 900) { desktop(Route.Settings("echo", SettingsSection.Providers)) { SettingsContent(SettingsUi(SettingsState(Route.Settings("echo", SettingsSection.Providers), providers = listOf(ProviderInfo("codex", "ChatGPT / Codex"), ProviderInfo("openai", "OpenAI API"))), owners, at, capabilities = capabilities), SettingsActions()) } }
+        render("nav-desktop-settings", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Providers)) { SettingsContent(SettingsUi(SettingsState(Route.Settings(AgentId("echo"), SettingsSection.Providers), providers = listOf(ProviderInfo("codex", "ChatGPT / Codex"), ProviderInfo("openai", "OpenAI API"))), owners, at, capabilities = capabilities), SettingsActions()) } }
     }
 
     /** What the Agent waits on, in place of the chat input: morphed Composer on phones, tray over it on desktop. */
     private fun renderRequests(form: PendingInteraction.Questions) {
         val shell = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell")
-        val approval = PendingInteraction.Approval("a1", "t1", "shell", """{"command":"git push origin feat/request-composer"}""", "git push", Risk.High, "Pushes commits to a remote", identity = shell)
-        val takeover = PendingInteraction.Questions("q2", "t2", "Take over Browser: Sign in to GitHub.", listOf(Question("note", "Note")), ScreenRef("browser", "b1"))
-        val push = ChatItem.ToolCall("t1", "t1", "shell", approval.args, identity = shell, approval = approval)
-        val ask = ChatItem.ToolCall("t3", "c1", "ask_user", "{}", questions = form)
-        val hand = ChatItem.ToolCall("t2", "t2", "request_takeover", """{"reason":"Sign in to GitHub"}""", questions = takeover)
+        val approval = PendingInteraction.Approval(InteractionId("a1"), ToolCallId("t1"), "shell", """{"command":"git push origin feat/request-composer"}""", "git push", Risk.High, "Pushes commits to a remote", identity = shell)
+        val takeover = PendingInteraction.Questions(InteractionId("q2"), ToolCallId("t2"), "Take over Browser: Sign in to GitHub.", listOf(Question("note", "Note")), ScreenRef("browser", "b1"))
+        val push = ChatItem.ToolCall("t1", ToolCallId("t1"), "shell", approval.args, identity = shell, approval = approval)
+        val ask = ChatItem.ToolCall("t3", ToolCallId("c1"), "ask_user", "{}", questions = form)
+        val hand = ChatItem.ToolCall("t2", ToolCallId("t2"), "request_takeover", """{"reason":"Sign in to GitHub"}""", questions = takeover)
         val talk = listOf(ChatItem.User("u1", "Push the branch and open the release PR."), ChatItem.Assistant("a1", "Tests are green. I'll push the branch next."))
         val approving = state.copy(items = talk + push, running = false, pending = listOf(approval, form))
         val asking = state.copy(items = talk + ask, running = false, pending = listOf(form))
@@ -798,14 +818,14 @@ class ScreenshotTest {
     /** Tool calls and reasoning grouped into compact rows, at iPhone width. */
     private fun renderSteps() {
         val think = ChatItem.Reasoning("r1", "Checking git status and open PRs before summarising.")
-        val status = ChatItem.ToolCall("t1", "t1", "shell", """{"command":"git status --short"}""", result = " M core/src/Harness.kt", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"))
-        val prs = ChatItem.ToolCall("t2", "t2", "github__list_pull_requests", """{"repo":"harness"}""", result = "[]", identity = ToolIdentity(PluginInstanceId("kinuvo.mcp", "shared/github"), "list_pull_requests"))
-        val read = ChatItem.ToolCall("t3", "t3", "read_file", """{"path":"DESIGN.md"}""", result = "# Kinuvo")
-        val failed = ChatItem.ToolCall("t4", "t4", "shell", """{"command":"./kotlin test -m core"}""", result = "exit 1: 2 tests failed", isError = true, identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"))
-        val fetch = ChatItem.ToolCall("t5", "t5", "web_fetch", """{"url":"https://kotlinlang.org"}""", result = "ok")
+        val status = ChatItem.ToolCall("t1", ToolCallId("t1"), "shell", """{"command":"git status --short"}""", result = " M core/src/Harness.kt", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"))
+        val prs = ChatItem.ToolCall("t2", ToolCallId("t2"), "github__list_pull_requests", """{"repo":"harness"}""", result = "[]", identity = ToolIdentity(PluginInstanceId("kinuvo.mcp", "shared/github"), "list_pull_requests"))
+        val read = ChatItem.ToolCall("t3", ToolCallId("t3"), "read_file", """{"path":"DESIGN.md"}""", result = "# Kinuvo")
+        val failed = ChatItem.ToolCall("t4", ToolCallId("t4"), "shell", """{"command":"./kotlin test -m core"}""", result = "exit 1: 2 tests failed", isError = true, identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"))
+        val fetch = ChatItem.ToolCall("t5", ToolCallId("t5"), "web_fetch", """{"url":"https://kotlinlang.org"}""", result = "ok")
         val push = ChatItem.ToolCall(
-            "t6", "t6", "shell", """{"command":"git push origin tier1"}""", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"),
-            approval = PendingInteraction.Approval("a1", "t6", "shell", """{"command":"git push origin tier1"}""", "git push", Risk.High, "Pushes to a remote"),
+            "t6", ToolCallId("t6"), "shell", """{"command":"git push origin tier1"}""", identity = ToolIdentity(PluginInstanceId("kinuvo.exec"), "shell"),
+            approval = PendingInteraction.Approval(InteractionId("a1"), ToolCallId("t6"), "shell", """{"command":"git push origin tier1"}""", "git push", Risk.High, "Pushes to a remote"),
         )
         val items = listOf(
             ChatItem.User("u1", "What's uncommitted, and are the tests green?"),
@@ -817,7 +837,7 @@ class ScreenshotTest {
         )
         val phone = state.copy(items = items, running = false, pending = listOfNotNull(push.approval))
         render("chat-steps-phone", 390, 844) { HarnessTheme(dark = false) { ChatContent(phone, ConnectionState.Connected("x"), null, ChatActions()) } }
-        val running = state.copy(items = items.take(4) + status.copy(id = "t7", callId = "t7", args = """{"command":"git diff --stat HEAD~3"}""", result = null), running = true)
+        val running = state.copy(items = items.take(4) + status.copy(id = "t7", callId = ToolCallId("t7"), args = """{"command":"git diff --stat HEAD~3"}""", result = null), running = true)
         render("chat-steps-running-dark", 390, 600) { HarnessTheme(dark = true) { ChatContent(running, ConnectionState.Connected("x"), null, ChatActions()) } }
         render("chat-steps-expanded", 390, 520) {
             HarnessTheme(dark = false) {
@@ -832,18 +852,18 @@ class ScreenshotTest {
     private val board = BoardUi(
         BoardState(
             BoardData(
-                lists = listOf(TaskListInfo("l1", "Errands", "main"), TaskListInfo("l2", "Travel", "research")),
+                lists = listOf(TaskListInfo("l1", "Errands", AgentId("main")), TaskListInfo("l2", "Travel", AgentId("research"))),
                 tasks = listOf(
-                    TaskInfo("t1", "l1", "Errands", "Buy a birthday present for Ana", due = "2026-10-08", assignee = "main"),
-                    TaskInfo("t2", "l2", "Travel", "Book flights to Lisbon", "Under €300, window seat.", "2026-10-20", TaskStatus.InProgress, "research", listOf("s1")),
-                    TaskInfo("t3", "l2", "Travel", "Renew passport", "Kinuvo: Form drafted. Needs a new photo.", "2026-11-20", TaskStatus.Waiting, "research", listOf("s2")),
+                    TaskInfo("t1", "l1", "Errands", "Buy a birthday present for Ana", due = "2026-10-08", assignee = AgentId("main")),
+                    TaskInfo("t2", "l2", "Travel", "Book flights to Lisbon", "Under €300, window seat.", "2026-10-20", TaskStatus.InProgress, AgentId("research"), listOf(SessionId("s1"))),
+                    TaskInfo("t3", "l2", "Travel", "Renew passport", "Kinuvo: Form drafted. Needs a new photo.", "2026-11-20", TaskStatus.Waiting, AgentId("research"), listOf(SessionId("s2"))),
                     TaskInfo("t4", "l1", "Errands", "Cancel the gym membership"),
-                    TaskInfo("t5", "l1", "Errands", "Pay the electricity bill", status = TaskStatus.Done, assignee = "main"),
+                    TaskInfo("t5", "l1", "Errands", "Pay the electricity bill", status = TaskStatus.Done, assignee = AgentId("main")),
                 ),
             ),
             showDone = true,
         ),
-        listOf(agent, AgentInfo("research", "Researcher", "container")),
+        listOf(agent, AgentInfo(AgentId("research"), "Researcher", "container")),
     )
 
     private val ana = Note(
@@ -855,9 +875,9 @@ class ScreenshotTest {
         KnowledgeState(
             Route.Knowledge(ana.ref),
             changes = listOf(
-                KnowledgeChange("k1", 1_790_000_000_000L, "Ana García: 2026-09-28: Fixing the boiler next week", ana.ref, ana.title, "main", "s1", scope = "markdown:test", undo = kotlinx.serialization.json.JsonNull),
-                KnowledgeChange("k2", 1_789_990_000_000L, "Created Lisbon trip", "Projects/Lisbon trip", "Lisbon trip", "research", scope = "markdown:test", undo = kotlinx.serialization.json.JsonNull),
-                KnowledgeChange("k3", 1_789_900_000_000L, "2026-09-29: Called Mum", "Journal/2026-09-29", "2026-09-29", "main", undone = true, scope = "markdown:test", undo = kotlinx.serialization.json.JsonNull),
+                KnowledgeChange("k1", 1_790_000_000_000L, "Ana García: 2026-09-28: Fixing the boiler next week", ana.ref, ana.title, AgentId("main"), SessionId("s1"), scope = "markdown:test", undo = kotlinx.serialization.json.JsonNull),
+                KnowledgeChange("k2", 1_789_990_000_000L, "Created Lisbon trip", "Projects/Lisbon trip", "Lisbon trip", AgentId("research"), scope = "markdown:test", undo = kotlinx.serialization.json.JsonNull),
+                KnowledgeChange("k3", 1_789_900_000_000L, "2026-09-29: Called Mum", "Journal/2026-09-29", "2026-09-29", AgentId("main"), undone = true, scope = "markdown:test", undo = kotlinx.serialization.json.JsonNull),
             ),
             note = ana,
         ),
@@ -949,7 +969,7 @@ class ScreenshotTest {
         val state = ChatState(loaded = true, items = listOf(
             ChatItem.User("user", "Show me a quick example."),
             ChatItem.Assistant("step", "I'll put one together."),
-            ChatItem.ToolCall("tool", "tool", "exec", "", "done"),
+            ChatItem.ToolCall("tool", ToolCallId("tool"), "exec", "", "done"),
             ChatItem.Assistant("reply", "Here is the **result**.\n\n```kotlin\nval greeting = \"Hello\"\n```", at = 1_790_000_000_000L),
         ))
         for (dark in listOf(false, true)) render("chat-footer-${if (dark) "dark" else "light"}", 420, 640) {
@@ -1100,7 +1120,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         call("live-call-muted-dark", listening.copy(paused = true))
         call("live-call-holding-dark", listening.copy(holding = true))
         render("live-call-light", 390, 844) { HarnessTheme(dark = false) { LiveCallScreen("Kinuvo", AvatarInk[2], listening, 75, false, {}, {}, {}, {}, {}, time = 3f) } }
-        val event = PendingInteraction.Approval("ap", "t", "calendar_update", """{"event":"Dentist","start":"2026-11-07T10:00"}""", reason = "Dentist → Friday, 10:00")
+        val event = PendingInteraction.Approval(InteractionId("ap"), ToolCallId("t"), "calendar_update", """{"event":"Dentist","start":"2026-11-07T10:00"}""", reason = "Dentist → Friday, 10:00")
         render("live-call-approval-dark", 390, 844) {
             HarnessTheme(dark = true) { Box { LiveCallScreen("Kinuvo", ink, VoiceChatState(VoicePhase.Thinking, live = true), 182, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event, {}, {}) } }
         }
@@ -1110,7 +1130,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         render("live-call-approval-long-small-dark", 375, 560) {
             HarnessTheme(dark = true) { Box { LiveCallScreen("Kinuvo", ink, listening, 40, false, {}, {}, {}, {}, {}, time = 3f); CallApprovalSheet("Kinuvo", event.copy(args = (1..30).joinToString(",", "{", "}") { "\"field$it\":\"value $it\"" }, reason = "Update the event with a long list of changed fields that wraps across several lines of the sheet."), {}, {}) } }
         }
-        val external = PendingInteraction.HarnessApproval("x1", "Edit config.yaml", "Replace 3 lines in config.yaml", listOf(
+        val external = PendingInteraction.HarnessApproval(InteractionId("x1"), "Edit config.yaml", "Replace 3 lines in config.yaml", listOf(
             ExternalApprovalOption("allow_always", "Always allow edits", "allow_always"), ExternalApprovalOption("allow_once", "Allow", "allow_once"), ExternalApprovalOption("reject_once", "Reject", "reject_once")))
         render("live-call-approval-external-dark", 390, 844) {
             HarnessTheme(dark = true) { Box { LiveCallScreen("Claude Code", AvatarInk[1], VoiceChatState(VoicePhase.Thinking, live = true), 95, false, {}, {}, {}, {}, {}, time = 3f); CallExternalApprovalSheet("Claude Code", external, {}, {}) } }
@@ -1180,14 +1200,14 @@ I checked your knowledge base just now and didn't find a profile note for you.
 
     @Test
     fun renderRequestMeasurements() {
-        val metrics = kinuvo.protocol.RequestMetrics("m1", 123, kinuvo.protocol.RequestKind.Chat, "codex", "gpt-5.6-sol", "medium", 2340, 320, 12000, 560, 10240)
+        val metrics = kinuvo.protocol.usage.RequestMetrics("m1", 123, kinuvo.protocol.usage.RequestKind.Chat, "codex", "gpt-5.6-sol", "medium", 2340, 320, 12000, 560, 10240)
         for (dark in listOf(false, true)) render("request-metrics-${if (dark) "dark" else "light"}", 420, 640) {
             HarnessTheme(dark = dark) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     ChatStatisticsContent(usage, listOf(
                         metrics,
-                        metrics.copy(id = "m2", kind = kinuvo.protocol.RequestKind.Reflection, cachedTokens = 0),
-                        metrics.copy(id = "m3", kind = kinuvo.protocol.RequestKind.Compaction, inputTokens = null, outputTokens = null, cachedTokens = null, success = false),
+                        metrics.copy(id = "m2", kind = kinuvo.protocol.usage.RequestKind.Reflection, cachedTokens = 0),
+                        metrics.copy(id = "m3", kind = kinuvo.protocol.usage.RequestKind.Compaction, inputTokens = null, outputTokens = null, cachedTokens = null, success = false),
                     ))
                 }
             }
@@ -1223,7 +1243,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         }
         render("knowledge-narrow-note", 420, 860) { HarnessTheme(dark = false) { KnowledgeContent(knowledge, KnowledgeActions(onBack = {})) } }
         val tasksSettings = settings.copy(state = settings.state.copy(
-            route = Route.Settings("main", SettingsSection.Tasks),
+            route = Route.Settings(AgentId("main"), SettingsSection.Tasks),
             tasks = TasksSetup(TasksSettings("reminders", mapOf("Errands" to "main", "Travel" to "")), listOf(
                 SettingsProvider("local", "Kinuvo (built in)"), SettingsProvider("reminders", "Apple Reminders"),
             )),
@@ -1248,7 +1268,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         render("settings-tasks-denied-narrow", 420, 1400) { HarnessTheme(dark = true) { SettingsContent(deniedTasks, SettingsActions(onBack = {})) } }
 
         val knowledgeSettings = settings.copy(state = settings.state.copy(
-            route = Route.Settings("main", SettingsSection.Knowledge),
+            route = Route.Settings(AgentId("main"), SettingsSection.Knowledge),
             knowledge = KnowledgeSetup(KnowledgeSettings("~/Vault/Kinuvo"), "/Users/me/Vault/Kinuvo"),
         ))
         render("settings-knowledge-failed", 420, 860) {
@@ -1265,7 +1285,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
             SettingsField("url", "Server URL", SettingsFieldType.Url, "Only for a self-hosted Firecrawl.", defaultValue = "https://api.firecrawl.dev"),
         )))
         val notifySettings = settings.copy(state = settings.state.copy(
-            route = Route.Settings("main", SettingsSection.Notifications),
+            route = Route.Settings(AgentId("main"), SettingsSection.Notifications),
             services = mapOf(ServiceKind.Notifications to ServiceSetup(ServiceKind.Notifications, ServiceSettings("ntfy", mapOf("topic" to "kinuvo-7fk2m9qx4hw8")),
                 listOf(ntfy))),
             serviceTest = ServiceTestResult("Sent"),
@@ -1273,7 +1293,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
             PairedDeviceInfo("p", "Pixel 8", "2026-10-08T12:00:00Z", push = true), PairedDeviceInfo("w", "Web browser", "2026-10-08T12:00:00Z"))))
         render("settings-notifications-narrow", 390, 1000) { HarnessTheme(dark = false) { SettingsContent(notifySettings, SettingsActions(onBack = {})) } }
         val searchSettings = settings.copy(state = settings.state.copy(
-            route = Route.Settings("main", SettingsSection.Search),
+            route = Route.Settings(AgentId("main"), SettingsSection.Search),
             services = mapOf(ServiceKind.Search to ServiceSetup(ServiceKind.Search, ServiceSettings("firecrawl", mapOf("apiKey" to KnowledgeSettings.SECRET)),
                 listOf(firecrawl), setOf("apiKey"))),
         ))
@@ -1297,7 +1317,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         render("settings-knowledge-built-in-narrow", 390, 900) { HarnessTheme(dark = true) { SettingsContent(builtIn, SettingsActions(onBack = {})) } }
         render("settings-mcp-onboarding-narrow", 390, 900) {
             HarnessTheme(dark = true) { CompositionLocalProvider(LocalInteractionMode provides InteractionMode.Touch) {
-                SettingsContent(settingsAt(Route.Settings("main", SettingsSection.Mcp)), SettingsActions(onBack = {}), sidebar = false)
+                SettingsContent(settingsAt(Route.Settings(AgentId("main"), SettingsSection.Mcp)), SettingsActions(onBack = {}), sidebar = false)
             } }
         }
         render("settings-reflection-prompt-narrow", 420, 1400) { HarnessTheme(dark = true) { SettingsContent(knowledgeSettings, SettingsActions(onBack = {})) } }
@@ -1314,7 +1334,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
 
         val pass = SecretProviderStatus("pass", "Proton Pass", installed = true, tokenStorage = "macOS Keychain",
             detail = "Add an AI agent access token from Proton Pass → Settings → Access tokens")
-        val secretsSettings = settings.copy(state = settings.state.copy(route = Route.Settings("main", SettingsSection.Secrets), secrets = listOf(pass)))
+        val secretsSettings = settings.copy(state = settings.state.copy(route = Route.Settings(AgentId("main"), SettingsSection.Secrets), secrets = listOf(pass)))
         render("settings-secrets", 900, 760) { HarnessTheme(dark = false) { SettingsContent(secretsSettings, SettingsActions()) } }
         val connected = pass.copy(connected = true, detail = "Signed in; 2 vaults shared with Kinuvo")
         render("settings-secrets-connected", 420, 860) {

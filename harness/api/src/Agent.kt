@@ -1,12 +1,13 @@
 package kinuvo.harness
 
 import kotlinx.serialization.Serializable
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.SessionSettings
-import kinuvo.protocol.TrustRules
-import kinuvo.protocol.ContainerSettings
-import kinuvo.protocol.SshSettings
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.session.SessionSettings
+import kinuvo.protocol.approval.TrustRules
+import kinuvo.protocol.agent.ContainerSettings
+import kinuvo.protocol.agent.SshSettings
+import kinuvo.protocol.agent.AgentId
 
 object ExecModes {
     const val NONE = "none"
@@ -52,7 +53,7 @@ typealias ContainerConfig = ContainerSettings
 typealias SshConfig = SshSettings
 
 /** An Agent: its ID, display name (the Identity's first heading) and settings. Its documents live in [AgentDocs]. */
-data class Agent(val id: String, val name: String, val config: AgentConfig)
+data class Agent(val id: AgentId, val name: String, val config: AgentConfig)
 
 /** The Agent as one Session runs it, with that Session's [settings] over its own. */
 fun Agent.with(settings: SessionSettings) = copy(
@@ -69,10 +70,10 @@ enum class AgentDoc { Identity, Soul, Memory, UserNotes, Heartbeat, ReflectionFe
 
 interface AgentDocs {
     /** The document's text; empty when it doesn't exist yet. */
-    suspend fun read(agentId: String, doc: AgentDoc): String
-    suspend fun write(agentId: String, doc: AgentDoc, text: String)
+    suspend fun read(agentId: AgentId, doc: AgentDoc): String
+    suspend fun write(agentId: AgentId, doc: AgentDoc, text: String)
     /** Read-modify-write in one step, so concurrent edits don't lose each other; returns the new text. */
-    suspend fun update(agentId: String, doc: AgentDoc, transform: (String) -> String): String
+    suspend fun update(agentId: AgentId, doc: AgentDoc, transform: (String) -> String): String
 }
 
 /** The name an Identity document gives: its first `# ` heading. */

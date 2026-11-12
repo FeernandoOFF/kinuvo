@@ -1,12 +1,13 @@
 package kinuvo.ui.surface
 
+import kinuvo.protocol.session.ToolCallId
 import androidx.compose.ui.platform.LocalUriHandler
 import kinuvo.app.surface.SurfaceDrafts
 import kinuvo.app.surface.SurfaceSubmissions
 import kinuvo.app.surface.openSurfaceUrl
 import kinuvo.app.surface.surfaceAction
 import kinuvo.app.surface.surfaceSubmissions
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.surface.SurfaceAction
 
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.layout.Column
@@ -15,7 +16,7 @@ import dev.ynagai.a2ui.compose.*
 import dev.ynagai.a2ui.core.protocol.*
 import kinuvo.app.session.ChatItem
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.uiMessages
+import kinuvo.protocol.surface.uiMessages
 import kotlinx.serialization.json.jsonObject
 
 internal val LocalSurfaceItems = staticCompositionLocalOf<List<ChatItem>> { emptyList() }
@@ -25,7 +26,7 @@ internal class SurfaceRenderer(val renderer: A2uiRenderer) {
 }
 
 internal val LocalSurfaceDrafts = staticCompositionLocalOf<SurfaceDrafts?> { null }
-internal val LocalSurfaceRenderers = staticCompositionLocalOf<MutableMap<String, SurfaceRenderer>> { mutableMapOf() }
+internal val LocalSurfaceRenderers = staticCompositionLocalOf<MutableMap<ToolCallId, SurfaceRenderer>> { mutableMapOf() }
 
 @Composable
 internal fun SurfaceCall(call: ChatItem.ToolCall, send: (String, SurfaceAction) -> Unit, fallback: @Composable () -> Unit) {

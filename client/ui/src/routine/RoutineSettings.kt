@@ -17,7 +17,8 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.session.*
 import kinuvo.ui.design.*
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -84,7 +85,7 @@ private fun RoutineDetail(r: Routine, p: Pane) {
             DetailRow("Session") {
                 val attached = r.sessionId
                 if (attached == null) Text("A new Session each run")
-                else Button(onClick = { actions.onOpenSession(attached) }, style = ButtonStyle.Link) { Text("Continues one Session") }
+                else Button(onClick = { actions.onOpenSession(attached.value) }, style = ButtonStyle.Link) { Text("Continues one Session") }
             }
             DetailRow("Approvals") { Picker(RoutineApprovals.entries, r.approvals, { it.label() }, { actions.onApprovals(r.id, it) }, hint = { it.hint() }) }
             DetailRow("Last run") {
@@ -106,7 +107,7 @@ private fun RoutineDetail(r: Routine, p: Pane) {
         RowGroup("Recent runs") {
             if (ui.state.runs.isEmpty()) GroupRow(if (r.sessionId != null) "Runs continue the attached Session." else "No runs yet.", tint = color(mutedColor))
             ui.state.runs.forEach { session ->
-                GroupRow(session.id.toRunLabel(), { actions.onOpenSession(session.id) }, icon = Lucide.MessageSquare) {
+                GroupRow(session.id.value.toRunLabel(), { actions.onOpenSession(session.id.value) }, icon = Lucide.MessageSquare) {
                     if (session.status != SessionStatus.Idle) Pill(if (session.status == SessionStatus.Running) "Running" else "Waiting", tone = Tone.Accent)
                 }
             }

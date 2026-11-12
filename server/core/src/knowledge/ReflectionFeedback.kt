@@ -2,8 +2,9 @@ package kinuvo.server.knowledge
 
 import kinuvo.harness.AgentDoc
 import kinuvo.harness.AgentDocs
-import kinuvo.protocol.ToolNames
-import kinuvo.protocol.ReflectionProposal
+import kinuvo.protocol.tool.ToolNames
+import kinuvo.protocol.reflection.ReflectionProposal
+import kinuvo.protocol.agent.AgentId
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
@@ -16,7 +17,7 @@ private val feedbackSerializer = ListSerializer(ReflectionFeedback.serializer())
 private fun feedback(text: String): List<ReflectionFeedback> =
     if (text.isBlank()) emptyList() else Json.decodeFromString(feedbackSerializer, text)
 
-suspend fun AgentDocs.rememberReflectionReview(agentId: String, proposal: ReflectionProposal, note: String?, declined: Boolean) {
+suspend fun AgentDocs.rememberReflectionReview(agentId: AgentId, proposal: ReflectionProposal, note: String?, declined: Boolean) {
     val stage = if (proposal.tool == ToolNames.SKILL_MANAGE) "Skills" else "Knowledge"
     val entry = ReflectionFeedback(proposal.id, stage, proposal.args.toString().take(400), note?.take(600), declined)
     update(agentId, AgentDoc.ReflectionFeedback) { old ->
@@ -24,7 +25,7 @@ suspend fun AgentDocs.rememberReflectionReview(agentId: String, proposal: Reflec
     }
 }
 
-internal suspend fun AgentDocs.reflectionFeedback(agentId: String, stage: ReflectionStage): String {
+internal suspend fun AgentDocs.reflectionFeedback(agentId: AgentId, stage: ReflectionStage): String {
     val recent = feedback(read(agentId, AgentDoc.ReflectionFeedback)).filter { it.stage == stage.name }
     return if (recent.isEmpty()) "" else "Recent ${stage.name} review feedback:\n" + recent.joinToString("\n") {
         "- ${if (it.declined) "Declined" else "Reviewed"}: ${it.gist.take(160)}" + (it.note?.let { note -> " — ${note.take(240)}" } ?: "")

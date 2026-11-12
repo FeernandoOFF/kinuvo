@@ -1,5 +1,6 @@
 package kinuvo.server.knowledge
 
+import kinuvo.server.reflect
 import kinuvo.server.plugin.BodyEdit
 import kinuvo.server.plugin.KnowledgeSource
 import kinuvo.server.plugin.NoteEdit
@@ -12,13 +13,14 @@ import kinuvo.server.store.FileKnowledgeChangeLog
 import kinuvo.server.store.MarkdownKnowledgeSource
 import kinuvo.server.plugin.readText
 import kinuvo.server.plugin.writeAtomically
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.ReflectionResult
-import kinuvo.protocol.KnowledgeChange
-import kinuvo.protocol.KnowledgeSchema
-import kinuvo.protocol.Note
-import kinuvo.protocol.NoteProperty
-import kinuvo.protocol.NoteType
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.reflection.ReflectionResult
+import kinuvo.protocol.knowledge.KnowledgeChange
+import kinuvo.protocol.knowledge.KnowledgeSchema
+import kinuvo.protocol.knowledge.Note
+import kinuvo.protocol.knowledge.NoteProperty
+import kinuvo.protocol.knowledge.NoteType
+import kinuvo.protocol.session.SessionId
 import kotlinx.datetime.LocalDate
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
@@ -230,17 +232,17 @@ class KnowledgeTest {
         val plugin = KnowledgePlugin(knowledge)
         val agent = home.agent.copy(config = home.agent.config.copy(tools = listOf("knowledge")))
         assertTrue(conventions in plugin.instructions(agent)!!.body)
-        val tools = plugin.prepare(kinuvo.server.plugin.RunContext(agent, "s1"), activate = true).tools.associateBy { it.descriptor.name }
+        val tools = plugin.prepare(kinuvo.server.plugin.RunContext(agent, SessionId("s1")), activate = true).tools.associateBy { it.descriptor.name }
         val tool = tools.getValue("knowledge")
         tool.execute(buildJsonObject { put("action", "create"); put("type", "person"); put("title", "Ana"); put("set", """{"email":"a@x.com"}""") })
         tool.execute(buildJsonObject { put("action", "update"); put("ref", "Ana"); put("append", "- Met at work"); put("under", "Timeline") })
         assertTrue("## Timeline\n\n- Met at work" in tool.execute(buildJsonObject { put("action", "read"); put("ref", "Ana") }))
         assertTrue("person (person)" in tool.execute(buildJsonObject { put("action", "schema") }))
         val rewrite = tools.getValue("knowledge_rewrite")
-        assertEquals(kinuvo.protocol.Risk.Medium, rewrite.risk)
+        assertEquals(kinuvo.protocol.approval.Risk.Medium, rewrite.risk)
         rewrite.execute(buildJsonObject { put("ref", "Ana"); put("old", "Met at work"); put("new", "Met at the gym") })
         assertEquals("## Timeline\n\n- Met at the gym", knowledge.find("Ana")!!.body)
-        assertEquals("s1", knowledge.changes().first().sessionId)
+        assertEquals("s1", knowledge.changes().first().sessionId?.value)
     }
 
     @Test
@@ -256,10 +258,10 @@ class KnowledgeTest {
         }
         val entries = listOf(SessionEntry.UserMessage("My sister Ana is visiting"), SessionEntry.AssistantMessage("Nice!"))
         val reflection = Reflection(knowledge, home.docs) { LocalDate(2026, 10, 4) }
-        val result = reflection.reflect(home.agent, model, "s1", entries)
+        val result = reflection.reflect(home.agent, model, SessionId("s1"), entries)
         assertEquals(null, result.error)
         assertEquals(1, result.proposals.size)
         assertEquals(null, knowledge.find("Ana"))
-        assertEquals(ReflectionResult(), reflection.reflect(home.agent, model, "s1", emptyList()))
+        assertEquals(ReflectionResult(), reflection.reflect(home.agent, model, SessionId("s1"), emptyList()))
     }
 }

@@ -1,14 +1,16 @@
 package kinuvo.harness.builtin
 
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.ToolNames
+import kinuvo.harness.modelText
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.harness.builtin.tools.RawSchemaToolDescriptor
 import ai.koog.agents.core.tools.ToolDescriptor
 
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import kinuvo.protocol.Attachment
+import kinuvo.protocol.session.Attachment
 import kotlinx.serialization.json.Json
+import kinuvo.harness.SCREENSHOT_PREFIX
 
 /** The latest compressed history followed by the Session's subsequent model entries. */
 fun List<SessionEntry>.activeHistory(): List<SessionEntry> {
@@ -34,9 +36,6 @@ fun List<SessionEntry>.latestTurn(): List<SessionEntry> {
     val at = indexOfLast { it is SessionEntry.UserMessage }
     return if (at < 0) this else filterIndexed { index, entry -> index >= at || entry is SessionEntry.Context || entry is SessionEntry.Activation }
 }
-
-/** Screenshots a Computer tool shows the model are named so, and only the latest few are sent again. */
-const val SCREENSHOT_PREFIX = "screen-"
 
 /** Drops all but the last [keep] tool results' screenshots, which are many and soon outdated, noting where one was. */
 fun List<SessionEntry>.recentScreens(keep: Int = 3): List<SessionEntry> {
@@ -72,7 +71,7 @@ fun List<SessionEntry>.estimatedTokens(instructions: String, tools: List<ToolDes
             is SessionEntry.ToolResult -> it.output.length + it.attachments.estimatedChars()
             is SessionEntry.Compaction -> it.history.estimatedTokens("") * 4
             is SessionEntry.Activation -> it.content.length
-            is SessionEntry.ToolReport -> it.tool.length + (it.callId?.length ?: 0) + it.content.length
+            is SessionEntry.ToolReport -> it.tool.length + (it.callId?.value?.length ?: 0) + it.content.length
             is SessionEntry.Started, is SessionEntry.Settings, is SessionEntry.Details, is SessionEntry.Reflection, is SessionEntry.ReflectionReview, is SessionEntry.Measurement, is SessionEntry.Outcome, is SessionEntry.Notice -> 0
         }
     }) / 4

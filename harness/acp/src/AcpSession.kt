@@ -2,32 +2,53 @@
 
 package kinuvo.harness.acp
 
-import kinuvo.protocol.modelText
+import kinuvo.protocol.surface.modelText
 
+import com.agentclientprotocol.client.v2.ClientSessionOperations
 import com.agentclientprotocol.client.v2.ClientSession
 import com.agentclientprotocol.model.v2.*
 import com.agentclientprotocol.model.v2.SessionUpdate as AcpSessionUpdate
 import java.nio.ByteBuffer
 import kinuvo.harness.*
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.surface.*
 import kotlinx.serialization.json.*
 import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.Base64
 
 class AcpSession internal constructor(
-    private val session: ClientSession,
+    session: ClientSession?,
+    private val previous: String?,
+    private val cwd: String,
+    private val operations: ClientSessionOperations,
     private val connection: AcpConnection,
     private val state: ExecutionState,
     private val broker: ExecutionBroker,
     private val reducer: AcpReducer,
     private val cancelRequests: suspend () -> Unit,
     override val capabilities: ExecutionCapabilities,
+    override val acceptsMcp: Boolean = false,
 ) : ExecutionSession {
     private val commands = Mutex()
+    private val sessions = MutableStateFlow(session)
+    private val session get() = requireNotNull(sessions.value)
 
     override suspend fun prompt(input: ExecutionInput): ExecutionAcceptance = coroutineScope {
+        if (sessions.value == null || input.mcp != null && connection.supportsMcp()) {
+            val id = sessions.value?.sessionId?.toString() ?: previous
+            val next = if (id == null) connection.newSession(cwd, operations, input.mcp)
+                else connection.resumeSession(id, cwd, operations, input.mcp)
+            sessions.value = next
+            state.reference(next.sessionId.toString())
+        }
         val content = input.content(capabilities)
         val response = commands.withLock {
             reducer.submitted()
@@ -37,15 +58,17 @@ class AcpSession internal constructor(
         ExecutionAcceptance((response as? JsonObject)?.string("messageId"))
     }
 
-    override suspend fun cancel() = commands.withLock { connection.cancel(session); cancelRequests() }
+    override suspend fun cancel() = commands.withLock { sessions.value?.let(connection::cancel); cancelRequests() }
 
-    override suspend fun answer(requestId: String, answer: InteractionAnswer) {
+    override suspend fun answer(requestId: InteractionId, answer: InteractionAnswer) {
         check(broker.answer(requestId, answer.toHarnessJson())) { "Request is no longer pending" }
     }
 
     suspend fun collect() {
-        session.updates.collect { received ->
-            reducer.update(ProtocolJson.encodeToJsonElement(AcpSessionUpdate.serializer(), received.update).jsonObject)
+        sessions.filterNotNull().collectLatest { active ->
+            active.updates.collect { received ->
+                reducer.update(ProtocolJson.encodeToJsonElement(AcpSessionUpdate.serializer(), received.update).jsonObject)
+            }
         }
     }
 }

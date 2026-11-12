@@ -10,9 +10,10 @@ import kinuvo.server.system
 import kinuvo.providers.koog.compatibleProviders
 import kotlinx.io.files.Path
 import kinuvo.server.providers.ModelProviders
+import kinuvo.harness.builtin.plugin.ModelSource
 
 /** What an iPhone's Server runs with; [extra] are providers the app builds from its own objects, e.g. Apple's on-device model, which come first. */
-fun embeddedPlugins(home: Path, extra: ModelProviders = ModelProviders()): EmbeddedPlugins {
+fun embeddedPlugins(home: Path, extra: ModelProviders<ModelSource> = ModelProviders()): EmbeddedPlugins {
     val files = AgentFiles(home)
     val keys = embeddedKeys(files)
     val attachments = FileAttachments(Path(home, "attachments"))::bytes

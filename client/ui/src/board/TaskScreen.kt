@@ -20,7 +20,9 @@ import androidx.compose.ui.unit.sp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.session.*
 import kinuvo.ui.design.*
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.todayIn
@@ -38,10 +40,10 @@ fun TaskScreen(app: AppViewModel, board: BoardViewModel, taskId: String, onBack:
 }
 
 /** [task] is null when it isn't on the Board (yet, while [loaded] is false); [sessions] are the known Sessions by ID. */
-data class TaskUi(val task: TaskInfo?, val loaded: Boolean, val agents: List<AgentInfo> = emptyList(), val sessions: Map<String, SessionInfo> = emptyMap(), val error: String? = null)
+data class TaskUi(val task: TaskInfo?, val loaded: Boolean, val agents: List<AgentInfo> = emptyList(), val sessions: Map<SessionId, SessionInfo> = emptyMap(), val error: String? = null)
 
 @Composable
-fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: String, sessionId: String) -> Unit, onUpdate: (UpdateTaskParams) -> Unit = {}) {
+fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: AgentId, sessionId: SessionId) -> Unit, onUpdate: (UpdateTaskParams) -> Unit = {}) {
     val task = ui.task
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
         // On phones the floating Back alone; the title is the page's heading below it.
@@ -70,7 +72,7 @@ fun TaskContent(ui: TaskUi, onBack: (() -> Unit)?, onOpenSession: (agentId: Stri
                     val assignee = ui.agents.firstOrNull { it.id == task.assignee }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                         Text("Assignee", Modifier.width(FieldLabelWidth), style = TextStyles.secondary, color = color(mutedColor))
-                        Picker(listOf<AgentInfo?>(null) + ui.agents, assignee, { it?.name ?: "Unassigned" }, { a -> onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: "")) }, icon = Lucide.User)
+                        Picker(listOf<AgentInfo?>(null) + ui.agents, assignee, { it?.name ?: "Unassigned" }, { a -> onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: AgentId(""))) }, icon = Lucide.User)
                     }
                     if (task.notes.isNotBlank()) Text(task.notes.trim(), style = TextStyles.secondary)
                     // Rows carry their own inset; the list starts at the page edge so their text lines up with the title.

@@ -4,6 +4,8 @@ product: jvm/lib
 dependencies:
   - ../../harness/builtin: exported
   - ../core: exported
+  - ../rpc
+  - ../../gateways/kinuvo-mcp
   - ../../harness/acp
   - ../../harness/remote
   - ../../plugins/browser

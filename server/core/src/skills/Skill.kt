@@ -4,7 +4,7 @@ import com.charleskorn.kaml.Yaml
 import com.charleskorn.kaml.YamlMap
 import com.charleskorn.kaml.YamlScalar
 import kinuvo.harness.Agent
-import kinuvo.protocol.ConfigScope
+import kinuvo.protocol.agent.ConfigScope
 
 /**
  * A Skill. [modelInvocable]/[userInvocable] follow Claude Code's frontmatter flags; [location] is where the

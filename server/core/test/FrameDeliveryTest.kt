@@ -1,7 +1,12 @@
 package kinuvo.server
 
+import kinuvo.server.rpc.serverRoutes
 import kinuvo.server.devices.*
 import kinuvo.protocol.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.screen.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
@@ -19,7 +24,7 @@ class FrameDeliveryTest {
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "viewer"
         }
         val harness = RuntimeFixture().runtime()
-        val runtime = ServerRuntime(harness, auth, security = ConnectionSecurity(messagesPerMinute = 2, screenAcksPerMinute = 3))
+        val runtime = ServerRuntime(harness, auth, serverRoutes(), security = ConnectionSecurity(messagesPerMinute = 2, screenAcksPerMinute = 3))
         harness.computers.connect("source") { ComputerResult(DeviceToolStatus.Ready,
             screen = ComputerScreen("capture", 10, 10, screenshot = "image")) }
         val connection = object : FrameConnection {
@@ -70,7 +75,7 @@ class FrameDeliveryTest {
                 override fun toolDevices() = emptyList<ToolDevice>()
                 override fun setTools(token: String, tools: Set<DeviceToolKind>) = "device"
             }
-            val runtime = ServerRuntime(RuntimeFixture().runtime(), auth)
+            val runtime = ServerRuntime(RuntimeFixture().runtime(), auth, serverRoutes())
             val connection = object : FrameConnection {
                 override val incoming = requests.receiveAsFlow()
                 override suspend fun send(frame: Frame) { response.complete(frame as Frame.Response) }
@@ -81,7 +86,7 @@ class FrameDeliveryTest {
                 requests.send(Frame.Request("connect", Api.Connect.name, ProtocolJson.parseToJsonElement(params)))
                 val rejected = withTimeout(5_000) { response.await() }
                 assertFalse(rejected.ok)
-                assertEquals(ProtocolVersion.Mismatch, rejected.error)
+                assertEquals(WireError(WireErrorCode.ProtocolMismatch, ProtocolVersion.Mismatch), rejected.error)
                 assertFalse(authenticated)
             } finally { serving.cancelAndJoin(); runtime.close() }
         }
@@ -95,7 +100,7 @@ class FrameDeliveryTest {
             override fun toolDevices() = emptyList<ToolDevice>()
             override fun setTools(token: String, tools: Set<DeviceToolKind>) = "device"
         }
-        val runtime = ServerRuntime(RuntimeFixture().runtime(), auth)
+        val runtime = ServerRuntime(RuntimeFixture().runtime(), auth, serverRoutes())
         val connection = object : FrameConnection {
             override val incoming = requests.receiveAsFlow()
             override suspend fun send(frame: Frame) { error("Socket write failed") }

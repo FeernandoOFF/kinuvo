@@ -13,8 +13,8 @@ import ai.koog.prompt.llm.LLMCapability
 import ai.koog.prompt.llm.LLMProvider
 import kinuvo.harness.builtin.*
 import kinuvo.server.*
-import kinuvo.protocol.Attachment
-import kinuvo.protocol.ModelInfo
+import kinuvo.protocol.session.Attachment
+import kinuvo.protocol.model.ModelInfo
 import kotlinx.serialization.json.JsonPrimitive
 
 fun openAIModel(config: AgentConfig, client: LLMClient, info: ModelInfo? = null,

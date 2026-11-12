@@ -23,7 +23,7 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.app.screen.LiveViewState
-import kinuvo.protocol.*
+import kinuvo.protocol.screen.*
 import kinuvo.ui.design.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay

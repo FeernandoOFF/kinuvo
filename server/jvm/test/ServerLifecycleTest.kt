@@ -13,7 +13,7 @@ class ServerLifecycleTest {
         val home = Files.createTempDirectory("failed-server-start").toFile()
         var closes = 0
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.serverlifecycletest.1", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.serverlifecycletest.1", "Test")
             override suspend fun close() { closes++ }
         }
         val server = HarnessServer(Harness(Path(home.path), plugins = listOf(plugin)), network = NetworkSecurity("https://kinuvo.example.com"))
@@ -31,7 +31,7 @@ class ServerLifecycleTest {
         val home = Files.createTempDirectory("failed-listener-start").toFile()
         var closes = 0
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.serverlifecycletest.2", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.serverlifecycletest.2", "Test")
             override suspend fun close() { closes++ }
         }
         val server = HarnessServer(Harness(Path(home.path), plugins = listOf(plugin)), network = NetworkSecurity("https://kinuvo.example.com"))

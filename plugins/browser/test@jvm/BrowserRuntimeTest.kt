@@ -1,7 +1,9 @@
 package kinuvo.plugins.browser
 
 import com.sun.net.httpserver.HttpServer
-import kinuvo.protocol.*
+import kinuvo.protocol.browser.*
+import kinuvo.protocol.screen.*
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.collect
@@ -34,7 +36,7 @@ class BrowserRuntimeTest {
             exchange.responseBody.use { it.write(html) }
         }
         server.start()
-        val owner = BrowserOwner("stream-agent")
+        val owner = BrowserOwner(AgentId("stream-agent"))
         val url = "http://127.0.0.1:${server.address.port}"
         var runtime = BrowserRuntime(home)
         try {
@@ -61,7 +63,7 @@ class BrowserRuntimeTest {
             }
             assertNotEquals(red.image, blue.image)
             assertFailsWith<IllegalArgumentException> {
-                runtime.screen(owner.copy(agentId = "wrong"), first.tab.id).frames().first()
+                runtime.screen(owner.copy(agentId = AgentId("wrong")), first.tab.id).frames().first()
             }
             watching.cancelAndJoin()
             withTimeout(5000) { while (runtime.liveStreams() != 0) delay(10) }
@@ -78,7 +80,7 @@ class BrowserRuntimeTest {
             assertEquals(listOf(first.tab.id), restored.map { it.id })
             assertTrue(restored.single().takeover)
             assertEquals("$url/second", restored.single().url)
-            assertTrue(runtime.tabs(owner.copy(agentId = "other")).isEmpty())
+            assertTrue(runtime.tabs(owner.copy(agentId = AgentId("other"))).isEmpty())
             assertFailsWith<IllegalStateException> { runtime.command(BrowserCommand(owner, BrowserAction.Navigate, first.tab.id, text = url)) }
             control(runtime, owner, first.tab.id, false)
             runtime.command(BrowserCommand(owner, BrowserAction.Capture, first.tab.id))
@@ -105,8 +107,8 @@ class BrowserRuntimeTest {
             exchange.sendResponseHeaders(200, html.size.toLong()); exchange.responseBody.use { it.write(html) }
         }
         server.start()
-        val owner = BrowserOwner("browser-proof")
-        val other = BrowserOwner("another-agent")
+        val owner = BrowserOwner(AgentId("browser-proof"))
+        val other = BrowserOwner(AgentId("another-agent"))
         val url = "http://127.0.0.1:${server.address.port}/"
         try {
             val blank = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Open, text = "about:blank")))
@@ -123,7 +125,7 @@ class BrowserRuntimeTest {
             assertTrue(launches.none { "--no-sandbox" in it || "--disable-web-security" in it || "--disable-features=" in it }, "Chrome sandbox and site isolation must stay enabled")
             assertTrue(runtime.tabs(other).isEmpty())
             assertFailsWith<IllegalArgumentException> { runtime.command(BrowserCommand(other, BrowserAction.Capture, tab)) }
-            assertFailsWith<IllegalArgumentException> { runtime.command(BrowserCommand(owner.copy(agentId = "other"), BrowserAction.Capture, tab)) }
+            assertFailsWith<IllegalArgumentException> { runtime.command(BrowserCommand(owner.copy(agentId = AgentId("other")), BrowserAction.Capture, tab)) }
             val button = frame.elements.first { it.label == "Submit" }
             val oldRevision = frame.revision
             frame = assertNotNull(runtime.command(BrowserCommand(owner, BrowserAction.Click, tab, frame.revision, button.ref)))

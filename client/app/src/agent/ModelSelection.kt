@@ -1,7 +1,8 @@
 package kinuvo.app.agent
 
-import kinuvo.protocol.*
-
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.session.*
 fun ModelsCatalog.model(provider: String, id: String) = providers.firstOrNull { it.id == provider }?.models?.firstOrNull { it.id == id }
 
 fun ModelInfo.reasoningFor(current: String): String {

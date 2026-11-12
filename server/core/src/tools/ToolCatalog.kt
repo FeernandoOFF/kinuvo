@@ -1,9 +1,11 @@
 package kinuvo.server.tools
 
+import kinuvo.harness.requiredNames
+import kinuvo.harness.schemaProperties
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.CoreTool
 import kinuvo.server.plugin.Tool
 import kinuvo.server.plugin.ToolRun
@@ -15,7 +17,8 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kinuvo.harness.builtin.tools.toDescriptor
+import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.jsonPrimitive
 
 /**
  * Past [LIMIT] tools, the catalogued ones (e.g. MCP servers') aren't each sent to the model: it finds, describes and
@@ -70,13 +73,15 @@ private class DescribeTool(private val catalogued: List<Tool>) : CoreTool {
             put("name", d.name)
             put("description", d.description)
             if (d.verbatim) put("parameters", d.schema) else putJsonObject("parameters") {
-                val koog = d.toDescriptor()
+                val properties = d.schemaProperties
+                val required = properties.keys.filter { it in d.requiredNames }
                 putJsonObject("properties") {
-                    (koog.requiredParameters + koog.optionalParameters).forEach { p ->
-                        putJsonObject(p.name) { put("type", p.type.name.lowercase()); put("description", p.description) }
+                    (required + properties.keys.filter { it !in d.requiredNames }).forEach { name ->
+                        val property = properties.getValue(name)
+                        putJsonObject(name) { put("type", property.typeName()); put("description", property["description"]?.jsonPrimitive?.contentOrNull.orEmpty()) }
                     }
                 }
-                put("required", buildJsonArray { koog.requiredParameters.forEach { add(JsonPrimitive(it.name)) } })
+                put("required", buildJsonArray { required.forEach { add(JsonPrimitive(it)) } })
             }
         }.toString()
     }
@@ -99,5 +104,15 @@ private class CallTool(private val catalogued: List<Tool>) : CoreTool {
         val result = run.call(name, args.string("arguments")?.ifBlank { null } ?: "{}")
         check(!result.isError) { result.output }
         return result.output
+    }
+}
+
+private fun JsonObject.typeName(): String {
+    if ("anyOf" in this) return "anyof"
+    return when (val type = (this["type"] as? JsonPrimitive)?.contentOrNull) {
+        "string" -> if ("enum" in this) "enum" else "string"
+        "number" -> "float"
+        "array" -> "list"
+        else -> type.orEmpty()
     }
 }

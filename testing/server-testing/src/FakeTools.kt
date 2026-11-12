@@ -10,12 +10,13 @@ import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.Action
 import kinuvo.server.plugin.Assessment
 import kinuvo.server.plugin.Tool
-import kinuvo.protocol.Integration
-import kinuvo.protocol.McpAppRef
-import kinuvo.protocol.McpAppResource
-import kinuvo.protocol.IntegrationOptions
-import kinuvo.protocol.PluginDefinition
-import kinuvo.protocol.Risk
+import kinuvo.protocol.capability.Integration
+import kinuvo.protocol.mcp.McpAppRef
+import kinuvo.protocol.mcp.McpAppResource
+import kinuvo.protocol.capability.IntegrationOptions
+import kinuvo.protocol.plugin.PluginDefinition
+import kinuvo.protocol.approval.Risk
+import kinuvo.protocol.agent.AgentId
 import kotlinx.serialization.json.JsonObject
 
 /**
@@ -42,8 +43,8 @@ class FakeTools(private vararg val tools: FakeTool) : HarnessPlugin {
     override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(tools.toList())
 
     override val apps = object : McpApps {
-        override suspend fun resource(agentId: String, ref: McpAppRef) = McpAppResource("<html></html>")
-        override suspend fun tool(agentId: String, ref: McpAppRef, name: String) =
+        override suspend fun resource(agentId: AgentId, ref: McpAppRef) = McpAppResource("<html></html>")
+        override suspend fun tool(agentId: AgentId, ref: McpAppRef, name: String) =
             PluginTools(tools.filter { it.descriptor.name == name }).ownedBy(instance).tools.single()
     }
 }

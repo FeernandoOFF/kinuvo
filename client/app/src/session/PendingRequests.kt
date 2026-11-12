@@ -1,13 +1,15 @@
 package kinuvo.app.session
 
-import kinuvo.protocol.PendingInteraction
+import kinuvo.protocol.approval.InteractionId
+import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
 
 /** What the open Session waits on from the user; answered through the respond, answer and answerExternal paths. */
 sealed interface PendingRequest {
-    val id: String
+    val id: InteractionId
 
     /** A tool call waiting on an Approval; [event] has its tool, arguments, identity, risk, reason and trust hint. */
     data class Approval(val event: PendingInteraction.Approval) : PendingRequest {
@@ -33,9 +35,8 @@ sealed interface PendingRequest {
 internal const val TAKEOVER_TOOL = "request_takeover"
 
 /** An Agent's own requests in transcript order, those without a call in the transcript last, then an external harness's. */
-internal fun pendingRequests(items: List<ChatItem>, pending: List<PendingInteraction>, external: Boolean): List<PendingRequest> {
-    if (external) return pending.map { PendingRequest.External(it) }
-    fun call(id: String) = items.indexOfLast { it is ChatItem.ToolCall && it.callId == id && it.result == null }
+internal fun pendingRequests(items: List<ChatItem>, pending: List<PendingInteraction>): List<PendingRequest> {
+    fun call(id: ToolCallId) = items.indexOfLast { it is ChatItem.ToolCall && it.callId == id && it.result == null }
     val native = pending.mapNotNull { request ->
         when (request) {
             is PendingInteraction.Approval -> call(request.toolCallId) to PendingRequest.Approval(request)

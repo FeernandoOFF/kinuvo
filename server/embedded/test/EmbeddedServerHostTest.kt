@@ -19,8 +19,18 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.streaming.StreamFrame
 import kinuvo.client.KinuvoClient
 import kinuvo.server.store.*
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.computer.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.tool.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.io.files.Path
@@ -34,7 +44,7 @@ class EmbeddedServerHostTest {
     private val home = Path(SystemTemporaryDirectory, "kinuvo-local-${Uuid.random()}")
     private val seen = mutableListOf<List<Message>>()
     private val offered = mutableListOf<List<String>>()
-    private val provider = object : ModelProvider {
+    private val provider = object : TestModelProvider {
         override val id = "test"
         override suspend fun models() = listOf(ModelInfo("local"))
         override fun model(config: AgentConfig) = scriptedModel { prompt, tools ->
@@ -58,22 +68,22 @@ class EmbeddedServerHostTest {
     fun failedFreshInstallationClosesPluginsOnce() = runBlocking {
         var closes = 0
         val plugin = object : HarnessPlugin {
-            override val definition = kinuvo.protocol.PluginDefinition("test.localservertest.1", "Test")
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.localservertest.1", "Test")
             override suspend fun close() { closes++ }
         }
-        val failing = object : ModelProvider by provider {
+        val failing = object : TestModelProvider by provider {
             override suspend fun models(): List<ModelInfo> = throw CancellationException("Discovery cancelled")
         }
-        assertFailsWith<CancellationException> { EmbeddedServerHost.create(home, listOf(failing), listOf(plugin)) }
+        assertFailsWith<CancellationException> { EmbeddedServerHost.create(home, listOf(failing), listOf(plugin), modelSources = { listOf(provider) }) }
         assertEquals(1, closes)
     }
 
     @Test
     fun freshInstallationKeepsTheDefaultModelBeforeSignIn() = runBlocking {
-        val signedOut = object : ModelProvider by provider {
+        val signedOut = object : TestModelProvider by provider {
             override suspend fun models(): List<ModelInfo> = error("No login")
         }
-        val server = EmbeddedServerHost.create(home, listOf(signedOut))
+        val server = EmbeddedServerHost.create(home, listOf(signedOut), modelSources = { listOf(provider) })
         try {
             val config = server.runtime.harness.store.agents().single().config
             assertEquals(provider.id, config.provider)
@@ -87,13 +97,13 @@ class EmbeddedServerHostTest {
             var closes = 0
             val discovering = CompletableDeferred<Unit>()
             val plugin = object : HarnessPlugin {
-                override val definition = kinuvo.protocol.PluginDefinition("test.localservertest.2", "Test")
+                override val definition = kinuvo.protocol.plugin.PluginDefinition("test.localservertest.2", "Test")
                 override suspend fun close() { yield(); closes++ }
             }
-            val waiting = object : ModelProvider by provider {
+            val waiting = object : TestModelProvider by provider {
                 override suspend fun models(): List<ModelInfo> { discovering.complete(Unit); awaitCancellation() }
             }
-            val creation = launch { EmbeddedServerHost.create(home, listOf(waiting), listOf(plugin)) }
+            val creation = launch { EmbeddedServerHost.create(home, listOf(waiting), listOf(plugin), modelSources = { listOf(provider) }) }
             discovering.await()
             creation.cancelAndJoin()
             assertEquals(1, closes)
@@ -103,7 +113,7 @@ class EmbeddedServerHostTest {
     @Test
     fun thePhoneRunningTheServerIsItsOwnComputer(): Unit = runBlocking {
         withTimeout(10_000) {
-            val server = EmbeddedServerHost.create(home, listOf(provider), continuous = true)
+            val server = EmbeddedServerHost.create(home, listOf(provider), continuous = true, modelSources = { listOf(provider) })
             val client = KinuvoClient("local://kinuvo", "Pixel", token = server.token, connection = server::connect,
                 deviceTools = { setOf(DeviceToolKind.Computer) }, computer = { ComputerResult(DeviceToolStatus.Ready, screen = ComputerScreen("a1", 10, 20, app = "com.example")) })
             try {
@@ -119,27 +129,27 @@ class EmbeddedServerHostTest {
     @Test
     fun memoryAndSessionsSurviveServerRecreation(): Unit = runBlocking {
         withTimeout(10_000) {
-            var server = EmbeddedServerHost.create(home, listOf(provider))
+            var server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             var client = client(server)
             try {
-                assertEquals("test", client.call(Api.Agent, AgentRef("default")).settings.provider)
-                val id = client.call(Api.CreateSession, AgentRef("default")).id
-                val updates = run(client, id, "remember tea")
+                assertEquals("test", client.call(Api.Agent, AgentRef(AgentId("default"))).settings.provider)
+                val id = client.call(Api.CreateSession, AgentRef(AgentId("default"))).id
+                val updates = run(client, id.value, "remember tea")
                 val entries = updates.filterIsInstance<SessionChange.Entry>().map { it.entry }
                 assertTrue(entries.any { it is SessionEntry.ToolResult && !it.isError })
                 assertEquals("Saved.", entries.filterIsInstance<SessionEntry.AssistantMessage>().last().text)
-                assertEquals("- Prefers tea\n", FileAgentDocs(AgentFiles(home)).read("default", AgentDoc.UserNotes))
+                assertEquals("- Prefers tea\n", FileAgentDocs(AgentFiles(home)).read(AgentId("default"), AgentDoc.UserNotes))
                 client.close()
                 server.close()
-                server = EmbeddedServerHost.create(home, listOf(provider))
+                server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
                 client = client(server)
-                assertTrue(client.call(Api.Sessions, SessionsParams("default")).sessions.any { it.id == id })
-                val second = client.call(Api.CreateSession, AgentRef("default")).id
-                run(client, second, "what do I prefer?")
+                assertTrue(client.call(Api.Sessions, SessionsParams(AgentId("default"))).sessions.any { it.id == id })
+                val second = client.call(Api.CreateSession, AgentRef(AgentId("default"))).id
+                run(client, second.value, "what do I prefer?")
                 assertTrue(seen.last().filterIsInstance<Message.System>().last().textContent().contains("Prefers tea"))
                 assertFalse(seen.last().filterIsInstance<Message.User>().any { it.textContent() == "remember tea" })
-                assertFailsWith<IllegalStateException> { client.call(Api.Send, SendParams("default", "missing", "hello")) }
-                assertFailsWith<IllegalStateException> { client.call(Api.ConfigureSession, ConfigureSessionParams("default", second, SessionSettings(provider = "cloud", model = "x"))) }
+                assertFailsWith<IllegalStateException> { client.call(Api.Send, SendParams(AgentId("default"), SessionId("missing"), "hello")) }
+                assertFailsWith<IllegalStateException> { client.call(Api.ConfigureSession, ConfigureSessionParams(AgentId("default"), second, SessionSettings(provider = "cloud", model = "x"))) }
             } finally { client.close(); server.close() }
         }
     }
@@ -147,26 +157,26 @@ class EmbeddedServerHostTest {
     @Test
     fun pendingApprovalSurvivesReconnectAndAnApprovedRunFinishesInTheBackground(): Unit = runBlocking {
         withTimeout(10_000) {
-            val server = EmbeddedServerHost.create(home, listOf(provider))
+            val server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             var client = client(server)
             try {
-                val id = client.call(Api.CreateSession, AgentRef("default")).id
-                client.call(Api.ConfigureSession, ConfigureSessionParams("default", id, SessionSettings(approvals = "strict")))
-                client.call(Api.CatchUp, CatchUpParams("default", id))
+                val id = client.call(Api.CreateSession, AgentRef(AgentId("default"))).id
+                client.call(Api.ConfigureSession, ConfigureSessionParams(AgentId("default"), id, SessionSettings(approvals = "strict")))
+                client.call(Api.CatchUp, CatchUpParams(AgentId("default"), id))
                 val request = async(start = CoroutineStart.UNDISPATCHED) {
                     client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }.first()
                 }
-                client.call(Api.Send, SendParams("default", id, "remember tea"))
+                client.call(Api.Send, SendParams(AgentId("default"), id, "remember tea"))
                 val approval = request.await()
-                assertEquals("", FileAgentDocs(AgentFiles(home)).read("default", AgentDoc.UserNotes))
-                assertFailsWith<IllegalStateException> { client.call(Api.Send, SendParams("default", id, "again")) }
+                assertEquals("", FileAgentDocs(AgentFiles(home)).read(AgentId("default"), AgentDoc.UserNotes))
+                assertFailsWith<IllegalStateException> { client.call(Api.Send, SendParams(AgentId("default"), id, "again")) }
                 client.close()
                 client = client(server)
-                assertEquals(SessionStatus.Waiting, client.call(Api.Session, SessionParams("default", id)).status)
+                assertEquals(SessionStatus.Waiting, client.call(Api.Session, SessionParams(AgentId("default"), id)).status)
                 assertTrue(client.call(Api.Respond, RespondParams(id, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
                 // An approved run doesn't wait on anyone, so leaving the app lets it finish.
                 client.call(Api.Presence, PresenceParams(false))
-                awaitCondition("the run to finish") { client.call(Api.Session, SessionParams("default", id)).status == SessionStatus.Idle }
+                awaitCondition("the run to finish") { client.call(Api.Session, SessionParams(AgentId("default"), id)).status == SessionStatus.Idle }
                 assertTrue(server.runtime.runActivity.value.steps > 0)
                 assertFalse(client.call(Api.Respond, RespondParams(id, approval.id, InteractionAnswer.Approval(ApprovalDecision.AllowOnce))))
             } finally { client.close(); server.close() }
@@ -176,20 +186,20 @@ class EmbeddedServerHostTest {
     @Test
     fun backgroundCancellationDoesNotSaveUnapprovedMemory(): Unit = runBlocking {
         withTimeout(10_000) {
-            val server = EmbeddedServerHost.create(home, listOf(provider))
+            val server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             val client = client(server)
             try {
-                val id = client.call(Api.CreateSession, AgentRef("default")).id
-                client.call(Api.ConfigureSession, ConfigureSessionParams("default", id, SessionSettings(approvals = "strict")))
-                client.call(Api.CatchUp, CatchUpParams("default", id))
+                val id = client.call(Api.CreateSession, AgentRef(AgentId("default"))).id
+                client.call(Api.ConfigureSession, ConfigureSessionParams(AgentId("default"), id, SessionSettings(approvals = "strict")))
+                client.call(Api.CatchUp, CatchUpParams(AgentId("default"), id))
                 val waiting = async(start = CoroutineStart.UNDISPATCHED) {
                     client.events(Api.Update).mapNotNull { (it.change as? SessionChange.Event)?.event?.approval }.first()
                 }
-                client.call(Api.Send, SendParams("default", id, "remember tea"))
+                client.call(Api.Send, SendParams(AgentId("default"), id, "remember tea"))
                 waiting.await()
                 client.call(Api.Presence, PresenceParams(false))
-                assertEquals(SessionStatus.Idle, client.call(Api.Session, SessionParams("default", id)).status)
-                assertEquals("", FileAgentDocs(AgentFiles(home)).read("default", AgentDoc.UserNotes))
+                assertEquals(SessionStatus.Idle, client.call(Api.Session, SessionParams(AgentId("default"), id)).status)
+                assertEquals("", FileAgentDocs(AgentFiles(home)).read(AgentId("default"), AgentDoc.UserNotes))
             } finally { client.close(); server.close() }
         }
     }
@@ -197,10 +207,10 @@ class EmbeddedServerHostTest {
     @Test
     fun offersNoToolsForFeaturesTheServerLacks(): Unit = runBlocking {
         withTimeout(10_000) {
-            val server = EmbeddedServerHost.create(home, listOf(provider))
+            val server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             val client = client(server)
             try {
-                run(client, client.call(Api.CreateSession, AgentRef("default")).id, "hi")
+                run(client, client.call(Api.CreateSession, AgentRef(AgentId("default"))).id.value, "hi")
                 assertTrue(ToolNames.MEMORY in offered.last())
                 for (local in listOf(ToolNames.ACTIVATE_SKILL, "read_skill_file", ToolNames.SCHEDULE, ToolNames.ARTIFACT))
                     assertFalse(local in offered.last())
@@ -212,7 +222,7 @@ class EmbeddedServerHostTest {
     @Test
     fun advertisesDeviceToolsAndTextOnlyInput(): Unit = runBlocking {
         withTimeout(10_000) {
-            val server = EmbeddedServerHost.create(home, listOf(provider))
+            val server = EmbeddedServerHost.create(home, listOf(provider), modelSources = { listOf(provider) })
             val client = client(server)
             try {
                 assertEquals(setOf(ServerFeature.DeviceTools, ServerFeature.Computer, ServerFeature.Knowledge, ServerFeature.Tasks, ServerFeature.Screens), client.lastConnect?.capabilities?.features)
@@ -220,7 +230,7 @@ class EmbeddedServerHostTest {
                 assertFalse(offered.offers(Integration.Exec) || offered.offers(Integration.Secrets) || offered.offers(Integration.Mcp))
                 assertTrue(offered.offers(Integration.Tasks, "local") && offered.offers(Integration.Knowledge, "markdown"))
                 assertTrue(offered.offers(Integration.Tools, "memory") && !offered.offers(Integration.Tools, "run_code"))
-                val capabilities = client.call(Api.Capabilities, CapabilitiesParams("default"))
+                val capabilities = client.call(Api.Capabilities, CapabilitiesParams(AgentId("default")))
                 assertTrue(capabilities.chat.actionable)
                 assertFalse(capabilities.input("image").actionable)
                 assertFalse(capabilities.input("file").actionable)
@@ -238,7 +248,7 @@ class EmbeddedServerHostTest {
                 override suspend fun login(show: (DeviceCode) -> Unit) { show(DeviceCode("https://sign.in", "ABCD", 0)); approve.await(); signedIn = true }
                 override suspend fun logout() { signedIn = false }
             }
-            val server = EmbeddedServerHost.create(home, listOf(object : ModelProvider by provider { override val auth = auth }))
+            val server = EmbeddedServerHost.create(home, listOf(object : TestModelProvider by provider { override val auth = auth }), modelSources = { listOf(provider) })
             val client = client(server)
             try {
                 assertEquals(ProviderAccount(false), client.call(Api.Providers, Unit).single().account)
@@ -260,7 +270,7 @@ class EmbeddedServerHostTest {
             override suspend fun save(value: String) { keyValue(value) }
             private fun keyValue(next: String) { value = next }
         }
-        val server = EmbeddedServerHost.create(home, listOf(object : ModelProvider by provider { override val apiKey = key }))
+        val server = EmbeddedServerHost.create(home, listOf(object : TestModelProvider by provider { override val apiKey = key }), modelSources = { listOf(provider) })
         val client = client(server)
         try {
             assertFalse(client.call(Api.Providers, Unit).single().apiKey!!.configured)
@@ -280,9 +290,9 @@ class EmbeddedServerHostTest {
     private suspend fun run(client: KinuvoClient, id: String, text: String): List<SessionChange> {
         lateinit var changes: List<SessionChange>
         turbineScope {
-            client.call(Api.CatchUp, CatchUpParams("default", id))
-            val updates = client.events(Api.Update).filter { it.sessionId == id }.map { it.change }.testIn(this, 10.seconds)
-            client.call(Api.Send, SendParams("default", id, text))
+            client.call(Api.CatchUp, CatchUpParams(AgentId("default"), SessionId(id)))
+            val updates = client.events(Api.Update).filter { it.sessionId.value == id }.map { it.change }.testIn(this, 10.seconds)
+            client.call(Api.Send, SendParams(AgentId("default"), SessionId(id), text))
             changes = buildList { do { add(updates.awaitItem()) } while ((last() as? SessionChange.Event)?.event !is AgentEvent.RunFinished) }
             updates.cancel()
         }

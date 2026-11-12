@@ -2,6 +2,7 @@ package kinuvo.server
 
 import kinuvo.server.tools.ShowUiTool
 import kinuvo.protocol.*
+import kinuvo.protocol.surface.*
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import kotlin.test.*

@@ -8,8 +8,9 @@ import ai.koog.prompt.message.MessagePart
 import kinuvo.harness.builtin.tools.*
 import kinuvo.server.tools.*
 import kinuvo.testing.harness.scriptedModel
-import kinuvo.protocol.ModelTier
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.model.ModelTier
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
@@ -26,9 +27,9 @@ class ResultLimitsTest {
             }
         }
         val executor = ToolService(listOf(core), maxItems = 3)
-        assertFalse(executor.invoke(SessionEntry.ToolCall("call", "contacts_lookup", "{\"limit\":20}")).isError)
+        assertFalse(executor.invoke(SessionEntry.ToolCall(ToolCallId("call"), "contacts_lookup", "{\"limit\":20}")).isError)
         assertEquals(3, received)
-        executor.invoke(SessionEntry.ToolCall("default", "contacts_lookup", "{}"))
+        executor.invoke(SessionEntry.ToolCall(ToolCallId("default"), "contacts_lookup", "{}"))
         assertEquals(3, received)
         for (parameter in listOf("limit", "max_results")) {
             val external = object : Tool {
@@ -41,7 +42,7 @@ class ResultLimitsTest {
                 }
             }
             val mcp = ToolService(listOf(external), maxItems = 3)
-            assertFalse(mcp.invoke(SessionEntry.ToolCall(parameter, "mcp_search", "{\"$parameter\":99}")).isError)
+            assertFalse(mcp.invoke(SessionEntry.ToolCall(ToolCallId(parameter), "mcp_search", "{\"$parameter\":99}")).isError)
             assertEquals(3, received)
         }
     }

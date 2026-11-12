@@ -10,7 +10,19 @@ import kinuvo.client.DisconnectedException
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.board.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.mcp.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.routine.*
+import kinuvo.protocol.secret.*
+import kinuvo.protocol.service.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.skill.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -59,7 +71,7 @@ data class SettingsState(
     val imageModel: ProviderModelRef? = null,
     val models: ModelsCatalog = ModelsCatalog(),
     /** Every Agent's config, for the Tools & MCP section. */
-    val configs: Map<String, AgentConfig> = emptyMap(),
+    val configs: Map<AgentId, AgentConfig> = emptyMap(),
     /** The rules every Agent follows; null until loaded. */
     val serverRules: TrustRules? = null,
     val saved: Boolean = false,
@@ -183,22 +195,22 @@ class SettingsViewModel(
     }
 
     /** Lets [agent] use the shared MCP server [name] or not; [everyAgent] is every Agent, so all of them is stored as null. */
-    fun setMcpAccess(name: String, agent: String, on: Boolean, everyAgent: List<String>) = attempt {
+    fun setMcpAccess(name: String, agent: AgentId, on: Boolean, everyAgent: List<AgentId>) = attempt {
         val server = state.value.config.mcp?.firstOrNull { it.scope == ConfigScope.Shared && it.name == name } ?: return@attempt
         val using = (server.agents ?: everyAgent).let { if (on) it + agent else it - agent }.distinct()
         config.saveMcp(SaveMcpParams(agentId, server.copy(agents = using.takeIf { it.toSet() != everyAgent.toSet() })))
     }
 
     /** Turns [tool] on or off for [agent]; does nothing until that Agent's settings have loaded. */
-    fun setToolAccess(agent: String, tool: String, on: Boolean) = attempt {
+    fun setToolAccess(agent: AgentId, tool: String, on: Boolean) = attempt {
         val tools = state.value.configs[agent]?.details?.settings?.tools ?: return@attempt
         config.updateAgent(UpdateAgentParams(agent, tools = if (on) (tools + tool).distinct() else tools - tool))
     }
 
-    fun createAgent(params: CreateAgentParams, onCreated: (String) -> Unit) = attempt { onCreated(config.createAgent(params).id) }
+    fun createAgent(params: CreateAgentParams, onCreated: (String) -> Unit) = attempt { onCreated(config.createAgent(params).id.value) }
 
     fun deleteAgent(onDeleted: () -> Unit) = attempt {
-        if (requireNotNull(state.value.config.details) { "Wait for the Agent to load before removing it" }.info.external) config.connection.harnesses.unregister(agentId)
+        if (requireNotNull(state.value.config.details) { "Wait for the Agent to load before removing it" }.info.external) config.connection.harnesses.unregister(agentId.value)
         else config.deleteAgent(agentId)
         onDeleted()
     }

@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import kinuvo.protocol.*
+import kinuvo.protocol.session.*
 import kotlinx.serialization.Serializable
 import org.jetbrains.skia.Image
 import platform.UIKit.UIImagePickerController

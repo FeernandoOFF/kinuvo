@@ -13,10 +13,15 @@ import kinuvo.server.plugin.requireString
 import kinuvo.server.plugin.string
 import kinuvo.server.*
 import co.touchlab.stately.concurrency.Lock
-import kinuvo.harness.builtin.*
-import kinuvo.harness.builtin.tools.*
 import kinuvo.server.tools.*
 import kinuvo.protocol.*
+import kinuvo.protocol.approval.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.knowledge.*
+import kinuvo.protocol.plugin.*
+import kinuvo.protocol.session.*
+import kinuvo.protocol.tool.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -35,7 +40,10 @@ class DeviceTools(
     override val definition = PluginDefinition("kinuvo.devices", "Device tools")
     internal val lock = Lock()
     var paired: () -> List<ToolDevice> = { emptyList() }
-    private data class Connection(val tools: Set<DeviceToolKind>, val active: Boolean, val read: suspend (DeviceToolRequest) -> DeviceToolResult, val failed: Boolean = false)
+    /** Compared by identity: a refresh that looks identical must still replace a connection whose read is in flight. */
+    private class Connection(val tools: Set<DeviceToolKind>, val active: Boolean, val read: suspend (DeviceToolRequest) -> DeviceToolResult, val failed: Boolean = false) {
+        fun copy(failed: Boolean) = Connection(tools, active, read, failed)
+    }
     private val connections = MutableStateFlow(emptyMap<String, Connection>())
 
     fun connect(id: String, tools: Set<DeviceToolKind>, active: Boolean, read: suspend (DeviceToolRequest) -> DeviceToolResult) {
@@ -137,7 +145,7 @@ class DeviceTools(
             }
             val pending = questions().register()
             try {
-                log.publish(run.agent.id, run.sessionId!!, AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, callId, "Open Kinuvo on ${device.name} to read ${request.kind.name.lowercase()}. This continues automatically; Skip to continue without this data.", emptyList())))
+                log.publish(run.agent.id, run.sessionId!!, AgentEvent.InteractionRequested(PendingInteraction.Questions(pending.id, ToolCallId(callId), "Open Kinuvo on ${device.name} to read ${request.kind.name.lowercase()}. This continues automatically; Skip to continue without this data.", emptyList())))
                 val skipped = coroutineScope {
                     val answer = async { pending.await() }
                     val ready = async { connections.first { map ->

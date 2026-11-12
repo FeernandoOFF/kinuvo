@@ -1,11 +1,13 @@
 package kinuvo.server
 
+import kinuvo.server.rpc.serverRoutes
 import kotlin.time.Duration.Companion.seconds
 import kinuvo.testing.harness.awaitCondition
 import kinuvo.server.devices.*
 import kinuvo.harness.*
 import kinuvo.server.execution.ExecutionRegistry
-import kinuvo.protocol.*
+import kinuvo.protocol.device.*
+import kinuvo.protocol.execution.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -35,7 +37,7 @@ class HarnessRestartTest {
         }
         repeat(2) {
             val registry = ExecutionRegistry(catalog)
-            val server = ServerRuntime(RuntimeFixture().runtime(), peers, executionRegistry = registry, executionFactory = factory)
+            val server = ServerRuntime(RuntimeFixture().runtime(), peers, serverRoutes(), executionRegistry = registry, executionFactory = factory)
             try {
                 server.start()
                 if (!release.isCompleted) assertTrue(registry.catalog().connections.all { it.readiness.reasonCode == "checking" })

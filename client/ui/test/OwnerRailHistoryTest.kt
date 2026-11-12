@@ -7,6 +7,8 @@ import kinuvo.ui.navigation.History
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 class OwnerRailHistoryTest {
     private fun history(compact: Boolean, vararg routes: Route) =
@@ -16,7 +18,7 @@ class OwnerRailHistoryTest {
         for (compact in listOf(false, true)) {
             val h = history(compact, Route.Home)
             val task = Route.Task("review")
-            val run = Route.Chat("echo", "20261022-160000-review")
+            val run = Route.Chat(AgentId("echo"), SessionId("20261022-160000-review"))
             h.open(task)
             h.open(run)
             assertEquals(listOf(Route.Home, task, run), h.backStack.toList())
@@ -33,8 +35,8 @@ class OwnerRailHistoryTest {
 
     @Test fun olderSessionFromHistoryOpensItsExactRunAndReturns() {
         for (compact in listOf(false, true)) {
-            val latest = Route.Chat("echo", "20261026-210000-journal")
-            val older = Route.Chat("echo", "20261025-210000-journal")
+            val latest = Route.Chat(AgentId("echo"), SessionId("20261026-210000-journal"))
+            val older = Route.Chat(AgentId("echo"), SessionId("20261025-210000-journal"))
             val h = history(compact, Route.Home, latest)
             h.open(older)
             assertEquals(older, h.backStack.last())
@@ -44,7 +46,7 @@ class OwnerRailHistoryTest {
     }
 
     @Test fun boardOnCompactKeepsTheChatUnderneath() {
-        val chat = Route.Chat("echo", "journal")
+        val chat = Route.Chat(AgentId("echo"), SessionId("journal"))
         val h = history(true, Route.Home, chat)
         h.open(Route.Board)
         assertEquals(listOf(Route.Home, chat, Route.Board), h.backStack.toList())
@@ -53,8 +55,8 @@ class OwnerRailHistoryTest {
     }
 
     @Test fun compactAgentSwitchReplacesTheChatAndKeepsHome() {
-        val h = history(true, Route.Home, Route.Chat("echo", "journal"))
-        val other = Route.Chat("hearth", "boiler")
+        val h = history(true, Route.Home, Route.Chat(AgentId("echo"), SessionId("journal")))
+        val other = Route.Chat(AgentId("hearth"), SessionId("boiler"))
         h.open(other)
         assertEquals(listOf(Route.Home, other), h.backStack.toList())
         h.back()
@@ -63,19 +65,19 @@ class OwnerRailHistoryTest {
 
     @Test fun settingsOverChatReturnsToTheExactSessionAtBothWidths() {
         for (compact in listOf(false, true)) {
-            val chat = Route.Chat("echo", "journal")
+            val chat = Route.Chat(AgentId("echo"), SessionId("journal"))
             val h = history(compact, Route.Home, chat)
-            h.open(Route.Settings("echo"), push = true)
-            h.open(Route.Settings("echo", SettingsSection.Connection), push = false)
+            h.open(Route.Settings(AgentId("echo")), push = true)
+            h.open(Route.Settings(AgentId("echo"), SettingsSection.Connection), push = false)
             h.back()
             assertEquals(chat, h.backStack.last())
         }
     }
 
     @Test fun shellPicksOnCompactLeaveNothingToGoBackToSoTheEdgeSwipeRevealsTheShell() {
-        val chat = Route.Chat("echo", "journal")
+        val chat = Route.Chat(AgentId("echo"), SessionId("journal"))
         val h = history(true, Route.Home, chat)
-        for (page in listOf(Route.Board, Route.Knowledge(), Route.Computers(), Route.Settings("echo", SettingsSection.Routines), chat)) {
+        for (page in listOf(Route.Board, Route.Knowledge(), Route.Computers(), Route.Settings(AgentId("echo"), SettingsSection.Routines), chat)) {
             h.switchTo(page)
             assertEquals(listOf(page), h.backStack.toList())
             assertFalse(h.canGoBack)
@@ -85,7 +87,7 @@ class OwnerRailHistoryTest {
     }
 
     @Test fun shellPicksOnWideKeepHistory() {
-        val chat = Route.Chat("echo", "journal")
+        val chat = Route.Chat(AgentId("echo"), SessionId("journal"))
         val h = history(false, Route.Home, chat)
         h.switchTo(Route.Board)
         assertEquals(listOf(Route.Home, chat, Route.Board), h.backStack.toList())

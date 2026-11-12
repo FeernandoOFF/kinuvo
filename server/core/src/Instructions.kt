@@ -5,7 +5,7 @@ import kinuvo.harness.AgentDoc
 import kinuvo.harness.AgentDocs
 import kinuvo.server.skills.Skill
 import kinuvo.server.plugin.Tool
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 
 /** Builds the instructions snapshot frozen into a new Session. */
 suspend fun instructionsFor(

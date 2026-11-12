@@ -14,18 +14,19 @@ import androidx.compose.ui.Modifier
 import com.composables.ui.components.*
 import com.composables.icons.lucide.*
 import com.composables.ui.theme.mutedColor
-import kinuvo.protocol.AgentDetails
-import kinuvo.protocol.ContainerSettings
-import kinuvo.protocol.ExecTestResult
-import kinuvo.protocol.Integration
-import kinuvo.protocol.offers
-import kinuvo.protocol.SshSettings
-import kinuvo.protocol.TestExecParams
-import kinuvo.protocol.CreateAgentParams
-import kinuvo.protocol.DenyRules
-import kinuvo.protocol.TrustRules
-import kinuvo.protocol.UpdateAgentParams
-import kinuvo.protocol.Platform
+import kinuvo.protocol.agent.AgentDetails
+import kinuvo.protocol.agent.ContainerSettings
+import kinuvo.protocol.agent.ExecTestResult
+import kinuvo.protocol.capability.Integration
+import kinuvo.protocol.capability.offers
+import kinuvo.protocol.agent.SshSettings
+import kinuvo.protocol.agent.TestExecParams
+import kinuvo.protocol.agent.CreateAgentParams
+import kinuvo.protocol.approval.DenyRules
+import kinuvo.protocol.approval.TrustRules
+import kinuvo.protocol.agent.UpdateAgentParams
+import kinuvo.protocol.device.Platform
+import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.design.*
 import androidx.compose.ui.Alignment
 
@@ -215,13 +216,13 @@ private fun ExecTestResultView(t: ExecTestResult) {
 internal fun NewAgentForm(p: Pane) {
     val id = rememberTextFieldState()
     val name = rememberTextFieldState()
-    var from by remember { mutableStateOf<String?>(null) }
-    val save = { p.actions.onCreateAgent(CreateAgentParams(id.value(), name.value().ifEmpty { null }, from)) }
+    var from by remember { mutableStateOf<AgentId?>(null) }
+    val save = { p.actions.onCreateAgent(CreateAgentParams(AgentId(id.value()), name.value().ifEmpty { null }, from)) }
     DetailPane(p.back, "New agent", error = p.ui.error, trailing = { FormActions("Create agent", id.value().isNotEmpty(), p.ui.state.saved, onSave = save, onCancel = p.cancel, dirty = formChanged(listOf(id.text.toString(), name.text.toString(), from), p.ui.state.saved)) }) {
         FormField("ID", "Lowercase letters, digits and hyphens; names its folder.") { Input(id, "work") }
         FormField("Name") { Input(name, "Work", capitalize = true) }
         FormField("Start from") {
-            Picker(listOf<String?>(null) + p.ui.agents.map { it.id }, from, { a -> a?.let { "Copy of ${p.ui.agents.first { it.id == a }.name}" } ?: "Default template" }, { from = it })
+            Picker(listOf<AgentId?>(null) + p.ui.agents.map { it.id }, from, { a -> a?.let { "Copy of ${p.ui.agents.first { it.id == a }.name}" } ?: "Default template" }, { from = it })
         }
     }
 }

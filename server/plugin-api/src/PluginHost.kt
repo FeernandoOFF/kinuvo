@@ -10,7 +10,7 @@ import io.ktor.http.URLBuilder
 import io.ktor.http.Url
 import io.ktor.http.appendPathSegments
 import io.ktor.utils.io.readBuffer
-import kinuvo.protocol.*
+import kinuvo.protocol.plugin.*
 import kotlinx.io.buffered
 import kotlinx.io.files.Path
 import kotlinx.io.files.SystemFileSystem

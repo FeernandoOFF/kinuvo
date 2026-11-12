@@ -3,8 +3,10 @@ package kinuvo.app.connection
 
 import kinuvo.app.agent.*
 import kinuvo.protocol.FrameConnection
-import kinuvo.protocol.Links
-import kinuvo.protocol.PairingCode
+import kinuvo.protocol.device.Links
+import kinuvo.protocol.device.PairingCode
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
@@ -60,7 +62,7 @@ interface ServerSharing {
 
 /** The Agent and Session a device last had open. */
 @Serializable
-data class LastView(val agentId: String, val sessionId: String?)
+data class LastView(val agentId: AgentId, val sessionId: SessionId?)
 
 /** Platform key-value storage: files on desktop, SharedPreferences on Android, NSUserDefaults on iOS. */
 interface Preferences {

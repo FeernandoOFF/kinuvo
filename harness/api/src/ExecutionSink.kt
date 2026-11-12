@@ -1,10 +1,11 @@
 package kinuvo.harness
 
-import kinuvo.protocol.SurfaceAction
+import kinuvo.protocol.surface.SurfaceAction
 
-import kinuvo.protocol.AgentEvent
-import kinuvo.protocol.AttachmentData
-import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.session.AgentEvent
+import kinuvo.protocol.session.AttachmentData
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.RunId
 
 /** Ordered SessionLog boundary. Commit appends an identity-reconciled batch; it never upserts saved entries. */
 interface ExecutionSink {
@@ -17,8 +18,14 @@ data class ExecutionInput(
     val attachments: List<AttachmentData> = emptyList(),
     val action: SurfaceAction? = null,
     val kind: RunKind = RunKind.Chat(),
-    val runId: String? = null,
+    val runId: RunId? = null,
+    val mcp: McpServerDescriptor? = null,
 )
 
 /** Source insertion identity; null means unavailable, never rejection or foreground completion. */
 data class ExecutionAcceptance(val messageId: String? = null)
+
+/** HTTP MCP access for this run only. Never include credentials in diagnostics. */
+class McpServerDescriptor(val url: String, val authorization: String, val toolNames: Set<String> = emptySet()) {
+    override fun toString() = "McpServerDescriptor($url)"
+}

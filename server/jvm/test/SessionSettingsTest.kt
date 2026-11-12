@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import arrow.core.getOrElse
+import arrow.core.raise.context.either
 import kinuvo.server.plugin.ProviderPlugin
 import kinuvo.testing.harness.*
 import ai.koog.prompt.message.Message
@@ -10,9 +12,10 @@ import kinuvo.server.plugin.PrivateFile
 import kinuvo.providers.codex.CodexProvider
 import kinuvo.harness.builtin.AgentModel
 import kinuvo.harness.AgentConfig
-import kinuvo.protocol.UpdateAgentParams
-import kinuvo.protocol.SessionEntry
-import kinuvo.protocol.SessionSettings
+import kinuvo.protocol.agent.UpdateAgentParams
+import kinuvo.protocol.session.SessionEntry
+import kinuvo.protocol.session.SessionSettings
+import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -25,6 +28,7 @@ import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.fail
 import kinuvo.server.Admin
 import kinuvo.server.Runs
 import kinuvo.server.providers.ModelProvider
@@ -36,8 +40,8 @@ class SessionSettingsTest {
     @Test
     fun modelPairsRouteAcrossPluginsAndSurviveRestart() = runBlocking {
         val used = mutableListOf<String>()
-        fun plugin(id: String) = object : ProviderPlugin, ModelProvider {
-            override val definition = kinuvo.protocol.PluginDefinition("test.$id", "Test")
+        fun plugin(id: String) = object : ProviderPlugin, TestModelProvider {
+            override val definition = kinuvo.protocol.plugin.PluginDefinition("test.$id", "Test")
             override val id = id
             override val providerAdmins get() = listOf(this)
             override fun model(config: AgentConfig): AgentModel {
@@ -50,7 +54,7 @@ class SessionSettingsTest {
         var harness = Harness(Path(home.path), providers = ModelProviders.of(plugins), plugins = plugins)
         try {
             val admin = Admin(harness, Runs(harness.log, scope, harness.native)) {}
-            admin.update(UpdateAgentParams("default", provider = "first", model = "shared-id"))
+            either { admin.update(UpdateAgentParams(AgentId("default"), provider = "first", model = "shared-id")) }.getOrElse { fail(it.message) }
             val agent = harness.store.agents().single()
             val session = harness.newSession(agent).id
             harness.configure(agent, session, SessionSettings(provider = "second", model = "shared-id"))

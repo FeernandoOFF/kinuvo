@@ -3,7 +3,7 @@ package kinuvo.server.tools
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
-import kinuvo.protocol.ToolNames
+import kinuvo.protocol.tool.ToolNames
 import kinuvo.server.plugin.CoreTool
 import dev.ynagai.a2ui.core.protocol.A2uiJson
 import dev.ynagai.a2ui.core.protocol.AgentToRendererMessage
@@ -16,8 +16,8 @@ import dev.ynagai.a2ui.core.surface.MessageProcessor
 import dev.ynagai.a2ui.core.surface.RendererState
 import dev.ynagai.a2ui.core.validation.CatalogValidator
 import kinuvo.protocol.ProtocolJson
-import kinuvo.protocol.UiCatalog
-import kinuvo.protocol.uiMessages
+import kinuvo.protocol.surface.UiCatalog
+import kinuvo.protocol.surface.uiMessages
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.*
 

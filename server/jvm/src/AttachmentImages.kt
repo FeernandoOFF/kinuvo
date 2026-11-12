@@ -1,7 +1,7 @@
 package kinuvo.server.jvm
 
-import kinuvo.protocol.UploadAttachmentParams
-import kinuvo.protocol.attachmentMimeType
+import kinuvo.protocol.session.UploadAttachmentParams
+import kinuvo.protocol.session.attachmentMimeType
 import java.awt.Color
 import java.awt.RenderingHints
 import java.awt.image.BufferedImage
@@ -12,7 +12,7 @@ import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import javax.imageio.ImageIO
 import kotlin.io.encoding.Base64
-import kinuvo.protocol.MAX_ATTACHMENT_BYTES
+import kinuvo.protocol.session.MAX_ATTACHMENT_BYTES
 
 internal fun prepareAttachment(p: UploadAttachmentParams): UploadAttachmentParams {
     val mime = attachmentMimeType(p.name) ?: return p

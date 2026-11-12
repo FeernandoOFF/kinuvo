@@ -9,7 +9,9 @@ import kotlin.test.assertTrue
 import kotlin.test.assertFalse
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kinuvo.protocol.PairingCode
+import kinuvo.protocol.device.PairingCode
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 
 internal class MemoryCredentials : DeviceCredentials {
     private val values = mutableMapOf<String, String>()
@@ -77,8 +79,8 @@ class ServersTest {
     @Test
     fun remembersLastView() {
         val prefs = MemoryPreferences()
-        Servers(prefs, credentials = prefs.credentials).lastView = LastView("work", "s1")
-        assertEquals(LastView("work", "s1"), Servers(prefs, credentials = prefs.credentials).lastView)
+        Servers(prefs, credentials = prefs.credentials).lastView = LastView(AgentId("work"), SessionId("s1"))
+        assertEquals(LastView(AgentId("work"), SessionId("s1")), Servers(prefs, credentials = prefs.credentials).lastView)
     }
 
     @Test
@@ -90,7 +92,7 @@ class ServersTest {
         val vpn = servers.remember(Server.Remote("wss://home.ts.net:443/ws"), "second", "home", "Mac mini")
         assertEquals(listOf(Server.Remote("wss://home.ts.net:443/ws", "second", "Kitchen", "home")), servers.all)
         servers.select(vpn)
-        servers.lastView = LastView("work", "s1")
+        servers.lastView = LastView(AgentId("work"), SessionId("s1"))
         servers.forget(vpn as Server.Remote)
         assertNull(servers.current)
         assertNull(servers.lastView)

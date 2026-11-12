@@ -25,7 +25,7 @@ import com.composeunstyled.theme.Theme
 import kinuvo.ui.design.*
 import kotlinx.serialization.json.jsonPrimitive
 import androidx.compose.ui.draw.alpha
-import kinuvo.protocol.ReflectionProposal
+import kinuvo.protocol.reflection.ReflectionProposal
 
 @Composable
 internal fun ReflectionView(item: ChatItem.Reflection, initiallyExpanded: Boolean = false, onReview: (String, Boolean, String?) -> Unit = { _, _, _ -> }) {

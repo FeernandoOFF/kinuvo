@@ -1,8 +1,8 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.KnowledgeSchema
-import kinuvo.protocol.Note
-import kinuvo.protocol.NoteSummary
+import kinuvo.protocol.knowledge.KnowledgeSchema
+import kinuvo.protocol.knowledge.Note
+import kinuvo.protocol.knowledge.NoteSummary
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.JsonElement
 

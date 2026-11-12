@@ -10,6 +10,12 @@ import kinuvo.app.navigation.*
 import androidx.lifecycle.ViewModelStore
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
+import kinuvo.protocol.agent.*
+import kinuvo.protocol.capability.*
+import kinuvo.protocol.connection.*
+import kinuvo.protocol.model.*
+import kinuvo.protocol.reflection.*
+import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
@@ -29,12 +35,12 @@ class AgentDefaultsTest {
         val script = Script()
         connect(owner, script)
         val store = store()
-        fun newChat(key: String) = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat("agent", null)).also { store.put(key, it) }
+        fun newChat(key: String) = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("agent"), null)).also { store.put(key, it) }
         try {
             val opened = newChat("opened")
             opened.state.first { it.defaults != null && it.capabilities?.revision == 0L }
             opened.configure(SessionSettings(approvals = "strict"))
-            owner.config.updateAgent(UpdateAgentParams("agent", model = "new-model", reasoning = "high"))
+            owner.config.updateAgent(UpdateAgentParams(AgentId("agent"), model = "new-model", reasoning = "high"))
             opened.state.first { it.defaults?.reasoning == "high" && it.capabilities?.revision == 1L }
             assertEquals("new-model", opened.state.value.defaults?.model)
             assertEquals(SessionSettings(approvals = "strict"), opened.state.value.settings)
@@ -46,7 +52,7 @@ class AgentDefaultsTest {
             val explicit = newChat("explicit")
             explicit.state.first { it.defaults?.reasoning == "high" && !it.resolving }
             explicit.configure(SessionSettings(reasoning = "low"))
-            owner.config.updateAgent(UpdateAgentParams("agent", reasoning = "medium"))
+            owner.config.updateAgent(UpdateAgentParams(AgentId("agent"), reasoning = "medium"))
             explicit.state.first { it.defaults?.reasoning == "medium" }
             assertEquals("low", explicit.state.value.settings.reasoning)
             explicit.send("hello")
@@ -59,7 +65,7 @@ class AgentDefaultsTest {
         connect(owner, script)
         val prefs = MemoryPreferences()
         val consent = AiConsent(prefs, required = true)
-        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat("agent", null), consent)
+        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("agent"), null), consent)
         store().put("consent", vm)
         vm.state.first { it.defaults != null && !it.resolving }
         vm.send("hello")
@@ -79,11 +85,11 @@ class AgentDefaultsTest {
     @Test fun reflectionReviewsSendTrimmedNotesForBothDecisions() = withOwner { owner, _, _ ->
         val script = Script()
         connect(owner, script)
-        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat("agent", "session"))
+        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("agent"), SessionId("session")))
         store().put("review", vm)
         for (approve in listOf(true, false)) {
             vm.reviewReflection("proposal", approve, "  wrong date  ")
-            assertEquals(ReviewReflectionParams("agent", "session", "proposal", approve, "wrong date"), script.reviews.receive())
+            assertEquals(ReviewReflectionParams(AgentId("agent"), SessionId("session"), "proposal", approve, "wrong date"), script.reviews.receive())
         }
         vm.reviewReflection("proposal", false, "  ")
         assertNull(script.reviews.receive().note)
@@ -93,12 +99,12 @@ class AgentDefaultsTest {
         val script = Script()
         connect(owner, script)
         script.holdDetails = true
-        val old = owner.config.loadDetails("agent")
+        val old = owner.config.loadDetails(AgentId("agent"))
         script.blocked.receive()
-        owner.config.updateAgent(UpdateAgentParams("agent", reasoning = "high"))
+        owner.config.updateAgent(UpdateAgentParams(AgentId("agent"), reasoning = "high"))
         script.release.complete(Unit)
         old.join()
-        assertEquals("high", owner.config.state.value["agent"]?.details?.settings?.reasoning)
+        assertEquals("high", owner.config.state.value[AgentId("agent")]?.details?.settings?.reasoning)
     }
 
     private fun withOwner(block: suspend (ConnectedServer, MutableList<Notice>, DeviceAccess) -> Unit) = runBlocking {
@@ -152,9 +158,9 @@ class AgentDefaultsTest {
             when (request.method) {
                 Api.Connect.name -> reply(request, Api.Connect, ConnectResult("token", "defaults", capabilities = ServerCapabilities("test"), management = true))
                 Api.Presence.name -> reply(request, Api.Presence, Unit)
-                Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo("agent", "Agent", "none")))
+                Api.Agents.name -> reply(request, Api.Agents, listOf(AgentInfo(AgentId("agent"), "Agent", "none")))
                 Api.Agent.name -> {
-                    val details = AgentDetails(AgentInfo("agent", "Agent", "none"), settings, "", "")
+                    val details = AgentDetails(AgentInfo(AgentId("agent"), "Agent", "none"), settings, "", "")
                     if (holdDetails) { blocked.send(Unit); release.await() }
                     reply(request, Api.Agent, details)
                 }
@@ -162,26 +168,26 @@ class AgentDefaultsTest {
                     val params = ProtocolJson.decodeFromJsonElement(Api.UpdateAgent.params, request.params)
                     revision++
                     settings = settings.copy(model = params.model ?: settings.model, reasoning = params.reasoning ?: settings.reasoning)
-                    reply(request, Api.UpdateAgent, AgentDetails(AgentInfo("agent", "Agent", "none"), settings, "", ""))
+                    reply(request, Api.UpdateAgent, AgentDetails(AgentInfo(AgentId("agent"), "Agent", "none"), settings, "", ""))
                 }
                 Api.Capabilities.name -> reply(request, Api.Capabilities, SessionCapabilities(revision, ServerCapabilities("test")))
                 Api.Models.name -> reply(request, Api.Models, ModelsCatalog())
                 Api.Providers.name -> reply(request, Api.Providers, emptyList())
                 Api.Skills.name -> reply(request, Api.Skills, emptyList())
                 Api.McpServers.name -> reply(request, Api.McpServers, emptyList())
-                Api.CreateSession.name -> { sessionSettings = SessionSettings(); reply(request, Api.CreateSession, SessionInfo("new", "agent", "New")) }
+                Api.CreateSession.name -> { sessionSettings = SessionSettings(); reply(request, Api.CreateSession, SessionInfo(SessionId("new"), AgentId("agent"), "New")) }
                 Api.ConfigureSession.name -> {
                     sessionSettings = ProtocolJson.decodeFromJsonElement(Api.ConfigureSession.params, request.params).settings
-                    reply(request, Api.ConfigureSession, SessionInfo("new", "agent", "New", settings = sessionSettings))
+                    reply(request, Api.ConfigureSession, SessionInfo(SessionId("new"), AgentId("agent"), "New", settings = sessionSettings))
                 }
-                Api.Send.name -> { sent.send(sessionSettings); reply(request, Api.Send, SendResult("new", "run", "hello")) }
-                Api.Session.name -> reply(request, Api.Session, SessionInfo("session", "agent", "Review"))
+                Api.Send.name -> { sent.send(sessionSettings); reply(request, Api.Send, SendResult(SessionId("new"), RunId("run"), "hello")) }
+                Api.Session.name -> reply(request, Api.Session, SessionInfo(SessionId("session"), AgentId("agent"), "Review"))
                 Api.ReviewReflection.name -> {
                     reviews.send(ProtocolJson.decodeFromJsonElement(Api.ReviewReflection.params, request.params))
                     reply(request, Api.ReviewReflection, Unit)
                 }
                 Api.CatchUp.name -> reply(request, Api.CatchUp, Unit)
-                else -> frames.send(Frame.Response(request.id, false, error = "Unsupported in test: ${request.method}"))
+                else -> frames.send(Frame.Response(request.id, false, error = WireError(WireErrorCode.Internal, "Unsupported in test: ${request.method}")))
             }
         }
         private suspend fun <P, R> reply(request: Frame.Request, method: Method<P, R>, result: R) {

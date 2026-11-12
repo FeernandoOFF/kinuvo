@@ -5,7 +5,7 @@ package kinuvo.harness.acp
 import com.agentclientprotocol.client.v2.*
 import com.agentclientprotocol.model.AcpMethod
 import com.agentclientprotocol.model.SessionId
-import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.*
 import kinuvo.protocol.ProtocolJson
 import com.agentclientprotocol.model.Implementation
 import com.agentclientprotocol.model.AuthMethodId
@@ -17,8 +17,10 @@ import kotlinx.coroutines.*
 import kotlinx.io.asSink
 import kotlinx.io.asSource
 import kotlinx.io.buffered
-import kinuvo.protocol.ExecutionConnection
+import kinuvo.protocol.execution.ExecutionConnection
 import java.io.File
+import kinuvo.harness.McpServerDescriptor
+import com.agentclientprotocol.model.HttpHeader
 import java.util.concurrent.TimeUnit
 
 /** JVM-only. Inherits the existing installation's environment and accounts; never installs a runtime. */
@@ -27,11 +29,20 @@ class AcpConnection private constructor(
     private val protocol: Protocol,
     val client: Client,
 ) {
+    private var offered: McpServerDescriptor? = null
+
     suspend fun login(methodId: String) = client.login(AuthMethodId(methodId))
 
-    suspend fun newSession(cwd: String, operations: ClientSessionOperations): ClientSession {
+    suspend fun newSession(cwd: String, operations: ClientSessionOperations, tools: McpServerDescriptor? = null): ClientSession {
         permissionHandler(operations)
-        return client.newSession(cwd = cwd, operations = operations)
+        return client.newSession(cwd = cwd, mcpServers = mcpServers(tools), operations = operations)
+    }
+
+    suspend fun supportsMcp() = supportsResume() && client.agentInfo.await().capabilities.session?.mcp?.http != null
+
+    private suspend fun mcpServers(tools: McpServerDescriptor?): List<McpServer> {
+        offered = tools?.takeIf { supportsMcp() }
+        return offered?.let { listOf(McpServer.Http("kinuvo", it.url, listOf(HttpHeader("Authorization", it.authorization)))) } ?: emptyList()
     }
 
     // SDK permission routing requires an already-created ClientSession, unlike its update inbox.
@@ -39,16 +50,21 @@ class AcpConnection private constructor(
         protocol.setRequestHandlerRaw(AcpMethod.ClientMethods.V2.SessionRequestPermission) { request ->
             val permission = ProtocolJson.decodeFromJsonElement(RequestPermissionRequest.serializer(), requireNotNull(request.params))
             require(sessionId == null || permission.sessionId.toString() == sessionId) { "Unexpected permission Session" }
-            ProtocolJson.encodeToJsonElement(RequestPermissionResponse.serializer(), operations.requestPermission(permission))
+            val raw = requireNotNull(request.params).jsonObject
+            val recognised = recognisesKinuvoCall(raw, offered)
+            val allow = permission.options.firstOrNull { it.kind == PermissionOptionKind.AllowOnce }
+            if (recognised && allow != null) buildJsonObject {
+                putJsonObject("outcome") { put("outcome", "selected"); put("optionId", allow.optionId.toString()) }
+            } else ProtocolJson.encodeToJsonElement(RequestPermissionResponse.serializer(), operations.requestPermission(permission))
         }
     }
 
     suspend fun supportsResume() = client.agentInfo.await().capabilities.session != null
 
-    suspend fun resumeSession(id: String, cwd: String, operations: ClientSessionOperations): ClientSession {
+    suspend fun resumeSession(id: String, cwd: String, operations: ClientSessionOperations, tools: McpServerDescriptor? = null): ClientSession {
         check(supportsResume()) { "ACP harness did not negotiate Session resume support (capabilities.session)" }
         permissionHandler(operations, id)
-        return client.resumeSession(SessionId(id), cwd, replayFrom = null, operations = operations)
+        return client.resumeSession(SessionId(id), cwd, mcpServers = mcpServers(tools), replayFrom = null, operations = operations)
     }
 
     // SDK 0.33 drops PromptResponse and its unknown messageId field. Keep the raw acknowledgement.
@@ -110,4 +126,11 @@ class AcpConnection private constructor(
             }
         }
     }
+}
+
+internal fun recognisesKinuvoCall(raw: JsonObject, offered: McpServerDescriptor?): Boolean {
+    val tool = ((raw["subject"] as? JsonObject)?.get("toolCall") ?: raw["toolCall"]) as? JsonObject
+    val input = tool?.get("rawInput") as? JsonObject
+    val name = (input?.get("toolName") as? JsonPrimitive)?.content
+    return offered != null && (input?.get("serverName") as? JsonPrimitive)?.content == "kinuvo" && name in offered.toolNames
 }

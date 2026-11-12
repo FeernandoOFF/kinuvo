@@ -5,10 +5,12 @@ import kinuvo.server.plugin.KnowledgeSource
 import kinuvo.server.plugin.NoteEdit
 import kinuvo.server.plugin.NoteFile
 import kinuvo.server.update
-import kinuvo.protocol.KnowledgeChange
-import kinuvo.protocol.KnowledgeSchema
-import kinuvo.protocol.Note
-import kinuvo.protocol.NoteSummary
+import kinuvo.protocol.knowledge.KnowledgeChange
+import kinuvo.protocol.knowledge.KnowledgeSchema
+import kinuvo.protocol.knowledge.Note
+import kinuvo.protocol.knowledge.NoteSummary
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.io.files.Path
 import kotlinx.coroutines.sync.withLock
@@ -29,7 +31,7 @@ interface KnowledgeChangeLog {
 }
 
 /** Who made a change: the Agent and the Session it came from. */
-data class ChangeSource(val agentId: String? = null, val sessionId: String? = null, val changeId: String? = null)
+data class ChangeSource(val agentId: AgentId? = null, val sessionId: SessionId? = null, val changeId: String? = null)
 
 /**
  * The user's Knowledge, through whichever [KnowledgeSource] the config picks. Notes keep the source's own types and

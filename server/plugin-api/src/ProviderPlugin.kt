@@ -1,9 +1,9 @@
 package kinuvo.server.plugin
 
-import kinuvo.protocol.ModelInfo
-import kinuvo.protocol.PluginManifest
-import kinuvo.protocol.PluginProviderDefinition
-import kinuvo.protocol.PluginProviderKind
+import kinuvo.protocol.model.ModelInfo
+import kinuvo.protocol.plugin.PluginManifest
+import kinuvo.protocol.plugin.PluginProviderDefinition
+import kinuvo.protocol.plugin.PluginProviderKind
 import kotlinx.serialization.Serializable
 
 /** A plugin that brings the admin half of model providers; hosts pair each with the built-in harness's source of the same ID. */
