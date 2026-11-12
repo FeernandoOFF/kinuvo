@@ -35,6 +35,7 @@ object ToolNames {
     const val KNOWLEDGE = "knowledge"
     const val KNOWLEDGE_REWRITE = "knowledge_rewrite"
     const val TASKS = "tasks"
+    const val REQUEST_SECRET = "request_secret"
     const val ASK_USER = "ask_user"
     /** Offered when a Device has said which A2UI catalogs it renders. */
     const val SHOW_UI = "show_ui"

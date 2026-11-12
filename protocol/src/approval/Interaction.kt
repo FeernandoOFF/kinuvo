@@ -12,8 +12,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonElement
 
 /**
- * What a Session waits on from the user, whichever side owns it: a tool call's Approval, an `ask_user` form or an
- * external harness's request. Announced by [AgentEvent.InteractionRequested], held in [LiveState.pending] and answered
+ * What a Session waits on from the user, whichever side owns it: a tool call's Approval, an `ask_user` form, a
+ * `request_secret` card or an external harness's request. Announced by [AgentEvent.InteractionRequested], held in [LiveState.pending] and answered
  * with one [InteractionAnswer] through `session.respond`.
  */
 @Serializable
@@ -65,6 +65,13 @@ sealed interface PendingInteraction {
     @Serializable @SerialName("open_link")
     data class OpenLink(override val id: InteractionId, val message: String, val url: String, val site: String) : PendingInteraction
 
+    /**
+     * `request_secret` asking privately for the credential [label]; answered with [InteractionAnswer.Secret]. The Agent
+     * gets only a Secret reference, never the value.
+     */
+    @Serializable @SerialName("secret")
+    data class Secret(override val id: InteractionId, val toolCallId: ToolCallId, val label: String, val reason: String) : PendingInteraction
+
     /** A request this client can't fill in; it can only be declined. */
     @Serializable @SerialName("unsupported")
     data class Unsupported(override val id: InteractionId, val message: String) : PendingInteraction
@@ -75,6 +82,7 @@ fun PendingInteraction.withId(id: InteractionId): PendingInteraction = when (thi
     is PendingInteraction.Questions -> copy(id = id)
     is PendingInteraction.HarnessApproval -> copy(id = id)
     is PendingInteraction.OpenLink -> copy(id = id)
+    is PendingInteraction.Secret -> copy(id = id)
     is PendingInteraction.Unsupported -> copy(id = id)
 }
 
@@ -87,6 +95,15 @@ sealed interface InteractionAnswer {
     /** By [Question.id]; null = skipped. */
     @Serializable @SerialName("questions")
     data class Questions(val answers: Map<String, List<String>>? = null) : InteractionAnswer
+
+    /**
+     * A password manager [reference] the user picked (`${pass://Vault/Item/field}`), a [value] they typed, which the
+     * Server keeps in memory for the asking Agent and Session, or neither to decline.
+     */
+    @Serializable @SerialName("secret")
+    data class Secret(val reference: String? = null, val value: String? = null) : InteractionAnswer {
+        override fun toString() = "Secret(${if (reference != null) "reference" else if (value != null) "typed" else "declined"})"
+    }
 
     /** The harness's own answer to its request: `{optionId}` or null (cancelled) for permissions, `{opened}` for links, null to decline. */
     @Serializable @SerialName("harness")
