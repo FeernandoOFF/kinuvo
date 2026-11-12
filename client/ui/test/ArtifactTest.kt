@@ -2,7 +2,7 @@ package kinuvo.ui
 
 import kinuvo.ui.artifacts.*
 import androidx.compose.ui.graphics.Color
-import kinuvo.protocol.Artboard
+import kinuvo.protocol.artifact.Artboard
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive

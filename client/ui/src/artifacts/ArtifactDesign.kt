@@ -21,7 +21,7 @@ import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
-import kinuvo.protocol.Artboard
+import kinuvo.protocol.artifact.Artboard
 import kinuvo.ui.design.*
 
 /** What the canvas page tells the app, decoded from the JSON the bridge passes on. */

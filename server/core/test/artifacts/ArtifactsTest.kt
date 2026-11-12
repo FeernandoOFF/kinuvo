@@ -86,12 +86,12 @@ class ArtifactsTest {
 
     @Test
     fun designsAreValidatedWhenSaved() = runTest {
-        val created = artifacts.create("main", null, "D", "design", """{"artboards":[${board("a")},${board("b")}]}""")
-        assertFailsWith<IllegalArgumentException> { artifacts.create("main", null, "D", "design", "not json") }
-        assertFailsWith<IllegalArgumentException> { artifacts.create("main", null, "D", "design", """{"artboards":[${board("a")},${board("a")}]}""") }
-        assertFailsWith<IllegalArgumentException> { artifacts.create("main", null, "D", "design", """{"artboards":[${board(" ")}]}""") }
-        assertFailsWith<IllegalArgumentException> { artifacts.create("main", null, "D", "design", """{"artboards":[${board("a", 0)}]}""") }
-        assertFailsWith<IllegalArgumentException> { artifacts.create("main", null, "D", "design", """{"artboards":[${board("a", 10, 10001)}]}""") }
+        val created = artifacts.create(AgentId("main"), null, "D", "design", """{"artboards":[${board("a")},${board("b")}]}""")
+        assertFailsWith<IllegalArgumentException> { artifacts.create(AgentId("main"), null, "D", "design", "not json") }
+        assertFailsWith<IllegalArgumentException> { artifacts.create(AgentId("main"), null, "D", "design", """{"artboards":[${board("a")},${board("a")}]}""") }
+        assertFailsWith<IllegalArgumentException> { artifacts.create(AgentId("main"), null, "D", "design", """{"artboards":[${board(" ")}]}""") }
+        assertFailsWith<IllegalArgumentException> { artifacts.create(AgentId("main"), null, "D", "design", """{"artboards":[${board("a", 0)}]}""") }
+        assertFailsWith<IllegalArgumentException> { artifacts.create(AgentId("main"), null, "D", "design", """{"artboards":[${board("a", 10, 10001)}]}""") }
         assertFailsWith<IllegalArgumentException> { artifacts.replace(created.id, """{"artboards":[{"id":"x"}]}""") }
         assertFailsWith<IllegalArgumentException> { artifacts.replace(created.id, """{"artboards":[{"id":"a","x":2000000,"html":"x"}]}""") }
         artifacts.replace(created.id, """{"artboards":[{"id":"a","x":-40,"y":12,"html":"x"}]}""")
@@ -103,7 +103,7 @@ class ArtifactsTest {
     fun artboardSetUpsertsAndRemoves() = runTest {
         val changes = mutableListOf<ArtifactChange>()
         artifacts.onChange { changes += it }
-        val id = artifacts.create("main", null, "D", "design", """{"artboards":[${board("a")}]}""").id
+        val id = artifacts.create(AgentId("main"), null, "D", "design", """{"artboards":[${board("a")}]}""").id
         call("action" to "artboard_set", "id" to id, "artboard" to "b", "html" to "<p>new</p>")
         call("action" to "artboard_set", "id" to id, "artboard" to "a", "name" to "Home", "width" to "320")
         val boards = Artifacts.parseDesign(artifacts.get(id).content).artboards
