@@ -3,6 +3,7 @@ product: ios/app
 dependencies:
   - ../../client/ui
   - ../../server/embedded
+  - ../../plugins/apple-frameworks: exported
   - ../../providers/apple: exported
 
 settings:

@@ -12,6 +12,10 @@
     <string>Kinuvo connects to your Server on the local network to reach your Agents.</string>
     <key>NSContactsUsageDescription</key>
     <string>Enabled Agents can look up contact names, phone numbers and emails for you.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Enabled Agents can read and change your reminders for you.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>Enabled Agents can read and change your calendar events for you.</string>
     <key>NSCameraUsageDescription</key>
     <string>Take photos to attach to your messages.</string>
     <key>NSMicrophoneUsageDescription</key>

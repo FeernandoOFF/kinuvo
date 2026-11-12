@@ -11,6 +11,7 @@
 		A8E591E0DDAD4A838B177003 /* ../../client/ui/src@ios/AppleAttachmentPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177004 /* ../../client/ui/src@ios/AppleAttachmentPicker.swift */; };
 		A8E591E0DDAD4A838B177103 /* ../../client/ui/src@ios/AppleFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177104 /* ../../client/ui/src@ios/AppleFolderAccess.swift */; };
 		B7C0DE51A9F04E2E9A3C2201 /* ../../client/ui/src@ios/AppleQrScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C0DE51A9F04E2E9A3C2202 /* ../../client/ui/src@ios/AppleQrScanner.swift */; };
+		A8E591E0DDAD4A838B177201 /* ../../plugins/apple-frameworks/native/AppleEventKit.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177202 /* ../../plugins/apple-frameworks/native/AppleEventKit.swift */; };
 		A8E591E0DDAD4A838B177009 /* ../../client/ui/src@ios/AppleSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B17700A /* ../../client/ui/src@ios/AppleSpeech.swift */; };
 		C0DE70500000000000000001 /* ../../client/ui/src@ios/ApplePush.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000002 /* ../../client/ui/src@ios/ApplePush.swift */; };
 		C0DE70500000000000000003 /* PushKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE70500000000000000004 /* PushKeys.swift */; };
@@ -51,6 +52,7 @@
 		A8E591E0DDAD4A838B177004 /* ../../client/ui/src@ios/AppleAttachmentPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleAttachmentPicker.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B177104 /* ../../client/ui/src@ios/AppleFolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleFolderAccess.swift"; sourceTree = SOURCE_ROOT; };
 		B7C0DE51A9F04E2E9A3C2202 /* ../../client/ui/src@ios/AppleQrScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleQrScanner.swift"; sourceTree = SOURCE_ROOT; };
+		A8E591E0DDAD4A838B177202 /* ../../plugins/apple-frameworks/native/AppleEventKit.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../plugins/apple-frameworks/native/AppleEventKit.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B17700A /* ../../client/ui/src@ios/AppleSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleSpeech.swift"; sourceTree = SOURCE_ROOT; };
 		C0DE70500000000000000002 /* ../../client/ui/src@ios/ApplePush.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/ApplePush.swift"; sourceTree = SOURCE_ROOT; };
 		C0DE70500000000000000004 /* PushKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PushKeys.swift; sourceTree = "<group>"; };
@@ -105,6 +107,7 @@
 				A8E591E0DDAD4A838B177104 /* ../../client/ui/src@ios/AppleFolderAccess.swift */,
 				B7C0DE51A9F04E2E9A3C2202 /* ../../client/ui/src@ios/AppleQrScanner.swift */,
 				A8E591E0DDAD4A838B17700A /* ../../client/ui/src@ios/AppleSpeech.swift */,
+				A8E591E0DDAD4A838B177202 /* ../../plugins/apple-frameworks/native/AppleEventKit.swift */,
 			);
 			sourceTree = "<group>";
 		};
@@ -244,6 +247,7 @@
 				A8E591E0DDAD4A838B177103 /* ../../client/ui/src@ios/AppleFolderAccess.swift in Sources */,
 				B7C0DE51A9F04E2E9A3C2201 /* ../../client/ui/src@ios/AppleQrScanner.swift in Sources */,
 				A8E591E0DDAD4A838B177009 /* ../../client/ui/src@ios/AppleSpeech.swift in Sources */,
+				A8E591E0DDAD4A838B177201 /* ../../plugins/apple-frameworks/native/AppleEventKit.swift in Sources */,
 				C0DE70500000000000000001 /* ../../client/ui/src@ios/ApplePush.swift in Sources */,
 				C0DE70500000000000000003 /* PushKeys.swift in Sources */,
 			);
