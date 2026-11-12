@@ -8,6 +8,7 @@ Plugins supply tools, model providers, Knowledge sources, Task providers, search
 | Integration | Contribution |
 | --- | --- |
 | anytype | Anytype Knowledge source |
+| apple-frameworks | Apple Reminders (Task provider and tools) and Apple Calendar events (tools) on a Server running in the Mac desktop app or the iPhone app |
 | browser | Controlled browser for Agents |
 | bitwarden | Bitwarden Secrets Manager Secret reference provider (`bws://`) |
 | caldav | CalDAV Task provider (VTODO lists on Nextcloud, Fastmail, Radicale and similar) |
@@ -18,7 +19,6 @@ Plugins supply tools, model providers, Knowledge sources, Task providers, search
 | ntfy | Notifications through ntfy |
 | onepassword | 1Password Secret reference provider (`op://`) |
 | protonpass | Proton Pass Secret reference provider (`pass://`) |
-| reminders | Apple Reminders Task provider where the platform supports it |
 | todoist | Todoist Task provider |
 | codex | Codex and OpenAI API model providers |
 | apple | Native Apple model provider for supported builds |
@@ -26,7 +26,7 @@ Plugins supply tools, model providers, Knowledge sources, Task providers, search
 | litert | `local` on-device models through LiteRT-LM |
 | voice | Downloaded Server voice models |
 
-Available integrations depend on where your Server runs. Use Settings to see what your selected Server offers. Phone Servers do not offer password-manager Secret reference providers. Desktop Computer use requires a separately installed cua-driver; see [Computer use](../guides/computer-use.md).
+Available integrations depend on where your Server runs. Use Settings to see what your selected Server offers. Phone Servers do not offer password-manager Secret reference providers. Apple Reminders and Calendar need the Kinuvo desktop app on a Mac or the iPhone app; a Server run with the `kinuvo` command or as a service cannot reach them. Desktop Computer use requires a separately installed cua-driver; see [Computer use](../guides/computer-use.md).
 
 ## Enable an integration
 
