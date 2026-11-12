@@ -99,7 +99,7 @@ internal fun RequestComposer(
     composer: @Composable () -> Unit,
 ) {
     val requests = state.requests
-    val request = requests.firstOrNull()?.takeUnless { it is PendingRequest.External }
+    val request = requests.firstOrNull()?.takeUnless { it is PendingRequest.External || it is PendingRequest.Secret }
     LaunchedEffect(requests) { inputs.retain(requests.map { it.id }.toSet()) }
     val body: @Composable (PendingRequest, Boolean) -> Unit = { current, wide ->
         val child = state.interactionChildren[current.id]?.let { state.children[it] }
@@ -191,6 +191,7 @@ private fun PendingRequest.title(): String = when (this) {
     is PendingRequest.Approval -> if (event.isShell()) "Run this command?" else "Allow ${event.identity?.localId ?: event.toolCallName}?"
     is PendingRequest.Questions -> asked.title ?: "Questions for you"
     is PendingRequest.Takeover -> "Your turn"
+    is PendingRequest.Secret -> ""
     is PendingRequest.External -> ""
 }
 
@@ -229,6 +230,7 @@ private fun RequestBody(request: PendingRequest, drafts: Map<InteractionId, Map<
         is PendingRequest.Approval -> ApprovalBody(request.event, input, wide) { actions.onDecision(request.id, it) }
         is PendingRequest.Questions -> QuestionsBody(request.asked, drafts, input, wide, actions)
         is PendingRequest.Takeover -> TakeoverBody(request.asked, input, wide, actions)
+        is PendingRequest.Secret -> Unit
         is PendingRequest.External -> Unit
     }
 }

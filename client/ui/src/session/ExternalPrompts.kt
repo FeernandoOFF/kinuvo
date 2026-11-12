@@ -45,7 +45,7 @@ internal fun ExternalPrompts(state: ChatState, actions: ChatActions, modifier: M
                         Button({ uri.openUri(prompt.url); actions.onExternal(prompt, openLinkAnswer(true)) }) { Text("Open page") }
                         Button({ actions.onExternal(prompt, openLinkAnswer(false)) }, style = ButtonStyle.Ghost) { Text("Decline") }
                     }
-                    is PendingInteraction.Approval -> Unit
+                    is PendingInteraction.Approval, is PendingInteraction.Secret -> Unit
                     is PendingInteraction.Unsupported -> RequestCard(Lucide.MessageCircleQuestionMark, prompt.message, "Kinuvo can't show this request. Answer it in $harness on $host, or decline it.") {
                         Button(onClick = { actions.onExternal(prompt, declineAnswer) }, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Decline") }
                     }

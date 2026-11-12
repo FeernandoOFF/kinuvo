@@ -22,6 +22,9 @@ import kinuvo.protocol.model.*
 import kinuvo.protocol.plugin.*
 import kinuvo.protocol.reflection.*
 import kinuvo.protocol.routine.*
+import kinuvo.protocol.secret.SecretEntry
+import kinuvo.protocol.secret.SecretProviderStatus
+import kinuvo.protocol.secret.secretReference
 import kinuvo.protocol.session.*
 import kinuvo.protocol.skill.*
 import kinuvo.protocol.surface.*
@@ -251,8 +254,14 @@ data class SessionState(
     val resuming: Boolean = false,
     /** A message waiting for permission to reach its third-party model provider. */
     val aiConsent: AiConsentRequest? = null,
+    /** The Server's connected password managers for a `request_secret` card; null until [loaded][SessionViewModel.loadSecretProviders]. */
+    val secretProviders: List<SecretProviderStatus>? = null,
+    /** Names under each browsed path (scheme first, then vault and item), for picking a Secret reference. */
+    val secretEntries: Map<List<String>, List<SecretEntry>> = emptyMap(),
 ) {
     val pending get() = data?.live?.pending.orEmpty()
+    /** The oldest `request_secret` card waiting, answered with [pickSecret][SessionViewModel.pickSecret], [typeSecret][SessionViewModel.typeSecret] or [declineSecret][SessionViewModel.declineSecret]. */
+    val secretRequest get() = pendingRequests(items, pending).firstNotNullOfOrNull { (it as? PendingRequest.Secret)?.asked }
     val phase get() = data?.live?.executionPhase
     val loaded get() = !resolving && (route.sessionId == null || data?.loaded == true)
     val resumeOnSend get() = resumeOnSend(phase, capabilities)
@@ -562,6 +571,37 @@ class SessionViewModel(private val client: KinuvoClient, private val repo: Sessi
         viewModelScope.launch { attempt {
             repo.respond(sessionId, questions.id, InteractionAnswer.Questions(answers))
             state.update { it.copy(answers = it.answers - questions.id) }
+        } }
+    }
+
+    fun loadSecretProviders() {
+        viewModelScope.launch { attempt { repo.secretProviders().let { p -> state.update { it.copy(secretProviders = p) } } } }
+    }
+
+    /** Loads the names under [path] (scheme first) unless they're loaded. */
+    fun browseSecrets(path: List<String>) {
+        if (path.isEmpty() || path in state.value.secretEntries) return
+        viewModelScope.launch { attempt { repo.browseSecrets(path).let { e -> state.update { it.copy(secretEntries = it.secretEntries + (path to e)) } } } }
+    }
+
+    /** Answers [requestId] with the reference to the field at [path] (scheme, vault, item, field). */
+    fun pickSecret(requestId: InteractionId, path: List<String>) {
+        require(path.size >= 2) { "Pick a field" }
+        answerSecret(requestId, InteractionAnswer.Secret(reference = secretReference(path.first(), path.drop(1))))
+    }
+
+    /** Sends [value] to the Server, which keeps it for this Agent and Session; it is not kept in this state. */
+    fun typeSecret(requestId: InteractionId, value: String) {
+        if (value.isNotEmpty()) answerSecret(requestId, InteractionAnswer.Secret(value = value))
+    }
+
+    fun declineSecret(requestId: InteractionId) = answerSecret(requestId, InteractionAnswer.Secret())
+
+    private fun answerSecret(requestId: InteractionId, answer: InteractionAnswer.Secret) {
+        val sessionId = route.sessionId ?: return
+        if (state.value.pending.none { it is PendingInteraction.Secret && it.id == requestId }) return
+        viewModelScope.launch { attempt {
+            if (!repo.respond(sessionId, requestId, answer)) state.update { it.copy(errors = it.errors + "Already answered, or the Agent stopped waiting.") }
         } }
     }
 

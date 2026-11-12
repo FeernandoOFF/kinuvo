@@ -26,6 +26,11 @@ sealed interface PendingRequest {
         override val id get() = asked.id
     }
 
+    /** A `request_secret` card, answered privately. */
+    data class Secret(val asked: PendingInteraction.Secret) : PendingRequest {
+        override val id get() = asked.id
+    }
+
     /** An external Agent's harness prompt. */
     data class External(val prompt: PendingInteraction) : PendingRequest {
         override val id get() = prompt.id
@@ -40,6 +45,7 @@ internal fun pendingRequests(items: List<ChatItem>, pending: List<PendingInterac
     val native = pending.mapNotNull { request ->
         when (request) {
             is PendingInteraction.Approval -> call(request.toolCallId) to PendingRequest.Approval(request)
+            is PendingInteraction.Secret -> call(request.toolCallId) to PendingRequest.Secret(request)
             is PendingInteraction.Questions -> {
                 val index = call(request.toolCallId)
                 val tool = items.getOrNull(index) as? ChatItem.ToolCall
@@ -48,7 +54,7 @@ internal fun pendingRequests(items: List<ChatItem>, pending: List<PendingInterac
             else -> null
         }
     }
-    val harness = pending.filter { it !is PendingInteraction.Approval && it !is PendingInteraction.Questions }
+    val harness = pending.filter { it !is PendingInteraction.Approval && it !is PendingInteraction.Questions && it !is PendingInteraction.Secret }
     return native.sortedBy { if (it.first < 0) Int.MAX_VALUE else it.first }.map { it.second } + harness.map { PendingRequest.External(it) }
 }
 

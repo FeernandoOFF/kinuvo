@@ -9,6 +9,7 @@ import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
 import kinuvo.protocol.agent.*
 import kinuvo.protocol.approval.*
+import kinuvo.protocol.secret.BrowseSecretsParams
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.routine.*
 import kinuvo.protocol.session.*
@@ -174,6 +175,12 @@ class SessionRepository(private val notifications: Notifications, internal val c
     suspend fun resume(sessionId: SessionId) = call { it.call(Api.ResumeExecution, ExecutionRef(sessionId.value)) }
 
     suspend fun close(sessionId: SessionId) = call { it.call(Api.CloseExecution, ExecutionRef(sessionId.value)) }
+
+    /** The Server's connected password managers, for answering `request_secret` with a reference. */
+    suspend fun secretProviders() = call { it.call(Api.SecretProviders, Unit) }.filter { it.connected }
+
+    /** Names under [path] (scheme first, then vault and item); never values. */
+    suspend fun browseSecrets(path: List<String>) = call { it.call(Api.BrowseSecrets, BrowseSecretsParams(path.first(), path.drop(1))) }
 
     /** Answers the pending request [requestId]; false when another Device answered first or it is gone. */
     suspend fun respond(sessionId: SessionId, requestId: InteractionId, answer: InteractionAnswer): Boolean =
