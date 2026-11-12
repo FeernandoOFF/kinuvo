@@ -17,6 +17,7 @@ modules:
   - harness/builtin
   - harness/remote
   - plugins/anytype
+  - plugins/apple-frameworks
   - plugins/bitwarden
   - plugins/browser
   - plugins/caldav
@@ -28,7 +29,6 @@ modules:
   - plugins/ntfy
   - plugins/onepassword
   - plugins/protonpass
-  - plugins/reminders
   - plugins/todoist
   - plugins/voice
   - protocol

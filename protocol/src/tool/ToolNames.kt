@@ -50,12 +50,14 @@ object ToolNames {
     const val FIND_TOOLS = "find_tools"
     const val DESCRIBE_TOOL = "describe_tool"
     const val CALL_TOOL = "call_tool"
+    const val REMINDERS = "reminders"
+    const val CALENDAR = "calendar"
 
     /** The built-in tools an Agent's `tools:` can turn on. */
-    val OPTIONAL = listOf(AGENT_MANAGE, MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, RUN_CODE, COMPUTER, "browser")
+    val OPTIONAL = listOf(AGENT_MANAGE, MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, RUN_CODE, COMPUTER, "browser", REMINDERS, CALENDAR)
     val DEFAULT = OPTIONAL
     /** Groups a plugin provides, offered only where one is installed. */
-    val FROM_PLUGINS = setOf(RUN_CODE, "browser")
+    val FROM_PLUGINS = setOf(RUN_CODE, "browser", REMINDERS, CALENDAR)
 }
 
 /** What a tool is for, so a model's profile and a run's tool scope can allow it by kind. */

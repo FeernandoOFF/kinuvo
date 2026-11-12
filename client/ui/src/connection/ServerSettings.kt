@@ -92,7 +92,7 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
         "the days below, or right away when it has no date. Write @agent in a task to assign it."
     val dirty = form != initialForm || uses != initialUses || defaultList != s.defaultList || startBefore.value() != s.startBeforeDays.toString() || poll.value() != s.pollMinutes.toString()
     DetailPane(p.back, "Tasks", error = p.ui.error, info = info, trailing = { FormActions("Save", ready, p.ui.state.saved, onSave = save, dirty = dirty) }) {
-        val reminders = "On the Server, install with brew install steipete/tap/remindctl. Request access below; macOS may ask you to allow the app that launched the Server."
+        val reminders = "Reads and changes your Reminders on the Server's device. Request access below; the system asks you to allow Kinuvo."
         RowGroup {
             PickerRow("Task app", setup.providers.map { it.id }, provider, { id -> setup.providers.firstOrNull { it.id == id }?.name ?: id }, { form = form.select(it) }, Lucide.SquareKanban)
             if (provider == "reminders") ActionRow(if (p.ui.state.testing) "Checking access…" else "Request access", Lucide.ShieldCheck,

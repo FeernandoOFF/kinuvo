@@ -19,7 +19,7 @@ dependencies:
   - ../../plugins/ntfy
   - ../../plugins/onepassword
   - ../../plugins/protonpass
-  - ../../plugins/reminders
+  - ../../plugins/apple-frameworks
   - ../../plugins/todoist
   - ../../providers/apple
   - ../../providers/codex
