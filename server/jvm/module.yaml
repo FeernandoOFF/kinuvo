@@ -39,6 +39,10 @@ test-dependencies:
   - app.cash.turbine:turbine:1.2.1
 
 settings:
+  jvm:
+    test:
+      systemProperties:
+        java.io.tmpdir: ../../build
   kotlin:
     compileIncrementally: true
     serialization: json

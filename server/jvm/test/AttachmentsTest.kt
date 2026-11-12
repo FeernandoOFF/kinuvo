@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.testing.harness.*
 import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
@@ -12,7 +13,6 @@ import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -21,9 +21,14 @@ import kotlin.io.encoding.Base64
 import kotlin.test.*
 
 class AttachmentsTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun sendsAttachmentOnlyAndReplaysAfterRestart() = runBlocking {
-        val home = Files.createTempDirectory("attachment-server").toFile()
+        val home = temporaryDirectories.create("attachment-server").toFile()
         val seen = CompletableDeferred<Message.User>()
         val harness = Harness(Path(home.path), modelFactory = { scriptedModel { prompt, _ ->
             val history = prompt.messages

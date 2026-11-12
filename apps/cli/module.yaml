@@ -20,6 +20,10 @@ test-dependencies:
 
 settings:
   jvm:
+    test:
+      systemProperties:
+        java.io.tmpdir: ../../build
+  jvm:
     mainClass: kinuvo.cli.MainKt
   kotlin:
     compileIncrementally: true

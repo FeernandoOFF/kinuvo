@@ -1,12 +1,13 @@
 package kinuvo.plugins.exec
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
 import kinuvo.server.plugin.PluginStorage
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -15,9 +16,14 @@ import kotlin.test.assertTrue
 import kinuvo.protocol.agent.AgentId
 
 class ExecCheckTest {
-    private val files = TestStorage(Path(Files.createTempDirectory("harness-test").toFile().path))
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val files = TestStorage(Path(temporaryDirectories.create("harness-test").toFile().path))
     private val check = assertNotNull(ExecPlugin(files).execCheck)
-    private val root = Files.createTempDirectory("ws").toFile().canonicalFile
+    private val root = temporaryDirectories.create("ws").toFile().canonicalFile
 
     @Test
     fun listsTheWorkspaceAndRunsTheCommand() = runTest {

@@ -2,6 +2,8 @@
 
 package kinuvo.harness.acp
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import com.agentclientprotocol.client.v2.ElicitationHandler
 import com.agentclientprotocol.model.v2.CreateElicitationRequest
 import com.agentclientprotocol.model.v2.CreateElicitationResponse
@@ -14,8 +16,13 @@ import java.nio.file.Files
 import kotlin.test.Test
 
 class AcpProcessTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun probeDeadlineReturnsReadinessAndReapsUnresponsiveProcess() = runBlocking {
-        val dir = Files.createTempDirectory("kinuvo-acp-timeout")
+        val dir = temporaryDirectories.create("kinuvo-acp-timeout")
         val script = dir.resolve("agent.py")
         val pid = dir.resolve("pid")
         Files.writeString(script, """
@@ -40,7 +47,7 @@ class AcpProcessTest {
     }
 
     @Test fun sdkNegotiatesV2OverProcessAndReportsExit() = runBlocking {
-        val dir = Files.createTempDirectory("kinuvo-acp-mock")
+        val dir = temporaryDirectories.create("kinuvo-acp-mock")
         val script = dir.resolve("agent.py")
         Files.writeString(script, """
             import sys, json, os

@@ -1,16 +1,21 @@
 package kinuvo.harness.acp
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.harness.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.*
-import java.nio.file.Files
 import kotlin.test.*
 
 class AcpCancellationTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun cancellationFollowsPromptDispatchWithoutWaitingForAcceptance() = runBlocking {
-        val dir = Files.createTempDirectory("kinuvo-acp-cancel").toFile()
+        val dir = temporaryDirectories.create("kinuvo-acp-cancel").toFile()
         val script = dir.resolve("agent.py")
         val trace = dir.resolve("requests.txt")
         script.writeText("""

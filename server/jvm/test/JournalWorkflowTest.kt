@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.testing.harness.*
 import ai.koog.prompt.message.Message
 
@@ -16,13 +17,17 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.*
-import java.nio.file.Files
 import kotlin.test.*
 
 class JournalWorkflowTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun routineAsksQuestionsThenReadsWorkoutsBeforeWritingTheJournal() = runBlocking {
-        val home = Files.createTempDirectory("journal-workflow").toFile()
+        val home = temporaryDirectories.create("journal-workflow").toFile()
         val model = scriptedModel { prompt, tools ->
             val history = prompt.messages
             val instructions = history.filterIsInstance<Message.System>().last().textContent()
@@ -74,7 +79,7 @@ class JournalWorkflowTest {
 
     @Test
     fun refreshingTheGeneratedBlockPreservesUserWritingAndCanBeUndone() = runBlocking {
-        val home = Files.createTempDirectory("journal-refresh").toFile()
+        val home = temporaryDirectories.create("journal-refresh").toFile()
         val harness = Harness(home = Path(home.path), modelFactory = { scriptedModel { _, _ -> emptyFlow() } })
         try {
             val old = "<!-- kinuvo-journal:start -->\nSample workout: 30 min\n<!-- kinuvo-journal:end -->"

@@ -14,13 +14,12 @@ class ModuleEdgesTest {
     /** A module matching [from] may depend on modules matching [to]; test-dependencies may also reach [testTo]. A pattern ending in a slash and star matches every module under that directory. */
     private class Rule(val from: String, val to: List<String>, val testTo: List<String> = emptyList())
 
-    private val hostTo = listOf("server/*", "harness/*", "providers/*", "plugins/*", "gateways/*", "models", "protocol")
+    private val hostTo = listOf("server/*", "harness/*", "providers/*", "plugins/*", "gateways/*", "protocol")
     private val harnessTests = listOf("testing/*")
     private val serverTests = listOf("testing/*", "client/*", "protocol")
 
     private val rules = listOf(
         Rule("protocol", emptyList(), harnessTests),
-        Rule("models", listOf("protocol"), harnessTests),
         Rule("client/*", listOf("protocol", "client/*"), harnessTests),
         Rule("harness/api", listOf("protocol"), harnessTests),
         Rule("harness/builtin", listOf("harness/api", "protocol"), harnessTests),
@@ -29,8 +28,8 @@ class ModuleEdgesTest {
         Rule("server/plugin-api", listOf("harness/api", "protocol"), serverTests),
         Rule("server/core", listOf("server/plugin-api", "harness/api", "protocol"), serverTests + "server/rpc"),
         Rule("server/rpc", listOf("server/core", "server/plugin-api", "harness/api", "protocol"), serverTests),
-        Rule("providers/*", listOf("harness/builtin", "harness/api", "server/plugin-api", "models", "protocol"), serverTests),
-        Rule("plugins/*", listOf("server/plugin-api", "models", "protocol"), serverTests),
+        Rule("providers/*", listOf("harness/builtin", "harness/api", "server/plugin-api", "protocol"), serverTests),
+        Rule("plugins/*", listOf("server/plugin-api", "protocol"), serverTests),
         Rule("gateways/kinuvo-mcp", listOf("server/core", "harness/api", "protocol"), serverTests + "harness/acp"),
         Rule("gateways/*", listOf("client/sdk", "harness/api", "protocol"), serverTests),
         Rule("server/jvm", hostTo, serverTests),

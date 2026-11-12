@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.testing.harness.*
 
 import ai.koog.prompt.streaming.StreamFrame
@@ -35,7 +37,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
@@ -43,7 +44,12 @@ import kinuvo.server.Notifications
 import kinuvo.server.providers.ModelProviders
 
 class NotificationsTest {
-    private val home = Files.createTempDirectory("harness-notify").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val home = temporaryDirectories.create("harness-notify").toFile()
     private val sent = Channel<Notification>(Channel.UNLIMITED)
     private val provider = object : NotificationProvider {
         override val id = "test"

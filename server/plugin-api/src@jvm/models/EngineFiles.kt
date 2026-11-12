@@ -1,4 +1,4 @@
-package kinuvo.models
+package kinuvo.server.plugin.models
 
 import kinuvo.protocol.voice.ModelFile
 import kotlinx.coroutines.CancellationException

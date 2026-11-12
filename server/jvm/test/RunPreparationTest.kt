@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.harness.builtin.NativeExecutionFactory
 import kinuvo.harness.builtin.plugin.ModelSource
 import kinuvo.harness.ToolSpec
@@ -36,11 +37,15 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.JsonObject
-import java.nio.file.Files
 import kotlin.test.*
 import kinuvo.server.providers.ModelProvider
 
 class RunPreparationTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun attachmentCapabilitiesCombineModalitiesAndEndpointFormats() = runBlocking {
         val provider = object : TestModelProvider {
@@ -63,7 +68,7 @@ class RunPreparationTest {
             assertTrue(ATTACHMENT_MIME_TYPES.none { withoutAttachments.attachment(it).actionable })
         } finally { harness.close() }
     }
-    private val home = Files.createTempDirectory("run-preparation").toFile()
+    private val home = temporaryDirectories.create("run-preparation").toFile()
     private val seen = mutableListOf<List<String>>()
     private var modelsBuilt = 0
     private val provider = object : TestModelProvider {

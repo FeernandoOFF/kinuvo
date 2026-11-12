@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.providers.codex.*
 
 import kinuvo.protocol.session.AgentEvent
@@ -7,17 +9,21 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class CodexExecLiveTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun writesAndRunsInHostWorkspace() = runBlocking {
         if (System.getenv("KINUVO_LIVE") != "1") return@runBlocking
-        val home = Files.createTempDirectory("harness-live-exec").toFile()
-        val ws = Files.createTempDirectory("harness-ws").toFile().canonicalFile
+        val home = temporaryDirectories.create("harness-live-exec").toFile()
+        val ws = temporaryDirectories.create("harness-ws").toFile().canonicalFile
         val harness = Harness(Path(home.path))
         val agent = harness.store.agents().single().let {
             it.copy(config = it.config.copy(reasoning = "low", exec = "host", workspace = listOf(ws.path), approvals = "full"))

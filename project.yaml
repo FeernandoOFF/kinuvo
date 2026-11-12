@@ -5,7 +5,6 @@ modules:
   - apps/cli
   - apps/desktop
   - apps/ios
-  - apps/ios-embedded
   - apps/web
   - client/app
   - client/sdk
@@ -17,7 +16,6 @@ modules:
   - harness/api
   - harness/builtin
   - harness/remote
-  - models
   - plugins/anytype
   - plugins/bitwarden
   - plugins/browser

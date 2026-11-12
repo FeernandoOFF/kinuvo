@@ -1,5 +1,7 @@
 package kinuvo.providers.codex
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -8,7 +10,6 @@ import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.*
 import java.io.File
-import java.nio.file.Files
 import java.util.Base64
 import kinuvo.server.plugin.PrivateFile
 import kotlinx.io.files.Path
@@ -22,7 +23,12 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 
 class CodexAuthTest {
-    private val file = File(Files.createTempDirectory("codex").toFile(), "auth.json")
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val file = File(temporaryDirectories.create("codex").toFile(), "auth.json")
     private val requests = mutableListOf<JsonObject>()
 
     private fun jwt(expiresIn: Duration): String {

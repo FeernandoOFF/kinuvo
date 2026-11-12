@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kinuvo.testing.harness.awaitValue
@@ -13,13 +14,17 @@ import kinuvo.protocol.device.*
 import kinuvo.protocol.voice.*
 import kotlinx.coroutines.*
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.*
 
 class ServerVoiceTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun realServerDownloadsCancelsAndRunsNativeInference(): Unit = runBlocking {
         if (System.getenv("KINUVO_TEST_SERVER_VOICE_INFERENCE") != "1") return@runBlocking
-        val home = Files.createTempDirectory("server-voice-inference").toFile()
+        val home = temporaryDirectories.create("server-voice-inference").toFile()
         val jar = System.getenv("KINUVO_TEST_VOICE_JAR")
         val server = if (jar == null) HarnessServer(Harness(Path(home.path))) else null
         val process = jar?.let { ProcessBuilder(java.io.File(System.getProperty("java.home"), "bin/java").path, "-jar", it, "serve", "--host", "127.0.0.1", "--port", "0")
@@ -72,7 +77,7 @@ class ServerVoiceTest {
     }
 
     @Test fun serverOwnsSettingsAndOrdinaryDevicesOnlyGetInference() = runBlocking {
-        val home = Files.createTempDirectory("server-voice-test").toFile()
+        val home = temporaryDirectories.create("server-voice-test").toFile()
         val server = HarnessServer(Harness(Path(home.path), codexAuth = CodexAuth(PrivateFile(Path(home.path, "codex-auth.json")))))
         val port = server.start("127.0.0.1", 0, schedule = false)
         val address = "ws://127.0.0.1:$port/ws"

@@ -1,5 +1,7 @@
 package kinuvo.plugins.exec
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kotlinx.coroutines.withTimeout
 import kinuvo.protocol.session.SessionEntry
 import kinuvo.server.tools.ToolService
@@ -12,13 +14,17 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertTrue
 import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.session.ToolCallId
 
 class BackgroundProcessTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun watchTimeoutKeepsOutput() = runBlocking {
         val executor = ToolService(listOf(ShellTool(backend)))
         try {
@@ -54,7 +60,7 @@ class BackgroundProcessTest {
         } finally { backend.close() }
     }
 
-    private val root = Files.createTempDirectory("bg").toFile()
+    private val root = temporaryDirectories.create("bg").toFile()
     private val backend = HostBackend(listOf(root))
     private val tools = execTools(backend).associateBy { it.descriptor.name }
     private suspend fun call(tool: String, vararg pairs: Pair<String, Any>) = tools.getValue(tool).execute(buildJsonObject {

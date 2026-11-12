@@ -27,6 +27,10 @@ dependencies@ios:
   - io.ktor:ktor-client-darwin:3.6.0
 
 settings:
+  jvm:
+    test:
+      systemProperties:
+        java.io.tmpdir: ../../build
   kotlin:
     compileIncrementally: true
     serialization: json

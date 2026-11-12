@@ -1,15 +1,21 @@
 package kinuvo.ui
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 
 class FilePreferencesTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun keepsEveryKeyInOneFile() {
-        val dir = File(Files.createTempDirectory("desktop").toFile(), "nested")
+        val dir = File(temporaryDirectories.create("desktop").toFile(), "nested")
         val prefs = FilePreferences(dir)
         assertNull(prefs["view"])
         prefs["view"] = "{}"

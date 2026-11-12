@@ -8,7 +8,7 @@ import kinuvo.server.plugin.Transcriber
 import kinuvo.server.plugin.VoiceProviders
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.writeAtomically
-import kinuvo.models.voiceEngine
+import kinuvo.server.plugin.models.voiceEngine
 import kinuvo.protocol.*
 import kinuvo.protocol.plugin.*
 import kinuvo.protocol.voice.*

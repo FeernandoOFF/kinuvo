@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.server.plugin.SecretProvider
 import kinuvo.server.plugin.StoredProviderKey
@@ -18,7 +19,12 @@ import kotlinx.serialization.encodeToString
 import kotlin.test.*
 
 class StoredProviderKeyTest {
-    private val home = Files.createTempDirectory("openai-key").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val home = temporaryDirectories.create("openai-key").toFile()
     private val files = AgentFiles(Path(home.path))
     private val keyFile = Path(files.home, "credentials", "openai-key")
     private val refFile = Path(files.home, "credentials", "openai-reference")

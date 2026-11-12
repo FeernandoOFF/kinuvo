@@ -2,6 +2,7 @@
 
 package kinuvo.harness.acp
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.harness.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
@@ -13,8 +14,13 @@ import java.nio.file.Files
 import kotlin.test.*
 
 class AcpCoordinatorTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun noReplayResumeBuffersPreResponseUpdatesRequestsAndRealAcceptance() = runBlocking {
-        val dir = Files.createTempDirectory("kinuvo-acp-adapter")
+        val dir = temporaryDirectories.create("kinuvo-acp-adapter")
         val script = dir.resolve("mock.py")
         Files.writeString(script, """
             import sys,json

@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.rpc.serverRoutes
 import kinuvo.server.devices.*
 import io.ktor.client.HttpClient
@@ -23,7 +24,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.*
 import kinuvo.server.ConnectionSecurity
 import kinuvo.server.DeviceAuth
@@ -39,9 +39,14 @@ private suspend fun DefaultClientWebSocketSession.awaitClosed() = withTimeout(5_
 }
 
 class ServerSecurityTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun rotationDoesNotExposeAnInvalidCredentialToConcurrentValidation() = runBlocking {
-        val home = Files.createTempDirectory("rotation-security")
+        val home = temporaryDirectories.create("rotation-security")
         val auth = DeviceAuth(home.resolve("devices.json").toFile())
         val token = assertNotNull(auth.authenticate("owner", null, auth.currentPairingCode()))
         val invalidated = CompletableDeferred<String>()
@@ -84,7 +89,7 @@ class ServerSecurityTest {
 
     @Test
     fun publicHostingRequiresLoopbackAndAFixedAvailablePort() = runBlocking {
-        fun server() = HarnessServer(Harness(Path(Files.createTempDirectory("public-security").toString())), network = NetworkSecurity("https://kinuvo.example.com"))
+        fun server() = HarnessServer(Harness(Path(temporaryDirectories.create("public-security").toString())), network = NetworkSecurity("https://kinuvo.example.com"))
         for ((host, port) in listOf("0.0.0.0" to 8787, "127.0.0.1" to 0)) {
             val server = server()
             try { assertFailsWith<IllegalArgumentException> { server.start(host, port, schedule = false) } }
@@ -100,7 +105,7 @@ class ServerSecurityTest {
 
     @Test
     fun ordinaryDevicesCannotManagePairingConfigurationOrApprovals() = runBlocking {
-        val server = HarnessServer(Harness(Path(Files.createTempDirectory("server-security").toString())))
+        val server = HarnessServer(Harness(Path(temporaryDirectories.create("server-security").toString())))
         val port = server.start("127.0.0.1", 0, schedule = false)
         val owner = KinuvoClient("ws://127.0.0.1:$port/ws", "owner", token = server.auth.sessionToken())
         var ordinary: KinuvoClient? = null
@@ -121,7 +126,7 @@ class ServerSecurityTest {
 
     @Test
     fun ordinaryDevicesAnswerQuestionsButNeverDecideApprovals() = runBlocking {
-        val harness = Harness(Path(Files.createTempDirectory("approval-security").toString()))
+        val harness = Harness(Path(temporaryDirectories.create("approval-security").toString()))
         val server = HarnessServer(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)
         val owner = KinuvoClient("ws://127.0.0.1:$port/ws", "owner", token = server.auth.sessionToken())
@@ -149,7 +154,7 @@ class ServerSecurityTest {
 
     @Test
     fun unauthenticatedConnectionsTimeOutAndAuthenticationFailuresClose() = runBlocking {
-        val server = HarnessServer(Harness(Path(Files.createTempDirectory("ws-security").toString())), security = ConnectionSecurity(authenticationTimeoutMillis = 200))
+        val server = HarnessServer(Harness(Path(temporaryDirectories.create("ws-security").toString())), security = ConnectionSecurity(authenticationTimeoutMillis = 200))
         val port = server.start("127.0.0.1", 0, schedule = false)
         val http = HttpClient { install(WebSockets) }
         try {
@@ -167,7 +172,7 @@ class ServerSecurityTest {
 
     @Test
     fun queuedConnectCannotRetryAfterFailureAndOversizedPreauthFramesClose() = runBlocking {
-        val server = HarnessServer(Harness(Path(Files.createTempDirectory("preauth-security").toString())))
+        val server = HarnessServer(Harness(Path(temporaryDirectories.create("preauth-security").toString())))
         val port = server.start("127.0.0.1", 0, schedule = false)
         val http = HttpClient { install(WebSockets) }
         try {
@@ -190,7 +195,7 @@ class ServerSecurityTest {
 
     @Test
     fun authenticatedMessageFloodClosesTheSocket() = runBlocking {
-        val server = HarnessServer(Harness(Path(Files.createTempDirectory("message-security").toString())), security = ConnectionSecurity(messagesPerMinute = 2))
+        val server = HarnessServer(Harness(Path(temporaryDirectories.create("message-security").toString())), security = ConnectionSecurity(messagesPerMinute = 2))
         val port = server.start("127.0.0.1", 0, schedule = false)
         val http = HttpClient { install(WebSockets) }
         try {
@@ -208,7 +213,7 @@ class ServerSecurityTest {
 
     @Test
     fun browserCredentialsPersistRotateAndStayInSecureCookies() = runBlocking {
-        val home = Files.createTempDirectory("browser-security")
+        val home = temporaryDirectories.create("browser-security")
         fun newServer() = HarnessServer(Harness(Path(home.toString())), network = NetworkSecurity("https://kinuvo.example.com"))
         var server = newServer()
         val available = java.net.ServerSocket(0).use { it.localPort }

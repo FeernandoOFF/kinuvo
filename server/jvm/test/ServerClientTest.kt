@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import app.cash.turbine.ReceiveTurbine
 import app.cash.turbine.testIn
 import app.cash.turbine.turbineScope
@@ -83,7 +85,12 @@ private suspend fun KinuvoClient.catchUp(sessionId: SessionId, after: Int? = 0, 
 }
 
 class ServerClientTest {
-    private val home = Files.createTempDirectory("harness-server").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val home = temporaryDirectories.create("harness-server").toFile()
 
     /** First turn: call skill_manage (needs an Approval); after the tool result: answer "done". */
     private val model = scriptedModel { prompt, _ ->

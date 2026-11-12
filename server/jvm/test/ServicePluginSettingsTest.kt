@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.server.Secrets
 import kinuvo.server.store.*
@@ -21,11 +22,15 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.*
 import kinuvo.server.ServerInstallation
 
 class ServicePluginSettingsTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun nativeNotificationsUseHostBoundConfigurationWithoutEagerResolution() = runBlocking {
         val received = CompletableDeferred<Pair<String?, String>>()
         val http = embeddedServer(CIO, host = "127.0.0.1", port = 0) {
@@ -34,7 +39,7 @@ class ServicePluginSettingsTest {
                 call.respondText("{}")
             } }
         }.start(wait = false)
-        val home = Files.createTempDirectory("plugin-host-notifications").toFile()
+        val home = temporaryDirectories.create("plugin-host-notifications").toFile()
         val files = AgentFiles(Path(home.path))
         val installation = ServerInstallation.assemble(files, plugins = listOf(NtfyPlugin()))
         try {
@@ -57,7 +62,7 @@ class ServicePluginSettingsTest {
     }
 
     @Test fun firstPartySettingsKeepTopicsVisibleAndDefaultsImplicit() = runTest {
-        val home = Files.createTempDirectory("service-plugin-settings").toFile()
+        val home = temporaryDirectories.create("service-plugin-settings").toFile()
         val files = AgentFiles(Path(home.path))
         val secrets = Secrets()
         val installation = ServerInstallation.assemble(files, plugins = listOf(NtfyPlugin(), FirecrawlPlugin()), secrets = secrets)

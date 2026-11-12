@@ -17,6 +17,7 @@ import kinuvo.server.ServerRuntime
 import kinuvo.server.execution.ExecutionRegistry
 import kinuvo.server.execution.MemoryExecutionRecovery
 import kinuvo.server.execution.RemoteLinks
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.testing.harness.ModelScript
 import kinuvo.protocol.agent.AgentRef
 import kinuvo.protocol.Api
@@ -45,7 +46,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.io.files.Path
 import java.io.File
-import java.nio.file.Files
 
 /**
  * The real [ServerRuntime] on a temporary home, with a [ModelScript] for a model and no platform plugins. Clients reach it
@@ -59,7 +59,7 @@ class TestServer private constructor(
     val script: ModelScript,
     val harnesses: List<FakeHarness>,
     val prompts: PromptLog,
-    private val temporary: Boolean,
+    private val temporary: TemporaryDirectories,
 ) : AutoCloseable {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val clients = mutableListOf<KinuvoClient>()
@@ -133,7 +133,7 @@ class TestServer private constructor(
         listener?.stop()
         runtime.close()
         scope.cancel()
-        if (temporary) File(home.toString()).deleteRecursively()
+        temporary.close()
     }
 
     override fun close() = runBlocking { stop() }
@@ -154,7 +154,8 @@ class TestServer private constructor(
             executionFactory: ((HarnessRuntime) -> ExecutionFactory)? = null,
             scenario: suspend Scenario.() -> Unit = {},
         ): TestServer {
-            val directory = home ?: Path(Files.createTempDirectory("kinuvo-test-server").toString())
+            val temporary = TemporaryDirectories()
+            val directory = home ?: Path(temporary.create("kinuvo-test-server").toString())
             val files = AgentFiles(directory)
             files.saveKnowledgeConfig(files.knowledgeConfig().copy(reflection = false))
             val modelScript = ModelScript().apply(script)
@@ -174,9 +175,10 @@ class TestServer private constructor(
                 withContext(Dispatchers.Default) {
                     withTimeout(5_000) { while (registry.catalog().connections.any { it.readiness.reasonCode == "checking" }) delay(10) }
                 }
-                return TestServer(directory, harness, runtime, auth, modelScript, harnesses, prompts, temporary = home == null)
+                return TestServer(directory, harness, runtime, auth, modelScript, harnesses, prompts, temporary = temporary)
             } catch (e: Throwable) {
                 try { harness.close() } catch (cleanup: Throwable) { e.addSuppressed(cleanup) }
+                try { temporary.close() } catch (cleanup: Throwable) { e.addSuppressed(cleanup) }
                 throw e
             }
         }

@@ -1,10 +1,11 @@
 package kinuvo.plugins.onepassword
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.plugin.Keychain
 import kinuvo.protocol.secret.SecretEntry
 import kotlinx.coroutines.test.runTest
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -13,7 +14,12 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class OnePasswordTest {
-    private val dir = Files.createTempDirectory("onepassword").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val dir = temporaryDirectories.create("onepassword").toFile()
     private val keychain = FakeKeychain()
 
     /** A stand-in for op: token `ops_good` signs in; arguments are logged to check the token never is one. */

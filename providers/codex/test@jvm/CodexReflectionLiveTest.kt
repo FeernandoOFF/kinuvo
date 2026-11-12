@@ -1,5 +1,7 @@
 package kinuvo.providers.codex
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.AgentDoc
@@ -27,7 +29,6 @@ import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertIs
 import kotlin.test.assertNull
@@ -35,10 +36,15 @@ import kotlin.test.assertTrue
 import kotlin.time.TimeSource
 
 class CodexReflectionLiveTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun comparesChatAndSmallReflectionModels() = runBlocking {
         if (System.getenv("KINUVO_LIVE") != "1") return@runBlocking
-        val root = Path(Files.createTempDirectory("kinuvo-reflection-benchmark").toString())
+        val root = Path(temporaryDirectories.create("kinuvo-reflection-benchmark").toString())
         val provider = CodexProvider()
         try {
             val catalog = provider.models()

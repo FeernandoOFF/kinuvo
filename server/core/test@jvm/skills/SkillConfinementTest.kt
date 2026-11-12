@@ -1,5 +1,7 @@
 package kinuvo.server.skills
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.TestHome
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.protocol.agent.ConfigScope
@@ -12,10 +14,15 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 
 class SkillConfinementTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun symlinksCantLeadOutOfASkill() = runTest {
         val home = TestHome()
-        val outside = Files.createTempDirectory("outside").also { Files.writeString(it.resolve("secret"), "s") }
+        val outside = temporaryDirectories.create("outside").also { Files.writeString(it.resolve("secret"), "s") }
         val dir = Path(home.files.skills(home.agent.id), "notes")
         writeAtomically(Path(dir, "SKILL.md"), "---\nname: notes\ndescription: x\n---\n")
         Files.createSymbolicLink(Paths.get(Path(dir, "refs").toString()), outside)

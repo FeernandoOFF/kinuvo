@@ -1,8 +1,9 @@
 package kinuvo.plugins.exec
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kotlinx.coroutines.runBlocking
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -10,6 +11,11 @@ import kotlin.time.Duration.Companion.seconds
 import kinuvo.protocol.agent.AgentId
 
 class ContainerBackendTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun mountPointsAreUnique() {
         assertEquals(
@@ -22,7 +28,7 @@ class ContainerBackendTest {
     @Test
     fun runsInIsolatedContainerWithWorkspaceMounted() {
         if (System.getenv("KINUVO_CONTAINER") != "1") return
-        val ws = Files.createTempDirectory("harness-cws").toFile().canonicalFile
+        val ws = temporaryDirectories.create("harness-cws").toFile().canonicalFile
         File(ws, "host.txt").writeText("from host")
         val id = "test-${System.nanoTime()}"
         val backend = ContainerBackend(AgentId(id), listOf(ws), "docker.io/library/debian:stable-slim", network = false, env = mapOf("GREETING" to "hola"))

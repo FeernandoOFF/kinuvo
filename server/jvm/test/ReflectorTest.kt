@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.reflection.*
 import kinuvo.testing.harness.*
 import ai.koog.prompt.message.Message
@@ -22,7 +24,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.io.files.Path
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -30,7 +31,12 @@ import kinuvo.server.SessionLog
 import kinuvo.server.providers.ModelProviders
 
 class ReflectorTest {
-    private val home = Files.createTempDirectory("harness-reflector").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val home = temporaryDirectories.create("harness-reflector").toFile()
     private var reflections = 0
     private val instructionsSeen = mutableListOf<String>()
     private val toolDescriptions = mutableListOf<String>()

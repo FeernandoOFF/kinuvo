@@ -1,5 +1,7 @@
 package kinuvo.plugins.exec
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.ApprovalPolicy
 import kinuvo.server.Verdict
 import kinuvo.server.store.AgentFiles
@@ -8,7 +10,6 @@ import kinuvo.server.store.FileStore
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import java.io.File
-import java.nio.file.Files
 import kinuvo.server.plugin.ownedBy
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,9 +17,14 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class ShellApprovalsTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun alwaysAllowSavesCommandKeys(): Unit = runBlocking {
-        val files = AgentFiles(Path(Files.createTempDirectory("harness-test").toFile().path))
+        val files = AgentFiles(Path(temporaryDirectories.create("harness-test").toFile().path))
         val store = FileStore(files)
         val base = store.agents().single()
         val policy = ApprovalPolicy(base, FileTrustRules(files))

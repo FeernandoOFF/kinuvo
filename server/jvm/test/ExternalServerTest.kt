@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kotlin.time.Duration.Companion.seconds
 import kinuvo.testing.harness.awaitValue
 import kinuvo.testing.harness.awaitCondition
@@ -13,12 +14,16 @@ import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.*
 
 class ExternalServerTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun outputImageUsesProductionStorageAndSurvivesRestart() = runBlocking {
-        val dir = Files.createTempDirectory("kinuvo-acp-media").toFile()
+        val dir = temporaryDirectories.create("kinuvo-acp-media").toFile()
         val script = dir.resolve("media.py")
         val image = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jP1sAAAAASUVORK5CYII="
         script.writeText("""
@@ -57,7 +62,7 @@ class ExternalServerTest {
     }
 
     @Test fun externalSessionSurvivesClientReconnectAndCatalogSurvivesRestart() = runBlocking {
-        val dir = Files.createTempDirectory("kinuvo-external-server").toFile()
+        val dir = temporaryDirectories.create("kinuvo-external-server").toFile()
         val script = dir.resolve("agent.py")
         script.writeText("""
             import sys,json

@@ -1,15 +1,20 @@
-package kinuvo.models
+package kinuvo.server.plugin.models
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.protocol.voice.ModelFile
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import java.security.MessageDigest
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.*
 
 class EngineFilesTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun downloadsAndVerifiesEngines() = runBlocking {
         val home = System.getenv("KINUVO_TEST_ENGINE_HOME")?.let(::File) ?: return@runBlocking
         for (engine in listOf(liteRtEngine(home), voiceEngine(home))) {
@@ -23,7 +28,7 @@ class EngineFilesTest {
     }
 
     @Test fun concurrentSetupReusesVerifiedPayloadAndDetectsDamage() = runBlocking {
-        val home = Files.createTempDirectory("engine-receipt").toFile()
+        val home = temporaryDirectories.create("engine-receipt").toFile()
         try {
             val bytes = "engine payload".toByteArray()
             val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
@@ -38,7 +43,7 @@ class EngineFilesTest {
     }
 
     @Test fun missingEngineFailsClearlyOffline() = runBlocking {
-        val home = Files.createTempDirectory("engine-offline").toFile()
+        val home = temporaryDirectories.create("engine-offline").toFile()
         try {
             val engine = EngineFiles(home, ModelDownload("offline-1", listOf(ModelFile("native", "https://127.0.0.1:1/native", 1, "invalid"))))
             val failure = assertFailsWith<IllegalStateException> { engine.ensure() }

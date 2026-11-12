@@ -1,11 +1,12 @@
 package kinuvo.plugins.mcp
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.plugin.PluginStorage
 
 import kotlinx.serialization.json.*
 import kotlinx.io.files.Path
 import java.io.File
-import java.nio.file.Files
 import kinuvo.server.plugin.SecretResolver
 import kinuvo.server.plugin.modelAlias
 import kotlinx.coroutines.runBlocking
@@ -16,7 +17,12 @@ import kotlin.test.assertNotEquals
 import kinuvo.protocol.agent.AgentId
 
 class McpConfigTest {
-    private val dir = Files.createTempDirectory("mcp").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val dir = temporaryDirectories.create("mcp").toFile()
     private fun file(name: String, text: String) = File(dir, name).apply { writeText(text) }.let { Path(it.path) }
 
     @Test

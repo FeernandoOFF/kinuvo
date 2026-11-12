@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.providers.codex.*
 
 import kinuvo.protocol.session.AgentEvent
@@ -7,15 +9,19 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class CodexSkillsLiveTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun manualSkillChainsIntoModelSkill() = runBlocking {
         if (System.getenv("KINUVO_LIVE") != "1") return@runBlocking
-        val home = Files.createTempDirectory("harness-live-skills").toFile()
+        val home = temporaryDirectories.create("harness-live-skills").toFile()
         fun skill(name: String, text: String) = File(home, "skills/$name").apply { mkdirs() }.resolve("SKILL.md").writeText(text)
         skill("grill-me", "---\nname: grill-me\ndescription: Grill the user about a plan\ndisable-model-invocation: true\n---\n\nCall the Skill tool with \"grilling\".\n")
         skill("grilling", "---\nname: grilling\ndescription: Interview the user relentlessly about a plan\n---\n\nAsk exactly one numbered question per round, starting with 'Q1'.\n")

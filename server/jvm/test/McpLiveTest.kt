@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.plugins.mcp.*
 
 import kinuvo.protocol.session.AgentEvent
@@ -16,6 +18,11 @@ import kotlin.test.assertTrue
 
 /** Needs network + npx; spawns the reference `server-everything` MCP server over stdio. */
 class McpLiveTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     private val config = """{"mcpServers": {"everything": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-everything"]}}}"""
 
     @Test
@@ -38,7 +45,7 @@ class McpLiveTest {
     @Test
     fun codexUsesMcpTool() = runBlocking {
         if (System.getenv("KINUVO_LIVE") != "1") return@runBlocking
-        val home = Files.createTempDirectory("harness-live-mcp").toFile()
+        val home = temporaryDirectories.create("harness-live-mcp").toFile()
         File(home, "mcp.json").writeText(config.replace("\"args\"", "\"includeTools\": [\"echo\"], \"args\""))
         val harness = Harness(Path(home.path))
         val agent = harness.store.agents().single().let { it.copy(config = it.config.copy(reasoning = "low")) }

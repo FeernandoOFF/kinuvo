@@ -1,15 +1,20 @@
 package kinuvo.plugins.reminders
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.plugin.TaskChange
 import kotlinx.coroutines.test.runTest
 import kotlinx.datetime.LocalDate
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.*
 
 class RemindersCliTest {
-    private class Cli : AutoCloseable {
-        val root = Files.createTempDirectory("reminders-cli-test").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private inner class Cli : AutoCloseable {
+        val root = temporaryDirectories.create("reminders-cli-test").toFile()
         val response = File(root, "response")
         val args = File(root, "args")
         val code = File(root, "code").apply { writeText("0") }

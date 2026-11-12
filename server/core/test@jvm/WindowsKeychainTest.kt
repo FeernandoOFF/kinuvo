@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.plugin.Keychain
 import kinuvo.server.plugin.ProcessOutput
 import kotlinx.coroutines.test.runTest
@@ -11,9 +12,14 @@ import java.util.Base64
 import kotlin.test.*
 
 class WindowsKeychainTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun persistsOnlyCiphertextAndPassesTokensThroughStdin() = runTest {
-        val dir = Files.createTempDirectory("windows-keychain").toFile()
+        val dir = temporaryDirectories.create("windows-keychain").toFile()
         val file = dir.resolve("token.enc")
         val token = "a token with spaces and unicode: café 🔑"
         val encrypted = Base64.getEncoder().encodeToString("encrypted".toByteArray())
@@ -42,7 +48,7 @@ class WindowsKeychainTest {
 
     @Test
     fun protectionFailureDoesNotOverwriteTheSavedToken() = runTest {
-        val dir = Files.createTempDirectory("windows-keychain").toFile()
+        val dir = temporaryDirectories.create("windows-keychain").toFile()
         val file = dir.resolve("token.enc").apply { writeText("previous-ciphertext") }
         try {
             val store = WindowsKeychain(Path(file.path)) { _, _ -> ProcessOutput(1, "", "failed") }
@@ -54,7 +60,7 @@ class WindowsKeychainTest {
     @Test
     fun nativeWindowsStoreRoundTrip() = runTest {
         if (currentPlatform != Platform.Windows) return@runTest
-        val dir = Files.createTempDirectory("windows-keychain").toFile()
+        val dir = temporaryDirectories.create("windows-keychain").toFile()
         val file = dir.resolve("token.enc")
         val store = WindowsKeychain(Path(file.path))
         try {

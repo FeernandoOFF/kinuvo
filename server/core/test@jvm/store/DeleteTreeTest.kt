@@ -1,5 +1,7 @@
 package kinuvo.server.store
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.plugin.createDirectories
 import kinuvo.server.plugin.exists
 import kinuvo.server.plugin.writeAtomically
@@ -13,11 +15,16 @@ import kotlin.test.assertEquals
 import kinuvo.protocol.agent.AgentId
 
 class DeleteTreeTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun deletingAnAgentKeepsWhatItsSymlinksPointTo() = runTest {
         val home = TestHome()
         val agent = home.store.createAgent("work")
-        val shared = Files.createTempDirectory("shared-skill").also { Files.writeString(it.resolve("SKILL.md"), "keep") }
+        val shared = temporaryDirectories.create("shared-skill").also { Files.writeString(it.resolve("SKILL.md"), "keep") }
         home.files.skills(AgentId("work")).createDirectories()
         Files.createSymbolicLink(Paths.get(Path(home.files.skills(AgentId("work")), "linked").toString()), shared)
         home.store.deleteAgent(agent)

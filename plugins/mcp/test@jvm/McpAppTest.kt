@@ -1,5 +1,6 @@
 package kinuvo.plugins.mcp
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.harness.ToolSpec
 import kinuvo.server.plugin.ToolRun
 import kinuvo.protocol.session.SessionEntry
@@ -8,10 +9,14 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.*
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.*
 
 class McpAppTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     private val run = object : ToolRun {
         override val tools = emptyList<ToolSpec>()
         override suspend fun call(name: String, args: String) = SessionEntry.ToolResult(ToolCallId(name), name, "", isError = true)
@@ -19,7 +24,7 @@ class McpAppTest {
 
     @Test
     fun appToolsCarryTheirResourceAndAppOnlyToolsStayHiddenFromTheModel(): Unit = runBlocking {
-        val dir = Files.createTempDirectory("mcp-app").toFile()
+        val dir = temporaryDirectories.create("mcp-app").toFile()
         val script = File(dir, "server.py").apply { writeText(SERVER) }
         val cfg = File(dir, "mcp.json").apply {
             writeText("""{"mcpServers": {"weather": {"command": "python3", "args": ["${script.path}", "${File(dir, "init.json").path}"]}}}""")

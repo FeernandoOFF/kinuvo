@@ -1,5 +1,7 @@
 package kinuvo.server.knowledge
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.TestHome
 import kinuvo.server.store.FileKnowledgeChangeLog
 import kinuvo.server.store.MarkdownKnowledgeSource
@@ -14,11 +16,16 @@ import kotlin.test.assertTrue
 import kotlin.test.assertNull
 
 class KnowledgeConfinementTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun symlinkedFoldersCantLeadOutOfTheVault() = runTest {
         val home = TestHome()
         val root = Path(home.files.home, "vault")
-        val outside = Files.createTempDirectory("outside")
+        val outside = temporaryDirectories.create("outside")
         Files.createDirectories(Paths.get(root.toString()))
         Files.createSymbolicLink(Paths.get(root.toString(), "Projects"), outside)
         val source = MarkdownKnowledgeSource(root)
@@ -29,7 +36,7 @@ class KnowledgeConfinementTest {
 
     @Test
     fun searchesIgnoreEscapingFilesAndSymlinkCycles() = runTest {
-        val root = Files.createTempDirectory("vault")
+        val root = temporaryDirectories.create("vault")
         val outside = Files.createTempFile("outside", ".md")
         Files.writeString(outside, "Private text")
         Files.createSymbolicLink(root.resolve("Private.md"), outside)

@@ -1,5 +1,7 @@
 package kinuvo.cli
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import com.github.ajalt.clikt.command.parse
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.context
@@ -12,7 +14,6 @@ import kinuvo.providers.codex.CodexProvider
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -21,7 +22,12 @@ import kotlin.test.assertFalse
 import kinuvo.server.providers.ModelProviders
 
 class CliTest {
-    private val home = Files.createTempDirectory("harness-cli").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val home = temporaryDirectories.create("harness-cli").toFile()
 
     @Test
     fun managesTheServerFromTheCommandLine() = runBlocking {

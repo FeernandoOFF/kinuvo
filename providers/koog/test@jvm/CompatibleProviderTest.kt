@@ -1,5 +1,6 @@
 package kinuvo.providers.koog
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.harness.AgentConfig
 import kinuvo.server.plugin.ModelProviderConfig
 import kinuvo.server.plugin.PrivateFile
@@ -27,15 +28,19 @@ import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.*
-import java.nio.file.Files
 import kotlin.test.*
 
 class CompatibleProviderTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     private fun keys(files: AgentFiles) = ProviderKeys(files, Secrets())
 
     @Test
     fun compatibleEndpointRetainsPathAndModelIdsAndUsesChatCompletions() = runTest {
-        val home = Files.createTempDirectory("koog-provider").toFile()
+        val home = temporaryDirectories.create("koog-provider").toFile()
         val files = AgentFiles(Path(home.path))
         var token = "first-key"
         var sent: JsonObject? = null
@@ -81,7 +86,7 @@ class CompatibleProviderTest {
 
     @Test
     fun compatibleEndpointStreamsWithoutAuthentication() = runTest {
-        val home = Files.createTempDirectory("koog-stream").toFile()
+        val home = temporaryDirectories.create("koog-stream").toFile()
         val files = AgentFiles(Path(home.path))
         var sent: JsonObject? = null
         var authorization: String? = null
@@ -119,7 +124,7 @@ class CompatibleProviderTest {
 
     @Test
     fun endpointConfigurationRoundTripsAndSeparatesCustomProviders() = runTest {
-        val home = Files.createTempDirectory("koog-config").toFile()
+        val home = temporaryDirectories.create("koog-config").toFile()
         val files = AgentFiles(Path(home.path))
         val options = ModelProviderConfig(baseUrl = "http://localhost:1234/v1/", models = listOf(ModelInfo("local", tools = true, reasoning = emptyList())), apiKeyRequired = false)
         try {
@@ -137,7 +142,7 @@ class CompatibleProviderTest {
 
     @Test
     fun newEndpointsAreSavedAndAvailableWithoutRestart() = runTest {
-        val home = Files.createTempDirectory("koog-endpoint").toFile()
+        val home = temporaryDirectories.create("koog-endpoint").toFile()
         val files = AgentFiles(Path(home.path))
         val plugins = compatibleProviders(keys(files), files)
         try {

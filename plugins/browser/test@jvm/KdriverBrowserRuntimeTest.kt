@@ -1,8 +1,8 @@
 package kinuvo.plugins.browser
 
+import kinuvo.testing.harness.TemporaryDirectories
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
-import java.nio.file.Files
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.serialization.json.*
@@ -15,8 +15,13 @@ import kotlinx.coroutines.flow.collect
 import kotlin.test.*
 
 class KdriverBrowserRuntimeTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun hostShutdownPersistsTabsBeforeClosingChrome() = runBlocking {
-        val home = Files.createTempDirectory("kinuvo-shutdown-").toFile()
+        val home = temporaryDirectories.create("kinuvo-shutdown-").toFile()
         val process = ProcessBuilder(File(System.getProperty("java.home"), "bin/java").absolutePath,
             "-cp", System.getProperty("java.class.path"), BrowserShutdownFixture::class.java.name, home.absolutePath)
             .redirectErrorStream(true).redirectOutput(File(home, "process.log")).start()
@@ -35,12 +40,12 @@ class KdriverBrowserRuntimeTest {
             try { assertEquals(2, restored.tabs(BrowserOwner(AgentId("shutdown"))).size) }
             finally { restored.close() }
         } finally {
-            if (process.isAlive) { process.destroy(); if (!process.waitFor(5, TimeUnit.SECONDS)) process.destroyForcibly() }
+            if (process.isAlive) { process.destroy(); if (!process.waitFor(5, TimeUnit.SECONDS)) { process.destroyForcibly(); check(process.waitFor(5, TimeUnit.SECONDS)) } }
         }
     }
 
     @Test fun restoredBackgroundTabsAndLateViewersReceiveFrames() = runBlocking {
-        val home = Files.createTempDirectory("kinuvo-restored-frames-").toFile()
+        val home = temporaryDirectories.create("kinuvo-restored-frames-").toFile()
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->
             val bytes = "<title>Static page</title><body style='background:teal'>Static content</body>".toByteArray()
@@ -73,7 +78,7 @@ class KdriverBrowserRuntimeTest {
     }
 
     @Test fun takeoverSupportsUnicodeAndEditingShortcuts(): Unit = runBlocking {
-        val home = Files.createTempDirectory("kinuvo-keyboard-").toFile()
+        val home = temporaryDirectories.create("kinuvo-keyboard-").toFile()
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->
             val html = """<input autofocus aria-label="Name" oninput="document.title=this.value">""".toByteArray()
@@ -141,7 +146,7 @@ class KdriverBrowserRuntimeTest {
     }
 
     @Test fun agentAndTakeoverCanNavigateHistoryWithoutReplayingInputs() = runBlocking {
-        val home = Files.createTempDirectory("kinuvo-history-").toFile()
+        val home = temporaryDirectories.create("kinuvo-history-").toFile()
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->
             val html = "<title>${exchange.requestURI.path}</title><p>${exchange.requestURI.path}</p>".toByteArray()
@@ -173,7 +178,7 @@ class KdriverBrowserRuntimeTest {
     }
 
     @Test fun popupsInheritAgentAndSuspendedTakeover() = runBlocking {
-        val home = Files.createTempDirectory("kinuvo-popup-").toFile()
+        val home = temporaryDirectories.create("kinuvo-popup-").toFile()
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->
             val html = if (exchange.requestURI.path == "/popup") "<title>Popup</title>Popup content"
@@ -206,7 +211,7 @@ class KdriverBrowserRuntimeTest {
     }
 
     @Test fun referencesLiveViewTakeoverAndPersistentAgentProfiles() = runBlocking {
-        val home = Files.createTempDirectory("kinuvo-kdriver-test-").toFile()
+        val home = temporaryDirectories.create("kinuvo-kdriver-test-").toFile()
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->
             val html = """<html><body><input aria-label="Name"><button onclick="document.body.append('clicked')">Save</button><script>document.body.append(document.cookie || 'no-cookie');document.cookie='fixture=present;path=/;max-age=3600';</script></body></html>""".toByteArray()

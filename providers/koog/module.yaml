@@ -29,6 +29,10 @@ test-dependencies:
   - io.ktor:ktor-client-mock:3.6.0
 
 settings:
+  jvm:
+    test:
+      systemProperties:
+        java.io.tmpdir: ../../build
   kotlin:
     compileIncrementally: true
     serialization: json

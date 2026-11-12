@@ -1,5 +1,6 @@
 package kinuvo.providers.litert
 
+import kinuvo.testing.harness.TemporaryDirectories
 import ai.koog.agents.core.tools.ToolDescriptor
 import ai.koog.agents.core.tools.ToolParameterDescriptor
 import ai.koog.agents.core.tools.ToolParameterType
@@ -8,7 +9,7 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.message.RequestMetaInfo
 import kinuvo.harness.AgentConfig
-import kinuvo.models.ModelFiles
+import kinuvo.server.plugin.models.ModelFiles
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.nio.file.Files
@@ -16,9 +17,14 @@ import kotlin.test.*
 
 /** Runs a real model; set KINUVO_TEST_LITERT_MODEL to a downloaded Qwen3-0.6B `.litertlm` file. */
 class LiteRtModelTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun callsAToolThenAnswersWithItsResult() = runBlocking {
         val file = System.getenv("KINUVO_TEST_LITERT_MODEL")?.let(::File) ?: return@runBlocking
-        val home = Files.createTempDirectory("kinuvo-litert").toFile()
+        val home = temporaryDirectories.create("kinuvo-litert").toFile()
         try {
             val model = localModels.single { it.id == "qwen3-0.6b" }
             val folder = File(home, "local-models/${model.id}").apply { mkdirs() }
@@ -43,7 +49,7 @@ class LiteRtModelTest {
 
     @Test fun closingStopsADownload() = runBlocking {
         if (System.getenv("KINUVO_TEST_LITERT_MODEL") == null) return@runBlocking
-        val home = Files.createTempDirectory("kinuvo-litert-close").toFile()
+        val home = temporaryDirectories.create("kinuvo-litert-close").toFile()
         try {
             val provider = LiteRtProvider(home)
             val downloads = requireNotNull(provider.downloads)

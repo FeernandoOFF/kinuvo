@@ -1,5 +1,7 @@
 package kinuvo.providers.codex
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.testing.server.AgentRun
 import kinuvo.testing.harness.*
 
@@ -9,17 +11,21 @@ import kinuvo.protocol.session.SessionEntry
 import kinuvo.server.store.AgentFiles
 import kotlinx.io.files.Path
 import kinuvo.server.store.FileStore
-import java.nio.file.Files
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
 class CodexCompactionLiveTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun compactsAndKeepsFacts() = runBlocking {
         if (System.getenv("KINUVO_LIVE") != "1") return@runBlocking
-        val store = FileStore(AgentFiles(Path(Files.createTempDirectory("harness-test").toFile().path)))
+        val store = FileStore(AgentFiles(Path(temporaryDirectories.create("harness-test").toFile().path)))
         val base = store.agents().single()
         val agent = base.copy(config = base.config.copy(reasoning = "low", compactAtTokens = 500))
         val runner = AgentRun(agent, store, CodexProvider().model(agent.config), emptyList())

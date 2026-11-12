@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import arrow.core.getOrElse
 import arrow.core.raise.context.either
 import kinuvo.server.plugin.ProviderPlugin
@@ -24,7 +26,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -35,7 +36,12 @@ import kinuvo.server.providers.ModelProvider
 import kinuvo.server.providers.ModelProviders
 
 class SessionSettingsTest {
-    private val home = Files.createTempDirectory("harness-settings").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val home = temporaryDirectories.create("harness-settings").toFile()
 
     @Test
     fun modelPairsRouteAcrossPluginsAndSurviveRestart() = runBlocking {
