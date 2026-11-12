@@ -7,11 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		A8E591E0DDAD4A838B177007 /* ../ios-embedded/src/AppleKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177008 /* ../ios-embedded/src/AppleKeychain.swift */; };
-		A8E591E0DDAD4A838B177005 /* ../ios-embedded/src/AppleLanguageModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177006 /* ../ios-embedded/src/AppleLanguageModel.swift */; };
 		A8E591E0DDAD4A838B177001 /* ../../client/ui/src@ios/AppleDeviceReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177002 /* ../../client/ui/src@ios/AppleDeviceReader.swift */; };
 		A8E591E0DDAD4A838B177003 /* ../../client/ui/src@ios/AppleAttachmentPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177004 /* ../../client/ui/src@ios/AppleAttachmentPicker.swift */; };
-		A8E591E0DDAD4A838B177105 /* ../ios-embedded/src/AppleBackgroundRuns.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177106 /* ../ios-embedded/src/AppleBackgroundRuns.swift */; };
 		A8E591E0DDAD4A838B177103 /* ../../client/ui/src@ios/AppleFolderAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B177104 /* ../../client/ui/src@ios/AppleFolderAccess.swift */; };
 		B7C0DE51A9F04E2E9A3C2201 /* ../../client/ui/src@ios/AppleQrScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7C0DE51A9F04E2E9A3C2202 /* ../../client/ui/src@ios/AppleQrScanner.swift */; };
 		A8E591E0DDAD4A838B177009 /* ../../client/ui/src@ios/AppleSpeech.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8E591E0DDAD4A838B17700A /* ../../client/ui/src@ios/AppleSpeech.swift */; };
@@ -48,13 +45,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		A8E591E0DDAD4A838B177008 /* ../ios-embedded/src/AppleKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../ios-embedded/src/AppleKeychain.swift"; sourceTree = SOURCE_ROOT; };
-		A8E591E0DDAD4A838B177006 /* ../ios-embedded/src/AppleLanguageModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../ios-embedded/src/AppleLanguageModel.swift"; sourceTree = SOURCE_ROOT; };
 		29FA6B51CBB0E5CA09FB0275 /* Kinuvo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Kinuvo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		29FA6C632C5E9C2CA8E497A5 /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.info; name = Info.plist; path = src/Info.plist; sourceTree = "<group>"; };
 		A8E591E0DDAD4A838B177002 /* ../../client/ui/src@ios/AppleDeviceReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleDeviceReader.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B177004 /* ../../client/ui/src@ios/AppleAttachmentPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleAttachmentPicker.swift"; sourceTree = SOURCE_ROOT; };
-		A8E591E0DDAD4A838B177106 /* ../ios-embedded/src/AppleBackgroundRuns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../ios-embedded/src/AppleBackgroundRuns.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B177104 /* ../../client/ui/src@ios/AppleFolderAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleFolderAccess.swift"; sourceTree = SOURCE_ROOT; };
 		B7C0DE51A9F04E2E9A3C2202 /* ../../client/ui/src@ios/AppleQrScanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleQrScanner.swift"; sourceTree = SOURCE_ROOT; };
 		A8E591E0DDAD4A838B17700A /* ../../client/ui/src@ios/AppleSpeech.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "../../client/ui/src@ios/AppleSpeech.swift"; sourceTree = SOURCE_ROOT; };
@@ -108,11 +102,8 @@
 				C0DE70500000000000000002 /* ../../client/ui/src@ios/ApplePush.swift */,
 				A8E591E0DDAD4A838B177002 /* ../../client/ui/src@ios/AppleDeviceReader.swift */,
 				A8E591E0DDAD4A838B177004 /* ../../client/ui/src@ios/AppleAttachmentPicker.swift */,
-				A8E591E0DDAD4A838B177106 /* ../ios-embedded/src/AppleBackgroundRuns.swift */,
 				A8E591E0DDAD4A838B177104 /* ../../client/ui/src@ios/AppleFolderAccess.swift */,
 				B7C0DE51A9F04E2E9A3C2202 /* ../../client/ui/src@ios/AppleQrScanner.swift */,
-				A8E591E0DDAD4A838B177008 /* ../ios-embedded/src/AppleKeychain.swift */,
-				A8E591E0DDAD4A838B177006 /* ../ios-embedded/src/AppleLanguageModel.swift */,
 				A8E591E0DDAD4A838B17700A /* ../../client/ui/src@ios/AppleSpeech.swift */,
 			);
 			sourceTree = "<group>";
@@ -250,11 +241,8 @@
 			files = (
 				A8E591E0DDAD4A838B177001 /* ../../client/ui/src@ios/AppleDeviceReader.swift in Sources */,
 				A8E591E0DDAD4A838B177003 /* ../../client/ui/src@ios/AppleAttachmentPicker.swift in Sources */,
-				A8E591E0DDAD4A838B177105 /* ../ios-embedded/src/AppleBackgroundRuns.swift in Sources */,
 				A8E591E0DDAD4A838B177103 /* ../../client/ui/src@ios/AppleFolderAccess.swift in Sources */,
 				B7C0DE51A9F04E2E9A3C2201 /* ../../client/ui/src@ios/AppleQrScanner.swift in Sources */,
-				A8E591E0DDAD4A838B177007 /* ../ios-embedded/src/AppleKeychain.swift in Sources */,
-				A8E591E0DDAD4A838B177005 /* ../ios-embedded/src/AppleLanguageModel.swift in Sources */,
 				A8E591E0DDAD4A838B177009 /* ../../client/ui/src@ios/AppleSpeech.swift in Sources */,
 				C0DE70500000000000000001 /* ../../client/ui/src@ios/ApplePush.swift in Sources */,
 				C0DE70500000000000000003 /* PushKeys.swift in Sources */,
