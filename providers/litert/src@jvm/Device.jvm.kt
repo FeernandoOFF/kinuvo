@@ -2,7 +2,7 @@ package kinuvo.providers.litert
 
 import java.lang.management.ManagementFactory
 import java.io.File
-import kinuvo.models.liteRtEngine
+import kinuvo.server.plugin.models.liteRtEngine
 
 internal actual fun deviceMemory(): Long? = (ManagementFactory.getOperatingSystemMXBean() as? com.sun.management.OperatingSystemMXBean)?.totalMemorySize
 

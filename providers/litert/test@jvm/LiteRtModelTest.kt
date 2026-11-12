@@ -8,7 +8,7 @@ import ai.koog.prompt.message.Message
 import ai.koog.prompt.message.MessagePart
 import ai.koog.prompt.message.RequestMetaInfo
 import kinuvo.harness.AgentConfig
-import kinuvo.models.ModelFiles
+import kinuvo.server.plugin.models.ModelFiles
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.nio.file.Files

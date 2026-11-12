@@ -4,7 +4,7 @@ import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import io.github.oshai.kotlinlogging.KotlinLogging
-import kinuvo.models.ModelFiles
+import kinuvo.server.plugin.models.ModelFiles
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock

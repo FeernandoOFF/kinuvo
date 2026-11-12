@@ -1,6 +1,6 @@
 package kinuvo.providers.litert
 
-import kinuvo.models.ModelDownload
+import kinuvo.server.plugin.models.ModelDownload
 import kinuvo.protocol.voice.ModelFile
 import kinuvo.protocol.model.ModelTier
 

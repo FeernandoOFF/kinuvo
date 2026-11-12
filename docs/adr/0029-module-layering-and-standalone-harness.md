@@ -16,8 +16,7 @@ Target layout:
 - `protocol`: wire and domain values (typed IDs, session entries, events, tool identity, neutral tool descriptors, `WireError`).
 - `client/`: `sdk` (transport), `app` (repositories, ViewModels, the `EmbeddedServer` interface), `ui` (rendering only, no Server dependencies).
 - `harness/`: `api` (execution contracts), `builtin` (the native harness), and the adapters `acp` and `remote`.
-- `models`: verified model downloads.
-- `server/`: `plugin-api`, `core`, `rpc`, and the hosts `jvm` and `embedded`.
+- `server/`: `plugin-api` (including verified model downloads), `core`, `rpc`, and the hosts `jvm` and `embedded`.
 - `providers/`, `plugins/`, `gateways/` (`acp-agent`, `kinuvo-mcp`), `apps/`, `testing/`.
 
 **Standalone harness.** `harness/api` and `harness/builtin` depend on no `server/*`, `client/*`, plugin or gateway module. Protocol values are allowed. `harness/api` is Koog-free; only `harness/builtin` knows Koog and converts neutral tool descriptors to it.

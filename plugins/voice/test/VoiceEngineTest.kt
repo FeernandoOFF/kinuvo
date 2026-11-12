@@ -1,6 +1,6 @@
 package kinuvo.plugins.voice
 
-import kinuvo.models.voiceEngine
+import kinuvo.server.plugin.models.voiceEngine
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.test.Test
