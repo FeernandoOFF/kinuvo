@@ -5,6 +5,7 @@ import kinuvo.harness.AgentConfig
 import kinuvo.server.plugin.BrowserService
 import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.ScreenGate
+import kinuvo.server.plugin.SecretResolver
 import kinuvo.server.plugin.instance
 import kinuvo.server.plugin.ownedBy
 import kinuvo.protocol.approval.*
@@ -76,5 +77,21 @@ class BrowserPluginContractTest {
         browser.gate.release("device", held.generation)
         assertFailsWith<IllegalStateException> { bound() }
         assertTrue(browser.commands.isEmpty())
+    }
+
+    @Test fun typingResolvesASecretReferenceForThisSessionOnly() = runTest {
+        val browser = Browser()
+        val scopes = mutableListOf<SessionId>()
+        val secrets = object : SecretResolver {
+            override fun scoped(agentId: AgentId, sessionId: SessionId): SecretResolver { scopes += sessionId; return this }
+            override suspend fun resolve(uri: String, reason: String) = if (uri == "secret://id") "hunter22" else error("Can't read $uri")
+        }
+        val tools = BrowserPlugin(browser, secrets).prepare(RunContext(agent, SessionId("session")), false).ownedBy(BrowserPlugin(browser).instance).tools
+        fun tool(name: String) = tools.single { it.identity?.localId == name }
+        tool("browser_type").execute(buildJsonObject { put("tab", "tab"); put("revision", "revision"); put("ref", "e1"); put("text", "\${secret://id}") })
+        tool("browser_type").execute(buildJsonObject { put("tab", "tab"); put("revision", "revision"); put("ref", "e1"); put("text", "hi \${secret://id}") })
+        tool("browser_navigate").execute(buildJsonObject { put("tab", "tab"); put("text", "\${secret://id}") })
+        assertEquals(listOf("hunter22", "hi \${secret://id}", "\${secret://id}"), browser.commands.map { it.text })
+        assertEquals(listOf(SessionId("session")), scopes)
     }
 }

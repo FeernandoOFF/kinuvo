@@ -37,8 +37,8 @@ abstract class ExecBackend(
             roots.joinToString("\n") { "- $it" } + "\nRelative paths resolve against the first folder.",
     )
 
-    /** Output past [maxChars] keeps only its start and end. */
-    protected abstract suspend fun execScript(script: String, cwd: String, stdin: String?, timeout: Duration, maxChars: Int = 30_000): ExecResult
+    /** Output past [maxChars] keeps only its start and end. [env] is added to the backend's own for this script, never put in its arguments. */
+    protected abstract suspend fun execScript(script: String, cwd: String, stdin: String?, timeout: Duration, maxChars: Int = 30_000, env: Map<String, String> = emptyMap()): ExecResult
 
     private val background = LinkedHashMap<String, BackgroundProcess>()
     private val tag = UUID.randomUUID().toString().take(8)
@@ -53,17 +53,17 @@ abstract class ExecBackend(
         require(roots.isNotEmpty()) { "Exec backends need at least one workspace folder" }
     }
 
-    suspend fun run(command: String, cwd: String?, timeout: Duration): ExecResult =
-        execScript(command, cwd?.let(::resolve) ?: roots.first(), null, timeout)
+    suspend fun run(command: String, cwd: String?, timeout: Duration, env: Map<String, String> = emptyMap()): ExecResult =
+        execScript(command, cwd?.let(::resolve) ?: roots.first(), null, timeout, env = env)
 
     /** Starts [command] detached in its own process group; output goes to a log file on the backend. */
-    suspend fun startBackground(command: String, cwd: String?): BackgroundProcess {
+    suspend fun startBackground(command: String, cwd: String?, env: Map<String, String> = emptyMap()): BackgroundProcess {
         val id = synchronized(background) { "bg${background.size + 1}" }
         val log = "/tmp/kinuvo-bg-$tag-$id.log"
         val wrapper = "bash -lc \"\$1\"; echo \$? > \"\$2\""
         val script = "set -m; rm -f ${shq("$log.exit")}; nohup bash -c ${shq(wrapper)} _ ${shq(command)} ${shq("$log.exit")} > ${shq(log)} 2>&1 < /dev/null & echo \$!"
         // Background tasks only last 30sec
-        val r = execScript(script, cwd?.let(::resolve) ?: roots.first(), null, Duration.parse("30s"))
+        val r = execScript(script, cwd?.let(::resolve) ?: roots.first(), null, Duration.parse("30s"), env = env)
         val pid = r.output.lines().lastOrNull { it.isNotBlank() }?.trim()
         check(r.exitCode == 0 && pid?.all(Char::isDigit) == true) { r.output.ifBlank { "Could not start background process" } }
         return BackgroundProcess(id, pid, log, command).also { synchronized(background) { background[id] = it } }
