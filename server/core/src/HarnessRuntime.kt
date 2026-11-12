@@ -69,6 +69,9 @@ import kinuvo.server.plugin.McpApps
 import kinuvo.server.plugin.ToolRun
 import kinuvo.harness.simplified
 import kinuvo.harness.with
+import kinuvo.server.tools.AgentManagement
+import kinuvo.server.tools.AgentManageTools
+import kinuvo.server.tools.AgentManageScope
 import kinuvo.server.tools.ToolScope
 import kinuvo.server.tools.select
 import kinuvo.protocol.model.ModelTier
@@ -147,6 +150,7 @@ open class HarnessRuntime(
     /** The harness builds models without a registered provider, e.g. scripted ones in tests, so no provider is asked whether it is ready. */
     private val unmanagedModels: Boolean = false,
 ) : ServerSettings by dependencies.settings, NativeHarnessHost {
+    var agentManagement: AgentManagement? = null
     var subAgents: SubAgents? = null
     var teams: Teams? = null
     val log = SessionLog(dependencies.store, dependencies.clock)
@@ -240,13 +244,19 @@ open class HarnessRuntime(
 
     /** Replaces [sessionId]'s own settings; its next run uses them. */
     suspend fun configure(agent: Agent, sessionId: SessionId, settings: SessionSettings): SessionInfo {
+        val s = checkConfigure(agent, sessionId, settings)
+        if (s != store.session(agent.id, sessionId).settings) store.append(agent.id, sessionId, SessionEntry.Settings(s))
+        return store.session(agent.id, sessionId)
+    }
+
+    /** [settings] as [configure] would save them; fails when they aren't allowed for [sessionId]. */
+    suspend fun checkConfigure(agent: Agent, sessionId: SessionId, settings: SessionSettings): SessionSettings {
         if (store.session(agent.id, sessionId).hidden) require(settings == store.session(agent.id, sessionId).settings) { "Hidden Session settings are pinned" }
         val s = settings.copy(model = settings.model?.trim()?.ifEmpty { null }, reasoning = settings.reasoning?.trim()?.ifEmpty { null },
             approvals = settings.approvals?.trim()?.ifEmpty { null }, provider = settings.provider?.trim()?.ifEmpty { null }?.let(::providerId))
         s.provider?.let { requireModelProvider(it); require(s.model != null) { "Choose a model with its provider" } }
         require(s.approvals == null || s.approvals in Tolerance.ids) { "approvals must be one of ${Tolerance.ids.joinToString()}" }
-        if (s != store.session(agent.id, sessionId).settings) store.append(agent.id, sessionId, SessionEntry.Settings(s))
-        return store.session(agent.id, sessionId)
+        return s
     }
 
     /** Renames [sessionId] (blank: back to its first message) or marks it a favorite. */
@@ -319,7 +329,7 @@ open class HarnessRuntime(
         if (activate && requireModel) chat.requireReady()
         val run = RunContext(e.agent, sessionId, routine?.routine, taskId)
         val contributed = (if (privateSession) emptyList() else plugins).map { it.prepare(run, activate).ownedBy(it.instance, it.manifest) }
-        val own = PluginTools(if (privateSession) subAgents?.tools(agent.id, requireNotNull(sessionId)).orEmpty() + listOf(AskUserTool()) else toolsFor(e, sessionId, routine, catalogs)).ownedBy(PluginInstanceId("kinuvo.core")).tools
+        val own = PluginTools(if (privateSession) subAgents?.tools(agent.id, requireNotNull(sessionId)).orEmpty() + manageTools(agent, sessionId, true) + listOf(AskUserTool()) else toolsFor(e, sessionId, routine, catalogs)).ownedBy(PluginInstanceId("kinuvo.core")).tools
         val aliased = own + contributed.flatMap { it.tools }
         val all = aliased.withModelNames().also { it.indexedTools() }
         val renamed = aliased.zip(all).filter { (a, b) -> a !== b }.associate { (a, b) -> a.descriptor.name to b.descriptor.name }
@@ -531,8 +541,12 @@ open class HarnessRuntime(
                 } }
             }, attachments::bytes) else null
         val uiTool = catalogs.takeIf { sessionId != null && it.isNotEmpty() }?.let(::ShowUiTool)
-        return (sessionId?.let { teams?.tools(agent.id, it) }.orEmpty()) + (sessionId?.let { subAgents?.tools(agent.id, it) }.orEmpty()) + builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
+        return manageTools(agent, sessionId) + (sessionId?.let { teams?.tools(agent.id, it) }.orEmpty()) + (sessionId?.let { subAgents?.tools(agent.id, it) }.orEmpty()) + builtInTools(e, sessionId, routine, search) + listOfNotNull(search?.let { WebSearchTool(it, compact = e.profile.tools.callsPerTurn != null, region = SearchRegion.fromTimeZone(timeZone.id)) }, imageTool, uiTool, uiTool?.let { ShowHtmlTool() })
     }
+
+    private suspend fun manageTools(agent: Agent, session: SessionId?, hidden: Boolean = false): List<Tool> =
+        if (ToolNames.AGENT_MANAGE !in agent.config.tools || store.agents().none { it.id == agent.id }) emptyList()
+        else agentManagement?.let { AgentManageTools(it).tools(AgentManageScope(agent.id, session), hidden) }.orEmpty()
 
     private suspend fun builtInTools(e: Effective, sessionId: SessionId?, routine: RoutineTurn?, search: WebSearch?): List<Tool> = e.agent.let { agent -> agent.config.tools.mapNotNull {
         when (it) {

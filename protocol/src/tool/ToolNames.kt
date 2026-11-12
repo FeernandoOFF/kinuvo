@@ -3,6 +3,16 @@ package kinuvo.protocol.tool
 import kinuvo.protocol.routine.Routine
 
 object ToolNames {
+    const val AGENT_MANAGE = "agent_manage"
+    const val AGENT_GET = "agent_get"
+    const val AGENT_UPDATE = "agent_update"
+    const val AGENT_CREATE = "agent_create"
+    const val MCP_LIST = "mcp_list"
+    const val MCP_ADD = "mcp_add"
+    const val MCP_REMOVE = "mcp_remove"
+    const val MCP_TEST = "mcp_test"
+    const val MCP_LOGIN = "mcp_login"
+    const val SESSION_CONFIGURE = "session_configure"
     const val TEAM_HANDOFF = "team_handoff"
     const val GENERATE_IMAGE = "generate_image"
     const val AGENTS_SPAWN = "agents_spawn"
@@ -42,7 +52,7 @@ object ToolNames {
     const val CALL_TOOL = "call_tool"
 
     /** The built-in tools an Agent's `tools:` can turn on. */
-    val OPTIONAL = listOf(MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, RUN_CODE, COMPUTER, "browser")
+    val OPTIONAL = listOf(AGENT_MANAGE, MEMORY, WEB_FETCH, SKILLS, SCHEDULE, KNOWLEDGE, TASKS, ASK_USER, ARTIFACT, DEVICE_TOOLS, RUN_CODE, COMPUTER, "browser")
     val DEFAULT = OPTIONAL
     /** Groups a plugin provides, offered only where one is installed. */
     val FROM_PLUGINS = setOf(RUN_CODE, "browser")

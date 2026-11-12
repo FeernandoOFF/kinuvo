@@ -3,6 +3,9 @@ package kinuvo.server
 import arrow.core.raise.Raise
 import arrow.core.raise.context.either
 import kinuvo.harness.Agent
+import kinuvo.server.tools.AgentManageScope
+import kinuvo.server.tools.AgentManageTools
+import kotlinx.serialization.json.jsonObject
 import kinuvo.protocol.Api
 import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.approval.*
@@ -109,8 +112,10 @@ class SubAgentsTest {
             val child = value { children.spawn(cloud.id, parent.id, ToolCallId("local"), local.id, "task") }
             assertEquals(SubAgentStatus.Completed, value { children.wait(cloud.id, parent.id, listOf(child.sessionId), 5) }.single().status)
             assertFailsWith<IllegalArgumentException> { server.harness.configure(local, child.sessionId, SessionSettings(provider = "test", model = "cloud")) }
+            val configure = AgentManageTools(server.harness.agentManagement!!).tools(AgentManageScope(local.id, child.sessionId), hidden = true).single()
+            assertFailsWith<IllegalArgumentException> { configure.preview(ProtocolJson.parseToJsonElement("""{"provider":"test","model":"cloud"}""").jsonObject) }
             val composed = server.harness.compose(local, child.sessionId)
-            assertTrue(composed.tools.tools.none { it.name in setOf("memory", "web_fetch", "generate_image", "run_code") })
+            assertTrue(composed.tools.tools.none { it.name in setOf("memory", "web_fetch", "generate_image", "run_code", "agent_get", "agent_update", "agent_create", "mcp_list", "mcp_add", "mcp_remove", "mcp_test", "mcp_login") })
         }
     }
 

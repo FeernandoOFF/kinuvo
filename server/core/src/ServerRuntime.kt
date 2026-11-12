@@ -3,6 +3,7 @@ package kinuvo.server
 import arrow.core.raise.Raise
 import arrow.core.raise.context.raise
 import kinuvo.server.devices.*
+import kinuvo.server.tools.AgentManagement
 import kinuvo.server.reflection.*
 import kinuvo.server.screens.*
 import co.touchlab.stately.collections.ConcurrentMutableMap
@@ -117,7 +118,7 @@ class ServerRuntime(
     private val notifications = Notifications(harness, scope, runs::routine, { external.registrationOrArchived(AgentId(it))?.name }, devicePush)
     private val workflows: Workflows = Workflows(harness, runs, scope, { broadcast(Api.WorkflowsChanged, it) }, { broadcast(Api.WorkflowRunChanged, it) }, wakeScheduler = { scheduler.wakeUp() })
     private val scheduler: Scheduler = Scheduler(harness, runs, scope, onRan = { broadcast(Api.RoutineRan, it); notifications.routineRan(it) }, workflowTick = workflows::tick)
-    private val admin = Admin(harness, runs) { broadcast(Api.AgentsChanged, it) }
+    private val admin = Admin(harness, runs) { broadcast(Api.AgentsChanged, it) }.also { harness.agentManagement = AgentManagement(harness, it) }
     private val reflectionReview = ReflectionReview(harness)
     private val logins = ProviderLogins(harness.modelProviders, scope) { broadcast(Api.ProvidersChanged, it); changedCapabilities() }
     private val reflector = Reflector(harness, scope, runs::isActive)
