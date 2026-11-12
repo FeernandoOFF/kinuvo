@@ -32,6 +32,8 @@ tools: [agent_manage, memory, web_fetch, skills, schedule, knowledge, tasks, ask
 
 A group is offered only when its provider and required capabilities are available. Shell and file tools come from the configured Exec backend; `exec: none` disables them.
 
+`ask_user` also lets the Agent ask for a credential with `request_secret`. You answer on a private card: pick a field in a connected password manager, type the value, or decline. The Agent only gets a Secret reference, which its shell commands receive as environment variables and the browser can type into a field. A typed value works only in that Session, for 24 hours or until the Server restarts.
+
 ## Container and SSH
 
 | Field | Type | Default | Example / meaning |

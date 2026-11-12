@@ -94,8 +94,12 @@ _Avoid_: Plugin, prompt, command
 Loading a Skill's full instructions into a Session, either by the Agent or by the user.
 
 **Secret reference**:
-A pointer into the user's password manager, written in its own URI syntax inside `${…}` in config, e.g. `${pass://Vault/Item/field}`; the Server reads the value when it's needed and never stores or shows it.
+A pointer into the user's password manager, written in its own URI syntax inside `${…}` in config, e.g. `${pass://Vault/Item/field}`; the Server reads the value when it's needed and never stores or shows it. A value the user typed for a Secret request is `${secret://…}`, usable only by the Agent and Session that asked, for 24 hours.
 _Avoid_: Secret, credential, vault key
+
+**Secret request**:
+An Agent asking the user privately for a credential with `request_secret`; the user picks a field in their password manager, types the value or declines, and the Agent gets only a Secret reference.
+_Avoid_: Password prompt, credential form
 
 **Approval**:
 The user's decision (allow once, allow for this Session, always allow, or deny) on a single tool call or Reflection proposal the Agent wants to apply.
