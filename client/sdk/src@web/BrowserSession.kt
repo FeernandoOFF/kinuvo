@@ -5,9 +5,11 @@ import io.ktor.client.HttpClientConfig
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.Url
 import kinuvo.protocol.connection.ConnectParams
+import kinuvo.protocol.connection.ProtocolRange
 import kinuvo.protocol.ProtocolJson
 import kotlinx.browser.window
 
@@ -20,7 +22,7 @@ internal actual suspend fun HttpClient.prepareConnect(url: String, params: Conne
         header(HttpHeaders.ContentType, "application/json")
         setBody(ProtocolJson.encodeToString(ConnectParams.serializer(), request))
     }
-    if (response.status.value == 409) throw ProtocolMismatchException()
+    if (response.status.value == 409) throw ProtocolMismatchException(runCatching { ProtocolJson.decodeFromString(ProtocolRange.serializer(), response.bodyAsText()) }.getOrNull())
     if (response.status.value == 401) throw AuthException("Invalid or expired browser session; pair this Device again")
     check(response.status.value == 204) { "Browser authentication failed (${response.status.value})" }
     return params.copy(token = null, pairingCode = null)

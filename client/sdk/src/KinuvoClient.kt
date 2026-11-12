@@ -2,6 +2,7 @@ package kinuvo.client
 
 import kotlin.time.Duration
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Duration.Companion.milliseconds
 import arrow.resilience.Schedule
@@ -25,24 +26,37 @@ import kotlin.concurrent.atomics.AtomicLong
 import kotlin.concurrent.atomics.ExperimentalAtomicApi
 import kotlin.concurrent.atomics.incrementAndFetch
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 
 sealed interface ConnectionState {
     data object Connecting : ConnectionState
     data class Connected(val serverName: String) : ConnectionState
-    /** [rejected] when the Server refused the token, e.g. because the Device was revoked; it won't reconnect. */
-    data class Disconnected(val reason: String, val rejected: Boolean = false) : ConnectionState
+    /**
+     * [rejected] when the Server refused the token, e.g. because the Device was revoked; it won't reconnect. [incompatible]
+     * when the Server and this Device share no protocol version; it retries every [IncompatibleRetry] in case one updates.
+     */
+    data class Disconnected(val reason: String, val rejected: Boolean = false, val incompatible: Boolean = false) : ConnectionState
 }
 
 /** Reconnect attempts back off exponentially from half a second. */
 internal val ReconnectBackoff = Schedule.exponential<Unit>(500.milliseconds)
 
+/** How long to wait before retrying a Server that shares no protocol version with this Device. */
+internal val IncompatibleRetry = 1.minutes
+
 /** The wait before the next reconnect attempt: [scheduled] capped at ten seconds, then cut by up to half so Devices don't reconnect in step. */
 internal fun reconnectWait(scheduled: Duration, random: Random = Random): Duration = minOf(scheduled, 10.seconds) * random.nextDouble(0.5, 1.0)
 
-/** Thrown when the server rejects the token or pairing code; retrying won't help. */
+/** Thrown when the Server refuses the token or pairing code; retrying won't help. */
 class AuthException(message: String) : Exception(message)
 
-class ProtocolMismatchException : Exception(ProtocolVersion.Mismatch)
+/** The Server and this Device share no protocol version; [server] is the range the Server speaks, when it says. */
+class ProtocolMismatchException(val server: ProtocolRange? = null) : Exception(when {
+    server != null && server.current < ProtocolVersion.Minimum -> "This Server is too old for this app. Update the Server."
+    server != null && server.minimum > ProtocolVersion.Current -> "This app is too old for this Server. Update the app."
+    else -> "This app and the Server can't talk to each other. Update both to their latest versions."
+})
 
 /** A request that failed because the connection is down; the client retries on its own. */
 class DisconnectedException(message: String = "Disconnected") : IllegalStateException(message)
@@ -103,20 +117,22 @@ class KinuvoClient(
 
     /**
      * Connects (pairing on first use) and keeps the connection alive until [close]. Throws [AuthException] on bad credentials,
-     * or whatever stopped the first attempt; with [retry], only bad credentials or protocols stop it before it first connects.
+     * or whatever stopped the first attempt; with [retry], only bad credentials stop it before it first connects.
      */
     suspend fun connect(retry: Boolean = false): ConnectResult {
         val first = CompletableDeferred<ConnectResult>()
         loop = scope.launch {
             var backoff = ReconnectBackoff.step
+            var version = ProtocolVersion.Current
             while (isActive) {
                 _state.value = ConnectionState.Connecting
+                var incompatible = false
                 val connected = CompletableDeferred<Unit>()
                 ready = connected
                 var socket: FrameConnection? = null
                 var reader: Job? = null
                 try {
-                    val params = ConnectParams(device, token, if (token == null) pairingCode else null, timeZone, deviceTools())
+                    val params = ConnectParams(device, token, if (token == null) pairingCode else null, timeZone, deviceTools(), version, ProtocolVersion.Minimum)
                     val prepared = if (connection == null) { requireSecureTransport(url, allowCleartext); http.prepareConnect(url, params) } else params
                     val ws = connection?.invoke() ?: http.connection(url)
                     socket = ws
@@ -141,9 +157,12 @@ class KinuvoClient(
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: ProtocolMismatchException) {
-                    _state.value = ConnectionState.Disconnected(e.message.orEmpty())
-                    first.completeExceptionally(e)
-                    return@launch
+                    // A Server that doesn't say what it speaks only takes its own version, so try older ones this Device speaks.
+                    if (e.server == null && version > ProtocolVersion.Minimum) { version--; continue }
+                    version = ProtocolVersion.Current
+                    _state.value = ConnectionState.Disconnected(e.message.orEmpty(), incompatible = true)
+                    if (!first.isCompleted && !retry) { first.completeExceptionally(e); return@launch }
+                    incompatible = true
                 } catch (e: AuthException) {
                     _state.value = ConnectionState.Disconnected(e.message ?: "Unauthorized", rejected = true)
                     first.completeExceptionally(e)
@@ -161,6 +180,7 @@ class KinuvoClient(
                         failPending()
                     }
                 }
+                if (incompatible) { delay(IncompatibleRetry); continue }
                 val next = backoff(Unit) as? Schedule.Decision.Continue ?: return@launch
                 backoff = next.step
                 delay(reconnectWait(next.delay))
@@ -229,15 +249,16 @@ class KinuvoClient(
         }
         if (!response.ok) {
             val error = response.error ?: WireError(WireErrorCode.Internal, "Request failed")
-            if (method == Api.Connect) {
-                if (error.code == WireErrorCode.ProtocolMismatch) throw ProtocolMismatchException()
-                throw AuthException(error.message)
+            if (method == Api.Connect) when (error.code) {
+                WireErrorCode.ProtocolMismatch -> throw ProtocolMismatchException(
+                    error.data?.let { runCatching { ProtocolJson.decodeFromJsonElement(ProtocolRange.serializer(), it) }.getOrNull() })
+                WireErrorCode.Forbidden -> throw AuthException(error.message)
             }
             throw error.toException()
         }
         if (method == Api.Connect) {
-            val version = (response.payload as? JsonObject)?.get("protocolVersion")
-            if (version?.toString() != ProtocolVersion.Current.toString()) throw ProtocolMismatchException()
+            val version = ((response.payload as? JsonObject)?.get("protocolVersion") as? JsonPrimitive)?.intOrNull
+            if (version == null || version !in ProtocolVersion.Minimum..ProtocolVersion.Current) throw ProtocolMismatchException()
         }
         return ProtocolJson.decodeFromJsonElement(method.result, response.payload)
     }

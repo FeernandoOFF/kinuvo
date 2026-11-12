@@ -15,6 +15,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlin.uuid.Uuid
 import kinuvo.client.AuthException
 import kinuvo.client.DisconnectedException
+import kinuvo.client.ProtocolMismatchException
 
 /** KMP adapter: a linked party receives no management credential or catalog secrets. */
 class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, private val serverId: String, private val readiness: suspend (String, Boolean, String) -> Unit = { _, _, _ -> }) : RemoteHarness {
@@ -40,6 +41,7 @@ class RemoteExecutionFactory(private val link: (String) -> SaveRemoteLink, priva
         return try { discover(remote.serverId); ExecutionProbe(ExecutionReadiness(true, true)) }
         catch (e: CancellationException) { throw e }
         catch (_: AuthException) { ExecutionProbe(ExecutionReadiness(true, false, "Remote access revoked", "access_revoked")) }
+        catch (e: ProtocolMismatchException) { ExecutionProbe(ExecutionReadiness(true, false, e.message, WireErrorCode.ProtocolMismatch)) }
         catch (_: Exception) { ExecutionProbe(ExecutionReadiness(true, false, "Remote Server unavailable", "host_offline")) }
     }
 

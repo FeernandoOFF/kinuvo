@@ -209,7 +209,8 @@ internal fun CloseSessionConfirm(chat: ChatState, onCancel: () -> Unit, onClose:
 /**
  * A composer notice: nothing while connected or briefly down, e.g. back from the background, and a brief "Connected" after a
  * reconnect it showed. While the client retries: "Reconnecting" after [ReconnectingAfter], then
- * "Offline" with the reason, or when it was last [syncedAt], once it's been down for [OfflineAfter].
+ * "Offline" with the reason, or when it was last [syncedAt], once it's been down for [OfflineAfter]. A version mismatch shows
+ * right away, since waiting won't fix it.
  */
 @Composable
 internal fun connectionNotice(connection: ConnectionState, syncedAt: Long?): Pair<Tone, String>? {
@@ -237,6 +238,7 @@ internal fun connectionNotice(connection: ConnectionState, syncedAt: Long?): Pai
         long -> Tone.Danger to ((syncedAt?.let { "Last synced ${relative(it, Clock.System.now().toEpochMilliseconds())}" } ?: reason)?.let { "Offline · $it. Retrying…" } ?: "Offline · Retrying…")
         else -> Tone.Warning to "Reconnecting…"
     }
+    if (connection is ConnectionState.Disconnected && connection.incompatible) return Tone.Danger to "${connection.reason} Retrying…"
     return shown.takeIf { down }
 }
 

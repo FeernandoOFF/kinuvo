@@ -32,6 +32,8 @@ import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.intOrNull
 
 /** Serves [runtime] over WebSockets to Devices on the network, which pair and authenticate through [auth]. */
 class NetworkListener(private val runtime: ServerRuntime, private val auth: DeviceAuth, val network: NetworkSecurity = NetworkSecurity()) {
@@ -89,10 +91,12 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                     try {
                         val bytes = withTimeoutOrNull(10_000) { call.receiveChannel().readBuffer(PREAUTH_FRAME_SIZE + 1).readByteArray() }
                         if (bytes == null || bytes.size > PREAUTH_FRAME_SIZE) { call.respondText("Invalid request", status = HttpStatusCode.BadRequest); return@post }
-                        val raw = runCatching { ProtocolJson.parseToJsonElement(bytes.decodeToString()) }.getOrNull()
-                        val version = (raw as? JsonObject)?.get("protocolVersion")
-                        if (version?.toString() != ProtocolVersion.Current.toString()) {
-                            call.respondText(ProtocolVersion.Mismatch, status = HttpStatusCode.Conflict); return@post
+                        val raw = runCatching { ProtocolJson.parseToJsonElement(bytes.decodeToString()) }.getOrNull() as? JsonObject
+                        fun version(key: String) = (raw?.get(key) as? JsonPrimitive)?.intOrNull
+                        val version = version("protocolVersion")
+                        if (raw == null || version == null || ProtocolVersion.negotiate(version, version("minProtocolVersion") ?: version) == null) {
+                            call.respondText(ProtocolJson.encodeToString(ProtocolRange.serializer(), ProtocolRange(ProtocolVersion.Minimum, ProtocolVersion.Current)),
+                                ContentType.Application.Json, HttpStatusCode.Conflict); return@post
                         }
                         val params = runCatching { ProtocolJson.decodeFromJsonElement(ConnectParams.serializer(), raw) }.getOrNull()
                         if (params == null) { call.respondText("Invalid request", status = HttpStatusCode.BadRequest); return@post }

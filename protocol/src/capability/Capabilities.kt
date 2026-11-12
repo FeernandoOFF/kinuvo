@@ -1,5 +1,6 @@
 package kinuvo.protocol.capability
 
+import kinuvo.protocol.KnownEnumSet
 import kinuvo.protocol.device.Platform
 import kinuvo.protocol.execution.ExecutionCapabilities
 import kinuvo.protocol.plugin.ToolIdentity
@@ -18,6 +19,8 @@ import kotlinx.serialization.Serializable
 @Serializable enum class ExecutionLifetime { Foreground, BackgroundBudget, Continuous }
 @Serializable enum class WakeSupport { None, BestEffort, Scheduled }
 @Serializable enum class ServerFeature { Attachments, Skills, Mcp, Knowledge, Tasks, Artifacts, Routines, DeviceTools, Shell, Pairing, Computer, Browser, Screens, Push }
+
+object ServerFeatures : KnownEnumSet<ServerFeature>(ServerFeature.serializer())
 
 @Serializable
 data class CapabilityState(
@@ -39,7 +42,7 @@ data class CapabilityState(
 @Serializable
 data class ServerCapabilities(
     val serverId: String,
-    val features: Set<ServerFeature> = emptySet(),
+    @Serializable(with = ServerFeatures::class) val features: Set<ServerFeature> = emptySet(),
     val lifetime: ExecutionLifetime = ExecutionLifetime.Foreground,
     val wake: WakeSupport = WakeSupport.None,
     val maxAttachments: Int = MAX_ATTACHMENTS,

@@ -190,12 +190,12 @@ Kinuvo never changes host sysctls or disables Chromium's sandbox.
 
 ## Protocol compatibility
 
-The shared Screens interface requires explicit protocol version **6** on both sides of the
-connection. A missing or different version is incompatible: the Server rejects
-it before pairing/authentication, capabilities or cookie rotation. Browser HTTP
-authentication returns 409. Updated clients check the response version before
-decoding feature enums and preserve saved credentials on a protocol mismatch.
-Update the Server and Device together.
+The shared Screens interface requires an explicit protocol version on both sides of
+the connection; the Server and Device connect on the newest version both speak
+([ADR 0037](adr/0037-protocol-version-negotiation.md)). Without one, the Server
+rejects the connection before pairing/authentication, capabilities or cookie
+rotation; browser HTTP authentication returns 409. Clients check the response
+version before decoding and preserve saved credentials on a protocol mismatch.
 
 The active management API is `screens.*`, through `ScreensClient`. Legacy Browser
 commands and Computer input/control/watch RPCs return migration errors. Holds

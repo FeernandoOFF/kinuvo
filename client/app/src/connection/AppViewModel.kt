@@ -12,7 +12,6 @@ import androidx.lifecycle.viewModelScope
 import kinuvo.client.ConnectionState
 import kinuvo.client.KinuvoClient
 import kinuvo.client.AuthException
-import kinuvo.client.ProtocolMismatchException
 import kinuvo.client.userMessage
 import kinuvo.protocol.*
 import kinuvo.protocol.agent.*
@@ -396,7 +395,7 @@ class AppViewModel(
             if (e is CancellationException) throw e
             watching?.cancel()
             owner.close()
-            if (e is AuthException || e is ProtocolMismatchException) cacheFor(server).remove(server.key)
+            if (e is AuthException) cacheFor(server).remove(server.key)
             if (e is AuthException && server is Server.Remote && server.token != null) runCatching { active = servers.unpair(server) }
             val saved = runCatching { servers.all }.getOrDefault(state.value.servers)
             state.update { it.cleared().copy(connection = Connection.Unpaired(e.userMessage, active as? Server.Remote), servers = saved) }

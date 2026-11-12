@@ -86,10 +86,35 @@ class FrameDeliveryTest {
                 requests.send(Frame.Request("connect", Api.Connect.name, ProtocolJson.parseToJsonElement(params)))
                 val rejected = withTimeout(5_000) { response.await() }
                 assertFalse(rejected.ok)
-                assertEquals(WireError(WireErrorCode.ProtocolMismatch, ProtocolVersion.Mismatch), rejected.error)
+                assertEquals(ConnectError.ProtocolMismatch.toWireError(), rejected.error)
+                assertEquals(ProtocolRange(ProtocolVersion.Minimum, ProtocolVersion.Current), ProtocolJson.decodeFromJsonElement(ProtocolRange.serializer(), rejected.error!!.data!!))
                 assertFalse(authenticated)
             } finally { serving.cancelAndJoin(); runtime.close() }
         }
+    }
+
+    @Test fun aNewerDeviceSpeaksTheNewestVersionBothSpeak() = runBlocking {
+        val requests = Channel<Frame>(Channel.UNLIMITED)
+        val response = CompletableDeferred<Frame.Response>()
+        val auth = object : PeerRegistry {
+            override fun authenticate(device: String, token: String?, pairingCode: String?) = "token"
+            override fun toolDevices() = emptyList<ToolDevice>()
+            override fun setTools(token: String, tools: Set<DeviceToolKind>) = "device"
+        }
+        val runtime = ServerRuntime(RuntimeFixture().runtime(), auth, serverRoutes())
+        val connection = object : FrameConnection {
+            override val incoming = requests.receiveAsFlow()
+            override suspend fun send(frame: Frame) { if (frame is Frame.Response) response.complete(frame) }
+            override suspend fun close() { requests.close() }
+        }
+        val serving = launch { runtime.serve(connection) }
+        try {
+            val params = """{"device":"future","token":"t","protocolVersion":${ProtocolVersion.Current + 1},"minProtocolVersion":${ProtocolVersion.Current},"deviceTools":["Contacts","FutureTool"]}"""
+            requests.send(Frame.Request("connect", Api.Connect.name, ProtocolJson.parseToJsonElement(params)))
+            val accepted = withTimeout(5_000) { response.await() }
+            assertTrue(accepted.ok, accepted.error?.message)
+            assertEquals(ProtocolVersion.Current, ProtocolJson.decodeFromJsonElement(ConnectResult.serializer(), accepted.payload).protocolVersion)
+        } finally { serving.cancelAndJoin(); runtime.close() }
     }
 
     @Test fun failedWriterClosesConnectionEvenWhenIncomingRemainsOpen() = runBlocking {

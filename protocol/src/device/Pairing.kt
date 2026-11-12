@@ -20,7 +20,7 @@ data class PairedDeviceInfo(
     val lastSeen: String? = null,
     val connected: Boolean = false,
     val current: Boolean = false,
-    val tools: Set<DeviceToolKind> = emptySet(),
+    @Serializable(with = DeviceToolKinds::class) val tools: Set<DeviceToolKind> = emptySet(),
     val management: Boolean = false,
     val expiresAt: String? = null,
     val push: Boolean = false,

@@ -4,11 +4,13 @@ import arrow.core.getOrElse
 import arrow.core.raise.Raise
 import arrow.core.raise.context.either
 import kinuvo.protocol.Frame
+import kinuvo.protocol.ProtocolJson
 import kinuvo.protocol.ProtocolVersion
 import kinuvo.protocol.WireError
 import kinuvo.protocol.WireErrorCode
 import kinuvo.protocol.WireErrorReason
 import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.connection.ProtocolRange
 import kinuvo.protocol.session.SessionId
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.buildJsonObject
@@ -119,9 +121,11 @@ sealed class AccessError(override val code: String, override val message: String
     data class UnknownMethod(val method: String) : AccessError(WireErrorCode.NotFound, "Unknown method $method")
 }
 
-sealed class ConnectError(override val code: String, override val message: String) : ServerError {
+sealed class ConnectError(override val code: String, override val message: String, override val data: JsonElement? = null) : ServerError {
     data object AlreadyConnected : ConnectError(WireErrorCode.Conflict, "Already connected")
-    data object ProtocolMismatch : ConnectError(WireErrorCode.ProtocolMismatch, ProtocolVersion.Mismatch)
+    /** Says which versions this Server speaks, so a Device can tell which side to update. */
+    data object ProtocolMismatch : ConnectError(WireErrorCode.ProtocolMismatch, ProtocolVersion.Mismatch,
+        ProtocolJson.encodeToJsonElement(ProtocolRange.serializer(), ProtocolRange(ProtocolVersion.Minimum, ProtocolVersion.Current)))
     data object Unpaired : ConnectError(WireErrorCode.Forbidden, "This device was unpaired")
     data object InvalidPairing : ConnectError(WireErrorCode.Forbidden, "Invalid or expired pairing code")
 }
