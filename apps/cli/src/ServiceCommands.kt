@@ -100,6 +100,7 @@ internal class AppService(
     override fun install(spec: ServiceSpec) {
         val settings = Json.decodeFromString(LoginServiceSettings.serializer(), render(spec))
         if (launchd.file.exists()) launchd.uninstall()
+        known = null
         LoginServiceSettings.write(settings, home.path)
         // Registering can fail just after the previous Server goes, so try a few times.
         var result = agent("register")
@@ -109,9 +110,11 @@ internal class AppService(
             result = agent("register")
         }
         result.orFail()
+        known = null
     }
 
     override fun uninstall() {
+        known = null
         agent("unregister").orFail()
         if (launchd.file.exists()) launchd.uninstall()
         File(LoginServiceSettings.file(home.path).toString()).delete()
@@ -131,7 +134,10 @@ internal class AppService(
 
     override fun bootHint() = if (status() == "requiresApproval") "Allow Kinuvo in System Settings → General → Login Items & Extensions, so the service can start." else launchd.bootHint()
 
-    private fun status() = agent("status").takeIf { it.code == 0 }?.out?.lines()?.lastOrNull { it.isNotBlank() }?.trim() ?: "unknown"
+    private var known: String? = null
+
+    /** One call to the app, which starts a JVM, per command. */
+    private fun status() = known ?: (agent("status").takeIf { it.code == 0 }?.out?.lines()?.lastOrNull { it.isNotBlank() }?.trim() ?: "unknown").also { known = it }
 
     private fun agent(command: String) = run(listOf(File(app, EXECUTABLE).path, "--service", command))
 

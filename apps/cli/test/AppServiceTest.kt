@@ -85,9 +85,11 @@ class AppServiceTest {
         assertTrue(service.installed())
         assertEquals("waiting for your approval", service.state())
         assertContains(service.bootHint().orEmpty(), "Login Items")
+        assertEquals(1, calls.size)
         status = "notRegistered"
-        assertFalse(service.installed())
-        assertEquals("not installed", service.state())
+        val removed = service()
+        assertFalse(removed.installed())
+        assertEquals("not installed", removed.state())
     }
 
     @Test
