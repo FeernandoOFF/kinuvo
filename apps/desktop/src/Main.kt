@@ -15,6 +15,7 @@ import androidx.compose.ui.window.rememberWindowState
 import kinuvo.server.jvm.Harness
 import kinuvo.server.jvm.HarnessServer
 import kinuvo.server.jvm.LocalServer
+import kinuvo.server.jvm.LoginServiceSettings
 import kinuvo.server.jvm.kinuvoHome
 import kinuvo.app.computer.ComputerDriver
 import kinuvo.app.connection.EmbeddedServer
@@ -28,9 +29,12 @@ import kinuvo.ui.startKinuvo
 import kinuvo.ui.design.LocalWindowChrome
 import kinuvo.ui.design.appIcon
 import kinuvo.ui.design.trayIcon
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeoutOrNull
 import org.koin.dsl.module
+import kotlin.system.exitProcess
 
 /** Runs the Kinuvo server (the harness) inside the app; phones on the LAN can pair with it. */
 private object HarnessEmbeddedServer : EmbeddedServer {
@@ -49,10 +53,20 @@ private object HarnessEmbeddedServer : EmbeddedServer {
         }
     }
 
-    override suspend fun endpoint(): Endpoint {
-        LocalServer.read(kinuvoHome())?.takeIf { it.alive && it.pid != ProcessHandle.current().pid() }?.let {
-            return Endpoint("ws://127.0.0.1:${it.port}/ws", it.token)
+    private fun running() = LocalServer.read(kinuvoHome())?.takeIf { it.alive && it.pid != ProcessHandle.current().pid() }?.let { Endpoint("ws://127.0.0.1:${it.port}/ws", it.token) }
+
+    /** A login service for this home is about to start its Server, which the app joins instead of starting a second one. */
+    private suspend fun starting(): Endpoint? {
+        if (LoginServiceSettings.read()?.home != kinuvoHome().toString() || ServiceAgent.status() != AgentStatus.Enabled) return null
+        return withTimeoutOrNull(20_000) {
+            var found = running()
+            while (found == null) { delay(500); found = running() }
+            found
         }
+    }
+
+    override suspend fun endpoint(): Endpoint {
+        (running() ?: starting())?.let { return it }
         val server = try { started() } catch (e: LinkageError) {
             throw IllegalStateException("The local Server could not start because the app runtime is incomplete: ${e.message}. Reinstall or rebuild Kinuvo.", e)
         }
@@ -69,8 +83,12 @@ private class CuaComputerDriver(private val desktop: DesktopComputer = DesktopCo
     override suspend fun perform(request: ComputerRequest) = desktop.perform(request)
 }
 
-fun main() {
+fun main(args: Array<String>) {
     System.setProperty("kotlin-logging.logStartupMessage", "false")
+    when (args.firstOrNull()) {
+        "--serve" -> exitProcess(serveFromLogin())
+        "--service" -> exitProcess(runServiceCommand(args.getOrNull(1)))
+    }
     startKinuvo(module {
         single<EmbeddedServer> { HarnessEmbeddedServer }
         single<ComputerDriver> { CuaComputerDriver() }
