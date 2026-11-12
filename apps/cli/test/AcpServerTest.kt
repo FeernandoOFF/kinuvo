@@ -1,6 +1,7 @@
 @file:OptIn(com.agentclientprotocol.annotations.UnstableApi::class)
 package kinuvo.cli
 
+import kinuvo.testing.harness.TemporaryDirectories
 import com.agentclientprotocol.agent.v2.Agent
 import com.agentclientprotocol.client.v2.*
 import com.agentclientprotocol.model.Implementation
@@ -22,14 +23,18 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.*
 import kinuvo.server.providers.ModelProviders
 import kinuvo.protocol.agent.AgentId
 
 class AcpServerTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun nativeServerReplyReachesSdkClient() = runBlocking {
-        val dir = Files.createTempDirectory("kinuvo-native-acp").toFile()
+        val dir = temporaryDirectories.create("kinuvo-native-acp").toFile()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         val server = HarnessServer(Harness(home = Path(dir.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(dir.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("native ACP reply"), StreamFrame.End()) } }))
         var native: KinuvoClient? = null

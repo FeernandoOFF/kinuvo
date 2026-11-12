@@ -1,17 +1,22 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.client.KinuvoClient
 import kinuvo.protocol.*
 import kinuvo.protocol.execution.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.*
 
 class ExecutionEventAccessTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun executionCatalogEventsRequireManagementAccess() = runBlocking {
-        val dir = Files.createTempDirectory("kinuvo-execution-access").toFile()
+        val dir = temporaryDirectories.create("kinuvo-execution-access").toFile()
         val server = HarnessServer(Harness(home = Path(dir.path)))
         var manager: KinuvoClient? = null
         var device: KinuvoClient? = null

@@ -1,5 +1,6 @@
 package kinuvo.cli
 
+import kinuvo.testing.harness.TemporaryDirectories
 import com.github.ajalt.clikt.core.CliktError
 import kinuvo.client.KinuvoClient
 import kinuvo.plugins.cua.DesktopComputer
@@ -14,14 +15,18 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.*
-import java.nio.file.Files
 import kotlin.io.encoding.Base64
 import kotlin.test.*
 
 class ComputerTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun cliDesktopSupportsLiveViewInputAndTakeoverThroughScreens() = runBlocking {
         withTimeout(10_000) {
-            val home = Files.createTempDirectory("kinuvo-cli-computer").toFile()
+            val home = temporaryDirectories.create("kinuvo-cli-computer").toFile()
             val server = HarnessServer(Harness(Path(home.path), plugins = emptyList()))
             val calls = mutableListOf<Pair<String, JsonObject>>()
             val png = java.io.ByteArrayOutputStream().also {
@@ -81,7 +86,7 @@ class ComputerTest {
     }
 
     @Test fun missingDriverDoesNotRegisterAComputer() {
-        val home = Files.createTempDirectory("kinuvo-cli-no-computer").toFile()
+        val home = temporaryDirectories.create("kinuvo-cli-no-computer").toFile()
         val server = HarnessServer(Harness(Path(home.path), plugins = emptyList()))
         try {
             val error = assertFailsWith<CliktError> { CliComputer(server, "127.0.0.1", 0, DesktopComputer(connect = null)) }

@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.reflection.*
 import kinuvo.testing.harness.*
 import ai.koog.prompt.message.Message
@@ -19,7 +21,6 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -28,9 +29,14 @@ import kinuvo.server.SessionLog
 import kinuvo.server.providers.ModelProviders
 
 class ReflectionActivityTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun publishesLiveActivityAndPersistsCompletedEmptyAndFailedPasses() = runBlocking {
-        val home = Files.createTempDirectory("reflection-activity").toFile()
+        val home = temporaryDirectories.create("reflection-activity").toFile()
         var outcome = "saved"
         lateinit var harness: Harness
         var sessionId = SessionId("")

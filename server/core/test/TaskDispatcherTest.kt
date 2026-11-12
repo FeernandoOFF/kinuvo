@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kotlin.test.AfterTest
 import kinuvo.protocol.agent.AgentId
 import kotlin.time.Duration.Companion.seconds
 import kinuvo.testing.harness.*
@@ -32,7 +33,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class TaskDispatcherTest {
-    @kotlin.test.AfterTest
+    @AfterTest
     fun cleanup() = runBlocking { scope.coroutineContext[kotlinx.coroutines.Job]?.cancelAndJoin(); harness.close(); kinuvo.server.plugin.deleteTree(home) }
     private val home = Path(SystemTemporaryDirectory, "harness-tasks-${Uuid.random()}")
     private var finish = true

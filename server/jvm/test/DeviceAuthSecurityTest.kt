@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermissions
 import kotlin.test.*
@@ -9,8 +10,13 @@ import kotlin.time.Duration.Companion.days
 import kinuvo.server.DeviceAuth
 
 class DeviceAuthSecurityTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     private var time = Instant.parse("2026-10-10T00:00:00Z")
-    private val file = Files.createTempDirectory("device-auth-security").resolve("devices.json").toFile()
+    private val file = temporaryDirectories.create("device-auth-security").resolve("devices.json").toFile()
     private val auth = DeviceAuth(file) { time }
 
     @Test fun storedDevicesRequireIdentityAccessAndExpiry() {

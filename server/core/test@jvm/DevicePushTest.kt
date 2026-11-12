@@ -1,5 +1,6 @@
 package kinuvo.server
 
+import kinuvo.testing.harness.TemporaryDirectories
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -13,12 +14,16 @@ import kinuvo.protocol.push.PushSubscription
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.test.runTest
-import java.nio.file.Files
 import java.security.interfaces.ECPublicKey
 import kotlin.test.*
 
 class DevicePushTest {
-    private val auth = DeviceAuth(Files.createTempDirectory("device-push").resolve("devices.json").toFile())
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val auth = DeviceAuth(temporaryDirectories.create("device-push").resolve("devices.json").toFile())
     private val keys = WebPush.newKeyPair()
     private val secret = WebPush.newAuthSecret()
 

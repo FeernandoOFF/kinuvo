@@ -1,6 +1,7 @@
 package kinuvo.plugins.voice
 
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.protocol.voice.VoiceModelKind
 
 import kotlinx.coroutines.*
@@ -9,8 +10,13 @@ import kotlin.test.*
 
 /** Explicit network integration check; never downloads speech weights in routine test runs. */
 class ModelStoreTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun damagedPayloadInvalidatesReceiptAndActiveModelCannotBeRemoved() = runBlocking {
-        val root = Files.createTempDirectory("kinuvo-voice-integrity").toFile()
+        val root = temporaryDirectories.create("kinuvo-voice-integrity").toFile()
         val prefs = object : VoicePreferences {
             override fun get(key: String): String? = null
             override fun set(key: String, value: String?) {}
@@ -38,7 +44,7 @@ class ModelStoreTest {
     }
 
     @Test fun archiveRequiresEveryPayloadAtItsPinnedSizeEvenWithAReceipt() {
-        val root = Files.createTempDirectory("kinuvo-voice-archive").toFile()
+        val root = temporaryDirectories.create("kinuvo-voice-archive").toFile()
         val repository = ModelStore(root, object : VoicePreferences {
             override fun get(key: String): String? = null
             override fun set(key: String, value: String?) {}
@@ -75,7 +81,7 @@ class ModelStoreTest {
 
     @Test fun pinnedDownloadsVerifyExtractAndRemoveAndCancellationCleansStaging() = runBlocking {
         if (System.getenv("KINUVO_TEST_LOCAL_VOICE_DOWNLOADS") != "1") return@runBlocking
-        val root = Files.createTempDirectory("kinuvo-voice-model-test").toFile()
+        val root = temporaryDirectories.create("kinuvo-voice-model-test").toFile()
         val values = mutableMapOf<String, String>()
         val prefs = object : VoicePreferences {
             override fun get(key: String) = values[key]

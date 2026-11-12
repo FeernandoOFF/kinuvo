@@ -1,5 +1,7 @@
 package kinuvo.plugins.exec
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -13,7 +15,12 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 class HostBackendTest {
-    private val root = Files.createTempDirectory("ws").toFile().canonicalFile
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val root = temporaryDirectories.create("ws").toFile().canonicalFile
     private val backend = HostBackend(listOf(root))
     private val tools = execTools(backend).associateBy { it.descriptor.name }
     private suspend fun call(tool: String, vararg pairs: Pair<String, Any>) = tools.getValue(tool).execute(buildJsonObject {

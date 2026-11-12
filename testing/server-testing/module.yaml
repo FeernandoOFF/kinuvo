@@ -13,6 +13,10 @@ test-dependencies:
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
 
 settings:
+  jvm:
+    test:
+      systemProperties:
+        java.io.tmpdir: ../../build
   kotlin:
     compileIncrementally: true
     serialization: json

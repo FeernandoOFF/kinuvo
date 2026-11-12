@@ -1,5 +1,6 @@
 package kinuvo.app
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 import kinuvo.app.session.*
@@ -17,11 +18,15 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
-import java.nio.file.Files
 import kotlin.test.*
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ClientCacheTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     private val url = "ws://home:8787/ws"
     private val cached = Snapshot(
         syncedAt = 1_000,
@@ -31,7 +36,7 @@ class ClientCacheTest {
     )
 
     @Test fun filesKeepSnapshotsPerServerAndDropOtherProtocols() = runBlocking {
-        val dir = Files.createTempDirectory("client-cache").toFile()
+        val dir = temporaryDirectories.create("client-cache").toFile()
         try {
             val cache = deviceCache(dir.path)
             cache.write(url, cached)

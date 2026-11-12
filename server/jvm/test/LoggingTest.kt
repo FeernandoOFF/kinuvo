@@ -1,11 +1,12 @@
 package kinuvo.server.jvm
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import ch.qos.logback.classic.LoggerContext
 import ch.qos.logback.core.rolling.RollingFileAppender
 import io.github.oshai.kotlinlogging.KotlinLogging
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import java.util.zip.GZIPInputStream
 import kotlin.test.Test
@@ -15,6 +16,11 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class LoggingTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun diagnosticsGoToStderrWithLevelsAndExceptions() {
         val output = probe()
         assertEquals("result:false\n", output.first)
@@ -35,7 +41,7 @@ class LoggingTest {
     }
 
     @Test fun serviceLogsRotateWithoutWritingDiagnosticsToTheConsole() {
-        val home = Files.createTempDirectory("kinuvo-logging").toFile()
+        val home = temporaryDirectories.create("kinuvo-logging").toFile()
         try {
             val file = File(home, "server.log")
             val output = probe(listOf("-Dlogback.configurationFile=logback-service.xml", "-Dkinuvo.log.file=${file.path}", "-Dkinuvo.log.maxFileSize=1KB"), rotate = true)

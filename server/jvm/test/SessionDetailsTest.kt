@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.testing.harness.*
 import ai.koog.prompt.message.Message
 
@@ -8,14 +10,18 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class SessionDetailsTest {
-    private val home = Files.createTempDirectory("harness-details").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val home = temporaryDirectories.create("harness-details").toFile()
 
     @Test
     fun renamesAndFavoritesStayOutOfTheModelsHistory(): Unit = runBlocking {

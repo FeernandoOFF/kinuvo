@@ -1,15 +1,21 @@
 package kinuvo.plugins.exec
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kotlinx.coroutines.runBlocking
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 class SshBackendTest {
-    private val control = Files.createTempDirectory("ssh").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val control = temporaryDirectories.create("ssh").toFile()
 
     @Test
     fun buildsSshInvocationWithSharedConnection() {

@@ -1,10 +1,11 @@
 package kinuvo.plugins.protonpass
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.plugin.Keychain
 import kinuvo.protocol.secret.SecretEntry
 import kotlinx.coroutines.test.runTest
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -13,7 +14,12 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ProtonPassTest {
-    private val dir = Files.createTempDirectory("protonpass").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val dir = temporaryDirectories.create("protonpass").toFile()
     private val session = File(dir, "session")
     private val reasons = File(dir, "reasons")
     private val keychain = FakeKeychain()

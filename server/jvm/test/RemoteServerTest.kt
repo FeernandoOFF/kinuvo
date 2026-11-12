@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kotlin.time.Duration.Companion.milliseconds
 import kinuvo.testing.harness.awaitCondition
 import kinuvo.testing.harness.scriptedModel
@@ -16,13 +17,17 @@ import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
 import kotlinx.coroutines.*
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.*
 import kinuvo.server.providers.ModelProviders
 
 class RemoteServerTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun scopedRemoteExecution() = runBlocking {
-        val dir = Files.createTempDirectory("kinuvo-remote-test").toFile()
+        val dir = temporaryDirectories.create("kinuvo-remote-test").toFile()
         val script = dir.resolve("agent.py")
         val requests = dir.resolve("requests.jsonl")
         script.writeText("""

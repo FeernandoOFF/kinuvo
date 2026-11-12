@@ -1,5 +1,7 @@
 package kinuvo.server.jvm
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.reflection.*
 import kinuvo.testing.harness.*
 
@@ -20,7 +22,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -28,7 +29,12 @@ import kotlin.test.assertTrue
 import kinuvo.server.providers.ModelProviders
 
 class ReflectionReviewTest {
-    private val home = Files.createTempDirectory("reflection-review").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val home = temporaryDirectories.create("reflection-review").toFile()
     private fun harness(model: kinuvo.harness.builtin.AgentModel = scriptedModel { _, _ -> emptyFlow() }) = Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))),
         modelFactory = { model }, plugins = emptyList())
 

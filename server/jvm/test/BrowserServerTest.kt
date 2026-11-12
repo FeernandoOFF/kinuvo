@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kinuvo.testing.harness.awaitValue
@@ -25,15 +26,19 @@ import kotlinx.io.files.Path
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
 import java.io.File
-import java.nio.file.Files
 import java.util.concurrent.TimeUnit
 import kotlin.test.*
 
 /** With KINUVO_BROWSER_PACKAGED_JAR set, the same proof runs against the executable jar. */
 class BrowserServerTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun agentRunCanOpenBrowserThroughTheRealToolLoop(): Unit = runBlocking {
         val root = File(System.getenv("KINUVO_HOME") ?: System.getProperty("java.io.tmpdir")).apply { mkdirs() }
-        val home = Files.createTempDirectory(root.toPath(), "browser-agent-").toFile()
+        val home = temporaryDirectories.create(root.toPath(), "browser-agent-").toFile()
         val harness = Harness(Path(home.path), plugins = listOf(BrowserPlugin(File(home, "browser"))),
             modelFactory = { scriptedModel { prompt, tools ->
                 if (prompt.messages.toolResults.isEmpty()) flowOf(StreamFrame.ToolCallComplete("open", tools.first { "browser_open" in it.name }.name, """{"text":"about:blank"}"""), StreamFrame.End())
@@ -61,7 +66,7 @@ class BrowserServerTest {
     @Test fun pairedDeviceCanBrowseAndTakeOverButOrdinaryDeviceCannot(): Unit = runBlocking {
         val root = File(System.getenv("KINUVO_HOME") ?: System.getProperty("java.io.tmpdir")).apply { mkdirs() }
         val home = System.getenv("KINUVO_BROWSER_PROOF_HOME")?.let { File(it).apply { mkdirs() } }
-            ?: Files.createTempDirectory(root.toPath(), "browser-server-").toFile()
+            ?: temporaryDirectories.create(root.toPath(), "browser-server-").toFile()
         val jar = System.getenv("KINUVO_BROWSER_PACKAGED_JAR")
         var server: HarnessServer? = null
         var process: Process? = null

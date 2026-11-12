@@ -1,5 +1,6 @@
 package kinuvo.plugins.browser
 
+import kinuvo.testing.harness.TemporaryDirectories
 import com.sun.net.httpserver.HttpServer
 import kinuvo.protocol.browser.*
 import kinuvo.protocol.screen.*
@@ -13,6 +14,11 @@ import java.net.InetSocketAddress
 import kotlin.test.*
 
 class BrowserRuntimeTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     private suspend fun control(runtime: BrowserRuntime, owner: BrowserOwner, tab: String, take: Boolean) {
         val gate = runtime.gate(owner, tab)
         if (take) gate.acquire("fixture-device", gate.state.value.generation)
@@ -26,7 +32,7 @@ class BrowserRuntimeTest {
     }
 
     @Test fun continuousFramesCoexistWithSemanticOperationsAndHeldTabsRestore() = runBlocking {
-        val home = java.nio.file.Files.createTempDirectory("kinuvo-stream-proof-").toFile()
+        val home = temporaryDirectories.create("kinuvo-stream-proof-").toFile()
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->
             val color = if (exchange.requestURI.path == "/second") "blue" else "red"
@@ -93,7 +99,7 @@ class BrowserRuntimeTest {
     }
 
     @Test fun chromeOwnershipReferencesTakeoverPersistenceAndLifecycle() = runBlocking {
-        val home = java.nio.file.Files.createTempDirectory("kinuvo-browser-proof-").toFile()
+        val home = temporaryDirectories.create("kinuvo-browser-proof-").toFile()
         val runtime = BrowserRuntime(home)
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->

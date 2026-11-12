@@ -1,16 +1,21 @@
 package kinuvo.server.store
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.protocol.*
 import kinuvo.protocol.session.*
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.io.encoding.Base64
 import kotlin.test.*
 
 class FileAttachmentsTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun persistsBytesSeparatelyFromMessages() {
-        val home = Files.createTempDirectory("attachments").toFile()
+        val home = temporaryDirectories.create("attachments").toFile()
         try {
             val store = FileAttachments(Path(home.path))
             val content = "Name,Value\nSleep,8\n"
@@ -26,7 +31,7 @@ class FileAttachmentsTest {
 
     @Test
     fun rejectsPathsForgedMetadataOversizeAndBinaryText() {
-        val home = Files.createTempDirectory("attachments").toFile()
+        val home = temporaryDirectories.create("attachments").toFile()
         try {
             val store = FileAttachments(Path(home.path))
             fun upload(name: String, bytes: ByteArray = "ok".encodeToByteArray()) = store.upload(UploadAttachmentParams(name, Base64.encode(bytes)))

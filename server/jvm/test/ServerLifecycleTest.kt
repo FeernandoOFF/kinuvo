@@ -1,16 +1,21 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.plugin.HarnessPlugin
 import kotlinx.coroutines.runBlocking
 import kotlinx.io.files.Path
-import java.nio.file.Files
 import kotlin.test.*
 import kinuvo.server.NetworkSecurity
 
 class ServerLifecycleTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test
     fun failedHostStartClosesInstallationAndRepeatedStopDoesNotCloseAgain() = runBlocking {
-        val home = Files.createTempDirectory("failed-server-start").toFile()
+        val home = temporaryDirectories.create("failed-server-start").toFile()
         var closes = 0
         val plugin = object : HarnessPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.serverlifecycletest.1", "Test")
@@ -28,7 +33,7 @@ class ServerLifecycleTest {
 
     @Test
     fun failedListenerStartClosesInstallation() = runBlocking {
-        val home = Files.createTempDirectory("failed-listener-start").toFile()
+        val home = temporaryDirectories.create("failed-listener-start").toFile()
         var closes = 0
         val plugin = object : HarnessPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.serverlifecycletest.2", "Test")

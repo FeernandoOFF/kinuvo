@@ -5,9 +5,14 @@ dependencies:
   - com.agentclientprotocol:acp:0.33.0
 
 settings:
+  jvm:
+    test:
+      systemProperties:
+        java.io.tmpdir: ../../build
   kotlin:
     serialization: json
 
 test-dependencies:
+  - ../../testing/harness-testing
   - org.slf4j:slf4j-api:2.0.17
   - $kotlin.test

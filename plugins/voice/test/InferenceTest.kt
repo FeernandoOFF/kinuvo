@@ -1,13 +1,18 @@
 package kinuvo.plugins.voice
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kotlinx.coroutines.*
-import java.nio.file.Files
 import kotlin.test.*
 
 class InferenceTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun cancellationKillsAndReapsWorkerBeforeReturning() = runBlocking {
         if (!System.getProperty("os.name").startsWith("Mac")) return@runBlocking
-        val root = Files.createTempDirectory("voice-cancel").toFile()
+        val root = temporaryDirectories.create("voice-cancel").toFile()
         val pid = root.resolve("pid")
         val worker = root.resolve("worker").apply {
             writeText("#!/bin/sh\necho $$ > '${pid.path}'\nexec /bin/sleep 30\n")

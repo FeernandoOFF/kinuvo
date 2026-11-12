@@ -1,14 +1,19 @@
 package kinuvo.providers.litert
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.protocol.model.ModelTier
 import kotlinx.coroutines.test.runTest
 import kinuvo.harness.AgentConfig
-import java.nio.file.Files
 import kotlin.test.*
 import kinuvo.harness.ModelProfile
 
 class LiteRtToolsTest {
-    private fun provider() = LiteRtProvider(Files.createTempDirectory("kinuvo-litert").toFile())
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private fun provider() = LiteRtProvider(temporaryDirectories.create("kinuvo-litert").toFile())
 
     @Test fun declaresTiersAndDoesNotSendTheSessionInstructions() = runTest {
         val provider = provider()

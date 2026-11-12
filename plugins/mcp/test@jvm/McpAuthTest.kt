@@ -1,5 +1,6 @@
 package kinuvo.plugins.mcp
 
+import kinuvo.testing.harness.TemporaryDirectories
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import io.ktor.http.Url
@@ -30,7 +31,12 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class McpAuthTest {
-    private val dir = Files.createTempDirectory("mcp-auth").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val dir = temporaryDirectories.create("mcp-auth").toFile()
     private val keychain = FakeKeychain()
     private val auth = McpAuth(McpSignIns(dir, keychain))
     private val fake = FakeOAuthServer()
@@ -144,7 +150,7 @@ class McpAuthTest {
         assertTrue(encrypted.exists() && "secret-token" !in encrypted.readText())
         assertEquals(signIn, McpSignIns(dir, keychain).get("agents/a/x"))
 
-        val plainDir = Files.createTempDirectory("mcp-auth").toFile()
+        val plainDir = temporaryDirectories.create("mcp-auth").toFile()
         val plain = File(plainDir, "shared/x.json")
         if (Files.getFileStore(plainDir.toPath()).supportsFileAttributeView("posix")) {
             McpSignIns(plainDir, null).put("shared/x", signIn)

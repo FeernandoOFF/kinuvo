@@ -1,5 +1,6 @@
 package kinuvo.plugins.browser
 
+import kinuvo.testing.harness.TemporaryDirectories
 import com.sun.net.httpserver.HttpServer
 import dev.kdriver.core.browser.defaultBrowserSearchConfig
 import java.io.File
@@ -12,6 +13,11 @@ import kotlinx.coroutines.runBlocking
 import kotlin.test.*
 
 class BrowserDomTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun busyPagesAllowActionsAndFieldsReportTheirFinalState() = runBlocking {
         val chrome = System.getenv("KINUVO_BROWSER_EXECUTABLE")?.let(::File)
             ?: defaultBrowserSearchConfig().findChromeExecutable()?.let { File(it.toString()) }
@@ -19,7 +25,7 @@ class BrowserDomTest {
             println("Skipping BrowserDomTest: Chrome is unavailable")
             return@runBlocking
         }
-        val home = Files.createTempDirectory("kinuvo-dom-").toFile()
+        val home = temporaryDirectories.create("kinuvo-dom-").toFile()
         val runtime = BrowserRuntime(home)
         val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
         server.createContext("/") { exchange ->

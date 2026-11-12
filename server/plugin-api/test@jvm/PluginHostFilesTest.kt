@@ -1,5 +1,6 @@
 package kinuvo.server.plugin
 
+import kinuvo.testing.harness.TemporaryDirectories
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -10,8 +11,13 @@ import java.nio.file.Files
 import kotlin.test.*
 
 class PluginHostFilesTest {
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
     @Test fun fileGrantsEnforceModesTraversalAndSymlinks() = runTest {
-        val dir = Files.createTempDirectory("plugin-host").toFile()
+        val dir = temporaryDirectories.create("plugin-host").toFile()
         val root = dir.resolve("root").apply { mkdirs() }
         val outside = dir.resolve("outside.txt").apply { writeText("private") }
         Files.createSymbolicLink(root.resolve("link").toPath(), outside.toPath())

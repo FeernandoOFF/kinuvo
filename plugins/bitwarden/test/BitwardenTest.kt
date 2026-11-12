@@ -1,10 +1,11 @@
 package kinuvo.plugins.bitwarden
 
+import kotlin.test.AfterTest
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.plugin.Keychain
 import kinuvo.protocol.secret.SecretEntry
 import kotlinx.coroutines.test.runTest
 import java.io.File
-import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -13,7 +14,12 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class BitwardenTest {
-    private val dir = Files.createTempDirectory("bitwarden").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val dir = temporaryDirectories.create("bitwarden").toFile()
     private val keychain = FakeKeychain()
 
     /** A stand-in for bws: token `good` signs in; the server URL is echoed into the log. */

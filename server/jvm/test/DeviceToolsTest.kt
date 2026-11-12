@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kinuvo.server.devices.*
 import kinuvo.testing.harness.*
 
@@ -13,11 +14,15 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.*
-import java.nio.file.Files
 import kotlin.test.*
 
 class DeviceToolsTest {
-    private val home = Files.createTempDirectory("device-tools").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val home = temporaryDirectories.create("device-tools").toFile()
     private val harness = Harness(home = Path(home.path), modelFactory = { scriptedModel { _, _ -> kotlinx.coroutines.flow.emptyFlow() } })
     private val device = ToolDevice("phone", "iPhone", setOf(DeviceToolKind.Contacts))
     private val events = Channel<AgentEvent>(Channel.UNLIMITED)

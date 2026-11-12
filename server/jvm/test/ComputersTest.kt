@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.testing.harness.TemporaryDirectories
 import kotlin.time.Duration.Companion.seconds
 import kinuvo.testing.harness.*
 
@@ -14,13 +15,17 @@ import kinuvo.protocol.tool.*
 import kotlinx.coroutines.*
 import kotlinx.io.files.Path
 import kotlinx.serialization.json.*
-import java.nio.file.Files
 import kotlin.io.encoding.Base64
 import kotlin.test.*
 import kinuvo.server.DeviceAuth
 
 class ComputersTest {
-    private val home = Files.createTempDirectory("computers").toFile()
+    private val temporaryDirectories = TemporaryDirectories()
+
+    @AfterTest
+    fun deleteTemporaryDirectories() = temporaryDirectories.close()
+
+    private val home = temporaryDirectories.create("computers").toFile()
     private val harness = Harness(home = Path(home.path), modelFactory = { scriptedModel { _, _ -> kotlinx.coroutines.flow.emptyFlow() } })
     private val phone = ToolDevice("phone", "Pixel", setOf(DeviceToolKind.Computer))
     private val attached = mutableListOf<String>()
