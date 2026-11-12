@@ -18,14 +18,13 @@ import kinuvo.server.jvm.jvmProviders
 import kinuvo.server.jvm.kinuvoHome
 import kinuvo.server.jvm.Harness
 import kinuvo.server.jvm.HarnessServer
-import kinuvo.server.NetworkSecurity
+import kinuvo.server.jvm.ServeOptions
+import kinuvo.server.jvm.serve
 import kinuvo.server.jvm.LocalServer
 import kinuvo.protocol.device.Links
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.TimeZone
-import kotlinx.coroutines.NonCancellable
 
 private val log by lazy { KotlinLogging.logger("kinuvo.cli") }
 
@@ -64,40 +63,12 @@ private class Login : CoreSuspendingCliktCommand("login") {
 }
 
 private suspend fun serve(host: String, port: Int, publicUrl: String? = null, trustedProxy: String? = null, computer: Boolean = false, tailscale: Boolean = false, tailscalePort: Int = 443) {
-    require(!tailscale || publicUrl == null) { "Use --tailscale or --public-url, not both" }
-    val route = if (tailscale) {
-        Tailscale.requireLoopback(host)
-        Tailscale().prepare(port, tailscalePort)
-    } else null
-    val bind = if (tailscale) "127.0.0.1" else host
-    val network = NetworkSecurity(route?.url ?: publicUrl ?: System.getenv("KINUVO_PUBLIC_URL"),
-        (trustedProxy ?: System.getenv("KINUVO_TRUSTED_PROXIES") ?: "127.0.0.1,::1").split(',').map(String::trim).toSet())
-    val server = HarnessServer(Harness(), network = network)
-    var desktop: CliComputer? = null
-    var ready = false
-    val shutdown = Thread { try { server.stop() } finally { desktop?.close() } }
-    try {
-        val bound = server.start(bind, port)
-        route?.enable()
-        if (computer) {
-            desktop = CliComputer(server, bind, bound)
-            desktop.connect()
-        }
-        server.advertise()
-        log.info { "Server listening at $bind:$bound${network.publicUrl?.let { "; HTTPS address $it" }.orEmpty()}" }
-        if (route != null) log.info { "Tailscale HTTPS: ${route.url} (private to your tailnet; the Serve route persists until disabled)" }
-        if (computer) log.info { "Computer use enabled: Server desktop (cua-driver)." }
-        log.info { "Pairing is closed. Run `kinuvo pair --manage` for a management Device or `kinuvo pair` for ordinary access." }
-        Runtime.getRuntime().addShutdownHook(shutdown)
-        ready = true
-        awaitCancellation()
-    } finally {
-        runCatching { Runtime.getRuntime().removeShutdownHook(shutdown) }
-        try { server.stop() } finally {
-            try { desktop?.close() } finally {
-                if (!ready) kotlinx.coroutines.withContext(NonCancellable) {
-                    runCatching { route?.rollback() }.onFailure { log.warn(it) { "Could not remove the new Tailscale route; check `tailscale serve status`." } }
-                }
+    serveErrors {
+        serve(ServeOptions(host, port, publicUrl, trustedProxy, tailscale, tailscalePort)) { server, bind, bound ->
+            if (!computer) return@serve null
+            CliComputer(server, bind, bound).also {
+                it.connect()
+                log.info { "Computer use enabled: Server desktop (cua-driver)." }
             }
         }
     }

@@ -9,6 +9,8 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import kinuvo.server.jvm.HarnessServer
 import kinuvo.server.jvm.LocalServer
+import kinuvo.server.jvm.ServeException
+import kinuvo.server.jvm.Tailscale
 import kinuvo.server.jvm.kinuvoHome
 import kinuvo.protocol.device.Platform
 import kinuvo.protocol.device.currentPlatform
@@ -209,9 +211,9 @@ private class InstallService : CoreSuspendingCliktCommand("install") {
         LocalServer.read(kinuvoHome())?.takeIf { it.alive && it.pid != servicePid && !force }?.let {
             throw CliktError("A Server is already running on ${home.path} (pid ${it.pid}); stop it first, or pass --force")
         }
-        val route = if (tailscale) Tailscale().prepare(port, tailscalePort) else null
+        val route = if (tailscale) serveErrors { Tailscale().prepare(port, tailscalePort) } else null
         try {
-            route?.enable()
+            serveErrors { route?.enable() }
             if (source.canonicalFile != installed.canonicalFile) Files.copy(source.toPath(), installed.toPath(), StandardCopyOption.REPLACE_EXISTING)
             val serviceEnv = if (tailscale) env - "KINUVO_PUBLIC_URL" else env + publicUrl?.let { mapOf("KINUVO_PUBLIC_URL" to it) }.orEmpty()
             manager.install(ServiceSpec(java, installed.path, if (tailscale) "127.0.0.1" else host, port, log.path, serviceEnv, computer, tailscale, tailscalePort))
@@ -291,6 +293,9 @@ private fun ownerOnly(log: File) {
         Files.setPosixFilePermissions(log.toPath(), PosixFilePermissions.fromString("rw-------"))
     }
 }
+
+/** Shows the Server's own problems the way commands show theirs. */
+internal suspend fun <T> serveErrors(block: suspend () -> T): T = try { block() } catch (e: ServeException) { throw CliktError(e.message) }
 
 internal data class Sh(val code: Int, val out: String) {
     fun orFail() {

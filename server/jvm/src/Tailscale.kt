@@ -1,6 +1,5 @@
-package kinuvo.cli
+package kinuvo.server.jvm
 
-import com.github.ajalt.clikt.core.CliktError
 import kinuvo.server.plugin.ProcessOutput
 import kinuvo.server.plugin.runProcess
 import kinuvo.protocol.device.Platform
@@ -11,7 +10,7 @@ import java.io.File
 import java.net.URI
 import java.io.IOException
 
-internal class Tailscale(
+class Tailscale(
     private val executable: String = executable(),
     private val run: suspend (List<String>) -> ProcessOutput = { runProcess(it) },
 ) {
@@ -19,12 +18,12 @@ internal class Tailscale(
         require(localPort in 1..65535 && httpsPort in 1..65535) { "Tailscale needs fixed ports between 1 and 65535" }
         val status = json("status", "--json")
         if (status["BackendState"]?.jsonPrimitive?.content != "Running")
-            throw CliktError("Tailscale is not connected. Run `tailscale up`, then try again.")
+            throw ServeException("Tailscale is not connected. Run `tailscale up`, then try again.")
         val dns = status["Self"]?.jsonObject?.get("DNSName")?.jsonPrimitive?.contentOrNull?.trim()?.removeSuffix(".")
-            ?.takeIf { it.isNotEmpty() } ?: throw CliktError("Enable MagicDNS and HTTPS certificates in the Tailscale admin console, then try again.")
+            ?.takeIf { it.isNotEmpty() } ?: throw ServeException("Enable MagicDNS and HTTPS certificates in the Tailscale admin console, then try again.")
         val url = URI("https", null, dns, if (httpsPort == 443) -1 else httpsPort, null, null, null).toASCIIString()
         if (status["CertDomains"] is JsonArray && status.getValue("CertDomains").jsonArray.none { it.jsonPrimitive.content == dns })
-            throw CliktError("Enable HTTPS certificates at https://login.tailscale.com/admin/dns, then try again.")
+            throw ServeException("Enable HTTPS certificates at https://login.tailscale.com/admin/dns, then try again.")
         return Route(url, "$dns:$httpsPort", localPort, httpsPort).also { it.exists() }
     }
 
@@ -35,7 +34,7 @@ internal class Tailscale(
         internal suspend fun exists(): Boolean {
             val config = json("serve", "status", "--json")
             if (config["AllowFunnel"]?.jsonObject?.get(authority)?.jsonPrimitive?.booleanOrNull == true)
-                throw CliktError("Tailscale port $httpsPort is exposed through Funnel. Choose a private HTTPS port with --tailscale-port.")
+                throw ServeException("Tailscale port $httpsPort is exposed through Funnel. Choose a private HTTPS port with --tailscale-port.")
             val tcp = config["TCP"]?.jsonObject?.get(httpsPort.toString())?.jsonObject
             val web = config["Web"]?.jsonObject?.filterKeys { it.endsWith(":$httpsPort") }.orEmpty()
             if (tcp == null && web.isEmpty()) return false
@@ -43,7 +42,7 @@ internal class Tailscale(
             val root = handlers?.get("/")
             if (tcp?.get("HTTPS")?.jsonPrimitive?.booleanOrNull != true || tcp["TCPForward"] != null || web.size != 1 || handlers == null ||
                 root != null && root.jsonObject["Proxy"]?.jsonPrimitive?.contentOrNull != target)
-                throw CliktError("Tailscale port $httpsPort already serves another route. Choose a free port with --tailscale-port; existing routes were kept.")
+                throw ServeException("Tailscale port $httpsPort already serves another route. Choose a free port with --tailscale-port; existing routes were kept.")
             return root != null
         }
 
@@ -63,16 +62,16 @@ internal class Tailscale(
     private suspend fun json(vararg args: String): JsonObject = try {
         Json.parseToJsonElement(command(*args)).jsonObject
     } catch (e: IllegalArgumentException) {
-        throw CliktError("Tailscale returned invalid status data. Update Tailscale and try again.")
+        throw ServeException("Tailscale returned invalid status data. Update Tailscale and try again.")
     }
 
     private suspend fun command(vararg args: String): String {
         val result = try {
             withTimeoutOrNull(15_000) { run(listOf(executable) + args) }
         } catch (e: IOException) {
-            throw CliktError("Tailscale CLI is unavailable. Install Tailscale and make its command available on PATH.")
-        } ?: throw CliktError("Tailscale ${args.first()} timed out. Check `tailscale status` and enable HTTPS in the Tailscale admin console.")
-        if (!result.ok) throw CliktError("Tailscale ${args.first()} failed (${result.code}). Check `tailscale status`, HTTPS certificates and your permission to run `tailscale serve`.")
+            throw ServeException("Tailscale CLI is unavailable. Install Tailscale and make its command available on PATH.")
+        } ?: throw ServeException("Tailscale ${args.first()} timed out. Check `tailscale status` and enable HTTPS in the Tailscale admin console.")
+        if (!result.ok) throw ServeException("Tailscale ${args.first()} failed (${result.code}). Check `tailscale status`, HTTPS certificates and your permission to run `tailscale serve`.")
         return result.out
     }
 
