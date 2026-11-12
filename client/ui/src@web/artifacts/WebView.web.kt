@@ -12,6 +12,6 @@ internal actual val visualEditing = false
 
 /** Compose draws the page on a canvas, so the page opens in its own tab instead. */
 @Composable
-internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?) = Box(modifier, contentAlignment = Alignment.Center) {
+internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?) = Box(modifier, contentAlignment = Alignment.Center) {
     Button(onClick = { window.open("", "_blank")?.let { tab -> tab.opener = null; tab.document.run { open(); write(html); close() } } }) { Text("Open in a new tab") }
 }

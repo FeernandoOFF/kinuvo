@@ -12,7 +12,11 @@ import kinuvo.protocol.*
 import kinuvo.protocol.artifact.*
 import kinuvo.protocol.agent.AgentId
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.CancellationException
 
@@ -46,6 +50,7 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
     val state: StateFlow<ArtifactsState>
         field = MutableStateFlow(ArtifactsState(route))
     private var loading: Job? = null
+    private val designSaves = Mutex()
 
     init {
         owner.bind(viewModelScope, client)
@@ -84,6 +89,23 @@ class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifact
                 state.update { it.copy(open = ArtifactData(info, draft.text), draft = null, errors = emptyList()) }
             }
             state.update { it.copy(saving = false) }
+        }
+    }
+
+    /** A canvas edit: shown in [ArtifactsState.open] at once, saved in order without a draft; a failed save reloads the Server's version. */
+    fun saveDesign(json: String) {
+        val id = state.value.open?.info?.id ?: return
+        state.update { s -> s.open?.let { s.copy(open = it.copy(content = json)) } ?: s }
+        viewModelScope.launch {
+            designSaves.withLock {
+                val failed = state.value.errors.size
+                attempt {
+                    // Finishes even if the screen closes, so the last edit is never dropped.
+                    val info = withContext(NonCancellable) { client.call(Api.SaveArtifact, ArtifactSave(id, json)) }
+                    state.update { if (it.open?.info?.id == id) it.copy(open = ArtifactData(info, json), errors = emptyList()) else it }
+                }
+                if (state.value.errors.size > failed) load()
+            }
         }
     }
 

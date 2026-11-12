@@ -92,6 +92,18 @@ class ArtifactsViewModelTest {
 
             vm.edit(); vm.cancel()
             assertNull(vm.state.value.draft)
+
+            vm.saveDesign("""{"artboards":[]}""")
+            assertEquals("""{"artboards":[]}""", vm.state.value.open?.content)
+            runCurrent()
+            assertEquals("""{"artboards":[]}""", content)
+            assertEquals(content, vm.state.value.open?.content)
+            assertNull(vm.state.value.draft)
+
+            failSave = true
+            vm.saveDesign("x"); runCurrent()
+            assertTrue(vm.state.value.errors.isNotEmpty())
+            assertEquals("""{"artboards":[]}""", vm.state.value.open?.content)
         } finally { store.clear(); server.close(); client.close(); Dispatchers.resetMain() }
     }
 }
