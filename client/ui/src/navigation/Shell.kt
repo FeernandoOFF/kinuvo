@@ -123,6 +123,7 @@ class ShellActions(
     val onArtifacts: () -> Unit = {},
     val onComputers: () -> Unit = {},
     val onRoutines: () -> Unit = {},
+    val onWorkflows: () -> Unit = {},
     val onTools: () -> Unit = {},
     /** Opens one Agent's Session from Home's column. */
     val onOpenSession: (agentId: AgentId, sessionId: SessionId) -> Unit = { _, _ -> },
@@ -307,6 +308,7 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
                     if (state.management && state.capabilities?.features?.contains(ServerFeature.Computer) == true)
                         Pinned(Lucide.MonitorSmartphone, "Computers", view is Route.Computers, true, actions.onComputers)
                     Pinned(Lucide.AlarmClock, "Routines", (view as? Route.Settings)?.section == SettingsSection.Routines, state.capabilities.supports(ServerFeature.Routines), actions.onRoutines)
+                    Pinned(Lucide.Workflow, "Workflows", view is Route.Workflows, true, actions.onWorkflows)
                     Pinned(Lucide.Wrench, "Tools & MCP", (view as? Route.Settings)?.section == SettingsSection.Hub, true, actions.onTools)
                     Pinned(Lucide.BookOpen, "Knowledge", view is Route.Knowledge, state.capabilities.supports(ServerFeature.Knowledge), actions.onKnowledge)
                     if (state.capabilities.supports(ServerFeature.Artifacts)) Pinned(Lucide.Shapes, "Artifacts", view is Route.Artifacts, true, actions.onArtifacts)
