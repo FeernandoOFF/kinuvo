@@ -1,0 +1,13 @@
+product:
+  type: lib
+  platforms: [android]
+
+dependencies:
+  - ../../client/app
+  - ../../server/embedded
+  - io.insert-koin:koin-android:4.2.2
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

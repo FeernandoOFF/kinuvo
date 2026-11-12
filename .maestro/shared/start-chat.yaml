@@ -8,6 +8,6 @@ appId: ${APP_ID}
 - tapOn:
     point: 90%,45%
 - extendedWaitUntil:
-    visible: "Hello from WireMock"
+    visible: "Hello from the fixture Server"
     timeout: 20000
-- tapOn: "Hello from WireMock"
+- tapOn: "Hello from the fixture Server"

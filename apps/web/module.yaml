@@ -1,7 +1,7 @@
 product: wasm-js/app
 
 dependencies:
-  - ../../shared/ui
+  - ../../client/ui
 
 settings:
   compose:

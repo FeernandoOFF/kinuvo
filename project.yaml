@@ -1,39 +1,46 @@
 modules:
   - apps/android
+  - apps/android-embedded
   - apps/android-play
   - apps/cli
   - apps/desktop
   - apps/ios
+  - apps/ios-embedded
   - apps/web
-  - harness/core
-  - harness/execution/acp
-  - harness/execution/api
-  - harness/models
-  - harness/plugins/anytype
-  - harness/plugins/bitwarden
-  - harness/plugins/browser
-  - harness/plugins/caldav
-  - harness/plugins/cua
-  - harness/plugins/exec
-  - harness/plugins/executor
-  - harness/plugins/firecrawl
-  - harness/plugins/mcp
-  - harness/plugins/ntfy
-  - harness/plugins/onepassword
-  - harness/plugins/protonpass
-  - harness/plugins/reminders
-  - harness/plugins/todoist
-  - harness/providers/apple
-  - harness/providers/codex
-  - harness/providers/koog
-  - harness/providers/litert
-  - harness/providers/voice
-  - harness/server/embedded
-  - harness/server/jvm
-  - harness/server/runtime
-  - harness/testing
-  - shared/app
-  - shared/client
-  - shared/protocol
-  - shared/ui
-  - shared/ui/android-computer
+  - client/app
+  - client/sdk
+  - client/ui
+  - client/ui/android-computer
+  - gateways/acp-agent
+  - harness/acp
+  - harness/api
+  - harness/builtin
+  - harness/remote
+  - models
+  - plugins/anytype
+  - plugins/bitwarden
+  - plugins/browser
+  - plugins/caldav
+  - plugins/cua
+  - plugins/exec
+  - plugins/executor
+  - plugins/firecrawl
+  - plugins/mcp
+  - plugins/ntfy
+  - plugins/onepassword
+  - plugins/protonpass
+  - plugins/reminders
+  - plugins/todoist
+  - plugins/voice
+  - protocol
+  - providers/apple
+  - providers/codex
+  - providers/koog
+  - providers/litert
+  - server/core
+  - server/embedded
+  - server/jvm
+  - server/plugin-api
+  - testing/fixture-server
+  - testing/harness-testing
+  - testing/server-testing

@@ -3,7 +3,7 @@ appId: ${APP_ID}
 - runFlow:
     file: open-pairing.yaml
     env:
-      PAIRING_CODE: "123456"
+      PAIRING_CODE: ${PAIRING_CODE}
 - extendedWaitUntil:
     visible: "Agents and sessions"
     timeout: 20000

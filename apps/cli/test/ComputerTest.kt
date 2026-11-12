@@ -2,10 +2,10 @@ package kinuvo.cli
 
 import com.github.ajalt.clikt.core.CliktError
 import kinuvo.client.KinuvoClient
-import kinuvo.harness.cua.DesktopComputer
-import kinuvo.harness.cua.Driver
-import kinuvo.harness.server.Harness
-import kinuvo.harness.server.HarnessServer
+import kinuvo.plugins.cua.DesktopComputer
+import kinuvo.plugins.cua.Driver
+import kinuvo.server.jvm.Harness
+import kinuvo.server.jvm.HarnessServer
 import kinuvo.protocol.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.first

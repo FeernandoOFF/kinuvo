@@ -1,7 +1,7 @@
 package kinuvo.cli
 
 import com.github.ajalt.clikt.core.CliktError
-import kinuvo.harness.core.ProcessOutput
+import kinuvo.server.plugin.ProcessOutput
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
 import kotlin.test.*

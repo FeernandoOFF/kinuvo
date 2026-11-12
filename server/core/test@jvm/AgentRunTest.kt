@@ -1,0 +1,313 @@
+package kinuvo.server
+
+import kinuvo.testing.server.AgentRun
+import kinuvo.server.plugin.toolSpec
+import kinuvo.harness.AgentDoc
+import kinuvo.testing.harness.*
+import ai.koog.prompt.message.Message
+import ai.koog.prompt.message.MessagePart
+
+import kinuvo.protocol.AgentEvent
+import kinuvo.protocol.ModelTier
+import kinuvo.protocol.RequestKind
+import kinuvo.protocol.SessionEntry
+import kinuvo.protocol.withWrittenAt
+
+import ai.koog.prompt.streaming.StreamFrame
+import kinuvo.server.tools.MemoryTool
+import kinuvo.server.plugin.Tool
+import kinuvo.server.plugin.ToolRun
+import kinuvo.protocol.Attachment
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.serialization.json.JsonObject
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
+import kinuvo.harness.builtin.ANSWER_NOW
+import kinuvo.harness.builtin.ModelProfile
+import kinuvo.harness.builtin.liveVoiceInstructions
+
+class AgentRunTest {
+    @Test fun requestLimitAnswersWithoutTools() = runTest {
+        for (fails in listOf(false, true)) {
+            val home = TestHome()
+            val session = home.store.createSession(home.agent.id, "")
+            val tool = object : Tool {
+                override val descriptor = toolSpec("read", "Read")
+                override suspend fun execute(args: JsonObject) = "found"
+            }
+            var requests = 0
+            val model = scriptedModel { prompt, tools ->
+                requests++
+                if (tools.isNotEmpty()) flowOf(StreamFrame.ToolCallComplete("c$requests", "read", "{}"), StreamFrame.End())
+                else {
+                    assertTrue(prompt.messages.any { it.textContent().contains(ANSWER_NOW) })
+                    if (fails) error("failed final answer")
+                    flowOf(StreamFrame.TextDelta("The answer"), StreamFrame.End())
+                }
+            }
+            val events = AgentRun(home.agent, home.store, model, listOf(tool),
+                profile = ModelProfile.of(ModelTier.Frontier).copy(maxSteps = 1)).run(session.id, "go").toList()
+            assertEquals(2, requests)
+            if (fails) assertEquals("The work is unfinished; send another message to continue.", assertIs<AgentEvent.RunError>(events.last()).message)
+            else assertIs<AgentEvent.RunFinished>(events.last())
+        }
+    }
+
+    @Test fun voiceGuidanceAppliesOnlyToTheCurrentRun() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent.id, "stable")
+        val seen = mutableListOf<String>()
+        val model = scriptedModel { prompt, _ ->
+            seen += prompt.messages.filterIsInstance<Message.System>().first().textContent()
+            flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
+        }
+        val runner = AgentRun(home.agent, home.store, model, emptyList())
+        runner.run(session.id, "voice", voice = true).toList()
+        runner.run(session.id, "text").toList()
+        assertTrue(seen[0].contains(liveVoiceInstructions))
+        assertEquals("stable", seen[1])
+    }
+
+    @Test
+    fun requestLimitFinishesChatAndReflectionRequests() = runTest {
+        for (kind in listOf(RequestKind.Chat, RequestKind.Reflection)) {
+            for (batch in listOf(1, 3)) {
+                val home = TestHome()
+                val session = home.store.createSession(home.agent.id, "")
+                var calls = 0
+                var executed = 0
+                val tool = object : Tool {
+                    override val descriptor = toolSpec("read", "Read")
+                    override suspend fun execute(args: JsonObject): String { executed++; return "OK" }
+                }
+                val model = scriptedModel { _, offered ->
+                    calls++
+                    if (offered.isEmpty()) return@scriptedModel flowOf(StreamFrame.TextDelta("Done"), StreamFrame.End())
+                    flow {
+                        repeat(batch) { emit(StreamFrame.ToolCallComplete("c$calls-$it", "read", "{}")) }
+                        emit(StreamFrame.End())
+                    }
+                }
+                val events = AgentRun(home.agent, home.store, model, listOf(tool), requestKind = kind).run(session.id, "go").toList()
+                assertEquals(67, calls)
+                assertEquals(66 * batch, executed)
+                assertIs<AgentEvent.RunFinished>(events.last())
+                val results = events.filterIsInstance<AgentEvent.ToolCallResult>()
+                assertEquals((calls - 1) * batch, results.size)
+                assertEquals(0, results.count { it.isError })
+                val entries = home.store.entries(home.agent.id, session.id)
+                assertEquals(entries.filterIsInstance<SessionEntry.ToolCall>().map { it.id }, entries.filterIsInstance<SessionEntry.ToolResult>().map { it.id })
+            }
+        }
+    }
+
+    @Test
+    fun profileLimitsReserveAnAnswer() = runTest {
+        for (tier in listOf(ModelTier.Micro, ModelTier.Small, ModelTier.Mid, ModelTier.Frontier)) {
+            val home = TestHome()
+            val session = home.store.createSession(home.agent.id, "")
+            var calls = 0
+            val tool = object : Tool {
+                override val descriptor = toolSpec("read", "Read")
+                override suspend fun execute(args: JsonObject) = "OK"
+            }
+            val model = scriptedModel { _, offered ->
+                calls++
+                if (offered.isEmpty()) return@scriptedModel flowOf(StreamFrame.TextDelta("Done"), StreamFrame.End())
+                flowOf(StreamFrame.ToolCallComplete("c$calls", "read", "{}"), StreamFrame.End())
+            }
+            val profile = ModelProfile.of(tier)
+            val events = AgentRun(home.agent, home.store, model, listOf(tool), profile = profile).run(session.id, "go").toList()
+            assertEquals((profile.tools.callsPerTurn ?: profile.maxSteps) + 1, calls, "$tier")
+            assertIs<AgentEvent.RunFinished>(events.last())
+        }
+    }
+
+    @Test fun microExecutesOnlyOneCallPerResponse() = runTest {
+        val home = TestHome()
+        val session = home.store.createSession(home.agent.id, "full instructions")
+        var executed = 0
+        var requests = 0
+        val tool = object : Tool {
+            override val descriptor = toolSpec("read", "Read")
+            override suspend fun execute(args: JsonObject): String { executed++; return "OK" }
+        }
+        val model = scriptedModel { _, _ ->
+            if (requests++ == 0) flowOf(StreamFrame.ToolCallComplete("a", "read", "{}"), StreamFrame.ToolCallComplete("b", "read", "{}"), StreamFrame.End())
+            else flowOf(StreamFrame.End())
+        }
+        val events = AgentRun(home.agent, home.store, model, listOf(tool), profile = ModelProfile.of(ModelTier.Micro)).run(session.id, "read").toList()
+        assertEquals(1, executed)
+        assertEquals(1, events.filterIsInstance<AgentEvent.ToolCallResult>().count { it.isError })
+    }
+
+    private val home = TestHome()
+    private val store = home.store
+    private val agent = home.agent
+
+    @Test
+    fun onlyTheLatestContextIsSentWhileTheTranscriptKeepsEarlierContexts() = runTest {
+        val session = store.createSession(agent.id, "stable")
+        val seen = mutableListOf<List<Message>>()
+        val model = scriptedModel { prompt, _ ->
+            val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
+            val history = prompt.messages
+            assertEquals("stable", instructions)
+            seen += history
+            flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
+        }
+        AgentRun(agent, store, model, emptyList(), context = "Today: Monday").run(session.id, "one").toList()
+        AgentRun(agent, store, model, emptyList(), context = "Today: Monday").run(session.id, "two").toList()
+        AgentRun(agent, store, model, emptyList(), context = "Today: Tuesday").run(session.id, "three").toList()
+        assertEquals(seen[0], seen[1].take(seen[0].size))
+        assertEquals(listOf("Today: Tuesday"), seen[2].filterIsInstance<Message.System>().drop(1).map { it.textContent() })
+        val metrics = store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Measurement>()
+        assertEquals(3, metrics.size)
+        assertTrue(metrics.all { it.metrics.success && it.metrics.cachedTokens == null && it.metrics.firstTokenMs != null })
+    }
+
+    @Test
+    fun filesToolsAttachAreKeptWithTheirResult() = runTest {
+        val session = store.createSession(agent.id, "")
+        val tool = object : Tool {
+            override val descriptor = toolSpec("look", "Look")
+            override suspend fun execute(args: JsonObject) = error("needs a run")
+            override suspend fun execute(args: JsonObject, callId: String, run: ToolRun) = "Attached ${run.attach("photo.png", byteArrayOf(1)).name}"
+        }
+        var step = 0
+        val model = scriptedModel { _, _ ->
+            if (step++ == 0) flowOf(StreamFrame.ToolCallComplete("c1", "look", "{}"), StreamFrame.End()) else flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End())
+        }
+        val stored = Attachment("a1", "photo.png", "image/png", 1)
+        AgentRun(agent, store, model, listOf(tool), attach = { name, bytes -> assertEquals("photo.png", name); assertEquals(1, bytes.size); stored }).run(session.id, "go").toList()
+        val result = store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>().single()
+        assertEquals("Attached photo.png", result.output)
+        assertEquals(listOf(stored), result.attachments)
+
+        step = 0
+        AgentRun(agent, store, model, listOf(tool)).run(session.id, "again").toList()
+        assertTrue(store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>().last().isError)
+    }
+
+    @Test
+    fun consecutiveSuccessfulActionsAreNotExecutedTwiceButNewTurnsMayRepeatThem() = runTest {
+        var executed = 0
+        var calls = 0
+        val open = object : Tool {
+            override val descriptor = toolSpec("open", "Open a tab")
+            override val repeatable = false
+            override suspend fun execute(args: JsonObject): String { executed++; return "Tab opened" }
+        }
+        val model = scriptedModel { _, _ ->
+            calls++
+            flowOf(StreamFrame.ToolCallComplete("c$calls", "open", "{}"), StreamFrame.End())
+        }
+        val session = store.createSession(agent.id, "")
+        repeat(2) { turn ->
+            val events = AgentRun(agent, store, model, listOf(open)).run(session.id, "Open a tab").toList()
+            assertIs<AgentEvent.RunError>(events.last())
+            assertEquals(turn + 1, executed)
+            assertEquals(1, events.filterIsInstance<AgentEvent.ToolCallResult>().count { !it.isError })
+            assertTrue(events.filterIsInstance<AgentEvent.ToolCallResult>().filter { it.isError }.all { "already succeeded" in it.content })
+        }
+    }
+
+    @Test
+    fun repeatedFailingCallsAreNotRunAgainAndEndTheRun() = runTest {
+        var runs = 0
+        val failing = object : Tool {
+            override val descriptor = toolSpec("read", "Read")
+            override suspend fun execute(args: JsonObject): String { runs++; error("No such file") }
+        }
+        var step = 0
+        val model = scriptedModel { _, _ ->
+            val args = if (step++ % 2 == 0) """{"path":"a","name":"b"}""" else """{"name":"b","path":"a"}"""
+            flowOf(StreamFrame.ToolCallComplete("c$step", "read", args), StreamFrame.End())
+        }
+        val session = store.createSession(agent.id, "")
+        val events = AgentRun(agent, store, model, listOf(failing)).run(session.id, "go").toList()
+        assertEquals(1, runs)
+        assertEquals(3, step)
+        assertIs<AgentEvent.RunError>(events.last())
+    }
+
+    @Test
+    fun executesToolCallsThenAnswers() = runTest {
+        val seenHistories = mutableListOf<List<Message>>()
+        val model = scriptedModel { prompt, _ ->
+            val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
+            val history = prompt.messages
+            assertEquals("frozen", instructions)
+            seenHistories += history
+            if (history.toolResults.isEmpty()) flowOf(
+                StreamFrame.ReasoningDelta(summary = "should remember"),
+                StreamFrame.ReasoningComplete("rs1", emptyList(), listOf("should remember"), encrypted = "enc"),
+                StreamFrame.ToolCallComplete(
+                    "c1", "memory", """{"action":"add","target":"user","content":"Likes tea"}""",
+                ),
+                StreamFrame.End(),
+            ) else flowOf(StreamFrame.TextDelta("Noted"), StreamFrame.TextDelta("!"), StreamFrame.End())
+        }
+        val session = store.createSession(agent.id, "frozen")
+        val events = AgentRun(agent, store, model, listOf(MemoryTool(agent, home.docs))).run(session.id, "I like tea").toList()
+
+        assertIs<AgentEvent.RunStarted>(events.first())
+        assertIs<AgentEvent.RunFinished>(events.last())
+        assertTrue(events.contains(AgentEvent.ToolCallStart("c1", "memory", """{"action":"add","target":"user","content":"Likes tea"}""")))
+        assertEquals("- Likes tea\n", home.docs.read(agent.id, AgentDoc.UserNotes))
+        assertEquals(2, seenHistories.size)
+
+        val entries = store.entries(agent.id, session.id).filterNot { it is SessionEntry.Measurement }
+        assertEquals("Noted!", (entries.last() as SessionEntry.AssistantMessage).text)
+        assertIs<SessionEntry.ToolResult>(entries[entries.size - 2]).also { assertEquals(false, it.isError) }
+        val reasoning = SessionEntry.Reasoning("should remember", "rs1", "enc")
+        assertEquals(reasoning, entries.filterIsInstance<SessionEntry.Reasoning>().single().copy(messageId = null, writtenAt = null))
+        assertEquals("enc", seenHistories[1].flatMap { it.parts }.filterIsInstance<MessagePart.Reasoning>().single().encrypted)
+    }
+
+    @Test
+    fun unknownToolAndModelFailureAreReported() = runTest {
+        var calls = 0
+        val model = scriptedModel { _, _ ->
+            calls++
+            if (calls == 1) flowOf(StreamFrame.ToolCallComplete("c1", "nope", "{}"), StreamFrame.End())
+            else throw IllegalStateException("backend down")
+        }
+        val session = store.createSession(agent.id, "")
+        val events = AgentRun(agent, store, model, emptyList()).run(session.id, "hi").toList()
+
+        assertTrue(events.any { it is AgentEvent.ToolCallResult && it.isError })
+        assertEquals("backend down", assertIs<AgentEvent.RunError>(events.last()).message)
+        assertEquals(listOf(true, false), store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Measurement>().map { it.metrics.success })
+    }
+
+    @Test
+    fun stoppingMidReplyKeepsPartialText() = runTest {
+        val model = scriptedModel { _, _ -> flow { emit(StreamFrame.TextDelta("partial")); awaitCancellation() } }
+        val session = store.createSession(agent.id, "")
+        AgentRun(agent, store, model, emptyList()).run(session.id, "hi").first { it is AgentEvent.TextMessageContent }
+
+        assertEquals(false, store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Measurement>().single().metrics.success)
+        assertEquals("partial\n\n[interrupted]", (store.entries(agent.id, session.id).filterIsInstance<SessionEntry.AssistantMessage>().last()).text)
+    }
+
+    @Test
+    fun stoppingMidToolCallRecordsCancelledResult() = runTest {
+        val slowTool = object : Tool {
+            override val descriptor = toolSpec("slow", "never finishes")
+            override suspend fun execute(args: JsonObject): String = awaitCancellation()
+        }
+        val model = scriptedModel { _, _ -> flowOf(StreamFrame.ToolCallComplete("c1", "slow", "{}"), StreamFrame.End()) }
+        val session = store.createSession(agent.id, "")
+        AgentRun(agent, store, model, listOf(slowTool)).run(session.id, "go").first { it is AgentEvent.ToolCallStart }
+
+        assertEquals(SessionEntry.ToolResult("c1", "slow", "Cancelled by user", isError = true), store.entries(agent.id, session.id).last().withWrittenAt(null))
+    }
+}

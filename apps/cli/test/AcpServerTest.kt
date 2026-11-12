@@ -8,14 +8,15 @@ import com.agentclientprotocol.model.PROTOCOL_VERSION_V2
 import com.agentclientprotocol.model.v2.*
 import com.agentclientprotocol.protocol.Protocol
 import com.agentclientprotocol.transport.StdioTransport
-import kinuvo.harness.execution.acp.KinuvoAgent
+import kinuvo.gateways.acp.KinuvoAgent
+import kinuvo.gateways.acp.acpDispatch
 import kinuvo.client.KinuvoClient
-import kinuvo.harness.server.Harness
-import kinuvo.harness.server.HarnessServer
-import kinuvo.harness.codex.CodexProvider
-import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.PrivateFile
-import kinuvo.harness.testing.scriptedModel
+import kinuvo.server.jvm.Harness
+import kinuvo.server.jvm.HarnessServer
+import kinuvo.providers.codex.CodexProvider
+import kinuvo.providers.codex.CodexAuth
+import kinuvo.server.plugin.PrivateFile
+import kinuvo.testing.harness.scriptedModel
 import ai.koog.prompt.streaming.StreamFrame
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -23,12 +24,13 @@ import kotlinx.coroutines.flow.*
 import kotlinx.io.files.Path
 import java.nio.file.Files
 import kotlin.test.*
+import kinuvo.server.providers.ModelProviders
 
 class AcpServerTest {
     @Test fun nativeServerReplyReachesSdkClient() = runBlocking {
         val dir = Files.createTempDirectory("kinuvo-native-acp").toFile()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val server = HarnessServer(Harness(home = Path(dir.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(dir.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("native ACP reply"), StreamFrame.End()) } }))
+        val server = HarnessServer(Harness(home = Path(dir.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(dir.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("native ACP reply"), StreamFrame.End()) } }))
         var native: KinuvoClient? = null
         var agentProtocol: Protocol? = null
         var clientProtocol: Protocol? = null

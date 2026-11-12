@@ -53,7 +53,7 @@ check the packaging filter.
 
 Desktop packages omit the LiteRT-LM JNI payload and the voice worker's ONNX Runtime
 and sherpa libraries. First model setup downloads pinned upstream artifacts through
-`harness/models`, checking exact size and SHA-256 before extraction. Engines live
+`models`, checking exact size and SHA-256 before extraction. Engines live
 under `<Server home>/engines/<engine-version-platform>` (`KINUVO_HOME` is respected
 through the Server's home). Setup needs internet access and adds download latency;
 subsequent uses work offline. Android and iOS packaging are unchanged. Building the

@@ -3,12 +3,12 @@ package kinuvo.cli
 import com.github.ajalt.clikt.command.parse
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.context
-import kinuvo.harness.server.Harness
-import kinuvo.harness.server.HarnessServer
+import kinuvo.server.jvm.Harness
+import kinuvo.server.jvm.HarnessServer
 import kinuvo.client.KinuvoClient
-import kinuvo.harness.codex.CodexAuth
-import kinuvo.harness.core.PrivateFile
-import kinuvo.harness.codex.CodexProvider
+import kinuvo.providers.codex.CodexAuth
+import kinuvo.server.plugin.PrivateFile
+import kinuvo.providers.codex.CodexProvider
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlinx.io.files.Path
@@ -18,13 +18,14 @@ import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kinuvo.server.providers.ModelProviders
 
 class CliTest {
     private val home = Files.createTempDirectory("harness-cli").toFile()
 
     @Test
     fun managesTheServerFromTheCommandLine() = runBlocking {
-        val server = HarnessServer(Harness(home = Path(home.path), providers = listOf(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json")))))))
+        val server = HarnessServer(Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json")))))))
         val port = server.start("127.0.0.1", 0, schedule = false)
         val access = object : ServerAccess {
             override suspend fun <T> use(block: suspend (KinuvoClient) -> T): T {

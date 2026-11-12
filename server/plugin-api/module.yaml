@@ -1,0 +1,26 @@
+# Server plugin SPI: the contracts and pure helpers plugins and providers build on. Koog-free.
+product:
+  type: kmp/lib
+  platforms: [jvm, android, iosArm64, iosSimulatorArm64]
+
+aliases:
+  - jvmAndAndroid: [jvm, android]
+
+dependencies:
+  - ../../harness/api: exported
+  - ../../protocol: exported
+  - $kotlin.serialization.json: exported
+  - org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0: exported
+  - org.jetbrains.kotlinx:kotlinx-datetime:0.8.0: exported
+  - org.jetbrains.kotlinx:kotlinx-io-core:0.9.1: exported
+  - io.ktor:ktor-client-core:3.6.0: exported
+
+test-dependencies:
+  - $kotlin.test
+  - io.ktor:ktor-client-mock:3.6.0
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

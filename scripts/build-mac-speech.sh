@@ -2,7 +2,7 @@
 set -eu
 kinuvo_project_root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 "$kinuvo_project_root/scripts/build-local-voice.sh"
-source="$kinuvo_project_root/shared/ui/native/macos"
+source="$kinuvo_project_root/client/ui/native/macos"
 library="$kinuvo_project_root/build/libKinuvoSpeech.dylib"
 swiftc -O -emit-library -module-name KinuvoSpeech -module-cache-path "$kinuvo_project_root/build/swift-module-cache" \
     "$source/Bridge.swift" "$source/Speech.swift" "$source/LocalSpeech.swift" -o "$library"

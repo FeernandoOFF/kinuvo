@@ -6,7 +6,7 @@ import tempfile
 import glob
 
 root = Path(__file__).resolve().parents[3]
-source = (root / 'shared/ui/src@ios/AppleSpeech.swift').read_text()
+source = (root / 'client/ui/src@ios/AppleSpeech.swift').read_text()
 helper = source[source.index('enum ServerAudioPCM {'):source.index('private final class AppleServerAudio:')]
 lifecycle = source[source.index('private final class AppleServerAudio:'):]
 # Shorten only watchdogs, keeping native work unchanged for deterministic timeout checks.
@@ -23,7 +23,7 @@ failure = source[source.index('private struct Failure: Error {'):source.index('/
 with tempfile.TemporaryDirectory(prefix='kinuvo-server-audio-') as directory:
     compiler = sorted(glob.glob(str(Path.home() / 'Library/Caches/JetBrains/Kotlin/extract.cache/*/bin/kotlinc-native')))[-1]
     framework = Path(directory) / 'AudioBridge'
-    subprocess.run([compiler, str(root / 'shared/ui/src@ios/AudioBytes.ios.kt'),
+    subprocess.run([compiler, str(root / 'client/ui/src@ios/AudioBytes.ios.kt'),
                     '-target', 'macos_arm64', '-produce', 'framework', '-o', str(framework)], check=True)
     main = Path(directory) / 'main.swift'
     main.write_text('import AVFoundation\nimport AudioBridge\n' + helper + failure + lifecycle

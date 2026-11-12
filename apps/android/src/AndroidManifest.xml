@@ -54,8 +54,8 @@
             </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
         </activity>
-        <!-- Keeps the on-device Server running in the background (LocalServer.android.kt). -->
-        <service android:name="kinuvo.ui.ServerService"
+        <!-- Keeps the on-device Server running in the background (apps/android-embedded). -->
+        <service android:name="dev.kinuvo.android.embedded.ServerService"
                  android:exported="false"
                  android:foregroundServiceType="specialUse">
             <property android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"

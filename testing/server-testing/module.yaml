@@ -1,0 +1,17 @@
+product: jvm/lib
+
+dependencies:
+  - ../../server/core: exported
+  - ../harness-testing: exported
+  - ../../client/sdk: exported
+  - ../../harness/remote
+
+test-dependencies:
+  - $kotlin.test
+  - app.cash.turbine:turbine:1.2.1
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

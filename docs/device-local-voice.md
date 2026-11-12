@@ -25,7 +25,7 @@ and licenses. Supertonic currently uses speaker 0. The language picker exposes
 
 Downloads use pinned revisions, exact byte counts and SHA256 checks. They stream
 to staging directories, validate archive entries and payload sizes, then rename
-atomically. The verified store in `harness/models` is shared with on-device
+atomically. The verified store in `models` is shared with on-device
 language models. An interrupted download resumes; Cancel removes staging after
 the active network read finishes (up to its timeout). Leaving settings does not cancel a Server download. Removal
 and replacement refuse models leased by active or queued inference. Removing a
@@ -57,7 +57,7 @@ this is not a learned speech detector. Dictation ends when toggled again or afte
 
 ## Native Server worker
 
-The `harness/providers/voice` JVM plugin (`DownloadedVoice`) owns verified storage and inference.
+The `plugins/voice` JVM plugin (`DownloadedVoice`) owns verified storage and inference.
 The C worker uses sherpa-onnx 1.13.8 and ONNX Runtime on CPU, two threads, with
 one worker per inference. It unloads weights on exit, has a two-minute deadline,
 and is killed on cancellation. Server inference is serialized to bound memory.

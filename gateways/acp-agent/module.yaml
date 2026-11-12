@@ -1,0 +1,14 @@
+# Serves a Kinuvo Agent as an ACP agent over stdio. A client of a running Server, not a harness.
+product: jvm/lib
+
+dependencies:
+  - ../../harness/api
+  - ../../client/sdk
+  - com.agentclientprotocol:acp:0.33.0
+
+test-dependencies:
+  - $kotlin.test
+
+settings:
+  kotlin:
+    serialization: json
