@@ -1,5 +1,6 @@
 package kinuvo.protocol.session
 
+import kinuvo.protocol.team.TeamId
 import kinuvo.protocol.mcp.McpAppRef
 import kinuvo.protocol.plugin.ToolIdentity
 import kinuvo.protocol.reflection.ReflectionResult
@@ -33,9 +34,10 @@ data class SessionInfo(
     val legacyOrder: Long? = null,
     val parent: SessionParent? = null,
     val hidden: Boolean = false,
+    val teamId: TeamId? = null,
 ) {
     /** The user's own Sessions, and a Routine's once it has something for the user or waits on them. */
-    val inChats: Boolean get() = !hidden && (routine == null || answered || status == SessionStatus.Waiting)
+    val inChats: Boolean get() = !hidden && teamId == null && (routine == null || answered || status == SessionStatus.Waiting)
 }
 
 /** A Task run's prompt: this first line, then the Task's details. */
@@ -123,7 +125,7 @@ sealed interface SessionEntry {
 
     /** The user's name for the Session (null: from its first message) and whether it's a favorite, from here on; the model doesn't see it. */
     @Serializable @SerialName("details")
-    data class Details(val title: String? = null, val favorite: Boolean = false, override val writtenAt: Long? = null, val parent: SessionParent? = null, val hidden: Boolean = false) : SessionEntry
+    data class Details(val title: String? = null, val favorite: Boolean = false, override val writtenAt: Long? = null, val parent: SessionParent? = null, val hidden: Boolean = false, val teamId: TeamId? = null) : SessionEntry
 
     /** How a Routine's run ended: [report] when it has [summary] for the user, else nothing was new; the model doesn't see it. */
     @Serializable @SerialName("outcome")

@@ -19,6 +19,7 @@ class ServerServices internal constructor(
     val execution: ExecutionService,
     val dispatch: AgentExecution,
     val sessions: SessionService,
+    val teams: Teams,
     val routines: RoutineService,
     val workflows: Workflows,
     val browser: BrowserAccess,

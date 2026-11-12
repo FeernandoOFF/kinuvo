@@ -14,6 +14,7 @@ import kinuvo.protocol.screen.ScreenRef
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.workflow.WorkflowId
+import kinuvo.protocol.team.TeamId
 
 /** A destination in the app's back stack; saved across configuration changes and process death. */
 @Serializable
@@ -71,13 +72,17 @@ sealed interface Route {
     @Serializable
     data class Browser(val agentId: AgentId, val sessionId: SessionId? = null, val screen: ScreenRef? = null, val reason: String? = null) : Route
 
+    /** A Team's shared conversation; a null [id] is the form for a new Team. */
+    @Serializable
+    data class Team(val id: TeamId? = null) : Route
+
     companion object {
         fun chat(view: LastView?) = Chat(view?.agentId, view?.sessionId)
     }
 }
 
 /** Screens the shell lists under Home rather than under an Agent. */
-val Route.home get() = this == Route.Home || this is Route.Task || this == Route.Board || this is Route.Knowledge || this is Route.Artifacts || this is Route.Workflows || this is Route.Computers || this is Route.Settings && section?.home == true
+val Route.home get() = this == Route.Home || this is Route.Task || this == Route.Board || this is Route.Knowledge || this is Route.Artifacts || this is Route.Workflows || this is Route.Team || this is Route.Computers || this is Route.Settings && section?.home == true
 
 @Serializable
 enum class SettingsSection(val title: String, val server: Boolean = false) {

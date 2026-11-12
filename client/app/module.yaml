@@ -24,6 +24,9 @@ dependencies@web:
   - io.github.xxfast:kstore-storage:1.1.0
   - org.jetbrains.kotlinx:kotlinx-browser:0.5.0
 
+test-dependencies@jvm:
+  - ../../testing/server-testing
+
 test-dependencies:
   - $kotlin.test
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0

@@ -1,5 +1,7 @@
 package kinuvo.server.store
 
+import kinuvo.protocol.team.TeamId
+import kinuvo.protocol.team.Team
 import kinuvo.server.plugin.appendText
 import kinuvo.server.plugin.children
 import kinuvo.server.plugin.copyTree
@@ -48,6 +50,15 @@ class FileStore(
     /** Session writes go one at a time, so a truncate can't drop an append and JSONL lines don't interleave. */
     private val lock = Mutex()
     private val json = Json { ignoreUnknownKeys = true }
+    private val teamsFile get() = Path(files.home, "teams.json")
+    private fun readTeams(): List<Team> = teamsFile.readTextOrNull()?.let { json.decodeFromString(it) } ?: emptyList()
+    override suspend fun teams() = lock.withLock { readTeams() }
+    override suspend fun saveTeam(team: Team) { lock.withLock {
+        writeAtomically(teamsFile, json.encodeToString(readTeams().filter { it.id != team.id } + team))
+    } }
+    override suspend fun deleteTeam(id: TeamId) { lock.withLock {
+        writeAtomically(teamsFile, json.encodeToString(readTeams().filter { it.id != id }))
+    } }
 
     init {
         if (files.agents.children().none { it.isDirectory() }) writeTemplate("default")
@@ -122,7 +133,7 @@ class FileStore(
             else -> Unit
         }
         return SessionInfo(sessionId, agentId, details.title ?: routine?.name ?: title ?: NEW_TITLE, routine = routine, settings = settings,
-            answered = answered, task = task, favorite = details.favorite, createdAt = createdAt(sessionId), parent = details.parent, hidden = details.hidden)
+            answered = answered, task = task, favorite = details.favorite, createdAt = createdAt(sessionId), parent = details.parent, hidden = details.hidden, teamId = details.teamId)
     }
 
     override suspend fun createSession(agentId: AgentId, instructions: String, routine: RoutineRef?): SessionInfo {

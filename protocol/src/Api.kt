@@ -2,6 +2,13 @@ package kinuvo.protocol
 
 import kinuvo.protocol.workflow.*
 import kinuvo.protocol.workflow.Workflow as WorkflowValue
+import kinuvo.protocol.team.TeamId
+import kinuvo.protocol.team.TeamSnapshot
+import kinuvo.protocol.team.TeamSpec
+import kinuvo.protocol.team.UpdateTeamParams
+import kinuvo.protocol.team.TeamSendParams
+import kinuvo.protocol.team.TeamRespondParams
+import kinuvo.protocol.team.TeamChanged as TeamChangedValue
 import kinuvo.protocol.agent.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.artifact.*
@@ -83,6 +90,15 @@ object Api {
     val WorkflowRuns = Method("workflows.runs", WorkflowId.serializer(), ListSerializer(WorkflowRun.serializer()))
     val WorkflowsChanged = EventType("workflows.changed", ListSerializer(WorkflowValue.serializer()))
     val WorkflowRunChanged = EventType("workflows.runChanged", WorkflowRun.serializer())
+    val Teams = Method("teams.list", Unit.serializer(), ListSerializer(TeamSnapshot.serializer()))
+    val Team = Method("teams.get", TeamId.serializer(), TeamSnapshot.serializer())
+    val CreateTeam = Method("teams.create", TeamSpec.serializer(), TeamSnapshot.serializer())
+    val UpdateTeam = Method("teams.update", UpdateTeamParams.serializer(), TeamSnapshot.serializer())
+    val DeleteTeam = Method("teams.delete", TeamId.serializer(), Unit.serializer())
+    val TeamSend = Method("teams.send", TeamSendParams.serializer(), Unit.serializer())
+    val TeamStop = Method("teams.stop", TeamId.serializer(), Unit.serializer())
+    val TeamRespond = Method("teams.respond", TeamRespondParams.serializer(), Boolean.serializer())
+    val TeamChanged = EventType("teams.changed", TeamChangedValue.serializer())
 
     val ScreenOpen = Method("screens.open", kinuvo.protocol.screen.ScreenOpen.serializer(), ScreenInfo.serializer())
     val Screens = Method("screens.list", BrowserOwner.serializer().nullable, ListSerializer(ScreenInfo.serializer()))

@@ -1,5 +1,7 @@
 package kinuvo.server.store
 
+import kinuvo.protocol.team.TeamId
+import kinuvo.protocol.team.Team
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
 import kinuvo.protocol.routine.RoutineRef
@@ -17,6 +19,10 @@ import kotlin.time.Clock
 
 /** Sessions kept only in memory, e.g. for a run whose transcript isn't worth saving. Agents can't be managed here. */
 class InMemoryStore(private val clock: () -> Long = { Clock.System.now().toEpochMilliseconds() }) : Store {
+    private val teams = mutableMapOf<TeamId, Team>()
+    override suspend fun teams() = lock.withLock { teams.values.toList() }
+    override suspend fun saveTeam(team: Team) { lock.withLock { teams[team.id] = team } }
+    override suspend fun deleteTeam(id: TeamId) { lock.withLock { teams.remove(id) } }
     private val lock = Mutex()
     private val sessions = LinkedHashMap<SessionId, MutableList<SessionEntry>>()
 
@@ -53,7 +59,7 @@ class InMemoryStore(private val clock: () -> Long = { Clock.System.now().toEpoch
         val routine = entries.filterIsInstance<SessionEntry.Started>().firstOrNull()?.routine
         return SessionInfo(sessionId, agentId, details?.title ?: routine?.name ?: entries.filterIsInstance<SessionEntry.UserMessage>().firstOrNull()?.text?.take(60) ?: FileStore.NEW_TITLE,
             routine = routine, settings = entries.filterIsInstance<SessionEntry.Settings>().lastOrNull()?.settings ?: SessionSettings(),
-            answered = entries.any { it is SessionEntry.UserMessage && it.routine == null || it is SessionEntry.Outcome && it.report }, favorite = details?.favorite ?: false, createdAt = created[sessionId], parent = details?.parent, hidden = details?.hidden ?: false)
+            answered = entries.any { it is SessionEntry.UserMessage && it.routine == null || it is SessionEntry.Outcome && it.report }, favorite = details?.favorite ?: false, createdAt = created[sessionId], parent = details?.parent, teamId = details?.teamId, hidden = details?.hidden ?: false)
     }
 
     override suspend fun createSession(agentId: AgentId, instructions: String, routine: RoutineRef?): SessionInfo = lock.withLock {

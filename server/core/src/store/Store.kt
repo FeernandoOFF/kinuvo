@@ -1,5 +1,7 @@
 package kinuvo.server.store
 
+import kinuvo.protocol.team.TeamId
+import kinuvo.protocol.team.Team
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.SessionStorage
@@ -13,6 +15,9 @@ import kinuvo.protocol.session.SessionId
 interface Store : SessionStorage {
     suspend fun workflows(): WorkflowData
     suspend fun saveWorkflows(data: WorkflowData)
+    suspend fun teams(): List<Team>
+    suspend fun saveTeam(team: Team)
+    suspend fun deleteTeam(id: TeamId)
 
     suspend fun agents(): List<Agent>
     /** A new Agent from the default template, or with [from]'s settings, Identity, Soul, Skills and MCP servers. */

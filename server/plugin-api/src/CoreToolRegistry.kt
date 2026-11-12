@@ -26,6 +26,7 @@ object CoreToolRegistry {
         CoreToolEntry(ToolNames.AGENTS_SPAWN, ToolGroup.Core, Risk.Medium, ToolKind.Standard, true, "Start a Sub-agent."),
         CoreToolEntry(ToolNames.AGENTS_WAIT, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "Wait for Sub-agents."),
         CoreToolEntry(ToolNames.AGENTS_SEND, ToolGroup.Core, Risk.Medium, ToolKind.Standard, true, "Continue a Sub-agent."),
+        CoreToolEntry(ToolNames.TEAM_HANDOFF, ToolGroup.Core, Risk.Low, ToolKind.Standard, false, "Hand the Team conversation to another member."),
         CoreToolEntry(ToolNames.AGENTS_LIST, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "List or cancel Sub-agents."),
         CoreToolEntry(ToolNames.ARTIFACT, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Create or update an Artifact for the user."),
         CoreToolEntry(ToolNames.TASKS, ToolGroup.Data, Risk.Low, ToolKind.Standard, true, "Read and manage Tasks on the Board.", hint = "Tasks live in the user's task provider and appear on the Board. Agents can work assigned Tasks; waiting on the user leaves the provider Task incomplete."),

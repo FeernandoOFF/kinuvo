@@ -1,5 +1,7 @@
 package kinuvo.ui.navigation
 
+import kinuvo.protocol.team.Team
+import kinuvo.protocol.team.TeamId
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.navigation.*
@@ -86,6 +88,7 @@ data class ShellState(
     /** Whether this Device has management access, which watching and taking over Computers needs. */
     val management: Boolean = true,
     val home: Boolean = false,
+    val teams: List<Team> = emptyList(),
 ) {
     val sessions get() = agent?.let { lists[it.id] }?.sessions.orEmpty()
     val hasMore get() = agent?.let { lists[it.id] }?.hasMore == true
@@ -107,6 +110,8 @@ data class ShellState(
 }
 
 class ShellActions(
+    /** Opens a Team, or the form for a new one when null. */
+    val onTeam: (TeamId?) -> Unit = {},
     val onSelectAgent: (AgentId) -> Unit = {},
     val onAddAgent: () -> Unit = {},
     val onNew: () -> Unit = {},
@@ -312,6 +317,17 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
                     Pinned(Lucide.Wrench, "Tools & MCP", (view as? Route.Settings)?.section == SettingsSection.Hub, true, actions.onTools)
                     Pinned(Lucide.BookOpen, "Knowledge", view is Route.Knowledge, state.capabilities.supports(ServerFeature.Knowledge), actions.onKnowledge)
                     if (state.capabilities.supports(ServerFeature.Artifacts)) Pinned(Lucide.Shapes, "Artifacts", view is Route.Artifacts, true, actions.onArtifacts)
+                }
+            }
+            item(key = "teams") { GroupHeader("Teams") }
+            items(state.teams, key = { "team:${it.id}" }) { team ->
+                ListRow((view as? Route.Team)?.id == team.id, { actions.onTeam(team.id) }, leading = { Icon(Lucide.Users, Modifier.size(16.dp), tint = color(mutedColor)) }) {
+                    Text(team.name, Modifier.weight(1f), singleLine = true, overflow = TextOverflow.Ellipsis)
+                }
+            }
+            item(key = "new-team") {
+                ListRow(view == Route.Team(), { actions.onTeam(null) }, leading = { Icon(Lucide.Plus, Modifier.size(16.dp), tint = color(mutedColor)) }) {
+                    Text("New Team", Modifier.weight(1f), color = color(mutedColor), singleLine = true)
                 }
             }
             fun LazyListScope.sessions(title: String, sessions: List<SessionInfo>) {

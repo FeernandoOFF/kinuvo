@@ -8,6 +8,7 @@ import kinuvo.app.settings.*
 import kinuvo.app.board.*
 import kinuvo.app.knowledge.*
 import kinuvo.app.routine.*
+import kinuvo.app.team.TeamRepository
 
 import kinuvo.app.surface.McpApps
 import kinuvo.app.surface.SurfaceImages
@@ -34,6 +35,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
     val mcpApps = McpApps(this)
     val sessions = SessionRepository(notifications, this)
     val workflows = WorkflowRepository(this)
+    val teams = TeamRepository(this)
     val routines = RoutineRepository(notifications, this)
     val config = ConfigRepository(this)
     val harnesses = HarnessRepository(this)
@@ -56,6 +58,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
     fun activate() {
         val client = requireNotNull(client)
         sessions.attach(client)
+        teams.attach(client)
         routines.attach(client)
         workflows.attach(client)
         config.attach(client)
@@ -83,6 +86,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
         surfaceImages.clear()
         mcpApps.clear()
         sessions.detach()
+        teams.detach()
         routines.detach()
         workflows.detach()
         config.detach()
