@@ -36,10 +36,13 @@ class McpAcpTest {
                     with urllib.request.urlopen(req,timeout=15) as res: return res.status,json.load(res)
                 except urllib.error.HTTPError as e: return e.code,None
             def turn(r,server):
-                questions=r['params']['prompt'][0]['text']=='questions'
-                status,result=http(server,'tools/call','ask_user',{'questions':[{'id':'answer','label':'Your answer','kind':'text'}]}) if questions else http(server,'tools/call')
+                text=r['params']['prompt'][0]['text']
+                if text=='secret': status,result=http(server,'tools/call','request_secret',{'label':'Deploy token','reason':'Deploy'})
+                elif text=='questions': status,result=http(server,'tools/call','ask_user',{'questions':[{'id':'answer','label':'Your answer','kind':'text'}]})
+                else: status,result=http(server,'tools/call')
                 if cancelled.is_set(): return
                 assert status==200 and result['result']['isError']==False, (status,result)
+                if text=='secret': assert result['result']['content'][0]['text'].startswith('$'+'{secret://'), result
                 update({'sessionUpdate':'agent_message_chunk','messageId':str(r['id']),'content':{'type':'text','text':'deployed'}})
                 update({'sessionUpdate':'state_update','state':'idle','stopReason':'end_turn'})
             for line in sys.stdin:
@@ -133,6 +136,18 @@ class McpAcpTest {
             phase(ExecutionPhase.Idle)
             val history = client.call(Api.History, HistoryParams(agent, session.id, 100)).map { it.entry }
             assertEquals(2, history.filterIsInstance<SessionEntry.ToolResult>().count { it.output == "deployed" })
+            client.call(Api.Send, SendParams(agent, session.id, "secret"))
+            val card = withTimeout(10000) {
+                while (true) {
+                    server.harness.log.pending(session.id).filterIsInstance<PendingInteraction.Secret>().firstOrNull()?.let { return@withTimeout it }
+                    delay(10)
+                }
+                error("unreachable")
+            }
+            assertEquals("Deploy token", card.label)
+            assertTrue(client.call(Api.Respond, RespondParams(session.id, card.id, InteractionAnswer.Secret(value = "typed-private"))))
+            phase(ExecutionPhase.Idle)
+            assertTrue(client.call(Api.History, HistoryParams(agent, session.id, 100)).none { "typed-private" in it.toString() })
             client.call(Api.Send, SendParams(agent, session.id, "cancel"))
             val cancelled = pending()
             client.call(Api.Stop, StopParams(session.id))

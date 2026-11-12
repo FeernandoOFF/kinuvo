@@ -168,7 +168,7 @@ class ServerRuntime(
                 if ("browser" !in admin.agent(owner.agentId).config.tools) raise(BrowserError.Disabled)
             }
         }
-        harness.log.onDelete = { a, id -> external.delete(a, id) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
+        harness.log.onDelete = { a, id -> external.delete(a, id); harness.secrets.session.clear(id) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
         if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) scope.launch { dispatch.stop(it.id) } }
     }
 

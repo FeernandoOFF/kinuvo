@@ -42,6 +42,7 @@ object CoreToolRegistry {
         CoreToolEntry(ToolNames.SHOW_HTML, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Show an interactive HTML Surface in the chat."),
         CoreToolEntry(ToolNames.SHOW_UI, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Show native interactive Surfaces using A2UI v1.0."),
         CoreToolEntry(ToolNames.ASK_USER, ToolGroup.Interactive, Risk.Low, ToolKind.AskUser, true, "Ask the user one or more questions as a form and wait for their answers."),
+        CoreToolEntry(ToolNames.REQUEST_SECRET, ToolGroup.Interactive, Risk.Low, ToolKind.SecretRequest, true, "Ask the user privately for a credential; returns a Secret reference, never the value."),
         CoreToolEntry(ToolNames.WEB_SEARCH, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "Search the web.", itemLimit = ItemLimit("limit", 20), search = true),
         CoreToolEntry(ToolNames.WEB_FETCH, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "Fetch a URL over HTTP(S) and return its text content (HTML is reduced to plain text)."),
         CoreToolEntry(ToolNames.GENERATE_IMAGE, ToolGroup.Interactive, Risk.Medium, ToolKind.Standard, true, "Generate or edit images."),

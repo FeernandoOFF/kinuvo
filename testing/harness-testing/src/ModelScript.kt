@@ -13,6 +13,8 @@ import kotlinx.coroutines.flow.update
 /** What the scripted model does at one step of a turn: call a tool, or answer and end the turn. */
 sealed interface ScriptedStep {
     data class ToolCall(val name: String, val args: String) : ScriptedStep
+    /** A call whose arguments come from the turn's earlier tool results, oldest first. */
+    class ToolCallAfter(val name: String, val args: (List<String>) -> String) : ScriptedStep
     data class Reply(val text: String) : ScriptedStep
 }
 
@@ -20,6 +22,8 @@ class ScriptedTurn {
     internal val steps = mutableListOf<ScriptedStep>()
 
     fun toolCall(name: String, args: String = "{}") { steps += ScriptedStep.ToolCall(name, args) }
+
+    fun toolCall(name: String, args: (results: List<String>) -> String) { steps += ScriptedStep.ToolCallAfter(name, args) }
 
     fun reply(text: String) { steps += ScriptedStep.Reply(text) }
 }
@@ -51,11 +55,13 @@ class ModelScript(var fallback: String = "Scripted reply") {
         val messages = prompt.messages
         val last = messages.indexOfLast { it is Message.User && it.parts.none { part -> part is MessagePart.Tool.Result } }
         val user = messages.getOrNull(last)?.textContent().orEmpty()
-        val answered = messages.drop(last + 1).toolResults.size
+        val results = messages.drop(last + 1).toolResults
+        val answered = results.size
         val steps = rules.value.firstOrNull { it.text == null || it.text in user }?.steps.orEmpty()
         return when (val step = steps.getOrNull(answered) ?: ScriptedStep.Reply(fallback)) {
             is ScriptedStep.Reply -> flowOf(StreamFrame.TextDelta(step.text), StreamFrame.End())
             is ScriptedStep.ToolCall -> flowOf(StreamFrame.ToolCallComplete("call-$answered", step.name, step.args), StreamFrame.End())
+            is ScriptedStep.ToolCallAfter -> flowOf(StreamFrame.ToolCallComplete("call-$answered", step.name, step.args(results.map { it.output })), StreamFrame.End())
         }
     }
 }

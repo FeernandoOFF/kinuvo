@@ -35,7 +35,7 @@ data class Assessment(val actions: List<Action>) {
     val reason get() = actions.filter { it.risk == risk }.firstNotNullOfOrNull { it.reason }
 }
 
-enum class ToolKind { Standard, Shell, ComputerAction, AskUser }
+enum class ToolKind { Standard, Shell, ComputerAction, AskUser, SecretRequest }
 
 interface Tool {
     val catalogTargets: List<Tool> get() = emptyList()

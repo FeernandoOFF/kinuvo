@@ -33,6 +33,7 @@ class Toolsets(val entries: List<Toolset>) {
                 Toolset(group.name.lowercase(), tools.map { it.name }.toSet())
             }.filter { it.name !in setOf("core", "skills") } + listOf(
                 Toolset(ToolNames.AGENT_MANAGE, setOf(ToolNames.AGENT_GET, ToolNames.AGENT_UPDATE, ToolNames.AGENT_CREATE, ToolNames.MCP_LIST, ToolNames.MCP_ADD, ToolNames.MCP_REMOVE, ToolNames.MCP_TEST, ToolNames.MCP_LOGIN, ToolNames.SESSION_CONFIGURE)),
+                Toolset("ask_user", setOf(ToolNames.ASK_USER, ToolNames.REQUEST_SECRET)),
                 Toolset("core", setOf("memory"), setOf("web")),
                 Toolset("browser", CoreToolRegistry.entries.filter { it.name.startsWith("browser_") }.map { it.name }.toSet()),
                 Toolset("device_tools", setOf("device_tools", "contacts_lookup", "workouts_list", "sleep_sessions")),

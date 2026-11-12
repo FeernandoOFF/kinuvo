@@ -1,5 +1,7 @@
 package kinuvo.server
 
+import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.session.SessionId
 import kinuvo.server.plugin.SecretProvider
 import kinuvo.server.plugin.SecretResolver
 import kinuvo.server.plugin.Tool
@@ -18,9 +20,18 @@ import kinuvo.server.plugin.ToolRun
 
 /**
  * Expands `${VAR}`s and Secret references in config. Resolved secrets stay in memory for [ttl] (dropped at the next use
- * after that) and are never written or sent to clients; errors name the reference, not the value.
+ * after that) and are never written or sent to clients; errors name the reference, not the value. Values typed for
+ * `request_secret` live in [session] and resolve only through [scoped].
  */
 class Secrets(val providers: List<SecretProvider> = emptyList(), private val ttl: Duration = 5.minutes, private val time: TimeSource = TimeSource.Monotonic) : SecretResolver {
+    val session = SessionSecrets(time)
+
+    override fun scoped(agentId: AgentId, sessionId: SessionId): SecretResolver = object : SecretResolver {
+        override suspend fun resolve(uri: String, reason: String) =
+            if (uri.substringBefore("://") == SessionSecrets.SCHEME) session.resolve(uri, agentId, sessionId) else this@Secrets.resolve(uri, reason)
+        override suspend fun redact(text: String) = this@Secrets.redact(text)
+    }
+
     private val lock = Mutex()
     private val cache = mutableMapOf<String, Pair<String, TimeMark>>()
     /** Bumped by [refresh], so a read that started before it isn't cached after it. */
@@ -79,8 +90,8 @@ class Secrets(val providers: List<SecretProvider> = emptyList(), private val ttl
     }
 
     /** [text] with the secrets still in memory masked, e.g. in a tool's output. */
-    override suspend fun redact(text: String): String = lock.withLock { expire(); cache.values.map { it.first } }
-        .filter { it.length >= MIN_REDACTED }.sortedByDescending { it.length }
+    override suspend fun redact(text: String): String = (lock.withLock { expire(); cache.values.map { it.first } } + session.values())
+        .filter { it.length >= MIN_REDACTED }.distinct().sortedByDescending { it.length }
         .fold(text) { t, secret -> t.replace(secret, MASK) }
 
     private fun expire() = cache.values.removeAll { it.second.elapsedNow() >= ttl }

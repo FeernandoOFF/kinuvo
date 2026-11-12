@@ -99,7 +99,7 @@ class McpExecutionFactory(
             override suspend fun respond(requestId: InteractionId, answer: InteractionAnswer): Boolean? {
                 if (requestId !in toolInteractions) return session.respond(requestId, answer)
                 val pending = state.snapshot().pending.firstOrNull { it.id == requestId }
-                return if (pending is PendingInteraction.Approval || pending is PendingInteraction.Questions)
+                return if (pending is PendingInteraction.Approval || pending is PendingInteraction.Questions || pending is PendingInteraction.Secret)
                     harness.respondToTool(pending, answer) else session.respond(requestId, answer)
             }
         }

@@ -48,6 +48,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
                     }
                     is PendingInteraction.Questions ->
                         Notification("${name} has questions", (interaction.title ?: interaction.questions.joinToString(" · ") { it.label }).clip(), agentId, sessionId, urgent = true)
+                    is PendingInteraction.Secret -> Notification("$name needs a credential", "${interaction.label}: answer privately in the app".clip(), agentId, sessionId, urgent = true)
                     is PendingInteraction.HarnessApproval -> Notification("$name needs a response", interaction.title.clip(), agentId, sessionId, urgent = true)
                     is PendingInteraction.OpenLink -> Notification("$name needs a response", interaction.message.clip(), agentId, sessionId, urgent = true)
                     is PendingInteraction.Unsupported -> Notification("$name needs a response", "Execution is waiting".clip(), agentId, sessionId, urgent = true)

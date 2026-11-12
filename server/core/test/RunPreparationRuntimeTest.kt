@@ -348,7 +348,7 @@ class RunPreparationRuntimeTest {
                 harness.runner(agent, session.id, scope = scope).run(session.id, "Remember that I like tea").toList()
                 return seen.last().sorted()
             }
-            assertEquals(listOf("ask_user", "memory", "schedule"), offered(base))
+            assertEquals(listOf("ask_user", "memory", "request_secret", "schedule"), offered(base))
             assertEquals(listOf("memory"), offered(base.copy(config = base.config.copy(tier = ModelTier.Micro))))
             assertEquals(listOf("memory", "schedule"), offered(base.copy(config = base.config.copy(tier = ModelTier.Small))))
             assertEquals(listOf("ask_user"), offered(base, ToolScope.only("ask_user")))
