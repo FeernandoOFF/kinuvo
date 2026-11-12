@@ -1,5 +1,7 @@
 package kinuvo.app
 
+import kinuvo.protocol.workflow.WorkflowId
+import kinuvo.app.workflow.WorkflowViewModel
 import kinuvo.app.agent.*
 import kinuvo.app.settings.*
 import kinuvo.app.onboarding.*
@@ -29,6 +31,8 @@ val appModule = module {
     single { get<ConnectedServer>().surfaceImages }
     single { get<ConnectedServer>().sessions }
     single { get<ConnectedServer>().routines }
+    single { get<ConnectedServer>().workflows }
+    viewModel { (id: WorkflowId) -> WorkflowViewModel(get(), id) }
     single { get<ConnectedServer>().config }
     single { get<ConnectedServer>().harnesses }
     single { get<ConnectedServer>().board }

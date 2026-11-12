@@ -13,6 +13,7 @@ import kotlin.uuid.Uuid
 import kinuvo.protocol.screen.ScreenRef
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.workflow.WorkflowId
 
 /** A destination in the app's back stack; saved across configuration changes and process death. */
 @Serializable
@@ -59,6 +60,10 @@ sealed interface Route {
     @Serializable
     data class Artifacts(val artifact: String? = null, val fullScreen: Boolean = false) : Route
 
+    /** The Workflows on this Server, with the [id] Workflow's graph open when set. */
+    @Serializable
+    data class Workflows(val id: WorkflowId? = null) : Route
+
     /** Live view of the Computers Agents can control, with [computer] (an ID) shown when set. */
     @Serializable
     data class Computers(val computer: String? = null, val reason: String? = null) : Route
@@ -72,7 +77,7 @@ sealed interface Route {
 }
 
 /** Screens the shell lists under Home rather than under an Agent. */
-val Route.home get() = this == Route.Home || this is Route.Task || this == Route.Board || this is Route.Knowledge || this is Route.Artifacts || this is Route.Computers || this is Route.Settings && section?.home == true
+val Route.home get() = this == Route.Home || this is Route.Task || this == Route.Board || this is Route.Knowledge || this is Route.Artifacts || this is Route.Workflows || this is Route.Computers || this is Route.Settings && section?.home == true
 
 @Serializable
 enum class SettingsSection(val title: String, val server: Boolean = false) {

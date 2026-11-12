@@ -115,7 +115,8 @@ class ServerRuntime(
     private val runs = Runs(harness.log, scope, nativeFactory)
     private val devicePush = devicePush(auth, harness.serverId)
     private val notifications = Notifications(harness, scope, runs::routine, { external.registrationOrArchived(AgentId(it))?.name }, devicePush)
-    private val scheduler = Scheduler(harness, runs, scope, onRan = { broadcast(Api.RoutineRan, it); notifications.routineRan(it) })
+    private val workflows: Workflows = Workflows(harness, runs, scope, { broadcast(Api.WorkflowsChanged, it) }, { broadcast(Api.WorkflowRunChanged, it) }, wakeScheduler = { scheduler.wakeUp() })
+    private val scheduler: Scheduler = Scheduler(harness, runs, scope, onRan = { broadcast(Api.RoutineRan, it); notifications.routineRan(it) }, workflowTick = workflows::tick)
     private val admin = Admin(harness, runs) { broadcast(Api.AgentsChanged, it) }
     private val reflectionReview = ReflectionReview(harness)
     private val logins = ProviderLogins(harness.modelProviders, scope) { broadcast(Api.ProvidersChanged, it); changedCapabilities() }
@@ -136,7 +137,7 @@ class ServerRuntime(
         broadcast(Api.AgentsChanged, agents)
         changedCapabilities()
     }
-    private val services = ServerServices(harness, auth, admin, execution, dispatch, sessions, routines, browserAccess, voice, reflectionReview, logins, notifications, prepareAttachment, ::changedCapabilities)
+    private val services = ServerServices(harness, auth, admin, execution, dispatch, sessions, routines, workflows, browserAccess, voice, reflectionReview, logins, notifications, prepareAttachment, ::changedCapabilities)
     private var scheduling = false
     private var started = false
     private var closed = false
@@ -177,6 +178,7 @@ class ServerRuntime(
         started = true
         try {
             (executionStorage as? ExecutionStorage)?.migrate(harness.log)?.forEach { log.error { it } }
+            workflows.recover()
             external.reload()
             external.recover()
             scope.launch { harness.usage.filterNotNull().collect { broadcast(Api.Usage, it) } }

@@ -11,6 +11,9 @@ import kinuvo.protocol.session.SessionId
 
 /** Agents and their Sessions. */
 interface Store : SessionStorage {
+    suspend fun workflows(): WorkflowData
+    suspend fun saveWorkflows(data: WorkflowData)
+
     suspend fun agents(): List<Agent>
     /** A new Agent from the default template, or with [from]'s settings, Identity, Soul, Skills and MCP servers. */
     suspend fun createAgent(id: String, from: Agent? = null): Agent

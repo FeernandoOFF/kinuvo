@@ -1,5 +1,6 @@
 package kinuvo.app.connection
 
+import kinuvo.app.workflow.WorkflowRepository
 import kinuvo.app.device.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
@@ -32,6 +33,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
     val surfaceImages = SurfaceImages(this)
     val mcpApps = McpApps(this)
     val sessions = SessionRepository(notifications, this)
+    val workflows = WorkflowRepository(this)
     val routines = RoutineRepository(notifications, this)
     val config = ConfigRepository(this)
     val harnesses = HarnessRepository(this)
@@ -55,6 +57,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
         val client = requireNotNull(client)
         sessions.attach(client)
         routines.attach(client)
+        workflows.attach(client)
         config.attach(client)
         harnesses.attach(client)
         board.attach(client)
@@ -81,6 +84,7 @@ class ConnectedServer(notifications: Notifications, private val deviceAccess: De
         mcpApps.clear()
         sessions.detach()
         routines.detach()
+        workflows.detach()
         config.detach()
         harnesses.detach()
         board.detach()

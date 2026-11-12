@@ -53,6 +53,13 @@ class FileStore(
         if (files.agents.children().none { it.isDirectory() }) writeTemplate("default")
     }
 
+    override suspend fun workflows(): WorkflowData = Path(files.home, "workflows.json").readTextOrNull()
+        ?.let { json.decodeFromString(WorkflowData.serializer(), it) } ?: WorkflowData()
+
+    override suspend fun saveWorkflows(data: WorkflowData) = lock.withLock {
+        writeAtomically(Path(files.home, "workflows.json"), json.encodeToString(WorkflowData.serializer(), data))
+    }
+
     override suspend fun agents(): List<Agent> =
         files.agents.children().filter { AGENT_ID.matches(it.name) && isInside(files.agents, it) && files.config(AgentId(it.name)).isFile() }.map { load(it.name) }
 

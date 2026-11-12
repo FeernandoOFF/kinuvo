@@ -15,6 +15,7 @@ fun serverRoutes(): Routes = routes {
     knowledgeRoutes()
     boardRoutes()
     routineRoutes()
+    workflowRoutes()
     mcpRoutes()
     settingsRoutes()
     providerRoutes()

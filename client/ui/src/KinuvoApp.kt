@@ -1,5 +1,13 @@
 package kinuvo.ui
 
+import kinuvo.app.workflow.WorkflowRepository
+import kinuvo.app.workflow.WorkflowViewModel
+import kinuvo.protocol.workflow.StepId
+import kinuvo.protocol.workflow.Workflow
+import kinuvo.protocol.workflow.WorkflowId
+import kinuvo.protocol.workflow.WorkflowStep
+import kinuvo.ui.workflow.WorkflowScreen
+import kinuvo.ui.workflow.WorkflowsScreen
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
@@ -63,6 +71,7 @@ import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.shrinkHorizontally
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
+import kotlin.uuid.Uuid
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.*
@@ -246,6 +255,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onArtifacts = cover { history.switchTo(Route.Artifacts()) },
                 onComputers = cover { history.switchTo(Route.Computers()) },
                 onRoutines = cover { homePage(SettingsSection.Routines) },
+                onWorkflows = cover { history.switchTo(Route.Workflows()) },
                 onTools = cover { homePage(SettingsSection.Hub) },
                 onSelectServer = { server -> cover { guardLeave { app.use(server); history.reset(Route.Chat()) } }() },
                 onAddServer = cover { guardLeave(app::addServer) },
@@ -374,6 +384,26 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                     onFullScreen = { if (it) history.open(route.copy(fullScreen = true)) else if (history.canGoBack) back() else history.reset(route.copy(fullScreen = false)) },
                                 ))
                             }
+                        }
+                        entry<Route.Workflows> { route ->
+                            val workflows = koinInject<WorkflowRepository>()
+                            val scope = rememberCoroutineScope()
+                            val id = route.id
+                            if (id == null) {
+                                val listed by workflows.state.collectAsState()
+                                LaunchedEffect(app.serverLifetime) { workflows.load() }
+                                WorkflowsScreen(listed.workflows, appState.agents, onOpen = { history.open(Route.Workflows(it)) }, onBack = back.takeIf { history.canGoBack }, onNew = {
+                                    val agent = appState.agents.firstOrNull() ?: return@WorkflowsScreen
+                                    scope.launch {
+                                        runCatching {
+                                            workflows.save(Workflow(WorkflowId(Uuid.random().toString()), "New Workflow", listOf(WorkflowStep.AgentTurn(StepId("step-1"), agent.id, ""))), create = true)
+                                        }.onSuccess { history.open(Route.Workflows(it.id)) }
+                                    }
+                                })
+                            } else WorkflowScreen(koinViewModel<WorkflowViewModel>(key = "workflow/${app.serverLifetime}/$id") { parametersOf(id) }, appState.agents,
+                                onOpenSession = { agent, session -> history.open(Route.Chat(agent, session)) },
+                                onDelete = { scope.launch { runCatching { workflows.delete(id) }.onSuccess { if (history.canGoBack) back() else history.reset(Route.Workflows()) } } },
+                                onBack = back.takeIf { history.canGoBack })
                         }
                         entry<Route.Browser> { route ->
                             val client = (connection as? Connection.Ready)?.client
