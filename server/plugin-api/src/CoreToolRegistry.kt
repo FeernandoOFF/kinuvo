@@ -23,6 +23,15 @@ data class CoreToolEntry(
 
 object CoreToolRegistry {
     val entries = listOf(
+        CoreToolEntry(ToolNames.AGENT_GET, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Read your own Agent settings."),
+        CoreToolEntry(ToolNames.AGENT_UPDATE, ToolGroup.Interactive, Risk.High, ToolKind.Standard, false, "Change your own Agent settings after the user's Approval."),
+        CoreToolEntry(ToolNames.AGENT_CREATE, ToolGroup.Interactive, Risk.High, ToolKind.Standard, false, "Create a blank Agent after the user's Approval."),
+        CoreToolEntry(ToolNames.MCP_LIST, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "List your MCP servers."),
+        CoreToolEntry(ToolNames.MCP_ADD, ToolGroup.Interactive, Risk.High, ToolKind.Standard, false, "Add one of your own MCP servers after the user's Approval."),
+        CoreToolEntry(ToolNames.MCP_REMOVE, ToolGroup.Interactive, Risk.High, ToolKind.Standard, false, "Remove one of your own MCP servers after the user's Approval."),
+        CoreToolEntry(ToolNames.MCP_TEST, ToolGroup.Interactive, Risk.Low, ToolKind.Standard, true, "Connect to one of your MCP servers and list its tools."),
+        CoreToolEntry(ToolNames.MCP_LOGIN, ToolGroup.Interactive, Risk.Medium, ToolKind.Standard, false, "Sign in to one of your MCP servers."),
+        CoreToolEntry(ToolNames.SESSION_CONFIGURE, ToolGroup.Interactive, Risk.Medium, ToolKind.Standard, false, "Change this Session's model, reasoning or a stricter Risk tolerance."),
         CoreToolEntry(ToolNames.AGENTS_SPAWN, ToolGroup.Core, Risk.Medium, ToolKind.Standard, true, "Start a Sub-agent."),
         CoreToolEntry(ToolNames.AGENTS_WAIT, ToolGroup.Core, Risk.Low, ToolKind.Standard, true, "Wait for Sub-agents."),
         CoreToolEntry(ToolNames.AGENTS_SEND, ToolGroup.Core, Risk.Medium, ToolKind.Standard, true, "Continue a Sub-agent."),

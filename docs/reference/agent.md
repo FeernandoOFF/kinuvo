@@ -27,7 +27,7 @@ Each Agent has `agents/<id>/agent.yaml` under the Server home. These are the fil
 Default optional tool groups:
 
 ```yaml
-tools: [memory, web_fetch, skills, schedule, knowledge, tasks, ask_user, artifact, device_tools, run_code, computer]
+tools: [agent_manage, memory, web_fetch, skills, schedule, knowledge, tasks, ask_user, artifact, device_tools, run_code, computer]
 ```
 
 A group is offered only when its provider and required capabilities are available. Shell and file tools come from the configured Exec backend; `exec: none` disables them.
@@ -92,3 +92,13 @@ container:
 Built-in tools share one Core tool registry for their group, default Risk and capability summaries. Named Toolsets combine tools in code and can include other Toolsets. Existing `tools:` entries keep working; names such as `core`, `web`, `data`, `automation` and `interactive` enable the corresponding available tool families. Tools still depend on the Server's installed integrations and features.
 
 A run can narrow the Agent's tools by name, group or Toolset. Explicit tools skip the Model profile's group filter, while its schema and tool count limits still apply. A run can also require stricter Risk tolerance or ask for individual tools even when trusted. Child scopes intersect the parent's tools and retain its stricter Approvals. Scopes cannot add Trust or override Deny rules; both rules remain per tool.
+
+## Changes from chat
+
+The `agent_manage` Toolset lets an Agent read its own settings, propose changes to its Identity, Soul, avatar, model, reasoning and available tools, create a blank Agent, and manage its own MCP servers. New Agents include it by default; add `agent_manage` to an explicit `tools:` list to opt in. Agents on small models don't get these tools.
+
+`agent_get` reads settings; `agent_update` changes them; `agent_create` starts a blank Agent from defaults. `mcp_list`, `mcp_add`, `mcp_remove`, `mcp_test` and `mcp_login` manage connections; `mcp_login` needs `ask_user`. For sign-in, the Agent shows you a link in a form: open it, sign in and paste the address your browser ends on (it may be an error page). Environment and header values never appear in Approval previews.
+
+`session_configure` changes only the current Session's model, reasoning or Risk tolerance. It can lower Risk tolerance, never raise it. Hidden Sessions retain their pinned settings and receive no other management tools.
+
+Agent changes, new Agents and MCP additions/removals always ask for Approval and cannot be trusted for future calls. Risk tolerance for the Agent, Trust and Deny rules, Exec backend, Workspace and tools unavailable on the Server must be changed in Settings. Shared MCP servers can only be removed there. External Agents do not receive this Toolset yet.

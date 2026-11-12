@@ -39,3 +39,9 @@ Workspace checks and command classification are not OS isolation. A trusted scri
 Routines normally use relaxed Risk tolerance. Auto runs, and runs whose Agent is full, use full. An Approval unanswered for 30 minutes is denied for that call and the run continues with the skipped call in its report. Deny rules still apply.
 
 Computer use has extra checks, including app-scoped Trust rules and actions that always need an Approval. Read [Computer use](../guides/computer-use.md#risk) before enabling it.
+
+## Agent changes from chat
+
+Changes to an Agent's settings, creation of an Agent, and adding or removing its MCP servers always ask, including at `full`. These Approvals show the fields before and after the change. Environment and header values are hidden. Allowing one does not trust later changes; Always allow is unavailable.
+
+An Agent cannot raise its own or its Session's Risk tolerance, change Trust or Deny rules, change its Exec backend or Workspace, or enable tools unavailable on the Server. Ask for those changes in Settings. It may lower the current Session's Risk tolerance.

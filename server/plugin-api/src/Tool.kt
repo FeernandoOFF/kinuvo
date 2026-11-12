@@ -1,5 +1,6 @@
 package kinuvo.server.plugin
 
+import kinuvo.protocol.approval.ChangePreview
 import kinuvo.harness.ToolSpec
 import kinuvo.protocol.tool.ToolGroup
 import kinuvo.protocol.approval.Risk
@@ -49,6 +50,8 @@ interface Tool {
     val repeatable: Boolean get() = true
     /** What a call with [args] would do; by default the whole tool at its [risk]. */
     fun assess(args: JsonObject): Assessment = Assessment(listOf(Action(risk, listOf(descriptor.name))))
+    /** What the Approval of a call with [args] shows it would change; failing here refuses the call before anyone is asked. */
+    suspend fun preview(args: JsonObject): ChangePreview? = null
     suspend fun bind(args: JsonObject): suspend () -> Unit = {}
     suspend fun executeResult(args: JsonObject, callId: String, run: ToolRun): SessionEntry.ToolResult =
         SessionEntry.ToolResult(ToolCallId(callId), descriptor.name, execute(args, callId, run))

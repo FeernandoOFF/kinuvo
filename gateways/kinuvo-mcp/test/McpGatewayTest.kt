@@ -13,6 +13,31 @@ import kotlinx.serialization.json.*
 import kotlin.test.*
 
 class McpGatewayTest {
+    @Test fun localManagementToolsAreExposedButExternalIdentityIsExcluded() = runBlocking {
+        lateinit var agent: Agent
+        val external = FakeHarness("external", "External host")
+        val caller = Agent(AgentId("external"), "External", AgentConfig())
+        TestServer.start(harnesses = listOf(external), scenario = {
+            agent = agent("work")
+            externalAgent(external, caller.id.value)
+        }).use { server ->
+            suspend fun names(who: Agent): Set<String> {
+                val session = server.startSession(who.id)
+                val composed = server.harness.compose(who, session.id, scope = ToolScope.only("agent_manage"))
+                val access = McpAccess()
+                val run = McpAccess.Run(composed.tools, composed.gate, ToolTurn(emit = {}), SupervisorJob())
+                val token = access.issue(run)
+                try {
+                    val response = McpEndpoint(access).handle("Bearer $token", """{"jsonrpc":"2.0","id":1,"method":"tools/list"}""")
+                    return Json.parseToJsonElement(response.body!!).jsonObject.getValue("result").jsonObject.getValue("tools").jsonArray
+                        .map { it.jsonObject.getValue("name").jsonPrimitive.content }.toSet()
+                } finally { access.revoke(run) }
+            }
+            assertEquals(setOf("agent_get", "agent_update", "agent_create", "mcp_list", "mcp_add", "mcp_remove", "mcp_test", "mcp_login", "session_configure"), names(agent))
+            assertTrue(names(caller).isEmpty())
+        }
+    }
+
     @Test fun externalCallerCanSpawnAndWaitThroughServerTools() = runBlocking {
         lateinit var agent: Agent
         val external = FakeHarness("external", "External host")
