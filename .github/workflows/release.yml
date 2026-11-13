@@ -85,11 +85,16 @@ jobs:
           security unlock-keychain -p "$password" "$keychain"
           security import "$certificate" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain"
           identity=$(security find-identity -v -p codesigning "$keychain" | sed -nE 's/.*\) ([0-9A-F]+) "Developer ID Application:.*"/\1/p')
           if [ -z "$identity" ] || [[ "$identity" == *$'\n'* ]]; then
             echo 'Import a .p12 containing exactly one valid Developer ID Application identity and its private key.' >&2
             exit 1
           fi
+          printf 'int main(void) { return 0; }\n' > "$directory/probe.c"
+          xcrun clang "$directory/probe.c" -o "$directory/probe"
+          codesign --force --timestamp --options runtime --sign "$identity" --keychain "$keychain" "$directory/probe"
+          codesign --verify --strict "$directory/probe"
           xcrun notarytool store-credentials kinuvo-notary --keychain "$keychain" \
             --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD"
           printf 'KINUVO_MACOS_SIGN_IDENTITY=%s\nKINUVO_MACOS_NOTARY_PROFILE=kinuvo-notary\n' "$identity" >> "$GITHUB_ENV"

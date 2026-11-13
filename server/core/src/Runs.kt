@@ -19,10 +19,12 @@ import kinuvo.protocol.session.RunId
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -71,6 +73,7 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
      * run; [onDone] runs once it ends, [stopped] or not, while the Session is still reserved. [reserved] runs once the
      * Session is reserved, before the run is set up.
      */
+    @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun start(
         agent: Agent,
         sessionId: SessionId,
@@ -109,25 +112,26 @@ class Runs(private val log: SessionLog, private val scope: CoroutineScope, priva
             val session = factory.open(BUILT_IN_HARNESS, builtInRegistration(agent), state, ExecutionBroker(state), scope)
             val runId = input.runId ?: RunId(Uuid.random().toString())
             if (!reservation.isActive) stoppedEarly(sessionId, reservation, onDone)
-            val job = scope.launch(start = CoroutineStart.LAZY) {
-                var stopped = false
-                try {
-                    session.prompt(input.copy(runId = runId))
-                } catch (e: CancellationException) {
-                    stopped = true
-                    throw e
-                } finally {
-                    withContext(NonCancellable) { try { session.close() } finally { if (stopped) onCancel(sessionId); onFinish(agent.id, sessionId, stopped); onDone(stopped) } }
+            val job = active.block { runs ->
+                if (!reservation.isActive || runs[sessionId] != reservation) return@block null
+                (input.kind as? RunKind.Routine)?.let { routines[sessionId] = it.turn.ref }
+                // Cancellation before dispatch must still enter the cleanup block.
+                scope.launch(start = CoroutineStart.ATOMIC) {
+                    var stopped = false
+                    try {
+                        ensureActive()
+                        session.prompt(input.copy(runId = runId))
+                    } catch (e: CancellationException) {
+                        stopped = true
+                        throw e
+                    } finally {
+                        withContext(NonCancellable) { try { session.close() } finally { if (stopped) onCancel(sessionId); onFinish(agent.id, sessionId, stopped); onDone(stopped) } }
+                    }
+                }.also { job ->
+                    runs[sessionId] = job
+                    job.invokeOnCompletion { routines.remove(sessionId); active.removeExact(sessionId, job); counted.complete() }
                 }
-            }
-            (input.kind as? RunKind.Routine)?.let { routines[sessionId] = it.turn.ref }
-            job.invokeOnCompletion { routines.remove(sessionId); active.removeExact(sessionId, job); counted.complete() }
-            val installed = active.block { runs -> (reservation.isActive && runs[sessionId] == reservation).also { if (it) runs[sessionId] = job } }
-            if (!installed) {
-                job.cancel()
-                stoppedEarly(sessionId, reservation, onDone)
-            }
-            job.start()
+            } ?: stoppedEarly(sessionId, reservation, onDone)
             return Run(runId, job)
         } catch (e: Throwable) {
             active.removeExact(sessionId, reservation)
