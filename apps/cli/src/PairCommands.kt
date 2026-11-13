@@ -24,6 +24,11 @@ internal class PairCommand : ServerCommand("pair", "Show a pairing code and QR c
         val minutes = (Instant.parse(pairing.expiresAt) - Clock.System.now()).inWholeMinutes.coerceAtLeast(0) + 1
         echo(if (pairing.management) "Access: management" else "Access: ordinary Device")
         echo("Pairing code: ${pairing.code} (valid for ~$minutes min, one Device)")
+        val proxied = host == null && pairing.publicUrl == null && System.getenv("KINUVO_BEHIND_PROXY")?.lowercase() in listOf("1", "true")
+        if (proxied) {
+            echo("Open the Server's web address (the domain set in your hosting UI) and paste the code into the pairing form.")
+            return
+        }
         val bases = host?.let { listOf(if (it.startsWith("https://")) it.removeSuffix("/") else "http://${if (':' in it && !it.startsWith('[')) "[$it]" else it}:${pairing.port}") }
             ?: pairing.publicUrl?.let(::listOf) ?: hosts.map { "http://${if (':' in it && !it.startsWith('[')) "[$it]" else it}:${pairing.port}" }
         bases.forEach { base ->

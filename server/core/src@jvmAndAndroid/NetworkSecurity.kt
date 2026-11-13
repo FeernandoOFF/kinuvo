@@ -6,8 +6,14 @@ import java.net.InetAddress
 
 private val log = KotlinLogging.logger("kinuvo.security")
 
-class NetworkSecurity(publicUrl: String? = null, trustedProxies: Set<String> = setOf("127.0.0.1", "::1")) {
-    val trustedProxies = trustedProxies.map(::literalAddress).toSet()
+/**
+ * Origin and proxy policy. [trustedProxies] are literal IPs or CIDR ranges; by default loopback, or in [behindProxy] mode
+ * (a reverse proxy in another container) loopback plus private ranges.
+ */
+class NetworkSecurity(publicUrl: String? = null, trustedProxies: Set<String>? = null, val behindProxy: Boolean = false) {
+    private val trusted = (trustedProxies ?: if (behindProxy) PROXY_DEFAULTS else LOOPBACK_DEFAULTS).map(::range)
+    /** The HTTPS origin of the latest browser request a trusted proxy forwarded, in [behindProxy] mode without a public URL; only advertised, never trusted. */
+    @Volatile var learnedOrigin: String? = null; private set
     val publicUrl = publicUrl?.let {
         val uri = URI(it)
         require(uri.scheme == "https" && uri.host != null && uri.userInfo == null && uri.query == null && uri.fragment == null && (uri.port == -1 || uri.port in 1..65535) && uri.path in listOf("", "/")) {
@@ -25,17 +31,49 @@ class NetworkSecurity(publicUrl: String? = null, trustedProxies: Set<String> = s
         else uri.scheme == "http" && uri.host?.removeSurrounding("[", "]") in localHosts && uri.rawAuthority == host
     }
 
+    /** [acceptsOrigin], or, without a public URL, an `https://` origin equal to the authority a trusted proxy forwarded. */
+    fun acceptsBrowser(value: String?, host: String, localHosts: Set<String>, peer: String, forwardedProto: String?, forwardedHost: String?): Boolean {
+        if (acceptsOrigin(value, host, localHosts)) return true
+        if (!behindProxy || publicOrigin != null || value == null || !secureProxy(peer, forwardedProto)) return false
+        val authority = (forwardedHost?.substringAfterLast(',')?.trim()?.takeIf { it.isNotEmpty() } ?: host).lowercase()
+        if (authority.isEmpty() || authority.any { it in "/@?#\\" || it.isWhitespace() }) return false
+        val uri = runCatching { URI(value) }.getOrNull() ?: return false
+        if (uri.scheme != "https" || uri.path.isNotEmpty() || uri.userInfo != null || uri.query != null || uri.fragment != null) return false
+        val expected = origin("https://$authority") ?: return false
+        if (origin(value) != expected) return false
+        learnedOrigin = "https://$authority".removeSuffix(":443")
+        return true
+    }
+
     fun source(peer: String, forwardedFor: String?): String {
-        if (literalAddress(peer) !in trustedProxies || forwardedFor == null) return literalAddress(peer)
+        if (!trusts(peer) || forwardedFor == null) return literalAddress(peer)
         val source = forwardedFor.substringAfterLast(',').trim()
         return literalAddress(source)
     }
-    fun secureProxy(peer: String, forwardedProto: String?) = literalAddress(peer) in trustedProxies && forwardedProto == "https"
+    fun secureProxy(peer: String, forwardedProto: String?) = trusts(peer) && forwardedProto == "https"
+
+    private fun trusts(peer: String): Boolean {
+        val address = InetAddress.getByName(literalAddress(peer)).address
+        return trusted.any { (network, prefix) -> network.size == address.size && (0 until prefix).all { bit -> (network[bit / 8].toInt() xor address[bit / 8].toInt()) and (0x80 shr bit % 8) == 0 } }
+    }
+
+    private fun range(value: String): Pair<ByteArray, Int> {
+        val address = InetAddress.getByName(literalAddress(value.substringBefore('/'))).address
+        if ('/' !in value) return address to address.size * 8
+        val bits = value.substringAfter('/').takeIf { it.isNotEmpty() && it.length <= 3 && it.all(Char::isDigit) }?.toInt()
+        require(bits != null && bits <= address.size * 8) { "Invalid proxy range" }
+        return address to bits
+    }
 
     private fun literalAddress(value: String): String {
         require(value.isNotEmpty() && value.length <= 45 && value.all { it.isDigit() || it.lowercaseChar() in 'a'..'f' || it in ".:" } &&
             (':' in value || value.split('.').let { it.size == 4 && it.all { part -> part.toIntOrNull()?.let { number -> number in 0..255 } == true } })) { "Invalid proxy IP address" }
         return InetAddress.getByName(value).hostAddress
+    }
+
+    private companion object {
+        val LOOPBACK_DEFAULTS = setOf("127.0.0.1", "::1")
+        val PROXY_DEFAULTS = setOf("127.0.0.0/8", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fc00::/7")
     }
 
     private fun origin(value: String): String? = runCatching {

@@ -21,7 +21,22 @@ data class ServeOptions(
     val trustedProxy: String? = null,
     val tailscale: Boolean = false,
     val tailscalePort: Int = 443,
+    val behindProxy: Boolean = false,
 )
+
+private fun env(name: String) = System.getenv(name)?.trim()?.takeIf { it.isNotEmpty() }
+
+/** The first valid HTTPS origin of Coolify's `COOLIFY_URL` (comma-separated, may carry a path), or null. */
+internal fun coolifyOrigin(value: String?): String? = value?.split(',')?.firstNotNullOfOrNull { candidate ->
+    runCatching {
+        val uri = java.net.URI(candidate.trim())
+        NetworkSecurity("${uri.scheme}://${uri.rawAuthority}").publicUrl.takeIf { uri.scheme == "https" }
+    }.getOrNull()
+}
+
+/** Public URL by precedence: option, `KINUVO_PUBLIC_URL`, then (behind a proxy) `COOLIFY_URL`. */
+internal fun publicUrl(option: String?, behindProxy: Boolean, env: (String) -> String? = ::env): String? =
+    option?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_PUBLIC_URL") ?: if (behindProxy) coolifyOrigin(env("COOLIFY_URL")) else null
 
 /** Runs the Server until cancelled; [extend] adds to it once it listens and is closed when it stops. */
 suspend fun serve(options: ServeOptions, extend: suspend (server: HarnessServer, host: String, port: Int) -> AutoCloseable? = { _, _, _ -> null }) {
@@ -31,8 +46,9 @@ suspend fun serve(options: ServeOptions, extend: suspend (server: HarnessServer,
         Tailscale().prepare(options.port, options.tailscalePort)
     } else null
     val bind = if (options.tailscale) "127.0.0.1" else options.host
-    val network = NetworkSecurity(route?.url ?: options.publicUrl ?: System.getenv("KINUVO_PUBLIC_URL"),
-        (options.trustedProxy ?: System.getenv("KINUVO_TRUSTED_PROXIES") ?: "127.0.0.1,::1").split(',').map(String::trim).toSet())
+    val behindProxy = options.behindProxy || env("KINUVO_BEHIND_PROXY")?.lowercase() in listOf("1", "true")
+    val trusted = (options.trustedProxy?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_TRUSTED_PROXIES"))?.split(',')?.map(String::trim)?.toSet()
+    val network = NetworkSecurity(route?.url ?: publicUrl(options.publicUrl, behindProxy), trusted, behindProxy)
     val server = HarnessServer(Harness(), network = network)
     var extension: AutoCloseable? = null
     var ready = false

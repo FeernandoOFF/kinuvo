@@ -46,10 +46,11 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
     suspend fun start(host: String, ports: List<Int>): Int {
         check(engine == null) { "Already listening" }
         if (network.publicUrl != null) {
-            require(InetAddress.getByName(host).isLoopbackAddress) { "Public hosting must listen on loopback behind a trusted HTTPS proxy" }
+            require(network.behindProxy || InetAddress.getByName(host).isLoopbackAddress) { "Public hosting must listen on loopback behind a trusted HTTPS proxy" }
             require(ports.size == 1 && ports.single() in 1..65535) { "Public hosting requires a single fixed port" }
         }
         auth.publicUrl = network.publicUrl
+        auth.learnedUrl = { network.learnedOrigin }
         val server = if (network.publicUrl != null) listen(host, ports.single())
             else ports.filter { free(host, it) }.firstNotNullOfOrNull { port -> runCatching { listen(host, port) }.getOrNull() } ?: listen(host, 0)
         engine = server
@@ -59,6 +60,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
         val address = InetAddress.getByName(host)
         auth.addresses = {
             when {
+                network.behindProxy -> emptyList()
                 address.isAnyLocalAddress -> lanAddresses()
                 address.isLoopbackAddress -> emptyList()
                 else -> listOf(address.hostAddress)
@@ -80,7 +82,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                     val peer = call.request.local.remoteAddress
                     val forwarded = call.request.header("X-Forwarded-Proto")
                     val hosts = (lanAddresses() + listOf("127.0.0.1", "localhost", "::1", host)).toSet()
-                    if (call.request.header("Origin") == null || !network.acceptsOrigin(call.request.header("Origin"), call.request.header("Host").orEmpty(), hosts) ||
+                    if (call.request.header("Origin") == null || !network.acceptsBrowser(call.request.header("Origin"), call.request.header("Host").orEmpty(), hosts, peer, forwarded, call.request.header("X-Forwarded-Host")) ||
                         !(network.secureProxy(peer, forwarded) || network.publicUrl == null && InetAddress.getByName(peer).isLoopbackAddress)) {
                         limits.audit(peer, "browser_origin_or_transport")
                         call.respondText("Forbidden", status = HttpStatusCode.Forbidden); return@post
@@ -120,7 +122,7 @@ class NetworkListener(private val runtime: ServerRuntime, private val auth: Devi
                 webSocket("/ws") {
                     val peer = call.request.local.remoteAddress
                     val hosts = (lanAddresses() + listOf("127.0.0.1", "localhost", "::1", host)).toSet()
-                    if (!network.acceptsOrigin(call.request.header("Origin"), call.request.header("Host").orEmpty(), hosts) ||
+                    if (!network.acceptsBrowser(call.request.header("Origin"), call.request.header("Host").orEmpty(), hosts, peer, call.request.header("X-Forwarded-Proto"), call.request.header("X-Forwarded-Host")) ||
                         network.publicUrl != null && call.request.header("Origin") != null && !network.secureProxy(peer, call.request.header("X-Forwarded-Proto"))) { limits.audit(peer, "websocket_origin_or_transport"); close(); return@webSocket }
                     val source = runCatching { network.source(peer, call.request.header("X-Forwarded-For")) }.getOrNull()
                     if (source == null || !limits.open(source)) { limits.audit(peer, "connection_limit"); close(); return@webSocket }
