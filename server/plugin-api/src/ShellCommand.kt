@@ -385,6 +385,6 @@ internal object ShellRisk {
     private val KNOWN_CHANGES = setOf("sed", "awk", "chmod", "curl", "wget", "mv", "cp", "mkdir", "touch", "ln", "tee", "git", "npm", "pip", "brew")
     private val SUBCOMMANDS = setOf(
         "docker", "podman", "npm", "pnpm", "yarn", "bun", "gh", "brew", "kubectl", "cargo", "go", "pip", "pip3", "uv", "deno",
-        "kotlin", "gradle", "swift", "xcrun", "make", "just", "terraform", "aws", "gcloud", "fly", "remindctl", "kinuvo",
+        "kotlin", "gradle", "swift", "xcrun", "make", "just", "terraform", "aws", "gcloud", "fly", "kinuvo",
     )
 }

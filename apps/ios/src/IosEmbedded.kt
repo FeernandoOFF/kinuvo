@@ -3,6 +3,8 @@ package dev.kinuvo.ios.embedded
 import kinuvo.app.connection.EmbeddedServer
 import kinuvo.app.connection.Endpoint
 import kinuvo.app.connection.OnDeviceSupport
+import kinuvo.plugins.apple.AppleSystem
+import kinuvo.plugins.apple.ApplePlugin
 import kinuvo.providers.apple.AppleLanguageModel
 import kinuvo.providers.apple.AppleProvider
 import kinuvo.server.embedded.EmbeddedServerHost
@@ -44,7 +46,7 @@ fun stopLocalRuns(completion: () -> Unit) {
  * Starts the shared Koin graph with the on-device Server bound as the [EmbeddedServer].
  * [folders] reopens the folders the user picked outside the sandbox; their moved paths reach the Server when it starts.
  */
-fun startKinuvoWithEmbeddedServer(model: AppleLanguageModel, keychain: NativeKeychain, folders: FolderAccess, runs: BackgroundRuns) {
+fun startKinuvoWithEmbeddedServer(model: AppleLanguageModel, keychain: NativeKeychain, folders: FolderAccess, runs: BackgroundRuns, apple: AppleSystem) {
     backgroundRuns = runs
     iosKeychain = { service, account ->
         object : Keychain {
@@ -56,11 +58,11 @@ fun startKinuvoWithEmbeddedServer(model: AppleLanguageModel, keychain: NativeKey
     }
     startKinuvo(module {
         single<OnDeviceSupport> { OnDeviceSupport { provider -> provider != "apple" || model.unavailableCode("system") == null } }
-        single<EmbeddedServer> { IosEmbeddedServer(model, folders) }
+        single<EmbeddedServer> { IosEmbeddedServer(model, folders, apple) }
     })
 }
 
-internal class IosEmbeddedServer(private val model: AppleLanguageModel, private val folders: FolderAccess) : EmbeddedServer {
+internal class IosEmbeddedServer(private val model: AppleLanguageModel, private val folders: FolderAccess, private val apple: AppleSystem) : EmbeddedServer {
     private val lock = Mutex()
     private var server: EmbeddedServerHost? = null
 
@@ -74,7 +76,7 @@ internal class IosEmbeddedServer(private val model: AppleLanguageModel, private 
                     val knowledge = files.knowledgeConfig()
                     knowledge.path?.let(moved::get)?.let { files.saveKnowledgeConfig(knowledge.copy(path = it)) }
                 }
-                val embedded = embeddedPlugins(home, ModelProviders.of(AppleProvider(model)))
+                val embedded = embeddedPlugins(home, ModelProviders.of(AppleProvider(model)), listOf(ApplePlugin(apple)))
                 EmbeddedServerHost.create(home, plugins = embedded.plugins, modelSources = embedded.modelSources).also { host ->
                     server = host
                     localHost = host

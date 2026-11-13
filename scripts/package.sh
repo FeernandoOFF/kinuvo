@@ -132,10 +132,12 @@ package_desktop() {
       ./scripts/build-mac-speech.sh >/dev/null
       cp -R build/voice-worker "$work/input/"
       ./scripts/build-mac-web.sh >/dev/null
+      ./scripts/build-mac-apple.sh >/dev/null
       cp build/libKinuvoWeb.dylib "$work/input/"
       cp build/libKinuvoSpeech.dylib "$work/input/"
       ./scripts/build-mac-service.sh >/dev/null
       cp build/libKinuvoService.dylib "$work/input/"
+      cp build/libKinuvoApple.dylib "$work/input/"
       args+=(--java-options '-Dcompose.application.resources.dir=$APPDIR')
       local identity=dev.kinuvo.desktop
       args+=(--mac-package-identifier "$identity")
@@ -145,6 +147,8 @@ package_desktop() {
       mkdir -p "$bundle/Contents/Library/LaunchAgents"
       cp apps/desktop/service/dev.kinuvo.server.plist "$bundle/Contents/Library/LaunchAgents/"
       /usr/libexec/PlistBuddy -c 'Add :NSSpeechRecognitionUsageDescription string Kinuvo turns speech into messages for your Agent. Apple may process audio when on-device recognition is unavailable.' "$bundle/Contents/Info.plist"
+      /usr/libexec/PlistBuddy -c 'Add :NSRemindersFullAccessUsageDescription string Enabled Agents can read and change your reminders for you.' "$bundle/Contents/Info.plist"
+      /usr/libexec/PlistBuddy -c 'Add :NSCalendarsFullAccessUsageDescription string Enabled Agents can read and change your calendar events for you.' "$bundle/Contents/Info.plist"
       /usr/libexec/PlistBuddy -c 'Set :NSMicrophoneUsageDescription Kinuvo listens while Voice chat or Dictation is active.' "$bundle/Contents/Info.plist"
       codesign --force --options runtime --sign - --entitlements apps/desktop/voice/entitlements.plist "$bundle/Contents/app/voice-worker/MacOS/KinuvoVoiceInference"
       codesign --force --sign - --entitlements apps/desktop/entitlements.plist "$bundle"
