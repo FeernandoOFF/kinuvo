@@ -52,13 +52,47 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025]
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v5
+      - name: Prepare macOS signing credentials
+        if: runner.os == 'macOS'
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${RUNNER_TEMP:?}" "${GITHUB_ENV:?}" "${MACOS_CERTIFICATE_P12_BASE64:?}" "${MACOS_CERTIFICATE_PASSWORD:?}"
+          : "${APPLE_ID:?}" "${APPLE_TEAM_ID:?}" "${APPLE_APP_SPECIFIC_PASSWORD:?}"
+          umask 077
+          directory=$(mktemp -d "$RUNNER_TEMP/kinuvo-signing.XXXXXX")
+          keychain="$directory/signing.keychain-db"
+          certificate="$directory/certificate.p12"
+          trap 'rm -f "$certificate"' EXIT
+          password=$(openssl rand -hex 32)
+          # Save the cleanup path before creating or importing anything.
+          printf 'KINUVO_MACOS_KEYCHAIN=%s\n' "$keychain" >> "$GITHUB_ENV"
+          printf '%s' "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$certificate"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$certificate" -k "$keychain" -P "$MACOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain" >/dev/null
+          identity=$(security find-identity -v -p codesigning "$keychain" | sed -nE 's/.*\) ([0-9A-F]+) "Developer ID Application:.*"/\1/p')
+          if [ -z "$identity" ] || [[ "$identity" == *$'\n'* ]]; then
+            echo 'Import a .p12 containing exactly one valid Developer ID Application identity and its private key.' >&2
+            exit 1
+          fi
+          xcrun notarytool store-credentials kinuvo-notary --keychain "$keychain" \
+            --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD"
+          printf 'KINUVO_MACOS_SIGN_IDENTITY=%s\nKINUVO_MACOS_NOTARY_PROFILE=kinuvo-notary\n' "$identity" >> "$GITHUB_ENV"
       - run: scripts/jbr.sh
       - uses: ./.github/actions/restore-kotlin-cache
       - if: runner.os == 'Linux'
@@ -67,13 +101,24 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.runner }}
-          path: dist/Kinuvo-*
-
-  desktop-macos:
-    uses: ./.github/workflows/macos-desktop.yml
-    with:
-      version: ${{ github.ref_name }}
-    secrets: inherit
+          path: |
+            dist/Kinuvo-*.dmg
+            dist/Kinuvo-*.deb
+            dist/Kinuvo-*.zip
+          if-no-files-found: error
+      - name: Upload notarization reports
+        if: always() && runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-notarization
+          path: dist/*.notarization*.json
+          if-no-files-found: ignore
+      - name: Delete temporary signing Keychain
+        if: always() && runner.os == 'macOS'
+        run: |
+          if [ -n "${KINUVO_MACOS_KEYCHAIN:-}" ] && [ -f "$KINUVO_MACOS_KEYCHAIN" ]; then
+            security delete-keychain "$KINUVO_MACOS_KEYCHAIN"
+          fi
 
   android:
     runs-on: ubuntu-24.04
@@ -150,7 +195,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   release:
-    needs: [jar, cli, desktop, desktop-macos, android]
+    needs: [jar, cli, desktop, android]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

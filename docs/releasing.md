@@ -39,10 +39,23 @@ Android release builds use the tag without `v` as `versionName` and the Release 
 ## macOS signing and notarization
 
 New macOS desktop releases require Developer ID signing and Apple notarization.
-Configure the five repository secrets and test a candidate before tagging a release:
-[macOS release setup and verification](contributing/macos-releases.md).
-The manual **macOS desktop** workflow builds an artifact without publishing a release.
-The Release workflow uses the same job and waits for its accepted DMG.
+The Release workflow imports the certificate into a temporary Keychain, publishes
+only an accepted and stapled DMG, and deletes the Keychain afterward.
+
+Configure these repository Actions secrets before pushing a release tag:
+
+| Secret | Value |
+|---|---|
+| `MACOS_CERTIFICATE_P12_BASE64` | Base64 of a Developer ID Application certificate exported with its private key as `.p12` |
+| `MACOS_CERTIFICATE_PASSWORD` | The `.p12` export password |
+| `APPLE_ID` | The Apple Account email used for notarization |
+| `APPLE_TEAM_ID` | The developer Team ID |
+| `APPLE_APP_SPECIFIC_PASSWORD` | An app-specific password generated at account.apple.com |
+
+For local packaging, set `KINUVO_MACOS_SIGN_IDENTITY` to the Developer ID identity
+shown by `security find-identity -v -p codesigning`. Set
+`KINUVO_MACOS_NOTARY_PROFILE` to a stored `notarytool` profile to also notarize;
+`KINUVO_MACOS_KEYCHAIN` selects an explicit Keychain when needed.
 
 Local development builds remain ad hoc signed unless a Developer ID identity is
 selected. Existing unsigned downloads may still need **System Settings → Privacy &
@@ -89,8 +102,8 @@ Packaging rejects a runtime SDK older than Java 25.
 
 Developer ID packaging preserves the worker exception and the JVM's native-loading
 and JIT entitlements. Engine-load checks and notarization do not replace an
-installation and feature check on a clean Mac; follow the verification steps in
-the [macOS release guide](contributing/macos-releases.md#5-verify-the-local-result).
+installation and feature check on a clean Mac. Verify a browser-downloaded DMG
+with its normal quarantine intact, including voice and permission prompts.
 
 ## Documentation website
 
