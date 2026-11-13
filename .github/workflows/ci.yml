@@ -53,6 +53,16 @@ jobs:
             exit 1
           fi
 
+  packaging:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - run: |
+          python3 scripts/test-package-natives.py
+          python3 scripts/test-sign-macos.py
+          python3 scripts/test-notarize-macos.py
+          bash -n scripts/package.sh scripts/notarize-macos.sh scripts/macos-ci-keychain.sh
+
   tests:
     needs: changes
     if: needs.changes.outputs.code == 'true'

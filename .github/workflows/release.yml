@@ -52,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, windows-2025]
     runs-on: ${{ matrix.runner }}
     defaults:
       run:
@@ -68,6 +68,12 @@ jobs:
         with:
           name: desktop-${{ matrix.runner }}
           path: dist/Kinuvo-*
+
+  desktop-macos:
+    uses: ./.github/workflows/macos-desktop.yml
+    with:
+      version: ${{ github.ref_name }}
+    secrets: inherit
 
   android:
     runs-on: ubuntu-24.04
@@ -144,7 +150,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
 
   release:
-    needs: [jar, cli, desktop, android]
+    needs: [jar, cli, desktop, desktop-macos, android]
     runs-on: ubuntu-24.04
     permissions:
       contents: write

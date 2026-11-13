@@ -36,9 +36,22 @@ Without these secrets the release skips the APK.
 
 Android release builds use the tag without `v` as `versionName` and the Release workflow's run number as `versionCode`. Each new run increases the code; reruns keep it. Local builds default to `0.1.0-dev` with code `1`.
 
-## Unsigned macOS and Windows apps
+## macOS signing and notarization
 
-The desktop apps are not code-signed yet. On macOS, open the app once, then allow it under **System Settings → Privacy & Security → Open Anyway**. On Windows, choose **More info → Run anyway** in SmartScreen. The CLI installed by `install.sh` is unaffected.
+New macOS desktop releases require Developer ID signing and Apple notarization.
+Configure the five repository secrets and test a candidate before tagging a release:
+[macOS release setup and verification](contributing/macos-releases.md).
+The manual **macOS desktop** workflow builds an artifact without publishing a release.
+The Release workflow uses the same job and waits for its accepted DMG.
+
+Local development builds remain ad hoc signed unless a Developer ID identity is
+selected. Existing unsigned downloads may still need **System Settings → Privacy &
+Security → Open Anyway** after the first launch attempt. The separate CLI archive
+is outside this desktop signing pipeline.
+
+## Windows apps
+
+Windows desktop apps remain unsigned. Choose **More info → Run anyway** in SmartScreen.
 
 ## Target native libraries
 
@@ -74,10 +87,10 @@ When invoking packaging through `mise run exec`, set `JAVA_HOME` with `env` afte
 the task name so machine-level mise settings cannot replace the selected JBR.
 Packaging rejects a runtime SDK older than Java 25.
 
-Release signing remains ad hoc. Developer ID signing, Gatekeeper quarantine and
-notarization are not proven by local engine-load checks; a future notarized release
-must preserve the worker exception and the JVM's native-loading entitlements and
-verify installation on a clean Mac.
+Developer ID packaging preserves the worker exception and the JVM's native-loading
+and JIT entitlements. Engine-load checks and notarization do not replace an
+installation and feature check on a clean Mac; follow the verification steps in
+the [macOS release guide](contributing/macos-releases.md#5-verify-the-local-result).
 
 ## Documentation website
 

@@ -22,6 +22,10 @@ case "$(uname -m)" in
 esac
 
 java_home=${JAVA_HOME:?Set JAVA_HOME to a JetBrains Runtime 25 SDK}
+if [ "$target" = desktop ] && [ "$os" = macos ] && [ -n "${KINUVO_MACOS_NOTARY_PROFILE:-}" ]; then
+  : "${KINUVO_MACOS_SIGN_IDENTITY:?Notarization requires KINUVO_MACOS_SIGN_IDENTITY}"
+  [ "${KINUVO_DESKTOP_APP_IMAGE:-0}" != 1 ] || { echo 'Notarization requires a DMG, not KINUVO_DESKTOP_APP_IMAGE=1.' >&2; exit 1; }
+fi
 java_major=$(sed -n 's/^JAVA_VERSION="\([0-9]*\).*/\1/p' "$java_home/release")
 [ "${java_major:-0}" -ge 25 ] || { echo "Packaging requires Java 25+: $java_home" >&2; exit 1; }
 # From jdeps --print-module-deps, plus service-loaded jdk.zipfs and jdk.charsets.
@@ -146,15 +150,34 @@ package_desktop() {
       cp apps/desktop/service/dev.kinuvo.server.plist "$bundle/Contents/Library/LaunchAgents/"
       /usr/libexec/PlistBuddy -c 'Add :NSSpeechRecognitionUsageDescription string Kinuvo turns speech into messages for your Agent. Apple may process audio when on-device recognition is unavailable.' "$bundle/Contents/Info.plist"
       /usr/libexec/PlistBuddy -c 'Set :NSMicrophoneUsageDescription Kinuvo listens while Voice chat or Dictation is active.' "$bundle/Contents/Info.plist"
-      codesign --force --options runtime --sign - --entitlements apps/desktop/voice/entitlements.plist "$bundle/Contents/app/voice-worker/MacOS/KinuvoVoiceInference"
-      codesign --force --sign - --entitlements apps/desktop/entitlements.plist "$bundle"
+      if [ -n "${KINUVO_MACOS_SIGN_IDENTITY:-}" ]; then
+        python3 scripts/sign-macos.py "$bundle" "$KINUVO_MACOS_SIGN_IDENTITY"
+      else
+        codesign --force --options runtime --sign - --entitlements apps/desktop/voice/entitlements.plist "$bundle/Contents/app/voice-worker/MacOS/KinuvoVoiceInference"
+        codesign --force --sign - --entitlements apps/desktop/entitlements.plist "$bundle"
+      fi
       if [ "${KINUVO_DESKTOP_APP_IMAGE:-0}" = 1 ]; then
         # Replace only the generated app image; do not merge stale runtime files into it.
         rm -rf "$dist/Kinuvo.app"
         cp -R "$bundle" "$dist/"
       else
-        "$java_home/bin/jpackage" --type dmg --app-image "$bundle" --dest "$work/dmg"
-        cp "$work"/dmg/*.dmg "$dist/Kinuvo-desktop-$os-$arch.dmg"
+        local dmg="$work/Kinuvo-desktop-$os-$arch.dmg"
+        if [ -n "${KINUVO_MACOS_SIGN_IDENTITY:-}" ]; then
+          ln -s /Applications "$work/out/Applications"
+          hdiutil create -volname Kinuvo -srcfolder "$work/out" -format UDZO "$dmg"
+          local signing=(--timestamp --sign "$KINUVO_MACOS_SIGN_IDENTITY")
+          if [ -n "${KINUVO_MACOS_KEYCHAIN:-}" ]; then signing+=(--keychain "$KINUVO_MACOS_KEYCHAIN"); fi
+          codesign "${signing[@]}" "$dmg"
+          codesign --verify --strict "$dmg"
+          if [ -n "${KINUVO_MACOS_NOTARY_PROFILE:-}" ]; then
+            ./scripts/notarize-macos.sh "$dmg" "$dist"
+            spctl --assess --type execute --verbose=2 "$bundle"
+          fi
+        else
+          "$java_home/bin/jpackage" --type dmg --app-image "$bundle" --dest "$work/dmg"
+          cp "$work"/dmg/*.dmg "$dmg"
+        fi
+        cp "$dmg" "$dist/"
       fi ;;
     linux)
       "$java_home/bin/jpackage" --type deb --linux-shortcut --linux-package-name kinuvo-desktop --icon apps/desktop/icons/Kinuvo.png "${args[@]}"
