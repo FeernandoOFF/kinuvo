@@ -117,7 +117,7 @@ EOF
 }
 
 package_desktop() {
-  mise run kotlin -- package -m desktop -p jvm -f executable-jar
+  ./kotlin package -m desktop -p jvm -f executable-jar
   mkdir -p "$work/input"
   cp build/tasks/_desktop_executableJarJvm/desktop-jvm-executable.jar "$work/input/kinuvo-desktop.jar"
   restore_collisions desktop "$work/input/kinuvo-desktop.jar"
