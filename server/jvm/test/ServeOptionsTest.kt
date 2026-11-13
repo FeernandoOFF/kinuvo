@@ -14,15 +14,11 @@ class ServeOptionsTest {
     }
 
     @Test
-    fun publicUrlPrecedenceIsOptionThenEnvThenCoolifyOnlyBehindAProxy() {
+    fun publicUrlIsTheOptionThenTheEnvAndNeverCoolify() {
         val both = env("KINUVO_PUBLIC_URL" to "https://env.example.com", "COOLIFY_URL" to "https://coolify.example.com")
-        assertEquals("https://option.example.com", publicUrl("https://option.example.com", true, both))
-        assertEquals("https://env.example.com", publicUrl(null, true, both))
-        assertEquals("https://env.example.com", publicUrl("  ", false, both))
-        val coolify = env("COOLIFY_URL" to "https://coolify.example.com")
-        assertEquals("https://coolify.example.com", publicUrl(null, true, coolify))
-        assertNull(publicUrl(null, false, coolify))
-        assertNull(publicUrl(null, true, env("COOLIFY_URL" to "garbage")))
-        assertNull(publicUrl(null, true, env()))
+        assertEquals("https://option.example.com", publicUrl("https://option.example.com", both))
+        assertEquals("https://env.example.com", publicUrl("  ", both))
+        assertNull(publicUrl(null, env("COOLIFY_URL" to "https://coolify.example.com")))
+        assertNull(publicUrl(null, env()))
     }
 }

@@ -34,9 +34,8 @@ internal fun coolifyOrigin(value: String?): String? = value?.split(',')?.firstNo
     }.getOrNull()
 }
 
-/** Public URL by precedence: option, `KINUVO_PUBLIC_URL`, then (behind a proxy) `COOLIFY_URL`. */
-internal fun publicUrl(option: String?, behindProxy: Boolean, env: (String) -> String? = ::env): String? =
-    option?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_PUBLIC_URL") ?: if (behindProxy) coolifyOrigin(env("COOLIFY_URL")) else null
+/** Public URL by precedence: option, then `KINUVO_PUBLIC_URL`. */
+internal fun publicUrl(option: String?, env: (String) -> String? = ::env): String? = option?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_PUBLIC_URL")
 
 /** Runs the Server until cancelled; [extend] adds to it once it listens and is closed when it stops. */
 suspend fun serve(options: ServeOptions, extend: suspend (server: HarnessServer, host: String, port: Int) -> AutoCloseable? = { _, _, _ -> null }) {
@@ -48,7 +47,7 @@ suspend fun serve(options: ServeOptions, extend: suspend (server: HarnessServer,
     val bind = if (options.tailscale) "127.0.0.1" else options.host
     val behindProxy = options.behindProxy || env("KINUVO_BEHIND_PROXY")?.lowercase() in listOf("1", "true")
     val trusted = (options.trustedProxy?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_TRUSTED_PROXIES"))?.split(',')?.map(String::trim)?.toSet()
-    val network = NetworkSecurity(route?.url ?: publicUrl(options.publicUrl, behindProxy), trusted, behindProxy)
+    val network = NetworkSecurity(route?.url ?: publicUrl(options.publicUrl), trusted, behindProxy, if (behindProxy) coolifyOrigin(env("COOLIFY_URL")) else null)
     val server = HarnessServer(Harness(), network = network)
     var extension: AutoCloseable? = null
     var ready = false

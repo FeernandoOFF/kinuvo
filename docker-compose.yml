@@ -5,7 +5,6 @@ services:
     image: ghcr.io/feernandooff/kinuvo:${KINUVO_VERSION:-latest}
     environment:
       SERVICE_URL_KINUVO_8787: /
-      KINUVO_PUBLIC_URL: ${SERVICE_URL_KINUVO_8787:-}
     volumes:
       - kinuvo-data:/data
     restart: unless-stopped

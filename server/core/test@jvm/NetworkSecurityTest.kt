@@ -109,4 +109,13 @@ class NetworkSecurityTest {
         repeat(7) { source -> repeat(8) { assertTrue(limits.open("other$source")) } }
         assertFalse(limits.open("too-many"))
     }
+
+    @Test
+    fun advertisedOriginSeedsTheLearnedOneWithoutBeingTrusted() {
+        val security = NetworkSecurity(behindProxy = true, advertised = "https://coolify.example.com")
+        assertEquals("https://coolify.example.com", security.learnedOrigin)
+        assertFalse(security.acceptsBrowser("https://coolify.example.com", "other.example.com", emptySet(), "10.0.2.6", "https", null))
+        assertTrue(security.acceptsBrowser("https://other.example.com", "other.example.com", emptySet(), "10.0.2.6", "https", null))
+        assertEquals("https://other.example.com", security.learnedOrigin)
+    }
 }
