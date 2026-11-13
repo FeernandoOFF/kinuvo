@@ -104,6 +104,20 @@ class ServerSecurityTest {
     }
 
     @Test
+    fun behindProxyModeAllowsANonLoopbackBindWithAPublicUrlOnAFixedPort() = runBlocking {
+        fun server() = HarnessServer(Harness(Path(temporaryDirectories.create("proxy-security").toString())), network = NetworkSecurity("https://kinuvo.example.com", behindProxy = true))
+        val free = java.net.ServerSocket(0).use { it.localPort }
+        val bad = server()
+        try { assertFailsWith<IllegalArgumentException> { bad.start("0.0.0.0", 0, schedule = false) } } finally { bad.stop() }
+        val proxied = server()
+        try {
+            assertEquals(free, proxied.start("0.0.0.0", free, schedule = false))
+            assertEquals("https://kinuvo.example.com", proxied.auth.pairing(false, false)?.publicUrl)
+            assertTrue(proxied.auth.pairing(false, false)?.addresses.orEmpty().isEmpty())
+        } finally { proxied.stop() }
+    }
+
+    @Test
     fun ordinaryDevicesCannotManagePairingConfigurationOrApprovals() = runBlocking {
         val server = HarnessServer(Harness(Path(temporaryDirectories.create("server-security").toString())))
         val port = server.start("127.0.0.1", 0, schedule = false)

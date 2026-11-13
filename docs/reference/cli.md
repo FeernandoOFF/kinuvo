@@ -11,10 +11,10 @@ Global options: `-a, --agent ID` selects an Agent (also `KINUVO_AGENT`; defaults
 
 | Command | Options / arguments |
 | --- | --- |
-| `kinuvo serve` | `--host` (default `127.0.0.1`), `--port` (default `8787`), `--public-url`, `--trusted-proxy` (comma-separated IPs), `--computer`, `--tailscale`, `--tailscale-port` (default `443`) |
+| `kinuvo serve` | `--host` (default `127.0.0.1`), `--port` (default `8787`), `--public-url`, `--trusted-proxy` (comma-separated IPs or CIDR ranges), `--behind-proxy` (or `KINUVO_BEHIND_PROXY=1`), `--computer`, `--tailscale`, `--tailscale-port` (default `443`) |
 | `kinuvo login [PROVIDER]` | Device-code sign-in; omit provider when only one supports login |
 
-`--tailscale` and `--public-url` are alternatives. See [browser access](../guides/browser-access.md) and [public hosting](../guides/public-hosting.md).
+`--tailscale` and `--public-url` are alternatives. `--behind-proxy` allows a non-loopback bind with a public URL and trusts private proxy ranges by default. See [browser access](../guides/browser-access.md) and [public hosting](../guides/public-hosting.md).
 
 ## Service
 

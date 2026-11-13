@@ -31,7 +31,7 @@ docker exec -it kinuvo kinuvo login
 docker exec -it kinuvo kinuvo pair --manage
 ```
 
-The image contains the Server, CLI and web app. The named volume keeps the Server home at `/data`. The example publishes the port only on the Docker host's loopback interface. For access from other machines, configure [browser access](../guides/browser-access.md) or [public hosting](../guides/public-hosting.md).
+The image contains the Server, CLI and web app. The named volume keeps the Server home at `/data`. The example publishes the port only on the Docker host's loopback interface. For access from other machines, configure [browser access](../guides/browser-access.md) or [public hosting](../guides/public-hosting.md). The image sets `KINUVO_BEHIND_PROXY=1`, so it also works behind a proxy in another container (Coolify, Dokploy): use the repository's `docker-compose.yml`, set a domain, and see [container platforms](../guides/public-hosting.md#container-platforms-coolify-dokploy-).
 
 ## Device apps
 

@@ -38,14 +38,15 @@ private class Serve : CoreSuspendingCliktCommand("serve") {
     private val host by option("--host", help = "Interface to listen on").default("127.0.0.1")
     private val port by option("--port").int().default(HarnessServer.DEFAULT_PORT)
     private val publicUrl by option("--public-url", help = "HTTPS origin advertised by the trusted reverse proxy")
-    private val trustedProxy by option("--trusted-proxy", help = "Comma-separated trusted proxy IPs; defaults to loopback")
+    private val trustedProxy by option("--trusted-proxy", help = "Comma-separated trusted proxy IPs or CIDR ranges; defaults to loopback (plus private ranges with --behind-proxy)")
+    private val behindProxy by option("--behind-proxy", help = "Sit behind a reverse proxy in another container: allow a non-loopback bind with an HTTPS origin (or KINUVO_BEHIND_PROXY=1)").flag()
     private val computer by option("--computer", help = "Expose this desktop as a Computer through cua-driver").flag()
     private val tailscale by option("--tailscale", help = "Provide private HTTPS through Tailscale Serve (requires Tailscale with HTTPS enabled)").flag()
     private val tailscalePort by option("--tailscale-port", help = "Tailscale HTTPS port").int().default(443)
 
     override fun help(context: Context) = "Run the Server (the default command)."
 
-    override suspend fun run() = serve(host, port, publicUrl, trustedProxy, computer, tailscale, tailscalePort)
+    override suspend fun run() = serve(host, port, publicUrl, trustedProxy, computer, tailscale, tailscalePort, behindProxy)
 }
 
 private class Login : CoreSuspendingCliktCommand("login") {
@@ -62,9 +63,9 @@ private class Login : CoreSuspendingCliktCommand("login") {
     }
 }
 
-private suspend fun serve(host: String, port: Int, publicUrl: String? = null, trustedProxy: String? = null, computer: Boolean = false, tailscale: Boolean = false, tailscalePort: Int = 443) {
+private suspend fun serve(host: String, port: Int, publicUrl: String? = null, trustedProxy: String? = null, computer: Boolean = false, tailscale: Boolean = false, tailscalePort: Int = 443, behindProxy: Boolean = false) {
     serveErrors {
-        serve(ServeOptions(host, port, publicUrl, trustedProxy, tailscale, tailscalePort)) { server, bind, bound ->
+        serve(ServeOptions(host, port, publicUrl, trustedProxy, tailscale, tailscalePort, behindProxy)) { server, bind, bound ->
             if (!computer) return@serve null
             CliComputer(server, bind, bound).also {
                 it.connect()

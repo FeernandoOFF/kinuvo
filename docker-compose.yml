@@ -1,0 +1,14 @@
+# Kinuvo behind a reverse proxy (Coolify "Docker Compose" build pack, or plain Docker).
+# Set a domain in the hosting UI, then run `kinuvo pair --manage` in the container terminal.
+services:
+  kinuvo:
+    image: ghcr.io/feernandooff/kinuvo:${KINUVO_VERSION:-latest}
+    environment:
+      SERVICE_URL_KINUVO_8787: /
+    volumes:
+      - kinuvo-data:/data
+    restart: unless-stopped
+    # No published ports: don't publish 8787, the proxy reaches it over the Docker network.
+
+volumes:
+  kinuvo-data:
