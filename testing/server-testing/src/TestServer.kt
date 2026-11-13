@@ -12,6 +12,7 @@ import kinuvo.server.store.saveKnowledgeConfig
 import kinuvo.server.DeviceAuth
 import kinuvo.server.HarnessRuntime
 import kinuvo.server.NetworkListener
+import kinuvo.server.Secrets
 import kinuvo.server.ServerInstallation
 import kinuvo.server.ServerRuntime
 import kinuvo.server.execution.ExecutionRegistry
@@ -143,7 +144,8 @@ class TestServer private constructor(
          * Starts a Server on a fresh temporary home (or [home]), seeded by [scenario] before it serves. [script] sets up the
          * model's answers, [plugins] adds what a test needs beyond the built-in tools, Tasks and Knowledge, and [harnesses]
          * are the external harnesses the Server can run Agents on, once [scenario] registers them. With [schedule] the Server also
-         * runs Routines and Tasks; [prompts] records what the built-in harness is asked to run.
+         * runs Routines and Tasks; [prompts] records what the built-in harness is asked to run. [secrets] holds the
+         * password managers and typed values, e.g. on a test clock.
          */
         suspend fun start(
             home: Path? = null,
@@ -152,6 +154,7 @@ class TestServer private constructor(
             harnesses: List<FakeHarness> = emptyList(),
             schedule: Boolean = false,
             executionFactory: ((HarnessRuntime) -> ExecutionFactory)? = null,
+            secrets: Secrets = Secrets(),
             scenario: suspend Scenario.() -> Unit = {},
         ): TestServer {
             val temporary = TemporaryDirectories()
@@ -159,7 +162,7 @@ class TestServer private constructor(
             val files = AgentFiles(directory)
             files.saveKnowledgeConfig(files.knowledgeConfig().copy(reflection = false))
             val modelScript = ModelScript().apply(script)
-            val dependencies = ServerInstallation.assemble(files, plugins = plugins, modelSources = { plugins.filterIsInstance<FakeModels>().flatMap { it.modelSources } }, userHome = directory)
+            val dependencies = ServerInstallation.assemble(files, plugins = plugins, modelSources = { plugins.filterIsInstance<FakeModels>().flatMap { it.modelSources } }, secrets = secrets, userHome = directory)
             val prompts = PromptLog()
             val models = { plugins.filterIsInstance<FakeModels>().flatMap { it.modelSources } }
             val harness = HarnessRuntime(dependencies, { NativeExecutionFactory(it, models, { modelScript.model }).recording(prompts) }, unmanagedModels = true)

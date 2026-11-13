@@ -41,6 +41,8 @@ class ToolService(
     private val callsPerTurn: Int? = null,
     private val reports: ToolReports? = null,
     private val consume: suspend () -> Unit = {},
+    /** Asks for `request_secret` in the run's Session: (call ID, label, reason, turn). */
+    private val requestSecret: (suspend (ToolCallId, String, String, ToolTurn) -> String)? = null,
 ) : ToolProvider, ToolGate {
     // Sessions recorded before a tool got its short name still call it by its alias.
     private val toolsByName = tools.indexedTools().let { named -> named + tools.mapNotNull { t -> t.identity?.modelAlias()?.let { it to t } }.filter { it.first !in named } }
@@ -126,7 +128,11 @@ class ToolService(
                     consume()
                     turn.executedCalls++
                 }
-                if (tool?.kind == ToolKind.AskUser) ask(call, turn, approvalId) else execute(call, approvalId, turn)
+                when (tool?.kind) {
+                    ToolKind.AskUser -> ask(call, turn, approvalId)
+                    ToolKind.SecretRequest -> requestSecret(call, turn, approvalId)
+                    else -> execute(call, approvalId, turn)
+                }
             }
         }.copy(identity = tool?.identity)
     }
@@ -166,6 +172,17 @@ class ToolService(
         } finally {
             pending.close()
         }
+    }
+
+    private suspend fun requestSecret(call: SessionEntry.ToolCall, turn: ToolTurn, cardId: String): SessionEntry.ToolResult {
+        val ask = requestSecret ?: return SessionEntry.ToolResult(call.id, call.name, "There's no user to ask in this run.", isError = true)
+        val (label, reason) = try {
+            val args = Json.parseToJsonElement(call.args.ifBlank { "{}" }).jsonObject
+            RequestSecretTool.label(args) to RequestSecretTool.reason(args)
+        } catch (e: Exception) {
+            return SessionEntry.ToolResult(call.id, call.name, "Error: ${e.message}", isError = true)
+        }
+        return SessionEntry.ToolResult(call.id, call.name, ask(ToolCallId(cardId), label, reason, turn))
     }
 
     private suspend fun execute(call: SessionEntry.ToolCall, approvalId: String, turn: ToolTurn): SessionEntry.ToolResult {

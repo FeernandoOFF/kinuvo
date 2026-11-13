@@ -231,7 +231,7 @@ private class McpList(management: AgentManagement, scope: AgentManageScope) : Ma
 }
 
 private class McpAdd(management: AgentManagement, scope: AgentManageScope) : ManageTool(management, scope) {
-    override val descriptor = ToolSpec(ToolNames.MCP_ADD, "Add or replace your own MCP server. Give url or command, not both. Secret env and headers values are hidden from Approval previews.", buildJsonObject {
+    override val descriptor = ToolSpec(ToolNames.MCP_ADD, "Add or replace your own MCP server. Give url or command, not both. Put secrets in env or headers as references such as \${VAR} or \${pass://…} (get one from the user with request_secret), never as plain values; secret:// references aren't kept. Env and header values are hidden from Approval previews.", buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
             listOf("name", "url", "command").forEach { key -> putJsonObject(key) { put("type", "string") } }
@@ -263,7 +263,11 @@ private class McpAdd(management: AgentManagement, scope: AgentManageScope) : Man
         val url = a.string("url")
         val command = a.string("command")
         require((url == null) != (command == null)) { "Give either a url or a command" }
-        return McpServerInfo(a.requireString("name"), ConfigScope.Agent, command, a.strings("args"), a.map("env"), url, a.map("headers"))
+        val server = McpServerInfo(a.requireString("name"), ConfigScope.Agent, command, a.strings("args"), a.map("env"), url, a.map("headers"))
+        require((server.env.values + server.headers.values).none { "\${${SessionSecrets.SCHEME}://" in it }) {
+            "A secret:// reference only lasts for this Session, so an MCP server can't keep it. Ask the user to save the credential in their password manager and pick it with request_secret instead."
+        }
+        return server
     }
 
     private fun connection(s: McpServerInfo) = s.url ?: "${s.command} ${s.args.joinToString(" ")}".trim()

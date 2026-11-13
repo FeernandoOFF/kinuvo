@@ -15,4 +15,5 @@ fun InteractionAnswer.toHarnessJson(): JsonElement = when (this) {
         buildJsonObject { putJsonObject("answers") { values.forEach { (id, list) -> put(id, JsonArray(list.map(::JsonPrimitive))) } } }
     } ?: JsonNull
     is InteractionAnswer.Approval -> throw IllegalArgumentException("A harness request can't take a Kinuvo Approval decision")
+    is InteractionAnswer.Secret -> throw IllegalArgumentException("A harness request can't take a Secret answer")
 }

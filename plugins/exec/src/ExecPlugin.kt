@@ -37,18 +37,19 @@ class ExecPlugin(private val files: PluginStorage, private val secrets: SecretRe
         if (agent.config.exec == "none") return PluginTools()
         val preview = object : ExecBackend(agent.config.workspace.ifEmpty { listOf("/") }) {
             override val label = agent.config.ssh?.host ?: agent.config.exec
-            override suspend fun execScript(script: String, cwd: String, stdin: String?, timeout: Duration, maxChars: Int): ExecResult =
+            override suspend fun execScript(script: String, cwd: String, stdin: String?, timeout: Duration, maxChars: Int, env: Map<String, String>): ExecResult =
                 error("Inspection cannot execute commands")
         }
         val cached = lock.withLock { backends[agent.id] to states[agent.id] }
-        val definitions = execTools(cached.first ?: preview)
+        val resolver = run.sessionId?.let { secrets.scoped(agent.id, it) } ?: secrets
+        val definitions = execTools(cached.first ?: preview, resolver)
         val state = when {
             agent.config.workspace.isEmpty() -> CapabilityState.unavailable("Exec needs at least one Workspace folder")
             agent.config.exec == "ssh" && agent.config.ssh == null -> CapabilityState.unavailable("SSH settings are missing")
             else -> cached.second ?: CapabilityState.unknown("Exec backend has not been checked")
         }
         val result = if (!activate) PluginTools(definitions) else try {
-            PluginTools(backend(agent)?.let(::execTools).orEmpty())
+            PluginTools(backend(agent)?.let { execTools(it, resolver) }.orEmpty())
         } catch (e: CancellationException) { throw e }
         catch (e: Exception) { PluginTools(warnings = listOf("Exec backend unavailable: ${e.message}")) }
         val resolved = if (!activate) state else if (result.tools.isEmpty()) CapabilityState.unavailable(result.warnings.firstOrNull() ?: "Exec backend unavailable") else CapabilityState()

@@ -29,11 +29,12 @@ class ContainerBackend(
 
     override val label = "a ${File(runtime).name} container ($image, network ${if (network) "on" else "off"})"
 
-    override suspend fun execScript(script: String, cwd: String, stdin: String?, timeout: Duration, maxChars: Int): ExecResult {
+    override suspend fun execScript(script: String, cwd: String, stdin: String?, timeout: Duration, maxChars: Int, env: Map<String, String>): ExecResult {
         ensureRunning()
+        val all = this.env + env
         // `-e KEY` takes the value from our environment, so it stays out of the process list.
-        val envArgs = env.keys.flatMap { listOf("-e", it) }
-        return runProcess(listOf(runtime, "exec", "-i", "-w", cwd) + envArgs + listOf(name, "bash", "-lc", script), stdin = stdin, timeout = timeout, env = env, maxChars = maxChars)
+        val envArgs = all.keys.flatMap { listOf("-e", it) }
+        return runProcess(listOf(runtime, "exec", "-i", "-w", cwd) + envArgs + listOf(name, "bash", "-lc", script), stdin = stdin, timeout = timeout, env = all, maxChars = maxChars)
     }
 
     /** Deletes the container, e.g. one made only to check settings. */

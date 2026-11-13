@@ -82,7 +82,7 @@ class ApprovalPolicy(
         val command = if (tool.kind == ToolKind.Shell) json.string("command")?.let(ShellCommand::parse) else null
         blocked(tool, command, rules)?.let { return Verdict.Block(it) }
         if (!scope.allows(tool)) return Verdict.Block("Tool is outside this run’s scope.")
-        if (tool.kind == ToolKind.AskUser) return Verdict.Run
+        if (tool.kind == ToolKind.AskUser || tool.kind == ToolKind.SecretRequest) return Verdict.Run
         val assessment = tool.assess(json).let { if (tool.kind == ToolKind.Shell) it else it.withToolKey(tool.descriptor.name, key) }
         if (scope.mustAsk(tool) || assessment.actions.any { it.alwaysAsk }) return ask(assessment, emptyList())
         val limit = scope.tolerance(tolerance).autoUpTo ?: return ask(assessment, emptyList())

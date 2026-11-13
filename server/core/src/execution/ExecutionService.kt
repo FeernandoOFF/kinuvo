@@ -84,6 +84,7 @@ class ExecutionService internal constructor(
         }
         harness.log.pending(answer.sessionId).firstOrNull { it.id == answer.requestId }?.let { pending ->
             if (harness.respondToTool(pending, answer.answer)) return true
+            if (answer.answer is InteractionAnswer.Secret) return false
         }
         return dispatch.answer(answer)
     }

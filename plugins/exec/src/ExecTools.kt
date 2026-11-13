@@ -3,6 +3,9 @@ package kinuvo.plugins.exec
 import kinuvo.server.plugin.toolSpec
 import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
+import kinuvo.server.plugin.SecretResolver
+import kinuvo.server.plugin.SecretReferences
+import kotlinx.serialization.json.JsonPrimitive
 import kinuvo.server.plugin.CoreTool
 import kinuvo.server.plugin.ShellCommand
 import kinuvo.server.plugin.Tool
@@ -20,8 +23,8 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.time.Duration.Companion.seconds
 
-fun execTools(backend: ExecBackend): List<Tool> = listOf(
-    ShellTool(backend),
+fun execTools(backend: ExecBackend, secrets: SecretResolver = SecretResolver.None): List<Tool> = listOf(
+    ShellTool(backend, secrets),
     ReadFileTool(backend),
     WriteFileTool(backend),
     EditFileTool(backend),
@@ -32,7 +35,7 @@ fun execTools(backend: ExecBackend): List<Tool> = listOf(
 
 private fun JsonObject.int(key: String) = get(key)?.jsonPrimitive?.intOrNull
 
-class ShellTool(private val backend: ExecBackend) : CoreTool {
+class ShellTool(private val backend: ExecBackend, private val secrets: SecretResolver = SecretResolver.None) : CoreTool {
     override fun assess(args: JsonObject) = args.string("command")?.let { ShellCommand.parse(it).assess(backend.roots) } ?: super.assess(args)
 
     override val descriptor = toolSpec(
@@ -49,10 +52,32 @@ class ShellTool(private val backend: ExecBackend) : CoreTool {
                 "Start a long-running process (server, emulator) and return immediately; completion is reported automatically",
                 ParameterType.Boolean,
             ),
+            ToolParameter(
+                "secrets",
+                "Environment variables set from Secret references, e.g. {\"GH_TOKEN\": \"\${pass://Vault/GitHub/token}\"}; use \$GH_TOKEN in command. Foreground only",
+                ParameterType.Object(emptyList(), additionalPropertiesType = ParameterType.String),
+            ),
         ),
     )
 
+    /** The `secrets` argument by variable name; references only, and only for foreground commands, which write no log. */
+    private fun references(args: JsonObject): Map<String, String> {
+        require(!SecretReferences.hasSecret(args.requireString("command"))) { "Put Secret references in secrets and use \$NAME in command" }
+        val secrets = args["secrets"] ?: return emptyMap()
+        require(secrets is JsonObject) { "secrets maps variable names to Secret references" }
+        require(args["background"]?.jsonPrimitive?.booleanOrNull != true && args["watch"]?.jsonPrimitive?.booleanOrNull != true) { "Commands with secrets run in the foreground" }
+        return secrets.mapValues { (name, value) ->
+            require(ENV_NAME.matches(name)) { "'$name' isn't a variable name" }
+            val reference = (value as? JsonPrimitive)?.takeIf { it.isString }?.content?.trim().orEmpty()
+            require(SecretReferences.isReference(reference) && SecretReferences.hasSecret(reference)) { "secrets.$name must be a Secret reference, e.g. from request_secret" }
+            reference
+        }
+    }
+
+    override suspend fun bind(args: JsonObject): suspend () -> Unit { references(args); return {} }
+
     override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {
+        references(args)
         if (args["watch"]?.jsonPrimitive?.booleanOrNull == true && args["background"]?.jsonPrimitive?.booleanOrNull != true) {
             val p = backend.startBackground(args.requireString("command"), args.string("cwd"))
             var finished = false
@@ -84,16 +109,19 @@ class ShellTool(private val backend: ExecBackend) : CoreTool {
     }
 
     override suspend fun execute(args: JsonObject): String {
+        val env = references(args).mapValues { secrets.expand(it.value, emptyMap(), "Kinuvo: shell") }
         if (args["background"]?.jsonPrimitive?.booleanOrNull == true) {
             val p = backend.startBackground(args.requireString("command"), args.string("cwd"))
             return "Started background process ${p.id} (pid ${p.pid}), log ${p.log}. Use the process output or process kill tool with id ${p.id}."
         }
         val timeout = (args.int("timeout") ?: 120).coerceIn(1, 600).seconds
-        val r = backend.run(args.requireString("command"), args.string("cwd"), timeout)
+        val r = backend.run(args.requireString("command"), args.string("cwd"), timeout, env)
         val status = if (r.timedOut) "timed out after $timeout" else "exit code ${r.exitCode}"
         return "[$status]\n${r.output}"
     }
 }
+
+private val ENV_NAME = Regex("[A-Za-z_][A-Za-z0-9_]*")
 
 class ReadFileTool(private val backend: ExecBackend) : CoreTool {
     override val descriptor = toolSpec(

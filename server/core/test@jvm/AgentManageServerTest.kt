@@ -115,6 +115,7 @@ class AgentManageServerTest {
             })
             suspend fun call(name: String, text: String) = composed.gate.invoke(SessionEntry.ToolCall(ToolCallId(name), name, text), turn)
             assertFalse(call("mcp_add", """{"name":"own","url":"https://example.com/mcp","env":{"TOKEN":"secret-value"},"headers":{"Authorization":"secret-value"}}""").isError)
+            assertTrue(call("mcp_add", """{"name":"typed","url":"https://example.com/mcp","env":{"TOKEN":"${'$'}{secret://abc}"}}""").isError)
             assertFalse(call("mcp_remove", """{"name":"own"}""").isError)
             assertTrue(call("mcp_remove", """{"name":"shared"}""").isError)
             assertEquals(2, requests.size)

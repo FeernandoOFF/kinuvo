@@ -88,6 +88,8 @@ class KinuvoAgent(private val dispatch: ExecutionDispatch, private val agentId: 
                             val answer = when (request) {
                                 is PendingInteraction.HarnessApproval -> approve(request)
                                 is PendingInteraction.Questions -> answerQuestions(request)
+                                // ACP has no private input, so a credential is never asked for through the client.
+                                is PendingInteraction.Secret -> InteractionAnswer.Secret()
                                 else -> InteractionAnswer.Harness(JsonNull)
                             }
                             dispatch.answer(RespondParams(KinuvoSessionId(id), request.id, answer))

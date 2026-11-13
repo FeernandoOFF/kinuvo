@@ -6,6 +6,7 @@ dependencies:
 
 test-dependencies:
   - ../../testing/harness-testing
+  - ../../testing/server-testing
   - $kotlin.test
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
 

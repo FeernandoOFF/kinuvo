@@ -1,8 +1,10 @@
 package kinuvo.server.plugin
 
+import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.secret.REFERENCE
 import kinuvo.protocol.secret.SecretEntry
 import kinuvo.protocol.secret.SecretProviderStatus
+import kinuvo.protocol.session.SessionId
 
 /** A password manager that config can point into with Secret references, e.g. Proton Pass for `${pass://Vault/Item/field}`. */
 interface SecretProvider {
@@ -21,6 +23,9 @@ interface SecretProvider {
 
 /** Expands `${VAR}`s and Secret references in config; plugins get the Server's resolver and never see how it caches. */
 interface SecretResolver {
+    /** This resolver for tools in [sessionId] of [agentId], which also resolves the `secret://` values typed there. */
+    fun scoped(agentId: AgentId, sessionId: SessionId): SecretResolver = this
+
     /** The value at the Secret reference [uri]; [reason] says what needs it. */
     suspend fun resolve(uri: String, reason: String): String
 

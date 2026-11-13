@@ -79,6 +79,7 @@ import kotlinx.serialization.json.*
 import kinuvo.server.store.Store
 import kinuvo.server.artifacts.ArtifactTool
 import kinuvo.server.tools.AskUserTool
+import kinuvo.server.tools.RequestSecretTool
 import kinuvo.server.tools.MemoryTool
 import kinuvo.server.plugin.Tool
 import kinuvo.server.plugin.indexedTools
@@ -277,10 +278,11 @@ open class HarnessRuntime(
     private val sessionTrust = SessionTrust()
     /** Pending `ask_user` forms; null answers mean skipped. */
     val questions = Broker<Map<String, List<String>>?>()
+    val secretRequests = SecretRequests(secrets)
     val uiCatalogs = SurfaceCatalogs()
 
     /** Answers a Server tool's interaction, including the neutral form used by external harness clients. */
-    fun respondToTool(pending: PendingInteraction, answer: InteractionAnswer): Boolean = when {
+    suspend fun respondToTool(pending: PendingInteraction, answer: InteractionAnswer): Boolean = when {
         pending is PendingInteraction.Approval && answer is InteractionAnswer.Approval -> approvals.respond(pending.id, answer.decision)
         pending is PendingInteraction.Approval && answer is InteractionAnswer.Harness -> {
             val option = (answer.answer as? JsonObject)?.get("optionId")?.jsonPrimitive?.content
@@ -288,6 +290,7 @@ open class HarnessRuntime(
             approvals.respond(pending.id, approvalDecision(option))
         }
         pending is PendingInteraction.Questions && answer is InteractionAnswer.Questions -> questions.respond(pending.id, answer.answers)
+        pending is PendingInteraction.Secret && answer is InteractionAnswer.Secret -> secretRequests.respond(pending.id, answer)
         else -> false
     }
 
@@ -416,6 +419,7 @@ open class HarnessRuntime(
                 }
             },
             questions = questions,
+            requestSecret = sessionId?.let { id -> { callId, label, reason, turn -> secretRequests.ask(agent.id, id, callId, label, reason, turn.emit) } },
             attach = { name, bytes -> attachments.upload(UploadAttachmentParams(name, Base64.encode(bytes))) },
             maxItems = e.profile.resultLimits.maxItems,
             callsPerTurn = e.profile.tools.callsPerTurn,
@@ -557,7 +561,7 @@ open class HarnessRuntime(
             ToolNames.ARTIFACT -> ArtifactTool(agent, sessionId, artifacts) { readFile(agent, it) }
             else -> null
         }
-    } + if (ToolNames.SKILLS in agent.config.tools) skillTools(agent) else emptyList() } + listOfNotNull(routine?.let(::RoutineReportTool))
+    } + listOfNotNull(RequestSecretTool().takeIf { ToolNames.ASK_USER in agent.config.tools && routine?.routine?.approvals != RoutineApprovals.Deny }) + if (ToolNames.SKILLS in agent.config.tools) skillTools(agent) else emptyList() } + listOfNotNull(routine?.let(::RoutineReportTool))
 
     /** [agent] without the tool groups this Server lacks the feature for, so neither its tools nor their instructions show. */
     private fun supported(agent: Agent) = agent.copy(config = agent.config.copy(tools = agent.config.tools.flatMap { name ->
