@@ -37,6 +37,10 @@ The image contains the Server, CLI and web app. The named volume keeps the Serve
 
 Download the desktop app (`.dmg` for Apple silicon Macs, Linux `.deb`, Windows `.zip`) or Android `.apk` from [Releases](https://github.com/FeernandoOFF/kinuvo/releases/latest). The Server includes the web app; it does not need a separate installation. iOS development instructions are in the [iOS README](https://github.com/FeernandoOFF/kinuvo/blob/main/apps/ios/README.md); the release workflow does not publish an iOS app.
 
-The desktop apps are unsigned. On macOS, open the app once, then allow it under **System Settings → Privacy & Security → Open Anyway**. On Windows, choose **More info → Run anyway** in SmartScreen. See [releasing](../releasing.md#unsigned-macos-and-windows-apps).
+On macOS, open the DMG, drag Kinuvo into **Applications**, then open it. New desktop
+releases use Apple signing and notarization. Older unsigned releases may require
+**System Settings → Privacy & Security → Open Anyway** after the first launch attempt.
+macOS still asks for permissions when you use features such as voice or computer tools.
+On Windows, choose **More info → Run anyway** in SmartScreen. See [releasing](../releasing.md#macos-signing-and-notarization).
 
 Next: [start a Server](first-server.md), [pair Devices](pair-devices.md), or [set up your first Agent](first-agent.md).

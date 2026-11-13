@@ -36,9 +36,35 @@ Without these secrets the release skips the APK.
 
 Android release builds use the tag without `v` as `versionName` and the Release workflow's run number as `versionCode`. Each new run increases the code; reruns keep it. Local builds default to `0.1.0-dev` with code `1`.
 
-## Unsigned macOS and Windows apps
+## macOS signing and notarization
 
-The desktop apps are not code-signed yet. On macOS, open the app once, then allow it under **System Settings → Privacy & Security → Open Anyway**. On Windows, choose **More info → Run anyway** in SmartScreen. The CLI installed by `install.sh` is unaffected.
+New macOS desktop releases require Developer ID signing and Apple notarization.
+The Release workflow imports the certificate into a temporary Keychain, publishes
+only an accepted and stapled DMG, and deletes the Keychain afterward.
+
+Configure these repository Actions secrets before pushing a release tag:
+
+| Secret | Value |
+|---|---|
+| `MACOS_CERTIFICATE_P12_BASE64` | Base64 of a Developer ID Application certificate exported with its private key as `.p12` |
+| `MACOS_CERTIFICATE_PASSWORD` | The `.p12` export password |
+| `APPLE_ID` | The Apple Account email used for notarization |
+| `APPLE_TEAM_ID` | The developer Team ID |
+| `APPLE_APP_SPECIFIC_PASSWORD` | An app-specific password generated at account.apple.com |
+
+For local packaging, set `KINUVO_MACOS_SIGN_IDENTITY` to the Developer ID identity
+shown by `security find-identity -v -p codesigning`. Set
+`KINUVO_MACOS_NOTARY_PROFILE` to a stored `notarytool` profile to also notarize;
+`KINUVO_MACOS_KEYCHAIN` selects an explicit Keychain when needed.
+
+Local development builds remain ad hoc signed unless a Developer ID identity is
+selected. Existing unsigned downloads may still need **System Settings → Privacy &
+Security → Open Anyway** after the first launch attempt. The separate CLI archive
+is outside this desktop signing pipeline.
+
+## Windows apps
+
+Windows desktop apps remain unsigned. Choose **More info → Run anyway** in SmartScreen.
 
 ## Target native libraries
 
@@ -74,10 +100,10 @@ When invoking packaging through `mise run exec`, set `JAVA_HOME` with `env` afte
 the task name so machine-level mise settings cannot replace the selected JBR.
 Packaging rejects a runtime SDK older than Java 25.
 
-Release signing remains ad hoc. Developer ID signing, Gatekeeper quarantine and
-notarization are not proven by local engine-load checks; a future notarized release
-must preserve the worker exception and the JVM's native-loading entitlements and
-verify installation on a clean Mac.
+Developer ID packaging preserves the worker exception and the JVM's native-loading
+and JIT entitlements. Engine-load checks and notarization do not replace an
+installation and feature check on a clean Mac. Verify a browser-downloaded DMG
+with its normal quarantine intact, including voice and permission prompts.
 
 ## Documentation website
 
