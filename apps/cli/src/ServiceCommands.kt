@@ -9,6 +9,11 @@ import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.types.int
 import kinuvo.server.jvm.HarnessServer
 import kinuvo.server.jvm.LocalServer
+import kinuvo.server.jvm.ServeException
+import kinuvo.server.jvm.ServeOptions
+import kinuvo.server.jvm.LoginServiceSettings
+import kinuvo.server.jvm.Tailscale
+import kotlinx.serialization.json.Json
 import kinuvo.server.jvm.kinuvoHome
 import kinuvo.protocol.device.Platform
 import kinuvo.protocol.device.currentPlatform
@@ -25,6 +30,7 @@ internal class ServiceCommands : Group(
 
 /** What the service runs: [jar] with this JVM, serving on [host]:[port], logging to [log]. */
 internal data class ServiceSpec(val java: String, val jar: String, val host: String, val port: Int, val log: String, val env: Map<String, String>, val computer: Boolean = false, val tailscale: Boolean = false, val tailscalePort: Int = 443) {
+    val home get() = File(log).parentFile.parentFile.path
     val outputLog get() = File(File(log).parentFile, "service-output.log").path
     val command get() = listOf(java, "-Dlogback.configurationFile=logback-service.xml", "-Dkinuvo.log.file=$log", "-jar", jar, "serve", "--host", host, "--port", port.toString()) +
         (if (computer) listOf("--computer") else emptyList()) +
@@ -34,7 +40,12 @@ internal data class ServiceSpec(val java: String, val jar: String, val host: Str
 /** The user's launchd agent or systemd unit for the Server. */
 internal interface ServiceManager {
     val file: File
+    /** What the user sees as the service's location. */
+    val label: String get() = file.path
+    /** Whether the service runs the CLI's jar, copied to `<home>/bin/kinuvo.jar`. */
+    val runsJar: Boolean get() = true
     fun render(spec: ServiceSpec): String
+    fun installed(): Boolean = file.exists()
     fun install(spec: ServiceSpec)
     fun uninstall()
     fun restart()
@@ -44,9 +55,14 @@ internal interface ServiceManager {
     fun bootHint(): String? = null
 
     companion object {
-        fun current(): ServiceManager {
+        /** With [install], the installed desktop app's service wins on macOS; otherwise whichever is installed. */
+        fun current(install: Boolean = false): ServiceManager {
             return when (currentPlatform) {
-                Platform.MacOS -> Launchd()
+                Platform.MacOS -> {
+                    val legacy = Launchd()
+                    val app = DesktopApp.find()?.let(::AppService) ?: return legacy
+                    if (install || !legacy.file.exists() || app.installed()) app else legacy
+                }
                 Platform.Linux -> Systemd()
                 else -> throw CliktError("Services are supported on macOS (launchd) and Linux (systemd), not ${currentPlatform.displayName}")
             }
@@ -54,7 +70,91 @@ internal interface ServiceManager {
     }
 }
 
-internal class Launchd(private val home: File = File(System.getProperty("user.home"))) : ServiceManager {
+/** The installed `Kinuvo.app`, whose bundled launch agent runs the Server under the app's bundle identity. */
+internal object DesktopApp {
+    const val BUNDLE_ID = "dev.kinuvo.desktop"
+
+    fun find(home: File = File(System.getProperty("user.home")), system: File = File("/Applications"), run: (List<String>) -> Sh = { sh(*it.toTypedArray()) }): File? {
+        val known = listOfNotNull(System.getenv("KINUVO_APP")?.let(::File), File(system, "Kinuvo.app"), File(home, "Applications/Kinuvo.app"))
+        val launchServices by lazy { run(listOf("osascript", "-e", "POSIX path of (path to application id \"$BUNDLE_ID\")")).takeIf { it.code == 0 }?.out?.trim()?.let(::File) }
+        return (known.asSequence() + generateSequence { launchServices }.take(1)).firstOrNull { AppService.bundlesAgent(it) }
+    }
+}
+
+/** The Server as a login item of `Kinuvo.app`: macOS privacy permissions belong to its bundle, not to a bare `java`. */
+internal class AppService(
+    private val app: File,
+    private val home: File = File(System.getProperty("user.home")),
+    private val run: (List<String>) -> Sh = { sh(*it.toTypedArray()) },
+) : ServiceManager {
+    private val launchd = Launchd(home, run)
+    override val file = File(app, AGENT)
+    override val label get() = app.path
+    override val runsJar = false
+
+    override fun render(spec: ServiceSpec): String {
+        val options = ServeOptions(spec.host, spec.port, spec.env["KINUVO_PUBLIC_URL"], spec.env["KINUVO_TRUSTED_PROXIES"], spec.tailscale, spec.tailscalePort)
+        return Json.encodeToString(LoginServiceSettings.serializer(), LoginServiceSettings(spec.home, options))
+    }
+
+    override fun install(spec: ServiceSpec) {
+        val settings = Json.decodeFromString(LoginServiceSettings.serializer(), render(spec))
+        if (launchd.file.exists()) launchd.uninstall()
+        known = null
+        LoginServiceSettings.write(settings, home.path)
+        // Registering can fail just after the previous Server goes, so try a few times.
+        var result = agent("register")
+        for (attempt in 1..4) {
+            if (result.code == 0) break
+            Thread.sleep(1_000)
+            result = agent("register")
+        }
+        result.orFail()
+        known = null
+    }
+
+    override fun uninstall() {
+        known = null
+        agent("unregister").orFail()
+        if (launchd.file.exists()) launchd.uninstall()
+        File(LoginServiceSettings.file(home.path).toString()).delete()
+    }
+
+    /** macOS also reports an old-style agent with the same label as registered, so it only counts once that one is gone. */
+    override fun installed() = !launchd.file.exists() && status() in setOf("enabled", "requiresApproval")
+
+    override fun restart() = launchd.restart()
+
+    override fun state() = when (val status = status()) {
+        "enabled" -> launchd.state()
+        "requiresApproval" -> "waiting for your approval"
+        "notRegistered" -> "not installed"
+        else -> status
+    }
+
+    override fun bootHint() = if (status() == "requiresApproval") "Allow Kinuvo in System Settings → General → Login Items & Extensions, so the service can start." else launchd.bootHint()
+
+    private var known: String? = null
+
+    /** One call to the app, which starts a JVM, per command. */
+    private fun status() = known ?: (agent("status").takeIf { it.code == 0 }?.out?.lines()?.lastOrNull { it.isNotBlank() }?.trim() ?: "unknown").also { known = it }
+
+    private fun agent(command: String) = run(listOf(File(app, EXECUTABLE).path, "--service", command))
+
+    companion object {
+        const val AGENT = "Contents/Library/LaunchAgents/${Launchd.LABEL}.plist"
+        const val EXECUTABLE = "Contents/MacOS/Kinuvo"
+
+        fun bundlesAgent(app: File) = File(app, EXECUTABLE).canExecute() && File(app, AGENT).isFile
+    }
+}
+
+internal class Launchd(
+    private val home: File = File(System.getProperty("user.home")),
+    private val run: (List<String>) -> Sh = { sh(*it.toTypedArray()) },
+) : ServiceManager {
+    private fun sh(vararg command: String) = run(command.toList())
+
     override val file = File(home, "Library/LaunchAgents/$LABEL.plist")
     private val target by lazy { "gui/${sh("id", "-u").out.trim()}" }
 
@@ -196,30 +296,32 @@ private class InstallService : CoreSuspendingCliktCommand("install") {
         require(!tailscale || publicUrl == null) { "Use --tailscale or --public-url, not both" }
         if (tailscale) Tailscale.requireLoopback(host)
         val home = File(kinuvoHome().toString())
-        val source = File(jar ?: runningJar() ?: throw CliktError("Not running from a jar; build one with `./kotlin package -m cli -f executable-jar` and pass --jar"))
-        if (!source.isFile) throw CliktError("No jar at $source")
-        val installed = File(home, "bin/kinuvo.jar").apply { parentFile.mkdirs() }
+        val manager = ServiceManager.current(install = true)
+        if (computer && !manager.runsJar) throw CliktError("--computer isn't supported by the Kinuvo app's service yet; run `kinuvo serve --computer` instead")
+        val installed = File(home, "bin/kinuvo.jar")
+        val source = if (manager.runsJar) File(jar ?: runningJar() ?: throw CliktError("Not running from a jar; build one with `./kotlin package -m cli -f executable-jar` and pass --jar")) else null
+        if (source != null && !source.isFile) throw CliktError("No jar at $source")
+        installed.parentFile.mkdirs()
         val log = File(home, "logs/server.log")
         ownerOnly(log)
         ownerOnly(File(home, "logs/service-output.log"))
         val env = listOfNotNull("PATH", "KINUVO_HOME", "LANG", "KINUVO_LOG_LEVEL", "KINUVO_PUBLIC_URL", "KINUVO_TRUSTED_PROXIES", "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "XDG_RUNTIME_DIR", "DBUS_SESSION_BUS_ADDRESS").mapNotNull { k -> System.getenv(k)?.let { k to it } }.toMap()
         val java = File(System.getProperty("java.home"), "bin/java").path
-        val manager = ServiceManager.current()
         val servicePid = Regex("""pid (\d+)""").find(manager.state())?.groupValues?.get(1)?.toLong()
         LocalServer.read(kinuvoHome())?.takeIf { it.alive && it.pid != servicePid && !force }?.let {
             throw CliktError("A Server is already running on ${home.path} (pid ${it.pid}); stop it first, or pass --force")
         }
-        val route = if (tailscale) Tailscale().prepare(port, tailscalePort) else null
+        val route = if (tailscale) serveErrors { Tailscale().prepare(port, tailscalePort) } else null
         try {
-            route?.enable()
-            if (source.canonicalFile != installed.canonicalFile) Files.copy(source.toPath(), installed.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            serveErrors { route?.enable() }
+            if (source != null && source.canonicalFile != installed.canonicalFile) Files.copy(source.toPath(), installed.toPath(), StandardCopyOption.REPLACE_EXISTING)
             val serviceEnv = if (tailscale) env - "KINUVO_PUBLIC_URL" else env + publicUrl?.let { mapOf("KINUVO_PUBLIC_URL" to it) }.orEmpty()
             manager.install(ServiceSpec(java, installed.path, if (tailscale) "127.0.0.1" else host, port, log.path, serviceEnv, computer, tailscale, tailscalePort))
         } catch (e: Throwable) {
             kotlinx.coroutines.withContext(NonCancellable) { runCatching { route?.rollback() }.exceptionOrNull()?.let(e::addSuppressed) }
             throw e
         }
-        echo("Installed ${manager.file} (${manager.state()})")
+        echo("Installed ${manager.label} (${manager.state()})")
         route?.let { echo("Tailscale HTTPS: ${it.url} (private to your tailnet)") }
         echo("Logs: ${log.path}")
         manager.bootHint()?.let { echo(it) }
@@ -234,9 +336,9 @@ private class UninstallService : CoreSuspendingCliktCommand("uninstall") {
 
     override suspend fun run() {
         val manager = ServiceManager.current()
-        if (!manager.file.exists()) throw CliktError("No service installed (${manager.file})")
+        if (!manager.installed()) throw CliktError("No service installed (${manager.label})")
         manager.uninstall()
-        echo("Removed ${manager.file}")
+        echo("Removed ${manager.label}")
     }
 }
 
@@ -247,12 +349,12 @@ private class ServiceStatus : CoreSuspendingCliktCommand("status") {
         val manager = ServiceManager.current()
         val local = LocalServer.read(kinuvoHome())?.takeIf { it.alive }
         echo(table(listOf("ITEM", "VALUE"), listOf(
-            listOf("service", if (manager.file.exists()) manager.state() else "not installed"),
-            listOf("file", manager.file.path),
+            listOf("service", if (manager.installed()) manager.state() else "not installed"),
+            listOf("file", manager.label),
             listOf("server", local?.let { "pid ${it.pid}, port ${it.port}" } ?: "not running"),
             listOf("logs", File(kinuvoHome().toString(), "logs/server.log").path),
         )))
-        if (manager.file.exists()) manager.bootHint()?.let { echo(it) }
+        if (manager.installed()) manager.bootHint()?.let { echo(it) }
     }
 }
 
@@ -261,7 +363,7 @@ private class RestartService : CoreSuspendingCliktCommand("restart") {
 
     override suspend fun run() {
         val manager = ServiceManager.current()
-        if (!manager.file.exists()) throw CliktError("No service installed; run `kinuvo service install`")
+        if (!manager.installed()) throw CliktError("No service installed; run `kinuvo service install`")
         manager.restart()
         echo("Restarted (${manager.state()})")
     }
@@ -291,6 +393,9 @@ private fun ownerOnly(log: File) {
         Files.setPosixFilePermissions(log.toPath(), PosixFilePermissions.fromString("rw-------"))
     }
 }
+
+/** Shows the Server's own problems the way commands show theirs. */
+internal suspend fun <T> serveErrors(block: suspend () -> T): T = try { block() } catch (e: ServeException) { throw CliktError(e.message) }
 
 internal data class Sh(val code: Int, val out: String) {
     fun orFail() {

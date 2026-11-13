@@ -28,7 +28,7 @@ Supported on macOS (launchd) and Linux (systemd user service).
 | `service logs` | `-f, --follow`; `-n, --lines` (default `100`) |
 | `service uninstall` | Stop and remove the service |
 
-Install uses the running jar by default and copies it to `<home>/bin/kinuvo.jar`. `--force` bypasses the other-Server check; stop any Server using that home first. See [service management](../operate/service.md).
+On macOS with the Kinuvo app installed, the service runs inside the app and `--jar` and `--computer` don't apply. Otherwise install uses the running jar by default and copies it to `<home>/bin/kinuvo.jar`. `--force` bypasses the other-Server check; stop any Server using that home first. See [service management](../operate/service.md).
 
 ## Devices
 

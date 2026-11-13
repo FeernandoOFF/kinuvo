@@ -1,6 +1,5 @@
-package kinuvo.cli
+package kinuvo.server.jvm
 
-import com.github.ajalt.clikt.core.CliktError
 import kinuvo.server.plugin.ProcessOutput
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.*
@@ -82,7 +81,7 @@ class TailscaleTest {
 
     @Test fun refusesOccupiedPortsOtherRootRoutesAndPublicFunnelRoutes() = runBlocking {
         val original = config
-        assertFailsWith<CliktError> { tailscale.prepare(8788, 8787) }
+        assertFailsWith<ServeException> { tailscale.prepare(8788, 8787) }
         assertEquals(original, config)
         val route = tailscale.prepare(8788)
         route.enable()
@@ -94,7 +93,7 @@ class TailscaleTest {
             valid.toString().dropLast(1) + ",\"AllowFunnel\":{\"mac-mini.tail123.ts.net:443\":true}}",
         )) {
             config = Json.parseToJsonElement(bad).jsonObject
-            assertFailsWith<CliktError> { tailscale.prepare(8788) }
+            assertFailsWith<ServeException> { tailscale.prepare(8788) }
             assertEquals(bad, config.toString())
         }
         assertEquals(1, calls.count { "--bg" in it })
@@ -107,7 +106,7 @@ class TailscaleTest {
             """{"BackendState":"Running","Self":{"DNSName":"mac-mini.tail123.ts.net"},"CertDomains":[]}""",
         )) {
             status = bad
-            assertFailsWith<CliktError> { tailscale.prepare(8788) }
+            assertFailsWith<ServeException> { tailscale.prepare(8788) }
         }
         assertTrue(calls.none { it.first() == "serve" })
         assertFailsWith<IllegalArgumentException> { tailscale.prepare(0) }
@@ -116,7 +115,7 @@ class TailscaleTest {
 
     @Test fun commandFailuresDoNotExposeRawTailscaleOutput() = runBlocking {
         val failed = Tailscale("tailscale") { ProcessOutput(1, "private output", "tskey-sensitive") }
-        val error = assertFailsWith<CliktError> { failed.prepare(8788) }
+        val error = assertFailsWith<ServeException> { failed.prepare(8788) }
         assertContains(error.message.orEmpty(), "tailscale status")
         assertFalse(error.message.orEmpty().contains("sensitive"))
     }
