@@ -28,6 +28,18 @@ Caddy needs its own service configured with `KINUVO_DOMAIN`. `KINUVO_PUBLIC_URL`
 
 A proxy running in another container or machine needs a different deployment arrangement; this recipe deliberately requires the Server and proxy to communicate through loopback on the same host. Do not publish port 8787 or point the public URL at the plaintext listener.
 
+## Container platforms (Coolify, Dokploy, ...)
+
+The Docker image runs with `KINUVO_BEHIND_PROXY=1` (or `serve --behind-proxy`), which suits a proxy in another container. In this mode the Server may listen on `0.0.0.0` with an HTTPS origin, and it trusts forwarded headers from loopback and private ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `fc00::/7`) unless `KINUVO_TRUSTED_PROXIES` (IPs or CIDR ranges) says otherwise.
+
+1. Deploy [`docker-compose.yml`](https://github.com/FeernandoOFF/kinuvo/blob/main/docker-compose.yml). In Coolify use the Docker Compose build pack; it generates a domain and routes it to port 8787. Elsewhere set the domain in the platform and `KINUVO_PUBLIC_URL`.
+2. Open a terminal in the container and run `kinuvo pair --manage`.
+3. Open the domain in a browser and paste the code into the pairing form.
+
+Without `KINUVO_PUBLIC_URL`, the Server accepts a browser whose `Origin` equals `https://` plus the proxy's forwarded host (`X-Forwarded-Host`, else `Host`). `COOLIFY_URL` is used when no public URL is set.
+
+Do not publish port 8787 to the host: the Docker gateway is a trusted private address in this mode, so a direct client could spoof forwarded headers.
+
 ## Pairing and access
 
 Pairing is closed at startup. On the Server's machine, explicitly open one ten-minute window:
