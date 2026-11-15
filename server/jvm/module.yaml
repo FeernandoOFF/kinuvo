@@ -5,6 +5,7 @@ dependencies:
   - ../../harness/builtin: exported
   - ../core: exported
   - ../rpc
+  - ../embedded
   - ../../gateways/kinuvo-mcp
   - ../../harness/acp
   - ../../harness/remote

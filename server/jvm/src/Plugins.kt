@@ -7,9 +7,8 @@ import kinuvo.providers.apple.fmProvider
 import kinuvo.plugins.bitwarden.Bitwarden
 import kinuvo.plugins.browser.BrowserPlugin
 import kinuvo.plugins.caldav.CalDavPlugin
-import kinuvo.providers.codex.CodexProvider
-import kinuvo.providers.codex.OpenAIProvider
-import kinuvo.providers.koog.compatibleProviders
+import kinuvo.providers.codex.CodexAuth
+import kinuvo.server.embedded.sharedProviders
 import kinuvo.providers.litert.LiteRtProvider
 import kinuvo.server.system
 import kinuvo.server.plugin.HarnessPlugin
@@ -38,9 +37,7 @@ import kinuvo.harness.builtin.plugin.ModelSource
 fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (HarnessPlugin) -> Unit = {}): ModelProviders<ModelSource> {
     val attachments = FileAttachments(Path(files.home, "attachments"))::bytes
     val keys = ProviderKeys(files, secrets) { Keychain.system("kinuvo", it) }
-    val endpoints = compatibleProviders(keys, files, attachments)
-    val providers = ModelProviders.of(CodexProvider(attachments = attachments)) + ModelProviders.of(OpenAIProvider(keys, attachments)) +
-        ModelProviders(listOf(endpoints)) { endpoints.modelSources } +
+    val providers = sharedProviders(files, keys, CodexAuth(), attachments) +
         (fmProvider()?.let { ModelProviders.of(it) } ?: ModelProviders()) + ModelProviders.of(LiteRtProvider(File(files.home.toString())))
     return providers.also { it.plugins.forEach(installed) }
 }
