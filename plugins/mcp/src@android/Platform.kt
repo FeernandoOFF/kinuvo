@@ -9,7 +9,8 @@ private val random = SecureRandom()
 
 internal actual fun secureRandomBytes(count: Int) = ByteArray(count).also(random::nextBytes)
 
-internal actual fun defaultSignIns(files: PluginStorage, keychain: Keychain?): McpSignInStore = SandboxSignIns(Path(files.home, "mcp-auth"))
+internal actual fun defaultSignIns(files: PluginStorage, keychain: Keychain?): McpSignInStore =
+    SandboxSignIns(Path(files.home, "mcp-auth")).let { sandbox -> keychain?.let { KeychainSignIns(it, sandbox) } ?: sandbox }
 
 internal actual val stdioSupported: Boolean = false
 

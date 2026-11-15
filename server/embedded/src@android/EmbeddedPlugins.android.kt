@@ -4,6 +4,7 @@ import kinuvo.plugins.browser.BrowserPlugin
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.HarnessPlugin
 import kinuvo.server.plugin.PrivateFile
+import kinuvo.server.plugin.SealedFileKeychain
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.FileAttachments
 import kinuvo.server.providers.ModelProviders
@@ -18,7 +19,7 @@ fun embeddedPlugins(home: Path, extra: List<HarnessPlugin> = emptyList()): Embed
     val keys = embeddedKeys(files)
     val attachments = FileAttachments(Path(home, "attachments"))::bytes
     val providers = sharedProviders(files, keys, CodexAuth(PrivateFile(Path(home, "codex-auth.json"))), attachments) + ModelProviders.of(LiteRtProvider(File(home.toString())))
-    return EmbeddedPlugins(providers.plugins + sharedPlugins(files) + extra, providers.sources)
+    return EmbeddedPlugins(providers.plugins + sharedPlugins(files, SealedFileKeychain(Path(home, "mcp-oauth.enc"), KeystoreSealer("kinuvo-mcp-oauth"), "Android Keystore")) + extra, providers.sources)
 }
 
 /** The browser plugin over the app's WebView when this device supports it; call on the main thread. */
