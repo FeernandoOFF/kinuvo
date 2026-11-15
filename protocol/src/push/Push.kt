@@ -2,6 +2,7 @@ package kinuvo.protocol.push
 
 import kotlinx.serialization.Serializable
 import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.session.SessionId
 
 /** Where and how a Device receives Notifications: a Web Push [endpoint], its P-256 public key and auth secret (base64url). */
@@ -12,6 +13,10 @@ data class PushSubscription(val endpoint: String, val p256dh: String, val auth: 
 @Serializable
 data class PushParams(val subscription: PushSubscription? = null)
 
-/** What a pushed Notification decrypts to on the Device; [serverId] is the Server that sent it. */
+/** What a pushed Notification decrypts to on the Device; [serverId] is the Server that sent it. [kind] and [approvalId] say which actions it offers. */
 @Serializable
-data class PushMessage(val title: String, val body: String, val agentId: AgentId? = null, val sessionId: SessionId? = null, val urgent: Boolean = false, val serverId: String? = null)
+data class PushMessage(val title: String, val body: String, val agentId: AgentId? = null, val sessionId: SessionId? = null, val urgent: Boolean = false, val serverId: String? = null, val kind: PushKind = PushKind.Other, val approvalId: InteractionId? = null)
+
+/** What a Notification can be answered with: a [Reply] takes text, an [Approval] is allowed once or denied. */
+@Serializable
+enum class PushKind { Other, Reply, Approval }

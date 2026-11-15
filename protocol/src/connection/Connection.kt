@@ -10,12 +10,14 @@ import kotlinx.serialization.Serializable
 
 /**
  * Exactly one of [token] or [pairingCode] is set. [timeZone] is the Device's IANA zone. The Device speaks
- * [minProtocolVersion] through [protocolVersion]; without [minProtocolVersion], only [protocolVersion].
+ * [minProtocolVersion] through [protocolVersion]; without [minProtocolVersion], only [protocolVersion]. A temporary connection
+ * sets [registerDeviceTools] false to leave the Device's tool registration untouched.
  */
 @Serializable
 data class ConnectParams(val device: String, val token: String? = null, val pairingCode: String? = null, val timeZone: String? = null,
     @Serializable(with = DeviceToolKinds::class) val deviceTools: Set<DeviceToolKind> = emptySet(),
-    @Required val protocolVersion: Int = ProtocolVersion.Current, val minProtocolVersion: Int? = null)
+    @Required val protocolVersion: Int = ProtocolVersion.Current, val minProtocolVersion: Int? = null,
+    val registerDeviceTools: Boolean = true)
 
 /** [protocolVersion] is the version the connection speaks. */
 @Serializable
