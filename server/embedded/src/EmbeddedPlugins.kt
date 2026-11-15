@@ -23,7 +23,7 @@ import kinuvo.providers.koog.compatibleProviders
 import kinuvo.protocol.session.Attachment
 
 /** The plugins every phone's Server includes besides its platform's model providers. */
-internal fun sharedPlugins(files: AgentFiles) = listOf(McpPlugin(files), FirecrawlPlugin(), NtfyPlugin(), TodoistPlugin(), CalDavPlugin(), ExecutorPlugin(), AnytypePlugin(files))
+internal fun sharedPlugins(files: AgentFiles, mcpKeychain: Keychain? = Keychain.system("kinuvo", "mcp-oauth")) = listOf(McpPlugin(files, keychain = mcpKeychain), FirecrawlPlugin(), NtfyPlugin(), TodoistPlugin(), CalDavPlugin(), ExecutorPlugin(), AnytypePlugin(files))
 
 /** Codex, OpenAI and the custom endpoints: the providers every host offers, which read attachments through [attachments]. */
 fun sharedProviders(files: AgentFiles, keys: ProviderKeys, codexAuth: CodexAuth, attachments: (Attachment) -> ByteArray): ModelProviders<ModelSource> {

@@ -16,8 +16,9 @@ internal actual fun secureRandomBytes(count: Int): ByteArray = ByteArray(count).
     bytes.usePinned { check(SecRandomCopyBytes(kSecRandomDefault, count.convert(), it.addressOf(0)) == 0) { "No secure random bytes" } }
 }
 
-/** In the app's sandbox, which only it can read. */
-internal actual fun defaultSignIns(files: PluginStorage, keychain: Keychain?): McpSignInStore = SandboxSignIns(Path(files.home, "mcp-auth"))
+/** In the iOS Keychain, moving over any the app's sandbox held; private files in the sandbox when the app set up no Keychain. */
+internal actual fun defaultSignIns(files: PluginStorage, keychain: Keychain?): McpSignInStore =
+    SandboxSignIns(Path(files.home, "mcp-auth")).let { sandbox -> keychain?.let { KeychainSignIns(it, sandbox) } ?: sandbox }
 
 internal actual val stdioSupported: Boolean = false
 
