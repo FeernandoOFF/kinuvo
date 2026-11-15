@@ -2,6 +2,8 @@ package kinuvo.server
 
 import kinuvo.server.plugin.Notification
 import kinuvo.protocol.approval.*
+import kinuvo.protocol.push.PushKind
+import kinuvo.protocol.routine.*
 import kinuvo.protocol.service.*
 import kinuvo.protocol.session.*
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -16,6 +18,24 @@ class PushNotificationsTest {
     private val push = object : DevicePush {
         override suspend fun send(notification: Notification) = Pushed(devices, failures).also { pushed += notification }
         override fun close() {}
+    }
+
+    @Test fun actionKindsMatchTheEvent() = runTest {
+        val notifications = Notifications(fixture.runtime(), this, routineOf = { null }, devices = push)
+        val agent = fixture.agent.id
+        val session = SessionId("s1")
+        notifications.on(agent, session, AgentEvent.InteractionRequested(PendingInteraction.Approval(InteractionId("approval"), ToolCallId("tool"), "shell", "{}")))
+        notifications.on(agent, session, AgentEvent.RunFinished(RunId("run")))
+        notifications.on(agent, session, AgentEvent.InteractionRequested(PendingInteraction.Questions(InteractionId("q"), ToolCallId("f"), "Question", emptyList())))
+        advanceUntilIdle()
+        assertEquals(listOf(PushKind.Approval, PushKind.Reply, PushKind.Other), pushed.map { it.kind })
+        assertEquals(InteractionId("approval"), pushed.first().approvalId)
+        val routine = RoutineRef("routine", "Morning")
+        notifications.routineRan(RoutineRan(agent, routine, RunStatus.Ok, session, summary = "Done"))
+        notifications.routineRan(RoutineRan(agent, routine, RunStatus.Ok, null, summary = "Done"))
+        notifications.routineRan(RoutineRan(agent, routine, RunStatus.Error, session, error = "Failed"))
+        advanceUntilIdle()
+        assertEquals(listOf(PushKind.Reply, PushKind.Other, PushKind.Reply), pushed.takeLast(3).map { it.kind })
     }
 
     @Test fun pushesOnlyWhileTurnedOn() = runTest {

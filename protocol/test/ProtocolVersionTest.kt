@@ -24,6 +24,13 @@ class ProtocolVersionTest {
         assertEquals(params, ProtocolJson.decodeFromString(ConnectParams.serializer(), ProtocolJson.encodeToString(ConnectParams.serializer(), params)))
     }
 
+    @Test fun connectParamsRegisterDeviceToolsByDefault() {
+        val old = ProtocolJson.decodeFromString(ConnectParams.serializer(), """{"device":"old","protocolVersion":${ProtocolVersion.Current}}""")
+        assertTrue(old.registerDeviceTools)
+        val action = ConnectParams("action", registerDeviceTools = false)
+        assertEquals(action, ProtocolJson.decodeFromString(ConnectParams.serializer(), ProtocolJson.encodeToString(ConnectParams.serializer(), action)))
+    }
+
     @Test fun aNewerPeersEnumValuesDoNotFailTheHandshake() {
         val params = ProtocolJson.decodeFromString(ConnectParams.serializer(),
             """{"device":"new","protocolVersion":${ProtocolVersion.Current},"deviceTools":["Contacts","Future"]}""")

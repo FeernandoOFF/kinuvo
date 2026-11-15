@@ -82,6 +82,8 @@ class KinuvoClient(
     /** Lets a public Server be reached over plain ws://, e.g. a linked Server without TLS. */
     private val allowCleartext: Boolean = false,
     dispatcher: CoroutineDispatcher = Dispatchers.Default,
+    /** False for a temporary connection that must leave the Device's tool registration to the foreground one. */
+    private val registerDeviceTools: Boolean = true,
 ) {
     private val http by lazy { httpClient { install(WebSockets) { maxFrameSize = MAX_FRAME_SIZE } } }
     private val scope = CoroutineScope(SupervisorJob() + dispatcher)
@@ -132,7 +134,7 @@ class KinuvoClient(
                 var socket: FrameConnection? = null
                 var reader: Job? = null
                 try {
-                    val params = ConnectParams(device, token, if (token == null) pairingCode else null, timeZone, deviceTools(), version, ProtocolVersion.Minimum)
+                    val params = ConnectParams(device, token, if (token == null) pairingCode else null, timeZone, deviceTools(), version, ProtocolVersion.Minimum, registerDeviceTools)
                     val prepared = if (connection == null) { requireSecureTransport(url, allowCleartext); http.prepareConnect(url, params) } else params
                     val ws = connection?.invoke() ?: http.connection(url)
                     socket = ws

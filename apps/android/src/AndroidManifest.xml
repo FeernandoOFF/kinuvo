@@ -62,6 +62,7 @@
                       android:value="Self-hosted assistant Server that runs the user's Agents and scheduled Routines" />
         </service>
         <!-- Pushed Notifications from the Push relay (Push.android.kt). -->
+        <receiver android:name="kinuvo.ui.NotificationActionReceiver" android:exported="false" />
         <service android:name="kinuvo.ui.KinuvoMessagingService"
                  android:exported="false">
             <intent-filter>

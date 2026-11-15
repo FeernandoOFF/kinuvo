@@ -64,7 +64,7 @@ internal class WebPushDevices(private val peers: PeerRegistry, private val serve
 internal fun Notification.message(serverId: String? = null): ByteArray {
     var body = body
     while (true) {
-        val bytes = ProtocolJson.encodeToString(PushMessage.serializer(), PushMessage(title.take(200), body, agentId, sessionId, urgent, serverId)).encodeToByteArray()
+        val bytes = ProtocolJson.encodeToString(PushMessage.serializer(), PushMessage(title.take(200), body, agentId, sessionId, urgent, serverId, kind, approvalId)).encodeToByteArray()
         if (bytes.size <= MAX_PUSH_BYTES || body.isEmpty()) return bytes
         body = if (body.length < 8) "" else body.take(body.length * 3 / 4).trimEnd() + "…"
     }

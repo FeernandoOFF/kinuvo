@@ -5,6 +5,7 @@ import co.touchlab.stately.collections.ConcurrentMutableSet
 import kinuvo.server.plugin.Notification
 import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.approval.PendingInteraction
+import kinuvo.protocol.push.PushKind
 import kinuvo.protocol.routine.RoutineRan
 import kinuvo.protocol.routine.RoutineRef
 import kinuvo.protocol.routine.RunStatus
@@ -44,7 +45,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
             val notification = when (event) {
                 is AgentEvent.InteractionRequested -> if (event.childSessionId != null) Notification("$name needs a response", "A Sub-agent is waiting for you", agentId, sessionId, urgent = true) else when (val interaction = event.interaction) {
                     is PendingInteraction.Approval -> approvalText(name, interaction).let { (title, body) ->
-                        Notification(title, body.clip(), agentId, sessionId, urgent = true)
+                        Notification(title, body.clip(), agentId, sessionId, urgent = true, kind = PushKind.Approval, approvalId = interaction.id)
                     }
                     is PendingInteraction.Questions ->
                         Notification("${name} has questions", (interaction.title ?: interaction.questions.joinToString(" · ") { it.label }).clip(), agentId, sessionId, urgent = true)
@@ -53,7 +54,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
                     is PendingInteraction.Unsupported -> Notification("$name needs a response", "Execution is waiting".clip(), agentId, sessionId, urgent = true)
                 }
                 // Routine runs are told by [routineRan], when they have something to report.
-                is AgentEvent.RunFinished -> if (routine != null) null else Notification(name, plainText(lastReply(agentId.value, sessionId).orEmpty()).clip(), agentId, sessionId)
+                is AgentEvent.RunFinished -> if (routine != null) null else Notification(name, plainText(lastReply(agentId.value, sessionId).orEmpty()).clip(), agentId, sessionId, kind = PushKind.Reply)
                 is AgentEvent.RunError -> if (routine != null) null else Notification("${name} hit an error", event.message.clip(), agentId, sessionId)
             }
             notification?.let { quietly(it) }
@@ -65,7 +66,7 @@ class Notifications(private val harness: HarnessRuntime, private val scope: Coro
             val agent = harness.store.agents().firstOrNull { it.id == ran.agentId } ?: return@launch
             if (ran.sessionId?.let { harness.log.watched(it) } == true) return@launch
             val body = if (ran.status == RunStatus.Error) "Failed: ${ran.error}" else plainText(ran.summary.orEmpty())
-            quietly(Notification(ran.routine.name, body.clip(), agent.id, ran.sessionId))
+            quietly(Notification(ran.routine.name, body.clip(), agent.id, ran.sessionId, kind = if (ran.sessionId != null) PushKind.Reply else PushKind.Other))
         }
     }
 
