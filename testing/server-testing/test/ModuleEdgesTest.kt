@@ -20,6 +20,8 @@ class ModuleEdgesTest {
 
     private val rules = listOf(
         Rule("protocol", emptyList(), harnessTests),
+        Rule("client/sdk", listOf("protocol"), harnessTests),
+        Rule("client/app", listOf("protocol", "client/sdk"), harnessTests),
         Rule("client/*", listOf("protocol", "client/*"), harnessTests),
         Rule("harness/api", listOf("protocol"), harnessTests),
         Rule("harness/builtin", listOf("harness/api", "protocol"), harnessTests),
