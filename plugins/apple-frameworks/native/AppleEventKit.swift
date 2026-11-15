@@ -109,12 +109,14 @@ final class AppleEventKit: @unchecked Sendable {
         let done = DispatchSemaphore(value: 0)
         if type == .reminder { store.requestFullAccessToReminders { _, _ in done.signal() } } else { store.requestFullAccessToEvents { _, _ in done.signal() } }
         guard done.wait(timeout: .now() + 120) == .success else { throw AppleFailure("failed", "Access request timed out") }
+        // A store made before access was granted keeps an empty view of the user's accounts.
+        store.reset()
     }
 
     private func access(_ type: EKEntityType) throws {
         if status(type) == "notDetermined" { _ = try authorize(type) }
         switch status(type) {
-        case "fullAccess": return
+        case "fullAccess": store.refreshSourcesIfNecessary(); return
         case "unavailable": throw AppleFailure("unavailable", Self.unavailable)
         default: throw AppleFailure("denied", deniedMessage(type))
         }
@@ -151,6 +153,15 @@ final class AppleEventKit: @unchecked Sendable {
 
     private func calendarJSON(_ calendar: EKCalendar) -> [String: Any] {
         ["id": calendar.calendarIdentifier, "title": calendar.title, "writable": calendar.allowsContentModifications, "source": calendar.source?.title ?? ""]
+    }
+
+    /// One calendar by id or name, or every calendar of an account by its name, e.g. "Google" or the account's email.
+    private func calendars(_ key: String?, _ type: EKEntityType) throws -> [EKCalendar]? {
+        guard let key else { return nil }
+        if let match = try? calendar(key, type) { return [match] }
+        let account = store.calendars(for: type).filter { ($0.source?.title ?? "").localizedCaseInsensitiveContains(key) }
+        if account.isEmpty { throw AppleFailure("notFound", "No calendar or account with the id or name '\(key)'") }
+        return account
     }
 
     private func calendar(_ key: String?, _ type: EKEntityType) throws -> EKCalendar? {
@@ -262,7 +273,7 @@ final class AppleEventKit: @unchecked Sendable {
             return dateOnly ? endOfDay(date) : date
         } ?? calendar.date(byAdding: .day, value: 7, to: start)!
         guard end >= start else { throw AppleFailure("invalid", "'end' is before 'start'") }
-        let lists = try calendar(p.string("calendar"), .event).map { [$0] }
+        let lists = try calendars(p.string("calendar"), .event)
         let query = p.string("query")?.lowercased()
         let found = store.events(matching: store.predicateForEvents(withStart: start, end: end, calendars: lists))
             .filter { event in

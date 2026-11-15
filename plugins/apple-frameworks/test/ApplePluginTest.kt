@@ -80,7 +80,7 @@ class ApplePluginTest {
     @Test
     fun calendarTools() = runTest {
         val tools = tools("calendar")
-        assertEquals("- home \"Home\"\n- holidays \"Holidays\" (read-only)", tools.run("calendar_list"))
+        assertEquals("- home \"Home\" in me@gmail.com\n- holidays \"Holidays\" (read-only)", tools.run("calendar_list"))
         assertEquals("- e1 \"Dentist\" 2026-11-12T10:00 to 2026-11-12T11:00 at Main St in Home\n- e2 \"Holiday\" 2026-11-14 to 2026-11-16 (all day) in Home", tools.run("calendar_events"))
         assertEquals("No events.", tools.run("calendar_events", buildJsonObject { put("query", "zzz") }))
         assertTrue(tools.run("calendar_event_create", buildJsonObject { put("title", "Lunch"); put("start", "2026-11-13T12:30") }).startsWith("Created.\n- e3 \"Lunch\""))

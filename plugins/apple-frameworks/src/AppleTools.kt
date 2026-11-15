@@ -45,12 +45,12 @@ internal fun reminderTools(apple: Apple): List<Tool> = listOf(
 )
 
 internal fun calendarTools(apple: Apple): List<Tool> = listOf(
-    AppleTool(toolSpec("calendar_list", "The user's Apple Calendar calendars."), apple, "calendar.list") {
-        lists<AppleList>(it) { c -> "- ${c.id} \"${c.title}\"" + if (c.writable) "" else " (read-only)" }
+    AppleTool(toolSpec("calendar_list", "The user's calendars in Apple Calendar, from every account it syncs (iCloud, Google, Exchange…), each with its account."), apple, "calendar.list") {
+        lists<AppleList>(it) { c -> "- ${c.id} \"${c.title}\"" + (if (c.source.isBlank()) "" else " in ${c.source}") + if (c.writable) "" else " (read-only)" }
     },
     AppleTool(toolSpec("calendar_events", "Apple Calendar events from start to end, earliest first; query keeps those whose title, location or notes contain it.",
         optionalParameters = listOf(text("start", "From: $DATE; defaults to today"), text("end", "Until: $DATE (a date means through that day); defaults to 7 days after start"),
-            text("query", "Words to find"), text("calendar", "Calendar name or id; all calendars when omitted"), LIMIT)), apple, "calendar.events") {
+            text("query", "Words to find"), text("calendar", "Calendar name or id, or an account name (e.g. Google) for all its calendars; all calendars when omitted"), LIMIT)), apple, "calendar.events") {
         lists<AppleEvent>(it, "No events.") { e -> e.describe() }
     },
     AppleTool(toolSpec("calendar_event_create", "Add an Apple Calendar event.", listOf(text("title", "Event title"), text("start", "Start: $DATE")),
