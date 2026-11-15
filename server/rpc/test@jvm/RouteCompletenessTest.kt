@@ -27,6 +27,12 @@ class RouteCompletenessTest {
         assertEquals(emptySet(), (routed + handled) - declared.toSet(), "Routes for methods Api doesn't declare")
     }
 
+    @Test fun orderedMethodsAreExactlyTheConnectionStateOnes() {
+        val routes = serverRoutes()
+        val expected = setOf(Api.LiveVoiceStart, Api.LiveVoiceEnd, Api.CatchUp, Api.Unsubscribe, Api.Send, Api.Stop, Api.Presence, Api.DeviceTools, Api.SurfaceCatalogs, Api.RevokeDevice, Api.RotateToken).map { it.name }.toSet()
+        assertEquals(expected, routes.methods.filter { routes.ordered(it) }.toSet())
+    }
+
     @Test fun registeringAMethodTwiceFails() {
         assertFailsWith<IllegalArgumentException> {
             routes {

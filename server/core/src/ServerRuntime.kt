@@ -492,7 +492,7 @@ class ServerRuntime(
                     client.outbox.send(request.failure(VoiceError.RequestActive))
                     return@collect
                 }
-                val stateful = request.method in setOf(Api.LiveVoiceStart.name, Api.LiveVoiceEnd.name, Api.CatchUp.name, Api.Unsubscribe.name, Api.Send.name, Api.Stop.name, Api.Presence.name, Api.DeviceTools.name, Api.SurfaceCatalogs.name, Api.RevokeDevice.name, Api.RotateToken.name)
+                val stateful = routes.ordered(request.method)
                 if (!outstanding.tryAcquire()) { log.warn { "Closing a connection: over ${security.concurrentRequests} requests at once (${request.method})" }; client.disconnect(); return@collect }
                 if (stateful) {
                     try { client.outbox.send(handle(request, client)) } finally { outstanding.release() }
