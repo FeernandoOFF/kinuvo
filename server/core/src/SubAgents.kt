@@ -33,7 +33,7 @@ sealed class SubAgentError(override val code: String, override val message: Stri
 
 /** Server-owned child Sessions. Linkage and terminal results survive the run that created them. */
 class SubAgents internal constructor(
-    private val harness: HarnessRuntime,
+    private val harness: AgentRuntime,
     private val dispatch: ExecutionDispatch,
     private val scope: CoroutineScope,
     private val join: suspend (SessionId) -> Unit,

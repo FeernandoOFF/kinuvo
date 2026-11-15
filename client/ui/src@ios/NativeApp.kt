@@ -21,7 +21,7 @@ import kinuvo.ui.session.ChatScreen
 import kinuvo.ui.navigation.rememberShellChrome
 import kinuvo.ui.connection.ConnectScreen
 import kinuvo.ui.onboarding.OnboardingScreen
-import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.design.KinuvoTheme
 import kinuvo.ui.design.LocalPopovers
 import kinuvo.ui.design.Popovers
 import kinuvo.ui.knowledge.KnowledgeScreen
@@ -99,7 +99,7 @@ class NativeScreenHost internal constructor(content: @Composable (DestinationLif
     val controller = ComposeUIViewController {
         val popovers = remember { Popovers() }
         CompositionLocalProvider(LocalViewModelStoreOwner provides this, LocalPopovers provides popovers) {
-            HarnessTheme { TooltipHost(Modifier.fillMaxSize()) {
+            KinuvoTheme { TooltipHost(Modifier.fillMaxSize()) {
                 Box(Modifier.fillMaxSize()) { content(lifetime); popovers.Host() }
             } }
         }

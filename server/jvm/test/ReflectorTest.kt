@@ -55,7 +55,7 @@ class ReflectorTest {
             }
         }
     }
-    private val harness = Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model })
+    private val harness = JvmAgentRuntime(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model })
 
     @Test
     fun knowledgeSettingsKeepKeysPrivate() {
@@ -170,7 +170,7 @@ class ReflectorTest {
 
     @Test
     fun clientsReviewAndUndoChanges() = runBlocking {
-        val server = HarnessServer(harness)
+        val server = JvmServerHost(harness)
         val port = server.start("127.0.0.1", 0)
         try {
             withTimeout(30_000) {

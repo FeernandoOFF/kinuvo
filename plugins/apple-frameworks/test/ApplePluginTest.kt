@@ -40,7 +40,7 @@ class ApplePluginTest {
 
     @Test
     fun coexistsWithTheAppleModelProvider() {
-        val other = object : kinuvo.server.plugin.HarnessPlugin { override val definition = kinuvo.protocol.plugin.PluginDefinition("kinuvo.apple", "Apple") }
+        val other = object : kinuvo.server.plugin.ServerPlugin { override val definition = kinuvo.protocol.plugin.PluginDefinition("kinuvo.apple", "Apple") }
         listOf(other, plugin).checkPluginInstances()
     }
 

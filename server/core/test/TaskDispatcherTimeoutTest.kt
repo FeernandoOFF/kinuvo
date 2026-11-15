@@ -2,7 +2,7 @@ package kinuvo.server
 
 import kinuvo.protocol.agent.AgentId
 import ai.koog.prompt.streaming.StreamFrame
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.LocalTaskApp
 import kinuvo.server.plugin.deleteTree
@@ -55,7 +55,7 @@ class TaskDispatcherTimeoutTest {
                 }
             }
         })
-        val plugin = object : HarnessPlugin {
+        val plugin = object : ServerPlugin {
             override val definition = PluginDefinition("test.tasks", "Test tasks")
             override val taskProviders = listOf(provider)
         }

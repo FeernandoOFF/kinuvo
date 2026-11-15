@@ -11,7 +11,7 @@ import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.embedded.sharedProviders
 import kinuvo.providers.litert.LiteRtProvider
 import kinuvo.server.system
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.Keychain
 import kinuvo.server.plugin.ProviderKeys
 import kinuvo.server.plugin.SecretProvider
@@ -34,7 +34,7 @@ import kinuvo.server.providers.plus
 import kinuvo.harness.builtin.plugin.ModelSource
 
 /** The model providers a JVM host offers. */
-fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (HarnessPlugin) -> Unit = {}): ModelProviders<ModelSource> {
+fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (ServerPlugin) -> Unit = {}): ModelProviders<ModelSource> {
     val attachments = FileAttachments(Path(files.home, "attachments"))::bytes
     val keys = ProviderKeys(files, secrets) { Keychain.system("kinuvo", it) }
     val providers = sharedProviders(files, keys, CodexAuth(), attachments) +
@@ -43,7 +43,7 @@ fun jvmProviders(files: AgentFiles, secrets: Secrets = Secrets(), installed: (Ha
 }
 
 /** What a JVM host (desktop, the `kinuvo` command) runs with. */
-fun jvmPlugins(files: AgentFiles, secrets: Secrets, providers: ModelProviders<ModelSource> = jvmProviders(files, secrets), installed: (HarnessPlugin) -> Unit = {}): List<HarnessPlugin> =
+fun jvmPlugins(files: AgentFiles, secrets: Secrets, providers: ModelProviders<ModelSource> = jvmProviders(files, secrets), installed: (ServerPlugin) -> Unit = {}): List<ServerPlugin> =
     providers.plugins.onEach(installed) + listOf(
         { BrowserPlugin(File(files.home.toString(), "browser")) },
         { ExecPlugin(files, secrets) }, { McpPlugin(files, secrets, Keychain.system("kinuvo", "mcp-oauth")) }, { ApplePlugin(loadAppleSystem()) }, { TodoistPlugin() }, { CalDavPlugin() },

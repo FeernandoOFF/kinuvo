@@ -24,7 +24,7 @@ class CodexExecLiveTest {
         if (System.getenv("KINUVO_LIVE") != "1") return@runBlocking
         val home = temporaryDirectories.create("harness-live-exec").toFile()
         val ws = temporaryDirectories.create("harness-ws").toFile().canonicalFile
-        val harness = Harness(Path(home.path))
+        val harness = JvmAgentRuntime(Path(home.path))
         val agent = harness.store.agents().single().let {
             it.copy(config = it.config.copy(reasoning = "low", exec = "host", workspace = listOf(ws.path), approvals = "full"))
         }

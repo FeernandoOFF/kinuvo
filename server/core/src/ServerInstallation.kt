@@ -1,6 +1,6 @@
 package kinuvo.server
 
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.PluginHosts
 import kinuvo.server.plugin.checkPluginInstances
 import kinuvo.server.plugin.readTextOrNull
@@ -35,7 +35,7 @@ object ServerInstallation {
     suspend fun assemble(
         files: AgentFiles,
         store: Store? = null,
-        plugins: List<HarnessPlugin> = emptyList(),
+        plugins: List<ServerPlugin> = emptyList(),
         modelProviders: List<ModelProvider> = emptyList(),
         modelSources: () -> List<ModelPolicy> = { emptyList() },
         secrets: Secrets = Secrets(),

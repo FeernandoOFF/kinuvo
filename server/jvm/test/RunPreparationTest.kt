@@ -10,7 +10,7 @@ import kinuvo.server.plugin.SecretProvider
 import kinuvo.server.plugin.toolSpec
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
 import kinuvo.harness.builtin.plugin.*
@@ -88,12 +88,12 @@ class RunPreparationTest {
             }
         }
     }
-    private suspend fun harness(plugins: List<HarnessPlugin> = emptyList(), providers: List<ModelProvider> = listOf(provider)) =
-        HarnessRuntime(ServerInstallation.assemble(AgentFiles(Path(home.path)), plugins = plugins, modelProviders = providers), { NativeExecutionFactory(it, { providers.filterIsInstance<ModelSource>() }) })
-    private suspend fun agent(harness: HarnessRuntime, tools: List<String> = emptyList()) = harness.store.agents().single().let {
+    private suspend fun harness(plugins: List<ServerPlugin> = emptyList(), providers: List<ModelProvider> = listOf(provider)) =
+        AgentRuntime(ServerInstallation.assemble(AgentFiles(Path(home.path)), plugins = plugins, modelProviders = providers), { NativeExecutionFactory(it, { providers.filterIsInstance<ModelSource>() }) })
+    private suspend fun agent(harness: AgentRuntime, tools: List<String> = emptyList()) = harness.store.agents().single().let {
         it.copy(config = it.config.copy(provider = "test", model = "tools", tools = tools))
     }
-    private suspend fun inspect(harness: HarnessRuntime, agent: Agent, session: String? = null, settings: SessionSettings? = null) =
+    private suspend fun inspect(harness: AgentRuntime, agent: Agent, session: String? = null, settings: SessionSettings? = null) =
         harness.composer.capabilities(agent, session?.let(::SessionId), settings, ServerCapabilities(harness.serverId, harness.features))
 
     @Test
@@ -250,7 +250,7 @@ class RunPreparationTest {
 
     @Test
     fun manyCataloguedToolsReachTheModelOnlyThroughTheCatalog() = runBlocking {
-        val many = object : HarnessPlugin {
+        val many = object : ServerPlugin {
             override val definition = PluginDefinition("test.many", "Many")
             override val catalogued = true
             override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools((1..45).map { i ->

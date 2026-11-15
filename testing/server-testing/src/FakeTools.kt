@@ -1,7 +1,7 @@
 package kinuvo.testing.server
 
 import kinuvo.server.plugin.toolSpec
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.McpApps
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.instance
@@ -37,7 +37,7 @@ class FakeTool(
 }
 
 /** Offers [tools] to every Agent's runs, and to the MCP Apps that call them by name. */
-class FakeTools(private vararg val tools: FakeTool) : HarnessPlugin {
+class FakeTools(private vararg val tools: FakeTool) : ServerPlugin {
     override val definition = PluginDefinition("test.tools", "Test tools")
 
     override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(tools.toList())
@@ -50,7 +50,7 @@ class FakeTools(private vararg val tools: FakeTool) : HarnessPlugin {
 }
 
 /** Offers Agents a host to run shell and files on, so their Workspace settings are available; it has no tools. */
-class FakeExec : HarnessPlugin {
+class FakeExec : ServerPlugin {
     override val definition = PluginDefinition("test.exec", "Test exec")
     override val integrations = mapOf(Integration.Exec to setOf(IntegrationOptions.EXEC_HOST))
 }

@@ -3,7 +3,7 @@ package kinuvo.testing.server
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.AgentDoc
-import kinuvo.server.HarnessRuntime
+import kinuvo.server.AgentRuntime
 import kinuvo.server.execution.ExecutionRecovery
 import kinuvo.server.execution.ExecutionRegistry
 import kinuvo.server.execution.ExecutionRecoveryStore
@@ -42,7 +42,7 @@ class Transcript internal constructor() {
  * runtime wrote rather than replayed responses.
  */
 class Scenario internal constructor(
-    private val harness: HarnessRuntime,
+    private val harness: AgentRuntime,
     private val home: Path,
     private val executions: ExecutionRegistry,
     private val recovery: ExecutionRecoveryStore,

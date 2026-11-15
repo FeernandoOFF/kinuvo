@@ -1,6 +1,6 @@
 package kinuvo.ui.e2e
 
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.testing.server.FakeTool
 import kinuvo.testing.server.FakeTools
 import kinuvo.protocol.Api
@@ -12,7 +12,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class ToolFlowTest {
-    private val tools: List<HarnessPlugin> = listOf(FakeTools(
+    private val tools: List<ServerPlugin> = listOf(FakeTools(
         FakeTool("read_file") { args ->
             when (val path = args.getValue("path").jsonPrimitive.content) {
                 "notes.txt" -> "Fixture file contents"

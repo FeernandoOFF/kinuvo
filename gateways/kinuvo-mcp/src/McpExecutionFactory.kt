@@ -4,14 +4,14 @@ import kinuvo.harness.*
 import kinuvo.protocol.approval.*
 import kinuvo.protocol.execution.*
 import kinuvo.protocol.session.*
-import kinuvo.server.HarnessRuntime
+import kinuvo.server.AgentRuntime
 import kotlinx.coroutines.*
 import java.util.concurrent.ConcurrentHashMap
 
 /** Host-installed decorator; embedded Servers never install it. */
 class McpExecutionFactory(
     private val delegate: ExecutionFactory,
-    private val harness: HarnessRuntime,
+    private val harness: AgentRuntime,
     private val access: McpAccess,
     private val url: () -> String,
 ) : ExecutionFactory {

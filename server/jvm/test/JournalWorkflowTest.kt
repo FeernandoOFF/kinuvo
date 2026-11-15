@@ -53,7 +53,7 @@ class JournalWorkflowTest {
             }
             if (call == null) flowOf(StreamFrame.TextDelta("Journal updated"), StreamFrame.End()) else flowOf(call, StreamFrame.End())
         }
-        val harness = Harness(home = Path(home.path), modelFactory = { model })
+        val harness = JvmAgentRuntime(home = Path(home.path), modelFactory = { model })
         try {
             withTimeout(5_000) {
                 val agent = harness.store.agents().single()
@@ -80,7 +80,7 @@ class JournalWorkflowTest {
     @Test
     fun refreshingTheGeneratedBlockPreservesUserWritingAndCanBeUndone() = runBlocking {
         val home = temporaryDirectories.create("journal-refresh").toFile()
-        val harness = Harness(home = Path(home.path), modelFactory = { scriptedModel { _, _ -> emptyFlow() } })
+        val harness = JvmAgentRuntime(home = Path(home.path), modelFactory = { scriptedModel { _, _ -> emptyFlow() } })
         try {
             val old = "<!-- kinuvo-journal:start -->\nSample workout: 30 min\n<!-- kinuvo-journal:end -->"
             val body = "## My notes\nKeep my writing.\n\n## Kinuvo\n$old\n\n## Plans\nTomorrow's plans."

@@ -24,7 +24,7 @@ import androidx.compose.ui.semantics.SemanticsNode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import com.composables.icons.lucide.*
-import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.design.KinuvoTheme
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
@@ -39,13 +39,13 @@ class OnboardingScreenshotTest {
             "manual" to EndpointState(params, discovered = true, reason = "No chat models were returned. Enter a Model ID to continue."),
         )
         for ((name, state) in states) render("onboarding-endpoint-$name", 390, 844) {
-            HarnessTheme(dark = false) { EndpointContent(state, {}, {}, {}) }
+            KinuvoTheme(dark = false) { EndpointContent(state, {}, {}, {}) }
         }
     }
 
     @Test fun safeAreasKeepTheGlow() {
         render("onboarding-safe-areas", 390, 844) {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 OnboardingContent(OnboardingState(step = 4, avatar = 0), insets = WindowInsets(top = 59.dp, bottom = 34.dp))
             }
         }
@@ -70,7 +70,7 @@ class OnboardingScreenshotTest {
         for (step in OnboardingSteps) {
             for ((width, height) in listOf(1100 to 850, 390 to 844)) {
                 render("onboarding-$step-$width", width, height) {
-                    HarnessTheme(dark = false) {
+                    KinuvoTheme(dark = false) {
                         val state = OnboardingState(step = step, userName = "Alex", agentName = "Milo", avatar = 1,
                             provider = "codex", model = "gpt-5.6-sol",
                             catalog = ModelsCatalog(listOf(ProviderModels("codex", "OpenAI Codex", listOf(ModelInfo("gpt-5.6-sol", "GPT-5.6"))))),
@@ -87,42 +87,42 @@ class OnboardingScreenshotTest {
             }
         }
         for (step in AgentSteps) render("new-agent-$step-390", 390, 844) {
-            HarnessTheme(dark = false) { OnboardingContent(OnboardingState(step = step, steps = AgentSteps, agentName = "Wren", avatar = 3), onClose = {}) }
+            KinuvoTheme(dark = false) { OnboardingContent(OnboardingState(step = step, steps = AgentSteps, agentName = "Wren", avatar = 3), onClose = {}) }
         }
         render("new-agent-chrome-1100", 1100, 850) {
             androidx.compose.runtime.CompositionLocalProvider(kinuvo.ui.design.LocalWindowChrome provides kinuvo.ui.design.WindowChrome(40.dp, 76.dp, 0.dp)) {
-                HarnessTheme(dark = false) { OnboardingContent(OnboardingState(step = 4, steps = AgentSteps, agentName = "Wren", avatar = 3), onClose = {}) }
+                KinuvoTheme(dark = false) { OnboardingContent(OnboardingState(step = 4, steps = AgentSteps, agentName = "Wren", avatar = 3), onClose = {}) }
             }
         }
         val saved = listOf(Server.Remote("wss://home.example/ws", "token", "Home", "home"))
         render("onboarding-welcome-manual-390", 390, 844) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 OnboardingContent(OnboardingState(), welcome = { featured, pokes, poke, tint, insets ->
                     Welcome(WelcomeOptions(onScan = {}, onLocal = null, onPair = {}, servers = saved, manual = true), featured, pokes, poke, tint, insets)
                 })
             }
         }
         render("onboarding-welcome-dark-390", 390, 844) {
-            HarnessTheme(dark = true) {
+            KinuvoTheme(dark = true) {
                 OnboardingContent(OnboardingState(), welcome = { featured, pokes, poke, tint, insets ->
                     Welcome(WelcomeOptions(onScan = {}, onLocal = null, onPair = {}), featured, pokes, poke, tint, insets)
                 })
             }
         }
         render("onboarding-welcome-desktop-1100", 1100, 850) {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 OnboardingContent(OnboardingState(), welcome = { featured, pokes, poke, tint, insets ->
                     Welcome(WelcomeOptions(onScan = null, onLocal = {}, onPair = {}, servers = saved), featured, pokes, poke, tint, insets)
                 })
             }
         }
-        render("onboarding-soul-dark", 1100, 1000) { HarnessTheme(dark = true) { OnboardingContent(OnboardingState(step = 5, avatar = 2)) } }
+        render("onboarding-soul-dark", 1100, 1000) { KinuvoTheme(dark = true) { OnboardingContent(OnboardingState(step = 5, avatar = 2)) } }
     }
 
     @Test fun theWelcomeAgentIsTheOneTheStepsShape() = javax.swing.SwingUtilities.invokeAndWait {
         val state = androidx.compose.runtime.mutableStateOf(OnboardingState())
         ImageComposeScene(390, 844, Density(1f), content = {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 OnboardingContent(state.value, onEdit = { state.value = it(state.value) }, welcome = { featured, pokes, poke, tint, insets ->
                     Welcome(WelcomeOptions(onScan = {}, onLocal = null, onPair = {}), featured, pokes, poke, tint, insets)
                 })

@@ -10,7 +10,7 @@ import kinuvo.server.plugin.ToolParameter
 import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.AgentDoc
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
 import kinuvo.harness.builtin.plugin.*
@@ -72,7 +72,7 @@ class RunPreparationRuntimeTest {
     @Test fun scopedCatalogToolRunsDirectlyOnMid() = runBlocking {
         var executed = false
         var requests = 0
-        val plugin = object : HarnessPlugin {
+        val plugin = object : ServerPlugin {
             override val definition = PluginDefinition("test.scoped", "Scoped")
             override val catalogued = true
             override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(object : Tool {
@@ -245,7 +245,7 @@ class RunPreparationRuntimeTest {
 
     @Test fun namedInstancesRouteSeparatelyAndUseStableEligibilityAndDenyRules() = runBlocking {
         val executed = mutableListOf<String>()
-        fun plugin(instance: String) = object : HarnessPlugin {
+        fun plugin(instance: String) = object : ServerPlugin {
             override val definition = PluginDefinition("example.ping", "Ping")
             override val instanceId = instance
             override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(object : Tool {
@@ -304,7 +304,7 @@ class RunPreparationRuntimeTest {
             override val descriptor = toolSpec("ping", "Ping")
             override suspend fun execute(args: JsonObject) = "pong"
         }
-        val plugin = object : HarnessPlugin {
+        val plugin = object : ServerPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runpreparationruntimetest.2", "Test")
             override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(tool, tool))
         }
@@ -398,18 +398,18 @@ class RunPreparationRuntimeTest {
             }
         }
     }
-    private fun harness(plugins: List<HarnessPlugin> = emptyList(), providers: List<ModelProvider> = listOf(provider)) =
+    private fun harness(plugins: List<ServerPlugin> = emptyList(), providers: List<ModelProvider> = listOf(provider)) =
         RuntimeFixture(plugins, providers).runtime()
-    private suspend fun agent(harness: HarnessRuntime, tools: List<String> = emptyList()) = harness.store.agents().single().let {
+    private suspend fun agent(harness: AgentRuntime, tools: List<String> = emptyList()) = harness.store.agents().single().let {
         it.copy(config = it.config.copy(provider = "test", model = "tools", tools = tools))
     }
-    private suspend fun inspect(harness: HarnessRuntime, agent: Agent, session: String? = null, settings: SessionSettings? = null) =
+    private suspend fun inspect(harness: AgentRuntime, agent: Agent, session: String? = null, settings: SessionSettings? = null) =
         harness.composer.capabilities(agent, session?.let(::SessionId), settings, ServerCapabilities(harness.serverId, harness.features))
 
     @Test
     fun sessionSettingsAndFullDescriptorsDetermineEligibilityInBothPaths() = runBlocking {
         val modes = mutableListOf<Boolean>()
-        val plugin = object : HarnessPlugin {
+        val plugin = object : ServerPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runpreparationruntimetest.3", "Test")
             override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
                 modes += activate
@@ -442,7 +442,7 @@ class RunPreparationRuntimeTest {
         val unavailable = object : TestModelProvider by provider {
             override suspend fun availability(model: String) = CapabilityState.unavailable("Model is not downloaded")
         }
-        val plugin = object : HarnessPlugin {
+        val plugin = object : ServerPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runpreparationruntimetest.4", "Test")
             override suspend fun prepare(run: RunContext, activate: Boolean): PluginTools {
                 activated = activated || activate

@@ -6,7 +6,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class PluginSingletonTest {
-    private fun plugin(id: String, check: ExecCheck? = null) = object : HarnessPlugin {
+    private fun plugin(id: String, check: ExecCheck? = null) = object : ServerPlugin {
         override val definition = PluginDefinition(id, id)
         override val execCheck = check
     }

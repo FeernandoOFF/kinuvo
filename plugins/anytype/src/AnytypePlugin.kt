@@ -2,12 +2,12 @@ package kinuvo.plugins.anytype
 
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.SecretResolver
 import kinuvo.server.plugin.PluginStorage
 import kinuvo.protocol.plugin.PluginDefinition
 
-class AnytypePlugin(files: PluginStorage, secrets: SecretResolver = SecretResolver.None) : HarnessPlugin {
+class AnytypePlugin(files: PluginStorage, secrets: SecretResolver = SecretResolver.None) : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.anytype", "Anytype")
     private val client = HttpClient { install(HttpTimeout) { requestTimeoutMillis = 30_000 } }
     override val knowledgeSources = listOf(

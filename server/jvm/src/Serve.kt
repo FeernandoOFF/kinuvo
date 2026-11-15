@@ -16,7 +16,7 @@ class ServeException(message: String) : RuntimeException(message)
 @Serializable
 data class ServeOptions(
     val host: String = "127.0.0.1",
-    val port: Int = HarnessServer.DEFAULT_PORT,
+    val port: Int = JvmServerHost.DEFAULT_PORT,
     val publicUrl: String? = null,
     val trustedProxy: String? = null,
     val tailscale: Boolean = false,
@@ -38,7 +38,7 @@ internal fun coolifyOrigin(value: String?): String? = value?.split(',')?.firstNo
 internal fun publicUrl(option: String?, env: (String) -> String? = ::env): String? = option?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_PUBLIC_URL")
 
 /** Runs the Server until cancelled; [extend] adds to it once it listens and is closed when it stops. */
-suspend fun serve(options: ServeOptions, extend: suspend (server: HarnessServer, host: String, port: Int) -> AutoCloseable? = { _, _, _ -> null }) {
+suspend fun serve(options: ServeOptions, extend: suspend (server: JvmServerHost, host: String, port: Int) -> AutoCloseable? = { _, _, _ -> null }) {
     require(!options.tailscale || options.publicUrl == null) { "Use --tailscale or --public-url, not both" }
     val route = if (options.tailscale) {
         Tailscale.requireLoopback(options.host)
@@ -48,7 +48,7 @@ suspend fun serve(options: ServeOptions, extend: suspend (server: HarnessServer,
     val behindProxy = options.behindProxy || env("KINUVO_BEHIND_PROXY")?.lowercase() in listOf("1", "true")
     val trusted = (options.trustedProxy?.trim()?.takeIf { it.isNotEmpty() } ?: env("KINUVO_TRUSTED_PROXIES"))?.split(',')?.map(String::trim)?.toSet()
     val network = NetworkSecurity(route?.url ?: publicUrl(options.publicUrl), trusted, behindProxy, if (behindProxy) coolifyOrigin(env("COOLIFY_URL")) else null)
-    val server = HarnessServer(Harness(), network = network)
+    val server = JvmServerHost(JvmAgentRuntime(), network = network)
     var extension: AutoCloseable? = null
     var ready = false
     val shutdown = Thread { try { server.stop() } finally { extension?.close() } }

@@ -38,7 +38,7 @@ class FeedbackTest {
         val code = DeviceCode("https://example.com/sign-in", "ABCD-EFGH", 0)
         ImageComposeScene(390, 844, Density(1f), content = {
             CompositionLocalProvider(LocalClipboardManager provides clipboard) {
-                HarnessTheme(dark = false) {
+                KinuvoTheme(dark = false) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         ModelStep(OnboardingState(deviceCode = code), {}, {}, {})
                     }
@@ -57,7 +57,7 @@ class FeedbackTest {
     @Test fun longErrorPillsAndBannersKeepEveryLineVisible() = javax.swing.SwingUtilities.invokeAndWait {
         val error = "Couldn't connect to the integration.\nCheck the Server address and credentials in Settings, then try again.\nThe full error must stay readable on a narrow screen."
         ImageComposeScene(320, 700, Density(1f), content = {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Pill(error, tone = Tone.Danger, icon = Lucide.CircleX)
                     ErrorMessage(error)

@@ -12,8 +12,8 @@ import com.agentclientprotocol.transport.StdioTransport
 import kinuvo.gateways.acp.KinuvoAgent
 import kinuvo.gateways.acp.acpDispatch
 import kinuvo.client.KinuvoClient
-import kinuvo.server.jvm.Harness
-import kinuvo.server.jvm.HarnessServer
+import kinuvo.server.jvm.JvmAgentRuntime
+import kinuvo.server.jvm.JvmServerHost
 import kinuvo.providers.codex.CodexProvider
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
@@ -36,7 +36,7 @@ class AcpServerTest {
     @Test fun nativeServerReplyReachesSdkClient() = runBlocking {
         val dir = temporaryDirectories.create("kinuvo-native-acp").toFile()
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        val server = HarnessServer(Harness(home = Path(dir.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(dir.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("native ACP reply"), StreamFrame.End()) } }))
+        val server = JvmServerHost(JvmAgentRuntime(home = Path(dir.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(dir.path, "none.json"))))), modelFactory = { scriptedModel { _, _ -> flowOf(StreamFrame.TextDelta("native ACP reply"), StreamFrame.End()) } }))
         var native: KinuvoClient? = null
         var agentProtocol: Protocol? = null
         var clientProtocol: Protocol? = null

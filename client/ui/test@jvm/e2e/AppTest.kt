@@ -18,7 +18,7 @@ import kinuvo.app.connection.DeviceCredentials
 import kinuvo.app.connection.Preferences
 import kinuvo.app.connection.Servers
 import kinuvo.harness.Agent
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.testing.server.FakeHarness
 import kinuvo.testing.server.Scenario
 import kinuvo.testing.server.TestServer
@@ -54,7 +54,7 @@ private const val SERVER_URL = "ws://127.0.0.1:18081/ws"
 @OptIn(ExperimentalTestApi::class)
 internal fun appTest(
     flow: String,
-    plugins: List<HarnessPlugin> = emptyList(),
+    plugins: List<ServerPlugin> = emptyList(),
     harnesses: List<FakeHarness> = emptyList(),
     script: ModelScript.() -> Unit = {},
     scenario: suspend Scenario.(Agent) -> Unit = {},

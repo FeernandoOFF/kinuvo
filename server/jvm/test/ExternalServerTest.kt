@@ -38,7 +38,7 @@ class ExternalServerTest {
                     emit({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'media','update':{'sessionUpdate':'agent_message_chunk','messageId':'m','content':{'type':'image','mimeType':'image/png','data':'$image'}}}})
                     emit({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'media','update':{'sessionUpdate':'state_update','state':'idle','stopReason':'end_turn'}}})
         """.trimIndent())
-        val server = HarnessServer(Harness(home = Path(dir.path)))
+        val server = JvmServerHost(JvmAgentRuntime(home = Path(dir.path)))
         var client: KinuvoClient? = null
         try {
             val port = server.start("127.0.0.1", 0, schedule = false)
@@ -55,7 +55,7 @@ class ExternalServerTest {
             assertEquals("Harness-output.png", attachment.name)
             assertEquals(image, connected.call(Api.Attachment, AttachmentRef(attachment.id)).base64)
             connected.close(); server.stop()
-            val restored = Harness(home = Path(dir.path))
+            val restored = JvmAgentRuntime(home = Path(dir.path))
             assertEquals(attachment, restored.store.entries(AgentId("media"), id).filterIsInstance<SessionEntry.ToolResult>().single().attachments.single())
             assertEquals(image, restored.attachments.download(attachment.id).base64)
         } finally { client?.close(); server.stop(); dir.deleteRecursively() }
@@ -82,7 +82,7 @@ class ExternalServerTest {
                 elif r.get('id') in ['p','q']: emit({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'external','update':{'sessionUpdate':'state_update','state':'idle','stopReason':'end_turn'}}})
                 elif m=='session/cancel': emit({'jsonrpc':'2.0','method':'session/update','params':{'sessionId':'external','update':{'sessionUpdate':'state_update','state':'idle','stopReason':'cancelled'}}})
         """.trimIndent())
-        var server = HarnessServer(Harness(home = Path(dir.path)))
+        var server = JvmServerHost(JvmAgentRuntime(home = Path(dir.path)))
         var client: KinuvoClient? = null
         try {
             val port = server.start("127.0.0.1", 0, schedule = false)
@@ -140,7 +140,7 @@ class ExternalServerTest {
             awaitCondition("the run to go idle", 5.seconds) { responder.call(Api.ExecutionSnapshot, ExecutionRef(id.value)).phase == ExecutionPhase.Idle }
             responder.close()
             server.stop()
-            server = HarnessServer(Harness(home = Path(dir.path)))
+            server = JvmServerHost(JvmAgentRuntime(home = Path(dir.path)))
             val restartedPort = server.start("127.0.0.1", 0, schedule = false)
             val third = KinuvoClient("ws://127.0.0.1:$restartedPort/ws", "manager", token = token)
             client = third

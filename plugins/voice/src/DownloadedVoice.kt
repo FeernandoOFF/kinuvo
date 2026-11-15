@@ -6,7 +6,7 @@ import kinuvo.server.plugin.ServerVoice
 import kinuvo.server.plugin.Synthesizer
 import kinuvo.server.plugin.Transcriber
 import kinuvo.server.plugin.VoiceProviders
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.writeAtomically
 import kinuvo.server.plugin.models.voiceEngine
 import kinuvo.protocol.*
@@ -20,7 +20,7 @@ import kotlinx.io.files.Path
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-class DownloadedVoice(home: File, private val inference: Inference = Inference(Inference.bundled())) : ServerVoice, HarnessPlugin {
+class DownloadedVoice(home: File, private val inference: Inference = Inference(Inference.bundled())) : ServerVoice, ServerPlugin {
     override val definition = PluginDefinition("kinuvo.voice", "Downloaded voice")
     override val voice get() = this
     private val engine = voiceEngine(home)

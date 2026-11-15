@@ -4,7 +4,7 @@ import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.AgentDoc
 import kinuvo.harness.AgentDocs
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.Notifier
 import kinuvo.harness.builtin.plugin.*
 import kinuvo.server.plugin.*
@@ -40,7 +40,7 @@ import kinuvo.server.providers.ModelProvider
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.minutes
 
-internal class RuntimeFixture(plugins: List<HarnessPlugin> = emptyList(), private val providers: List<ModelProvider> = emptyList(), closeNetwork: () -> Unit = {}, voice: VoiceProviders = VoiceProviders()) {
+internal class RuntimeFixture(plugins: List<ServerPlugin> = emptyList(), private val providers: List<ModelProvider> = emptyList(), closeNetwork: () -> Unit = {}, voice: VoiceProviders = VoiceProviders()) {
     val agent = Agent(AgentId("test"), "Test", AgentConfig(provider = "test", model = "tools", tools = emptyList()))
     val transcripts = InMemoryStore()
     val store = object : Store by transcripts {
@@ -139,7 +139,7 @@ internal fun testRuntime(
     modelFactory: ((AgentConfig) -> AgentModel)? = null,
     builtInFeatures: Set<ServerFeature> = BUILT_IN_FEATURES,
     routineApprovalWait: Duration = 30.minutes,
-) = HarnessRuntime(dependencies, { NativeExecutionFactory(it, sources, modelFactory) }, builtInFeatures = builtInFeatures, routineApprovalWait = routineApprovalWait, unmanagedModels = modelFactory != null)
+) = AgentRuntime(dependencies, { NativeExecutionFactory(it, sources, modelFactory) }, builtInFeatures = builtInFeatures, routineApprovalWait = routineApprovalWait, unmanagedModels = modelFactory != null)
 
 /** [Reflection.turn] run on the built-in harness's Reflection graph with [model]. */
 internal suspend fun Reflection.reflect(agent: Agent, model: AgentModel, sessionId: SessionId, entries: List<SessionEntry>, prompt: String = DEFAULT_REFLECTION_PROMPT, review: ReflectionRevision? = null, tracing: AgentTracing? = null): ReflectionResult {

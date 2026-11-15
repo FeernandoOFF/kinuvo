@@ -57,7 +57,7 @@ class SessionSettingsTest {
         }
         val plugins = listOf(plugin("first"), plugin("second"))
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-        var harness = Harness(Path(home.path), providers = ModelProviders.of(plugins), plugins = plugins)
+        var harness = JvmAgentRuntime(Path(home.path), providers = ModelProviders.of(plugins), plugins = plugins)
         try {
             val admin = Admin(harness, Runs(harness.log, scope, harness.native)) {}
             either { admin.update(UpdateAgentParams(AgentId("default"), provider = "first", model = "shared-id")) }.getOrElse { fail(it.message) }
@@ -70,7 +70,7 @@ class SessionSettingsTest {
             assertFailsWith<IllegalArgumentException> { harness.configure(agent, session, SessionSettings(provider = "missing", model = "custom")) }
             assertFailsWith<IllegalArgumentException> { harness.configure(agent, session, SessionSettings(provider = "second")) }
             harness.close()
-            harness = Harness(Path(home.path), providers = ModelProviders.of(plugins), plugins = plugins)
+            harness = JvmAgentRuntime(Path(home.path), providers = ModelProviders.of(plugins), plugins = plugins)
             val restored = harness.store.agents().single()
             harness.composer.runner(restored, session).run(session, "again").toList()
             assertEquals("second/shared-id", used.last())
@@ -84,7 +84,7 @@ class SessionSettingsTest {
     fun aSessionRunsWithItsOwnSettings(): Unit = runBlocking {
         val used = mutableListOf<String>()
         val seen = mutableListOf<List<Message>>()
-        val harness = Harness(Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { config ->
+        val harness = JvmAgentRuntime(Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { config ->
             used += "${config.model}/${config.reasoning}/${config.approvals}"
             scriptedModel { prompt, _ -> seen += prompt.messages; flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) }
         }, plugins = emptyList())

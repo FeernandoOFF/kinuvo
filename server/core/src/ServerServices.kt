@@ -22,7 +22,7 @@ import kotlinx.coroutines.withContext
 
 /** What a route calls on: the services behind every request, shared by all connections. */
 class ServerServices internal constructor(
-    internal val harness: HarnessRuntime,
+    internal val harness: AgentRuntime,
     val auth: PeerRegistry,
     val admin: Admin,
     val execution: ExecutionService,

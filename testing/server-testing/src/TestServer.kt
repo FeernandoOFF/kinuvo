@@ -5,12 +5,12 @@ import kinuvo.client.KinuvoClient
 import kinuvo.harness.ExecutionFactory
 import kinuvo.harness.builtin.NativeExecutionFactory
 import kinuvo.harness.remote.RemoteExecutionFactory
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.knowledgeConfig
 import kinuvo.server.store.saveKnowledgeConfig
 import kinuvo.server.DeviceAuth
-import kinuvo.server.HarnessRuntime
+import kinuvo.server.AgentRuntime
 import kinuvo.server.NetworkListener
 import kinuvo.server.ServerInstallation
 import kinuvo.server.ServerRuntime
@@ -53,7 +53,7 @@ import java.io.File
  */
 class TestServer private constructor(
     val home: Path,
-    val harness: HarnessRuntime,
+    val harness: AgentRuntime,
     val runtime: ServerRuntime,
     val auth: DeviceAuth,
     val script: ModelScript,
@@ -147,11 +147,11 @@ class TestServer private constructor(
          */
         suspend fun start(
             home: Path? = null,
-            plugins: List<HarnessPlugin> = emptyList(),
+            plugins: List<ServerPlugin> = emptyList(),
             script: ModelScript.() -> Unit = {},
             harnesses: List<FakeHarness> = emptyList(),
             schedule: Boolean = false,
-            executionFactory: ((HarnessRuntime) -> ExecutionFactory)? = null,
+            executionFactory: ((AgentRuntime) -> ExecutionFactory)? = null,
             scenario: suspend Scenario.() -> Unit = {},
         ): TestServer {
             val temporary = TemporaryDirectories()
@@ -162,7 +162,7 @@ class TestServer private constructor(
             val dependencies = ServerInstallation.assemble(files, plugins = plugins, modelSources = { plugins.filterIsInstance<FakeModels>().flatMap { it.modelSources } }, userHome = directory)
             val prompts = PromptLog()
             val models = { plugins.filterIsInstance<FakeModels>().flatMap { it.modelSources } }
-            val harness = HarnessRuntime(dependencies, { NativeExecutionFactory(it, models, { modelScript.model }).recording(prompts) }, unmanagedModels = true)
+            val harness = AgentRuntime(dependencies, { NativeExecutionFactory(it, models, { modelScript.model }).recording(prompts) }, unmanagedModels = true)
             val registry = ExecutionRegistry()
             val recovery = MemoryExecutionRecovery()
             try {

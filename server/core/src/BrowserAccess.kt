@@ -7,7 +7,7 @@ import kinuvo.protocol.browser.*
 import kinuvo.server.execution.ExecutionRegistry
 
 /** The Browser of an Agent this Server runs, for clients. */
-class BrowserAccess internal constructor(private val harness: HarnessRuntime, private val registry: ExecutionRegistry, private val admin: Admin) {
+class BrowserAccess internal constructor(private val harness: AgentRuntime, private val registry: ExecutionRegistry, private val admin: Admin) {
     context(_: Raise<BrowserError>)
     private fun service() = harness.browser ?: raise(BrowserError.Unavailable)
 

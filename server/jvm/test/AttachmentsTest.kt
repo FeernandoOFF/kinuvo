@@ -30,12 +30,12 @@ class AttachmentsTest {
     fun sendsAttachmentOnlyAndReplaysAfterRestart() = runBlocking {
         val home = temporaryDirectories.create("attachment-server").toFile()
         val seen = CompletableDeferred<Message.User>()
-        val harness = Harness(Path(home.path), modelFactory = { scriptedModel { prompt, _ ->
+        val harness = JvmAgentRuntime(Path(home.path), modelFactory = { scriptedModel { prompt, _ ->
             val history = prompt.messages
             seen.complete(history.filterIsInstance<Message.User>().last())
             flowOf(StreamFrame.TextDelta("done"), StreamFrame.End())
         } })
-        val server = HarnessServer(harness)
+        val server = JvmServerHost(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)
         val client = KinuvoClient("ws://127.0.0.1:$port/ws", "test", pairingCode = server.auth.currentPairingCode())
         try { withTimeout(30_000) {
@@ -51,7 +51,7 @@ class AttachmentsTest {
             assertFails { client.call(Api.Send, SendParams(AgentId("default"), text = "")) }
             client.close()
             server.stop()
-            val restored = Harness(Path(home.path))
+            val restored = JvmAgentRuntime(Path(home.path))
             val agent = restored.store.agents().first { it.id.value == "default" }
             assertEquals("note.md", restored.store.sessions(agent.id).first { it.id == sent.sessionId }.title)
             assertEquals(listOf(a), restored.store.entries(agent.id, sent.sessionId).filterIsInstance<SessionEntry.UserMessage>().single().attachments)

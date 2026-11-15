@@ -16,8 +16,8 @@ import com.github.ajalt.clikt.parameters.arguments.optional
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.jvm.jvmProviders
 import kinuvo.server.jvm.kinuvoHome
-import kinuvo.server.jvm.Harness
-import kinuvo.server.jvm.HarnessServer
+import kinuvo.server.jvm.JvmAgentRuntime
+import kinuvo.server.jvm.JvmServerHost
 import kinuvo.server.jvm.ServeOptions
 import kinuvo.server.jvm.serve
 import kinuvo.server.jvm.LocalServer
@@ -31,12 +31,12 @@ private val log by lazy { KotlinLogging.logger("kinuvo.cli") }
 /** `kinuvo [serve] [--host 0.0.0.0] [--port 8787]`, `kinuvo login`, or a management command (see `--help`). */
 fun main(args: Array<String>): Unit = runBlocking {
     System.setProperty("kotlin-logging.logStartupMessage", "false")
-    Kinuvo(LocalAccess, listOf(Serve(), Login(), ServiceCommands()), default = { serve("127.0.0.1", HarnessServer.DEFAULT_PORT) }).main(args)
+    Kinuvo(LocalAccess, listOf(Serve(), Login(), ServiceCommands()), default = { serve("127.0.0.1", JvmServerHost.DEFAULT_PORT) }).main(args)
 }
 
 private class Serve : CoreSuspendingCliktCommand("serve") {
     private val host by option("--host", help = "Interface to listen on").default("127.0.0.1")
-    private val port by option("--port").int().default(HarnessServer.DEFAULT_PORT)
+    private val port by option("--port").int().default(JvmServerHost.DEFAULT_PORT)
     private val publicUrl by option("--public-url", help = "HTTPS origin advertised by the trusted reverse proxy")
     private val trustedProxy by option("--trusted-proxy", help = "Comma-separated trusted proxy IPs or CIDR ranges; defaults to loopback (plus private ranges with --behind-proxy)")
     private val behindProxy by option("--behind-proxy", help = "Sit behind a reverse proxy in another container: allow a non-loopback bind with an HTTPS origin (or KINUVO_BEHIND_PROXY=1)").flag()
@@ -89,7 +89,7 @@ private object LocalAccess : ServerAccess {
             val client = connect(local.host, local.port, local.token) ?: error("A Kinuvo server is running (pid ${local.pid}) but isn't reachable at ${local.host}:${local.port}; if it isn't Kinuvo, delete ${LocalServer.file(home)}")
             return client.use(block)
         }
-        val server = HarnessServer(Harness(home)).apply { auth.pairable = false }
+        val server = JvmServerHost(JvmAgentRuntime(home)).apply { auth.pairable = false }
         try {
             val port = server.start("127.0.0.1", 0, schedule = false)
             return (connect("127.0.0.1", port, server.auth.sessionToken()) ?: error("Couldn't start a local server")).use(block)

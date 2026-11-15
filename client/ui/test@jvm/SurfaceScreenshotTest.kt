@@ -58,7 +58,7 @@ class SurfaceScreenshotTest {
                 }
                 val messages = mutableListOf<RendererToAgentMessage>()
                 ImageComposeScene(720, if (name in listOf("weekly-timesheet", "example-workout-log")) 3000 else 1800, Density(2f), content = {
-                    HarnessTheme(dark = dark) {
+                    KinuvoTheme(dark = dark) {
                         Box(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                             CompositionLocalProvider(LocalClipboardManager provides clipboard) {
                                 A2uiSurface(renderer, name, surfaceComponents, Modifier.fillMaxWidth(), onMessage = { messages += it })
@@ -170,7 +170,7 @@ class SurfaceScreenshotTest {
         renderer.apply(A2uiJson.strict.decodeFromJsonElement(AgentToRendererMessage.serializer(), raw))
         val actions = mutableListOf<ActionMessage>()
         for (dark in listOf(false, true)) ImageComposeScene(780, 1400, Density(2f), content = {
-            HarnessTheme(dark = dark) {
+            KinuvoTheme(dark = dark) {
                 Box(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                     A2uiSurface(renderer, "extras", surfaceComponents, Modifier.fillMaxWidth(), onMessage = { if (it is ActionMessage) actions += it })
                 }
@@ -205,7 +205,7 @@ class SurfaceScreenshotTest {
         renderer.apply(message)
         assertEquals(kinuvoCatalogDefinition.components.keys, surfaceComponents.types)
         for (dark in listOf(false, true)) ImageComposeScene(1040, 2700, Density(2f), content = {
-            HarnessTheme(dark = dark) {
+            KinuvoTheme(dark = dark) {
                 Box(Modifier.fillMaxSize().background(color(backgroundColor)).padding(24.dp)) {
                     A2uiSurface(renderer, "all", surfaceComponents, Modifier.fillMaxWidth())
                 }
@@ -228,7 +228,7 @@ class SurfaceScreenshotTest {
             val renderer = A2uiRenderer(A2uiRendererConfig.Default.withCatalogs(listOf(kinuvoCatalogDefinition)))
             renderer.apply(message)
             ImageComposeScene(1000, 800, Density(2f), content = {
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     val popovers = remember { Popovers() }
                     CompositionLocalProvider(LocalPopovers provides popovers) {
                         Box(Modifier.fillMaxSize().background(color(backgroundColor))) {
@@ -268,7 +268,7 @@ class SurfaceScreenshotTest {
             val call = ChatItem.ToolCall("tool", ToolCallId("call"), "show_ui", args, result = "Shown")
             val cache = mutableMapOf<ToolCallId, SurfaceRenderer>()
             ImageComposeScene(780, 300, Density(2f), content = {
-                HarnessTheme(dark = false) {
+                KinuvoTheme(dark = false) {
                     SelectionContainer {
                         CompositionLocalProvider(LocalSurfaceRenderers provides cache) {
                             SurfaceCall(call, { _, _ -> }) { fail("Surface failed to render") }
@@ -320,7 +320,7 @@ class SurfaceScreenshotTest {
         val cache = mutableMapOf<ToolCallId, SurfaceRenderer>()
         repeat(2) { pass ->
             ImageComposeScene(780, 240, Density(2f), content = {
-                HarnessTheme(dark = false) {
+                KinuvoTheme(dark = false) {
                     CompositionLocalProvider(LocalSurfaceRenderers provides cache,
                         LocalSurfaceItems provides listOf(call, ChatItem.User("action", "Save", action = action))) {
                         SurfaceCall(call, { _, _ -> }) { fail("Surface failed to render") }
@@ -342,7 +342,7 @@ class SurfaceScreenshotTest {
         val items = mutableStateOf<List<ChatItem>>(listOf(call))
         val cache = mutableMapOf<ToolCallId, SurfaceRenderer>()
         ImageComposeScene(780, 240, Density(2f), content = {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 CompositionLocalProvider(LocalSurfaceRenderers provides cache, LocalSurfaceItems provides items.value) {
                     SurfaceCall(call, { _, _ -> }) { fail("Surface failed to render") }
                 }
@@ -369,7 +369,7 @@ class SurfaceScreenshotTest {
         val sent = mutableListOf<SurfaceAction>()
         val items = mutableStateOf<List<ChatItem>>(listOf(call))
         ImageComposeScene(780, 500, Density(2f), content = {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 CompositionLocalProvider(LocalSurfaceItems provides items.value) {
                     SurfaceCall(call, { _, action -> sent += action }) { fail("Surface failed to render") }
                 }
@@ -407,7 +407,7 @@ class SurfaceScreenshotTest {
                 {"id":"label","component":"Text","text":"Open"}]}}]}"""
             val call = ChatItem.ToolCall("tool", ToolCallId(url), "show_ui", args, result = "Shown")
             ImageComposeScene(780, 240, Density(2f), content = {
-                HarnessTheme(dark = false) {
+                KinuvoTheme(dark = false) {
                     CompositionLocalProvider(LocalUriHandler provides object : UriHandler {
                         override fun openUri(uri: String) { opened += uri }
                     }) { SurfaceCall(call, { _, _ -> fail("URL action sent a message") }) { fail("Surface failed to render") } }
@@ -425,7 +425,7 @@ class SurfaceScreenshotTest {
 
     @Test fun actionLine() = javax.swing.SwingUtilities.invokeAndWait {
         for (dark in listOf(false, true)) ImageComposeScene(780, 180, Density(2f), content = {
-            HarnessTheme(dark = dark) {
+            KinuvoTheme(dark = dark) {
                 Box(Modifier.fillMaxSize().background(color(backgroundColor)).padding(16.dp)) {
                     ChatItemView(ChatItem.User("action", "Plan your day", action = SurfaceAction(ToolCallId("call"), "form", "submit", "submit", JsonObject(emptyMap()), JsonObject(emptyMap()))), ChatActions())
                 }
@@ -463,7 +463,7 @@ class SurfaceScreenshotTest {
         renderer.apply(message)
         assertEquals(kinuvoCatalogDefinition.components.keys, surfaceComponents.types)
         for (dark in listOf(false, true)) ImageComposeScene(1040, 1240, Density(2f), content = {
-            HarnessTheme(dark = dark) {
+            KinuvoTheme(dark = dark) {
                 Box(Modifier.fillMaxSize().background(color(backgroundColor)).padding(24.dp)) {
                     A2uiSurface(renderer, "form", surfaceComponents, Modifier.fillMaxWidth())
                 }

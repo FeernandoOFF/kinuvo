@@ -91,7 +91,7 @@ class AgentManageServerTest {
             override suspend fun loginMcp(p: McpLoginParams) = McpLogin("https://auth.example/sign-in")
             override suspend fun completeMcpLogin(p: McpLoginCompleteParams) = McpServerInfo("shared", ConfigScope.Shared).also { completed += p.callbackUrl }
         }
-        val plugin = object : HarnessPlugin {
+        val plugin = object : ServerPlugin {
             override val definition = PluginDefinition("test.mcp", "Test MCP")
             override val mcp = mcp
         }

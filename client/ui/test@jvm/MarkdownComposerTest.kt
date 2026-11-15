@@ -19,7 +19,7 @@ import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontWeight
 import kinuvo.ui.design.Composer
-import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.design.KinuvoTheme
 import kinuvo.ui.design.StreamingMarkdown
 import kinuvo.ui.design.usesCommandKey
 import kinuvo.ui.e2e.runPhoneTest
@@ -38,7 +38,7 @@ class MarkdownComposerTest {
         }
         setContent {
             InterceptPlatformTextInput(interceptor) {
-                HarnessTheme { Composer(false, {}, {}, state = state, hint = hint) }
+                KinuvoTheme { Composer(false, {}, {}, state = state, hint = hint) }
             }
         }
         val input = onNodeWithContentDescription("Message")
@@ -72,7 +72,7 @@ class MarkdownComposerTest {
 
     @Test fun appliesStylingAfterTyping() = runPhoneTest {
         val state = TextFieldState()
-        setContent { HarnessTheme { Composer(false, {}, {}, state = state) } }
+        setContent { KinuvoTheme { Composer(false, {}, {}, state = state) } }
         val input = onNodeWithContentDescription("Message")
         input.performTextInput("**bold**")
         waitUntil(timeoutMillis = 5_000) {
@@ -86,7 +86,7 @@ class MarkdownComposerTest {
     @Test fun sendsMarkdownSourceAndClears() = runPhoneTest {
         val state = TextFieldState()
         var sent = ""
-        setContent { HarnessTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Composer(false, { sent = it }, {}, state = state) } } }
+        setContent { KinuvoTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Composer(false, { sent = it }, {}, state = state) } } }
         onNodeWithContentDescription("Message").performTextInput(" **bold** and `code` ")
         onNodeWithContentDescription("Send").performClick()
         runOnIdle {
@@ -97,7 +97,7 @@ class MarkdownComposerTest {
 
     @Test fun returnContinuesAndEndsTaskList() = runPhoneTest {
         val state = TextFieldState("- [x] Done", TextRange(10))
-        setContent { HarnessTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Composer(false, {}, {}, state = state) } } }
+        setContent { KinuvoTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Composer(false, {}, {}, state = state) } } }
         val input = onNodeWithContentDescription("Message")
         input.performTextInput("\n")
         runOnIdle { assertEquals("- [x] Done\n- [ ] ", state.text.toString()) }
@@ -107,14 +107,14 @@ class MarkdownComposerTest {
 
     @Test fun pasteDoesNotContinueList() = runPhoneTest {
         val state = TextFieldState()
-        setContent { HarnessTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Composer(false, {}, {}, state = state) } } }
+        setContent { KinuvoTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Composer(false, {}, {}, state = state) } } }
         onNodeWithContentDescription("Message").performTextInput("- First\n")
         runOnIdle { assertEquals("- First\n", state.text.toString()) }
     }
 
     @Test fun selectionFormatsMarkdownSource() = runPhoneTest {
         val state = TextFieldState("hello", TextRange(5))
-        setContent { HarnessTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Composer(false, {}, {}, state = state) } } }
+        setContent { KinuvoTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Composer(false, {}, {}, state = state) } } }
         onNodeWithContentDescription("Message").performClick().performTextInputSelection(TextRange(0, 5))
         onNode(hasContentDescription("Bold", substring = true)).performClick()
         runOnIdle { assertEquals("**hello**", state.text.toString()) }
@@ -123,7 +123,7 @@ class MarkdownComposerTest {
     @Test fun shiftEnterContinuesListAndEnterSends() = runPhoneTest {
         val state = TextFieldState("1. First", TextRange(8))
         var sent = ""
-        setContent { HarnessTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Composer(false, { sent = it }, {}, state = state) } } }
+        setContent { KinuvoTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Composer(false, { sent = it }, {}, state = state) } } }
         val input = onNodeWithContentDescription("Message")
         input.performClick().performKeyInput {
             keyDown(Key.ShiftLeft)
@@ -138,7 +138,7 @@ class MarkdownComposerTest {
 
     @Test fun shortcutsToggleInlineFormatting() = runPhoneTest {
         val state = TextFieldState("hello", TextRange(5))
-        setContent { HarnessTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Composer(false, {}, {}, state = state) } } }
+        setContent { KinuvoTheme { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Composer(false, {}, {}, state = state) } } }
         val input = onNodeWithContentDescription("Message")
         input.performClick().performTextInputSelection(TextRange(0, 5))
         val modifier = if (usesCommandKey) Key.MetaLeft else Key.CtrlLeft
@@ -152,7 +152,7 @@ class MarkdownComposerTest {
 
     @Test fun streamingAppendsSuffixAndReplacesChangedSource() = runPhoneTest {
         var text by mutableStateOf("Hello")
-        setContent { HarnessTheme { StreamingMarkdown(text) } }
+        setContent { KinuvoTheme { StreamingMarkdown(text) } }
         onNodeWithText("Hello").assertExists()
         runOnIdle { text = "Hello **world**" }
         onNodeWithText("Hello world").assertExists()

@@ -57,8 +57,8 @@ class PluginsTest {
 
     @Test
     fun authenticatedClientsDiscoverInstalledPluginModels() = runBlocking {
-        val harness = Harness(home = Path(temporaryDirectories.create("plugin-model-list").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
-        val server = HarnessServer(harness)
+        val harness = JvmAgentRuntime(home = Path(temporaryDirectories.create("plugin-model-list").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
+        val server = JvmServerHost(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)
         val client = KinuvoClient("ws://127.0.0.1:$port/ws", "test", pairingCode = server.auth.currentPairingCode())
         try {
@@ -71,7 +71,7 @@ class PluginsTest {
 
     @Test
     fun pluginsContributeModelsToolsAndInstructions() = runBlocking {
-        val harness = Harness(home = Path(temporaryDirectories.create("harness-plugins").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
+        val harness = JvmAgentRuntime(home = Path(temporaryDirectories.create("harness-plugins").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
         val agent = harness.store.agents().single().let { it.copy(config = it.config.copy(provider = "fake", tools = emptyList())) }
         val session = harness.newSession(agent)
         val started = harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Started>().single()
@@ -88,7 +88,7 @@ class PluginsTest {
 
     @Test
     fun unknownProviderIsReported() = runBlocking {
-        val harness = Harness(home = Path(temporaryDirectories.create("harness-plugins").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
+        val harness = JvmAgentRuntime(home = Path(temporaryDirectories.create("harness-plugins").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
         val agent = harness.store.agents().single()
         val error = runCatching { harness.composer.runner(agent) }.exceptionOrNull()
         assertTrue("No model provider 'codex'" in error?.message.orEmpty())

@@ -5,8 +5,8 @@ import kinuvo.testing.harness.TemporaryDirectories
 import com.github.ajalt.clikt.command.parse
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.context
-import kinuvo.server.jvm.Harness
-import kinuvo.server.jvm.HarnessServer
+import kinuvo.server.jvm.JvmAgentRuntime
+import kinuvo.server.jvm.JvmServerHost
 import kinuvo.client.KinuvoClient
 import kinuvo.providers.codex.CodexAuth
 import kinuvo.server.plugin.PrivateFile
@@ -31,7 +31,7 @@ class CliTest {
 
     @Test
     fun managesTheServerFromTheCommandLine() = runBlocking {
-        val server = HarnessServer(Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json")))))))
+        val server = JvmServerHost(JvmAgentRuntime(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json")))))))
         val port = server.start("127.0.0.1", 0, schedule = false)
         val access = object : ServerAccess {
             override suspend fun <T> use(block: suspend (KinuvoClient) -> T): T {

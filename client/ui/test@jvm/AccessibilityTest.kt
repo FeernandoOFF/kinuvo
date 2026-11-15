@@ -19,7 +19,7 @@ import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.agent.AgentSettings
 import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.design.FloatingPill
-import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.design.KinuvoTheme
 import kinuvo.ui.design.Reveal
 import kotlin.test.*
 
@@ -27,7 +27,7 @@ class AccessibilityTest {
     @Test fun revealOnlyExposesTheUncoveredLayerAndAnAccessibleCloseAction() = javax.swing.SwingUtilities.invokeAndWait {
         val open = mutableStateOf(false)
         ImageComposeScene(390, 844, Density(1f), content = {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 Reveal(open.value, { open.value = it }, behind = {
                     Box(Modifier.fillMaxSize().clickable {}.semantics { contentDescription = "Settings" })
                 }) {
@@ -58,7 +58,7 @@ class AccessibilityTest {
     @Test fun floatingPillExposesOnlyItsLabelAndButtonAction() = javax.swing.SwingUtilities.invokeAndWait {
         var clicks = 0
         ImageComposeScene(390, 844, Density(1f), content = {
-            HarnessTheme(dark = false) {
+            KinuvoTheme(dark = false) {
                 Row {
                     FloatingPill({ clicks++ }, "E2E Agent settings", leading = { Text("Avatar") }) {
                         Text("E2E Agent")
@@ -85,7 +85,7 @@ class AccessibilityTest {
             val state = mutableStateOf(InspectorState(agent.id, details = details, draft = AgentDraft.of(details).copy(name = "Edited")))
             var resolved: GuardChoice? = null
             ImageComposeScene(390, 844, Density(1f), content = {
-                HarnessTheme(dark = false) {
+                KinuvoTheme(dark = false) {
                     AgentInspectorContent(state.value, InspectorHost(listOf(agent), null), InspectorActions(onResolve = {
                         resolved = it
                         state.value = state.value.copy(guard = null)

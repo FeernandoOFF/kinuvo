@@ -14,7 +14,7 @@ import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.*
 
 /** What the management tools read and change; the Server supplies it from the same handlers as Settings. */
-class AgentManagement(private val harness: HarnessRuntime, private val admin: Admin) {
+class AgentManagement(private val harness: AgentRuntime, private val admin: Admin) {
     val toolGroups get() = harness.integrations[Integration.Tools].orEmpty().toSet()
     suspend fun agents() = admin.agents()
     suspend fun details(id: AgentId) = throwing<AgentError, AgentDetails> { admin.details(admin.agent(id)) }

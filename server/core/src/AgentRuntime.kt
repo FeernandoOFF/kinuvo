@@ -56,7 +56,7 @@ val BUILT_IN_FEATURES = setOf(ServerFeature.Attachments, ServerFeature.Skills,
     ServerFeature.Artifacts, ServerFeature.Routines, ServerFeature.DeviceTools, ServerFeature.Computer)
 
 /** Executes Agents with the repositories and resources supplied by the Server installation. */
-open class HarnessRuntime(
+open class AgentRuntime(
     private val dependencies: RuntimeDependencies,
     /** Builds the built-in harness for this runtime, with the model sources a host registered with it. */
     nativeSessions: (NativeHarnessHost) -> NativeHarness,

@@ -1,6 +1,6 @@
 package kinuvo.server
 
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -8,7 +8,7 @@ import kotlinx.coroutines.withContext
 import kinuvo.protocol.agent.AgentId
 
 /** Owns installed plugins and network resources; shutdown is complete even when a closer fails or is cancelled. */
-class ServerResources(val plugins: List<HarnessPlugin>, private val closeNetwork: () -> Unit = {}) {
+class ServerResources(val plugins: List<ServerPlugin>, private val closeNetwork: () -> Unit = {}) {
     private val lock = Mutex()
     private var closed = false
 

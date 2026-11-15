@@ -10,7 +10,7 @@ import kinuvo.protocol.voice.*
 import kotlin.io.encoding.Base64
 
 /** Speech through the models the Server downloaded and runs itself, else its configured OpenAI-compatible providers. */
-class VoiceService internal constructor(private val harness: HarnessRuntime, private val changed: () -> Unit) {
+class VoiceService internal constructor(private val harness: AgentRuntime, private val changed: () -> Unit) {
     private val downloaded get() = harness.serverVoice
     context(_: Raise<VoiceError>)
     private fun local() = downloaded ?: raise(VoiceError.NoDownloads)

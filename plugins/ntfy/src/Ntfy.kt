@@ -1,6 +1,6 @@
 package kinuvo.plugins.ntfy
 
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.Notification
 import kinuvo.server.plugin.NotificationProvider
 import kinuvo.server.plugin.Notifier
@@ -14,7 +14,7 @@ import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 
-class NtfyPlugin : HarnessPlugin {
+class NtfyPlugin : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.ntfy", "ntfy")
     override val notifications = listOf(object : NotificationProvider {
         override val id = "ntfy"

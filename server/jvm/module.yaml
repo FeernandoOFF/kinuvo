@@ -1,4 +1,4 @@
-# Assembles the engine (Harness) and serves it to clients over WebSocket.
+# Assembles the engine (AgentRuntime) and serves it to clients over WebSocket.
 product: jvm/lib
 
 dependencies:

@@ -16,7 +16,7 @@ import kotlinx.coroutines.withTimeout
 
 /** Runs a live voice call for a connection: the call talks, and hands the Agent's work to its Session. */
 internal class LiveVoiceBridge(
-    private val harness: HarnessRuntime,
+    private val harness: AgentRuntime,
     private val voice: VoiceService,
     private val executions: ExecutionRegistry,
     private val execution: ExecutionService,

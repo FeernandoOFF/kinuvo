@@ -4,7 +4,7 @@ import kinuvo.server.rpc.serverRoutes
 import kinuvo.server.plugin.toolSpec
 import kinuvo.harness.AgentConfig
 import kinuvo.harness.AgentDoc
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.McpManagement
 import kinuvo.server.devices.*
 import kinuvo.server.reflection.*
@@ -87,12 +87,12 @@ class RuntimeDependenciesTest {
     @Test
     fun resourceOwnerReleasesEveryPluginAndClosesOnceEvenWhenCancelled() = runTest {
         val actions = mutableListOf<String>()
-        val first = object : HarnessPlugin {
+        val first = object : ServerPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runtimedependenciestest.1", "Test")
             override suspend fun release(agentId: AgentId) { actions += "release first"; error("Release failed") }
             override suspend fun close() { actions += "close first"; yield(); error("Close failed") }
         }
-        val second = object : HarnessPlugin {
+        val second = object : ServerPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runtimedependenciestest.2", "Test")
             override suspend fun release(agentId: AgentId) { actions += "release second" }
             override suspend fun close() { actions += "close second"; yield() }
@@ -181,7 +181,7 @@ class RuntimeDependenciesTest {
         val management = object : McpManagement by McpManagement.Unavailable {
             override fun onSignInNeeded(listener: suspend (agentId: AgentId, server: String) -> Unit) { error("Start failed") }
         }
-        val plugin = object : HarnessPlugin {
+        val plugin = object : ServerPlugin {
             override val definition = kinuvo.protocol.plugin.PluginDefinition("test.runtimedependenciestest.3", "Test")
             override val mcp = management
             override suspend fun close() { closes++ }

@@ -3,12 +3,12 @@ package kinuvo.cli
 import com.github.ajalt.clikt.core.CliktError
 import kinuvo.client.KinuvoClient
 import kinuvo.plugins.cua.DesktopComputer
-import kinuvo.server.jvm.HarnessServer
+import kinuvo.server.jvm.JvmServerHost
 import kinuvo.protocol.device.DeviceToolKind
 import kotlinx.coroutines.withTimeout
 
 /** Offers the CLI's desktop as a Device through the same protocol as the desktop app. */
-internal class CliComputer(server: HarnessServer, host: String, port: Int, private val desktop: DesktopComputer = DesktopComputer()) : AutoCloseable {
+internal class CliComputer(server: JvmServerHost, host: String, port: Int, private val desktop: DesktopComputer = DesktopComputer()) : AutoCloseable {
     init {
         System.setProperty("java.awt.headless", "true")
         if (!desktop.ready) throw CliktError("Computer use needs cua-driver on PATH, in ~/.local/bin or /Applications/CuaDriver.app. Install it and run `cua-driver permissions grant`.")

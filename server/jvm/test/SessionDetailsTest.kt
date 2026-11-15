@@ -26,7 +26,7 @@ class SessionDetailsTest {
     @Test
     fun renamesAndFavoritesStayOutOfTheModelsHistory(): Unit = runBlocking {
         val seen = mutableListOf<List<Message>>()
-        val harness = Harness(Path(home.path), modelFactory = { scriptedModel { prompt, _ -> seen += prompt.messages; flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) } }, plugins = emptyList())
+        val harness = JvmAgentRuntime(Path(home.path), modelFactory = { scriptedModel { prompt, _ -> seen += prompt.messages; flowOf(StreamFrame.TextDelta("ok"), StreamFrame.End()) } }, plugins = emptyList())
         try {
             val agent = harness.store.agents().single()
             val session = harness.newSession(agent).id

@@ -47,7 +47,7 @@ class McpLiveTest {
         if (System.getenv("KINUVO_LIVE") != "1") return@runBlocking
         val home = temporaryDirectories.create("harness-live-mcp").toFile()
         File(home, "mcp.json").writeText(config.replace("\"args\"", "\"includeTools\": [\"echo\"], \"args\""))
-        val harness = Harness(Path(home.path))
+        val harness = JvmAgentRuntime(Path(home.path))
         val agent = harness.store.agents().single().let { it.copy(config = it.config.copy(reasoning = "low")) }
         val session = harness.newSession(agent)
         runBlocking {

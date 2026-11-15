@@ -8,7 +8,7 @@ import kinuvo.protocol.model.*
 import kinuvo.protocol.plugin.*
 import kinuvo.protocol.routine.*
 import kinuvo.protocol.session.SessionId
-/** The most characters an Artifact holds, so a plugin's [HarnessPlugin.readFile] needn't read more. */
+/** The most characters an Artifact holds, so a plugin's [ServerPlugin.readFile] needn't read more. */
 const val ARTIFACT_MAX_CHARS = 5_000_000
 
 /** Tries an Agent's exec settings without saving them. */
@@ -20,7 +20,7 @@ fun interface ExecCheck {
  * A named part of the harness that an app chooses to include, e.g. exec, MCP or a task provider.
  * Native manifests describe typed contributions and per-run tool discovery without activating them.
  */
-interface HarnessPlugin {
+interface ServerPlugin {
     val definition: PluginDefinition
     val instanceId: String get() = "default"
     val manifest: PluginManifest get() {
@@ -67,9 +67,9 @@ interface HarnessPlugin {
     suspend fun close() {}
 }
 
-val HarnessPlugin.instance get() = PluginInstanceId(definition.id, instanceId)
+val ServerPlugin.instance get() = PluginInstanceId(definition.id, instanceId)
 
-fun List<HarnessPlugin>.checkPluginInstances() {
+fun List<ServerPlugin>.checkPluginInstances() {
     val instances = map { it.instance }
     require(instances.distinct().size == instances.size) { "Duplicate plugin instances" }
     forEach {
@@ -86,7 +86,7 @@ fun List<HarnessPlugin>.checkPluginInstances() {
 }
 
 /** The Server uses the first plugin offering a singleton capability, so a second one would be silently ignored. */
-private fun List<HarnessPlugin>.checkSingleton(capability: String, offers: (HarnessPlugin) -> Boolean) {
+private fun List<ServerPlugin>.checkSingleton(capability: String, offers: (ServerPlugin) -> Boolean) {
     val offering = filter(offers)
     require(offering.size <= 1) { "Plugins ${offering.joinToString { "${it.definition.id}/${it.instanceId}" }} all offer the $capability capability; only one may" }
 }

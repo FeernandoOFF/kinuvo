@@ -25,7 +25,7 @@ private val log = KotlinLogging.logger("kinuvo.notifications")
  * Notifies the user about Sessions no client in the foreground is watching: an Approval or `ask_user` form waiting, a
  * reply or error, and a Routine's report or failure (a quiet run sends nothing).
  */
-class Notifications(private val harness: HarnessRuntime, private val scope: CoroutineScope, private val routineOf: (sessionId: SessionId) -> RoutineRef?, private val externalName: suspend (String) -> String? = { null }, private val devices: DevicePush? = null) {
+class Notifications(private val harness: AgentRuntime, private val scope: CoroutineScope, private val routineOf: (sessionId: SessionId) -> RoutineRef?, private val externalName: suspend (String) -> String? = { null }, private val devices: DevicePush? = null) {
     private val attempted = ConcurrentMutableSet<String>()
     fun on(agentId: AgentId, sessionId: SessionId, event: AgentEvent) {
         if (event !is AgentEvent.InteractionRequested && event !is AgentEvent.RunFinished && event !is AgentEvent.RunError) return

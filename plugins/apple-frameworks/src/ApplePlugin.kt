@@ -5,7 +5,7 @@ import kinuvo.protocol.device.Platform
 import kinuvo.protocol.device.currentPlatform
 import kinuvo.protocol.plugin.PluginDefinition
 import kinuvo.protocol.tool.ToolNames
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
 import kinuvo.server.plugin.TaskProvider
@@ -15,7 +15,7 @@ import kinuvo.server.plugin.TaskProvider
  * tools an Agent turns on per framework under its `tools`. Each framework is a section of [Apple]'s boundary, so another
  * (Contacts, Location) is a new section.
  */
-class ApplePlugin(system: AppleSystem, platform: Platform = currentPlatform) : HarnessPlugin {
+class ApplePlugin(system: AppleSystem, platform: Platform = currentPlatform) : ServerPlugin {
     /** For clients to read each framework's permission and ask for it. */
     val apple = Apple(system)
     // The Apple model provider already is `kinuvo.apple/default`.

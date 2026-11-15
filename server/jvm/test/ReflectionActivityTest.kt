@@ -38,7 +38,7 @@ class ReflectionActivityTest {
     fun publishesLiveActivityAndPersistsCompletedEmptyAndFailedPasses() = runBlocking {
         val home = temporaryDirectories.create("reflection-activity").toFile()
         var outcome = "saved"
-        lateinit var harness: Harness
+        lateinit var harness: JvmAgentRuntime
         var sessionId = SessionId("")
         val model = scriptedModel { prompt, tools ->
             val instructions = prompt.messages.filterIsInstance<Message.System>().firstOrNull()?.textContent().orEmpty()
@@ -69,7 +69,7 @@ class ReflectionActivityTest {
                 else -> flowOf(StreamFrame.End())
             })
         } }
-        harness = Harness(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }, plugins = emptyList())
+        harness = JvmAgentRuntime(home = Path(home.path), providers = ModelProviders.of(CodexProvider(CodexAuth(PrivateFile(Path(home.path, "none.json"))))), modelFactory = { model }, plugins = emptyList())
         harness.saveKnowledgeSettings(KnowledgeSettings(conventions = mapOf("markdown" to "People go in person notes")))
         val agent = harness.store.agents().single()
         sessionId = harness.newSession(agent).id

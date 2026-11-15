@@ -4,7 +4,7 @@ import kinuvo.server.plugin.SecretReferences
 import io.github.oshai.kotlinlogging.KotlinLogging
 import io.ktor.http.Url
 import io.ktor.http.decodeURLPart
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.PluginHost
 import kinuvo.server.plugin.httpServiceUrl
 import kinuvo.server.plugin.ProviderTask
@@ -25,7 +25,7 @@ import kotlin.io.encoding.Base64
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
-class CalDavPlugin : HarnessPlugin {
+class CalDavPlugin : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.caldav", "CalDAV")
     override val taskProviders = listOf(CalDavProvider)
     override val manifest get() = super.manifest.copy(discoversTools = false)

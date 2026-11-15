@@ -26,7 +26,7 @@ class CodexSkillsLiveTest {
         skill("grill-me", "---\nname: grill-me\ndescription: Grill the user about a plan\ndisable-model-invocation: true\n---\n\nCall the Skill tool with \"grilling\".\n")
         skill("grilling", "---\nname: grilling\ndescription: Interview the user relentlessly about a plan\n---\n\nAsk exactly one numbered question per round, starting with 'Q1'.\n")
 
-        val harness = Harness(Path(home.path))
+        val harness = JvmAgentRuntime(Path(home.path))
         val agent = harness.store.agents().single().let { it.copy(config = it.config.copy(reasoning = "low", skillDirs = emptyList())) }
         val session = harness.newSession(agent)
         val (activation, message) = harness.slashActivation(agent, "/grill-me I want to build a birdhouse")!!

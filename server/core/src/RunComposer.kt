@@ -86,7 +86,7 @@ import kinuvo.server.providers.ModelProvider
 
 /** Composes what a run needs from the Agent, its Session and the Server's tools, models and instructions: the built-in harness's host. */
 class RunComposer internal constructor(
-    private val harness: HarnessRuntime,
+    private val harness: AgentRuntime,
     private val dependencies: RuntimeDependencies,
     private val platformDescription: String,
     private val routineApprovalWait: Duration,

@@ -5,7 +5,7 @@ import kinuvo.server.plugin.ParameterType
 import kinuvo.server.plugin.ToolParameter
 import kinuvo.harness.Agent
 import kinuvo.server.plugin.CoreTool
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.InstructionSection
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
@@ -36,7 +36,7 @@ class DeviceTools(
     private val log: SessionLog,
     private val questions: () -> Broker<Map<String, List<String>>?>,
     private val zone: () -> TimeZone,
-) : HarnessPlugin {
+) : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.devices", "Device tools")
     internal val lock = Lock()
     var paired: () -> List<ToolDevice> = { emptyList() }

@@ -7,7 +7,7 @@ Status: Accepted
 
 ## Decision
 
-The `agent_manage` Toolset holds `agent_get`, `agent_update`, `agent_create`, `mcp_list`, `mcp_add`, `mcp_remove`, `mcp_test`, `mcp_login` and `session_configure`. They are Server tools invoked through ToolService, so KinuvoMCP offers them under the same Tool scope and Approvals. They act only on the calling Agent and Session and reuse the Settings handlers: Admin, MCP management and `HarnessRuntime.configure`.
+The `agent_manage` Toolset holds `agent_get`, `agent_update`, `agent_create`, `mcp_list`, `mcp_add`, `mcp_remove`, `mcp_test`, `mcp_login` and `session_configure`. They are Server tools invoked through ToolService, so KinuvoMCP offers them under the same Tool scope and Approvals. They act only on the calling Agent and Session and reuse the Settings handlers: Admin, MCP management and `AgentRuntime.configure`.
 
 A tool's `preview(args)` builds the Approval's `ChangePreview` on the Server; Approvals shown outside Kinuvo use its text. A preview that fails refuses the call before anyone is asked, as do arguments a tool doesn't declare. An Approval with a preview carries no raw arguments. Environment and header values never appear in it.
 

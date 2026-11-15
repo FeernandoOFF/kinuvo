@@ -1,7 +1,7 @@
 package kinuvo.plugins.mcp
 
 import kinuvo.server.plugin.modelAlias
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.Keychain
 import kinuvo.server.plugin.McpApps
 import kinuvo.protocol.mcp.McpAppRef
@@ -30,7 +30,7 @@ class McpPlugin(
     private val secrets: SecretResolver = SecretResolver.None,
     keychain: Keychain? = null,
     val auth: McpAuth = McpAuth(defaultSignIns(files, keychain)),
-) : HarnessPlugin {
+) : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.mcp", "MCP")
     override val features = setOf(ServerFeature.Mcp)
     override val mcp: McpManagement = McpServersManagement(files, secrets, auth)

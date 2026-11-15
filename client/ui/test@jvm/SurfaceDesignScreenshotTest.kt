@@ -21,7 +21,7 @@ import kotlin.test.Test
 class SurfaceDesignScreenshotTest {
     @Test fun controls() = javax.swing.SwingUtilities.invokeAndWait {
         for (dark in listOf(false, true)) ImageComposeScene(1000, 2300, Density(2f), content = {
-            HarnessTheme(dark = dark) {
+            KinuvoTheme(dark = dark) {
                 Column(Modifier.fillMaxSize().background(color(backgroundColor)).padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("Surface design kit", style = TextStyles.title)
                     Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -53,7 +53,7 @@ class SurfaceDesignScreenshotTest {
 
     @Test fun modalContent() = javax.swing.SwingUtilities.invokeAndWait {
         for (dark in listOf(false, true)) ImageComposeScene(1000, 800, Density(2f), content = {
-            HarnessTheme(dark = dark) {
+            KinuvoTheme(dark = dark) {
                 val popovers = remember { Popovers() }
                 CompositionLocalProvider(LocalPopovers provides popovers) {
                     Box(Modifier.fillMaxSize().background(color(backgroundColor))) {

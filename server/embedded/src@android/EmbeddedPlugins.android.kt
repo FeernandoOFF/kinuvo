@@ -2,7 +2,7 @@ package kinuvo.server.embedded
 
 import kinuvo.plugins.browser.BrowserPlugin
 import kinuvo.providers.codex.CodexAuth
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.PrivateFile
 import kinuvo.server.store.AgentFiles
 import kinuvo.server.store.FileAttachments
@@ -13,7 +13,7 @@ import java.io.File
 import kotlinx.io.files.Path
 
 /** What an Android phone's Server runs with; [extra] are plugins the app builds from its own objects, e.g. its WebView browser. */
-fun embeddedPlugins(home: Path, extra: List<HarnessPlugin> = emptyList()): EmbeddedPlugins {
+fun embeddedPlugins(home: Path, extra: List<ServerPlugin> = emptyList()): EmbeddedPlugins {
     val files = AgentFiles(home)
     val keys = embeddedKeys(files)
     val attachments = FileAttachments(Path(home, "attachments"))::bytes
@@ -22,4 +22,4 @@ fun embeddedPlugins(home: Path, extra: List<HarnessPlugin> = emptyList()): Embed
 }
 
 /** The browser plugin over the app's WebView when this device supports it; call on the main thread. */
-fun AndroidBrowserRuntime.browserPlugins(): List<HarnessPlugin> = if (available) listOf(BrowserPlugin(this)) else emptyList()
+fun AndroidBrowserRuntime.browserPlugins(): List<ServerPlugin> = if (available) listOf(BrowserPlugin(this)) else emptyList()

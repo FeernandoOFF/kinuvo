@@ -31,7 +31,7 @@ internal interface ServerHub {
  * need the harness, and the harness's tools need the services), so [harness]'s Agent management, Sub-agents and Teams are bound here, once.
  */
 internal class ServerAssembly(
-    val harness: HarnessRuntime,
+    val harness: AgentRuntime,
     auth: PeerRegistry,
     name: String,
     scope: CoroutineScope,

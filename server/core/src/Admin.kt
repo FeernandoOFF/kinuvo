@@ -19,7 +19,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 /** Changes Agents, their Skills and MCP servers on disk for clients. Runs pick the changes up when they next start. */
-class Admin(private val harness: HarnessRuntime, private val runs: Runs, private val onAgentsChanged: (List<AgentInfo>) -> Unit) {
+class Admin(private val harness: AgentRuntime, private val runs: Runs, private val onAgentsChanged: (List<AgentInfo>) -> Unit) {
     private val store get() = harness.store
     private val docs get() = harness.docs
     /** Changes are read-modify-write on files, so they go one at a time. */

@@ -38,11 +38,11 @@ class ArchitectureTest {
         }
     }
 
-    @Test fun routesDoNotReachHarnessRuntime() {
+    @Test fun routesDoNotReachAgentRuntime() {
         val files = sources("server/rpc")
         assertTrue(files.isNotEmpty())
         for (file in files) {
-            assertTrue("HarnessRuntime" !in file.text && ".harness" !in file.text, file.path)
+            assertTrue("AgentRuntime" !in file.text && ".harness" !in file.text, file.path)
         }
     }
 }

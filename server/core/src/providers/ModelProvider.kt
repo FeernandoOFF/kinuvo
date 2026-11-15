@@ -1,6 +1,6 @@
 package kinuvo.server.providers
 
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.ProviderAdmin
 import kinuvo.server.plugin.ProviderPlugin
 
@@ -36,7 +36,7 @@ internal fun checkModelSources(sources: List<ModelPolicy>) {
 }
 
 /** Pairs each admin of [plugins] with the source of its ID; an admin without one can't run models, so it fails. */
-internal fun pairModelProviders(plugins: List<HarnessPlugin>, sources: List<ModelPolicy>): List<ModelProvider> {
+internal fun pairModelProviders(plugins: List<ServerPlugin>, sources: List<ModelPolicy>): List<ModelProvider> {
     checkModelSources(sources)
     val byId = sources.associateBy { it.id }
     return plugins.filterIsInstance<ProviderPlugin>().flatMap { it.providerAdmins }.map { admin ->

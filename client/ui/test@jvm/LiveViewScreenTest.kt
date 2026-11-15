@@ -15,7 +15,7 @@ import kinuvo.protocol.browser.*
 import kinuvo.protocol.screen.*
 import kinuvo.protocol.agent.AgentId
 import kinuvo.ui.screen.*
-import kinuvo.ui.design.HarnessTheme
+import kinuvo.ui.design.KinuvoTheme
 import java.io.File
 import org.jetbrains.skia.EncodedImageFormat
 import kotlin.io.encoding.Base64
@@ -59,7 +59,7 @@ class LiveViewScreenTest {
             val state = LiveViewState(screens=if(mode=="empty") emptyList() else listOf(info, info.copy(ref = previewRef, title = "Cedar — Plans"), info.copy(ref = missingRef, title = "Loading tab")), thumbnails=mapOf(previewRef to preview), selected=ref, connected=mode!="offline", loaded=true, device="device", subscription=ScreenSubscription("sub","epoch"),frame=if(mode=="empty") null else frame,displayed=frame,owner=owner, frameReceivedAt="2026-10-29T16:00:00Z", pending=mode=="reconnect", requestReason=if(mode=="request") "Sign in to continue" else null)
             val drawn = mutableListOf<ScreenFrame>()
             val commands = mutableListOf<ScreenCommandKind>()
-            ImageComposeScene(width*2,height*2,Density(2f), content={ HarnessTheme(dark=true) { androidx.compose.runtime.CompositionLocalProvider(kinuvo.ui.navigation.LocalHomeChrome provides kinuvo.ui.navigation.HomeChrome({}, width >= 760)) { LiveViewContent(state,LiveActions(drawn = { drawn.add(it) }, command = { kind, _ -> commands.add(kind) }), ({}).takeIf { width < 760 }, docked = width < 760) } } }).use { scene ->
+            ImageComposeScene(width*2,height*2,Density(2f), content={ KinuvoTheme(dark=true) { androidx.compose.runtime.CompositionLocalProvider(kinuvo.ui.navigation.LocalHomeChrome provides kinuvo.ui.navigation.HomeChrome({}, width >= 760)) { LiveViewContent(state,LiveActions(drawn = { drawn.add(it) }, command = { kind, _ -> commands.add(kind) }), ({}).takeIf { width < 760 }, docked = width < 760) } } }).use { scene ->
                 repeat(15) { scene.render(it*100_000_000L); Thread.sleep(10) }
                 if (mode != "empty") assertEquals(listOf(frame), drawn)
                 val tree = scene.semanticsOwners.flatMap { nodes(it.rootSemanticsNode) }
@@ -112,7 +112,7 @@ class LiveViewScreenTest {
         val info = ScreenInfo(ref, "Example", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap")), ScreenStatus.Ready)
         val state = LiveViewState(screens = listOf(info), selected = ref, owner = owner, connected = true, presentation = BrowserPresentation())
         var shellToggles = 0
-        ImageComposeScene(1200, 850, Density(1f), content = { HarnessTheme {
+        ImageComposeScene(1200, 850, Density(1f), content = { KinuvoTheme {
             androidx.compose.runtime.CompositionLocalProvider(kinuvo.ui.navigation.LocalHomeChrome provides kinuvo.ui.navigation.HomeChrome({ shellToggles++ }, true)) {
                 LiveViewContent(state, LiveActions(), null)
             }
@@ -134,7 +134,7 @@ class LiveViewScreenTest {
         val ref = ScreenRef("browser", "tab", owner)
         val info = ScreenInfo(ref, "Cedar — Your account", ScreenCapabilities(ScreenDelivery.Continuous, setOf("tap"), navigation = true, tabs = true), ScreenStatus.Ready, active = true, currentUrl = "https://cedar.example/account")
         val state = LiveViewState(screens = listOf(info, info.copy(ref = ref.copy(id = "plans"), title = "Cedar — Plans", active = false)), selected = ref, connected = true, loaded = true, owner = owner)
-        ImageComposeScene(520 * 2, 800 * 2, Density(2f), content = { HarnessTheme(dark = true) {
+        ImageComposeScene(520 * 2, 800 * 2, Density(2f), content = { KinuvoTheme(dark = true) {
             LiveViewContent(state, LiveActions(), null, docked = true, extra = listOf(kinuvo.ui.navigation.PageAction(Lucide.X, "Close Browser", {})))
         } }).use { scene ->
             repeat(5) { scene.render(it * 100_000_000L) }
@@ -151,7 +151,7 @@ class LiveViewScreenTest {
         val first = ScreenFrame(ScreenRef("computer", "one"), "sub", "epoch", 1, ScreenSample(Base64.encode(bytes), 1000, 500, "first"))
         val frame = androidx.compose.runtime.mutableStateOf(first)
         val sent = mutableListOf<Pair<ScreenFrame, List<ScreenAction>>>()
-        ImageComposeScene(200, 100, Density(1f), coroutineContext = kotlinx.coroutines.Dispatchers.Main, content = { HarnessTheme { LiveCanvas(frame.value, true, { f, actions -> sent.add(f to actions) }, {}, {}, Modifier.fillMaxSize()) } }).use { scene ->
+        ImageComposeScene(200, 100, Density(1f), coroutineContext = kotlinx.coroutines.Dispatchers.Main, content = { KinuvoTheme { LiveCanvas(frame.value, true, { f, actions -> sent.add(f to actions) }, {}, {}, Modifier.fillMaxSize()) } }).use { scene ->
             awaitFrame(scene)
             scene.sendPointerEvent(androidx.compose.ui.input.pointer.PointerEventType.Press, androidx.compose.ui.geometry.Offset(20f,20f), timeMillis = 2000, type = androidx.compose.ui.input.pointer.PointerType.Touch)
             frame.value = first.copy(sequence = 2, sample = first.sample.copy(width = 2000, geometry = "second"))
@@ -170,7 +170,7 @@ class LiveViewScreenTest {
             val generation = androidx.compose.runtime.mutableStateOf(1L)
             val interactive = androidx.compose.runtime.mutableStateOf(true)
             val sent = mutableListOf<ScreenFrame>()
-            ImageComposeScene(200, 100, Density(1f), coroutineContext = kotlinx.coroutines.Dispatchers.Main, content = { HarnessTheme {
+            ImageComposeScene(200, 100, Density(1f), coroutineContext = kotlinx.coroutines.Dispatchers.Main, content = { KinuvoTheme {
                 LiveCanvas(frame.value, interactive.value, { f, _ -> sent.add(f) }, {}, {}, Modifier.fillMaxSize(), generation = generation.value)
             } }).use { scene ->
                 awaitFrame(scene)
@@ -212,7 +212,7 @@ class LiveViewScreenTest {
             val state = androidx.compose.runtime.mutableStateOf(LiveViewState(screens = listOf(info, info.copy(ref = ref.copy(id = "two"), title = "Cedar — Plans", control = ScreenControl(1, "other"))),
                 selected = ref, connected = true, device = "device", owner = owner, frame = frame, displayed = frame))
             val sizes = mutableListOf<Pair<Int, Int>>()
-            ImageComposeScene(width, height, Density(1f), content = { HarnessTheme(dark = true) {
+            ImageComposeScene(width, height, Density(1f), content = { KinuvoTheme(dark = true) {
                 LiveViewContent(state.value, LiveActions(resize = { w, h ->
                     sizes.add(w to h)
                     val next = frame.copy(sequence = 2, sample = ScreenSample(image(w, h), w, h, "$w:$h"))
@@ -240,7 +240,7 @@ class LiveViewScreenTest {
         val state = androidx.compose.runtime.mutableStateOf(LiveViewState(screens = listOf(info), selected = ref, connected = true, device = "device", displayed = frame))
         val sent = mutableListOf<ScreenAction>()
         val focus = FocusRequester()
-        ImageComposeScene(400, 120, Density(1f), content = { HarnessTheme {
+        ImageComposeScene(400, 120, Density(1f), content = { KinuvoTheme {
             RemoteKeyboard(state.value, LiveActions(input = { _, actions -> sent.addAll(actions) }), focus, true)
         } }).use { scene ->
             repeat(10) { scene.render(it * 100_000_000L) }

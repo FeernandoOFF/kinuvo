@@ -35,7 +35,7 @@ private val log = KotlinLogging.logger("kinuvo.scheduler")
  * twice at once: a slot that comes due while its previous run is still going is skipped.
  */
 class Scheduler(
-    private val harness: HarnessRuntime,
+    private val harness: AgentRuntime,
     private val runs: Runs,
     private val scope: CoroutineScope,
     private val onRan: (RoutineRan) -> Unit = {},

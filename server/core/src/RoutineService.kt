@@ -12,7 +12,7 @@ import kinuvo.server.routines.with
 
 /** An Agent's Routines, checked against its Sessions and whether a Server is running to run them. */
 class RoutineService internal constructor(
-    private val harness: HarnessRuntime,
+    private val harness: AgentRuntime,
     private val admin: Admin,
     private val sessions: SessionService,
     private val scheduling: () -> Boolean,

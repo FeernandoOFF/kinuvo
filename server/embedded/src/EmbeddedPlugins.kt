@@ -11,7 +11,7 @@ import kinuvo.plugins.firecrawl.FirecrawlPlugin
 import kinuvo.plugins.mcp.McpPlugin
 import kinuvo.plugins.ntfy.NtfyPlugin
 import kinuvo.plugins.todoist.TodoistPlugin
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.Keychain
 import kinuvo.server.plugin.ProviderKeys
 import kinuvo.server.providers.ModelProviders
@@ -35,4 +35,4 @@ fun sharedProviders(files: AgentFiles, keys: ProviderKeys, codexAuth: CodexAuth,
 internal fun embeddedKeys(files: AgentFiles) = ProviderKeys(files, Secrets()) { Keychain.system("kinuvo", it) }
 
 /** What a phone's Server runs with: [plugins], including its model providers' admins, and the [modelSources] it registers with the built-in harness. */
-class EmbeddedPlugins(val plugins: List<HarnessPlugin>, val modelSources: () -> List<ModelSource>)
+class EmbeddedPlugins(val plugins: List<ServerPlugin>, val modelSources: () -> List<ModelSource>)

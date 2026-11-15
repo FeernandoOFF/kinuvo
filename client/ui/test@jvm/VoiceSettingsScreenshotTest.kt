@@ -31,7 +31,7 @@ class VoiceSettingsScreenshotTest {
         for ((width, height) in listOf(780 to 900, 390 to 1080)) for (dark in listOf(true, false)) for (downloading in listOf(false, true)) {
             val shown = if (downloading) state.copy(downloading = "whisper-base", downloaded = 67_000_000) else state
             ImageComposeScene(width * 2, height * 2, Density(2f), content = {
-                HarnessTheme(dark = dark) {
+                KinuvoTheme(dark = dark) {
                     Column(Modifier.fillMaxSize().background(color(backgroundColor)).verticalScroll(rememberScrollState()).padding(24.dp)) {
                         VoiceSettingsContent(shown, {}, {}, {}, { _, _ -> }, {})
                     }

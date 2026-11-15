@@ -62,7 +62,7 @@ typealias RemoteHarnessFactory = (readiness: suspend (connectionId: String, onli
 
 @OptIn(ExperimentalAtomicApi::class)
 class ServerRuntime(
-    val harness: HarnessRuntime,
+    val harness: AgentRuntime,
     val auth: PeerRegistry,
     private val routes: Routes,
     private val name: String = "kinuvo",

@@ -1,13 +1,13 @@
 package kinuvo.server.tasks
 
-import kinuvo.server.plugin.HarnessPlugin
+import kinuvo.server.plugin.ServerPlugin
 import kinuvo.server.plugin.PluginTools
 import kinuvo.server.plugin.RunContext
 import kinuvo.protocol.tool.ToolNames
 import kinuvo.protocol.plugin.PluginDefinition
 
 /** Task runs can manage their assigned Task even without general access to the Board. */
-class TasksPlugin(private val tasks: Tasks) : HarnessPlugin {
+class TasksPlugin(private val tasks: Tasks) : ServerPlugin {
     override val definition = PluginDefinition("kinuvo.tasks", "Tasks")
     override suspend fun prepare(run: RunContext, activate: Boolean) =
         PluginTools(when {

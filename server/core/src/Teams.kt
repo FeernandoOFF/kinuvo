@@ -25,7 +25,7 @@ sealed class TeamError(override val code: String, override val message: String) 
 }
 
 class Teams internal constructor(
-    private val harness: HarnessRuntime,
+    private val harness: AgentRuntime,
     private val dispatch: AgentExecution,
     private val scope: CoroutineScope,
     private val join: suspend (SessionId) -> Unit,
