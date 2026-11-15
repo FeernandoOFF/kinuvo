@@ -80,74 +80,32 @@ class ServerRuntime(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     val executions = executionRegistry
-    private val remoteFactory = remoteHarness?.invoke { id, online, code ->
-        val before = executions.catalog().connections.firstOrNull { it.config.id == id }
-        if (before != null) {
-            if (online) executions.negotiated(id, ExecutionCapabilities(cancel = true, questions = true, approvals = true))
-            else executions.offline(id, if (code == "access_revoked") "Remote access revoked" else "Remote Server offline", code)
-            if (before != executions.catalog().connections.firstOrNull { it.config.id == id }) catalogChanged()
-        }
-    }
-    private val installedFactory = object : ExecutionFactory {
-        override suspend fun probe(config: HarnessConnection) = if (config.connection is ExecutionConnection.Remote) remoteFactory?.probe(config) ?: ExecutionProbe(ExecutionReadiness(true, false, "Remote Servers unavailable", "unsupported")) else executionFactory?.probe(config) ?: ExecutionProbe(ExecutionReadiness(true, false, "ACP unavailable", "unsupported"))
-        override suspend fun open(config: HarnessConnection, registration: AgentRegistration, state: ExecutionState, broker: ExecutionBroker, scope: CoroutineScope) =
-            if (config.connection is ExecutionConnection.Remote) (remoteFactory ?: throw ServerException(ExecutionError.NoRemoteServers)).open(config, registration, state, broker, scope) else requireNotNull(executionFactory).open(config, registration, state, broker, scope)
-    }
-    private val remoteGateway = RemoteGateway(remoteLinks,
-        { execution.agents() },
-        { id -> dispatch.create(AgentId(id)).let { dispatch.snapshot(AgentId(id), it.id) } },
-        { agent, id -> dispatch.snapshot(AgentId(agent), SessionId(id)) },
-        { agent, id, text, action -> dispatch.send(SendParams(AgentId(agent), SessionId(id), text, action = action)); Unit },
-        { _, id -> dispatch.stop(SessionId(id)) },
-        { _, answer -> dispatch.answer(answer) },
-        { _, id -> if (external.owns(SessionId(id))) external.discard(SessionId(id)) else dispatch.stop(SessionId(id)) })
-    private val executionManagement = Mutex()
-    private val external = ExecutionCoordinator(executions, installedFactory, scope, harness.log, executionStorage,
-        resolve = { harness.attachments.download(it) }, readinessChanged = { catalogChanged() })
-    suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData): Attachment {
-        external.currentStateOwner(state)
-        require(attachmentMimeType(data.attachment.name) == data.attachment.mimeType) { "Output filename and MIME differ" }
-        return harness.attachments.upload(UploadAttachmentParams(data.attachment.name, data.base64)).also {
-            require(it.mimeType == data.attachment.mimeType) { "Stored output MIME differs" }
-        }
-    }
-    private val screenBudget = ScreenBudget()
-    private val clients = ConcurrentMutableSet<Client>()
-    private val runs = Runs(harness.log, scope, nativeFactory)
-    private val devicePush = devicePush(auth, harness.serverId)
-    private val notifications = Notifications(harness, scope, runs::routine, { external.registrationOrArchived(AgentId(it))?.name }, devicePush)
-    private val workflows: Workflows = Workflows(harness, runs, scope, { broadcast(Api.WorkflowsChanged, it) }, { broadcast(Api.WorkflowRunChanged, it) }, wakeScheduler = { scheduler.wakeUp() })
-    private val scheduler: Scheduler = Scheduler(harness, runs, scope, onRan = { broadcast(Api.RoutineRan, it); notifications.routineRan(it) }, workflowTick = workflows::tick)
-    private val admin = Admin(harness, runs) { broadcast(Api.AgentsChanged, it) }.also { harness.agentManagement = AgentManagement(harness, it) }
-    private val reflectionReview = ReflectionReview(harness)
-    private val logins = ProviderLogins(harness.modelProviders, scope) { broadcast(Api.ProvidersChanged, it); changedCapabilities() }
-    private val reflector = Reflector(harness, scope, runs::isActive)
-    private val dispatch = AgentExecution(executions, external,
-        NativeExecution(harness, runs, scope, { admin.agent(it) }, { capabilities }, reflector::ran) { sessionId, text ->
+    private val hub = object : ServerHub {
+        override val capabilities: ServerCapabilities get() = this@ServerRuntime.capabilities
+        override val scheduling: Boolean get() = this@ServerRuntime.scheduling
+        override val sequence: Long get() = seq.load()
+        override fun <T> broadcast(type: EventType<T>, payload: T) = this@ServerRuntime.broadcast(type, payload)
+        override fun changedCapabilities() = this@ServerRuntime.changedCapabilities()
+        override suspend fun notifyVoice(sessionId: SessionId, text: String) {
             clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveVoice?.notify(text) }
-        }, executionManagement)
-    private val subAgents = SubAgents(harness, dispatch, scope, runs::join).also { harness.subAgents = it; dispatch.subAgents = it; runs.onBegin = { _, id -> it.begin(id) }; runs.onFinish(it::finish); runs.onCancel = it::cancelChildren }
-    private val dispatcher = TaskDispatcher(harness, runs, scope)
-    private val seq = AtomicLong(0)
-    private val sessions = SessionService(harness, admin)
-    private val routines = RoutineService(harness, admin, sessions) { scheduling }
-    private val browserAccess = BrowserAccess(harness, executions, admin)
-    private val voice = VoiceService(harness, ::changedCapabilities)
-    private val execution: ExecutionService = ExecutionService(harness, admin, executions, external, dispatch, executionManagement, installedFactory, remoteFactory, remoteLinks, remoteGateway, name, { capabilities }, { seq.load() }) { catalog, agents ->
-        broadcast(Api.ExecutionCatalogChanged, catalog)
-        broadcast(Api.AgentsChanged, agents)
-        changedCapabilities()
+        }
     }
-    private val teams = Teams(harness, dispatch, scope, runs::join, execution::agents) { broadcast(Api.TeamChanged, it) }.also { teams -> harness.teams = teams; runs.onFinish { _, session, cancelled -> teams.finished(session, cancelled) } }
-    private val services = ServerServices(harness, auth, admin, execution, dispatch, sessions, teams, routines, workflows, browserAccess, voice, reflectionReview, logins, notifications, harness.log, harness.knowledge, harness.tasks, harness.artifacts, harness.mcp, harness.secrets, harness.computers, harness, prepareAttachment, ::changedCapabilities)
+    private val assembly = ServerAssembly(harness, auth, name, scope, hub, executionRegistry, executionFactory, nativeFactory, executionStorage, remoteLinks, remoteHarness, prepareAttachment)
+    private val clients = ConcurrentMutableSet<Client>()
+    private val seq = AtomicLong(0)
+    private val runs = assembly.runs
+    private val external = assembly.external
+    private val services = assembly.services
+    suspend fun persistExecutionAttachment(state: ExecutionState, data: AttachmentData): Attachment = assembly.persistExecutionAttachment(state, data)
+    private val voiceCalls = LiveVoiceBridge(harness, assembly.voice, executions, assembly.execution, assembly.admin, assembly.dispatch, runs, keepAwake)
     private var scheduling = false
     private var started = false
     private var closed = false
     private val lifecycle = Mutex()
 
-    val capabilities get() = ServerCapabilities(harness.serverId, harness.features + setOf(ServerFeature.Screens) + (if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet()) + (if (devicePush != null) setOf(ServerFeature.Push) else emptySet()),
+    val capabilities: ServerCapabilities get() = ServerCapabilities(harness.serverId, harness.features + setOf(ServerFeature.Screens) + (if (auth.pairable) setOf(ServerFeature.Pairing) else emptySet()) + (if (assembly.devicePush != null) setOf(ServerFeature.Push) else emptySet()),
         if (foregroundOnly) ExecutionLifetime.Foreground else ExecutionLifetime.Continuous,
-        if (scheduling) WakeSupport.Scheduled else WakeSupport.None, integrations = (harness.integrations + (if (executionFactory != null) mapOf(Integration.Harness to setOf("acp", "remote")) else mapOf(Integration.Harness to setOf("remote")))).mapKeys { it.key.name }, platform = harness.platform, voice = voice.providers.setup)
+        if (scheduling) WakeSupport.Scheduled else WakeSupport.None, integrations = (harness.integrations + (if (executionFactory != null) mapOf(Integration.Harness to setOf("acp", "remote")) else mapOf(Integration.Harness to setOf("remote")))).mapKeys { it.key.name }, platform = harness.platform, voice = assembly.voice.providers.setup)
     /** Runs going and the events they've produced; a foreground-only host keeps them alive while it can. */
     val runActivity get() = runs.activity
 
@@ -161,15 +119,7 @@ class ServerRuntime(
 
     private fun changedCapabilities() = broadcast(Api.CapabilitiesChanged, Unit)
     init {
-        harness.log.executionMetadata = { info -> if (external.owns(info.id)) info.copy(legacyOrder = external.record(info.id).legacyOrder) else info }
-        harness.browser?.authorize { owner ->
-            throwing<ServerError, Unit> {
-                browserAccess.validate(owner)
-                if ("browser" !in admin.agent(owner.agentId).config.tools) raise(BrowserError.Disabled)
-            }
-        }
-        harness.log.onDelete = { a, id -> external.delete(a, id) }; harness.computers.browserService = { harness.browser }; harness.devices.paired = auth::toolDevices; harness.computers.paired = auth::toolDevices
-        if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) scope.launch { dispatch.stop(it.id) } }
+        if (foregroundOnly) harness.log.onChange { if (it.status == SessionStatus.Waiting && unwatched()) scope.launch { assembly.dispatch.stop(it.id) } }
     }
 
     private fun unwatched() = clients.block { it.none { c -> c.watching } }
@@ -180,13 +130,13 @@ class ServerRuntime(
         started = true
         try {
             (executionStorage as? ExecutionStorage)?.migrate(harness.log)?.forEach { log.error { it } }
-            workflows.recover()
+            assembly.workflows.recover()
             external.reload()
             external.recover()
             scope.launch { harness.usage.filterNotNull().collect { broadcast(Api.Usage, it) } }
             harness.log.onChange { if (!it.hidden) broadcast(Api.SessionChanged, it) }
-            harness.log.onEvent(notifications::on)
-            harness.mcp.onSignInNeeded(notifications::mcpSignInNeeded)
+            harness.log.onEvent(assembly.notifications::on)
+            harness.mcp.onSignInNeeded(assembly.notifications::mcpSignInNeeded)
             harness.routines.onChange { agent, routines -> broadcast(Api.RoutinesChanged, RoutinesChanged(agent.id, routines)) }
             harness.knowledge.onChange { broadcast(Api.KnowledgeChanged, it) }
             harness.tasks.onChange { broadcast(Api.TaskChanged, it) }
@@ -196,18 +146,18 @@ class ServerRuntime(
             harness.modelProviders.mapNotNull { it.downloads }.forEach { downloads -> scope.launch {
                 var installed: Set<String>? = null
                 downloads.changes.collect { state ->
-                    broadcast(Api.ProvidersChanged, logins.list())
+                    broadcast(Api.ProvidersChanged, assembly.logins.list())
                     val now = state.models.filter { it.installed }.mapTo(mutableSetOf()) { it.id }
                     if (installed != null && now != installed) changedCapabilities()
                     installed = now
                 }
             } }
-            if (schedule) { scheduler.start(); dispatcher.start() }
+            if (schedule) { assembly.scheduler.start(); assembly.dispatcher.start() }
             scheduling = schedule
             for (connection in executions.catalog().connections) {
                 executions.offline(connection.config.id, "Checking harness", "checking")
                 scope.launch {
-                    try { execution.checkHarness(connection.config) }
+                    try { assembly.execution.checkHarness(connection.config) }
                     catch (e: CancellationException) { throw e }
                     catch (e: Exception) { log.warn(e) { "Harness check failed: ${connection.config.name}" } }
                 }
@@ -229,7 +179,7 @@ class ServerRuntime(
             runs.stopAll()
             clients.block { it.toList() }.forEach { it.disconnect() }
         } finally {
-            try { scope.coroutineContext[Job]?.cancelAndJoin() } finally { try { devicePush?.close() } finally { harness.close() } }
+            try { scope.coroutineContext[Job]?.cancelAndJoin() } finally { try { assembly.devicePush?.close() } finally { harness.close() } }
         }
     }
 
@@ -244,7 +194,7 @@ class ServerRuntime(
         val outbox = Channel<Frame>(OUTBOX_SIZE)
         val liveAudio = AtomicInt(0)
         val screenFrames = ScreenFrameLane()
-        override val screens = Screens(harness.computers, { harness.browser }, { owner -> throwing<ServerError, Unit> { browserAccess.validate(owner) } }, scope, { requireNotNull(deviceId) }, screenBudget,
+        override val screens = Screens(harness.computers, { harness.browser }, { owner -> throwing<ServerError, Unit> { assembly.browserAccess.validate(owner) } }, scope, { requireNotNull(deviceId) }, assembly.screenBudget,
             screenFrames::offer, { screenFrames.remove(it.subscription); offer(frame(Api.ScreenStatus, it)) })
         @Volatile override var watching = true
         @Volatile var token: String? = null
@@ -348,12 +298,15 @@ class ServerRuntime(
         override fun unwatchScreen(id: String) = screenFrames.remove(id)
 
         context(_: Raise<VoiceError>, _: Raise<AgentError>)
-        override suspend fun startLiveVoice(params: LiveVoiceParams) = startLiveVoice(this, params)
+        override suspend fun startLiveVoice(params: LiveVoiceParams): LiveVoiceCall {
+            if (liveVoice?.active == true) raise(VoiceError.CallActive)
+            return voiceCalls.start(params, callScope, ::offerLiveVoice) { voiceSessionId = params.sessionId; liveVoice = it }
+        }
 
         override fun endLiveVoice(callId: String) { if (liveVoice?.id == callId) liveVoice?.close() }
 
         context(_: Raise<ExecutionError>)
-        override suspend fun remoteExecution(call: RemoteExecutionCall) = execution.remoteExecution(requireNotNull(token), call)
+        override suspend fun remoteExecution(call: RemoteExecutionCall) = assembly.execution.remoteExecution(requireNotNull(token), call)
 
         override fun offer(update: SessionUpdate) = offer(frame(Api.Update, update))
 
@@ -527,60 +480,6 @@ class ServerRuntime(
         }
         return routes.dispatch(Call(services, client, r.id), r)
     }
-
-    context(_: Raise<VoiceError>, _: Raise<AgentError>)
-    private suspend fun startLiveVoice(client: Client, p: LiveVoiceParams): LiveVoiceCall {
-        if (client.liveVoice?.active == true) raise(VoiceError.CallActive)
-        val provider = voice.providers.speechToSpeech ?: raise(VoiceError.NoLiveVoice)
-        val registration = executions.registration(p.agentId)
-        val name = registration?.let { execution.externalInfo(it).name } ?: admin.agent(p.agentId).name
-        dispatch.snapshot(p.agentId, p.sessionId)
-        client.voiceSessionId = p.sessionId
-        return LiveVoiceSession(provider, client.callScope, voiceContext(name, harness.store.entries(p.agentId, p.sessionId)),
-            client::offerLiveVoice,
-            askAgent = { task, progress ->
-                if (registration != null) {
-                    try {
-                        return@LiveVoiceSession withTimeout(300_000) {
-                            val before = harness.store.entries(p.agentId, p.sessionId).size
-                            val updates = VoiceAgentProgress(dispatch.snapshot(p.agentId, p.sessionId))
-                            dispatch.send(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true))
-                            var snapshot = dispatch.snapshot(p.agentId, p.sessionId)
-                            updates.update(snapshot).forEach { progress(it) }
-                            while (snapshot.phase == ExecutionPhase.Running || snapshot.phase == ExecutionPhase.RequiresAction) {
-                                delay(100)
-                                snapshot = dispatch.snapshot(p.agentId, p.sessionId)
-                                updates.update(snapshot).forEach { progress(it) }
-                            }
-                            if (snapshot.phase == ExecutionPhase.Lost) "The Agent could not finish the request."
-                            else harness.store.entries(p.agentId, p.sessionId).drop(before)
-                                .filterIsInstance<SessionEntry.AssistantMessage>().lastOrNull()?.text ?: "The Agent finished without a reply."
-                        }
-                    } catch (e: TimeoutCancellationException) { return@LiveVoiceSession "The Agent took too long to reply." }
-                    catch (e: CancellationException) { throw e }
-                    catch (e: Exception) { return@LiveVoiceSession "The Agent could not finish the request." }
-                }
-                runs.join(p.sessionId)
-                var reply = "The Agent finished without a reply."
-                var failure: String? = null
-                val updates = NativeVoiceProgress()
-                throwing<ServerError, SendResult> {
-                    dispatch.send(SendParams(agentId = p.agentId, sessionId = p.sessionId, text = task, voice = true), null) {
-                        updates.update(it).forEach { update -> progress(update) }
-                        when (it) {
-                            is AgentEvent.TextMessageEnd -> reply = it.text
-                            is AgentEvent.RunError -> failure = "The Agent could not finish the request"
-                            else -> Unit
-                        }
-                    }
-                }
-                runs.join(p.sessionId)
-                failure?.let { error(it) }
-                reply
-            }, record = { entry -> harness.store.append(p.agentId, p.sessionId, entry) }, keepAwake = keepAwake).also { client.liveVoice = it }.start()
-    }
-
-    private suspend fun catalogChanged() { execution.catalogChanged() }
 
     private fun <T> broadcast(type: EventType<T>, payload: T) {
         val text = frame(type, payload)
