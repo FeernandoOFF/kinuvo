@@ -23,7 +23,7 @@ fun embeddedPlugins(home: Path, extra: ModelProviders<ModelSource> = ModelProvid
     val attachments = FileAttachments(Path(home, "attachments"))::bytes
     val codexAuth = CodexAuth(checkNotNull(Keychain.system("kinuvo", "codex")) { "The iOS Keychain isn't set up" })
     val endpoints = compatibleProviders(keys, files, attachments)
-    val codex = CodexProvider(codexAuth)
-    val openAI = OpenAIProvider(keys)
+    val codex = CodexProvider(codexAuth, attachments)
+    val openAI = OpenAIProvider(keys, attachments)
     return EmbeddedPlugins(extra.plugins + listOf(codex, openAI) + sharedPlugins(files) + endpoints + plugins) { extra.sources() + listOf(codex, openAI) + endpoints.modelSources }
 }
