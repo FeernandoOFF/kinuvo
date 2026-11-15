@@ -37,4 +37,12 @@ class ArchitectureTest {
             assertTrue(file.imports.none { it.name in setOf("kinuvo.client.FrameConnection", "kinuvo.protocol.FrameConnection") }, file.path)
         }
     }
+
+    @Test fun routesDoNotReachHarnessRuntime() {
+        val files = sources("server/rpc")
+        assertTrue(files.isNotEmpty())
+        for (file in files) {
+            assertTrue("HarnessRuntime" !in file.text && ".harness" !in file.text, file.path)
+        }
+    }
 }
