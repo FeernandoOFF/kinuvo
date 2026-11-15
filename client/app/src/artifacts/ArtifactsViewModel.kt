@@ -46,7 +46,8 @@ data class ArtifactsState(
 }
 
 /** Reloads on every change; a newer load cancels the one in flight, so a late reply can't undo a newer change. */
-class ArtifactsViewModel(private val client: KinuvoClient, route: Route.Artifacts, private val owner: ConnectedServer) : ViewModel() {
+class ArtifactsViewModel(route: Route.Artifacts, private val owner: ConnectedServer) : ViewModel() {
+    private val client: KinuvoClient = requireNotNull(owner.client) { "Not connected" }
     val state: StateFlow<ArtifactsState>
         field = MutableStateFlow(ArtifactsState(route))
     private var loading: Job? = null

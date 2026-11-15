@@ -35,7 +35,7 @@ class AgentDefaultsTest {
         val script = Script()
         connect(owner, script)
         val store = store()
-        fun newChat(key: String) = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("agent"), null)).also { store.put(key, it) }
+        fun newChat(key: String) = SessionViewModel(owner.sessions, Route.Chat(AgentId("agent"), null)).also { store.put(key, it) }
         try {
             val opened = newChat("opened")
             opened.state.first { it.defaults != null && it.capabilities?.revision == 0L }
@@ -65,7 +65,7 @@ class AgentDefaultsTest {
         connect(owner, script)
         val prefs = MemoryPreferences()
         val consent = AiConsent(prefs, required = true)
-        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("agent"), null), consent)
+        val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("agent"), null), consent)
         store().put("consent", vm)
         vm.state.first { it.defaults != null && !it.resolving }
         vm.send("hello")
@@ -85,7 +85,7 @@ class AgentDefaultsTest {
     @Test fun reflectionReviewsSendTrimmedNotesForBothDecisions() = withOwner { owner, _, _ ->
         val script = Script()
         connect(owner, script)
-        val vm = SessionViewModel(requireNotNull(owner.client), owner.sessions, Route.Chat(AgentId("agent"), SessionId("session")))
+        val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("agent"), SessionId("session")))
         store().put("review", vm)
         for (approve in listOf(true, false)) {
             vm.reviewReflection("proposal", approve, "  wrong date  ")

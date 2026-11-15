@@ -335,10 +335,9 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             mapOf(AgentKey to route.agentId?.value.orEmpty()) +
                                 if (route.compose && route.sessionId == null) NavDisplay.transitionSpec { NoTransition } else emptyMap()
                         }) { route ->
-                            val client = (connection as? Connection.Ready)?.client
-                            if (client == null) Loading(connection)
+                            if (connection !is Connection.Ready) Loading(connection)
                             else {
-                                val session = koinViewModel<SessionViewModel>(key = "session/${app.serverLifetime}") { parametersOf(client, route) }
+                                val session = koinViewModel<SessionViewModel>(key = "session/${app.serverLifetime}") { parametersOf(route) }
                                 val resolved by session.state.collectAsState()
                                 LaunchedEffect(resolved.route) {
                                     val active = backStack.lastOrNull() as? Route.Chat
@@ -393,10 +392,9 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 onSettings = { serverSettings(SettingsSection.Tasks) }, onOpenTask = { history.open(Route.Task(it)) })
                         }
                         entry<Route.Artifacts> { route ->
-                            val client = (connection as? Connection.Ready)?.client
-                            if (client == null) Loading(connection)
+                            if (connection !is Connection.Ready) Loading(connection)
                             else {
-                                val artifacts = koinViewModel<ArtifactsViewModel>(key = "artifacts/${app.serverLifetime}/${route.artifact}") { parametersOf(client, route) }
+                                val artifacts = koinViewModel<ArtifactsViewModel>(key = "artifacts/${app.serverLifetime}/${route.artifact}") { parametersOf(route) }
                                 ArtifactsScreen(app, artifacts, ArtifactsActions(
                                     onBack = back.takeIf { history.canGoBack },
                                     onOpen = { history.open(Route.Artifacts(it)) },
@@ -454,7 +452,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 }
                                 Row(Modifier.fillMaxSize()) {
                                     if (showChat) {
-                                        val session = koinViewModel<SessionViewModel>(key = "live-chat/${app.serverLifetime}/${route.agentId}/${route.sessionId}") { parametersOf(client, chat) }
+                                        val session = koinViewModel<SessionViewModel>(key = "live-chat/${app.serverLifetime}/${route.agentId}/${route.sessionId}") { parametersOf(chat) }
                                         Box(Modifier.width(360.dp).fillMaxHeight()) {
                                             ChatScreen(app, session, false, shell, onOpen = history::open, onSettings = inspect, onNavigate = history::open,
                                                 dock = BrowserDock(true, {

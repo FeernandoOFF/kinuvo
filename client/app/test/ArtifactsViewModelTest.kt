@@ -60,7 +60,7 @@ class ArtifactsViewModelTest {
         val store = ViewModelStore()
         try {
             client.connect(); server.open(client, "local:test"); server.config.attach(client)
-            val vm = ArtifactsViewModel(client, Route.Artifacts("a1"), server)
+            val vm = ArtifactsViewModel(Route.Artifacts("a1"), server)
             store.put("artifacts", vm)
             runCurrent()
             assertEquals(content, vm.state.value.open?.content)
