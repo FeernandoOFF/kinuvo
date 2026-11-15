@@ -77,6 +77,18 @@ fun List<HarnessPlugin>.checkPluginInstances() {
         require(manifest.plugin == it.definition) { "Manifest belongs to another plugin" }
         manifest.checkSupported()
     }
+    checkSingleton("customEndpoints") { it.customEndpoints != null }
+    checkSingleton("apps") { it.apps != null }
+    checkSingleton("mcp") { it.mcp != null }
+    checkSingleton("execCheck") { it.execCheck != null }
+    checkSingleton("browser") { it.browser != null }
+    checkSingleton("voice") { it.voice != null }
+}
+
+/** The Server uses the first plugin offering a singleton capability, so a second one would be silently ignored. */
+private fun List<HarnessPlugin>.checkSingleton(capability: String, offers: (HarnessPlugin) -> Boolean) {
+    val offering = filter(offers)
+    require(offering.size <= 1) { "Plugins ${offering.joinToString { "${it.definition.id}/${it.instanceId}" }} all offer the $capability capability; only one may" }
 }
 
 /** One run: [sessionId] is the Session it runs in; [routine] is set for a Routine's run; [taskId] for a dispatched Task. */
