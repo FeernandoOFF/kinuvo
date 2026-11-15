@@ -207,6 +207,39 @@ class DeviceToolsTest {
     }
 
     @Test
+    fun actionConnectionLeavesForegroundDeviceToolsUntouched() = runBlocking {
+        val server = HarnessServer(harness)
+        val port = server.start("127.0.0.1", 0, schedule = false)
+        val client = kinuvo.client.KinuvoClient("ws://127.0.0.1:$port/ws", "iPhone", pairingCode = server.auth.currentPairingCode(),
+            deviceTools = { device.tools }, deviceRead = { DeviceToolResult(DeviceToolStatus.Ready) })
+        var action: kinuvo.client.KinuvoClient? = null
+        try {
+            withTimeout(10_000) {
+                val connected = client.connect()
+                val temporary = kinuvo.client.KinuvoClient("ws://127.0.0.1:$port/ws", "iPhone", token = connected.token,
+                    registerDeviceTools = false, deviceRead = { error("Action connection must not read") })
+                action = temporary
+                temporary.setActive(false)
+                temporary.connect()
+                temporary.call(Api.DeviceTools, DeviceToolsParams(device.tools))
+                assertEquals(device.tools, server.auth.toolDevices().single().tools)
+                assertTrue(harness.devices.devices().single().available)
+                temporary.close()
+                client.call(Api.Presence, PresenceParams(false))
+                assertFalse(harness.devices.devices().single().available)
+                client.call(Api.Presence, PresenceParams(true))
+                assertEquals(device.tools, server.auth.toolDevices().single().tools)
+                assertTrue(harness.devices.devices().single().available)
+                val agent = harness.store.agents().single()
+                val session = harness.newSession(agent)
+                val tool = harness.devices.prepare(RunContext(agent, session.id), activate = true).tools.single { it.descriptor.name == "contacts_lookup" }
+                val result = tool.execute(buildJsonObject { put("query", "Ada") }, "call")
+                assertEquals(DeviceToolStatus.Ready, ProtocolJson.decodeFromString(DeviceToolResult.serializer(), result).status)
+            }
+        } finally { client.close(); action?.close(); server.stop() }
+    }
+
+    @Test
     fun authenticatedClientAnswersReverseRequestsAndCanDisableTools() = runBlocking {
         val server = HarnessServer(harness)
         val port = server.start("127.0.0.1", 0, schedule = false)

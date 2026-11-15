@@ -9,9 +9,11 @@ import io.ktor.http.content.OutgoingContent
 import kinuvo.protocol.push.WebPush
 import kinuvo.server.plugin.Notification
 import kinuvo.protocol.ProtocolJson
+import kinuvo.protocol.push.PushKind
 import kinuvo.protocol.push.PushMessage
 import kinuvo.protocol.push.PushSubscription
 import kinuvo.protocol.agent.AgentId
+import kinuvo.protocol.approval.InteractionId
 import kinuvo.protocol.session.SessionId
 import kotlinx.coroutines.test.runTest
 import java.security.interfaces.ECPublicKey
@@ -62,6 +64,17 @@ class DevicePushTest {
         assertEquals(listOf(false, true), auth.paired(phone).map { it.push })
         auth.setPush(phone, null)
         assertEquals(1, auth.pushSubscriptions().size)
+    }
+
+    @Test fun `clipping preserves action routing`() {
+        val bytes = Notification("Approval", "字".repeat(10_000), AgentId("agent"), SessionId("session"), true, PushKind.Approval, InteractionId("approval")).message("server")
+        assertTrue(bytes.size <= MAX_PUSH_BYTES)
+        val message = ProtocolJson.decodeFromString(PushMessage.serializer(), bytes.decodeToString())
+        assertEquals(PushKind.Approval, message.kind)
+        assertEquals(InteractionId("approval"), message.approvalId)
+        assertEquals("server", message.serverId)
+        assertEquals(AgentId("agent"), message.agentId)
+        assertEquals(SessionId("session"), message.sessionId)
     }
 
     @Test fun `long bodies are clipped to fit a push`() {

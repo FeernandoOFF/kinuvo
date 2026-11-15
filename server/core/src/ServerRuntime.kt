@@ -469,7 +469,7 @@ class ServerRuntime(
                         val token = (if (client.linked) supplied else auth.authenticate(p.device, supplied, if (connection.credential == null) p.pairingCode else null))
                             ?: raise(if (p.token != null) ConnectError.Unpaired else ConnectError.InvalidPairing)
                         client.token = token
-                        if (!client.linked) client.refreshTools(p.deviceTools, initial = true)
+                        if (!client.linked && p.registerDeviceTools) client.refreshTools(p.deviceTools, initial = true)
                         if (!client.linked && auth.management(token)) p.timeZone?.let { zone -> runCatching { harness.timeZone = TimeZone.of(zone) } }
                         ConnectResult(token, name, harness.usage.value, capabilities, !client.linked && auth.management(token), version, client.deviceId)
                     }
