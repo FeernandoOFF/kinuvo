@@ -23,7 +23,7 @@ class AgentManageServerTest {
         lateinit var agent: Agent
         TestServer.start(scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
             val session = server.startSession(agent.id)
-            val composed = server.harness.compose(agent, session.id)
+            val composed = server.harness.composer.compose(agent, session.id)
             val requests = mutableListOf<PendingInteraction.Approval>()
             val turn = ToolTurn(emit = { event ->
                 if (event is AgentEvent.InteractionRequested) {
@@ -52,7 +52,7 @@ class AgentManageServerTest {
         lateinit var agent: Agent
         TestServer.start(scenario = { agent = agent("work") { it.copy(tools = listOf("agent_manage", "memory")) } }).use { server ->
             val session = server.startSession(agent.id)
-            val composed = server.harness.compose(agent, session.id)
+            val composed = server.harness.composer.compose(agent, session.id)
             val turn = ToolTurn(emit = { event -> assertFalse(event is AgentEvent.InteractionRequested) })
             for (name in listOf("agent_update", "agent_create", "session_configure", "mcp_add", "mcp_remove")) {
                 for (field in listOf("approvals", "risk_tolerance", "tolerance", "rules", "trust", "trusted", "deny", "exec", "workspace", "cloneFrom", "agentId", "scope")) {
@@ -97,7 +97,7 @@ class AgentManageServerTest {
         }
         TestServer.start(plugins = listOf(plugin), scenario = { agent = agent("work") { it.copy(approvals = "full") } }).use { server ->
             val session = server.startSession(agent.id)
-            val composed = server.harness.compose(agent, session.id)
+            val composed = server.harness.composer.compose(agent, session.id)
             val requests = mutableListOf<PendingInteraction.Approval>()
             val turn = ToolTurn(emit = { event ->
                 val form = event.questions
@@ -134,8 +134,8 @@ class AgentManageServerTest {
             assertEquals(listOf("session_configure"), tools.map { it.descriptor.name })
             val session = server.startSession(agent.id)
             val restricted = agent.copy(config = agent.config.copy(tools = listOf("memory")))
-            assertTrue(server.harness.compose(restricted, session.id).tools.tools.none { it.name == "agent_get" })
-            assertTrue(server.harness.compose(agent, session.id, scope = ToolScope.only("agent_manage")).tools.tools.any { it.name == "agent_get" })
+            assertTrue(server.harness.composer.compose(restricted, session.id).tools.tools.none { it.name == "agent_get" })
+            assertTrue(server.harness.composer.compose(agent, session.id, scope = ToolScope.only("agent_manage")).tools.tools.any { it.name == "agent_get" })
         }
     }
 }

@@ -58,7 +58,7 @@ class RuntimeDependenciesTest {
         val agent = fixture.agent.copy(config = fixture.agent.config.copy(tools = listOf("memory", "web_fetch"), approvals = "full"))
         try {
             val session = runtime.newSession(agent)
-            runtime.runner(agent, session.id).run(session.id, "Go").toList()
+            runtime.composer.runner(agent, session.id).run(session.id, "Go").toList()
             assertEquals("- Injected memory", fixture.documents[AgentDoc.Memory]?.trim())
             assertTrue(fetched)
             assertTrue(fixture.catalogReads > 0)

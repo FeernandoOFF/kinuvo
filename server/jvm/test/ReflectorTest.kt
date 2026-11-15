@@ -98,7 +98,7 @@ class ReflectorTest {
         assertTrue(conventions !in harness.store.entries(agent.id, harness.newSession(agent).id).filterIsInstance<SessionEntry.Started>().single().instructions)
         harness.reflect(agent, SessionId("s1"), listOf(SessionEntry.UserMessage("My sister Ana is visiting")))
         assertTrue(instructionsSeen.any { it.startsWith(kinuvo.protocol.reflection.DEFAULT_REFLECTION_PROMPT) && conventions in it && "Humans are profile." !in it })
-        harness.runner(agent, session.id).run(session.id, "Hello").collect {}
+        harness.composer.runner(agent, session.id).run(session.id, "Hello").collect {}
         assertTrue(conventions !in toolDescriptions.last())
         assertTrue(harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Context>().any { conventions in it.content })
     }
@@ -135,7 +135,7 @@ class ReflectorTest {
         val agent = harness.store.agents().single()
         val reflector = Reflector(harness, CoroutineScope(Dispatchers.Default), busy = { false })
         val session = harness.newSession(agent)
-        harness.runner(agent, session.id).run(session.id, "My sister Ana is visiting").collect {}
+        harness.composer.runner(agent, session.id).run(session.id, "My sister Ana is visiting").collect {}
 
         assertEquals(0, reflector.reflect(agent, session.id))
         assertEquals(0, reflector.reflect(agent, session.id))
@@ -151,7 +151,7 @@ class ReflectorTest {
     fun persistsDraftsBeforeAdvancingReflectionProgress() = runBlocking {
         val agent = harness.store.agents().single()
         val session = harness.newSession(agent)
-        harness.runner(agent, session.id).run(session.id, "My sister Ana is visiting").collect {}
+        harness.composer.runner(agent, session.id).run(session.id, "My sister Ana is visiting").collect {}
         var delivered = false
         harness.log.subscribe(agent.id, session.id, null, 100, SessionLog.Subscriber { update ->
             val change = update.change as? kinuvo.protocol.session.SessionChange.Entry

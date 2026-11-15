@@ -58,9 +58,9 @@ class ServerServices internal constructor(
     context(_: Raise<ProviderError>)
     fun customEndpoints() = harness.customEndpoints()
 
-    suspend fun appResource(request: McpAppRequest) = harness.appResource(request)
+    suspend fun appResource(request: McpAppRequest) = harness.appCalls.appResource(request)
 
-    suspend fun appCallTool(agent: Agent, request: McpAppToolRequest) = harness.appCallTool(agent, request)
+    suspend fun appCallTool(agent: Agent, request: McpAppToolRequest) = harness.appCalls.appCallTool(agent, request)
 
     suspend fun surfaceImage(url: String): SurfaceImage = fetchSurfaceImage(url)
 }

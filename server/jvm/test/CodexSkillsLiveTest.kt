@@ -31,7 +31,7 @@ class CodexSkillsLiveTest {
         val session = harness.newSession(agent)
         val (activation, message) = harness.slashActivation(agent, "/grill-me I want to build a birdhouse")!!
 
-        val events = runBlocking { harness.runner(agent).run(session.id, message, activation).toList() }
+        val events = runBlocking { harness.composer.runner(agent).run(session.id, message, activation).toList() }
         val calls = events.filterIsInstance<AgentEvent.ToolCallStart>()
         val text = events.filterIsInstance<AgentEvent.TextMessageEnd>().joinToString { it.text }
         assertTrue(calls.any { it.toolCallName == "activate_skill" && "grilling" in it.args }, "calls: $calls")

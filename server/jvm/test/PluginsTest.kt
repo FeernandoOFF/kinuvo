@@ -77,7 +77,7 @@ class PluginsTest {
         val started = harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Started>().single()
         assertTrue("Plugin section" !in started.instructions)
 
-        val events = harness.runner(agent, session.id).run(session.id, "hi").toList()
+        val events = harness.composer.runner(agent, session.id).run(session.id, "hi").toList()
         assertTrue(harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.Context>().any { "## Fake\n\nPlugin section" in it.content })
         assertTrue(events.any { it is kinuvo.protocol.session.AgentEvent.Warning && it.message == "half up" })
         assertEquals("ping", harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.AssistantMessage>().single().text)
@@ -90,7 +90,7 @@ class PluginsTest {
     fun unknownProviderIsReported() = runBlocking {
         val harness = Harness(home = Path(temporaryDirectories.create("harness-plugins").toString()), providers = ModelProviders.of(plugin), plugins = listOf(plugin))
         val agent = harness.store.agents().single()
-        val error = runCatching { harness.runner(agent) }.exceptionOrNull()
+        val error = runCatching { harness.composer.runner(agent) }.exceptionOrNull()
         assertTrue("No model provider 'codex'" in error?.message.orEmpty())
     }
 }

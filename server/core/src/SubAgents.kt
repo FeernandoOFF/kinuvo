@@ -112,7 +112,7 @@ class SubAgents internal constructor(
         val child = SubAgentState(info.id, target, callId, goal)
         save(agentId, parentId, child)
         try {
-            harness.requireOnDevice(agent)
+            harness.composer.requireOnDevice(agent)
             dispatch.send(SendParams(target, info.id, goal))
         }
         catch (e: CancellationException) { withContext(NonCancellable) { finish(target, info.id, true) }; throw e }

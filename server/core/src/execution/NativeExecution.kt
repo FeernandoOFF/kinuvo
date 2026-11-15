@@ -74,7 +74,7 @@ class NativeExecution(
         val sessionId = p.sessionId?.also { id ->
             if (harness.store.sessions(agent.id).none { it.id == id }) raise(SessionError.NotOfAgent(id, agent.id))
         } ?: harness.newSession(agent).id
-        val effective = harness.capabilities(agent, sessionId, null, capabilities())
+        val effective = harness.composer.capabilities(agent, sessionId, null, capabilities())
         effective.chat.requireReady()
         attachments.forEach { attachment -> effective.attachment(attachment.mimeType).requireReady() }
         val (activation, message) = (if (ServerFeature.Skills in capabilities().features) harness.slashActivation(agent, p.text) else null) ?: (null to p.text)

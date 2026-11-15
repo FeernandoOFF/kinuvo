@@ -43,7 +43,7 @@ class ModelCatalogTest {
         try {
             val original = harness.store.agents().single()
             val agent = harness.store.saveConfig(original, AgentConfig(provider = "test", model = "resolved"))
-            harness.runner(agent)
+            harness.composer.runner(agent)
             assertEquals(expected.copy(tier = ModelTier.NoTools), received)
         } finally { harness.close() }
     }

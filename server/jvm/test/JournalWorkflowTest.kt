@@ -66,7 +66,7 @@ class JournalWorkflowTest {
                     DeviceToolResult(DeviceToolStatus.Ready, buildJsonObject { put("workouts", JsonArray(listOf(buildJsonObject { put("type", "Running"); put("durationMinutes", 35) }))) })
                 }
                 harness.timeZone = kotlinx.datetime.TimeZone.of("Europe/Dublin")
-                harness.runner(agent, session.id, RoutineRun(routine)).run(session.id, routine.prompt).collect { event ->
+                harness.composer.runner(agent, session.id, RoutineRun(routine)).run(session.id, routine.prompt).collect { event ->
                     event.questions?.let { harness.questions.respond(it.id, mapOf("reflection" to listOf("Rested"))) }
                     assertFalse(event is AgentEvent.RunError, event.toString())
                 }

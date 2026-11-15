@@ -30,7 +30,7 @@ class CodexExecLiveTest {
         }
         val session = harness.newSession(agent)
         val events = runBlocking {
-            harness.runner(agent).run(session.id, "Create hello.txt containing exactly 'hi from harness', then run `wc -c hello.txt` and tell me the byte count.").toList()
+            harness.composer.runner(agent).run(session.id, "Create hello.txt containing exactly 'hi from harness', then run `wc -c hello.txt` and tell me the byte count.").toList()
         }
         val tools = events.filterIsInstance<AgentEvent.ToolCallStart>().map { it.toolCallName }
         assertEquals("hi from harness", File(ws, "hello.txt").readText().trim())

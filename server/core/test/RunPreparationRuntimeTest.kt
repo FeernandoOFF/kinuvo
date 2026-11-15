@@ -62,7 +62,7 @@ class RunPreparationRuntimeTest {
             val base = agent(harness)
             val agent = base.copy(config = base.config.copy(tier = ModelTier.Micro))
             val session = harness.newSession(agent)
-            harness.runner(agent, session.id).run(session.id, "hello").toList()
+            harness.composer.runner(agent, session.id).run(session.id, "hello").toList()
             assertFalse("IDENTITY_SENTINEL" in systems)
             assertFalse("SOUL_SENTINEL" in systems)
             assertTrue("personal assistant" in systems)
@@ -100,7 +100,7 @@ class RunPreparationRuntimeTest {
                 executed = false
                 val agent = base.copy(config = base.config.copy(tier = tier, approvals = "full"))
                 val session = harness.newSession(agent)
-                val events = harness.runner(agent, session.id, scope = ToolScope.only("mcp_read")).run(session.id, "read").toList()
+                val events = harness.composer.runner(agent, session.id, scope = ToolScope.only("mcp_read")).run(session.id, "read").toList()
                 assertTrue(executed)
                 assertTrue(events.none { it is AgentEvent.RunError })
             }
@@ -138,7 +138,7 @@ class RunPreparationRuntimeTest {
             withTimeout(5_000) { client.connect() }
             assertEquals(catalogs, harness.uiCatalogs.forRun())
             val session = harness.newSession(fixture.agent)
-            harness.runner(fixture.agent, session.id).run(session.id, "Show a form").toList()
+            harness.composer.runner(fixture.agent, session.id).run(session.id, "Show a form").toList()
             assertTrue("show_ui" in offered.last())
             client.close()
             withTimeout(5_000) { serving.join() }
@@ -157,8 +157,8 @@ class RunPreparationRuntimeTest {
             val session = harness.newSession(fixture.agent)
             val context = buildJsonObject { put("name", "Alex") }
             val action = SurfaceAction(ToolCallId("call"), "plan", "save", "submit", context, context)
-            harness.runner(fixture.agent, session.id).run(session.id, "Save plan", action = action).toList()
-            harness.runner(fixture.agent, session.id).run(session.id, "Continue").toList()
+            harness.composer.runner(fixture.agent, session.id).run(session.id, "Save plan", action = action).toList()
+            harness.composer.runner(fixture.agent, session.id).run(session.id, "Continue").toList()
             assertEquals(action, harness.store.entries(fixture.agent.id, session.id).filterIsInstance<SessionEntry.UserMessage>().first().action)
             assertEquals(2, prompts.size)
             prompts.forEach {
@@ -183,17 +183,17 @@ class RunPreparationRuntimeTest {
             harness.uiCatalogs.connect("app", catalogs)
             harness.uiCatalogs.connect("cli", emptyList())
             suspend fun run(connection: String?) {
-                harness.runner(fixture.agent, session.id, catalogs = harness.uiCatalogs.forRun(connection))
+                harness.composer.runner(fixture.agent, session.id, catalogs = harness.uiCatalogs.forRun(connection))
                     .run(session.id, "Show a form").toList()
             }
             run("app")
             assertTrue("show_ui" in offered.last())
             run("cli")
             assertFalse("show_ui" in offered.last())
-            harness.runner(fixture.agent, session.id).run(session.id, "Unattached run").toList()
+            harness.composer.runner(fixture.agent, session.id).run(session.id, "Unattached run").toList()
             assertTrue("show_ui" in offered.last())
             harness.uiCatalogs.disconnect("app")
-            harness.runner(fixture.agent, session.id).run(session.id, "Unattached run after disconnect").toList()
+            harness.composer.runner(fixture.agent, session.id).run(session.id, "Unattached run after disconnect").toList()
             assertFalse("show_ui" in offered.last())
         } finally { harness.close() }
     }
@@ -215,7 +215,7 @@ class RunPreparationRuntimeTest {
                 val session = harness.newSession(agent)
                 harness.configure(agent, session.id, SessionSettings(approvals = tolerance))
                 val requests = mutableListOf<PendingInteraction.Approval>()
-                harness.runner(agent, session.id).run(session.id, "schedule").collect { event ->
+                harness.composer.runner(agent, session.id).run(session.id, "schedule").collect { event ->
                     event.approval?.let { approval ->
                         requests += approval
                         assertTrue(harness.approvals.respond(approval.id, decision))
@@ -277,7 +277,7 @@ class RunPreparationRuntimeTest {
             assertEquals(2, catalog.map { it.id }.distinct().size)
             assertEquals(Authorization.Denied, catalog.single { it.identity == first }.state.authorization)
             val session = harness.newSession(agent)
-            harness.runner(agent, session.id).run(session.id, "ping").toList()
+            harness.composer.runner(agent, session.id).run(session.id, "ping").toList()
             assertEquals(listOf("second"), executed)
             val results = harness.store.entries(agent.id, session.id).filterIsInstance<SessionEntry.ToolResult>()
             assertEquals(setOf(first, second), results.map { it.identity }.toSet())
@@ -287,13 +287,13 @@ class RunPreparationRuntimeTest {
             assertEquals(Support.Unsupported, limitedCatalog.single { it.identity == first }.state.support)
             assertEquals(Support.Supported, limitedCatalog.single { it.identity == second }.state.support)
             val limitedSession = harness.newSession(limited)
-            harness.runner(limited, limitedSession.id).run(limitedSession.id, "ping").toList()
+            harness.composer.runner(limited, limitedSession.id).run(limitedSession.id, "ping").toList()
             assertEquals(listOf(catalog.single { it.identity == second }.id), offered.last())
             assertEquals(listOf("second", "second"), executed)
             fixture.rules = TrustRules(deny = DenyRules(tools = listOf("ping")))
             assertTrue(inspect(harness, agent).tools.all { it.state.authorization == Authorization.Denied })
             val deniedSession = harness.newSession(agent)
-            harness.runner(agent, deniedSession.id).run(deniedSession.id, "ping").toList()
+            harness.composer.runner(agent, deniedSession.id).run(deniedSession.id, "ping").toList()
             assertEquals(listOf("second", "second"), executed)
             assertTrue(harness.store.entries(agent.id, deniedSession.id).filterIsInstance<SessionEntry.ToolResult>().all { it.isError })
         } finally { harness.close() }
@@ -312,7 +312,7 @@ class RunPreparationRuntimeTest {
         try {
             val agent = agent(harness)
             assertEquals("Duplicate tool names", assertFailsWith<IllegalArgumentException> { inspect(harness, agent) }.message)
-            assertFailsWith<IllegalArgumentException> { harness.runner(agent) }
+            assertFailsWith<IllegalArgumentException> { harness.composer.runner(agent) }
             assertEquals(0, modelsBuilt)
         } finally { harness.close() }
     }
@@ -333,7 +333,7 @@ class RunPreparationRuntimeTest {
             try {
                 val agent = agent(harness, listOf(ToolNames.SKILLS))
                 val session = harness.newSession(agent)
-                harness.runner(agent, session.id).run(session.id, "hi").toList()
+                harness.composer.runner(agent, session.id).run(session.id, "hi").toList()
                 assertEquals(!strip, "Current Skills:" in systems.last())
             } finally { harness.close() }
         }
@@ -345,7 +345,7 @@ class RunPreparationRuntimeTest {
             val base = agent(harness, listOf(ToolNames.MEMORY, ToolNames.SCHEDULE, ToolNames.ASK_USER))
             suspend fun offered(agent: Agent, scope: ToolScope = ToolScope.All): List<String> {
                 val session = harness.newSession(agent)
-                harness.runner(agent, session.id, scope = scope).run(session.id, "Remember that I like tea").toList()
+                harness.composer.runner(agent, session.id, scope = scope).run(session.id, "Remember that I like tea").toList()
                 return seen.last().sorted()
             }
             assertEquals(listOf("ask_user", "memory", "schedule"), offered(base))
@@ -372,7 +372,7 @@ class RunPreparationRuntimeTest {
             for (tier in listOf(ModelTier.Micro, ModelTier.Small, ModelTier.Frontier)) {
                 val agent = base.copy(config = base.config.copy(tier = tier))
                 val session = harness.newSession(agent)
-                harness.runner(agent, session.id).run(session.id, "hi").toList()
+                harness.composer.runner(agent, session.id).run(session.id, "hi").toList()
             }
             assertTrue("Kinuvo capabilities for this run" !in systems[0] && "Kinuvo capabilities for this run" !in systems[1])
             assertTrue("Kinuvo capabilities for this run" in systems[2])
@@ -404,7 +404,7 @@ class RunPreparationRuntimeTest {
         it.copy(config = it.config.copy(provider = "test", model = "tools", tools = tools))
     }
     private suspend fun inspect(harness: HarnessRuntime, agent: Agent, session: String? = null, settings: SessionSettings? = null) =
-        harness.capabilities(agent, session?.let(::SessionId), settings, ServerCapabilities(harness.serverId, harness.features))
+        harness.composer.capabilities(agent, session?.let(::SessionId), settings, ServerCapabilities(harness.serverId, harness.features))
 
     @Test
     fun sessionSettingsAndFullDescriptorsDetermineEligibilityInBothPaths() = runBlocking {
@@ -429,7 +429,7 @@ class RunPreparationRuntimeTest {
                 harness.configure(agent, session.id, SessionSettings(model = model, approvals = "strict"))
                 val capability = inspect(harness, agent, session.id.value).tools.single()
                 assertEquals(if (model == "text") Support.Unsupported else if (model == "custom") Support.Unknown else Support.Supported, capability.state.support)
-                harness.runner(agent, session.id).run(session.id, "hi").toList()
+                harness.composer.runner(agent, session.id).run(session.id, "hi").toList()
                 assertEquals(if (model == "text") emptyList() else listOf(capability.id), seen.last())
             }
             assertEquals(listOf(false, true, false, true, false, true, false, true), modes)
@@ -453,7 +453,7 @@ class RunPreparationRuntimeTest {
         try {
             val agent = agent(harness)
             assertEquals(Availability.Unavailable, inspect(harness, agent).chat.availability)
-            assertFailsWith<IllegalStateException> { harness.runner(agent) }
+            assertFailsWith<IllegalStateException> { harness.composer.runner(agent) }
             assertFalse(activated)
             assertEquals(0, modelsBuilt)
         } finally { harness.close() }
@@ -469,7 +469,7 @@ class RunPreparationRuntimeTest {
             val offered = inspect(harness, agent, session.id.value).tools.mapNotNull { it.identity?.localId }.toSet()
             assertTrue("memory" in offered && "knowledge" in offered && "tasks" in offered)
             assertTrue(offered.none { it in setOf("activate_skill", "artifact", "schedule") })
-            harness.runner(agent, session.id).run(session.id, "hi").toList()
+            harness.composer.runner(agent, session.id).run(session.id, "hi").toList()
             assertTrue("memory" in seen.last())
             assertFalse("schedule" in seen.last())
         } finally { harness.close() }
@@ -493,7 +493,7 @@ class RunPreparationRuntimeTest {
             val updated = original.copy(config = original.config.copy(reasoning = "high"))
             val fresh = harness.newSession(updated)
             for (session in listOf(inherited, fresh, explicit)) {
-                harness.runner(updated, session.id).run(session.id, "hi").toList()
+                harness.composer.runner(updated, session.id).run(session.id, "hi").toList()
             }
             assertEquals(listOf("high", "high", "low"), efforts)
         } finally { harness.close() }

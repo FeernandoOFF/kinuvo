@@ -52,7 +52,7 @@ class McpLiveTest {
         val session = harness.newSession(agent)
         runBlocking {
             try {
-                val events = harness.runner(agent).run(session.id, "Use the echo tool to echo 'pineapple-42', then tell me what it returned.").toList()
+                val events = harness.composer.runner(agent).run(session.id, "Use the echo tool to echo 'pineapple-42', then tell me what it returned.").toList()
                 val calls = events.filterIsInstance<AgentEvent.ToolCallStart>()
                 assertTrue(calls.any { it.toolCallName == "everything__echo" }, "calls: $calls, events: $events")
                 assertTrue(events.filterIsInstance<AgentEvent.TextMessageEnd>().any { "pineapple-42" in it.text })

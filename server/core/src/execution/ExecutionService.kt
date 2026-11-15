@@ -155,7 +155,7 @@ class ExecutionService internal constructor(
     context(_: Raise<AgentError>)
     suspend fun sessionCapabilities(p: CapabilitiesParams): SessionCapabilities {
         val registration = external.registrationOrArchived(p.agentId)
-        return if (registration == null) harness.capabilities(admin.agent(p.agentId), p.sessionId, p.settings, capabilities(), sequence())
+        return if (registration == null) harness.composer.capabilities(admin.agent(p.agentId), p.sessionId, p.settings, capabilities(), sequence())
         else external.capabilities(p.agentId, p.sessionId, externalInfo(registration).readiness, capabilities(), sequence())
     }
 
