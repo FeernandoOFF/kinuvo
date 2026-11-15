@@ -1253,7 +1253,7 @@ I checked your knowledge base just now and didn't find a profile note for you.
         render("settings-tasks-narrow", 390, 1000) { HarnessTheme(dark = true) { SettingsContent(tasksSettings, SettingsActions(onBack = {})) } }
         val deniedTasks = tasksSettings.copy(state = tasksSettings.state.copy(
             providerLists = emptyMap(),
-            errors = listOf("Reminders access is denied for T3 Code (Nightly). Authorizing remindctl in another terminal does not grant this Server access. Enable T3 Code (Nightly) in System Settings → Privacy & Security → Reminders, then click Request access / Retry. If the app isn’t listed, launch the Server from the terminal where remindctl is already authorized."),
+            errors = listOf("Reminders access is denied. Enable Kinuvo in System Settings → Privacy & Security → Reminders, then try again."),
         ))
         render("settings-tasks-denied", 900, 1100) { HarnessTheme(dark = true) { SettingsContent(deniedTasks, SettingsActions()) } }
         val todoist = SettingsProvider("todoist", "Todoist", SettingsSchema(listOf(

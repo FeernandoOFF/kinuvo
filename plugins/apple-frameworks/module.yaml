@@ -1,19 +1,16 @@
-# Apple Reminders task provider for macOS hosts, backed by remindctl.
-product: jvm/lib
+# Apple Reminders and Calendar (EventKit) as a Task provider and Agent tools on macOS and iPhone Servers; the Swift core is in native/.
+product:
+  type: kmp/lib
+  platforms: [jvm, iosArm64, iosSimulatorArm64]
 
 dependencies:
   - ../../server/plugin-api: exported
 
 test-dependencies:
-  - ../../testing/harness-testing
   - $kotlin.test
   - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
 
 settings:
-  jvm:
-    test:
-      systemProperties:
-        java.io.tmpdir: ../../build
   kotlin:
     compileIncrementally: true
     serialization: json

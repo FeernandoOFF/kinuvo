@@ -20,7 +20,7 @@ The Scheduler runs inside the Server. Nothing fires while it is stopped. At star
 
 ## Tasks and the Board
 
-A Task is something you want done, held by a task provider: the local provider, Apple Reminders, Todoist or a CalDAV server (Nextcloud, Fastmail, Radicale and similar). Pick it and enter its settings in **Settings → Tasks**. The **Board** shows status, assigned Agent and run Sessions.
+A Task is something you want done, held by a task provider: the local provider, Apple Reminders (on a Server in the Mac desktop app or the iPhone app), Todoist or a CalDAV server (Nextcloud, Fastmail, Radicale and similar). Pick it and enter its settings in **Settings → Tasks**. The **Board** shows status, assigned Agent and run Sessions.
 
 An Agent assignment on the Board takes priority, then an `@agent` mention in the Task title or notes, then the list's configured Agent. Assigned open Tasks become ready when undated or within `tasks.startBeforeDays` of their due date. A finished run left in progress changes to waiting for you.
 

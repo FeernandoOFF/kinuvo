@@ -31,7 +31,7 @@ Local inference can process model requests on a supported Device. Android local-
 
 The configured AI provider may be OpenAI/ChatGPT or a compatible endpoint you choose; its policies govern its processing and retention. Connected services can include MCP servers, Firecrawl, Anytype, Todoist, CalDAV task services and ntfy, depending on the Server's capabilities. This is not an exhaustive list of endpoints you can configure. Review a service before connecting it and avoid sending information you do not want it to receive.
 
-Task integrations can read and change task lists, titles, descriptions, due dates and completion status in the selected service. The built-in CalDAV integration uses task records (VTODO), rather than a general calendar-event reader. Tool results can enter Session records and model requests.
+Task integrations can read and change task lists, titles, descriptions, due dates and completion status in the selected service. The built-in CalDAV integration uses task records (VTODO), rather than a general calendar-event reader. On a Mac or iPhone Server, Apple Reminders and Calendar are read through Apple's own frameworks after you allow access; an Agent can use them only when you turn on its Reminders or Calendar tools, and changes and deletions follow its Approval settings. Tool results can enter Session records and model requests.
 
 If you configure ntfy, notification titles and bodies are sent to the selected ntfy server and topic. The default service URL is ntfy.sh. A public, unprotected topic can be read by someone who knows its name; use a protected service/topic where appropriate.
 
