@@ -126,7 +126,7 @@ class ServerRuntime(
         NativeExecution(harness, runs, scope, { admin.agent(it) }, { capabilities }, reflector::ran) { sessionId, text ->
             clients.block { it.toList() }.filter { it.voiceSessionId == sessionId }.forEach { it.liveVoice?.notify(text) }
         }, executionManagement)
-    private val subAgents = SubAgents(harness, dispatch, scope, runs::join).also { harness.subAgents = it; dispatch.subAgents = it; runs.onBegin = { _, id -> it.begin(id) }; runs.onFinish = it::finish; runs.onCancel = it::cancelChildren }
+    private val subAgents = SubAgents(harness, dispatch, scope, runs::join).also { harness.subAgents = it; dispatch.subAgents = it; runs.onBegin = { _, id -> it.begin(id) }; runs.onFinish(it::finish); runs.onCancel = it::cancelChildren }
     private val dispatcher = TaskDispatcher(harness, runs, scope)
     private val seq = AtomicLong(0)
     private val sessions = SessionService(harness, admin)
@@ -138,7 +138,7 @@ class ServerRuntime(
         broadcast(Api.AgentsChanged, agents)
         changedCapabilities()
     }
-    private val teams = Teams(harness, dispatch, scope, runs::join, execution::agents) { broadcast(Api.TeamChanged, it) }.also { teams -> harness.teams = teams; runs.onFinish = { agent, session, cancelled -> subAgents.finish(agent, session, cancelled); teams.finished(session, cancelled) } }
+    private val teams = Teams(harness, dispatch, scope, runs::join, execution::agents) { broadcast(Api.TeamChanged, it) }.also { teams -> harness.teams = teams; runs.onFinish { _, session, cancelled -> teams.finished(session, cancelled) } }
     private val services = ServerServices(harness, auth, admin, execution, dispatch, sessions, teams, routines, workflows, browserAccess, voice, reflectionReview, logins, notifications, harness.log, harness.knowledge, harness.tasks, harness.artifacts, harness.mcp, harness.secrets, harness.computers, harness, prepareAttachment, ::changedCapabilities)
     private var scheduling = false
     private var started = false
