@@ -281,6 +281,22 @@ internal fun connectionNotice(connection: ConnectionState, syncedAt: Long?): Pai
     return shown.takeIf { down }
 }
 
+/** The connection's state as a strip across the top of every screen, like a call: reconnecting, offline, then briefly connected again. */
+@Composable
+fun ConnectionStrip(connection: ConnectionState, syncedAt: Long?) {
+    val (tone, text) = connectionNotice(connection, syncedAt) ?: return
+    val tint = tone.color()
+    // Below a call, which is the more urgent thing to get back to.
+    Strip("connection", tint, priority = 50) {
+        when (tone) {
+            Tone.Success -> Icon(Lucide.Wifi, Modifier.size(16.dp), tint = tint)
+            Tone.Danger -> Icon(Lucide.WifiOff, Modifier.size(16.dp), tint = tint)
+            else -> Spinner(size = 14.dp, tint = tint)
+        }
+        Text(text, Modifier.weight(1f), style = TextStyles.label, color = color(onBackgroundColor), singleLine = true, overflow = TextOverflow.Ellipsis)
+    }
+}
+
 private const val ReconnectingAfter = 3_000L
 private const val OfflineAfter = 8_000L
 
