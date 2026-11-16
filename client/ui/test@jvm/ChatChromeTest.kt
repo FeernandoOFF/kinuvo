@@ -1,5 +1,7 @@
 package kinuvo.ui
 
+import kinuvo.ui.session.ConnectionStrip
+import androidx.compose.foundation.layout.Column
 import kinuvo.ui.navigation.*
 import com.composables.ui.theme.LocalInteractionMode
 import com.composables.ui.theme.InteractionMode
@@ -174,27 +176,32 @@ class ChatChromeTest {
         }
     }
 
-    @Test fun connectionSnackbarDoesNotMoveMessagesAndClearsAfterRecovery() = javax.swing.SwingUtilities.invokeAndWait {
+    @Test fun connectionStripShowsReconnectingOfflineThenClearsAfterRecovery() = javax.swing.SwingUtilities.invokeAndWait {
         runTest {
             val connection = mutableStateOf<ConnectionState>(ConnectionState.Connected("Test"))
             ImageComposeScene(390, 844, Density(1f), coroutineContext = UnconfinedTestDispatcher(testScheduler), content = {
                 KinuvoTheme(dark = false) {
-                    ChatContent(ChatState(loaded = true, items = listOf(ChatItem.User("u1", "Hello"))),
-                        connection.value, null, ChatActions())
+                    val strips = remember { kinuvo.ui.design.Strips() }
+                    CompositionLocalProvider(kinuvo.ui.design.LocalStrips provides strips) {
+                        Column(Modifier.fillMaxSize()) {
+                            kinuvo.ui.design.StripHost(strips)
+                            Box(Modifier.weight(1f)) { ChatContent(ChatState(loaded = true, items = listOf(ChatItem.User("u1", "Hello"))), connection.value, null, ChatActions()) }
+                        }
+                        ConnectionStrip(connection.value, null)
+                    }
                 }
             }).use { scene ->
                 fun frame() { repeat(5) { scene.render(testScheduler.currentTime * 1_000_000); testScheduler.advanceTimeBy(100) } }
                 frame()
-                val message = scene.node("Hello")!!.boundsInRoot
                 connection.value = ConnectionState.Disconnected("Connection lost")
                 frame()
                 assertNull(scene.node("Reconnecting…"))
                 testScheduler.advanceTimeBy(3_000); frame()
                 assertNotNull(scene.node("Reconnecting…"))
-                assertEquals(message, scene.node("Hello")!!.boundsInRoot)
                 testScheduler.advanceTimeBy(5_000); frame()
                 assertNotNull(scene.node("Offline · Connection lost. Retrying…"))
-                assertEquals(message, scene.node("Hello")!!.boundsInRoot)
+                // Above the screen, not by the input.
+                assertTrue(scene.node("Offline · Connection lost. Retrying…")!!.boundsInRoot.bottom < scene.node("Hello")!!.boundsInRoot.top)
                 scene.screenshot("chat-offline-snackbar", testScheduler.currentTime * 1_000_000)
                 connection.value = ConnectionState.Connected("Test")
                 frame()
@@ -210,8 +217,15 @@ class ChatChromeTest {
             val reason = "This Server is too old for this app. Update the Server."
             ImageComposeScene(390, 844, Density(1f), coroutineContext = UnconfinedTestDispatcher(testScheduler), content = {
                 KinuvoTheme(dark = false) {
-                    ChatContent(ChatState(loaded = true, items = listOf(ChatItem.User("u1", "Hello"))),
-                        ConnectionState.Disconnected(reason, incompatible = true), null, ChatActions())
+                    val strips = remember { kinuvo.ui.design.Strips() }
+                    CompositionLocalProvider(kinuvo.ui.design.LocalStrips provides strips) {
+                        Column(Modifier.fillMaxSize()) {
+                            kinuvo.ui.design.StripHost(strips)
+                            ChatContent(ChatState(loaded = true, items = listOf(ChatItem.User("u1", "Hello"))),
+                                ConnectionState.Disconnected(reason, incompatible = true), null, ChatActions())
+                        }
+                        ConnectionStrip(ConnectionState.Disconnected(reason, incompatible = true), null)
+                    }
                 }
             }).use { scene ->
                 repeat(5) { scene.render(testScheduler.currentTime * 1_000_000); testScheduler.advanceTimeBy(100) }
@@ -448,6 +462,26 @@ class ChatChromeTest {
             assertEquals(listOf("Use the new API instead"), steered)
             scene.click("Cancel")
             assertEquals(listOf("q1"), cancelled)
+        }
+    }
+
+    @Test fun aFinishedReplyCanBeReadAloudAndStopped() = javax.swing.SwingUtilities.invokeAndWait {
+        var read: Pair<String, String>? = null
+        var stopped = false
+        val reading = mutableStateOf<String?>(null)
+        ImageComposeScene(900, 700, Density(1f), coroutineContext = Dispatchers.Main, content = {
+            KinuvoTheme(dark = false) {
+                ChatContent(ChatState(loaded = true, readingAloud = reading.value, items = listOf(ChatItem.User("u", "Hi"), ChatItem.Assistant("m", "**Hello** there"))),
+                    ConnectionState.Connected("Test"), null, ChatActions(onReadAloud = { id, text -> read = id to text }, onStopReading = { stopped = true }), wide = true)
+            }
+        }).use { scene ->
+            repeat(5) { scene.render(it * 200_000_000L) }
+            scene.click("Read aloud")
+            assertEquals("m" to "**Hello** there", read)
+            reading.value = "m"
+            repeat(3) { scene.render((5 + it) * 200_000_000L) }
+            scene.click("Stop reading")
+            assertTrue(stopped)
         }
     }
 

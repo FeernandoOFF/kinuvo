@@ -551,6 +551,10 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 StripHost(strips)
                 popovers.Host()
                 LiveCallHost(appState.agents)
+                (connection as? Connection.Ready)?.client?.let { client ->
+                    val linked by client.state.collectAsState()
+                    ConnectionStrip(linked, appState.syncedAt)
+                }
             }
             appState.notice?.let { notice ->
                 Row(Modifier.align(Alignment.BottomCenter).padding(Spacing.space16), verticalAlignment = Alignment.CenterVertically) {

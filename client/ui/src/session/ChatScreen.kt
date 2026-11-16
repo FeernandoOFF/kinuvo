@@ -139,6 +139,7 @@ fun ChatScreen(
         queued = current.queued,
         canQueue = current.canQueue,
         canSteer = current.canSteer,
+        readingAloud = current.readingAloud,
         completions = if (agent?.external != true && current.capabilities?.server.supports(ServerFeature.Skills)) listOf(CompletionSource('/', current.skills.filter { it.active && it.userInvocable }.map { Completion(it.name, it.description) }, startOnly = true)) else emptyList(),
         settings = current.settings,
         defaults = current.defaults,
@@ -174,6 +175,8 @@ fun ChatScreen(
                 onQueue = { session.send(it, delivery = SendDelivery.Queue) },
                 onSteer = { session.send(it, delivery = SendDelivery.Steer) },
                 onCancelQueued = session::cancelQueued,
+                onReadAloud = session::readAloud,
+                onStopReading = session::stopReading,
                 onSurfaceAction = { text, action -> session.send(text, action = action) },
                 onAppResource = session::appResource,
                 onAppTool = session::appCallTool,
@@ -205,7 +208,7 @@ fun ChatScreen(
                 onSettings = { route.agentId?.let(onSettings) },
                 onRename = session::rename,
                 onFavorite = session::favorite,
-                onVoice = voice?.let { v -> { dictation?.stop(); v.start() } },
+                onVoice = voice?.let { v -> { dictation?.stop(); session.stopReading(); v.start() } },
                 onPauseVoice = { if (it) voice?.pause() else voice?.resume() },
                 onHoldVoice = { if (it) voice?.hold() else voice?.letGo() },
                 onSpeaker = { voice?.speaker(it) },
@@ -233,6 +236,8 @@ class ChatActions(
     val onQueue: (String) -> Unit = {},
     val onSteer: (String) -> Unit = {},
     val onCancelQueued: (String) -> Unit = {},
+    val onReadAloud: (String, String) -> Unit = { _, _ -> },
+    val onStopReading: () -> Unit = {},
     val onNew: () -> Unit = {},
     val onSelect: (String) -> Unit = {},
     val onSend: (String) -> Unit = {},
@@ -324,7 +329,6 @@ fun ChatContent(
     val requestInputs = remember { RequestInputs() }
     LaunchedEffect(state.requests.firstOrNull()?.id) { completing = false }
     val scope = rememberCoroutineScope()
-    val connectionNotice = connectionNotice(connection, syncedAt)
     LaunchedEffect(Unit) { if (compose) composerFocus.requestFocus() }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
@@ -428,12 +432,8 @@ fun ChatContent(
                     val attachments: @Composable () -> Unit = { if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.space6), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                         state.attachments.forEach { a -> key(a.id) { AttachmentChip(a.attachment, a.upload.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onRemove = if (state.running) null else ({ actions.onRemoveAttachment(a.id) })) } }
                     } }
-                    val requestNotice: (@Composable () -> Unit)? = if (connectionNotice != null || state.dictation?.error != null) ({
-                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
-                            state.dictation?.error?.let { Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
-                            connectionNotice?.let { (tone, text) -> Text(text, style = TextStyles.secondary, color = tone.color()) }
-                        }
-                    }) else null
+                    // The connection shows in the app's strip; only dictation trouble stays by the input.
+                    val requestNotice: (@Composable () -> Unit)? = state.dictation?.error?.let { error -> { Text(error, style = TextStyles.secondary, color = color(destructiveColor)) } }
                     AnimatedContent(voice != null, contentAlignment = Alignment.BottomCenter, transitionSpec = {
                         (fadeIn(tween(Motion.reveal, delayMillis = Motion.revealDelay)) + slideInVertically(Motion.cardSpring()) { it / 3 } +
                             scaleIn(Motion.cardSpring(), initialScale = 0.94f))
@@ -479,9 +479,8 @@ fun ChatContent(
                             containerColor = color(fieldColor).copy(alpha = 0.7f),
                             backdrop = if (composerBlurred) Modifier.hazeBlur(HazeInput.Sources(haze), blur) else Modifier,
                             onVoice = actions.onVoice?.let { start -> { follow.value = true; start() } },
-                            notice = if ((state.external && (state.prompts.isNotEmpty() || (state.chatBlocked != null && state.ended == null))) || connectionNotice != null || state.dictation?.error != null) ({
+                            notice = if ((state.external && (state.prompts.isNotEmpty() || (state.chatBlocked != null && state.ended == null))) || state.dictation?.error != null) ({
                                 state.dictation?.error?.let { Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
-                                connectionNotice?.let { (tone, text) -> Text(text, style = TextStyles.secondary, color = tone.color()) }
                                 if (state.external) ExternalPrompts(state, actions)
                             }) else null,
                             onDictate = actions.onDictate,
