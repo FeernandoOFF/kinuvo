@@ -49,6 +49,7 @@ import kinuvo.protocol.approval.ApprovalDecision
 import kinuvo.protocol.approval.Question
 import kinuvo.protocol.approval.Risk
 import kinuvo.ui.design.*
+import com.composeunstyled.theme.Theme
 
 private val ComposerShape = RoundedCornerShape(Radius.composer)
 private const val ArgumentLines = 8
@@ -282,7 +283,8 @@ private fun ApprovalBody(event: PendingInteraction.Approval, input: RequestInput
         }
         // Writing a note means denying, so Deny takes the emphasis then.
         val denyButton: @Composable (Modifier) -> Unit = { m ->
-            if (input.noting) DangerButton("Deny", deny, m)
+            // Same shape either way; filled red once a note makes it the answer.
+            if (input.noting) Button(onClick = deny, modifier = m.clip(Theme[shapes][buttonShape]).background(color(destructiveColor)), style = ButtonStyle.Ghost, contentColor = color(backgroundColor)) { Text("Deny") }
             else Button(onClick = deny, modifier = m, style = ButtonStyle.Outlined, contentColor = color(destructiveColor)) { Text("Deny") }
         }
         if (wide) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {

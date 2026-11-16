@@ -361,7 +361,7 @@ private const val CaptionsKey = "live.captions"
 
 /**
  * An Approval the Agent needs while the call goes on: a sheet over the call naming what the tool will touch, with the
- * raw arguments and "Allow for this Session" behind Show details. Approving by voice is deliberately not offered.
+ * raw arguments and "Always allow" behind Show details. Approving by voice is deliberately not offered.
  */
 @Composable
 fun CallApprovalSheet(agentName: String, event: PendingInteraction.Approval, onDecision: (ApprovalDecision) -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
@@ -374,15 +374,15 @@ fun CallApprovalSheet(agentName: String, event: PendingInteraction.Approval, onD
         command ?: event.reason ?: event.trustHint, mono = command != null,
         buttons = listOfNotNull(
             SheetChoice("Allow once", filled = true) { onDecision(ApprovalDecision.AllowOnce) },
-            // Permanent trust never looks like the one-off answer.
-            if (event.trustable) SheetChoice("Always allow", filled = false) { onDecision(ApprovalDecision.AlwaysAllow) } else null,
+            // The safer standing answer leads; permanent trust waits under Show details.
+            if (event.trustable) SheetChoice("Allow for this Session", filled = false) { onDecision(ApprovalDecision.AllowForSession) } else null,
             SheetChoice("Deny", filled = false) { onDecision(ApprovalDecision.Deny()) },
         ),
         onEnd, modifier,
     ) {
         Text(prettyJson(event.args), Modifier.fillMaxWidth().heightIn(max = 160.dp).clip(RoundedCornerShape(Radius.menu)).background(color(codeColor)).verticalScroll(rememberScrollState()).padding(Spacing.space12),
             style = MonoStyle, color = color(onCodeColor), overflow = TextOverflow.Ellipsis)
-        Button(onClick = { onDecision(ApprovalDecision.AllowForSession) }, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Ghost, shape = PillShape) { Text("Allow for this Session") }
+        if (event.trustable) Button(onClick = { onDecision(ApprovalDecision.AlwaysAllow) }, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Ghost, shape = PillShape) { Text("Always allow") }
     }
 }
 
@@ -390,7 +390,7 @@ fun CallApprovalSheet(agentName: String, event: PendingInteraction.Approval, onD
 @Composable
 fun CallExternalApprovalSheet(agentName: String, prompt: PendingInteraction.HarnessApproval, onOption: (String) -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
     val choices = prompt.options.sortedBy { approvalOptionStyle(it.kind) == ApprovalOptionStyle.Destructive }
-        .map { o -> SheetChoice(o.label, filled = approvalOptionStyle(o.kind) != ApprovalOptionStyle.Destructive) { onOption(o.id) } }
+        .map { o -> SheetChoice(o.label, filled = approvalOptionStyle(o.kind) == ApprovalOptionStyle.Primary) { onOption(o.id) } }
     CallRequestSheet(prompt.id, if (prompt.site != null) Lucide.ExternalLink else Lucide.ShieldAlert, color(warningColor), "$agentName wants to: ${prompt.title}",
         prompt.origin, mono = false, buttons = choices, onEnd = onEnd, modifier = modifier,
         details = prompt.description?.let { { Text(it, style = TextStyles.secondary, color = color(mutedColor)) } })
