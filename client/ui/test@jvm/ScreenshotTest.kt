@@ -1,5 +1,8 @@
 package kinuvo.ui
 
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Workflow
+
 import kinuvo.client.ManagementAccessMessage
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
@@ -794,6 +797,12 @@ class ScreenshotTest {
         render("nav-desktop-tools-rules", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Hub)) { SettingsContent(tools(RulesItem), SettingsActions()) } }
         render("nav-desktop-routines", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Routines)) {
             CompositionLocalProvider(kinuvo.ui.workflow.LocalWorkflows provides flows) { SettingsContent(routines("journal"), SettingsActions()) }
+        } }
+        val stubbed = kinuvo.ui.workflow.WorkflowsSection(flows.workflows, {}, null, detail = { _, back, _ -> Column { PageHeader(Lucide.Workflow, "Weekly release", "Manual · 2 steps", back = back) } })
+        render("nav-desktop-routines-mid", 1000, 700) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Routines)) {
+            CompositionLocalProvider(kinuvo.ui.workflow.LocalWorkflows provides stubbed) {
+                SettingsContent(SettingsUi(SettingsState(Route.Settings(AgentId("echo"), SettingsSection.Routines, kinuvo.ui.workflow.workflowItem(kinuvo.protocol.workflow.WorkflowId("w1"))), AgentConfig(details), routines = echoRoutines), owners, at, capabilities = capabilities), SettingsActions())
+            }
         } }
         render("nav-desktop-routines-xl", 2400, 900) {
             CompositionLocalProvider(kinuvo.ui.design.LocalWindowChrome provides kinuvo.ui.design.WindowChrome(40.dp, 76.dp, 0.dp).trailingOnly) {

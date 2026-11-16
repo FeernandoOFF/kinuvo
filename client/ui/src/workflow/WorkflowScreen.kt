@@ -77,9 +77,8 @@ val LocalWorkflows = compositionLocalOf<WorkflowsSection?> { null }
 fun WorkflowsScreen(workflows: List<Workflow>, agents: List<AgentInfo>, onOpen: (WorkflowId) -> Unit, onNew: () -> Unit, onBack: (() -> Unit)? = null) {
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
         PageHeader(Lucide.Workflow, "Workflows", actions = listOfNotNull(
-            onBack?.let { PageAction(Lucide.ArrowLeft, "Back", it) },
             PageAction(Lucide.Plus, "New Workflow", onNew),
-        ))
+        ), back = onBack)
         if (workflows.isEmpty()) {
             EmptyState(Lucide.Workflow, "No Workflows yet", "Chain Agent turns and Approvals into a graph the Server runs for you, on demand or on a schedule.", Modifier.fillMaxSize()) {
                 Button(onClick = onNew, style = ButtonStyle.Primary, enabled = agents.isNotEmpty()) { Text("New Workflow") }
@@ -114,11 +113,10 @@ fun WorkflowScreen(model: WorkflowViewModel, agents: List<AgentInfo>, onOpenSess
     val dirty = state.dirty
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
         PageHeader(Lucide.Workflow, workflow?.name ?: "Workflow", run?.let { "Last run: ${it.status.label}" } ?: workflow?.let(::summary), actions = listOfNotNull(
-            onBack?.let { PageAction(Lucide.ArrowLeft, "Back", it) },
             if (running) PageAction(Lucide.Square, "Stop run", model::cancel)
             else PageAction(Lucide.Play, "Run now") { if (!dirty) model.run() }.takeIf { !dirty && saved != null },
             PageAction(Lucide.Trash2, "Delete Workflow") { confirmDelete = true }.takeIf { saved != null && !running },
-        ))
+        ), back = onBack)
         if (workflow == null) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { state.error?.let { ErrorMessage(it) } ?: Spinner() }
             return@Column

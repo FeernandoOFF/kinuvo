@@ -430,7 +430,8 @@ private fun SectionPane(
             else NothingSelected("Select ${section.noun()}")
         }
     } else if (!open) list(Pane(ui, actions, go, rootBack))
-    else detail(Pane(ui, actions, go, up))
+    // In place of the list, a detail always has a way back to it, pointer or touch.
+    else detail(Pane(ui, actions, go, up ?: { go(route.copy(item = null, editing = false)) }))
 }
 
 private fun SettingsSection.noun() = when (this) {
