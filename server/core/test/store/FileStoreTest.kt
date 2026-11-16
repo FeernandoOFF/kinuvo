@@ -10,11 +10,14 @@ import kinuvo.protocol.session.SessionEntry
 import kinuvo.protocol.session.withWrittenAt
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.session.SessionId
+import kinuvo.protocol.session.SessionSettings
 import kinuvo.protocol.session.ToolCallId
 import kotlinx.coroutines.test.runTest
 import kotlinx.io.files.Path
+import kotlinx.io.files.SystemFileSystem
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlin.random.Random
@@ -221,5 +224,115 @@ class FileStoreTest {
         assertEquals("hello there", store.sessions(agent.id).single().title)
         store.truncate(agent.id, session.id, 1)
         assertEquals(listOf(SessionEntry.Started("be nice")), store.entries(agent.id, session.id).map { it.withWrittenAt(null) })
+    }
+
+    private suspend fun assertMatchesFreshStore(home: TestHome, store: FileStore, ids: List<SessionId>) {
+        val fresh = FileStore(home.files)
+        assertEquals(fresh.sessions(home.agent.id), store.sessions(home.agent.id))
+        ids.forEach {
+            assertEquals(fresh.session(home.agent.id, it), store.session(home.agent.id, it))
+            assertEquals(fresh.entries(home.agent.id, it).size, store.entryCount(home.agent.id, it))
+        }
+    }
+
+    @Test
+    fun cachedSummariesFollowEveryWritePath() = runTest {
+        val home = TestHome()
+        val store = home.store
+        val agent = home.agent.id
+        val first = store.createSession(agent, "").id
+        val second = store.createSession(agent, "").id
+        assertMatchesFreshStore(home, store, listOf(first, second))
+        store.append(agent, first, SessionEntry.UserMessage("Hello there"))
+        store.append(agent, first, SessionEntry.Settings(SessionSettings(model = "m")))
+        store.append(agent, first, SessionEntry.Details("Named", true))
+        assertMatchesFreshStore(home, store, listOf(first, second))
+        store.appendAll(agent, second, listOf(SessionEntry.UserMessage("Other", submissionId = "s"), SessionEntry.AssistantMessage("r", "r")))
+        assertMatchesFreshStore(home, store, listOf(first, second))
+        store.truncate(agent, first, 2)
+        assertMatchesFreshStore(home, store, listOf(first, second))
+        assertEquals(2, store.entryCount(agent, first))
+        store.deleteSession(agent, second)
+        assertEquals(listOf(first), store.sessions(agent).map { it.id })
+        assertEquals(0, store.entryCount(agent, second))
+        assertMatchesFreshStore(home, store, listOf(first))
+    }
+
+    @Test
+    fun editsMadeBehindTheStoreAreSeen() = runTest {
+        val home = TestHome()
+        val store = home.store
+        val agent = home.agent.id
+        val kept = store.createSession(agent, "").id
+        val removed = store.createSession(agent, "").id
+        store.append(agent, kept, SessionEntry.UserMessage("Original"))
+        assertEquals("Original", store.session(agent, kept).title)
+        assertEquals(2, store.entryCount(agent, kept))
+        val file = Path(home.files.sessions(agent), "$kept.jsonl")
+        file.appendText("""{"type":"details","title":"Edited by hand","favorite":true}""" + "\n")
+        assertEquals("Edited by hand", store.session(agent, kept).title)
+        assertEquals(3, store.entryCount(agent, kept))
+        writeAtomically(file, """{"type":"started","instructions":"restored"}""" + "\n")
+        assertEquals(1, store.entryCount(agent, kept))
+        assertEquals("New session", store.session(agent, kept).title)
+        SystemFileSystem.delete(Path(home.files.sessions(agent), "$removed.jsonl"))
+        assertEquals(0, store.entryCount(agent, removed))
+        assertEquals(listOf(kept), store.sessions(agent).map { it.id })
+        assertMatchesFreshStore(home, store, listOf(kept))
+    }
+
+    @Test
+    fun corruptFilesAreNeverCachedAndHealWhenFixed() = runTest {
+        val home = TestHome()
+        val store = home.store
+        val agent = home.agent.id
+        val id = store.createSession(agent, "").id
+        store.append(agent, id, SessionEntry.UserMessage("fine"))
+        assertEquals(2, store.entryCount(agent, id))
+        val file = Path(home.files.sessions(agent), "$id.jsonl")
+        file.appendText("{\"type\":")
+        assertEquals(true, assertFailsWith<CorruptSession> { store.entryCount(agent, id) }.trailing)
+        assertFailsWith<CorruptSession> { store.session(agent, id) }
+        assertFailsWith<CorruptSession> { store.append(agent, id, SessionEntry.UserMessage("more")) }
+        file.appendText("\n")
+        assertEquals(false, assertFailsWith<CorruptSession> { store.entryCount(agent, id) }.trailing)
+        writeAtomically(file, """{"type":"user","text":"fine"}""" + "\n")
+        assertEquals(1, store.entryCount(agent, id))
+    }
+
+    @Test
+    fun appendAfterAnUnterminatedValidLineStartsANewLine() = runTest {
+        val home = TestHome()
+        val store = home.store
+        val agent = home.agent.id
+        val id = store.createSession(agent, "").id
+        val file = Path(home.files.sessions(agent), "$id.jsonl")
+        writeAtomically(file, """{"type":"user","text":"no newline"}""")
+        assertEquals(1, store.entryCount(agent, id))
+        store.append(agent, id, SessionEntry.UserMessage("next"))
+        store.append(agent, id, SessionEntry.UserMessage("last"))
+        assertEquals(listOf("no newline", "next", "last"), FileStore(home.files).entries(agent, id).map { (it as SessionEntry.UserMessage).text })
+        assertEquals(3, store.entryCount(agent, id))
+    }
+
+    @Test
+    fun anotherAgentsSessionStillFailsAndNothingIsReadTwice() = runTest {
+        val home = TestHome()
+        val store = home.store
+        val other = store.createAgent("other")
+        val id = store.createSession(home.agent.id, "").id
+        assertFailsWith<IllegalArgumentException> { store.entryCount(other.id, id) }
+        assertFailsWith<IllegalArgumentException> { store.append(other.id, id, SessionEntry.UserMessage("x")) }
+        store.append(home.agent.id, id, SessionEntry.UserMessage("x"))
+        val before = store.transcriptReads
+        repeat(50) {
+            store.entryCount(home.agent.id, id)
+            store.session(home.agent.id, id)
+            store.append(home.agent.id, id, SessionEntry.AssistantMessage("a$it", "a$it"))
+        }
+        repeat(3) { store.sessions(home.agent.id) }
+        assertEquals(before, store.transcriptReads)
+        assertEquals(52, store.entryCount(home.agent.id, id))
+        assertFalse(FileStore(home.files).entries(home.agent.id, id).isEmpty())
     }
 }

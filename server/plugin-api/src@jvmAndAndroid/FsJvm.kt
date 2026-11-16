@@ -5,6 +5,7 @@ import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Paths
 import java.nio.file.attribute.PosixFilePermissions
+import java.util.concurrent.TimeUnit
 
 actual fun deleteTree(dir: Path) {
     val path = Paths.get(dir.toString())
@@ -20,3 +21,5 @@ actual fun createPrivateFile(file: Path) {
 }
 
 actual fun processEnv(): Map<String, String> = System.getenv()
+
+actual fun Path.modifiedNanos(): Long? = runCatching { Files.getLastModifiedTime(Paths.get(toString())).to(TimeUnit.NANOSECONDS) }.getOrNull()

@@ -171,7 +171,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     }
 
     suspend fun publish(agentId: AgentId, sessionId: SessionId, event: AgentEvent) = lock.withLock {
-        store.entries(agentId, sessionId)
+        store.entryCount(agentId, sessionId)
         when(event) {
             is AgentEvent.RunStarted -> completions.remove(sessionId)
             is AgentEvent.RunFinished, is AgentEvent.RunError -> completions[sessionId] = event
@@ -230,8 +230,7 @@ class SessionLog(private val store: Store, private val clock: () -> Long = { Clo
     private fun removeEverywhere(subscriber: Subscriber) = subscribers.values.forEach { it.remove(subscriber) }
 
     private suspend fun count(agentId: AgentId, sessionId: SessionId): Int {
-        val entries = store.entries(agentId, sessionId)
-        return entries.size.also { counts[sessionId] = it }
+        return store.entryCount(agentId, sessionId).also { counts[sessionId] = it }
     }
 
     private fun deliver(update: SessionUpdate) {

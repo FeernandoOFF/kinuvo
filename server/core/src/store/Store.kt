@@ -27,6 +27,8 @@ interface Store : SessionStorage {
     suspend fun saveConfig(agent: Agent, config: AgentConfig): Agent
     suspend fun sessions(agentId: AgentId): List<SessionInfo>
     suspend fun session(agentId: AgentId, sessionId: SessionId): SessionInfo
+    /** How many entries the Session has, validated like [entries] (unknown owner, foreign Session, corrupt record) without decoding them again. */
+    suspend fun entryCount(agentId: AgentId, sessionId: SessionId): Int
     suspend fun createSession(agentId: AgentId, instructions: String, routine: RoutineRef? = null): SessionInfo
     /** Atomically appends missing stable identities; conflicts throw SessionCommitConflict. Returns newly saved entries. */
     suspend fun appendAll(agentId: AgentId, sessionId: SessionId, entries: List<SessionEntry>): List<SessionEntry>

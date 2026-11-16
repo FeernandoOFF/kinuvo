@@ -55,6 +55,9 @@ fun copyTree(from: Path, to: Path) {
 /** Deletes [dir] and what it contains without following symlinks: a link is removed, never its target. */
 expect fun deleteTree(dir: Path)
 
+/** Last modification time of [this] in nanoseconds since the epoch; null when it doesn't exist. */
+expect fun Path.modifiedNanos(): Long?
+
 /** Creates [file], which must not exist yet, readable and writable by its owner only from the start. */
 expect fun createPrivateFile(file: Path)
 

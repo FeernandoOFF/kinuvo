@@ -40,3 +40,9 @@ actual fun createPrivateFile(file: Path) {
 
 actual fun processEnv(): Map<String, String> =
     NSProcessInfo.processInfo.environment.entries.associate { (k, v) -> k.toString() to v.toString() }
+
+@OptIn(ExperimentalForeignApi::class)
+actual fun Path.modifiedNanos(): Long? = memScoped {
+    val st = alloc<stat>()
+    if (stat(toString(), st.ptr) != 0) null else st.st_mtimespec.tv_sec * 1_000_000_000L + st.st_mtimespec.tv_nsec
+}
