@@ -1,5 +1,8 @@
 package kinuvo.ui
 
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Workflow
+
 import kinuvo.client.ManagementAccessMessage
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
@@ -741,7 +744,7 @@ class ScreenshotTest {
                 kinuvo.protocol.workflow.WorkflowStep.AgentTurn(kinuvo.protocol.workflow.StepId("s2"), AgentId("echo"), "Review")), createdAt = 2),
             kinuvo.protocol.workflow.Workflow(kinuvo.protocol.workflow.WorkflowId("w2"), "Expense report", listOf(
                 kinuvo.protocol.workflow.WorkflowStep.AgentTurn(kinuvo.protocol.workflow.StepId("s1"), AgentId("echo"), "Collect receipts")), enabled = false, createdAt = 1),
-        ), onOpen = {}, onNew = {})
+        ), onOpen = {}, onNew = { })
         render("nav-phone-routines", 390, 1000) { phone { CompositionLocalProvider(kinuvo.ui.workflow.LocalWorkflows provides flows) { SettingsContent(routines(null), SettingsActions(), sidebar = false) } } }
         render("nav-phone-routine-detail", 390, 844) { phone { SettingsContent(routines("journal"), SettingsActions(onBack = {}), sidebar = false) } }
         render("nav-phone-tools", 390, 1000) { phone { SettingsContent(tools(null), SettingsActions(), sidebar = false) } }
@@ -795,6 +798,20 @@ class ScreenshotTest {
         render("nav-desktop-routines", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Routines)) {
             CompositionLocalProvider(kinuvo.ui.workflow.LocalWorkflows provides flows) { SettingsContent(routines("journal"), SettingsActions()) }
         } }
+        val stubbed = kinuvo.ui.workflow.WorkflowsSection(flows.workflows, {}, null, detail = { _, back, _ -> Column { PageHeader(Lucide.Workflow, "Weekly release", "Manual · 2 steps", back = back) } })
+        render("nav-desktop-routines-mid", 1000, 700) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Routines)) {
+            CompositionLocalProvider(kinuvo.ui.workflow.LocalWorkflows provides stubbed) {
+                SettingsContent(SettingsUi(SettingsState(Route.Settings(AgentId("echo"), SettingsSection.Routines, kinuvo.ui.workflow.workflowItem(kinuvo.protocol.workflow.WorkflowId("w1"))), AgentConfig(details), routines = echoRoutines), owners, at, capabilities = capabilities), SettingsActions())
+            }
+        } }
+        render("nav-desktop-routines-xl", 2400, 900) {
+            CompositionLocalProvider(kinuvo.ui.design.LocalWindowChrome provides kinuvo.ui.design.WindowChrome(40.dp, 76.dp, 0.dp).trailingOnly) {
+                desktop(Route.Settings(AgentId("echo"), SettingsSection.Routines)) {
+                    CompositionLocalProvider(kinuvo.ui.workflow.LocalWorkflows provides flows) { SettingsContent(routines("journal"), SettingsActions()) }
+                }
+            }
+        }
+        render("nav-desktop-tools-xl", 2400, 1000) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Hub)) { SettingsContent(tools(itemKey(ConfigScope.Agent, "github")), SettingsActions()) } }
         render("nav-desktop-today", 1440, 900) { desktop(Route.Home) { HomeContent(home, HomeActions(), wide = true) } }
         render("nav-desktop-board", 1440, 900) { desktop(Route.Board) { BoardContent(board, BoardActions()) } }
         render("nav-desktop-settings", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Providers)) { SettingsContent(SettingsUi(SettingsState(Route.Settings(AgentId("echo"), SettingsSection.Providers), providers = listOf(ProviderInfo("codex", "ChatGPT / Codex"), ProviderInfo("openai", "OpenAI API"))), owners, at, capabilities = capabilities), SettingsActions()) } }

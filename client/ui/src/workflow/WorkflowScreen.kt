@@ -55,7 +55,20 @@ private val NodeWidth = 208.dp
 private val NodeHeight = 68.dp
 
 /** This Server's Workflows for a page that lists them beside something else, e.g. Routines: [onOpen] opens one's graph. */
-class WorkflowsSection(val workflows: List<Workflow>?, val onOpen: (WorkflowId) -> Unit, val onNew: (() -> Unit)?, val error: String? = null, val onReload: () -> Unit = {})
+class WorkflowsSection(
+    val workflows: List<Workflow>?, val onOpen: (WorkflowId) -> Unit,
+    /** Creates a Workflow, then hands its ID to the callback to open it. */
+    val onNew: ((onCreated: (WorkflowId) -> Unit) -> Unit)?, val error: String? = null, val onReload: () -> Unit = {},
+    /** The [id] Workflow's graph beside the list, like an open Routine; [onClose] goes back to the list, e.g. once it's deleted. */
+    val detail: (@Composable (id: WorkflowId, onBack: (() -> Unit)?, onClose: () -> Unit) -> Unit)? = null,
+)
+
+/** The Routines page's item for the [id] Workflow, so it opens beside the list like a Routine. */
+fun workflowItem(id: WorkflowId) = "$WorkflowItemPrefix${id.value}"
+
+fun workflowOf(item: String?) = item?.takeIf { it.startsWith(WorkflowItemPrefix) }?.let { WorkflowId(it.removePrefix(WorkflowItemPrefix)) }
+
+private const val WorkflowItemPrefix = "workflow:"
 
 val LocalWorkflows = compositionLocalOf<WorkflowsSection?> { null }
 
@@ -64,9 +77,8 @@ val LocalWorkflows = compositionLocalOf<WorkflowsSection?> { null }
 fun WorkflowsScreen(workflows: List<Workflow>, agents: List<AgentInfo>, onOpen: (WorkflowId) -> Unit, onNew: () -> Unit, onBack: (() -> Unit)? = null) {
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
         PageHeader(Lucide.Workflow, "Workflows", actions = listOfNotNull(
-            onBack?.let { PageAction(Lucide.ArrowLeft, "Back", it) },
             PageAction(Lucide.Plus, "New Workflow", onNew),
-        ))
+        ), back = onBack)
         if (workflows.isEmpty()) {
             EmptyState(Lucide.Workflow, "No Workflows yet", "Chain Agent turns and Approvals into a graph the Server runs for you, on demand or on a schedule.", Modifier.fillMaxSize()) {
                 Button(onClick = onNew, style = ButtonStyle.Primary, enabled = agents.isNotEmpty()) { Text("New Workflow") }
@@ -101,11 +113,10 @@ fun WorkflowScreen(model: WorkflowViewModel, agents: List<AgentInfo>, onOpenSess
     val dirty = state.dirty
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
         PageHeader(Lucide.Workflow, workflow?.name ?: "Workflow", run?.let { "Last run: ${it.status.label}" } ?: workflow?.let(::summary), actions = listOfNotNull(
-            onBack?.let { PageAction(Lucide.ArrowLeft, "Back", it) },
             if (running) PageAction(Lucide.Square, "Stop run", model::cancel)
             else PageAction(Lucide.Play, "Run now") { if (!dirty) model.run() }.takeIf { !dirty && saved != null },
             PageAction(Lucide.Trash2, "Delete Workflow") { confirmDelete = true }.takeIf { saved != null && !running },
-        ))
+        ), back = onBack)
         if (workflow == null) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { state.error?.let { ErrorMessage(it) } ?: Spinner() }
             return@Column

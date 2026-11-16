@@ -83,7 +83,7 @@ fun ArtifactsContent(state: ArtifactsState, agents: List<AgentInfo>, now: Long, 
         val open = state.route.artifact
         if (open != null && state.route.fullScreen) ArtifactPane(state, agents, now, actions, back = null)
         else if (maxWidth >= 900.dp) Row(Modifier.fillMaxSize()) {
-            Box(Modifier.width(380.dp).fillMaxHeight().background(color(sidebarColor))) { ArtifactList(state, agents, now, actions) }
+            Box(Modifier.width(ListColumnWidth).fillMaxHeight().background(color(backgroundColor))) { ArtifactList(state, agents, now, actions) }
             VerticalSeparator()
             Box(Modifier.weight(1f)) {
                 if (open != null) ArtifactPane(state, agents, now, actions, back = null)

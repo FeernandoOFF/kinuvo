@@ -39,11 +39,14 @@ class AgentScope(val agents: List<AgentInfo>, val agentId: AgentId?, val everyon
  * [scope]. Phones get the chat's bubbles and pill, the pill picking the Agent; pointers a title bar.
  */
 @Composable
-fun PageHeader(icon: ImageVector, title: String, subtitle: String? = null, scope: AgentScope? = null, actions: List<PageAction> = emptyList()) {
+fun PageHeader(icon: ImageVector, title: String, subtitle: String? = null, scope: AgentScope? = null, actions: List<PageAction> = emptyList(),
+    /** Leads the header in place of the shell's menu or sidebar toggle, for a page opened from another. */
+    back: (() -> Unit)? = null) {
     val chrome = LocalHomeChrome.current
     val phone = chrome?.wide != true && LocalInteractionMode.current == InteractionMode.Touch
     if (phone) Row(Modifier.fillMaxWidth().padding(horizontal = Spacing.space12, vertical = Spacing.space6), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-        chrome?.let { FloatingBubble(Lucide.Menu, "Home and agents", it.onToggleShell) }
+        if (back != null) FloatingBubble(Lucide.ArrowLeft, "Back", back)
+        else chrome?.let { FloatingBubble(Lucide.Menu, "Home and agents", it.onToggleShell) }
         if (scope != null) AgentMenu(scope, Modifier.weight(1f)) { open ->
             Row { FloatingPill(open, "$title, ${scope.label}, change Agent", fill = true, leading = { ScopeAvatar(scope, 26.dp) }) {
                 Text(title, style = TextStyles.label, fontWeight = FontWeight.Medium, singleLine = true)
@@ -60,21 +63,24 @@ fun PageHeader(icon: ImageVector, title: String, subtitle: String? = null, scope
         if (actions.isNotEmpty()) Bubble { actions.forEach { BubbleButton(it.icon, it.label, it.onClick) } }
     } else {
         TitleBarRow {
-            chrome?.let { if (it.wide) HeaderButton(Lucide.PanelLeft, "Toggle sidebar ${shortcut(".")}", it.onToggleShell) else HeaderButton(Lucide.Menu, "Home and agents", it.onToggleShell) }
-            Text(title, Modifier.padding(start = Spacing.space6), fontWeight = FontWeight.Normal, singleLine = true)
-            subtitle?.let { Text(it, Modifier.weight(1f, fill = false).padding(start = Spacing.space8), color = color(mutedColor), style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis) }
-            scope?.let { s ->
-                AgentMenu(s, Modifier.padding(start = Spacing.space6)) { open ->
-                    Button(onClick = open, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = Spacing.space6), modifier = Modifier.titleBarControl()) {
-                        ScopeAvatar(s, 18.dp)
-                        Spacer(Modifier.width(Spacing.space6))
-                        Text(s.label, singleLine = true)
-                        Spacer(Modifier.width(Spacing.space4))
-                        Icon(Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
+            if (back != null) HeaderButton(Lucide.ArrowLeft, "Back", back)
+            else chrome?.let { if (it.wide) HeaderButton(Lucide.PanelLeft, "Toggle sidebar ${shortcut(".")}", it.onToggleShell) else HeaderButton(Lucide.Menu, "Home and agents", it.onToggleShell) }
+            // The title side takes the room, so the actions always sit at the end, subtitle or not.
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                Text(title, Modifier.padding(start = Spacing.space6), fontWeight = FontWeight.Normal, singleLine = true)
+                subtitle?.let { Text(it, Modifier.weight(1f, fill = false).padding(start = Spacing.space8), color = color(mutedColor), style = TextStyles.secondary, singleLine = true, overflow = TextOverflow.Ellipsis) }
+                scope?.let { s ->
+                    AgentMenu(s, Modifier.padding(start = Spacing.space6)) { open ->
+                        Button(onClick = open, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentPadding = PaddingValues(horizontal = Spacing.space6), modifier = Modifier.titleBarControl()) {
+                            ScopeAvatar(s, 18.dp)
+                            Spacer(Modifier.width(Spacing.space6))
+                            Text(s.label, singleLine = true)
+                            Spacer(Modifier.width(Spacing.space4))
+                            Icon(Lucide.ChevronDown, Modifier.size(14.dp), tint = color(mutedColor))
+                        }
                     }
                 }
             }
-            Spacer(Modifier.weight(1f))
             actions.forEach { HeaderButton(it.icon, it.label, it.onClick) }
         }
         HorizontalSeparator()

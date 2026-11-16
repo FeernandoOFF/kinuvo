@@ -19,6 +19,11 @@ private const val SCALE = 2f
 internal fun runPhoneTest(block: suspend ComposeUiTest.() -> Unit): TestResult =
     runSkikoComposeUiTest(Size(390 * SCALE, 844 * SCALE), Density(SCALE)) { block() }
 
+/** Runs [block] on a 1440×900dp desktop window. */
+@OptIn(ExperimentalTestApi::class)
+internal fun runDesktopTest(block: suspend ComposeUiTest.() -> Unit): TestResult =
+    runSkikoComposeUiTest(Size(1440 * SCALE, 900 * SCALE), Density(SCALE)) { block() }
+
 /** Saves the screen to `build/screens/flows/<name>.png`. */
 @OptIn(ExperimentalTestApi::class)
 internal fun ComposeUiTest.saveScreenshot(name: String) {

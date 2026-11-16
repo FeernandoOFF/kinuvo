@@ -356,8 +356,15 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 val listed by list.state.collectAsState()
                                 // Leaving a routine being edited asks first, as other navigation from here does.
                                 WorkflowsSection(listed.workflows.takeUnless { it.isEmpty() && listed.loading }, onOpen = { id -> homeEdits.leave { history.open(Route.Workflows(id)) } },
-                                    onNew = { homeEdits.leave { list.create(route.agentId) { history.open(Route.Workflows(it)) } } },
-                                    error = listed.error.takeIf { listed.workflows.isEmpty() }, onReload = list::reload)
+                                    onNew = { opened -> homeEdits.leave { list.create(route.agentId, opened) } },
+                                    error = listed.error.takeIf { listed.workflows.isEmpty() }, onReload = list::reload,
+                                    // Beside the list on wide windows; phones keep the graph on its own screen.
+                                    detail = if (history.compact) null else { id, back, close ->
+                                        val workflow = koinViewModel<WorkflowViewModel>(key = "workflow/${app.serverLifetime}/$id") { parametersOf(id) }
+                                        WorkflowScreen(workflow, appState.agents,
+                                            onOpenSession = { agent, session -> homeEdits.leave { history.open(Route.Chat(agent, session)) } },
+                                            onDelete = { workflow.delete(close) }, onBack = back)
+                                    })
                             } else null
                             key(route, homeEdits.revision) {
                                 CompositionLocalProvider(LocalSettingsEdits provides homeEdits, LocalWorkflows provides workflows) {
@@ -380,7 +387,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                                 val creating = koinViewModel<NewTeamViewModel>(key = "new-team/${app.serverLifetime}")
                                 val created by creating.state.collectAsState()
                                 Column(Modifier.fillMaxSize().background(color(backgroundColor)), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    PageHeader(Lucide.Users, "New Team", actions = listOfNotNull(back.takeIf { history.canGoBack }?.let { PageAction(Lucide.ArrowLeft, "Back", it) }))
+                                    PageHeader(Lucide.Users, "New Team", back = back.takeIf { history.canGoBack })
                                     TeamEditor(appState.agents, null, Modifier.widthIn(max = 560.dp).padding(Spacing.space16)) { spec ->
                                         creating.create(spec) { backStack.remove(route); history.open(Route.Team(it)) }
                                     }
@@ -436,7 +443,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             if (client == null) Loading(connection)
                             else if (appState.agents.firstOrNull { it.id == route.agentId }?.external == true) {
                                 Column(Modifier.fillMaxSize()) {
-                                    PageHeader(Lucide.Globe, "Browser", actions = listOf(PageAction(Lucide.ArrowLeft, "Back") { back() }))
+                                    PageHeader(Lucide.Globe, "Browser", back = { back() })
                                     Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                                         Text("Browser is managed by this Agent's harness and isn't available in Kinuvo.")
                                     }

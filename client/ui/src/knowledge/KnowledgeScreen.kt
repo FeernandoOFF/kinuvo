@@ -81,7 +81,7 @@ fun KnowledgeContent(ui: KnowledgeUi, actions: KnowledgeActions) {
         val wide = maxWidth >= 900.dp
         val open = ui.state.route.note
         if (wide) Row(Modifier.fillMaxSize()) {
-            Box(Modifier.width(380.dp).fillMaxHeight().background(color(sidebarColor))) { Overview(ui, actions) }
+            Box(Modifier.width(ListColumnWidth).fillMaxHeight().background(color(backgroundColor))) { Overview(ui, actions) }
             VerticalSeparator()
             Box(Modifier.weight(1f)) {
                 if (open != null) NotePane(ui, actions, back = null)

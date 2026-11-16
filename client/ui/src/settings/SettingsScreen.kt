@@ -422,7 +422,7 @@ private fun SectionPane(
         }
     }
     if (split) Row(Modifier.fillMaxSize()) {
-        Box(Modifier.width(360.dp).fillMaxHeight()) { list(Pane(ui, actions, go, rootBack)) }
+        Box(Modifier.width(ListColumnWidth).fillMaxHeight()) { list(Pane(ui, actions, go, rootBack)) }
         VerticalSeparator()
         Box(Modifier.weight(1f)) {
             // Beside the list, only editing an existing item has somewhere to go back to.
@@ -430,7 +430,8 @@ private fun SectionPane(
             else NothingSelected("Select ${section.noun()}")
         }
     } else if (!open) list(Pane(ui, actions, go, rootBack))
-    else detail(Pane(ui, actions, go, up))
+    // In place of the list, a detail always has a way back to it, pointer or touch.
+    else detail(Pane(ui, actions, go, up ?: { go(route.copy(item = null, editing = false)) }))
 }
 
 private fun SettingsSection.noun() = when (this) {

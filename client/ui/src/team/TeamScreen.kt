@@ -57,9 +57,8 @@ fun TeamScreen(model: TeamViewModel, agents: List<AgentInfo>, onOpenSession: (Ag
     LaunchedEffect(state.draft) { if (state.draft.isEmpty() && draft.text.isNotEmpty()) draft.clearText() }
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
         PageHeader(Lucide.Users, team?.name ?: "Team", team?.let { t -> t.members.joinToString { name(it.agentId, agents) } }, actions = listOfNotNull(
-            onBack?.let { PageAction(Lucide.ArrowLeft, "Back", it) },
             PageAction(if (editing) Lucide.X else Lucide.Settings2, if (editing) "Close settings" else "Team settings") { editing = !editing },
-        ))
+        ), back = onBack)
         if (team == null) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 state.error?.let { Text(it, color = color(destructiveColor)) } ?: Spinner()
