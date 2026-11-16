@@ -9,7 +9,7 @@ data class PairingParams(val refresh: Boolean = false, val management: Boolean =
 
 /** The Server's current pairing code; [expiresAt] is ISO-8601. [addresses] are the Server's LAN IPs, reachable on [port]. */
 @Serializable
-data class PairingCode(val code: String, val expiresAt: String, val port: Int, val addresses: List<String> = emptyList(), val publicUrl: String? = null, val management: Boolean = false)
+data class PairingCode(val code: String, val expiresAt: String, val port: Int, val addresses: List<String> = emptyList(), val publicUrl: String? = null, val management: Boolean = false, val tailcatAddress: String? = null)
 
 /** A Device paired with the Server; [current] is the one asking, [push] whether it receives Notifications as pushes. Times are ISO-8601. */
 @Serializable
