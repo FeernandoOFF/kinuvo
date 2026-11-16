@@ -54,7 +54,7 @@ private fun ServiceForm(setup: ServiceSetup, p: Pane) {
         ProviderSettingsFields("Settings", form, p) { update -> form = update(form) }
         if (form.provider != null || push && form.push) TestGroup(if (p.ui.state.testing) "Testing…" else if (kind == ServiceKind.Search) "Test search" else "Send test notification",
             form.editable && !p.ui.state.testing, { p.actions.onTestService(form.testParams(kind)) },
-            p.ui.state.serviceTest?.let { t -> t.error?.let { "Didn't work: $it" } to "Works: ${t.summary}" })
+            p.ui.state.serviceTest?.let { t -> t.error?.let { "Didn't work: $it" } to if (kind == ServiceKind.Notifications) "Test notification sent" else "Works: ${t.summary}" })
     }
 }
 
