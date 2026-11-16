@@ -314,7 +314,6 @@ fun ChatContent(
     val requestInputs = remember { RequestInputs() }
     LaunchedEffect(state.requests.firstOrNull()?.id) { completing = false }
     val scope = rememberCoroutineScope()
-    val connectionNotice = connectionNotice(connection, syncedAt)
     LaunchedEffect(Unit) { if (compose) composerFocus.requestFocus() }
 
     BoxWithConstraints(Modifier.fillMaxSize().background(color(backgroundColor))) {
@@ -418,12 +417,8 @@ fun ChatContent(
                     val attachments: @Composable () -> Unit = { if (state.attachments.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.space6), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                         state.attachments.forEach { a -> key(a.id) { AttachmentChip(a.attachment, a.upload.base64, onPreview = { actions.onPreviewAttachment(a.id) }, onRemove = if (state.running) null else ({ actions.onRemoveAttachment(a.id) })) } }
                     } }
-                    val requestNotice: (@Composable () -> Unit)? = if (connectionNotice != null || state.dictation?.error != null) ({
-                        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
-                            state.dictation?.error?.let { Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
-                            connectionNotice?.let { (tone, text) -> Text(text, style = TextStyles.secondary, color = tone.color()) }
-                        }
-                    }) else null
+                    // The connection shows in the app's strip; only dictation trouble stays by the input.
+                    val requestNotice: (@Composable () -> Unit)? = state.dictation?.error?.let { error -> { Text(error, style = TextStyles.secondary, color = color(destructiveColor)) } }
                     AnimatedContent(voice != null, contentAlignment = Alignment.BottomCenter, transitionSpec = {
                         (fadeIn(tween(Motion.reveal, delayMillis = Motion.revealDelay)) + slideInVertically(Motion.cardSpring()) { it / 3 } +
                             scaleIn(Motion.cardSpring(), initialScale = 0.94f))
@@ -467,9 +462,8 @@ fun ChatContent(
                             containerColor = color(fieldColor).copy(alpha = 0.7f),
                             backdrop = if (composerBlurred) Modifier.hazeBlur(HazeInput.Sources(haze), blur) else Modifier,
                             onVoice = actions.onVoice?.let { start -> { follow.value = true; start() } },
-                            notice = if ((state.external && (state.prompts.isNotEmpty() || (state.chatBlocked != null && state.ended == null))) || connectionNotice != null || state.dictation?.error != null) ({
+                            notice = if ((state.external && (state.prompts.isNotEmpty() || (state.chatBlocked != null && state.ended == null))) || state.dictation?.error != null) ({
                                 state.dictation?.error?.let { Text(it, style = TextStyles.secondary, color = color(destructiveColor)) }
-                                connectionNotice?.let { (tone, text) -> Text(text, style = TextStyles.secondary, color = tone.color()) }
                                 if (state.external) ExternalPrompts(state, actions)
                             }) else null,
                             onDictate = actions.onDictate,
