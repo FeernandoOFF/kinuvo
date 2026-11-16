@@ -158,7 +158,7 @@ internal fun Messages(
                         Box(Modifier.animateItem(fadeInSpec = if (user) null else tween(Motion.item), fadeOutSpec = null).widthIn(max = ContentWidth).fillMaxWidth()) {
                             when (row) {
                                 is ChatRow.Single -> if (row.key == "outgoing") Entering { ChatItemView(row.item, actions) }
-                                    else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id), writing = writing && row.item.id == last?.id, finished = row.item.id in finished)
+                                    else ChatItemView(row.item, actions, state.voice?.spoken?.get(row.item.id), writing = writing && row.item.id == last?.id, finished = row.item.id in finished, reading = state.readingAloud == row.item.id)
                                 is ChatRow.Steps -> StepsView(row, active = state.running && row === rows.last(), actions = actions)
                             }
                         }
@@ -229,7 +229,7 @@ private fun JumpToBottom(unseen: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = null, writing: Boolean = false, finished: Boolean = false) {
+internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = null, writing: Boolean = false, finished: Boolean = false, reading: Boolean = false) {
     when (item) {
         is ChatItem.User -> if (item.routine != null) Expandable(Lucide.AlarmClock, requireNotNull(item.routine), subtitle = "routine") { Markdown(item.text) }
         else if (item.action != null) SurfaceActionLine(item.text)
@@ -269,6 +269,7 @@ internal fun ChatItemView(item: ChatItem, actions: ChatActions, spoken: Int? = n
             if (spoken != null) SpokenText(item.text, spoken, Modifier.fillMaxWidth()) else if (writing) StreamingMarkdown(item.text, Modifier.fillMaxWidth()) else Markdown(item.text, Modifier.fillMaxWidth())
             if (finished && item.text.isNotBlank()) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
                 CopyButton(item.text)
+                ReadAloudButton(reading, { actions.onReadAloud(item.id, item.text) }, actions.onStopReading)
                 item.at?.let { Text(shortTime(it), style = TextStyles.caption, color = color(mutedColor)) }
             }
         }
@@ -605,3 +606,20 @@ internal fun List<ChatItem>.attachment(id: String): Attachment? = firstNotNullOf
 }
 
 private fun callLength(millis: Long) = (millis / 60_000).let { if (it < 1) "under a minute" else "$it min" }
+
+/** Reads a reply aloud with the Agent's voice, or stops it while [reading]. */
+@Composable
+private fun ReadAloudButton(reading: Boolean, onRead: () -> Unit, onStop: () -> Unit) {
+    val label = if (reading) "Stop reading" else "Read aloud"
+    Hint(label, TooltipSide.Bottom) {
+        IconButton(
+            onClick = if (reading) onStop else onRead,
+            modifier = Modifier.size(if (LocalInteractionMode.current == InteractionMode.Touch) 44.dp else 28.dp),
+            style = ButtonStyle.Ghost,
+            shape = Theme[shapes][mediumShape],
+            contentColor = if (reading) color(accentColor) else color(mutedColor),
+        ) {
+            Icon(if (reading) Lucide.Square else Lucide.Volume2, Modifier.size(14.dp), contentDescription = label)
+        }
+    }
+}

@@ -164,6 +164,7 @@ class SpeechVoiceChat(
     private var listenGeneration = 0
 
     override fun start() {
+        session.stopReading()
         if (state.value.phase != VoicePhase.Off || !DeviceAudio.acquire(device, this)) return
         ownsAudio = true
         state.value = VoiceChatState(VoicePhase.Starting, speaker = state.value.speaker)
@@ -404,6 +405,8 @@ internal fun sentenceEnds(text: String, from: Int) = (from until text.length - 1
 
 /** [markdown] as it should be read aloud. */
 fun speakable(markdown: String) = markdown
+    .replace(Regex("(?s)```.*?```|~~~.*?~~~"), " code block ")
+    .replace(Regex("!\\[[^\\]]*]\\([^)]*\\)"), "")
     .replace(Regex("""!?\[([^\]]*)]\([^)]*\)"""), "$1")
     .replace(Regex("""^\s*(?:[-+]|\d+\.)\s+""", RegexOption.MULTILINE), "")
     .replace(Regex("""[*_`#>|~]"""), "")
