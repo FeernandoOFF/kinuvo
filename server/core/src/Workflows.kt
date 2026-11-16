@@ -238,6 +238,6 @@ class Workflows internal constructor(
     }
     private companion object {
         val terminal = setOf(StepStatus.Done, StepStatus.Failed, StepStatus.Skipped, StepStatus.Cancelled)
-        val outputRef = Regex("\\{\\{steps\\.([a-zA-Z0-9_-]+)\\.output}}")
+        val outputRef = Regex("\\{\\{steps\\.([a-zA-Z0-9_-]+)\\.output\\}\\}")
     }
 }
