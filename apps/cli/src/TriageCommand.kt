@@ -115,9 +115,14 @@ internal fun triageContext(description: String, archive: File? = null): String {
         ZipFile(archive).use { zip ->
             val entries = zip.entries().asSequence().take(65).toList()
             require(entries.size <= 64) { "Diagnostic ZIP contains too many files" }
+            var remaining = 8 * 1024 * 1024
             entries.filter { !it.isDirectory && it.name.endsWithAny(".txt", ".log", ".jsonl") }.associate { entry ->
                 require(entry.name.length <= 200 && entry.name.split('/').none { it == ".." } && '\\' !in entry.name) { "Invalid diagnostic filename" }
-                entry.name to zip.getInputStream(entry).use { it.readNBytes(16_384).toString(Charsets.UTF_8) }
+                val limit = minOf(1024 * 1024, remaining)
+                val bytes = zip.getInputStream(entry).use { it.readNBytes(limit + 1) }
+                require(bytes.size <= limit) { "Diagnostic ZIP exceeds the decompressed limit (1 MiB per file, 8 MiB total)" }
+                remaining -= bytes.size
+                entry.name to bytes.toString(Charsets.UTF_8).takeLast(8_000)
             }
         }
     }

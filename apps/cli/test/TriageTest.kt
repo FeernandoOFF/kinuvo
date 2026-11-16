@@ -57,6 +57,28 @@ class TriageTest {
         assertEquals(1, publications)
     }
 
+    @Test fun archiveTriageKeepsTheRecentFailureInALongLog() {
+        val archive = directories.create("triage-recent").toFile().resolve("diagnostics.zip")
+        ZipOutputStream(archive.outputStream()).use { zip ->
+            zip.putNextEntry(ZipEntry("this-device/logs/desktop.log"))
+            zip.write(("OLD_HEADER\n" + "older log entry\n".repeat(6000) + "RECENT_FAILURE").toByteArray())
+            zip.closeEntry()
+        }
+        val context = triageContext("The app just failed", archive)
+        assertContains(context, "RECENT_FAILURE")
+        assertFalse("OLD_HEADER" in context)
+    }
+
+    @Test fun rejectsOversizedDecompressedLogs() {
+        val archive = directories.create("triage-expanded").toFile().resolve("diagnostics.zip")
+        ZipOutputStream(archive.outputStream()).use { zip ->
+            zip.putNextEntry(ZipEntry("this-device/logs/desktop.log"))
+            zip.write(ByteArray(1024 * 1024 + 1) { 'x'.code.toByte() })
+            zip.closeEntry()
+        }
+        assertFailsWith<IllegalArgumentException> { triageContext("problem", archive) }
+    }
+
     @Test fun rejectsInvalidDraftsAndArchivePaths() {
         assertFailsWith<IllegalArgumentException> { issueTitle("No title") }
         val archive = directories.create("triage-zip").toFile().resolve("bad.zip")
