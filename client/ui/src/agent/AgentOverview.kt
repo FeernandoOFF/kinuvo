@@ -157,7 +157,8 @@ private fun prose(text: String) = text.lines().map { it.trim() }.filter { it.isN
 @Composable
 private fun RoutinesCard(ui: SettingsUi, modifier: Modifier, onClick: () -> Unit, onNew: () -> Unit) {
     val routines = ui.state.routines
-    val enabled = ui.available(SettingsSection.Routines)
+    // Unknown until the Server says, rather than unavailable.
+    val enabled = ui.capabilities == null || ui.available(SettingsSection.Routines)
     Card(Lucide.CalendarClock, "Routines", modifier, onClick, enabled) {
         when {
             !enabled -> Text(UNAVAILABLE, color = color(mutedColor))
