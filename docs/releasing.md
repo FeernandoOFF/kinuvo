@@ -72,6 +72,14 @@ Tailcat packaging needs a C toolchain and Go 1.27.1+; Go automatically downloads
 the required toolchain for tailcat v0.7.0. Build locally with
 `scripts/build-tailcat.sh arm64` or `x64`.
 
+Before packaging either Android app, install NDK `28.2.13676358` with
+`sdkmanager 'ndk;28.2.13676358'`, then run
+`mise run exec -- scripts/build-tailcat.sh android`. Set `ANDROID_HOME` to the SDK
+(or `ANDROID_NDK_HOME` to an alternate NDK). This produces the arm64-v8a and
+x86_64 libraries used by both Android apps. The release workflow does this before
+packaging. Without the libraries, Android Tailcat sharing and connections are
+unavailable; LAN still works.
+
 Desktop and bundled-runtime CLI packages filter nested jars to the target OS and
 architecture, including LiteRT-LM, zstd and WebRTC. The universal `kinuvo.jar`
 retains all platforms. Nested jars remain uncompressed for the executable jar
