@@ -45,6 +45,8 @@ def package(path, os, arch):
     temporary = path.with_suffix('.tmp')
     with zipfile.ZipFile(path) as source, zipfile.ZipFile(temporary, 'w') as out:
         for entry in source.infolist():
+            if entry.filename.startswith('BOOT-INF/classes/natives/') and re.search(r'\.(so|dylib)$', entry.filename) and not target_native(entry.filename, os, arch):
+                continue
             data = source.read(entry)
             if entry.filename.startswith('BOOT-INF/lib/') and entry.filename.endswith('.jar'):
                 data = prune(data, os, arch, on_demand="/litertlm-jvm-" in entry.filename)

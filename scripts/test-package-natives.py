@@ -2,6 +2,8 @@ import importlib.util
 import io
 import unittest
 import zipfile
+import tempfile
+from pathlib import Path
 
 spec = importlib.util.spec_from_file_location('natives', 'scripts/package-natives.py')
 natives = importlib.util.module_from_spec(spec)
@@ -30,6 +32,30 @@ class PackageNativesTest(unittest.TestCase):
                 jar.writestr(name, b'payload')
         with zipfile.ZipFile(io.BytesIO(natives.prune(original.getvalue(), 'macos', 'arm64'))) as jar:
             self.assertEqual(set(jar.namelist()), {'Example.class', 'META-INF/LICENSE', 'darwin/aarch64/engine.so'})
+
+    def test_tailcat_target_resources(self):
+        source = io.BytesIO()
+        paths = ['natives/macos-arm64/libKinuvoTailcat.dylib',
+                 'natives/macos-x64/libKinuvoTailcat.dylib',
+                 'natives/linux-arm64/libKinuvoTailcat.so']
+        with zipfile.ZipFile(source, 'w') as jar:
+            for name in paths:
+                jar.writestr(name, b'native')
+        with zipfile.ZipFile(io.BytesIO(natives.prune(source.getvalue(), 'macos', 'arm64'))) as jar:
+            self.assertEqual(jar.namelist(), paths[:1])
+
+    def test_tailcat_outer_resources_are_pruned(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'app.jar'
+            with zipfile.ZipFile(path, 'w') as jar:
+                jar.writestr('BOOT-INF/classes/natives/macos-arm64/libKinuvoTailcat.dylib', b'mac')
+                jar.writestr('BOOT-INF/classes/natives/linux-x64/libKinuvoTailcat.so', b'linux')
+                jar.writestr('BOOT-INF/classes/natives/LICENSE.tailcat', b'license')
+            natives.package(path, 'linux', 'x64')
+            with zipfile.ZipFile(path) as jar:
+                self.assertEqual(set(jar.namelist()), {
+                    'BOOT-INF/classes/natives/linux-x64/libKinuvoTailcat.so',
+                    'BOOT-INF/classes/natives/LICENSE.tailcat'})
 
     def test_on_demand_keeps_api_without_engine(self):
         original = io.BytesIO()
