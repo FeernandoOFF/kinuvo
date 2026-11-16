@@ -119,3 +119,11 @@ Add options: repeatable `--env KEY=VALUE`, `--header KEY=VALUE`, `--include TOOL
 | `secrets browse [VAULT [ITEM]]` | Names only; `--scheme pass` |
 | `secrets refresh` | Clear the in-memory resolved-value cache |
 | `notify [MESSAGE]` | Test the configured Notification service |
+
+## Tailcat
+
+On macOS and Linux, `kinuvo serve --tailcat` adds a secret Tailcat address without replacing the normal listener. `kinuvo service install --tailcat` keeps it enabled across service restarts. The Server prints the address in its connection information. Keep it private, including in logs: anyone who knows it can reach the Server, but still needs a pairing code or Device token.
+
+The address stays the same across restarts. To invalidate it, stop the Server, run `kinuvo tailcat-reset` with the same home, then start it again with `--tailcat`. Devices need the new address; existing Device tokens remain valid.
+
+Tailcat uses free public relays when a direct connection is unavailable. They have no availability guarantee. Both ends must use compatible Kinuvo releases. Client connection controls are planned for a later release.
