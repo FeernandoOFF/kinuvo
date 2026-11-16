@@ -73,7 +73,7 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
     // No list picked would mean every list, so an external app needs at least one.
     val nonePicked = !builtIn && !lists.isNullOrEmpty() && shown.isEmpty()
     // An external app saves only lists picked from what loaded, since none picked would mean every list.
-    val ready = form.editable && (builtIn || lists != null || provider == s.provider) && !nonePicked && startBefore.value().toIntOrNull() != null && poll.value().toIntOrNull() != null
+    val ready = form.editable && (builtIn || !lists.isNullOrEmpty() || provider == s.provider && lists == null) && !nonePicked && startBefore.value().toIntOrNull() != null && poll.value().toIntOrNull() != null
     val save = {
         p.actions.onSaveTasks(SaveTasksParams(TasksSettings(
             provider = provider,

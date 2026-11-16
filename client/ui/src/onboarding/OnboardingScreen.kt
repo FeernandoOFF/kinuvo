@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -436,7 +437,9 @@ internal fun OnboardingContent(
                         AgentStage(s, onEdit, true, Modifier.weight(1.1f).fillMaxHeight())
                         Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = Spacing.space24), content = form)
                     } else {
-                        if (roomy) AgentStage(s, onEdit, false, Modifier.fillMaxWidth().height(if (s.step == 4) 230.dp else 190.dp))
+                        // List-heavy steps leave the form the room.
+                        val listy = s.step == 2 || s.step == ConnectStep
+                        if (roomy) AgentStage(s, onEdit, false, Modifier.fillMaxWidth().height(if (s.step == 4) 230.dp else if (listy) 120.dp else 190.dp))
                         Column(Modifier.weight(1f), content = form)
                     }
                 }
@@ -513,7 +516,7 @@ private fun AgentStage(s: OnboardingState, onEdit: ((OnboardingState) -> Onboard
     LaunchedEffect(s.choices, s.avatar) { poke++ }
     val count = AvatarArtboards.size
     val cycle = { delta: Int -> onEdit { it.copy(avatar = (it.avatar + delta + count) % count) } }
-    val size = if (wide) 280.dp else if (s.step == 4) 150.dp else 130.dp
+    val size = if (wide) 280.dp else if (s.step == 4) 150.dp else if (s.step == 2 || s.step == ConnectStep) 92.dp else 130.dp
     val gaze = when (s.step) { 4 -> Gaze.Forward; else -> if (wide) Gaze.Right else Gaze.Down }
     val face: @Composable (Dp) -> Unit = { faceSize ->
         AnimatedContent(s.avatar, transitionSpec = {
@@ -566,7 +569,9 @@ private fun StepForm(
         val forward = s.steps.indexOf(targetState) > s.steps.indexOf(initialState)
         (fadeIn() + slideInHorizontally { if (forward) it / 6 else -it / 6 }) togetherWith (fadeOut() + slideOutHorizontally { if (forward) -it / 6 else it / 6 })
     }, modifier = modifier) { step ->
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = Spacing.space20), verticalArrangement = Arrangement.spacedBy(Spacing.space14)) {
+        val scroll = rememberScrollState()
+        // Fades out above the button while there's more below, so a cut-off row reads as "scroll for more".
+        Column(Modifier.fillMaxSize().fadeBottom(scroll.canScrollForward).verticalScroll(scroll).padding(bottom = Spacing.space32), verticalArrangement = Arrangement.spacedBy(Spacing.space14)) {
             val display = displayStyle(if (wide) 40.sp else 30.sp)
             if (step == 4) NameHeadline(s, display, onEdit) else Text(Headlines[step - 1], style = display)
             Text(Subtitles[step - 1], color = color(mutedColor))
@@ -588,6 +593,13 @@ private fun StepForm(
             }
         }
     }
+}
+
+private fun Modifier.fadeBottom(on: Boolean) = if (!on) this else graphicsLayer(compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen).drawWithContent {
+    drawContent()
+    val fade = 56.dp.toPx()
+    drawRect(Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - fade, endY = size.height),
+        topLeft = Offset(0f, size.height - fade), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
 }
 
 /** An ACP Agent's working folder, and what its harness owns instead of a Soul. */
