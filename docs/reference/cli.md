@@ -122,8 +122,13 @@ Add options: repeatable `--env KEY=VALUE`, `--header KEY=VALUE`, `--include TOOL
 
 ## Tailcat
 
-On macOS and Linux, `kinuvo serve --tailcat` adds a secret Tailcat address without replacing the normal listener. `kinuvo service install --tailcat` keeps it enabled across service restarts. The Server prints the address in its connection information. Keep it private, including in logs: anyone who knows it can reach the Server, but still needs a pairing code or Device token.
+On macOS and Linux, `kinuvo serve --tailcat` adds a secret Tailcat address without replacing the normal listener. `kinuvo service install --tailcat` keeps it enabled across service restarts. `kinuvo pair` shows the secret pairing link. Keep it private: anyone who knows it can reach the Server, but still needs a pairing code or Device token.
 
 The address stays the same across restarts. To invalidate it, stop the Server, run `kinuvo tailcat-reset` with the same home, then start it again with `--tailcat`. Devices need the new address; existing Device tokens remain valid.
 
-Tailcat uses free public relays when a direct connection is unavailable. They have no availability guarantee. Both ends must use compatible Kinuvo releases. Client connection controls are planned for a later release.
+Tailcat uses free public relays when a direct connection is unavailable. They have no availability guarantee. Both ends must use compatible Kinuvo releases. Desktop clients can pair through Tailcat links or a pasted address and code. Mobile and web support is planned.
+
+Tailcat addresses are never printed in Server logs. `kinuvo pair` shows an additional
+secret Tailcat pairing link and QR code when Tailcat is active. Building the optional
+native library requires a C toolchain and Go 1.27.1+ (Go downloads that toolchain
+automatically for tailcat v0.7.0); run `scripts/build-tailcat.sh arm64` or `x64`.
