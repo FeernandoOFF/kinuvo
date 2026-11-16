@@ -5,6 +5,8 @@ import kinuvo.app.workflow.WorkflowsViewModel
 import kinuvo.app.team.NewTeamViewModel
 import kinuvo.ui.workflow.WorkflowScreen
 import kinuvo.ui.workflow.WorkflowsScreen
+import kinuvo.ui.workflow.WorkflowsSection
+import kinuvo.ui.workflow.LocalWorkflows
 import kinuvo.app.team.TeamRepository
 import kinuvo.app.team.TeamViewModel
 import kinuvo.ui.team.TeamEditor
@@ -257,7 +259,7 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                 onKnowledge = cover { history.switchTo(Route.Knowledge()) },
                 onArtifacts = cover { history.switchTo(Route.Artifacts()) },
                 onComputers = cover { history.switchTo(Route.Computers()) },
-                onRoutines = cover { homePage(SettingsSection.Routines) },
+                onRoutines = cover { if (appState.agents.any { !it.external }) homePage(SettingsSection.Routines) else history.switchTo(Route.Workflows()) },
                 onWorkflows = cover { history.switchTo(Route.Workflows()) },
                 onTools = cover { homePage(SettingsSection.Hub) },
                 onSelectServer = { server -> cover { guardLeave { app.use(server); history.reset(Route.Chat()) } }() },
@@ -348,8 +350,17 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         }
                         entry<Route.Settings>(metadata = { if (it.home) emptyMap() else SettingsTransitions(compact) }) { route ->
                             val settings = koinViewModel<SettingsViewModel>(key = "settings/${app.serverLifetime}/${route.agentId}") { parametersOf(route) }
+                            // Home's Routines page lists the Server's Workflows too.
+                            val workflows = if (route.home && route.section == SettingsSection.Routines) {
+                                val list = koinViewModel<WorkflowsViewModel>(key = "workflows/${app.serverLifetime}")
+                                val listed by list.state.collectAsState()
+                                // Leaving a routine being edited asks first, as other navigation from here does.
+                                WorkflowsSection(listed.workflows.takeUnless { it.isEmpty() && listed.loading }, onOpen = { id -> homeEdits.leave { history.open(Route.Workflows(id)) } },
+                                    onNew = { homeEdits.leave { list.create(route.agentId) { history.open(Route.Workflows(it)) } } },
+                                    error = listed.error.takeIf { listed.workflows.isEmpty() }, onReload = list::reload)
+                            } else null
                             key(route, homeEdits.revision) {
-                                CompositionLocalProvider(LocalSettingsEdits provides homeEdits) {
+                                CompositionLocalProvider(LocalSettingsEdits provides homeEdits, LocalWorkflows provides workflows) {
                                     SettingsScreen(app, settings, onNavigate = openSettings, onBack = back,
                                         onOpenSession = { next -> homeEdits.leave { history.open(next) } })
                                 }

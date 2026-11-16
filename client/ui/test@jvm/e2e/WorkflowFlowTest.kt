@@ -10,9 +10,9 @@ class WorkflowFlowTest {
     }) {
         pair()
         openHome()
-        tap("Workflows")
-        await("No Workflows yet")
-        tap("New Workflow")
+        tap("Routines & Workflows")
+        await("No [Ww]orkflows yet")
+        tap("New [Ww]orkflow")
         await("Unsaved changes|Step step-1")
         tap("Step step-1")
         tap("What should the Agent do\\?")
@@ -40,8 +40,8 @@ class WorkflowFlowTest {
     }) {
         pair()
         openHome()
-        tap("Workflows")
-        tap("New Workflow")
+        tap("Routines & Workflows")
+        tap("New [Ww]orkflow")
         tap("Step step-1")
         tap("What should the Agent do\\?")
         type("Write the draft")

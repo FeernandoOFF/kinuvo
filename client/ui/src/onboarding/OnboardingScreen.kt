@@ -50,6 +50,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -105,11 +106,11 @@ private val Headlines = listOf("Where should I live?", "Which mind should I use?
     "Where does your new Agent run?", "Which Agents?")
 private val Subtitles = listOf(
     "Pick where your Server runs. You can add more Servers later.",
-    "Your model powers every conversation. Each provider decides where your messages are processed.",
+    "The AI that powers me. A subscription you already have is the easiest start.",
     "Optional. I'll keep it in my notes about you.",
     "Swipe or tap to change how I look, then give me a name.",
     "Five choices shape my Soul. You can change it anytime in Settings.",
-    "Optional. Each one lets me do more for you; all of them are in Settings later.",
+    "Notes and Tasks work out of the box. Add more now, or anytime in Settings.",
     "Kinuvo's own Agent, or an agent you already use, started by this Server.",
     "Only Agents the other Server shares with linked Servers.",
 )
@@ -232,23 +233,43 @@ private fun ConnectSetup(app: AppViewModel, agentId: AgentId, section: kinuvo.ap
 
 private val ConnectInfo = mapOf(
     kinuvo.app.navigation.SettingsSection.Secrets to Triple(Lucide.KeyRound, "Password manager", "Use passwords and API keys without pasting them into settings."),
-    kinuvo.app.navigation.SettingsSection.Knowledge to Triple(Lucide.Library, "Notes", "Where I keep what I learn about your people and projects: built in, or your Obsidian vault or Anytype space."),
-    kinuvo.app.navigation.SettingsSection.Tasks to Triple(Lucide.ListChecks, "Tasks", "Your reminders, so I can see and work on your to-dos."),
+    kinuvo.app.navigation.SettingsSection.Knowledge to Triple(Lucide.Library, "Notes", "People, projects and places you want me to know."),
+    kinuvo.app.navigation.SettingsSection.Tasks to Triple(Lucide.ListChecks, "Tasks", "To-dos you keep here or in your own app."),
     kinuvo.app.navigation.SettingsSection.Notifications to Triple(Lucide.Bell, "Notifications", "So I can reach you when something needs you."),
     kinuvo.app.navigation.SettingsSection.Search to Triple(Lucide.Search, "Web search", "Search the web, not just open pages."),
     kinuvo.app.navigation.SettingsSection.Workspace to Triple(Lucide.Terminal, "Shell and files", "This machine, a container or an SSH host where I can run commands."),
     kinuvo.app.navigation.SettingsSection.Mcp to Triple(Lucide.Plug, "Apps and services", "Notion, Linear, GitHub, Google and more."),
 )
 
+/** Connect sections by how much a new user needs them; Advanced ones stay folded. */
+private val ConnectGroups = listOf(
+    "Ready to use" to listOf(kinuvo.app.navigation.SettingsSection.Knowledge, kinuvo.app.navigation.SettingsSection.Tasks),
+    "Recommended" to listOf(kinuvo.app.navigation.SettingsSection.Notifications, kinuvo.app.navigation.SettingsSection.Search),
+    "Optional" to listOf(kinuvo.app.navigation.SettingsSection.Mcp),
+)
+private val ConnectAdvanced = listOf(kinuvo.app.navigation.SettingsSection.Workspace, kinuvo.app.navigation.SettingsSection.Secrets)
+private val BuiltInSections = setOf(kinuvo.app.navigation.SettingsSection.Knowledge, kinuvo.app.navigation.SettingsSection.Tasks)
+
 @Composable
 internal fun ConnectList(s: OnboardingState, available: (kinuvo.app.navigation.SettingsSection) -> Boolean, onSetUp: (kinuvo.app.navigation.SettingsSection) -> Unit) {
-    RowGroup {
-        ConnectSections.forEach { section ->
-            val (icon, title, description) = ConnectInfo.getValue(section)
-            val enabled = available(section)
-            GroupRow(title, { onSetUp(section) }, if (enabled) description else "Not on this Server", icon, enabled = enabled) {
-                if (s.connected[section] == true) Pill("On", tone = Tone.Success, icon = Lucide.CircleCheck)
+    @Composable fun Row(section: kinuvo.app.navigation.SettingsSection) {
+        val (icon, title, description) = ConnectInfo.getValue(section)
+        GroupRow(title, { onSetUp(section) }, description, icon) {
+            // Notes and Tasks work either way: built in until you pick your own app.
+            when {
+                s.connected[section] == true -> Pill(if (section in BuiltInSections) "Your app" else "On", tone = Tone.Success, icon = Lucide.CircleCheck)
+                section in BuiltInSections -> Pill("Built-in", tone = Tone.Success, icon = Lucide.CircleCheck)
             }
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space16)) {
+        ConnectGroups.forEach { (title, sections) ->
+            val shown = sections.filter(available)
+            if (shown.isNotEmpty()) RowGroup(title) { shown.forEach { Row(it) } }
+        }
+        val advanced = ConnectAdvanced.filter(available)
+        if (advanced.isNotEmpty()) AdvancedGroup("For technical users", summary = advanced.joinToString(" · ") { ConnectInfo.getValue(it).second }) {
+            advanced.forEach { Row(it) }
         }
     }
 }
@@ -416,7 +437,9 @@ internal fun OnboardingContent(
                         AgentStage(s, onEdit, true, Modifier.weight(1.1f).fillMaxHeight())
                         Column(Modifier.weight(1f).fillMaxHeight().padding(vertical = Spacing.space24), content = form)
                     } else {
-                        if (roomy) AgentStage(s, onEdit, false, Modifier.fillMaxWidth().height(if (s.step == 4) 230.dp else 190.dp))
+                        // List-heavy steps leave the form the room.
+                        val listy = s.step == 2 || s.step == ConnectStep
+                        if (roomy) AgentStage(s, onEdit, false, Modifier.fillMaxWidth().height(if (s.step == 4) 230.dp else if (listy) 120.dp else 190.dp))
                         Column(Modifier.weight(1f), content = form)
                     }
                 }
@@ -493,7 +516,7 @@ private fun AgentStage(s: OnboardingState, onEdit: ((OnboardingState) -> Onboard
     LaunchedEffect(s.choices, s.avatar) { poke++ }
     val count = AvatarArtboards.size
     val cycle = { delta: Int -> onEdit { it.copy(avatar = (it.avatar + delta + count) % count) } }
-    val size = if (wide) 280.dp else if (s.step == 4) 150.dp else 130.dp
+    val size = if (wide) 280.dp else if (s.step == 4) 150.dp else if (s.step == 2 || s.step == ConnectStep) 92.dp else 130.dp
     val gaze = when (s.step) { 4 -> Gaze.Forward; else -> if (wide) Gaze.Right else Gaze.Down }
     val face: @Composable (Dp) -> Unit = { faceSize ->
         AnimatedContent(s.avatar, transitionSpec = {
@@ -546,7 +569,9 @@ private fun StepForm(
         val forward = s.steps.indexOf(targetState) > s.steps.indexOf(initialState)
         (fadeIn() + slideInHorizontally { if (forward) it / 6 else -it / 6 }) togetherWith (fadeOut() + slideOutHorizontally { if (forward) -it / 6 else it / 6 })
     }, modifier = modifier) { step ->
-        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = Spacing.space20), verticalArrangement = Arrangement.spacedBy(Spacing.space14)) {
+        val scroll = rememberScrollState()
+        // Fades out above the button while there's more below, so a cut-off row reads as "scroll for more".
+        Column(Modifier.fillMaxSize().fadeBottom(scroll.canScrollForward).verticalScroll(scroll).padding(bottom = Spacing.space64), verticalArrangement = Arrangement.spacedBy(Spacing.space14)) {
             val display = displayStyle(if (wide) 40.sp else 30.sp)
             if (step == 4) NameHeadline(s, display, onEdit) else Text(Headlines[step - 1], style = display)
             Text(Subtitles[step - 1], color = color(mutedColor))
@@ -568,6 +593,13 @@ private fun StepForm(
             }
         }
     }
+}
+
+private fun Modifier.fadeBottom(on: Boolean) = if (!on) this else graphicsLayer(compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen).drawWithContent {
+    drawContent()
+    val fade = 56.dp.toPx()
+    drawRect(Brush.verticalGradient(listOf(Color.Black, Color.Transparent), startY = size.height - fade, endY = size.height),
+        topLeft = Offset(0f, size.height - fade), blendMode = androidx.compose.ui.graphics.BlendMode.DstIn)
 }
 
 /** An ACP Agent's working folder, and what its harness owns instead of a Soul. */
@@ -682,7 +714,7 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
                 ChoiceRow(Lucide.Brain, info?.name ?: s.catalog.providers.firstOrNull { it.id == id }?.name ?: id,
                     providerStatus(info).orEmpty(), id == s.provider) { onProvider(id) }
             }
-            if (title == "On device" && s.provider in providers) Row(Modifier.fillMaxWidth().background(color(warningColor).copy(alpha = 0.1f))
+            if (title == "Private, on this Server" && s.provider in providers) Row(Modifier.fillMaxWidth().background(color(warningColor).copy(alpha = 0.1f))
                 .padding(horizontal = Spacing.space16, vertical = Spacing.space12), horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
                 Icon(Lucide.TriangleAlert, Modifier.size(24.dp), tint = color(warningColor))
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
@@ -692,18 +724,12 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
             }
         }
     }
-    RowGroup {
-        ActionRow("Refresh models and sign-in", Lucide.RefreshCw, onRefresh, enabled = !s.busy)
-    }
-    if (onEndpoint != null) {
-        var adding by remember { mutableStateOf(false) }
-        RowGroup { ActionRow("Add OpenAI-compatible endpoint", Lucide.Plus, { adding = !adding }) }
-        if (adding) EndpointForm { id, model -> adding = false; onEndpoint(id, model) }
-    }
-    RowGroup {
-        if (!group?.chatModels.isNullOrEmpty()) PickerRow("Model", (group.chatModels.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
-            { id -> group.chatModels.firstOrNull { it.id == id }?.name ?: id }, { value -> onEdit { it.copy(model = value) } }, Lucide.Cpu)
-        else key(s.provider) { DraftRow("Model ID", s.model, "Enter a model ID") { value -> onEdit { it.copy(model = value) } } }
+    val picked = s.provider.isNotBlank()
+    // A listed model is preselected, so only an unlisted one asks for input up front.
+    val listed = !group?.chatModels.isNullOrEmpty()
+    // A sign-in code in progress always shows, even before a provider reads as picked.
+    if (picked || s.deviceCode != null) RowGroup {
+        if (picked && !listed) key(s.provider) { DraftRow("Model ID", s.model, "Enter a model ID") { value -> onEdit { it.copy(model = value) } } }
         account?.downloads?.let { downloads ->
             downloads.models.filter { it.id == s.model }.takeIf { it.isNotEmpty() }?.let { selected ->
                 ModelDownloadRows(downloads.copy(models = selected), { onDownload() }, onCancel, {})
@@ -724,6 +750,14 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
             ActionRow("Open sign-in page", Lucide.ExternalLink, { runCatching { uri.openUri(code.url) } })
         }
     }
+    var adding by remember { mutableStateOf(false) }
+    AdvancedGroup("More options", summary = "Change the model, or add your own") {
+        if (picked && listed) PickerRow("Model", (group.chatModels.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
+            { id -> group.chatModels.firstOrNull { it.id == id }?.name ?: id }, { value -> onEdit { it.copy(model = value) } }, Lucide.Cpu)
+        ActionRow("Refresh models and sign-in", Lucide.RefreshCw, onRefresh, enabled = !s.busy)
+        if (onEndpoint != null) ActionRow("Add OpenAI-compatible endpoint", Lucide.Plus, { adding = !adding })
+    }
+    if (adding && onEndpoint != null) EndpointForm { id, model -> adding = false; onEndpoint(id, model) }
     (account?.downloads?.error ?: s.catalog.model(s.provider, s.model)?.state?.reason ?: group?.warning ?: s.catalog.warning ?: account?.error)?.let { Text(it, color = color(mutedColor), style = TextStyles.caption) }
 }
 
@@ -731,10 +765,11 @@ private const val APPLE = "apple"
 
 private fun providerStatus(info: ProviderInfo?): String? = when {
     info?.account?.signedIn == true -> "Signed in" + info.account?.label?.let { " as $it" }.orEmpty()
-    info?.account != null -> "Sign in to continue"
+    info?.account != null -> "Use your existing plan · sign in to continue"
     info?.apiKey?.configured == true -> "API key saved"
     info?.apiKey != null -> "Needs an API key"
     info?.downloads != null -> "Private · runs on this Server, downloads a model"
+    info?.id == APPLE -> "Free · runs privately on your Server"
     else -> null
 }
 

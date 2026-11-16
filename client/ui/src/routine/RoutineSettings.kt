@@ -14,40 +14,78 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import kinuvo.protocol.routine.*
 import kinuvo.protocol.session.*
 import kinuvo.ui.design.*
+import kinuvo.ui.workflow.LocalWorkflows
+import kinuvo.ui.workflow.summary
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
+/** Routines and Workflows in one place, as two tables: the picked Agent's Routines, then the Server's Workflows. */
 @Composable
 internal fun RoutineList(p: Pane) {
     val ui = p.ui
     val routines = ui.state.routines
     val error = ui.state.routinesError
     val restricted = !ui.management
+    val workflows = LocalWorkflows.current
+    val agent = ui.agent?.name ?: "the Agent"
+    val newRoutine = { p.go(ui.route.copy(item = null, editing = true)) }
     ItemList(
-        p, "Routines",
-        // An empty list explains itself in its empty state.
-        if (routines?.isEmpty() == true) "" else "Prompts ${ui.agent?.name ?: "the Agent"} runs on a schedule, each in its own Session.",
-        // An empty list offers one way to add, under it.
-        "New routine", routines == null && error == null && !restricted, canAdd = !restricted && routines?.isEmpty() != true,
+        p, if (workflows != null) "Routines & Workflows" else "Routines",
+        if (workflows != null) "Routines run one prompt on a schedule. Workflows chain several steps, Agents and Approvals." else "Prompts $agent runs on a schedule, each in its own Session.",
+        // Each table loads on its own, so Workflows show while Routines are still on their way.
+        "New routine", workflows == null && routines == null && error == null && !restricted, canAdd = false,
     ) {
-        when {
-            restricted -> ManagementAccessRequired()
-            error != null -> LoadFailure(error, onAction = p.actions.onReloadRoutines)
-            routines?.isEmpty() == true -> EmptyState(Lucide.AlarmClock, "No routines yet", "Prompts ${ui.agent?.name ?: "the Agent"} runs on a schedule. Create one here, or ask in chat, e.g. “every weekday at 9, summarize my inbox”.") {
-                Button(onClick = { p.go(ui.route.copy(item = null, editing = true)) }, style = ButtonStyle.Primary) { Text("Create routine") }
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+            TableHeader(if (workflows != null) "Routines · $agent" else "Routines", "New routine", newRoutine.takeIf { !restricted && error == null })
+            when {
+                restricted -> ManagementAccessRequired()
+                error != null -> LoadFailure(error, onAction = p.actions.onReloadRoutines)
+                routines == null -> Box(Modifier.fillMaxWidth().padding(Spacing.space12), contentAlignment = Alignment.Center) { Spinner() }
+                routines.isEmpty() -> RowGroup {
+                    GroupRow("No routines yet", subtitle = "Prompts $agent runs on a schedule. Add one, or ask in chat, e.g. “every weekday at 9, summarize my inbox”.", icon = Lucide.AlarmClock, tint = color(mutedColor))
+                }
+                else -> RowGroup { routines.forEach { r ->
+                    ItemRow(r.id == ui.route.item, r.icon(), r.name, r.summary(ui.now), { p.go(ui.route.copy(item = r.id, editing = false)) }, muted = !r.enabled) { r.statusPill() }
+                } }
             }
         }
-        if (!restricted && !routines.isNullOrEmpty()) RowGroup { routines.forEach { r ->
-            ItemRow(r.id == ui.route.item, r.icon(), r.name, r.summary(ui.now), { p.go(ui.route.copy(item = r.id, editing = false)) }, muted = !r.enabled) { r.statusPill() }
-        } }
+        if (workflows != null) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+            TableHeader("All Workflows", "New workflow", workflows.onNew.takeIf { !restricted })
+            val list = workflows.workflows
+            when {
+                workflows.error != null -> LoadFailure(workflows.error, onAction = workflows.onReload)
+                list == null -> Box(Modifier.fillMaxWidth().padding(Spacing.space12), contentAlignment = Alignment.Center) { Spinner() }
+                list.isEmpty() -> RowGroup {
+                    GroupRow("No workflows yet", subtitle = "Chain Agent turns and Approvals into steps the Server runs for you, on demand or on a schedule.", icon = Lucide.Workflow, tint = color(mutedColor))
+                }
+                else -> RowGroup { list.sortedByDescending { it.createdAt }.forEach { w ->
+                    ItemRow(false, Lucide.Workflow, w.name, summary(w), { workflows.onOpen(w.id) }, muted = !w.enabled) { if (!w.enabled) Pill("Off") }
+                } }
+            }
+        }
+    }
+}
+
+/** A table's caption with its Add button. */
+@Composable
+private fun TableHeader(title: String, addLabel: String, onAdd: (() -> Unit)?) {
+    Row(Modifier.fillMaxWidth().padding(start = Spacing.space6), verticalAlignment = Alignment.CenterVertically) {
+        SectionLabel(title, Modifier.weight(1f))
+        onAdd?.let {
+            Button(onClick = it, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(accentColor)) {
+                Icon(Lucide.Plus, Modifier.size(14.dp))
+                Text(addLabel, style = TextStyles.label, singleLine = true)
+            }
+        }
     }
 }
 
@@ -104,7 +142,8 @@ private fun RoutineDetail(r: Routine, p: Pane) {
             if (r.prompt.isBlank()) Text("Empty. Edit it here, or ask the agent to add items to its Heartbeat checklist.", color = color(mutedColor), style = TextStyles.secondary)
             else Markdown(r.prompt, Modifier.fillMaxWidth())
         }
-        RowGroup("Recent runs") {
+        // A Routine that ran but whose Sessions are gone says nothing rather than "No runs yet".
+        if (ui.state.runs.isNotEmpty() || r.lastRunAt == null || r.sessionId != null) RowGroup("Recent runs") {
             if (ui.state.runs.isEmpty()) GroupRow(if (r.sessionId != null) "Runs continue the attached Session." else "No runs yet.", tint = color(mutedColor))
             ui.state.runs.forEach { session ->
                 GroupRow(session.id.value.toRunLabel(), { actions.onOpenSession(session.id.value) }, icon = Lucide.MessageSquare) {
@@ -120,7 +159,7 @@ private fun RoutineDetail(r: Routine, p: Pane) {
 
 private enum class ScheduleKind(val label: String, val placeholder: String, val hint: String) {
     Every("Every", "30m", "An interval: 30m, 2h, 1d"),
-    Cron("Cron", "0 9 * * MON-FRI", "minute hour day month weekday"),
+    Cron("Custom (cron)", "0 9 * * MON-FRI", "minute hour day month weekday"),
     Once("Once", "2026-05-01T09:00", "A local date and time"),
 }
 
@@ -159,9 +198,15 @@ private fun RoutineForm(r: Routine?, p: Pane) {
                 Box(Modifier.weight(1f)) { Input(schedule, kind.placeholder) }
             }
         }
-        FormField("Time zone", "IANA name, e.g. Europe/Dublin. Blank for yours.") { Input(zone, "Europe/Dublin") }
-        FormField("Active hours", "Only fire between these local times. Blank for any time.") { Input(hours, "08:00-22:00") }
-        FormField("Approvals") { Picker(RoutineApprovals.entries, approvals, { it.label() }, { approvals = it }, hint = { it.hint() }) }
+        // Defaults suit most Routines; open already when this one changed them.
+        val custom = zone.value().isNotEmpty() || hours.value().isNotEmpty() || approvals != RoutineApprovals.Inherit
+        AdvancedGroup(summary = "Time zone, active hours, Approvals", initiallyOpen = custom) {
+            GroupBox {
+                FormField("Time zone", "IANA name, e.g. Europe/Dublin. Blank for yours.") { Input(zone, "Europe/Dublin") }
+                FormField("Active hours", "Only fire between these local times. Blank for any time.") { Input(hours, "08:00-22:00") }
+                FormField("Approvals") { Picker(RoutineApprovals.entries, approvals, { it.label() }, { approvals = it }, hint = { it.hint() }) }
+            }
+        }
     }
 }
 
@@ -238,8 +283,14 @@ private fun RoutineApprovals.hint() = when (this) {
 }
 
 /** `20261001-090000-abcd` → `2026-10-01 09:00`. */
-private fun String.toRunLabel(): String =
-    if (length >= 15 && this[8] == '-') "${substring(0, 4)}-${substring(4, 6)}-${substring(6, 8)} ${substring(9, 11)}:${substring(11, 13)}" else this
+/** A run's Session ID (yyyyMMdd-HHmm…) as a date people read, e.g. "Sun 20 Sep, 09:00". */
+private fun String.toRunLabel(): String {
+    if (length < 15 || this[8] != '-') return this
+    val date = runCatching { kotlinx.datetime.LocalDate(substring(0, 4).toInt(), substring(4, 6).toInt(), substring(6, 8).toInt()) }.getOrNull() ?: return this
+    val day = date.dayOfWeek.name.take(3).lowercase().replaceFirstChar(Char::uppercase)
+    val month = date.month.name.take(3).lowercase().replaceFirstChar(Char::uppercase)
+    return "$day ${date.day} $month, ${substring(9, 11)}:${substring(11, 13)}"
+}
 
 /** E.g. "every 30 min", "every day at 09:00", "09:30 on MON-FRI". */
 fun Trigger.describe(): String = when (this) {

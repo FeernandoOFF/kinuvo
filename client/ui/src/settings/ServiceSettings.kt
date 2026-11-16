@@ -47,15 +47,22 @@ private fun ServiceForm(setup: ServiceSetup, p: Pane) {
         RowGroup {
             if (push) SwitchRow("Push to paired Devices", form.push, { form = form.copy(push = it) }, pushedTo(p.ui.devices.devices), Lucide.Smartphone)
             PickerRow(if (push) "Also send through" else "Provider", (listOf<String?>(null) + setup.providers.map { it.id } + listOfNotNull(form.provider)).distinct(), form.provider,
-                { id -> setup.providers.firstOrNull { it.id == id }?.name ?: id ?: "Off" }, { form = form.select(it) },
+                { id -> setup.providers.firstOrNull { it.id == id }?.name ?: id ?: noProvider(kind, push) }, { form = form.select(it) },
                 if (kind == ServiceKind.Search) Lucide.Search else Lucide.Bell)
             if (!form.editable) GroupRow(if (form.definition == null) "This provider is not installed on the Server." else "Update this client to configure this provider.", tint = color(mutedColor))
         }
         ProviderSettingsFields("Settings", form, p) { update -> form = update(form) }
         if (form.provider != null || push && form.push) TestGroup(if (p.ui.state.testing) "Testing…" else if (kind == ServiceKind.Search) "Test search" else "Send test notification",
             form.editable && !p.ui.state.testing, { p.actions.onTestService(form.testParams(kind)) },
-            p.ui.state.serviceTest?.let { t -> t.error?.let { "Didn't work: $it" } to "Works: ${t.summary}" })
+            p.ui.state.serviceTest?.let { t -> t.error?.let { "Didn't work: $it" } to if (kind == ServiceKind.Notifications) "Test notification sent" else "Works: ${t.summary}" })
     }
+}
+
+/** What picking no provider means: search falls back to opening pages; notifications to push alone, or none. */
+private fun noProvider(kind: ServiceKind, push: Boolean) = when {
+    kind == ServiceKind.Search -> "None · open pages only"
+    push -> "Nothing else"
+    else -> "Off"
 }
 
 private fun pushedTo(devices: List<PairedDeviceInfo>?) = devices?.filter { it.push }?.map { it.name }?.let {
@@ -65,11 +72,15 @@ private fun pushedTo(devices: List<PairedDeviceInfo>?) = devices?.filter { it.pu
 /** The picked provider's settings in [form], once its schema is supported; [change] updates the form. */
 @Composable
 internal fun ProviderSettingsFields(title: String, form: ProviderSettingsForm, p: Pane, change: ((ProviderSettingsForm) -> ProviderSettingsForm) -> Unit) {
-    if (form.editable && form.fields.isNotEmpty()) RowGroup(title) {
-        key(form.provider) {
-            form.fields.forEach { field ->
-                key(field.key) { ProviderField(field, form, p, change) }
-            }
+    if (!form.editable || form.fields.isEmpty()) return
+    // Optional fields with a working default, e.g. a self-hosted URL, wait under Advanced unless already changed.
+    val (optional, essential) = remember(form.provider, form.fields.map { it.key }) {
+        form.fields.partition { !it.required && !it.sensitive && it.defaultValue != null && form.value(it.key).isEmpty() }
+    }
+    key(form.provider) {
+        if (essential.isNotEmpty()) RowGroup(title) { essential.forEach { field -> key(field.key) { ProviderField(field, form, p, change) } } }
+        if (optional.isNotEmpty()) AdvancedGroup("Advanced connection", summary = optional.joinToString(" · ") { it.label }) {
+            optional.forEach { field -> key(field.key) { ProviderField(field, form, p, change) } }
         }
     }
 }

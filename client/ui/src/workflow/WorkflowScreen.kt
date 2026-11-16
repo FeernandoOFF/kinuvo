@@ -54,6 +54,11 @@ import kotlin.math.roundToInt
 private val NodeWidth = 208.dp
 private val NodeHeight = 68.dp
 
+/** This Server's Workflows for a page that lists them beside something else, e.g. Routines: [onOpen] opens one's graph. */
+class WorkflowsSection(val workflows: List<Workflow>?, val onOpen: (WorkflowId) -> Unit, val onNew: (() -> Unit)?, val error: String? = null, val onReload: () -> Unit = {})
+
+val LocalWorkflows = compositionLocalOf<WorkflowsSection?> { null }
+
 /** The Workflows on this Server, each opening its graph. */
 @Composable
 fun WorkflowsScreen(workflows: List<Workflow>, agents: List<AgentInfo>, onOpen: (WorkflowId) -> Unit, onNew: () -> Unit, onBack: (() -> Unit)? = null) {
@@ -398,7 +403,7 @@ private fun detail(step: WorkflowStep) = when (step) {
     is WorkflowStep.Approval -> step.text
 }.lineSequence().firstOrNull().orEmpty()
 
-private fun summary(workflow: Workflow): String {
+internal fun summary(workflow: Workflow): String {
     val schedule = when (val t = workflow.trigger) {
         null -> "Manual"
         is Trigger.Every -> "Every ${t.minutes} min"

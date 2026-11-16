@@ -115,7 +115,7 @@ class ShowcaseFlowTest {
     @Test fun routinesAndSkills() = showcase("showcase-routines") {
         connect()
         openHome()
-        tap("Routines")
+        tap("Routines & Workflows")
         await("Inbox triage")
         screenshot("routines")
         tap("Home and agents")

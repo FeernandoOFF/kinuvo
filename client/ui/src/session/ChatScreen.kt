@@ -358,7 +358,7 @@ fun ChatContent(
             // Touch screens get floating bubbles; pointers, at any width, a toolbar in the title bar.
             val floating = !wide && LocalInteractionMode.current == InteractionMode.Touch
             if (!floating) TopBar(state, usage, actions, compact = compactHeader) {
-                HeaderControls(wide, toggle, actions.onNew.takeIf { !wide && state.selected != null })
+                HeaderControls(wide, toggle, null)
             }
             // The composer floats over the messages, which scroll on under its blur.
             var dropping by remember { mutableStateOf(false) }
@@ -389,12 +389,13 @@ fun ChatContent(
                 }
                 val background = color(backgroundColor)
                 val fade = with(density) { ComposerFade.toPx() }
+                val tray = state.requests.any { it !is PendingRequest.External }
                 Column(Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { composerHeight = with(density) { it.height.toDp() } }
                     .graphicsLayer { translationY = size.height * composerShift.value }
-                    // Phones: messages fade out just above the composer and never show around it.
+                    // Phones, and any width with a request tray: messages fade out just above the composer and never show around it.
                     // Not in voice chat, whose glow behind the controls would otherwise be cut off at the fade.
-                    .then(if (floating && voice == null) Modifier.background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background), endY = fade)) else Modifier)
-                    .then(if (floating) Modifier.padding(top = ComposerFade) else Modifier)
+                    .then(if ((floating || tray) && voice == null) Modifier.background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background), endY = fade)) else Modifier)
+                    .then(if (floating || tray) Modifier.padding(top = ComposerFade) else Modifier)
                     .onFocusChanged { composerFocused = it.hasFocus }.padding(horizontal = Spacing.space16).padding(bottom = if (wide) Spacing.space10 else Spacing.space16), horizontalAlignment = Alignment.CenterHorizontally) {
                     LaunchedEffect(state.unsent) { state.unsent?.let { if (draft.text.isBlank()) draft.setTextAndPlaceCursorAtEnd(it) } }
                     var dictated by remember { mutableStateOf<DictationDraft?>(null) }

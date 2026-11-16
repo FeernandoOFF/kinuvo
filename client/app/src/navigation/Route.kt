@@ -89,7 +89,7 @@ enum class SettingsSection(val title: String, val server: Boolean = false) {
     /** The Agent's own page: who it is, opening its other sections. */
     Overview("Overview"),
     /** Name, Identity, Soul and model; also where a new Agent is created. */
-    Agent("Personality"), Workspace("Workspace"), Tools("Tools"), Routines("Routines"), Skills("Skills"), Mcp("MCP servers"), DeviceTools("This Device's tools"), LocalVoice("Voice", server = true),
+    Agent("Personality"), Workspace("Workspace"), Tools("Tools"), Routines("Routines"), Skills("Skills"), Mcp("MCP servers"), DeviceTools("Tools on this device"), LocalVoice("Voice", server = true),
     /** Server-wide, the same whichever Agent is picked. */
     Connection("Servers & devices", server = true), Providers("Model providers", server = true), Images("Image generation", server = true),
     /** The ways this Server runs Agents besides Kinuvo itself: ACP commands and linked Kinuvo Servers. */

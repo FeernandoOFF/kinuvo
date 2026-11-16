@@ -1,5 +1,6 @@
 package kinuvo.ui.navigation
 
+import kinuvo.app.agent.external
 import kinuvo.protocol.team.Team
 import kinuvo.protocol.team.TeamId
 import kinuvo.app.connection.*
@@ -312,8 +313,10 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     if (state.management && state.capabilities?.features?.contains(ServerFeature.Computer) == true)
                         Pinned(Lucide.MonitorSmartphone, "Computers", view is Route.Computers, true, actions.onComputers)
-                    Pinned(Lucide.AlarmClock, "Routines", (view as? Route.Settings)?.section == SettingsSection.Routines, state.capabilities.supports(ServerFeature.Routines), actions.onRoutines)
-                    Pinned(Lucide.Workflow, "Workflows", view is Route.Workflows, true, actions.onWorkflows)
+                    // Routines need one of Kinuvo's own Agents; otherwise this is just Workflows.
+                    val routines = state.capabilities.supports(ServerFeature.Routines) && state.agents.any { !it.external }
+                    Pinned(Lucide.AlarmClock, if (routines) "Routines & Workflows" else "Workflows", (view as? Route.Settings)?.section == SettingsSection.Routines || view is Route.Workflows, true,
+                        if (routines) actions.onRoutines else actions.onWorkflows)
                     Pinned(Lucide.Wrench, "Tools & MCP", (view as? Route.Settings)?.section == SettingsSection.Hub, true, actions.onTools)
                     Pinned(Lucide.BookOpen, "Knowledge", view is Route.Knowledge, state.capabilities.supports(ServerFeature.Knowledge), actions.onKnowledge)
                     if (state.capabilities.supports(ServerFeature.Artifacts)) Pinned(Lucide.Shapes, "Artifacts", view is Route.Artifacts, true, actions.onArtifacts)

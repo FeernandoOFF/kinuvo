@@ -15,6 +15,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.input.rememberTextFieldState
@@ -34,6 +35,7 @@ import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
 import kinuvo.client.ConnectionState
 import kinuvo.protocol.execution.ExecutionPhase
+import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.session.SessionInfo
 import kinuvo.protocol.session.SessionStatus
 import kinuvo.protocol.usage.Usage
@@ -103,54 +105,91 @@ private fun MenuItem(icon: ImageVector, text: String) = Row(verticalAlignment = 
     Text(text)
 }
 
+/**
+ * The desktop toolbar: the shell's [controls], then the Session's title and what it's doing; the Agent centered above the
+ * chat, like a conversation's contact (opening its settings); on the right, the Session's actions grouped in one control.
+ */
 @Composable
 internal fun TopBar(state: ChatState, usage: Usage?, actions: ChatActions, compact: Boolean, controls: @Composable () -> Unit) {
     TitleBarRow {
-        controls()
-        Spacer(Modifier.width(Spacing.space6))
         val selected = state.sessions.firstOrNull { it.id == state.selected } ?: state.info
-        Row(Modifier.weight(1f).padding(start = Spacing.space4), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-            state.agent?.let { agent ->
-                Hint("${agent.name}'s settings", TooltipSide.Bottom) {
-                    Row(Modifier.titleBarControl().clip(PillShape).clickable(onClickLabel = "${agent.name}'s settings", onClick = actions.onSettings)
-                        .semantics(mergeDescendants = true) { contentDescription = "${agent.name}'s settings" }
-                        .background(color(panelColor)).padding(start = Spacing.space4, end = if (compact) Spacing.space4 else Spacing.space10, top = 3.dp, bottom = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6)) {
-                        AgentAvatar(agent, 20.dp)
-                        if (!compact) Text(agent.name, style = TextStyles.secondary, singleLine = true)
-                    }
-                }
-                if (!compact) Icon(Lucide.ChevronRight, Modifier.size(14.dp), tint = color(mutedColor))
-            }
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+            controls()
             Text(
                 selected?.title ?: if (state.agent != null) "New Session" else "…",
-                Modifier.weight(1f, fill = false),
+                Modifier.weight(1f, fill = false).padding(start = Spacing.space2),
                 color = if (selected == null) color(mutedColor) else Color.Unspecified,
-                fontWeight = FontWeight.Normal,
+                fontWeight = FontWeight.Medium,
                 singleLine = true,
                 overflow = TextOverflow.Ellipsis,
             )
             selected?.let { SessionBadge(it, compact) }
+            SessionActivity(state, compact)
         }
+        state.agent?.let { agent -> Box(if (compact) Modifier else Modifier.widthIn(min = 160.dp), contentAlignment = Alignment.Center) { AgentChip(agent, compact, actions.onSettings) } }
         var statistics by remember(state.selected) { mutableStateOf(false) }
-        if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, onStatistics = { statistics = true }) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
+        val session = selected?.takeIf { state.selected != null }
+        // Narrow, the title takes the room and the Agent sits beside the actions; wide, the two sides balance so the Agent centers.
+        Row(if (compact) Modifier else Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space6, Alignment.End)) {
+            if (session != null || state.items.isNotEmpty()) ToolbarGroup {
+                // Narrow, only More stays out; Favorite moves into it.
+                if (session != null && !compact) {
+                    HeaderButton(Lucide.SquarePen, "New Session ${shortcut("N")}", actions.onNew)
+                    HeaderButton(if (session.favorite) Lucide.StarOff else Lucide.Star, if (session.favorite) "Remove from favorites" else "Add to favorites", { actions.onFavorite(!session.favorite) })
+                }
+                if (state.items.isNotEmpty()) SessionMenu(selected, actions, state, onStatistics = { statistics = true }, favorite = compact) { open -> HeaderButton(Lucide.Ellipsis, "More", open) }
+            }
+            actions.onBrowser?.let { ToolbarGroup { HeaderButton(if (actions.browserOpen) Lucide.PanelRightClose else Lucide.Globe, if (actions.browserOpen) "Hide Browser" else "Browser", it) } }
+        }
         Popover(statistics, { statistics = false }, "Statistics") {
             ChatStatisticsContent(usage, remember(state.items) { state.items.requestMetrics() }, Modifier.fillMaxWidth())
         }
-        actions.onBrowser?.let { HeaderButton(if (actions.browserOpen) Lucide.PanelRightClose else Lucide.Globe, if (actions.browserOpen) "Hide Browser" else "Browser", it) }
     }
+}
+
+/** What the Session is doing, when it's worth a glance: waiting on you, or working. */
+@Composable
+private fun SessionActivity(state: ChatState, compact: Boolean) = when {
+    state.requests.isNotEmpty() -> Pill(if (compact) "${state.requests.size}" else "Needs you", tone = Tone.Warning, icon = Lucide.ShieldAlert)
+    state.running -> if (compact) Spinner(size = 12.dp, tint = color(accentColor)) else Pill("Working", tone = Tone.Accent, loading = true)
+    else -> Unit
+}
+
+/** The Agent this chat is with, as a conversation's contact: its avatar over its name; opens its settings beside the chat. */
+@Composable
+private fun AgentChip(agent: AgentInfo, compact: Boolean, onClick: () -> Unit) {
+    Hint("${agent.name}'s settings", TooltipSide.Bottom) {
+        Column(Modifier.titleBarControl().clip(RoundedCornerShape(Radius.menu)).clickable(onClickLabel = "${agent.name}'s settings", onClick = onClick)
+            .semantics(mergeDescendants = true) { contentDescription = "${agent.name}'s settings" }.padding(horizontal = Spacing.space6),
+            horizontalAlignment = Alignment.CenterHorizontally) {
+            AgentAvatar(agent, 28.dp)
+            if (!compact) Row(Modifier.offset(y = (-3).dp).clip(PillShape).background(color(subtleColor)).border(1.dp, color(borderColor), PillShape)
+                .padding(start = Spacing.space8, end = Spacing.space6, top = 1.dp, bottom = 1.dp),
+                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(agent.name, style = TextStyles.caption, fontWeight = FontWeight.SemiBold, singleLine = true, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 140.dp))
+                Icon(Lucide.ChevronRight, Modifier.size(10.dp), tint = color(mutedColor))
+            }
+        }
+    }
+}
+
+/** Header buttons that belong together, in one outlined pill. */
+@Composable
+private fun ToolbarGroup(content: @Composable RowScope.() -> Unit) {
+    Row(Modifier.height(34.dp).clip(PillShape).border(1.dp, color(borderColor), PillShape).padding(horizontal = 1.dp),
+        verticalAlignment = Alignment.CenterVertically, content = content)
 }
 
 /** Statistics, Favorite, Rename and, for an external Agent's running Session, Close, under [trigger]: a sheet on touch screens, a menu otherwise. */
 @Composable
-private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatState, onStatistics: () -> Unit, trigger: @Composable (open: () -> Unit) -> Unit) {
+private fun SessionMenu(session: SessionInfo?, actions: ChatActions, chat: ChatState, onStatistics: () -> Unit, favorite: Boolean = true, trigger: @Composable (open: () -> Unit) -> Unit) {
     var menu by remember { mutableStateOf(false) }
     var renaming by remember(session?.id) { mutableStateOf(false) }
     var closing by remember(session?.id) { mutableStateOf(false) }
     val closable = session != null && chat.external && chat.ended == null && chat.capabilities?.chat?.reasonCode != "archived"
     val items = listOfNotNull(
         Triple(Lucide.ChartBar, "Statistics", onStatistics),
-        session?.let { Triple(if (it.favorite) Lucide.StarOff else Lucide.Star, if (it.favorite) "Remove from favorites" else "Add to favorites") { actions.onFavorite(!it.favorite) } },
+        session?.takeIf { favorite }?.let { Triple(if (it.favorite) Lucide.StarOff else Lucide.Star, if (it.favorite) "Remove from favorites" else "Add to favorites") { actions.onFavorite(!it.favorite) } },
         session?.let { Triple(Lucide.Pencil, "Rename") { renaming = true } },
         Triple(Lucide.CircleStop, "Close Session") { closing = true }.takeIf { closable },
     )

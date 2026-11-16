@@ -341,7 +341,7 @@ private fun EmptyState(state: ChatState, modifier: Modifier) {
             // Balanced lines, so a wrap never leaves one word alone.
             Text(state.agent?.let { "Start a Session with ${it.name}" } ?: "Connecting…", style = TextStyles.headline.copy(lineBreak = LineBreak.Heading), lineHeight = 28.sp,
                 fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
-            Text("Ask anything, or type /skill to activate one.", color = color(mutedColor), textAlign = TextAlign.Center, style = LocalTextStyle.current.copy(lineBreak = LineBreak.Heading))
+            Text("Ask anything, like “plan my week” or “remind me every Monday to send the report”.", color = color(mutedColor), textAlign = TextAlign.Center, style = LocalTextStyle.current.copy(lineBreak = LineBreak.Heading))
         }
     }
 }

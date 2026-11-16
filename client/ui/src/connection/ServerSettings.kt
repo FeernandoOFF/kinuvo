@@ -47,17 +47,18 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
     val initialForm = remember { ProviderSettingsForm(setup) }
     var form by remember { mutableStateOf(initialForm) }
     val provider = form.provider ?: s.provider
+    val builtIn = provider == BUILT_IN_TASKS
     // A provider with settings loads its lists once they're filled in; one without loads them right away.
     val draft = form.fields.isNotEmpty() && provider != s.provider
     LaunchedEffect(provider) { if (!draft) p.actions.onLoadLists(TaskProviderRef(provider)) }
     val lists = p.ui.state.providerLists[provider]
-    // An empty map shows every list, so start them all as shown.
+    // The saved provider with no lists picked shows every list; another provider starts with none, so nothing appears unasked.
     val initialUses = remember(provider, lists) {
         lists.orEmpty().associate { l ->
             val agent = if (provider == s.provider) s.lists[l.name] ?: s.lists[l.id] else null
             l.name to when {
                 provider == s.provider && s.lists.isEmpty() -> ListUse.Unassigned
-                agent == null -> if (provider == s.provider) ListUse.Hidden else ListUse.Unassigned
+                agent == null -> ListUse.Hidden
                 agent.isEmpty() -> ListUse.Unassigned
                 else -> p.ui.agents.firstOrNull { it.id.value == agent }?.let { ListUse.Agent(it) } ?: ListUse.Unassigned
             }
@@ -67,21 +68,30 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
     var defaultList by remember(provider) { mutableStateOf(s.defaultList.takeIf { provider == s.provider }) }
     val startBefore = rememberTextFieldState(s.startBeforeDays.toString())
     val poll = rememberTextFieldState(s.pollMinutes.toString())
-    val options = listOf(ListUse.Hidden, ListUse.Unassigned) + p.ui.agents.map { ListUse.Agent(it) }
+    val agentOptions = listOf(ListUse.Unassigned) + p.ui.agents.map { ListUse.Agent(it) }
     val shown = lists.orEmpty().filter { uses[it.name] != ListUse.Hidden }
-    val ready = form.editable && (lists != null || form.fields.isNotEmpty()) && startBefore.value().toIntOrNull() != null && poll.value().toIntOrNull() != null
+    // No list picked would mean every list, so an external app needs at least one.
+    val nonePicked = !builtIn && !lists.isNullOrEmpty() && shown.isEmpty()
+    // An external app saves only lists picked from what loaded, since none picked would mean every list.
+    val ready = form.editable && (builtIn || !lists.isNullOrEmpty() || provider == s.provider && lists == null) && !nonePicked && startBefore.value().toIntOrNull() != null && poll.value().toIntOrNull() != null
     val save = {
         p.actions.onSaveTasks(SaveTasksParams(TasksSettings(
             provider = provider,
-            // Lists that didn't load keep their saved assignments.
-            lists = if (lists == null && provider == s.provider) s.lists else uses.mapNotNull { (name, use) ->
-                when (use) {
-                    ListUse.Hidden -> null
-                    ListUse.Unassigned -> name to ""
-                    is ListUse.Agent -> name to use.agent.id.value
-                }
-            }.toMap(),
-            defaultList = defaultList,
+            // Built-in has one list; lists that didn't load keep their saved assignments.
+            lists = when {
+                // Hidden settings stay as they were: built-in's own list keeps any Agent it had.
+                builtIn -> if (provider == s.provider) s.lists else emptyMap()
+                lists == null && provider == s.provider -> s.lists
+                else -> uses.mapNotNull { (name, use) ->
+                    when (use) {
+                        ListUse.Hidden -> null
+                        ListUse.Unassigned -> name to ""
+                        is ListUse.Agent -> name to use.agent.id.value
+                    }
+                }.toMap()
+            },
+            // Only a list still on the Board can take new tasks; otherwise the first one does.
+            defaultList = if (builtIn) s.defaultList.takeIf { provider == s.provider } else defaultList?.takeIf { d -> lists == null || shown.any { it.name == d } },
             startBeforeDays = startBefore.value().toInt(),
             pollMinutes = poll.value().toInt(),
             options = form.settings().options,
@@ -89,40 +99,55 @@ private fun TasksForm(setup: TasksSetup, p: Pane) {
     }
     val name = setup.providers.firstOrNull { it.id == provider }?.name ?: provider
     val info = "The Board shows your tasks from the app you pick. Agents start on a task assigned to them when it's due within " +
-        "the days below, or right away when it has no date. Write @agent in a task to assign it."
+        "the days set under Advanced, or right away when it has no date. Write @agent in a task to assign it."
     val dirty = form != initialForm || uses != initialUses || defaultList != s.defaultList || startBefore.value() != s.startBeforeDays.toString() || poll.value() != s.pollMinutes.toString()
     DetailPane(p.back, "Tasks", error = p.ui.error, info = info, trailing = { FormActions("Save", ready, p.ui.state.saved, onSave = save, dirty = dirty) }) {
-        val reminders = "Reads and changes your Reminders on the Server's device. Request access below; the system asks you to allow Kinuvo."
         RowGroup {
-            PickerRow("Task app", setup.providers.map { it.id }, provider, { id -> setup.providers.firstOrNull { it.id == id }?.name ?: id }, { form = form.select(it) }, Lucide.SquareKanban)
-            if (provider == "reminders") ActionRow(if (p.ui.state.testing) "Checking access…" else "Request access", Lucide.ShieldCheck,
-                { p.actions.onAuthorizeTasks(provider) }, enabled = !p.ui.state.testing, subtitle = reminders)
+            PickerRow("Task app", setup.providers.map { it.id }, provider, { id -> taskAppLabel(id, setup) }, { form = form.select(it) }, Lucide.SquareKanban,
+                hint = { id -> if (id == BUILT_IN_TASKS) "Ready now, nothing to set up" else "" })
+        }
+        Text(when {
+            builtIn -> "Kinuvo keeps your tasks on the Server, in one list. Pick another app to use the tasks you already have."
+            provider == "reminders" -> "Uses Reminders on the Server's device. Allow access, then turn on the lists you want on the Board."
+            else -> "Turn on the lists you want on the Board, and pick which Agent works on each."
+        }, Modifier.padding(horizontal = Spacing.space6), color = color(mutedColor), style = TextStyles.secondary)
+        if (provider == "reminders") RowGroup {
+            ActionRow(if (p.ui.state.testing) "Checking access…" else "Allow access to Reminders", Lucide.ShieldCheck,
+                { p.actions.onAuthorizeTasks(provider) }, enabled = !p.ui.state.testing, subtitle = "The system asks you to allow Kinuvo.")
         }
         ProviderSettingsFields(name, form, p) { update -> form = update(form) }
-        RowGroup("Lists") {
+        if (!builtIn) RowGroup("Lists") {
             when {
                 lists == null && draft && p.ui.error == null -> GroupRow("Fill in the settings above, then load the lists", tint = color(mutedColor))
                 lists == null && p.ui.error == null -> GroupBox { Spinner() }
-                lists == null -> GroupRow("Couldn’t load lists", subtitle = if (form.fields.isNotEmpty()) "Check the settings above and load the lists again." else "Request access or retry.", tint = color(mutedColor))
+                lists == null -> GroupRow("Couldn’t load lists", subtitle = if (form.fields.isNotEmpty()) "Check the settings above and load the lists again." else "Allow access or retry.", tint = color(mutedColor))
                 lists.isEmpty() -> GroupRow("No lists found", tint = color(mutedColor))
                 else -> lists.forEach { list ->
-                    PickerRow(list.name, options, uses[list.name] ?: ListUse.Unassigned, ::useLabel, { uses = uses + (list.name to it) }, Lucide.List)
+                    val use = uses[list.name] ?: ListUse.Hidden
+                    SwitchRow(list.name, use != ListUse.Hidden, { on -> uses = uses + (list.name to if (on) ListUse.Unassigned else ListUse.Hidden) }, icon = Lucide.List)
+                    if (use != ListUse.Hidden) PickerRow("Worked on by", agentOptions, use, ::useLabel, { uses = uses + (list.name to it) }, Lucide.CornerDownRight)
                 }
             }
-            if (form.fields.isNotEmpty() && form.editable) ActionRow(if (p.ui.state.testing) "Loading…" else "Load lists with these settings", Lucide.RefreshCw,
+            if (nonePicked) GroupRow("Turn on at least one list", tint = color(warningColor))
+            if (form.fields.isNotEmpty() && form.editable && (lists == null || form != initialForm)) ActionRow(if (p.ui.state.testing) "Loading…" else "Load lists with these settings", Lucide.RefreshCw,
                 { p.actions.onLoadLists(TaskProviderRef(provider, form.settings().options, form.secretUpdates())) }, enabled = !p.ui.state.testing)
         }
-        RowGroup("Defaults") {
-            PickerRow("New tasks go to", listOf<String?>(null) + shown.map { it.name }, defaultList?.takeIf { d -> shown.any { it.name == d } }, { it ?: "The first list" }, { defaultList = it })
+        AdvancedGroup(summary = if (builtIn) "When Agents start on a task" else "When Agents start and how often Kinuvo checks") {
+            if (!builtIn && shown.size > 1) PickerRow("New tasks go to", listOf<String?>(null) + shown.map { it.name }, defaultList?.takeIf { d -> shown.any { it.name == d } }, { it ?: "The first list" }, { defaultList = it })
             GroupRow("Start before due", chevron = false) { Input(startBefore, "3", Modifier.width(64.dp)); Text("days", color = color(mutedColor)) }
-            GroupRow("Check for tasks every", chevron = false) { Input(poll, "5", Modifier.width(64.dp)); Text("min", color = color(mutedColor)) }
+            if (!builtIn) GroupRow("Check for tasks every", chevron = false) { Input(poll, "5", Modifier.width(64.dp)); Text("min", color = color(mutedColor)) }
         }
     }
 }
 
+private const val BUILT_IN_TASKS = "local"
+
+private fun taskAppLabel(id: String, setup: TasksSetup) =
+    if (id == BUILT_IN_TASKS) "Built-in" else setup.providers.firstOrNull { it.id == id }?.name ?: id
+
 private fun useLabel(use: ListUse) = when (use) {
-    ListUse.Hidden -> "Not on the Board"
-    ListUse.Unassigned -> "On the Board, no agent"
+    ListUse.Hidden -> "Off"
+    ListUse.Unassigned -> "Nobody yet"
     is ListUse.Agent -> use.agent.name
 }
 
@@ -136,7 +161,7 @@ internal fun KnowledgeSettingsPane(p: Pane) {
         var reflection by remember { mutableStateOf(setup.settings.reflection) }
         var provider by remember { mutableStateOf(setup.settings.provider) }
         var notes by remember { mutableStateOf(NotesApp.of(setup.settings)) }
-        val url = rememberTextFieldState(setup.settings.options["url"] ?: "http://127.0.0.1:31009")
+        val url = rememberTextFieldState(setup.settings.options["url"] ?: ANYTYPE_URL)
         val apiKey = rememberTextFieldState(setup.settings.options["apiKey"].orEmpty())
         val space = rememberTextFieldState(setup.settings.options["space"].orEmpty())
         // Conventions are per provider; switching keeps what was typed for the other one.
@@ -162,13 +187,15 @@ internal fun KnowledgeSettingsPane(p: Pane) {
                 NotesApp.Anytype -> anytype
             }, Modifier.padding(horizontal = Spacing.space6), color = color(mutedColor), style = TextStyles.secondary)
             if (notes == NotesApp.Anytype) RowGroup("Anytype") {
-                FieldRow("API URL") { Input(url, "http://127.0.0.1:31009") }
                 FieldRow("API key") {
                     SecretField(p, { apiKey.setTextAndPlaceCursorAtEnd(it) }) { trailing ->
                         Input(apiKey, "API key", secret = !isReference(apiKey.value()), trailing = trailing)
                     }
                 }
                 FieldRow("Space ID") { Input(space, "Space ID") }
+            }
+            if (notes == NotesApp.Anytype) AdvancedGroup("Advanced connection", summary = "API URL", initiallyOpen = setup.settings.options["url"].let { it != null && it != ANYTYPE_URL }) {
+                FieldRow("API URL") { Input(url, ANYTYPE_URL) }
             }
             if (notes == NotesApp.Folder) RowGroup("Folder") {
                 FieldRow("Folder", "On the Server. To use Obsidian, point it at a folder in your vault, e.g. ~/Vault/Kinuvo.") { Input(path, "~/Vault/Kinuvo") }
@@ -207,15 +234,18 @@ internal fun KnowledgeSettingsPane(p: Pane) {
                     }
                 }
             }
-            TestGroup(if (p.ui.state.testing) "Testing…" else "Test", !p.ui.state.testing, { p.actions.onTestKnowledge(current()) },
+            // Built-in notes have nothing to test.
+            if (notes != NotesApp.BuiltIn) TestGroup(if (p.ui.state.testing) "Testing…" else "Test", !p.ui.state.testing, { p.actions.onTestKnowledge(current()) },
                 p.ui.state.knowledgeTest?.let { t -> t.error?.let { "Couldn't read it: $it" } to t.summary.let { "Works: $it" } })
         }
     }
 }
 
+private const val ANYTYPE_URL = "http://127.0.0.1:31009"
+
 /** Where Knowledge is kept: Kinuvo's own notes, or the user's notes app. */
 private enum class NotesApp(val label: String) {
-    BuiltIn("Built in"), Folder("Markdown / Obsidian"), Anytype("Anytype");
+    BuiltIn("Built-in"), Folder("Markdown / Obsidian"), Anytype("Anytype");
 
     companion object {
         fun of(settings: KnowledgeSettings) = when {

@@ -542,7 +542,7 @@ internal fun ComputerList(state: LiveViewState, onRetry: () -> Unit, onOpen: (Sc
                 }
                 !state.loaded -> Box(Modifier.fillMaxWidth().padding(Spacing.space24), contentAlignment = Alignment.Center) { Spinner() }
                 state.screens.isEmpty() -> EmptyState(Lucide.MonitorSmartphone, "No Computers yet",
-                    "Allow computer use on a phone or computer under Settings → This Device's tools, and turn on computer use in an Agent's tools.")
+                    "Allow computer use on a phone or computer under Settings → Tools on this device, and turn on computer use in an Agent's tools.")
                 else -> RowGroup {
                     state.screens.forEach { screen ->
                         val status = screen.status(state.connected, state.device, state.requestReason.takeIf { screen.ref == state.selected })

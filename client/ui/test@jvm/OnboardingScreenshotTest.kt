@@ -80,8 +80,9 @@ class OnboardingScreenshotTest {
                         OnboardingContent(state, action = OnboardingAction(labels[step] ?: "Continue"), welcome = { featured, pokes, poke, tint, insets ->
                             Welcome(WelcomeOptions(onScan = {}, onLocal = {}, onPair = {}), featured, pokes, poke, tint, insets)
                         }, model = { ModelStep(state, {}, {}, {}) },
-                            connect = { ConnectList(state.copy(connected = mapOf(kinuvo.app.navigation.SettingsSection.Knowledge to true)),
-                                { it != kinuvo.app.navigation.SettingsSection.Secrets && it != kinuvo.app.navigation.SettingsSection.Workspace }, {}) })
+                            connect = { ConnectList(state.copy(connected = mapOf(kinuvo.app.navigation.SettingsSection.Knowledge to false, kinuvo.app.navigation.SettingsSection.Tasks to false,
+                                kinuvo.app.navigation.SettingsSection.Notifications to true)),
+                                { it != kinuvo.app.navigation.SettingsSection.Secrets }, {}) })
                     }
                 }
             }

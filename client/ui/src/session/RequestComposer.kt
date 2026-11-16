@@ -49,10 +49,12 @@ import kinuvo.protocol.approval.ApprovalDecision
 import kinuvo.protocol.approval.Question
 import kinuvo.protocol.approval.Risk
 import kinuvo.ui.design.*
+import com.composeunstyled.theme.Theme
 
 private val ComposerShape = RoundedCornerShape(Radius.composer)
 private const val ArgumentLines = 8
-private val TrayShape = RoundedCornerShape(topStart = Radius.bubble, topEnd = Radius.bubble)
+private val TrayShape = RoundedCornerShape(topStart = Radius.card, topEnd = Radius.card)
+private val TrayTuck = 14.dp
 private val WideBreakpoint = 600.dp
 private val BodyMaxHeight = 380.dp
 private val FocusRing = 4.dp
@@ -152,17 +154,19 @@ private fun Tray(request: PendingRequest?, notice: (@Composable () -> Unit)?, co
             var shown by remember { mutableStateOf(request) }
             request?.let { shown = it }
             shown?.let { current ->
+                // A tab rising out of the input, edged in the request's tone; its bottom tucks under the input.
                 Column(
-                    Modifier.fillMaxWidth().padding(horizontal = Spacing.space12).clip(TrayShape).background(color(panelColor)).border(1.dp, color(borderColor), TrayShape)
-                        .padding(start = Spacing.space16, end = Spacing.space16, top = Spacing.space12, bottom = Spacing.space24),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.space12),
+                    Modifier.fillMaxWidth().padding(horizontal = Spacing.space12).clip(TrayShape).background(color(panelColor))
+                        .border(1.dp, current.tone().copy(alpha = 0.45f), TrayShape)
+                        .padding(start = Spacing.space18, end = Spacing.space18, top = Spacing.space16, bottom = Spacing.space16 + TrayTuck),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.space14),
                 ) {
                     body(current)
                 }
             }
         }
         // Lifts over the tray's bottom edge so the two read as one object.
-        val lift by animateDpAsState(if (request != null) 14.dp else 0.dp)
+        val lift by animateDpAsState(if (request != null) TrayTuck else 0.dp)
         Box(Modifier.layout { measurable, constraints ->
             val placeable = measurable.measure(constraints)
             val up = lift.roundToPx()
@@ -201,7 +205,7 @@ private fun PendingRequest.detail(): String? = when (this) {
     else -> null
 }
 
-private fun PendingInteraction.Approval.isShell() = identity?.instance?.pluginId == "kinuvo.exec" && identity?.localId == "shell"
+private fun PendingInteraction.Approval.isShell() = identity?.let { it.instance.pluginId == "kinuvo.exec" && it.localId == "shell" } ?: (toolCallName == "shell")
 
 @Composable
 private fun RequestHeader(request: PendingRequest, count: Int, from: String? = null, onClose: (() -> Unit)?) {
@@ -248,9 +252,10 @@ private fun Actions(wide: Boolean, primary: @Composable (Modifier) -> Unit, othe
 @Composable
 private fun ApprovalBody(event: PendingInteraction.Approval, input: RequestInput, wide: Boolean, onDecision: (ApprovalDecision) -> Unit) {
     val identity = event.identity
-    // The title already names a tool without an identity.
-    val label = identity?.let { "${it.instance.pluginId} › ${it.instance.instanceId} › ${it.localId}" }
     val always = event.trustHint?.let { if (identity?.instance?.pluginId == "kinuvo.computer" && identity.localId == "computer_act") "Always allow in $it" else "Always allow `$it …`" } ?: "Always allow"
+    val deny = { onDecision(ApprovalDecision.Deny(input.note.text.toString())) }
+    val allow = { onDecision(ApprovalDecision.AllowOnce) }
+    val more = if (event.trustable) listOf("Allow for this Session" to { onDecision(ApprovalDecision.AllowForSession) }, always to { onDecision(ApprovalDecision.AlwaysAllow) }) else emptyList()
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
         event.preview?.let { ChangePreviewView(it) }
         val command = if (event.isShell()) commandOf(event.args) else null
@@ -259,38 +264,71 @@ private fun ApprovalBody(event: PendingInteraction.Approval, input: RequestInput
                 style = MonoStyle, color = color(onCodeColor), maxLines = 3, overflow = TextOverflow.Ellipsis)
         }
         val json = prettyJson(event.args)
-        val toggle = when {
-            command != null || event.preview != null -> if (input.arguments) "Hide arguments" else "Arguments"
-            json.lines().size > ArgumentLines -> if (input.arguments) "Show less" else "Show all"
-            else -> null
+        // Without a command or preview to show, the arguments are what's being approved; otherwise they and the tool's ID are details.
+        // Without a command or preview, the arguments are what's being approved, so they show; Details adds the tool's ID and the rest.
+        val shownByDefault = command == null && event.preview == null
+        if (shownByDefault) CodeBlock(json, language = "Arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
+        if (input.arguments) {
+            identity?.let { Text("${it.instance.pluginId} › ${it.instance.instanceId} › ${it.localId}", style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis) }
+            if (!shownByDefault) CodeBlock(json, language = "Arguments")
         }
-        if (label != null || toggle != null) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-            Text(label.orEmpty(), Modifier.weight(1f), style = TextStyles.caption, color = color(mutedColor), singleLine = true, overflow = TextOverflow.Ellipsis)
-            toggle?.let { Button(onClick = { input.arguments = !input.arguments }, modifier = Modifier.heightIn(min = 44.dp), style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(accentColor)) {
-                Text(it, style = TextStyles.caption, singleLine = true)
-                Icon(if (input.arguments) Lucide.ChevronUp else Lucide.ChevronDown, Modifier.size(14.dp))
-            } }
-        }
-        // Without a command or preview to show, the arguments are what's being approved.
-        if ((command == null && event.preview == null) || input.arguments) CodeBlock(json, language = "Arguments", maxLines = if (input.arguments) Int.MAX_VALUE else ArgumentLines)
-        // The two answers side by side; a note for a denial is one tap away and goes above them.
         if (input.noting) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
             Text("Note for the Agent, sent with Deny", style = TextStyles.caption, color = color(mutedColor))
             Input(input.note, "What to do instead", capitalize = true)
         }
-        // Writing a note means denying, so Deny takes the emphasis then.
-        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
-            Button(onClick = { onDecision(ApprovalDecision.AllowOnce) }, modifier = Modifier.weight(1f), style = if (input.noting) ButtonStyle.Outlined else ButtonStyle.Primary) { Text("Allow once") }
-            val deny = { onDecision(ApprovalDecision.Deny(input.note.text.toString())) }
-            if (input.noting) DangerButton("Deny", deny, Modifier.weight(1f))
-            else Button(onClick = deny, modifier = Modifier.weight(1f), style = ButtonStyle.Outlined, contentColor = color(destructiveColor)) { Text("Deny") }
+        val toggle = if (identity != null || !shownByDefault || json.lines().size > ArgumentLines) "Details" else null
+        val quiet: @Composable () -> Unit = {
+            if (!input.noting) QuietAction(Lucide.Pencil, "Add note") { input.noting = true }
+            toggle?.let { QuietAction(if (input.arguments) Lucide.ChevronUp else Lucide.ChevronDown, it) { input.arguments = !input.arguments } }
         }
-        if (event.trustable) Actions(wide,
-            primary = { Button(onClick = { onDecision(ApprovalDecision.AllowForSession) }, modifier = it, style = ButtonStyle.Outlined) { Text("Allow for this Session", singleLine = true) } },
-            others = { Button(onClick = { onDecision(ApprovalDecision.AlwaysAllow) }, modifier = it, style = ButtonStyle.Outlined) { Text(always, singleLine = true, overflow = TextOverflow.Ellipsis) } })
-        if (!input.noting) Button(onClick = { input.noting = true }, modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp), style = ButtonStyle.Ghost, contentColor = color(onBackgroundColor)) {
-            Icon(Lucide.Pencil, Modifier.size(14.dp))
-            Text("Add a note for the Agent", style = TextStyles.label)
+        // Writing a note means denying, so Deny takes the emphasis then.
+        val denyButton: @Composable (Modifier) -> Unit = { m ->
+            // Same shape either way; filled red once a note makes it the answer.
+            if (input.noting) Button(onClick = deny, modifier = m.clip(Theme[shapes][buttonShape]).background(color(destructiveColor)), style = ButtonStyle.Ghost, contentColor = color(backgroundColor)) { Text("Deny") }
+            else Button(onClick = deny, modifier = m, style = ButtonStyle.Outlined, contentColor = color(destructiveColor)) { Text("Deny") }
+        }
+        if (wide) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+            quiet()
+            Spacer(Modifier.weight(1f))
+            denyButton(Modifier)
+            SplitButton("Allow once", allow, more, primary = !input.noting)
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
+                denyButton(Modifier.weight(1f))
+                SplitButton("Allow once", allow, more, Modifier.weight(1f), primary = !input.noting, stretch = true)
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space8, Alignment.CenterHorizontally)) { quiet() }
+        }
+    }
+}
+
+/** A small muted text button, e.g. Add note or Details. */
+@Composable
+private fun QuietAction(icon: ImageVector, label: String, onClick: () -> Unit) =
+    Button(onClick = onClick, modifier = Modifier.heightIn(min = 40.dp), style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(mutedColor)) {
+        Icon(icon, Modifier.size(14.dp))
+        Text(label, style = TextStyles.label, singleLine = true)
+    }
+
+/** [label] as the main action, with [more] choices behind a chevron joined to it; just a button without them. */
+@Composable
+private fun SplitButton(label: String, onClick: () -> Unit, more: List<Pair<String, () -> Unit>>, modifier: Modifier = Modifier, primary: Boolean = true, stretch: Boolean = false) {
+    val style = if (primary) ButtonStyle.Primary else ButtonStyle.Outlined
+    if (more.isEmpty()) return Button(onClick = onClick, modifier = modifier, style = style) { Text(label, singleLine = true) }
+    val r = if (LocalInteractionMode.current == InteractionMode.Touch) Radius.touchButton else Radius.button
+    var open by remember { mutableStateOf(false) }
+    Row(modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+        Button(onClick = onClick, modifier = (if (stretch) Modifier.weight(1f) else Modifier).fillMaxHeight(), style = style, shape = RoundedCornerShape(topStart = r, bottomStart = r)) { Text(label, singleLine = true) }
+        DropdownMenu(expanded = open, onExpandedChange = { open = it }, panel = {
+            DropdownMenuPanel {
+                more.forEach { (option, choose) ->
+                    DropdownMenuItem(onClick = { open = false; choose() }) { Text(option, singleLine = true, overflow = TextOverflow.Ellipsis) }
+                }
+            }
+        }) {
+            IconButton(onClick = { open = true }, modifier = Modifier.fillMaxHeight().widthIn(min = 40.dp), style = style, shape = RoundedCornerShape(topEnd = r, bottomEnd = r)) {
+                Icon(Lucide.ChevronDown, Modifier.size(16.dp), contentDescription = "More ways to allow")
+            }
         }
     }
 }
@@ -336,7 +374,7 @@ private fun QuestionsBody(asked: PendingInteraction.Questions, drafts: Map<Inter
 @Composable
 private fun TakeoverBody(asked: PendingInteraction.Questions, input: RequestInput, wide: Boolean, actions: ChatActions) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
-        Text("Hand back in Live view when finished. Answering or skipping keeps Takeover paused.", style = TextStyles.caption, color = color(mutedColor))
+        Text("Do this step yourself in Live view, then hand back there. Sending a note or skipping doesn't hand it back.", style = TextStyles.caption, color = color(mutedColor))
         Actions(wide,
             primary = { Button(onClick = { asked.screen?.let { actions.onScreen(it, asked.title) } ?: actions.onWatch() }, modifier = it, style = ButtonStyle.Primary) { Text("Open Live view") } },
             others = { Button(onClick = { actions.onAnswer(null) }, modifier = it, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip") } })

@@ -361,35 +361,38 @@ private const val CaptionsKey = "live.captions"
 
 /**
  * An Approval the Agent needs while the call goes on: a sheet over the call naming what the tool will touch, with the
- * raw arguments and "Allow for this Session" behind Show details. Approving by voice is deliberately not offered.
+ * raw arguments and "Always allow" behind Show details. Approving by voice is deliberately not offered.
  */
 @Composable
 fun CallApprovalSheet(agentName: String, event: PendingInteraction.Approval, onDecision: (ApprovalDecision) -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
-    val shell = event.identity?.instance?.pluginId == "kinuvo.exec" && event.identity?.localId == "shell"
+    val shell = event.identity?.let { it.instance.pluginId == "kinuvo.exec" && it.localId == "shell" } ?: (event.toolCallName == "shell")
     val command = if (shell) commandOf(event.args)?.let { "$ $it" } else null
     val tone = when (event.risk) { Risk.High -> color(destructiveColor); Risk.Medium -> color(warningColor); Risk.Low -> color(accentColor) }
     CallRequestSheet(
         event.id, if (shell) Lucide.SquareTerminal else Lucide.ShieldAlert, tone,
-        if (shell) "$agentName wants to run a command" else "$agentName wants to use ${event.identity?.localId ?: event.toolCallName}",
+        // The tool's ID reads as words here; the exact call is under Show details.
+        if (shell) "$agentName wants to run a command" else "$agentName wants to use ${(event.identity?.localId ?: event.toolCallName).replace('_', ' ')}",
         command ?: event.reason ?: event.trustHint, mono = command != null,
         buttons = listOfNotNull(
-            if (event.trustable) SheetChoice("Always allow", filled = true) { onDecision(ApprovalDecision.AlwaysAllow) } else null,
             SheetChoice("Allow once", filled = true) { onDecision(ApprovalDecision.AllowOnce) },
-            SheetChoice("Decline", filled = false) { onDecision(ApprovalDecision.Deny()) },
+            // The safer standing answer leads; permanent trust waits under Show details.
+            if (event.trustable) SheetChoice("Allow for this Session", filled = false) { onDecision(ApprovalDecision.AllowForSession) } else null,
+            SheetChoice("Deny", filled = false) { onDecision(ApprovalDecision.Deny()) },
         ),
         onEnd, modifier,
     ) {
         Text(prettyJson(event.args), Modifier.fillMaxWidth().heightIn(max = 160.dp).clip(RoundedCornerShape(Radius.menu)).background(color(codeColor)).verticalScroll(rememberScrollState()).padding(Spacing.space12),
             style = MonoStyle, color = color(onCodeColor), overflow = TextOverflow.Ellipsis)
-        Button(onClick = { onDecision(ApprovalDecision.AllowForSession) }, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Ghost, shape = PillShape) { Text("Allow for this Session") }
+        if (event.trustable) Button(onClick = { onDecision(ApprovalDecision.AlwaysAllow) }, modifier = Modifier.fillMaxWidth(), style = ButtonStyle.Ghost, shape = PillShape) { Text("Always allow") }
     }
 }
 
-/** An external Agent's harness asking permission during a call, with the harness's own options; declining ones last. */
+/** An external Agent's harness asking permission during a call, with the harness's own options: allowing once first, declining ones last. */
 @Composable
 fun CallExternalApprovalSheet(agentName: String, prompt: PendingInteraction.HarnessApproval, onOption: (String) -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
-    val choices = prompt.options.sortedBy { approvalOptionStyle(it.kind) == ApprovalOptionStyle.Destructive }
-        .map { o -> SheetChoice(o.label, filled = approvalOptionStyle(o.kind) != ApprovalOptionStyle.Destructive) { onOption(o.id) } }
+    // The one-off answer leads, standing trust follows, refusals go last, whatever order the harness sent.
+    val choices = prompt.options.sortedBy { approvalOptionStyle(it.kind).ordinal }
+        .map { o -> SheetChoice(o.label, filled = approvalOptionStyle(o.kind) == ApprovalOptionStyle.Primary) { onOption(o.id) } }
     CallRequestSheet(prompt.id, if (prompt.site != null) Lucide.ExternalLink else Lucide.ShieldAlert, color(warningColor), "$agentName wants to: ${prompt.title}",
         prompt.origin, mono = false, buttons = choices, onEnd = onEnd, modifier = modifier,
         details = prompt.description?.let { { Text(it, style = TextStyles.secondary, color = color(mutedColor)) } })
