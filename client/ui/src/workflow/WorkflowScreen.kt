@@ -36,7 +36,7 @@ import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
 import com.composeunstyled.theme.Theme
-import kinuvo.app.workflow.WorkflowViewModel
+import kinuvo.app.workflow.*
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.routine.Trigger
@@ -53,8 +53,6 @@ import kotlin.math.roundToInt
 
 private val NodeWidth = 208.dp
 private val NodeHeight = 68.dp
-private const val ColumnGap = 280f
-private const val RowGap = 104f
 
 /** The Workflows on this Server, each opening its graph. */
 @Composable
@@ -89,15 +87,13 @@ fun WorkflowsScreen(workflows: List<Workflow>, agents: List<AgentInfo>, onOpen: 
 fun WorkflowScreen(model: WorkflowViewModel, agents: List<AgentInfo>, onOpenSession: (AgentId, SessionId) -> Unit, onDelete: () -> Unit, onBack: (() -> Unit)? = null) {
     val state by model.state.collectAsState()
     val saved = state.workflow
-    // Bumped on discard so text fields drop their edits.
-    var generation by remember { mutableIntStateOf(0) }
-    var draft by remember(saved, generation) { mutableStateOf(saved) }
+    val generation = state.generation
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
-    val workflow = draft
+    val workflow = state.draft
     val run = state.activeRun ?: state.latestRun
     val running = state.activeRun != null
-    val dirty = workflow != saved
+    val dirty = state.dirty
     Column(Modifier.fillMaxSize().background(color(backgroundColor))) {
         PageHeader(Lucide.Workflow, workflow?.name ?: "Workflow", run?.let { "Last run: ${it.status.label}" } ?: workflow?.let(::summary), actions = listOfNotNull(
             onBack?.let { PageAction(Lucide.ArrowLeft, "Back", it) },
@@ -112,16 +108,16 @@ fun WorkflowScreen(model: WorkflowViewModel, agents: List<AgentInfo>, onOpenSess
         ConfirmPopover(confirmDelete, "Delete ${workflow.name}?", "Its run history goes with it.", "Delete", true, { confirmDelete = false }) {
             confirmDelete = false; onDelete()
         }
-        if (dirty) UnsavedBar(state.saving, onDiscard = { generation++ }) { model.saveGraph(workflow) }
+        if (dirty) UnsavedBar(state.saving, onDiscard = model::discard, onSave = model::save)
         state.error?.let { ErrorMessage(it, Modifier.fillMaxWidth().padding(horizontal = Spacing.space12, vertical = Spacing.space6)) }
         val steps = run?.takeIf { it.workflow.steps.map(WorkflowStep::id) == workflow.steps.map(WorkflowStep::id) || running }?.steps ?: state.steps
         val waiting = workflow.steps.filterIsInstance<WorkflowStep.Approval>().filter { steps[it.id]?.status == StepStatus.WaitingApproval }
         waiting.forEach { approval -> key(approval.id.value) { WaitingBar(approval) { allow -> model.approve(approval.id, allow) } } }
         val step = workflow.steps.firstOrNull { it.id.value == selected }
-        val edit = { changed: Workflow -> draft = changed }
+        val edit = model::edit
         val graph = @Composable { modifier: Modifier ->
             WorkflowCanvas(workflow, steps, agents, step?.id, modifier, onSelect = { selected = it?.value }, onChange = edit,
-                onAdd = { kind -> val added = workflow.add(kind, agents, step); draft = added.first; selected = added.second.value })
+                onAdd = { kind -> selected = model.add(kind, agents, step).value })
         }
         val inspector = @Composable { modifier: Modifier ->
             Column(modifier.verticalScroll(rememberScrollState()).padding(Spacing.space16), verticalArrangement = Arrangement.spacedBy(Spacing.space12)) {
@@ -130,7 +126,7 @@ fun WorkflowScreen(model: WorkflowViewModel, agents: List<AgentInfo>, onOpenSess
                     StepResult(step, result, onOpen = { id -> (step as? WorkflowStep.AgentTurn)?.let { onOpenSession(it.agentId, id) } })
                 key(generation, step?.id?.value) {
                     if (step == null) WorkflowSettings(workflow, edit)
-                    else StepSettings(workflow, step, agents, edit, onRemove = { draft = workflow.remove(step.id); selected = null })
+                    else StepSettings(workflow, step, agents, edit, onRemove = { model.remove(step.id); selected = null })
                 }
             }
         }
@@ -388,63 +384,6 @@ private fun synced(initial: String, onChange: (String) -> Unit): TextFieldState 
     val latest by rememberUpdatedState(onChange)
     LaunchedEffect(state) { snapshotFlow { state.text.toString() }.drop(1).distinctUntilChanged().collect { latest(it) } }
     return state
-}
-
-internal enum class StepKind { Agent, Approval }
-
-private fun Workflow.add(kind: StepKind, agents: List<AgentInfo>, after: WorkflowStep?): Pair<Workflow, StepId> {
-    val taken = steps.map { it.id.value }.toSet()
-    val prefix = if (kind == StepKind.Approval) "approval" else "step"
-    val id = StepId(generateSequence(1) { it + 1 }.map { "$prefix-$it" }.first { it !in taken })
-    val positions = layout(this)
-    val anchor = after?.let { positions[it.id] }
-    val position = anchor?.let { a ->
-        val x = a.x + ColumnGap
-        val used = positions.values.filter { kotlin.math.abs(it.x - x) < 1f }.maxOfOrNull { it.y }
-        Position(x, if (used == null) a.y else used + RowGap)
-    } ?: Position((positions.values.maxOfOrNull { it.x } ?: -ColumnGap) + ColumnGap, 0f)
-    val step = when (kind) {
-        StepKind.Agent -> WorkflowStep.AgentTurn(id, (after as? WorkflowStep.AgentTurn)?.agentId ?: agents.first().id, "", position = position)
-        StepKind.Approval -> WorkflowStep.Approval(id, "", position)
-    }
-    return copy(steps = steps + step, edges = edges + listOfNotNull(after?.let { WorkflowEdge(it.id, id) })) to id
-}
-
-private fun Workflow.remove(id: StepId) = copy(steps = steps.filterNot { it.id == id }, edges = edges.filterNot { it.from == id || it.to == id })
-
-private fun Workflow.move(id: StepId, to: Position) = copy(steps = steps.map {
-    if (it.id != id) it else when (it) {
-        is WorkflowStep.AgentTurn -> it.copy(position = to)
-        is WorkflowStep.Approval -> it.copy(position = to)
-    }
-})
-
-/** Each step's saved position, or its column by longest path from a root and its row within that column. */
-internal fun layout(workflow: Workflow): Map<StepId, Position> {
-    val depth = mutableMapOf<StepId, Int>()
-    fun depthOf(id: StepId, seen: Set<StepId> = emptySet()): Int = depth[id] ?: (workflow.edges.filter { it.to == id && it.from !in seen }
-        .maxOfOrNull { depthOf(it.from, seen + id) + 1 } ?: 0).also { depth[id] = it }
-    val rows = mutableMapOf<Int, Int>()
-    return workflow.steps.associate { step ->
-        step.id to (step.position ?: depthOf(step.id).let { column ->
-            val row = rows.getOrElse(column) { 0 }.also { rows[column] = it + 1 }
-            Position(column * ColumnGap, row * RowGap)
-        })
-    }
-}
-
-private fun ancestors(workflow: Workflow, id: StepId): List<StepId> {
-    val found = linkedSetOf<StepId>()
-    fun visit(at: StepId) { workflow.edges.filter { it.to == at }.forEach { if (found.add(it.from)) visit(it.from) } }
-    visit(id)
-    return workflow.steps.map { it.id }.filter { it in found }
-}
-
-private fun descendants(workflow: Workflow, id: StepId): Set<StepId> {
-    val found = mutableSetOf<StepId>()
-    fun visit(at: StepId) { workflow.edges.filter { it.from == at }.forEach { if (found.add(it.to)) visit(it.to) } }
-    visit(id)
-    return found
 }
 
 private fun title(step: WorkflowStep, agents: List<AgentInfo>) = when (step) {
