@@ -358,7 +358,7 @@ fun ChatContent(
             // Touch screens get floating bubbles; pointers, at any width, a toolbar in the title bar.
             val floating = !wide && LocalInteractionMode.current == InteractionMode.Touch
             if (!floating) TopBar(state, usage, actions, compact = compactHeader) {
-                HeaderControls(wide, toggle, actions.onNew.takeIf { !wide && state.selected != null })
+                HeaderControls(wide, toggle, null)
             }
             // The composer floats over the messages, which scroll on under its blur.
             var dropping by remember { mutableStateOf(false) }
