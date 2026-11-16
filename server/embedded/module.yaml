@@ -2,6 +2,12 @@ product:
   type: kmp/lib
   platforms: [jvm, android, iosArm64, iosSimulatorArm64]
 
+aliases:
+  - jvmAndAndroid: [jvm, android]
+
+dependencies@jvmAndAndroid:
+  - ../../transport/tailcat
+
 dependencies:
   - ../core: exported
   - ../rpc

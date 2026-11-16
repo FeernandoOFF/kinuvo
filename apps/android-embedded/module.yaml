@@ -3,6 +3,7 @@ product:
   platforms: [android]
 
 dependencies:
+  - ../../transport/tailcat
   - ../../client/app
   - ../../server/embedded
   - io.insert-koin:koin-android:4.2.2

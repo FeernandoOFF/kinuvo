@@ -17,6 +17,9 @@ import kinuvo.server.DeviceAuth
 import kinuvo.server.embedded.EmbeddedServerHost
 import kinuvo.server.embedded.browserPlugins
 import kinuvo.server.embedded.embeddedPlugins
+import kinuvo.server.NetworkSecurity
+import kinuvo.server.embedded.EmbeddedSharing
+import kinuvo.transport.tailcat.Tailcat
 import kinuvo.server.NetworkListener
 import kinuvo.server.devices.SharedPeers
 import kotlinx.coroutines.*
@@ -41,13 +44,41 @@ internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedSer
     private val home = Path(context.filesDir.path, "Kinuvo")
     private val auth = DeviceAuth(File(home.toString(), "server-devices.json"))
 
-    override val sharing: ServerSharing = object : ServerSharing {
-            override val enabled get() = prefs.getBoolean(SHARED, false)
-            override suspend fun share(enabled: Boolean) {
-                prefs.edit().putBoolean(SHARED, enabled).apply()
-                listen(host())
-            }
+    private val tailcat by lazy {
+        try { Tailcat.load() } catch (_: LinkageError) { null } catch (_: Exception) { null }
     }
+    private var tailcatListener: NetworkListener? = null
+    private val sharingHost = EmbeddedSharing(
+        File(home.toString(), "tailcat"), { tailcat },
+        { prefs.getBoolean(if (it) TAILCAT else SHARED, false) },
+        { tailcat, enabled -> prefs.edit().putBoolean(if (tailcat) TAILCAT else SHARED, enabled).apply() },
+        { enabled -> listenLocked(requireNotNull(server), enabled) },
+        {
+            val listener = NetworkListener(requireNotNull(server).runtime, auth, NetworkSecurity(trustedProxies = emptySet()), remoteOnly = true)
+            tailcatListener = listener
+            listener.start("127.0.0.1", emptyList())
+        },
+        { tailcatListener?.stop(); tailcatListener = null },
+        { address, pairable -> auth.tailcatAddress = address; auth.pairable = pairable },
+    )
+
+    override val sharing: ServerSharing = object : ServerSharing {
+        override val enabled get() = prefs.getBoolean(SHARED, false)
+        override suspend fun share(enabled: Boolean) { host(); sharingHost.shareLan(enabled) }
+    }
+    private val tailcatSharing = object : ServerSharing {
+        override val enabled get() = sharingHost.enabled
+        override val state get() = when (sharingHost.state) {
+            EmbeddedSharing.State.Unavailable -> SharingState.Unavailable
+            EmbeddedSharing.State.Off -> SharingState.Off
+            EmbeddedSharing.State.Starting -> SharingState.Starting
+            EmbeddedSharing.State.On -> SharingState.On
+            EmbeddedSharing.State.Error -> SharingState.Error("Could not start Tailcat; try again")
+        }
+        override suspend fun share(enabled: Boolean) { host(); sharingHost.share(enabled) }
+        override suspend fun reset() { host(); sharingHost.reset() }
+    }
+    override val sharingOptions get() = mapOf(SharingOption.Lan to sharing, SharingOption.Tailcat to tailcatSharing)
 
     override suspend fun endpoint(): Endpoint {
         val local = host()
@@ -60,28 +91,36 @@ internal class AndroidEmbeddedServer(private val context: Context) : EmbeddedSer
             val browser = withContext(Dispatchers.Main.immediate) { browserRuntime.browserPlugins() }
             val embedded = embeddedPlugins(home, browser)
             EmbeddedServerHost.create(home, plugins = embedded.plugins, modelSources = embedded.modelSources, continuous = true, features = BUILT_IN_FEATURES, peers = { SharedPeers(it, auth) })
-                .also { server = it; listenLocked(it) }
+                .also {
+                    server = it
+                    sharingHost.restore()
+                }
         }
     }
 
-    private suspend fun listen(host: EmbeddedServerHost) = lock.withLock { listenLocked(host) }
+    suspend fun close() = lock.withLock {
+        try { sharingHost.close() } finally { server?.close(); server = null }
+    }
 
-    private suspend fun listenLocked(host: EmbeddedServerHost) {
-        val shared = prefs.getBoolean(SHARED, false)
-        auth.pairable = shared
-        if (shared && listener == null) listener = NetworkListener(host.runtime, auth).also { withContext(Dispatchers.IO) { it.start("0.0.0.0", PORTS) } }
-        if (!shared) listener?.let { withContext(Dispatchers.IO) { it.stop() }; listener = null }
+    private suspend fun listenLocked(host: EmbeddedServerHost, shared: Boolean) {
+        if (shared && listener == null) listener = NetworkListener(host.runtime, auth).also { it.start("0.0.0.0", PORTS) }
+        if (!shared) listener?.let { it.stop(); listener = null }
     }
 
     private companion object {
         const val SHARED = "shared"
+        const val TAILCAT = "tailcat"
         val PORTS = (8787..8791).toList()
     }
 }
 
 class ServerService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
-    override fun onDestroy() { scope.cancel(); super.onDestroy() }
+    override fun onDestroy() {
+        scope.cancel()
+        CoroutineScope(Dispatchers.IO).launch { (getKoin().get<EmbeddedServer>() as AndroidEmbeddedServer).close() }
+        super.onDestroy()
+    }
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
