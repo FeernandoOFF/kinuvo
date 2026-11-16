@@ -727,8 +727,9 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
     val picked = s.provider.isNotBlank()
     // A listed model is preselected, so only an unlisted one asks for input up front.
     val listed = !group?.chatModels.isNullOrEmpty()
-    if (picked) RowGroup {
-        if (!listed) key(s.provider) { DraftRow("Model ID", s.model, "Enter a model ID") { value -> onEdit { it.copy(model = value) } } }
+    // A sign-in code in progress always shows, even before a provider reads as picked.
+    if (picked || s.deviceCode != null) RowGroup {
+        if (picked && !listed) key(s.provider) { DraftRow("Model ID", s.model, "Enter a model ID") { value -> onEdit { it.copy(model = value) } } }
         account?.downloads?.let { downloads ->
             downloads.models.filter { it.id == s.model }.takeIf { it.isNotEmpty() }?.let { selected ->
                 ModelDownloadRows(downloads.copy(models = selected), { onDownload() }, onCancel, {})
