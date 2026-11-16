@@ -354,8 +354,9 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                             val workflows = if (route.home && route.section == SettingsSection.Routines) {
                                 val list = koinViewModel<WorkflowsViewModel>(key = "workflows/${app.serverLifetime}")
                                 val listed by list.state.collectAsState()
-                                WorkflowsSection(listed.workflows, onOpen = { history.open(Route.Workflows(it)) },
-                                    onNew = { list.create(route.agentId) { history.open(Route.Workflows(it)) } })
+                                // Leaving a routine being edited asks first, as other navigation from here does.
+                                WorkflowsSection(listed.workflows, onOpen = { id -> homeEdits.leave { history.open(Route.Workflows(id)) } },
+                                    onNew = { homeEdits.leave { list.create(route.agentId) { history.open(Route.Workflows(it)) } } })
                             } else null
                             key(route, homeEdits.revision) {
                                 CompositionLocalProvider(LocalSettingsEdits provides homeEdits, LocalWorkflows provides workflows) {
