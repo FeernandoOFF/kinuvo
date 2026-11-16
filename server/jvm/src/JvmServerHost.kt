@@ -7,6 +7,9 @@ import kinuvo.gateways.mcp.McpExecutionFactory
 import kotlinx.coroutines.*
 import kinuvo.server.execution.ExecutionStorage
 import kinuvo.server.execution.remoteLinks
+import kinuvo.transport.tailcat.Tailcat
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import kinuvo.harness.acp.AcpExecutionFactory
 import kinuvo.harness.remote.RemoteExecutionFactory
@@ -32,11 +35,39 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
     private val listener = NetworkListener(runtime, auth, network)
     private var tailcatListener: NetworkListener? = null
 
+    private val tailcatLock = Mutex()
+    private var tailcatExposure: TailcatExposure? = null
+    private var tailcatPort: Int? = null
+    val tailcatEnabled get() = auth.tailcatAddress != null
+
+    suspend fun shareTailcat(enabled: Boolean) = tailcatLock.withLock { setTailcat(enabled) }
+
+    private suspend fun setTailcat(enabled: Boolean) {
+        withContext(Dispatchers.IO + NonCancellable) {
+            if (enabled && tailcatExposure == null) {
+                val port = tailcatPort ?: startTailcatListener().also { tailcatPort = it }
+                val exposure = TailcatExposure(auth, Tailcat.load())
+                try { exposure.start(File(harness.files.home.toString(), "tailcat"), port); tailcatExposure = exposure }
+                catch (e: Throwable) { exposure.close(); throw e }
+            } else if (!enabled) {
+                try { tailcatExposure?.close() } finally { tailcatExposure = null }
+            }
+        }
+    }
+
+    suspend fun resetTailcat() = tailcatLock.withLock {
+        val enabled = tailcatEnabled
+        setTailcat(false)
+        withContext(Dispatchers.IO) { Tailcat.load().reset(File(harness.files.home.toString(), "tailcat")) }
+        if (enabled) setTailcat(true)
+    }
+
     suspend fun startTailcatListener(): Int {
         check(tailcatListener == null)
         val listener = NetworkListener(runtime, auth, NetworkSecurity(trustedProxies = emptySet()), remoteOnly = true)
+        val port = listener.start("127.0.0.1", emptyList())
         tailcatListener = listener
-        return listener.start("127.0.0.1", emptyList())
+        return port
     }
 
     private var started = false
@@ -71,6 +102,7 @@ class JvmServerHost(val harness: JvmAgentRuntime, val auth: DeviceAuth = DeviceA
     }
     fun stop() = runBlocking {
         advertised?.let { if (LocalServer.read(harness.files.home) == it) LocalServer.delete(harness.files.home) }
+        tailcatLock.withLock { setTailcat(false) }
         tailcatListener?.stop()
         tailcatListener = null
         mcpListener.stop()

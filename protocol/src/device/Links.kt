@@ -19,6 +19,15 @@ object Links {
     /** Opens the app ready to pair with [server]; what pairing QR codes hold. */
     fun pair(server: String, code: String) = "kinuvo://pair?server=${encode(server)}&code=${encode(code)}"
 
+    fun isTailcatAddress(address: String) = address.length in 66..2048 &&
+        address.startsWith("tc") && address.drop(2).all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' || it == '_' || it == '-' }
+
+    fun tailcatPair(address: String, code: String): String {
+        require(isTailcatAddress(address)) { "Invalid Tailcat address" }
+        require(isCode(code)) { "Invalid pairing code" }
+        return "kinuvo://pair?tailcat=${encode(address)}&code=${encode(code)}"
+    }
+
     /** Opens the web app served by [baseUrl] ready to pair; the code stays in the fragment, so it never reaches the Server. */
     fun webPair(baseUrl: String, code: String) = "${baseUrl.removeSuffix("/")}/#pair=${encode(code)}"
 
@@ -27,6 +36,10 @@ object Links {
         val url = text.trim()
         if (url.startsWith("kinuvo://pair?")) {
             val query = url.substringAfter('?').split('&').associate { it.substringBefore('=') to decode(it.substringAfter('=', "")) }
+            query["tailcat"]?.let { address ->
+                if (!isTailcatAddress(address)) return null
+                return PairLink(address, query["code"]?.takeIf(::isCode) ?: return null)
+            }
             val server = query["server"]?.takeIf { it.isNotBlank() } ?: return null
             return PairLink(server, query["code"]?.takeIf(::isCode) ?: return null)
         }

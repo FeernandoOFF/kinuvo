@@ -1,10 +1,13 @@
 package kinuvo.server.jvm
 
+import kinuvo.transport.tailcat.Tailcat
 import kinuvo.protocol.device.PairingCode
 import kinuvo.server.DeviceAuth
 import kinuvo.server.NetworkListener
 import kinuvo.server.NetworkSecurity
 import kinuvo.client.KinuvoClient
+import kinuvo.client.tailcatConnection
+import kinuvo.protocol.device.Links
 import kinuvo.testing.server.TestServer
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
@@ -104,7 +107,7 @@ class TailcatTest {
         try {
             val native = Tailcat.load()
             native.reset(state)
-            assertFailsWith<ServeException> { native.forward("invalid") }
+            assertFailsWith<IllegalStateException> { native.forward("invalid") }
         } finally { state.deleteRecursively() }
     }
 
@@ -118,10 +121,11 @@ class TailcatTest {
                 val port = listener.start("127.0.0.1", emptyList())
                 val native = Tailcat.load()
                 native.serve(File(server.home.toString(), "tailcat"), port).use { tunnel ->
-                    native.forward(requireNotNull(tunnel.address)).use { forward ->
-                        val client = KinuvoClient("ws://127.0.0.1:${forward.port}/ws", "remote", pairingCode = server.pairingCode)
-                        try { client.connect(); assertNotNull(client.lastConnect) } finally { client.close() }
-                    }
+                    val link = requireNotNull(Links.parsePair(Links.tailcatPair(requireNotNull(tunnel.address), server.pairingCode)))
+                    val client = KinuvoClient("tailcat:live", "remote", pairingCode = link.code, connection = { tailcatConnection(link.server) })
+                    val token = try { client.connect().token } finally { client.close() }
+                    val again = KinuvoClient("tailcat:live", "remote", token = token, connection = { tailcatConnection(link.server) })
+                    try { assertEquals(token, again.connect().token) } finally { again.close() }
                 }
             } finally { listener.stop(); server.close() }
         }

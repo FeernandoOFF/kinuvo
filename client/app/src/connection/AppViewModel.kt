@@ -77,6 +77,8 @@ data class AppState(
     val returnTo: Server? = null,
     /** Whether the embedded Server is reachable from other Devices; null when it can't be. */
     val sharing: Boolean? = null,
+    val sharingOptions: Map<SharingOption, SharingState> = emptyMap(),
+    val tailcatSupported: Boolean = false,
     val online: Boolean = false,
     val syncedAt: Long? = null,
 )
@@ -97,7 +99,7 @@ class AppViewModel(
     val serverLifetime get() = owner.generation
     private val initialServers = runCatching { servers.all to servers.current }
     val state: StateFlow<AppState>
-        field = MutableStateFlow(AppState(servers = initialServers.getOrNull()?.first.orEmpty(), agentId = servers.lastView?.agentId, onboarding = !servers.onboardingComplete))
+        field = MutableStateFlow(AppState(sharingOptions = sharingStates(), tailcatSupported = servers.tailcatSupported, servers = initialServers.getOrNull()?.first.orEmpty(), agentId = servers.lastView?.agentId, onboarding = !servers.onboardingComplete))
 
     /** Where the app opens: the last view when there's a Server to reconnect to. */
     val startRoute: Route = if (initialServers.getOrNull()?.second != null) lastView() else Route.Connect
@@ -145,13 +147,31 @@ class AppViewModel(
     }
 
     fun pair(url: String, code: String, name: String = "") {
+        Links.parsePair(url)?.let { pair(it.server, it.code, name); return }
+        if (Links.isTailcatAddress(url.trim())) { pairTailcat(url.trim(), code, name); return }
         val normalized = try { normalizeUrl(url) } catch (e: IllegalArgumentException) {
             state.update { it.copy(connection = Connection.Unpaired(e.userMessage)) }; return
         }
         connect(Server.Remote(normalized, name = name.trim().ifEmpty { null }), code.trim())
     }
 
+    fun pairTailcat(address: String, code: String, name: String = "") {
+        try { connect(servers.tailcatServer(address.trim(), name.trim().ifEmpty { null }), code.trim()) }
+        catch (e: IllegalStateException) { state.update { it.copy(connection = Connection.Unpaired(e.userMessage)) } }
+        catch (e: IllegalArgumentException) { state.update { it.copy(connection = Connection.Unpaired(e.userMessage)) } }
+    }
+
     fun openPairLink(link: PairLink) {
+        if (Links.isTailcatAddress(link.server)) {
+            if (!servers.tailcatSupported) {
+                disconnect()
+                state.update { it.copy(connection = Connection.Unpaired("Tailcat connections are not supported on this platform yet")) }
+                return
+            }
+            disconnect()
+            state.update { it.copy(connection = Connection.Unpaired(), pendingPair = link) }
+            return
+        }
         val url = runCatching { normalizeUrl(link.server) }.getOrNull() ?: return
         val known = runCatching { servers.all }.getOrDefault(state.value.servers).filterIsInstance<Server.Remote>().firstOrNull { it.url == url && it.token != null }
         if (known != null) {
@@ -182,7 +202,7 @@ class AppViewModel(
         var temporary: KinuvoClient? = null
         val revoked = server.token == null || withTimeoutOrNull(3.seconds) {
             try {
-                val client = ready?.client?.takeIf { ready.server.key == server.key } ?: KinuvoClient(server.url, device.name, token = server.token).also { temporary = it; it.connect() }
+                val client = ready?.client?.takeIf { ready.server.key == server.key } ?: servers.endpoint(server).let { endpoint -> KinuvoClient(endpoint.url, device.name, token = endpoint.token, connection = endpoint.connection).also { temporary = it; it.connect() } }
                 client.call(Api.PairedDevices, Unit).firstOrNull { it.current }?.let { client.call(Api.RevokeDevice, DeviceRef(it.id)) }
                 true
             } catch (e: CancellationException) { throw e }
@@ -251,6 +271,29 @@ class AppViewModel(
             try { sharing.share(enabled); connect(Server.Embedded) }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) { state.update { it.copy(notice = userMessage(e.message) ?: "Couldn't change sharing") } }
+        }
+    }
+
+    fun share(option: SharingOption, enabled: Boolean) = changeSharing(option) { it.share(enabled) }
+
+    fun resetSharing(option: SharingOption) = changeSharing(option) { it.reset() }
+
+    fun shareTailcat(enabled: Boolean) = share(SharingOption.Tailcat, enabled)
+    fun resetTailcat() = resetSharing(SharingOption.Tailcat)
+
+    private fun sharingStates() = servers.sharingOptions.mapValues { it.value?.state ?: SharingState.Unavailable }
+
+    private fun changeSharing(option: SharingOption, action: suspend (ServerSharing) -> Unit) {
+        val control = servers.sharingOptions[option] ?: return
+        if (state.value.sharingOptions[option] == SharingState.Starting) return
+        state.update { it.copy(sharingOptions = it.sharingOptions + (option to SharingState.Starting)) }
+        viewModelScope.launch {
+            try {
+                action(control)
+                state.update { it.copy(sharingOptions = sharingStates(), sharing = servers.sharing?.enabled) }
+                refreshPairing()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { state.update { it.copy(sharingOptions = sharingStates() + (option to SharingState.Error(e.userMessage))) } }
         }
     }
 
@@ -375,10 +418,11 @@ class AppViewModel(
         var snapshot: Snapshot? = null
         try {
             val endpoint = servers.endpoint(server)
+            var accessKey = endpoint.url
             currentCoroutineContext().ensureActive()
             client = KinuvoClient(endpoint.url, device.name, token = endpoint.token, pairingCode = code, timeZone = device.timeZone,
-                deviceTools = { deviceAccess.tools(endpoint.url) }, uiCatalogs = uiCatalogs, deviceRead = { deviceAccess.read(endpoint.url, it) },
-                computer = { deviceAccess.act(endpoint.url, it) }, connection = endpoint.connection)
+                deviceTools = { deviceAccess.tools(accessKey) }, uiCatalogs = uiCatalogs, deviceRead = { deviceAccess.read(accessKey, it) },
+                computer = { deviceAccess.act(accessKey, it) }, connection = endpoint.connection)
             owner.open(client, endpoint.url)
             snapshot = if (code == null) cacheFor(server).read(server.key) else null
             currentCoroutineContext().ensureActive()
@@ -388,6 +432,9 @@ class AppViewModel(
                 owner.run { client.connect(retry = true) }
             } else withTimeoutOrNull(ConnectTimeout) { owner.run { client.connect() } } ?: error("Timed out connecting to ${server.label}")
             client.lastConnect?.let { result -> active = servers.remember(active, result.token, result.capabilities.serverId, result.serverName) }
+            if (active.key != server.key) accessKey = active.key
+            deviceAccess.attach(accessKey, client)
+            if (active.key != server.key) client.updateDeviceTools()
             servers.select(active)
         } catch (e: Exception) {
             client?.close()
@@ -407,7 +454,7 @@ class AppViewModel(
     private fun ready(client: KinuvoClient, server: Server, snapshot: Snapshot?) {
         state.update {
             it.copy(connection = Connection.Ready(client, server), servers = servers.all, usage = client.lastConnect?.usage, pendingPair = null, returnTo = null,
-                capabilities = client.lastConnect?.capabilities ?: snapshot?.capabilities, sharing = servers.sharing?.enabled,
+                capabilities = client.lastConnect?.capabilities ?: snapshot?.capabilities, sharing = servers.sharing?.enabled, sharingOptions = sharingStates(),
                 agents = snapshot?.agents ?: it.agents, syncedAt = snapshot?.syncedAt)
         }
 
@@ -472,7 +519,7 @@ class AppViewModel(
         deviceAccess.reset()
         views.clear()
         drafts.clear()
-        state.value = AppState(servers = runCatching { servers.all }.getOrDefault(emptyList()), connection = Connection.Unpaired(), onboarding = true, firstRun = state.value.firstRun + 1)
+        state.value = AppState(sharingOptions = sharingStates(), tailcatSupported = servers.tailcatSupported, servers = runCatching { servers.all }.getOrDefault(emptyList()), connection = Connection.Unpaired(), onboarding = true, firstRun = state.value.firstRun + 1)
     }
 
     private fun disconnect() {

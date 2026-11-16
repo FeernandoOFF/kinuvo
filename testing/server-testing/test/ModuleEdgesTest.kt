@@ -14,13 +14,14 @@ class ModuleEdgesTest {
     /** A module matching [from] may depend on modules matching [to]; test-dependencies may also reach [testTo]. A pattern ending in a slash and star matches every module under that directory. */
     private class Rule(val from: String, val to: List<String>, val testTo: List<String> = emptyList())
 
-    private val hostTo = listOf("server/*", "harness/*", "providers/*", "plugins/*", "gateways/*", "protocol")
+    private val hostTo = listOf("server/*", "harness/*", "providers/*", "plugins/*", "gateways/*", "protocol", "transport/tailcat")
     private val harnessTests = listOf("testing/*")
     private val serverTests = listOf("testing/*", "client/*", "protocol")
 
     private val rules = listOf(
         Rule("protocol", emptyList(), harnessTests),
-        Rule("client/*", listOf("protocol", "client/*"), harnessTests),
+        Rule("transport/tailcat", emptyList()),
+        Rule("client/*", listOf("protocol", "client/*", "transport/tailcat"), harnessTests),
         Rule("harness/api", listOf("protocol"), harnessTests),
         Rule("harness/builtin", listOf("harness/api", "protocol"), harnessTests),
         Rule("harness/acp", listOf("harness/api", "protocol"), harnessTests),
@@ -121,7 +122,7 @@ class ModuleEdgesTest {
 
     @Test fun clientsReachNoServerCode() {
         val reached = modules().filter { it.startsWith("client/") }.flatMap { module -> closure(module).map { "$module -> $it" } }
-            .filter { !it.substringAfter(" -> ").let { to -> to == "protocol" || to.startsWith("client/") } }
+            .filter { !it.substringAfter(" -> ").let { to -> to == "protocol" || to == "transport/tailcat" || to.startsWith("client/") } }
         assertEquals(emptyList(), reached, "client modules reach Server, harness, plugin or provider modules")
     }
 }

@@ -41,6 +41,14 @@ class NotificationActionsTest {
         assertFalse(ProtocolJson.decodeFromJsonElement(Api.Presence.params, wire.requests.first { it.method == Api.Presence.name }.params).active)
     }
 
+    @Test fun tailcatNotificationsUseTheEndpointFactoryAndSavedToken() = runTest {
+        servers.remember(Server.Remote("tailcat:notification", transport = RemoteTransport.Tailcat, tailcatAddress = "tc" + "a".repeat(140)), "saved-token", "server", "Home")
+        assertTrue(actions.perform(reply, NotificationAction.Reply("hello")))
+        val params = ProtocolJson.decodeFromJsonElement(Api.Connect.params, wire.requests.first { it.method == Api.Connect.name }.params)
+        assertEquals("saved-token", params.token)
+        assertNull(servers.current)
+    }
+
     @Test fun approvalsAreAllowOnceAndPlainDeny() = runTest {
         remember()
         assertTrue(actions.perform(approval, NotificationAction.Allow))

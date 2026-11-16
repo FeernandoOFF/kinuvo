@@ -32,5 +32,5 @@ data class DeviceRef(val id: String)
 /** A Session to open, on the Server with [serverId] when it's known. */
 data class ChatLink(val agentId: AgentId, val sessionId: SessionId? = null, val serverId: String? = null)
 
-/** Where to pair: [server] is `host:port` or an http(s)/ws(s) URL. */
+/** Where to pair: [server] is `host:port`, an http(s)/ws(s) URL, or a secret Tailcat address. */
 data class PairLink(val server: String, val code: String)

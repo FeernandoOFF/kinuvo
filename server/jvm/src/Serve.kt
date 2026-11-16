@@ -1,5 +1,6 @@
 package kinuvo.server.jvm
 
+import kinuvo.transport.tailcat.Tailcat
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.NetworkSecurity
 import java.io.File
@@ -58,15 +59,17 @@ suspend fun serve(options: ServeOptions, extend: suspend (server: JvmServerHost,
     try {
         val bound = server.start(bind, options.port)
         if (options.tailcat) {
-            tailcat = TailcatExposure(server.auth, Tailcat.load())
-            tailcat.start(File(server.harness.files.home.toString(), "tailcat"), server.startTailcatListener())
+            try {
+                tailcat = TailcatExposure(server.auth, Tailcat.load())
+                tailcat.start(File(server.harness.files.home.toString(), "tailcat"), server.startTailcatListener())
+            } catch (e: IllegalStateException) { throw ServeException(e.message ?: "Could not start Tailcat") }
         }
         route?.enable()
         extension = extend(server, bind, bound)
         server.advertise()
         log.info { "Server listening at $bind:$bound${network.publicUrl?.let { "; HTTPS address $it" }.orEmpty()}" }
         if (route != null) log.info { "Tailscale HTTPS: ${route.url} (private to your tailnet; the Serve route persists until disabled)" }
-        server.auth.tailcatAddress?.let { address -> log.info { "Tailcat address (secret): $address" } }
+        server.auth.tailcatAddress?.let { log.info { "Tailcat is active; run kinuvo pair to show its pairing link" } }
         log.info { "Pairing is closed. Run `kinuvo pair --manage` for a management Device or `kinuvo pair` for ordinary access." }
         Runtime.getRuntime().addShutdownHook(shutdown)
         ready = true
