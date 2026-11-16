@@ -361,7 +361,7 @@ class ScreenshotTest {
                 }
             }
         }
-        render("chat-empty", 1200, 700) { KinuvoTheme(dark = true) { ChatContent(state.copy(items = emptyList(), running = false), ConnectionState.Connected("x"), usage, ChatActions()) } }
+        render("chat-empty", 1200, 700) { KinuvoTheme(dark = true) { ChatContent(state.copy(items = emptyList(), running = false, selected = null, info = null), ConnectionState.Connected("x"), usage, ChatActions()) } }
         render("agent-long-name", 1400, 900) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(agents = listOf(AgentInfo(AgentId("main"), "House Agent for the Family", "host"))), {}) } }
         render("agent-long-name-phone", 390, 1300) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))).copy(agents = listOf(AgentInfo(AgentId("main"), "House Agent for the Family", "host"))), {}) } }
         render("agent-wide", 1400, 900) { KinuvoTheme(dark = true) { AgentContent(settingsAt(Route.Settings(AgentId("main"))), {}) } }

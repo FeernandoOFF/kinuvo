@@ -152,11 +152,11 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
             if (task.notes.isNotBlank()) {
                 Text(task.notes.trim(), color = color(mutedColor), style = TextStyles.secondary, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
-            // One row: a long assignee shortens rather than pushing the run link onto a line of its own.
+            // One row: a long assignee shortens, never the status, rather than pushing the run link onto a line of its own.
             Row(horizontalArrangement = Arrangement.spacedBy(Spacing.space6), verticalAlignment = Alignment.CenterVertically) {
                 Picker(listOf<AgentInfo?>(null) + agents, assignee, { it?.name ?: "Unassigned" }, { a ->
                     actions.onUpdate(UpdateTaskParams(task.id, assignee = a?.id ?: AgentId("")))
-                }, icon = Lucide.User, modifier = Modifier.widthIn(max = 160.dp), style = if (task.assignee == null) ButtonStyle.Ghost else ButtonStyle.Outlined)
+                }, icon = Lucide.User, modifier = Modifier.weight(1f, fill = false).widthIn(max = 160.dp), style = if (task.assignee == null) ButtonStyle.Ghost else ButtonStyle.Outlined)
                 // Phones show the status as the tab; it changes from the Task itself.
                 if (LocalInteractionMode.current != InteractionMode.Touch)
                     Picker(TaskStatus.entries, task.status, { it.label() }, { s -> actions.onUpdate(UpdateTaskParams(task.id, status = s)) }, icon = task.status.icon())
@@ -165,7 +165,7 @@ private fun TaskCard(task: TaskInfo, agents: List<AgentInfo>, actions: BoardActi
                     Spacer(Modifier.weight(1f))
                     Button(onClick = { actions.onOpenSession(task.assignee!!, last) }, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(accentColor)) {
                         Icon(Lucide.MessageSquare, Modifier.size(14.dp))
-                        Text(if (task.sessionIds.size > 1) "Latest run" else "Open run", style = TextStyles.secondary)
+                        Text(if (task.sessionIds.size > 1) "Latest run" else "Open run", style = TextStyles.secondary, singleLine = true)
                         if (task.sessionIds.size > 1) Text("${task.sessionIds.size} runs", style = TextStyles.caption, color = color(mutedColor))
                     }
                 }
