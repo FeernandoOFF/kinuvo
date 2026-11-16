@@ -28,7 +28,7 @@ class WorkflowsViewModel(private val repo: WorkflowRepository) : ViewModel() {
 
     fun create(agent: AgentId, onCreated: (WorkflowId) -> Unit) {
         viewModelScope.launch {
-            val workflow = Workflow(WorkflowId(Uuid.random().toString()), "New Workflow", listOf(WorkflowStep.AgentTurn(StepId("step-1"), agent, "")))
+            val workflow = Workflow(WorkflowId(Uuid.random().toString()), "New Workflow", listOf(WorkflowStep.AgentTurn(StepId("agent-1"), agent, "")))
             catching { repo.connection.run { repo.save(workflow, create = true) } }.onSuccess { onCreated(it.id) }
         }
     }

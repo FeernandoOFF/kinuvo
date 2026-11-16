@@ -1,5 +1,6 @@
 package kinuvo.ui.artifacts
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -23,6 +24,7 @@ internal fun editedHtml(args: String): String =
 /** The OS web view (WKWebView, WebView2, WebKitGTK) through swingwebview; it draws above Compose content. */
 @Composable
 internal actual fun WebView(html: String, modifier: Modifier, onMessage: ((String) -> Unit)?, channel: PageChannel?) {
+    if (!LocalNativeViews.current) return Box(modifier)
     val current by rememberUpdatedState(onMessage)
     val url = remember(html) { "data:text/html;charset=utf-8;base64," + Base64.encode(html.encodeToByteArray()) }
     DisposableEffect(channel) { onDispose { channel?.send = {} } }

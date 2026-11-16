@@ -3,7 +3,9 @@ package kinuvo.app.workflow
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kinuvo.app.connection.catching
+import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.model.ModelsCatalog
+import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.workflow.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,6 +26,15 @@ data class WorkflowState(val workflow: Workflow? = null, val draft: Workflow? = 
     val dirty get() = draft != workflow
     val run get() = runs.firstOrNull { it.id == viewing } ?: activeRun ?: latestRun
     val steps: Map<StepId, StepRun> get() = run?.steps.orEmpty()
+
+    /** The Agent and Session of [step] in the shown run. An Agent turn belongs to its own Agent, any other step to the Workflow's Agent, else the first Agent turn's, as on the Server. */
+    fun sessionOf(step: StepId): Pair<AgentId, SessionId>? {
+        val session = steps[step]?.sessionId ?: return null
+        val graph = run?.workflow ?: draft ?: return null
+        val turns = graph.steps.filterIsInstance<WorkflowStep.AgentTurn>()
+        val agent = turns.firstOrNull { it.id == step }?.agentId ?: graph.agentId ?: turns.firstOrNull()?.agentId ?: return null
+        return agent to session
+    }
 }
 
 class WorkflowViewModel(private val repo: WorkflowRepository, private val workflowId: WorkflowId) : ViewModel() {

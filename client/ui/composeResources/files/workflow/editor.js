@@ -1,28 +1,31 @@
 (() => {
   'use strict';
-  const ID_RE = /^[a-zA-Z0-9_-]+$/;
   const GAP_X = 340, GAP_Y = 300, MARGIN = 40;
-  const KINDS = { agent_turn: 'Agent turn', model: 'Model', tool: 'Tool', approval: 'Approval' };
-  const PREFIX = { agent_turn: 'step', model: 'model', tool: 'tool', approval: 'approval' };
-  const STATUS = { Pending: 'Pending', Running: 'Running', WaitingApproval: 'Waiting for approval', Done: 'Done', Failed: 'Failed', Skipped: 'Skipped', Cancelled: 'Cancelled' };
+  const KINDS = { agent_turn: 'Agent turn', model: 'Model', tool: 'Tool', approval: 'Approval', review: 'Review' };
+  const PREFIX = { agent_turn: 'agent', model: 'model', tool: 'tool', approval: 'approval', review: 'review' };
+  const STATUS = { Pending: 'Pending', Running: 'Running', WaitingApproval: 'Waiting', Done: 'Done', Failed: 'Failed', Skipped: 'Skipped', Cancelled: 'Cancelled' };
   const THEME_VARS = { background: '--bg', panel: '--panel', subtle: '--subtle', text: '--text', muted: '--muted', border: '--border', accent: '--accent', onAccent: '--on-accent', success: '--success', warning: '--warning', danger: '--danger' };
 
   let wf = null, catalog = { agents: [], models: [], tools: [] }, run = null;
-  let editor = null, dfOf = {}, stepOf = {}, muted = false, selected = null, timer = null;
+  let editor = null, dfOf = {}, stepOf = {}, placed = {}, muted = false, selected = null, timer = null, sent = '';
   const expanded = new Set();
   const $ = (id) => document.getElementById(id);
-  const post = (type, extra) => parent.postMessage(Object.assign({ jsonrpc: '2.0', type }, extra), '*');
+  const post = (type, extra) => parent.postMessage({ kinuvo: 'workflow', json: JSON.stringify(Object.assign({ type }, extra)) }, '*');
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const step = (id) => wf.steps.find((s) => s.id === id);
   const nodeEl = (id) => document.getElementById('node-' + dfOf[id]);
   const cardEl = (id) => { const n = nodeEl(id); return n && n.querySelector('.card'); };
 
+  /** Only user edits get here; an edit that leaves the graph as it was sent is not a change. */
   function emit() {
     wf.steps.forEach((s) => {
       if (!dfOf[s.id]) return;
       const n = editor.getNodeFromId(dfOf[s.id]);
       s.position = { x: Math.round(n.pos_x), y: Math.round(n.pos_y) };
     });
+    const json = JSON.stringify(wf);
+    if (json === sent) return;
+    sent = json;
     post('changed', { workflow: wf });
   }
   const emitSoon = () => { clearTimeout(timer); timer = setTimeout(emit, 150); };
@@ -55,47 +58,89 @@
   const modelValue = (m) => (m ? JSON.stringify([m.provider, m.model]) : '');
   const modelOptions = (current) => options([{ value: '', label: "Agent's model" }].concat(catalog.models.map((m) => ({ value: modelValue(m), label: m.providerName + ' / ' + m.name }))), modelValue(current));
 
+  const refs = (f) => `<select class="ref" data-ref="${f}" aria-label="Insert the output of an earlier step"></select>`;
+  const area = (f, label, value, placeholder, opts) => `<div class="fld"><div class="lbl"><span>${label}</span>${opts && opts.refs ? refs(f) : ''}</div>` +
+    `<textarea${opts && opts.mono ? ' class="mono" spellcheck="false"' : ''} data-f="${f}" placeholder="${esc(placeholder)}">${esc(value)}</textarea></div>`;
+
   function fields(s) {
     switch (s.type) {
       case 'agent_turn': return `
         <label>Agent<select data-f="agentId">${agentOptions(s.agentId)}</select></label>
-        <label>Prompt<textarea data-f="prompt" placeholder="What should the Agent do?">${esc(s.prompt)}</textarea></label>
+        ${area('prompt', 'Prompt', s.prompt, 'What should the Agent do?', { refs: true })}
         <label>Session<select data-f="session"><option value="New"${s.session !== 'Continue' ? ' selected' : ''}>New each run</option><option value="Continue"${s.session === 'Continue' ? ' selected' : ''}>Continue last</option></select></label>`;
       case 'model': return `
-        <label>Prompt<textarea data-f="prompt" placeholder="What should the model answer?">${esc(s.prompt)}</textarea></label>
-        <label>System prompt<textarea data-f="system" placeholder="Optional">${esc(s.system)}</textarea></label>
+        ${area('prompt', 'Prompt', s.prompt, 'What should the model answer?', { refs: true })}
+        ${area('system', 'System prompt', s.system, 'Optional', { refs: true })}
         <label>Model<select data-f="model">${modelOptions(s.model)}</select></label>`;
       case 'tool': return `
         <label>Tool<input data-f="tool" list="tools" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(s.tool)}" placeholder="tool name"></label>
-        <label>Arguments (JSON)<textarea class="mono" data-f="args" spellcheck="false">${esc(JSON.stringify(s.args || {}, null, 2))}</textarea></label>
+        ${area('args', 'Arguments (JSON)', JSON.stringify(s.args || {}, null, 2), '', { refs: true, mono: true })}
         <div class="err" data-err="args"></div>`;
-      default: return `
-        <label>Question<textarea data-f="text" placeholder="Publish the draft?">${esc(s.text)}</textarea></label>`;
+      case 'review': return `
+        ${area('text', 'Question', s.text, 'Is this draft ready?')}
+        ${area('value', 'Value to review', s.value, 'A JSON object becomes one field per key', { refs: true, mono: true })}`;
+      default: return area('text', 'Question', s.text, 'Publish the draft?');
     }
   }
 
   const cardHtml = (s) => `<div class="card" data-step="${esc(s.id)}">
-    <div class="head"><span class="kind">${KINDS[s.type] || esc(s.type)}</span><span class="badge"></span><button class="del" type="button" data-del aria-label="Delete step">&#10005;</button></div>
-    <label>Step id<input class="id" data-f="id" autocomplete="off" autocapitalize="off" spellcheck="false" value="${esc(s.id)}"></label>
-    <div class="err" data-err="id"></div>${fields(s)}<div class="run"></div></div>`;
+    <div class="head"><span class="kind">${KINDS[s.type] || esc(s.type)}</span><code class="chip" title="Step id">${esc(s.id)}</code><span class="badge"></span><button class="del" type="button" data-del aria-label="Delete step">&#10005;</button></div>
+    ${fields(s)}<div class="run"></div></div>`;
+
+  function addCard(s, at) {
+    muted = true;
+    const id = editor.addNode(s.type, 1, 1, at.x, at.y, 'k-' + s.type, { step: s.id }, cardHtml(s));
+    muted = false;
+    dfOf[s.id] = id; stepOf[id] = s.id; placed[s.id] = { x: at.x, y: at.y };
+    const el = nodeEl(s.id);
+    if (el && window.ResizeObserver) new ResizeObserver(() => editor.updateConnectionNodes('node-' + id)).observe(el);
+  }
+
+  const ancestors = (id) => {
+    const seen = new Set();
+    const walk = (to) => wf.edges.forEach((e) => { if (e.to === to && !seen.has(e.from)) { seen.add(e.from); walk(e.from); } });
+    walk(id);
+    return wf.steps.map((s) => s.id).filter((x) => seen.has(x));
+  };
+
+  function fillRefs() {
+    wf.steps.forEach((s) => {
+      const card = cardEl(s.id);
+      if (!card) return;
+      const list = ancestors(s.id);
+      const html = list.length ? '<option value="">Insert output of…</option>' + list.map((x) => `<option value="${esc(x)}">${esc(x)}</option>`).join('') : '<option value="">No earlier steps</option>';
+      card.querySelectorAll('select.ref').forEach((sel) => {
+        if (sel.dataset.h !== html) { sel.innerHTML = html; sel.dataset.h = html; }
+        sel.disabled = !list.length;
+      });
+    });
+  }
+
+  function insertRef(card, field, id) {
+    const el = card.querySelector(`[data-f="${field}"]`);
+    if (!el) return;
+    const at = el.dataset.touched ? [el.selectionStart, el.selectionEnd] : [el.value.length, el.value.length];
+    const text = '{{steps.' + id + '.output}}';
+    const inString = (el.value.slice(0, at[0]).replace(/\\./g, '').match(/"/g) || []).length % 2 === 1;
+    el.setRangeText(field === 'args' && !inString ? JSON.stringify(text) : text, at[0], at[1], 'end');
+    el.dataset.touched = '1';
+    el.focus();
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
 
   function build() {
     muted = true;
     editor.clear();
-    dfOf = {}; stepOf = {};
+    muted = false;
+    dfOf = {}; stepOf = {}; placed = {};
     const pos = layout();
-    wf.steps.forEach((s) => {
-      const id = editor.addNode(s.type, 1, 1, pos[s.id].x, pos[s.id].y, 'k-' + s.type, { step: s.id }, cardHtml(s));
-      dfOf[s.id] = id; stepOf[id] = s.id;
-    });
+    wf.steps.forEach((s) => addCard(s, pos[s.id]));
+    muted = true;
     wf.edges.forEach((e) => { if (dfOf[e.from] && dfOf[e.to]) editor.addConnection(dfOf[e.from], dfOf[e.to], 'output_1', 'input_1'); });
     muted = false;
     document.body.classList.toggle('only', wf.steps.length < 2);
-    wf.steps.forEach((s) => {
-      const el = nodeEl(s.id);
-      if (el && window.ResizeObserver) new ResizeObserver(() => editor.updateConnectionNodes('node-' + dfOf[s.id])).observe(el);
-    });
     fillTools();
+    fillRefs();
     applyRun();
   }
 
@@ -130,15 +175,15 @@
       const parts = [];
       const section = (kind, label, text) => {
         const key = s.id + ':' + kind, open = expanded.has(key);
-        parts.push(`<button class="ex ${kind}" type="button" data-ex="${esc(key)}">${open ? '&#9662;' : '&#9656;'} ${label}</button>` +
+        parts.push(`<button class="ex" type="button" data-kind="${kind}" data-ex="${esc(key)}">${open ? '&#9662;' : '&#9656;'} ${label}</button>` +
           (open ? `<pre class="out">${esc(text.length > 20000 ? text.slice(0, 20000) + '\n…' : text)}</pre>` : ''));
       };
       if (r && r.error) section('error', 'Error', r.error);
       if (r && r.output) section('output', 'Output', r.output);
-      if (r && r.sessionId && s.type === 'agent_turn') parts.push(`<button class="ex" type="button" data-open="${esc(s.id)}">Open session</button>`);
-      box.innerHTML = parts.join('');
+      if (r && r.sessionId) parts.push(`<button class="ex" type="button" data-open="${esc(s.id)}">Open session</button>`);
+      const html = parts.join('');
+      if (box.dataset.h !== html) { box.innerHTML = html; box.dataset.h = html; }
     });
-    wf.steps.forEach((s) => { if (dfOf[s.id]) editor.updateConnectionNodes('node-' + dfOf[s.id]); });
   }
 
   function applyTheme(t) {
@@ -176,23 +221,23 @@
     const id = freeId(kind);
     const agent = (anchor && anchor.agentId) || wf.agentId || (catalog.agents[0] && catalog.agents[0].id) || '';
     const s = { agent_turn: { type: 'agent_turn', id, agentId: agent, prompt: '', session: 'New' }, model: { type: 'model', id, prompt: '' },
-      tool: { type: 'tool', id, tool: '', args: {} }, approval: { type: 'approval', id, text: '' } }[kind];
+      tool: { type: 'tool', id, tool: '', args: {} }, approval: { type: 'approval', id, text: '' }, review: { type: 'review', id, text: '', value: '' } }[kind];
     s.position = { x, y };
     wf.steps.forEach((o) => { if (!o.position) o.position = { x: pos[o.id].x, y: pos[o.id].y }; });
     wf.steps.push(s);
-    if (anchor) wf.edges.push({ from: anchor.id, to: id });
-    build();
+    addCard(s, s.position);
+    if (anchor) { wf.edges.push({ from: anchor.id, to: id }); connect(anchor.id, id); }
+    document.body.classList.toggle('only', wf.steps.length < 2);
+    fillTools(); fillRefs(); applyRun();
     selected = id;
     reveal(id);
     emit();
   }
 
-  function rename(card, s, input) {
-    const next = input.value.trim(), err = card.querySelector('[data-err=id]');
-    const bad = !ID_RE.test(next) ? 'Use letters, digits, - and _' : next !== s.id && step(next) ? 'Another step has this id' : '';
-    err.textContent = bad;
-    input.classList.toggle('bad', !!bad);
-    return bad ? null : next;
+  function connect(from, to) {
+    muted = true;
+    editor.addConnection(dfOf[from], dfOf[to], 'output_1', 'input_1');
+    muted = false;
   }
 
   function onInput(e) {
@@ -200,7 +245,6 @@
     const card = e.target.closest && e.target.closest('.card');
     if (!f || !card) return;
     const s = step(card.dataset.step);
-    if (f === 'id') { rename(card, s, e.target); return; }
     const v = e.target.value;
     if (f === 'args') {
       const err = card.querySelector('[data-err=args]');
@@ -216,20 +260,11 @@
   }
 
   function onChange(e) {
+    const field = e.target.dataset && e.target.dataset.ref;
     const card = e.target.closest && e.target.closest('.card');
-    if (!card || !e.target.dataset || e.target.dataset.f !== 'id') return;
-    const s = step(card.dataset.step), next = rename(card, s, e.target);
-    if (next === null) return;
-    if (next === s.id) return;
-    const old = s.id;
-    s.id = next;
-    wf.edges.forEach((x) => { if (x.from === old) x.from = next; if (x.to === old) x.to = next; });
-    dfOf[next] = dfOf[old]; delete dfOf[old]; stepOf[dfOf[next]] = next;
-    if (selected === old) selected = next;
-    card.dataset.step = next;
-    ['output', 'error'].forEach((k) => { if (expanded.delete(old + ':' + k)) expanded.add(next + ':' + k); });
-    applyRun();
-    emit();
+    if (!field || !card) return;
+    if (e.target.value) insertRef(card, field, e.target.value);
+    e.target.value = '';
   }
 
   function onClick(e) {
@@ -246,10 +281,18 @@
   function start() {
     editor = new Drawflow($('df'));
     editor.reroute = false;
+    // Typing and selecting text in a card must not drag the node, and Delete must not remove it: the delete button does.
+    editor.draggable_inputs = false;
+    editor.key = () => {};
     editor.start();
     editor.on('nodeSelected', (id) => { selected = stepOf[id] || null; });
     editor.on('nodeUnselected', () => { selected = null; });
-    editor.on('nodeMoved', () => { if (!muted) emit(); });
+    editor.on('nodeMoved', (id) => {
+      const sid = stepOf[id], at = placed[sid], n = sid && editor.getNodeFromId(id);
+      if (muted || !n || (Math.abs(n.pos_x - at.x) < 1 && Math.abs(n.pos_y - at.y) < 1)) return;
+      placed[sid] = { x: n.pos_x, y: n.pos_y };
+      emit();
+    });
     editor.on('nodeRemoved', (id) => {
       if (muted) return;
       const sid = stepOf[id];
@@ -257,8 +300,9 @@
       if (wf.steps.length < 2) { build(); return; }
       wf.steps = wf.steps.filter((s) => s.id !== sid);
       wf.edges = wf.edges.filter((x) => x.from !== sid && x.to !== sid);
-      delete stepOf[id]; delete dfOf[sid];
+      delete stepOf[id]; delete dfOf[sid]; delete placed[sid];
       document.body.classList.toggle('only', wf.steps.length < 2);
+      fillRefs();
       emit();
     });
     editor.on('connectionCreated', (c) => {
@@ -271,6 +315,7 @@
         return;
       }
       wf.edges.push({ from, to });
+      fillRefs();
       emit();
     });
     editor.on('connectionRemoved', (c) => {
@@ -278,11 +323,13 @@
       const from = stepOf[c.output_id], to = stepOf[c.input_id];
       if (!from || !to) return;
       wf.edges = wf.edges.filter((x) => !(x.from === from && x.to === to));
+      fillRefs();
       emit();
     });
     const root = $('df');
     root.addEventListener('input', onInput);
     root.addEventListener('change', onChange);
+    root.addEventListener('focusin', (e) => { if (e.target.dataset) e.target.dataset.touched = '1'; });
     document.addEventListener('click', onClick);
     $('addBtn').addEventListener('click', () => { $('menu').hidden = !$('menu').hidden; });
     $('menu').addEventListener('click', (e) => { const k = e.target.dataset && e.target.dataset.add; if (k) { $('menu').hidden = true; addStep(k); } });
@@ -293,7 +340,7 @@
 
   addEventListener('message', (e) => {
     const m = e.data;
-    if (!m || typeof m !== 'object') return;
+    if (e.source !== parent || !m || typeof m !== 'object') return;
     if (m.type === 'load') {
       wf = JSON.parse(JSON.stringify(m.workflow));
       catalog = Object.assign({ agents: [], models: [], tools: [] }, m.catalog);
@@ -302,6 +349,7 @@
       if (!editor) start();
       selected = null;
       build();
+      sent = JSON.stringify(wf);
     } else if (!wf) { return; }
     else if (m.type === 'run') { run = m.run || null; applyRun(); }
     else if (m.type === 'catalog') { catalog = Object.assign({ agents: [], models: [], tools: [] }, m.catalog); fillSelects(); }

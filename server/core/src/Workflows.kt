@@ -191,7 +191,7 @@ class Workflows internal constructor(
                     update(run.id, step.id, StepRun(StepStatus.Done, session, output))
                 }
                 is WorkflowStep.Approval -> {
-                    val agent = harness.store.agents().first { a -> (run.workflow.agentId ?: run.workflow.steps.filterIsInstance<WorkflowStep.AgentTurn>().firstOrNull()?.agentId)?.let { it == a.id } ?: true }
+                    val agent = sessionAgent(run)
                     session = session ?: harness.newSession(agent).id
                     val pending = harness.approvals.register()
                     try {
@@ -201,6 +201,22 @@ class Workflows internal constructor(
                         update(run.id, step.id, StepRun(StepStatus.WaitingApproval, session, interactionId = pending.id))
                         if (pending.await() is ApprovalDecision.Deny) error("Workflow Approval rejected")
                         update(run.id, step.id, StepRun(StepStatus.Done, session))
+                    } finally {
+                        pending.close()
+                        withContext(NonCancellable) { harness.log.publish(agent.id, session, AgentEvent.InteractionResolved(pending.id)) }
+                    }
+                }
+                is WorkflowStep.Review -> {
+                    val agent = sessionAgent(run)
+                    session = session ?: harness.newSession(agent).id
+                    val form = ReviewForm.of(render(run.id, step.value))
+                    val pending = harness.questions.register()
+                    try {
+                        val interaction = PendingInteraction.Questions(pending.id, ToolCallId(Uuid.random().toString()), step.text.ifBlank { null }, form.questions)
+                        harness.log.publish(agent.id, session, AgentEvent.InteractionRequested(interaction))
+                        update(run.id, step.id, StepRun(StepStatus.WaitingApproval, session, interactionId = pending.id))
+                        val answers = pending.await() ?: error("Review declined")
+                        update(run.id, step.id, StepRun(StepStatus.Done, session, form.output(answers)))
                     } finally {
                         pending.close()
                         withContext(NonCancellable) { harness.log.publish(agent.id, session, AgentEvent.InteractionResolved(pending.id)) }
@@ -259,6 +275,10 @@ class Workflows internal constructor(
     }
 
     private suspend fun render(id: WorkflowRunId, text: String) = WorkflowReferences.render(text, outputs(id))
+
+    /** The Agent whose Session holds an Approval or Review: the one the Workflow runs as, else its first Agent turn's. */
+    private suspend fun sessionAgent(run: WorkflowRun) =
+        harness.store.agents().first { a -> (run.workflow.agentId ?: run.workflow.steps.filterIsInstance<WorkflowStep.AgentTurn>().firstOrNull()?.agentId)?.let { it == a.id } ?: true }
 
     private suspend fun runsAs(run: WorkflowRun) = harness.store.agents().first { it.id == run.workflow.agentId }
 

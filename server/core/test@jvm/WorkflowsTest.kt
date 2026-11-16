@@ -324,6 +324,96 @@ class WorkflowsTest {
         }
     }
 
+    private fun review(id: String, value: String) = WorkflowStep.Review(StepId(id), "Check it", value)
+
+    private suspend fun waitingReview(server: TestServer, c: KinuvoClient, started: WorkflowRunId? = null): Pair<StepRun, PendingInteraction.Questions> {
+        val s = await(c, WorkflowId("test")) { (started == null || it.id == started) && it.steps[StepId("r")]?.status == StepStatus.WaitingApproval }.steps.getValue(StepId("r"))
+        withTimeout(5000) { while (server.harness.log.pending(s.sessionId!!).isEmpty()) yield() }
+        return s to server.harness.log.pending(s.sessionId!!).single() as PendingInteraction.Questions
+    }
+
+    @Test fun reviewShowsTypedPrefilledFieldsAndTheEditedAnswersFeedLaterSteps() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val value = """{"title":"Hi","body":"line one\nline two","count":2,"ok":true,"items":[{"name":"a"}]}"""
+            val args = buildJsonObject { put("n", "{{steps.r.output.count}}"); put("ok", "{{steps.r.output.ok}}"); put("first", "{{steps.r.output.items.0.name}}") }
+            val w = c.call(Api.CreateWorkflow, workflow(tool("a", "echo", buildJsonObject { put("x", value) }), review("r", "{{steps.a.output.x}}"), tool("b", "echo", args),
+                edges = listOf(edge("a", "r"), edge("r", "b"))))
+            c.call(Api.RunWorkflow, w.id)
+            val (s, asked) = waitingReview(server, c)
+            assertEquals("Check it", asked.title)
+            assertEquals(listOf("title", "body", "count", "ok", "items"), asked.questions.map { it.id })
+            assertEquals(listOf(QuestionKind.Text, QuestionKind.LongText, QuestionKind.Number, QuestionKind.YesNo, QuestionKind.LongText), asked.questions.map { it.kind })
+            assertEquals(listOf("Hi"), asked.questions[0].default)
+            assertEquals(listOf("2"), asked.questions[2].default)
+            assertEquals(listOf("Yes"), asked.questions[3].default)
+            assertEquals(JsonArray(listOf(buildJsonObject { put("name", "a") })), Json.parseToJsonElement(asked.questions[4].default.single()))
+            val answers = mapOf("title" to listOf("Hello"), "body" to listOf("x"), "count" to listOf("3"), "ok" to listOf("No"), "items" to listOf("""[{"name":"z"}]"""))
+            assertTrue(c.call(Api.Respond, RespondParams(s.sessionId!!, s.interactionId!!, InteractionAnswer.Questions(answers))))
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            val out = Json.parseToJsonElement(done.steps.getValue(StepId("r")).output!!).jsonObject
+            assertEquals(JsonPrimitive(3), out["count"])
+            assertEquals(JsonPrimitive(false), out["ok"])
+            assertEquals(JsonPrimitive("Hello"), out["title"])
+            assertEquals("z", out.getValue("items").jsonArray.single().jsonObject["name"]?.jsonPrimitive?.content)
+            val next = Json.parseToJsonElement(done.steps.getValue(StepId("b")).output!!).jsonObject
+            assertEquals(JsonPrimitive(3), next["n"])
+            assertEquals(JsonPrimitive(false), next["ok"])
+            assertEquals(JsonPrimitive("z"), next["first"])
+            assertTrue(server.harness.log.pending(s.sessionId!!).isEmpty())
+        }
+    }
+
+    @Test fun reviewWithPlainTextRoundTripsThroughOneField() = runBlocking<Unit> {
+        TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            c.call(Api.RunWorkflow, c.call(Api.CreateWorkflow, workflow(review("r", "Draft: {{steps.a.output.who}}"), tool("a", "make"), edges = listOf(edge("a", "r")))).id)
+            val (s, asked) = waitingReview(server, c)
+            assertEquals(listOf(QuestionKind.LongText), asked.questions.map { it.kind })
+            assertEquals(listOf("Draft: Bob"), asked.questions.single().default)
+            assertTrue(c.call(Api.Respond, RespondParams(s.sessionId!!, s.interactionId!!, InteractionAnswer.Questions(mapOf(asked.questions.single().id to listOf("Draft: Alice"))))))
+            assertEquals("Draft: Alice", finished(c).steps.getValue(StepId("r")).output)
+        }
+    }
+
+    @Test fun decliningOrBreakingAReviewFieldFailsTheRun() = runBlocking<Unit> {
+        TestServer.start(scenario = { agent("work") }).use { server ->
+            val c = client(server)
+            val w = c.call(Api.CreateWorkflow, workflow(review("r", """{"a":{"b":1}}"""), turn("after"), edges = listOf(edge("r", "after"))))
+            val first = c.call(Api.RunWorkflow, w.id)
+            val (s, _) = waitingReview(server, c, first.id)
+            assertTrue(c.call(Api.Respond, RespondParams(s.sessionId!!, s.interactionId!!, InteractionAnswer.Questions(null))))
+            val declined = finished(c)
+            assertEquals(WorkflowRunStatus.Failed, declined.status)
+            assertEquals("Review declined", declined.steps.getValue(StepId("r")).error)
+            assertEquals(StepStatus.Skipped, declined.steps[StepId("after")]?.status)
+            val second = c.call(Api.RunWorkflow, w.id)
+            val (t, _) = waitingReview(server, c, second.id)
+            assertTrue(c.call(Api.Respond, RespondParams(t.sessionId!!, t.interactionId!!, InteractionAnswer.Questions(mapOf("a" to listOf("{nope"))))))
+            val broken = await(c, w.id) { it.id == second.id && it.status != WorkflowRunStatus.Running }
+            assertEquals(WorkflowRunStatus.Failed, broken.status)
+            assertEquals("Review field 'a' is not valid JSON", broken.steps.getValue(StepId("r")).error)
+        }
+    }
+
+    @Test fun reviewWaitingOnARestartAsksAgainInTheSameSession() = runBlocking<Unit> {
+        val w = workflow(review("r", """{"name":"x"}"""))
+        restarted(w, mapOf("r" to StepRun(StepStatus.WaitingApproval, placeholder, interactionId = InteractionId("old")))) { server, c, sid ->
+            val s = await(c, w.id) { it.steps[StepId("r")]?.status == StepStatus.WaitingApproval && it.steps[StepId("r")]?.interactionId != InteractionId("old") }.steps.getValue(StepId("r"))
+            assertEquals(sid, s.sessionId)
+            withTimeout(5000) { while (server.harness.log.pending(sid!!).isEmpty()) yield() }
+            val pending = server.harness.log.pending(sid!!).single()
+            assertEquals(s.interactionId, pending.id)
+            assertTrue(pending is PendingInteraction.Questions)
+            assertTrue(c.call(Api.Respond, RespondParams(sid, s.interactionId!!, InteractionAnswer.Questions(mapOf("name" to listOf("y"))))))
+            val done = finished(c)
+            assertEquals(WorkflowRunStatus.Done, done.status)
+            assertEquals("""{"name":"y"}""", done.steps.getValue(StepId("r")).output)
+            assertEquals(1, server.harness.store.sessions(agent).size)
+        }
+    }
+
     @Test fun cancellingAToolWaitingForApprovalResolvesIt() = runBlocking<Unit> {
         TestServer.start(plugins = listOf(fakes), scenario = { agent("work") }).use { server ->
             val c = client(server)

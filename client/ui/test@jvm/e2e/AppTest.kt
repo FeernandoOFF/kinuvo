@@ -26,6 +26,7 @@ import kinuvo.testing.harness.ModelScript
 import kinuvo.protocol.FrameConnection
 import kinuvo.protocol.Method
 import kinuvo.ui.KinuvoApp
+import kinuvo.ui.artifacts.LocalNativeViews
 import kinuvo.ui.design.LocalBackdropBlur
 import kinuvo.ui.design.LocalForcedInteractionMode
 import kinuvo.ui.kinuvoApplication
@@ -107,6 +108,7 @@ private suspend fun <T : AppDriver> ComposeUiTest.runApp(connect: suspend (Strin
                 LocalLifecycleOwner provides app,
                 LocalForcedInteractionMode provides mode,
                 LocalBackdropBlur provides false,
+                LocalNativeViews provides false,
             ) {
                 KoinIsolatedContext(koin) { KinuvoApp() }
             }

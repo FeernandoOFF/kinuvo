@@ -28,6 +28,9 @@ sealed interface WorkflowStep {
     @Serializable @SerialName("approval")
     data class Approval(override val id: StepId, val text: String, override val position: Position? = null) : WorkflowStep
 
+    @Serializable @SerialName("review")
+    data class Review(override val id: StepId, val text: String, val value: String = "", override val position: Position? = null) : WorkflowStep
+
     @Serializable @SerialName("tool")
     data class Tool(override val id: StepId, val tool: String, val args: JsonObject = JsonObject(emptyMap()), override val position: Position? = null) : WorkflowStep
 

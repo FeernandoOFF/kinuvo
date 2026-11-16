@@ -56,7 +56,7 @@ class AskUserTool(routine: Boolean = false) : CoreTool {
             return questions
         }
 
-        private const val MAX_QUESTIONS = 30
+        const val MAX_QUESTIONS = 30
         private val KINDS = arrayOf("single", "multi", "yes_no", "text", "long_text", "number", "date")
 
         /** What the model sees: multi answers as arrays, the rest as strings; unanswered ones are left out. */

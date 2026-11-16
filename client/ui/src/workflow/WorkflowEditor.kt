@@ -1,6 +1,8 @@
 package kinuvo.ui.workflow
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
@@ -8,50 +10,52 @@ import kinuvo.app.workflow.*
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.agent.AgentInfo
 import kinuvo.protocol.session.SessionId
-import kinuvo.protocol.workflow.WorkflowStep
 import kinuvo.ui.design.*
-import kinuvo.ui.surface.HtmlBridge
-import kinuvo.ui.surface.HtmlWebView
+import kinuvo.ui.artifacts.BRIDGE
+import kinuvo.ui.artifacts.PageChannel
+import kinuvo.ui.artifacts.RECEIVE
+import kinuvo.ui.artifacts.WebView
+import kinuvo.ui.artifacts.framed
+import kinuvo.ui.artifacts.newNonce
+import kinuvo.ui.artifacts.sandboxed
+import kinuvo.ui.artifacts.visualEditing
 import kinuvo.ui.surface.css
-import kinuvo.ui.surface.htmlSurfaceDocument
 import ui.generated.resources.Res
 
 private val Parts = listOf("editor.html", "editor.css", "editor.js", "drawflow.min.js", "drawflow.min.css")
 
-/** The editor page with its styles, script and the vendored Drawflow inlined, so it needs no network. */
-internal suspend fun workflowEditorPage(): String {
+/** The editor page with its styles, script and the vendored Drawflow inlined, so it needs no network; its scripts carry [nonce]. */
+internal suspend fun workflowEditorPage(nonce: String = newNonce()): String {
     val files = Parts.associateWith { Res.readBytes("files/workflow/$it").decodeToString() }
-    return Regex("<!--@(\\S+?)-->").replace(files.getValue("editor.html")) { files.getValue(it.groupValues[1]) }
+    return Regex("<!--@(\\S+?)-->").replace(files.getValue("editor.html").replace("@nonce", nonce)) { files.getValue(it.groupValues[1]) }
 }
 
-internal suspend fun workflowEditorDocument() = htmlSurfaceDocument(workflowEditorPage(), true)
+internal suspend fun workflowEditorDocument(nonce: String = newNonce()) =
+    framed(sandboxed(workflowEditorPage(nonce), "'nonce-$nonce'", ""), "<script>$BRIDGE$RECEIVE</script>", "width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no")
 
 /** The Workflow graph as a web page the [model] drives; the page only edits the draft's steps and edges. */
 @Composable
 internal fun WorkflowEditor(model: WorkflowViewModel, agents: List<AgentInfo>, onOpenSession: (AgentId, SessionId) -> Unit, modifier: Modifier) {
+    // A web view that cannot pass the page's messages on cannot edit; the web build draws on a canvas and only opens pages in a tab.
+    if (!visualEditing) return Box(modifier, contentAlignment = Alignment.Center) { Text("Edit Workflows in the desktop or mobile app.", color = color(mutedColor)) }
     val state by model.state.collectAsState()
     val theme = editorTheme()
     val catalog = remember(agents, state.models, state.tools) { EditorCatalog.of(agents, state.models, state.tools) }
     val document by produceState<String?>(null) { value = workflowEditorDocument() }
     var ready by remember { mutableStateOf(false) }
     val open by rememberUpdatedState(onOpenSession)
-    val bridge = remember(model) {
-        HtmlBridge { raw ->
+    val channel = remember { PageChannel() }
+    val receive = remember<(String) -> Unit>(model) {
+        { raw ->
             when (val event = WorkflowEditorMessages.decode(raw)) {
                 EditorEvent.Ready -> ready = true
                 is EditorEvent.Changed -> model.graphChanged(event.workflow)
-                is EditorEvent.OpenSession -> {
-                    val current = model.state.value
-                    val agent = (current.draft?.steps?.firstOrNull { it.id == event.step } as? WorkflowStep.AgentTurn)?.agentId
-                    val session = current.steps[event.step]?.sessionId
-                    if (agent != null && session != null) open(agent, session)
-                }
+                is EditorEvent.OpenSession -> model.state.value.sessionOf(event.step)?.let { (agent, session) -> open(agent, session) }
                 null -> {}
             }
-            emptyList()
         }
     }
-    fun send(command: EditorCommand) = bridge.post(WorkflowEditorMessages.encode(command))
+    fun send(command: EditorCommand) = channel.send(WorkflowEditorMessages.encode(command))
     val latest by rememberUpdatedState(state)
     LaunchedEffect(ready, state.generation) {
         val draft = latest.draft
@@ -61,7 +65,7 @@ internal fun WorkflowEditor(model: WorkflowViewModel, agents: List<AgentInfo>, o
     LaunchedEffect(ready, state.run) { if (ready) send(EditorCommand.RunChanged(state.run)) }
     LaunchedEffect(ready, theme) { if (ready) send(EditorCommand.ThemeChanged(theme)) }
     val page = document
-    if (page == null) Spinner() else key(bridge, page) { HtmlWebView(page, bridge, modifier) }
+    if (page == null) Spinner() else WebView(page, modifier, receive, channel)
 }
 
 @Composable

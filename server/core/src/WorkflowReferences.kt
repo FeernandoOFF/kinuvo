@@ -17,6 +17,7 @@ internal object WorkflowReferences {
         is WorkflowStep.Model -> listOfNotNull(step.prompt, step.system)
         is WorkflowStep.Tool -> strings(step.args)
         is WorkflowStep.Approval -> emptyList()
+        is WorkflowStep.Review -> listOf(step.value)
     }
 
     private fun strings(element: JsonElement): List<String> = when (element) {

@@ -3,6 +3,7 @@ package kinuvo.app
 import kinuvo.app.workflow.*
 import kinuvo.protocol.agent.AgentId
 import kinuvo.protocol.model.ProviderModelRef
+import kinuvo.protocol.session.SessionId
 import kinuvo.protocol.workflow.*
 import kotlinx.serialization.json.*
 import kotlin.test.*
@@ -58,5 +59,27 @@ class WorkflowEditorMessagesTest {
         val catalog = EditorCatalog.of(listOf(kinuvo.protocol.agent.AgentInfo(AgentId("x"), "X", "exec")), models, listOf("echo"))
         assertEquals(listOf(EditorModel("p", "m1", "M one", "Prov")), catalog.models)
         assertEquals(listOf(EditorAgent(AgentId("x"), "X")), catalog.agents)
+    }
+
+    @Test fun openSessionResolvesTheAgentTheServerUsed() {
+        val steps = mapOf(StepId("a") to StepRun(StepStatus.Done, SessionId("s-a")), StepId("ok") to StepRun(StepStatus.WaitingApproval, SessionId("s-ok")),
+            StepId("t") to StepRun(StepStatus.Done), StepId("r") to StepRun(StepStatus.WaitingApproval, SessionId("s-r")))
+        val graph = workflow.copy(steps = workflow.steps + WorkflowStep.Review(StepId("r"), "Check"), agentId = AgentId("runner"))
+        val run = WorkflowRun(WorkflowRunId("r1"), graph.id, WorkflowRunStatus.Running, 1, null, steps, graph)
+        val state = WorkflowState(workflow = graph, draft = graph, activeRun = run)
+        assertEquals(AgentId("x") to SessionId("s-a"), state.sessionOf(StepId("a")))
+        assertEquals(AgentId("runner") to SessionId("s-ok"), state.sessionOf(StepId("ok")))
+        assertEquals(AgentId("runner") to SessionId("s-r"), state.sessionOf(StepId("r")))
+        assertNull(state.sessionOf(StepId("t")))
+        val unset = graph.copy(agentId = null)
+        assertEquals(AgentId("x") to SessionId("s-ok"), WorkflowState(draft = unset, activeRun = run.copy(workflow = unset)).sessionOf(StepId("ok")))
+        assertNull(WorkflowState(draft = unset.copy(steps = unset.steps.drop(1)), activeRun = run.copy(workflow = unset.copy(steps = unset.steps.drop(1)))).sessionOf(StepId("ok")))
+    }
+
+    @Test fun reviewStepsAndTheirValueSurviveThePage() {
+        val encoded = WorkflowEditorMessages.encode(EditorCommand.Load(workflow.copy(steps = listOf(WorkflowStep.Review(StepId("r"), "Ok?", "{{steps.a.output}}"))), EditorCatalog(), theme))
+        val step = Json.parseToJsonElement(encoded).jsonObject.getValue("workflow").jsonObject.getValue("steps").jsonArray.single().jsonObject
+        assertEquals("review", step.getValue("type").jsonPrimitive.content)
+        assertEquals("{{steps.a.output}}", step.getValue("value").jsonPrimitive.content)
     }
 }
