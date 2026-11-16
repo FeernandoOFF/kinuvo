@@ -46,6 +46,14 @@ class MacSigningTest(unittest.TestCase):
                 self.assertNotIn('META-INF/UPSTREAM.SF', inner.namelist())
                 self.assertNotIn('META-INF/UPSTREAM.RSA', inner.namelist())
 
+    def test_signs_tailcat_resource(self):
+        native = bytes.fromhex('cffaedfe0c000001') + bytes(64)
+        source = jar({'natives/macos-arm64/libKinuvoTailcat.dylib': native})
+        with patch.object(signing, 'sign') as signer:
+            _, changed = signing.sign_archive(source, 'test-identity')
+        self.assertTrue(changed)
+        signer.assert_called_once()
+
     def test_leaves_archive_without_natives_byte_identical(self):
         source = jar({'META-INF/UPSTREAM.SF': b'signature', 'LICENSE': b'license'})
         result, changed = signing.sign_archive(source, 'test-identity')
