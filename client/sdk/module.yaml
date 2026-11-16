@@ -14,7 +14,6 @@ dependencies:
   - io.arrow-kt:arrow-resilience:2.3.0
 
 dependencies@jvmAndAndroid:
-  - ../../transport/tailcat
   - io.ktor:ktor-client-cio:3.6.0
 
 dependencies@web:

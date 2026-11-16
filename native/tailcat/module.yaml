@@ -1,0 +1,22 @@
+# Native Tailcat binding (FFM on the JVM, JNI on Android): adapter for the Server and client Tailcat ports. Only app shells depend on it.
+product:
+  type: kmp/lib
+  platforms: [jvm, android]
+
+aliases:
+  - jvmAndAndroid: [jvm, android]
+
+dependencies:
+  - ../../client/sdk
+  - ../../server/plugin-api
+  - org.jetbrains.kotlinx:kotlinx-serialization-json:1.11.0
+
+test-dependencies:
+  - $kotlin.test
+  - ../../testing/server-testing
+  - org.jetbrains.kotlinx:kotlinx-coroutines-test:1.11.0
+
+settings:
+  kotlin:
+    compileIncrementally: true
+    serialization: json

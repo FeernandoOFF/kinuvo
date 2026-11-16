@@ -16,6 +16,7 @@ modules:
   - harness/api
   - harness/builtin
   - harness/remote
+  - native/tailcat
   - plugins/anytype
   - plugins/apple-frameworks
   - plugins/bitwarden
@@ -44,4 +45,3 @@ modules:
   - testing/fixture-server
   - testing/harness-testing
   - testing/server-testing
-  - transport/tailcat

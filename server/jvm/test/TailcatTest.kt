@@ -1,18 +1,18 @@
 package kinuvo.server.jvm
 
-import kinuvo.transport.tailcat.Tailcat
+import kinuvo.server.plugin.TailcatServing
+import kinuvo.server.plugin.TailcatTunnel
 import kinuvo.protocol.device.PairingCode
 import kinuvo.server.DeviceAuth
 import kinuvo.server.NetworkListener
 import kinuvo.server.NetworkSecurity
 import kinuvo.client.KinuvoClient
-import kinuvo.client.tailcatConnection
-import kinuvo.protocol.device.Links
 import kinuvo.testing.server.TestServer
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import java.io.File
+import kotlinx.io.files.Path
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -36,22 +36,20 @@ class TailcatTest {
         try {
             val auth = DeviceAuth(File(dir, "devices.json"))
             var closed = 0
-            val native = object : Tailcat {
-                override fun serve(state: File, port: Int): Tailcat.Tunnel {
+            val native = object : TailcatServing {
+                override fun serve(state: Path, port: Int): TailcatTunnel {
                     assertEquals(1234, port)
-                    return object : Tailcat.Tunnel {
+                    return object : TailcatTunnel {
                         override val address = "tc-test"
-                        override val port: Int? = null
                         override fun close() { closed++ }
                     }
                 }
-                override fun forward(address: String): Tailcat.Tunnel = error("unused")
-                override fun reset(state: File) = Unit
+                override fun reset(state: Path) = Unit
             }
             val exposure = TailcatExposure(auth, native)
             assertFailsWith<IllegalStateException> {
                 try {
-                    exposure.start(dir, 1234)
+                    exposure.start(Path(dir.path), 1234)
                     assertEquals("tc-test", auth.pairing(false, false)!!.tailcatAddress)
                     error("later startup step failed")
                 } finally { exposure.close() }
@@ -59,11 +57,11 @@ class TailcatTest {
             exposure.close()
             assertNull(auth.tailcatAddress)
             assertEquals(1, closed)
-            val failing = object : Tailcat by native {
-                override fun serve(state: File, port: Int): Tailcat.Tunnel = throw ServeException("failed")
+            val failing = object : TailcatServing by native {
+                override fun serve(state: Path, port: Int): TailcatTunnel = throw ServeException("failed")
             }
             val failed = TailcatExposure(auth, failing)
-            assertFailsWith<ServeException> { failed.start(dir, 1234) }
+            assertFailsWith<ServeException> { failed.start(Path(dir.path), 1234) }
             failed.close()
             assertNull(auth.tailcatAddress)
         } finally { dir.deleteRecursively() }
@@ -96,37 +94,6 @@ class TailcatTest {
                     assertFalse(paired.lastConnect!!.management)
                 } finally { paired.close() }
                 assertEquals(0, server.auth.port)
-            } finally { listener.stop(); server.close() }
-        }
-    }
-
-    @Test
-    fun nativeBinding(): Unit {
-        if (System.getenv("KINUVO_TAILCAT_NATIVE") != "1") return
-        val state = Files.createTempDirectory("tailcat-binding").toFile()
-        try {
-            val native = Tailcat.load()
-            native.reset(state)
-            assertFailsWith<IllegalStateException> { native.forward("invalid") }
-        } finally { state.deleteRecursively() }
-    }
-
-    @Test
-    fun liveNativeWebSocket(): Unit = runBlocking {
-        if (System.getenv("KINUVO_TAILCAT_LIVE") != "1") return@runBlocking
-        withTimeout(90_000) {
-            val server = TestServer.start()
-            val listener = NetworkListener(server.runtime, server.auth, NetworkSecurity(trustedProxies = emptySet()), remoteOnly = true)
-            try {
-                val port = listener.start("127.0.0.1", emptyList())
-                val native = Tailcat.load()
-                native.serve(File(server.home.toString(), "tailcat"), port).use { tunnel ->
-                    val link = requireNotNull(Links.parsePair(Links.tailcatPair(requireNotNull(tunnel.address), server.pairingCode)))
-                    val client = KinuvoClient("tailcat:live", "remote", pairingCode = link.code, connection = { tailcatConnection(link.server) })
-                    val token = try { client.connect().token } finally { client.close() }
-                    val again = KinuvoClient("tailcat:live", "remote", token = token, connection = { tailcatConnection(link.server) })
-                    try { assertEquals(token, again.connect().token) } finally { again.close() }
-                }
             } finally { listener.stop(); server.close() }
         }
     }

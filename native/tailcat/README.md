@@ -36,8 +36,8 @@ Kotlin Toolchain 0.13.0's SourceAndroidConventionPaths uses the module-root
 `jniLibs/<abi>/` directory for app packaging. Its library AAR writer does not
 include local JNI directories, so the script builds once under
 `build/tailcat/android-<arch>/` and stages ignored copies in both
-`apps/android/jniLibs/` and `apps/android-play/jniLibs/`. Never commit these outputs. The shared Kotlin interface and
-JSON/handle ownership live in src@jvmAndAndroid; src@android uses JNI and src@jvm
+`apps/android/jniLibs/` and `apps/android-play/jniLibs/`. Never commit these outputs. The Kotlin ports adapter and
+JSON/handle ownership live in `src@jvmAndAndroid`; src@android uses JNI and src@jvm
 uses FFM. Native calls must run on an IO dispatcher.
 
 Android supplies a live Java NetworkInterface snapshot through JNI to netmon;

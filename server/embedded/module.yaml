@@ -5,9 +5,6 @@ product:
 aliases:
   - jvmAndAndroid: [jvm, android]
 
-dependencies@jvmAndAndroid:
-  - ../../transport/tailcat
-
 dependencies:
   - ../core: exported
   - ../rpc

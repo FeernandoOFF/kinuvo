@@ -2,6 +2,7 @@ package kinuvo.desktop
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kinuvo.server.jvm.LocalServer
+import kinuvo.tailcat.Tailcat
 import kinuvo.server.jvm.LoginServiceSettings
 import kinuvo.server.jvm.ServeException
 import kinuvo.server.jvm.kinuvoHome
@@ -87,7 +88,7 @@ internal fun serveFromLogin(): Int {
                 waiting = true
                 delay(5_000)
             }
-            serve(settings.options)
+            serve(settings.options, Tailcat)
         }
         0
     } catch (e: ServeException) {

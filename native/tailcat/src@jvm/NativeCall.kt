@@ -1,4 +1,4 @@
-package kinuvo.transport.tailcat
+package kinuvo.tailcat
 
 import java.io.File
 import java.lang.foreign.Arena

@@ -20,8 +20,9 @@ import kinuvo.server.jvm.JvmAgentRuntime
 import kinuvo.server.jvm.ServeException
 import kinuvo.server.jvm.JvmServerHost
 import kinuvo.server.jvm.ServeOptions
-import kinuvo.transport.tailcat.Tailcat
+import kinuvo.tailcat.Tailcat
 import java.io.File
+import kotlinx.io.files.Path
 import kinuvo.server.jvm.serve
 import kinuvo.server.jvm.LocalServer
 import kinuvo.protocol.device.Links
@@ -69,7 +70,7 @@ private class Login : CoreSuspendingCliktCommand("login") {
 
 private suspend fun serve(host: String, port: Int, publicUrl: String? = null, trustedProxy: String? = null, computer: Boolean = false, tailscale: Boolean = false, tailscalePort: Int = 443, behindProxy: Boolean = false, tailcat: Boolean = false) {
     serveErrors {
-        serve(ServeOptions(host, port, publicUrl, trustedProxy, tailscale, tailscalePort, behindProxy, tailcat)) { server, bind, bound ->
+        serve(ServeOptions(host, port, publicUrl, trustedProxy, tailscale, tailscalePort, behindProxy, tailcat), Tailcat) { server, bind, bound ->
             if (!computer) return@serve null
             CliComputer(server, bind, bound).also {
                 it.connect()
@@ -114,7 +115,7 @@ private class TailcatReset : CoreSuspendingCliktCommand("tailcat-reset") {
     override fun help(context: Context) = "Discard this home's Tailcat address. Stop the Server first; the next start creates a new address."
     override suspend fun run() {
         serveErrors {
-            try { Tailcat.load().reset(File(kinuvoHome().toString(), "tailcat")) }
+            try { Tailcat.reset(Path(kinuvoHome().toString(), "tailcat")) }
             catch (e: IllegalStateException) { throw ServeException(e.message ?: "Could not reset Tailcat") }
         }
         echo("Tailcat address reset. Start the Server with --tailcat to create a new address.")

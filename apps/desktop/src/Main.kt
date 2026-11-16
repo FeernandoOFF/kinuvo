@@ -18,6 +18,8 @@ import kinuvo.server.jvm.LocalServer
 import kinuvo.server.jvm.LoginServiceSettings
 import kinuvo.server.jvm.kinuvoHome
 import kinuvo.app.computer.ComputerDriver
+import kinuvo.client.TailcatForwarder
+import kinuvo.tailcat.Tailcat
 import kinuvo.app.connection.SharingOption
 import java.util.prefs.Preferences
 import java.security.MessageDigest
@@ -64,7 +66,7 @@ private object HarnessEmbeddedServer : EmbeddedServer {
     private var token: String? = null
 
     private suspend fun started(): JvmServerHost = mutex.withLock {
-        server ?: JvmServerHost(JvmAgentRuntime()).also { s ->
+        server ?: JvmServerHost(JvmAgentRuntime(), tailcat = Tailcat).also { s ->
             port = s.start("0.0.0.0", System.getenv("KINUVO_EMBEDDED_PORT")?.toInt()?.let(::listOf) ?: JvmServerHost.EMBEDDED_PORTS)
             s.advertise()
             Runtime.getRuntime().addShutdownHook(Thread { s.stop() })
@@ -112,6 +114,7 @@ fun main(args: Array<String>) {
     startKinuvo(module {
         single<EmbeddedServer> { HarnessEmbeddedServer }
         single<ComputerDriver> { CuaComputerDriver() }
+        single<TailcatForwarder> { Tailcat }
     })
     application {
         val state = rememberWindowState(width = 1100.dp, height = 760.dp)
