@@ -312,7 +312,7 @@ private fun HomeColumn(state: ShellState, actions: ShellActions, bottom: Dp) {
                 Column(verticalArrangement = Arrangement.spacedBy(1.dp)) {
                     if (state.management && state.capabilities?.features?.contains(ServerFeature.Computer) == true)
                         Pinned(Lucide.MonitorSmartphone, "Computers", view is Route.Computers, true, actions.onComputers)
-                    Pinned(Lucide.AlarmClock, "Routines & Workflows", (view as? Route.Settings)?.section == SettingsSection.Routines || view is Route.Workflows, true,
+                    Pinned(Lucide.AlarmClock, if (state.capabilities.supports(ServerFeature.Routines)) "Routines & Workflows" else "Workflows", (view as? Route.Settings)?.section == SettingsSection.Routines || view is Route.Workflows, true,
                         if (state.capabilities.supports(ServerFeature.Routines)) actions.onRoutines else actions.onWorkflows)
                     Pinned(Lucide.Wrench, "Tools & MCP", (view as? Route.Settings)?.section == SettingsSection.Hub, true, actions.onTools)
                     Pinned(Lucide.BookOpen, "Knowledge", view is Route.Knowledge, state.capabilities.supports(ServerFeature.Knowledge), actions.onKnowledge)

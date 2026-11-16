@@ -42,7 +42,7 @@ internal fun RoutineList(p: Pane) {
         "New routine", routines == null && error == null && !restricted, canAdd = false,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
-            TableHeader("Routines", "New routine", newRoutine.takeIf { !restricted && error == null })
+            TableHeader(if (workflows != null) "Routines · $agent" else "Routines", "New routine", newRoutine.takeIf { !restricted && error == null })
             when {
                 restricted -> ManagementAccessRequired()
                 error != null -> LoadFailure(error, onAction = p.actions.onReloadRoutines)

@@ -58,7 +58,7 @@ fun AgentContent(ui: SettingsUi, onOpen: (Route.Settings) -> Unit, onBack: (() -
             }
             val routines: @Composable (Modifier) -> Unit = {
                 if (external) ManagedCard(ui, it)
-                else RoutinesCard(ui, it, { open(SettingsSection.Routines) }) { onOpen(Route.Settings(agentId, SettingsSection.Routines, editing = true)) }
+                else if (ui.capabilities == null || ui.available(SettingsSection.Routines)) RoutinesCard(ui, it, { open(SettingsSection.Routines) }) { onOpen(Route.Settings(agentId, SettingsSection.Routines, editing = true)) }
             }
             val tiles: @Composable (Modifier) -> Unit = { m -> if (!external) Tiles(ui, wide, m, open) }
             val greeting = "Hi, I’m ${ui.agent?.name ?: "…"}"
@@ -189,13 +189,15 @@ private fun Tiles(ui: SettingsUi, wide: Boolean, modifier: Modifier, open: (Sett
         Triple(Lucide.Wrench, "Tools", settings?.let { s -> "${s.tools.size} built-in" + ui.config.mcp?.count { it.active }?.let { " · $it MCP" }.orEmpty() }) to SettingsSection.Tools,
         Triple(Lucide.FolderOpen, "Workspace", settings?.let { s -> listOfNotNull(EXEC[s.exec] ?: s.exec, s.workspace.firstOrNull()).joinToString(" · ") }) to SettingsSection.Workspace,
     )
+    // What this Server can't do isn't offered at all.
+    val shown = tiles.filter { ui.capabilities == null || ui.available(it.second) }
+    if (shown.isEmpty()) return
     val tile: @Composable (Modifier, Int) -> Unit = { m, i ->
-        val (info, section) = tiles[i]
-        val enabled = ui.available(section)
-        Tile(info.first, info.second, if (enabled) info.third else UNAVAILABLE, m, enabled) { open(section) }
+        val (info, section) = shown[i]
+        Tile(info.first, info.second, info.third, m, true) { open(section) }
     }
-    if (wide) Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space16)) { tiles.indices.forEach { tile(Modifier.weight(1f), it) } }
-    else Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.space10)) { tiles.indices.forEach { tile(Modifier.fillMaxWidth(), it) } }
+    if (wide) Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space16)) { shown.indices.forEach { tile(Modifier.weight(1f), it) } }
+    else Column(modifier, verticalArrangement = Arrangement.spacedBy(Spacing.space10)) { shown.indices.forEach { tile(Modifier.fillMaxWidth(), it) } }
 }
 
 @Composable
