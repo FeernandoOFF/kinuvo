@@ -44,7 +44,7 @@ class WorkflowsTest {
     private suspend fun await(client: KinuvoClient, id: WorkflowId, predicate: suspend (WorkflowRun) -> Boolean): WorkflowRun = withTimeout(10_000) {
         while (true) {
             client.call(Api.WorkflowRuns, id).firstOrNull { predicate(it) }?.let { return@withTimeout it }
-            yield()
+            delay(20)
         }
         error("unreachable")
     }
