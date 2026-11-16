@@ -29,17 +29,24 @@ class RunCodeTool(private val limits: Limits = Limits()) : CoreTool {
         ToolNames.RUN_CODE,
         "Run a JavaScript Script to chain, loop over or filter many tool calls in one step. The code is the body of an async " +
             "function: call your other tools as `await tools.<name>({...args})` (results are parsed JSON or text; a failed or " +
-            "denied call throws) and `return` what you need; only the return value, console output and a list of the calls come " +
+            "denied call throws), read the optional `input` as the variable `input`, and `return` what you need; only the return value, console output and a list of the calls come " +
             "back. No files, network or timers except through tools. Limits: ${limits.calls} tool calls, ${limits.timeout} of JavaScript, " +
             "${limits.output} characters of output.",
         requiredParameters = listOf(ToolParameter("code", "The async function body; use the exact advertised tool names as properties of tools", ParameterType.String)),
+        optionalParameters = listOf(ToolParameter("input", "Any JSON value, available to the code as the variable `input`", ParameterType.AnyOf(arrayOf(
+            ToolParameter("object", "A JSON object", ParameterType.Object(emptyList(), additionalProperties = true)),
+            ToolParameter("array", "A JSON array of objects", ParameterType.List(ParameterType.Object(emptyList(), additionalProperties = true))),
+            ToolParameter("text", "Text", ParameterType.String),
+            ToolParameter("number", "A number", ParameterType.Float),
+            ToolParameter("flag", "A boolean", ParameterType.Boolean),
+        )))),
     )
 
     override suspend fun execute(args: JsonObject): String = error("A Script needs a run to call tools in")
 
     override suspend fun execute(args: JsonObject, callId: String, run: ToolRun): String {
         val calls = mutableListOf<String>()
-        val result = runScript(args.requireString("code"), run.tools.map { it.name }, limits) { name, json ->
+        val result = runScript(args.requireString("code"), run.tools.map { it.name }, limits, args["input"]) { name, json ->
             run.call(name, json).also { r ->
                 calls += "- ${r.name}(${capped(json, 120)}) → " +
                     if (r.isError) "error: ${capped(r.output, 200)}" else "ok, ${r.output.length} characters"

@@ -67,6 +67,19 @@ These act on the selected Agent. The legacy `cron` alias routes to `routines`.
 
 Schedule options: `--at 2026-11-01T09:00`, `--every 30m` (also `2h`, `1d`), `--cron '0 9 * * MON-FRI'`, `--tz Europe/Dublin`, `--active-hours 08:00-22:00` (`none` clears), `--session new` or a Session ID, `--approvals inherit|auto|deny`. A prompt of `-` reads stdin.
 
+## Workflows
+
+| Command | Options / arguments |
+| --- | --- |
+| `workflows list` | List Workflows |
+| `workflows show ID` | Print a Workflow as JSON, as `import` reads it |
+| `workflows import FILE` | Create a Workflow from JSON (`-` reads stdin); `--replace` updates an existing one. With `-a`, or when the file names an Agent the Server lacks, every Agent in it becomes that Agent |
+| `workflows run ID` | Start a run and print its id without waiting |
+| `workflows runs ID` | Latest runs with each step's status and a one-line output or error |
+| `workflows remove ID` | Delete it |
+
+See the [Workflows guide](../guides/workflows.md).
+
 ## Skills
 
 | Command | Options / arguments |

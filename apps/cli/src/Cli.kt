@@ -36,7 +36,7 @@ class Kinuvo(
 
     init {
         versionOption(Kinuvo::class.java.getResource("/kinuvo-version")?.readText() ?: "dev")
-        subcommands(commands +listOf(AcpCommand(), AgentCommands(), RoutineCommands(), SkillCommands(), McpCommands(), KnowledgeCommands(), TaskCommands(), SecretCommands(), NotifyCommand(), PairCommand(), DeviceCommands()))
+        subcommands(commands +listOf(AcpCommand(), AgentCommands(), RoutineCommands(), WorkflowCommands(), SkillCommands(), McpCommands(), KnowledgeCommands(), TaskCommands(), SecretCommands(), NotifyCommand(), PairCommand(), DeviceCommands()))
     }
 
     override suspend fun run() {
@@ -56,6 +56,7 @@ internal class Session(private val access: ServerAccess, private val agent: Stri
 }
 
 internal class Calls(val client: KinuvoClient, private val agent: String?) {
+    val requestedAgent: AgentId? get() = agent?.let(::AgentId)
     suspend fun agentId(): AgentId = agent?.let(::AgentId) ?: client.call(Api.Agents, Unit).firstOrNull()?.id ?: error("The Server has no Agents")
 }
 

@@ -8,6 +8,8 @@ import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -18,8 +20,8 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 class ScriptTest {
-    private fun run(code: String, limits: Limits = Limits(), tools: List<String> = listOf("echo", "fail"), log: MutableList<String> = mutableListOf()) = runBlocking {
-        runScript(code, tools, limits) { name, args ->
+    private fun run(code: String, limits: Limits = Limits(), tools: List<String> = listOf("echo", "fail"), log: MutableList<String> = mutableListOf(), input: JsonElement? = null) = runBlocking {
+        runScript(code, tools, limits, input) { name, args ->
             log += "$name $args"
             if (name == "fail") SessionEntry.ToolResult(ToolCallId(""), name, "The user denied this call.", isError = true)
             else SessionEntry.ToolResult(ToolCallId(""), name, args)
@@ -33,6 +35,14 @@ class ScriptTest {
         assertEquals("hi\n", r.logs)
         assertEquals("text", run("return 'text'").value)
         assertNull(run("1 + 1").value)
+    }
+
+    @Test fun passesInputAsAVariable() {
+        val input = Json.parseToJsonElement("""{"hits":[{"title":"a \"quoted\" \u2028 line"},{"title":"b"}],"n":2}""")
+        assertEquals("a \"quoted\" \u2028 line,b 2", run("return input.hits.map(h => h.title).join(',') + ' ' + input.n", input = input).value)
+        assertEquals("undefined", run("return typeof input").value)
+        assertEquals("text", run("return input", input = Json.parseToJsonElement("\"text\"")).value)
+        assertEquals("[\n  1,\n  2\n]", run("return input", input = Json.parseToJsonElement("[1,2]")).value)
     }
 
     @Test fun bridgesToolCalls() {
