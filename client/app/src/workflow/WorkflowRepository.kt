@@ -1,5 +1,6 @@
 package kinuvo.app.workflow
 
+import kinuvo.app.connection.ServerBound
 import kinuvo.app.connection.ConnectedServer
 import kinuvo.app.connection.catching
 import kinuvo.client.ConnectionState
@@ -16,14 +17,14 @@ import kotlinx.coroutines.launch
 data class WorkflowsState(val workflows: List<Workflow> = emptyList(), val runs: Map<WorkflowId, List<WorkflowRun>> = emptyMap(),
     val loading: Boolean = false, val error: String? = null)
 
-class WorkflowRepository(internal val connection: ConnectedServer) {
+class WorkflowRepository(internal val connection: ConnectedServer) : ServerBound {
     val state: StateFlow<WorkflowsState>
         field = MutableStateFlow(WorkflowsState())
     private val requested = mutableSetOf<WorkflowId>()
     private var attached: Job? = null
     private var loading: Job? = null
 
-    internal fun attach(client: KinuvoClient) {
+    override fun attach(client: KinuvoClient) {
         attached?.cancel()
         attached = connection.scope.launch {
             launch { client.events(Api.WorkflowsChanged).collect { workflows -> state.update { it.copy(workflows = workflows) } } }
@@ -34,7 +35,7 @@ class WorkflowRepository(internal val connection: ConnectedServer) {
         }
     }
 
-    internal fun detach() {
+    override fun detach() {
         attached?.cancel(); loading?.cancel(); requested.clear(); state.value = WorkflowsState()
     }
 

@@ -24,12 +24,12 @@ data class HarnessesState(val catalog: ExecutionCatalog? = null, val probes: Map
     val connections get() = catalog?.connections
 }
 
-class HarnessRepository(internal val connection: ConnectedServer) {
+class HarnessRepository(internal val connection: ConnectedServer) : ServerBound {
     val state: StateFlow<HarnessesState>
         field = MutableStateFlow(HarnessesState())
     private var attached: Job? = null
 
-    internal fun attach(client: KinuvoClient) {
+    override fun attach(client: KinuvoClient) {
         detach()
         attached = connection.scope.launch {
             launch { client.events(Api.ExecutionCatalogChanged).collect { c -> state.update { it.copy(catalog = c) } } }
@@ -37,7 +37,7 @@ class HarnessRepository(internal val connection: ConnectedServer) {
         }
     }
 
-    internal fun detach() {
+    override fun detach() {
         attached?.cancel()
         state.value = HarnessesState()
     }

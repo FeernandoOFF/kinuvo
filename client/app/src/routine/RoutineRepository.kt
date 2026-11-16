@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /** The connected Server's Routines for every Agent shown, kept current from its events; finished runs become [Notice]s. */
-class RoutineRepository(private val notifications: Notifications, internal val connection: ConnectedServer) {
+class RoutineRepository(private val notifications: Notifications, internal val connection: ConnectedServer) : ServerBound {
     /** Routines by Agent ID. */
     val state: StateFlow<Map<AgentId, List<Routine>>>
         field = MutableStateFlow(emptyMap())
@@ -30,7 +30,7 @@ class RoutineRepository(private val notifications: Notifications, internal val c
     private val scope get() = connection.scope
     private var attached: Job? = null
 
-    internal fun attach(client: KinuvoClient) {
+    override fun attach(client: KinuvoClient) {
         attached?.cancel()
         attached = scope.launch {
             launch { client.events(Api.RoutinesChanged).collect { c -> state.update { it + (c.agentId to c.routines) } } }
@@ -39,7 +39,7 @@ class RoutineRepository(private val notifications: Notifications, internal val c
         }
     }
 
-    internal fun detach() { clear() }
+    override fun detach() { clear() }
 
     /** Reloaded once connected, like those [load]ed. */
     internal fun restore(routines: Map<AgentId, List<Routine>>) {

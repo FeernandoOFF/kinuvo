@@ -67,7 +67,7 @@ data class RepositoryState(
  * every Agent shown, and the transcripts of the last [MAX_CACHED] Sessions opened, each subscribed so returning to one
  * needs no reload. Work belongs to the connected Server and runs on the main dispatcher.
  */
-class SessionRepository(private val notifications: Notifications, internal val connection: ConnectedServer) {
+class SessionRepository(private val notifications: Notifications, internal val connection: ConnectedServer) : ServerBound {
     val state: StateFlow<RepositoryState>
         field = MutableStateFlow(RepositoryState())
 
@@ -84,7 +84,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
     private val completions = mutableSetOf<String>()
     private var viewing: SessionId? = null
 
-    internal fun attach(client: KinuvoClient) {
+    override fun attach(client: KinuvoClient) {
         attached?.cancel()
         attached = scope.launch {
             launch { client.events(Api.Update).collect(::onUpdate) }
@@ -93,7 +93,7 @@ class SessionRepository(private val notifications: Notifications, internal val c
         }
     }
 
-    internal fun detach() { clear() }
+    override fun detach() { clear() }
 
     /** Shows what this Device last saw until the Server is reached; reconnecting catches the Sessions up from there. */
     internal fun restore(lists: Map<AgentId, SessionList>, sessions: Map<SessionId, CachedSession>) {
