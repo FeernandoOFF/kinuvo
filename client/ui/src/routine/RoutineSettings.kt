@@ -153,7 +153,7 @@ private fun RoutineDetail(r: Routine, p: Pane) {
 
 private enum class ScheduleKind(val label: String, val placeholder: String, val hint: String) {
     Every("Every", "30m", "An interval: 30m, 2h, 1d"),
-    Cron("Cron", "0 9 * * MON-FRI", "minute hour day month weekday"),
+    Cron("Custom (cron)", "0 9 * * MON-FRI", "minute hour day month weekday"),
     Once("Once", "2026-05-01T09:00", "A local date and time"),
 }
 
@@ -192,9 +192,15 @@ private fun RoutineForm(r: Routine?, p: Pane) {
                 Box(Modifier.weight(1f)) { Input(schedule, kind.placeholder) }
             }
         }
-        FormField("Time zone", "IANA name, e.g. Europe/Dublin. Blank for yours.") { Input(zone, "Europe/Dublin") }
-        FormField("Active hours", "Only fire between these local times. Blank for any time.") { Input(hours, "08:00-22:00") }
-        FormField("Approvals") { Picker(RoutineApprovals.entries, approvals, { it.label() }, { approvals = it }, hint = { it.hint() }) }
+        // Defaults suit most Routines; open already when this one changed them.
+        val custom = zone.value().isNotEmpty() || hours.value().isNotEmpty() || approvals != RoutineApprovals.Inherit
+        AdvancedGroup(summary = "Time zone, active hours, Approvals", initiallyOpen = custom) {
+            GroupBox {
+                FormField("Time zone", "IANA name, e.g. Europe/Dublin. Blank for yours.") { Input(zone, "Europe/Dublin") }
+                FormField("Active hours", "Only fire between these local times. Blank for any time.") { Input(hours, "08:00-22:00") }
+                FormField("Approvals") { Picker(RoutineApprovals.entries, approvals, { it.label() }, { approvals = it }, hint = { it.hint() }) }
+            }
+        }
     }
 }
 
