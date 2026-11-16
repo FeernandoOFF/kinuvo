@@ -785,7 +785,16 @@ class ScreenshotTest {
         render("nav-desktop-tools-mcp", 1440, 1000) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Hub)) { SettingsContent(tools(itemKey(ConfigScope.Agent, "github")), SettingsActions()) } }
         render("nav-desktop-tools-builtin", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Hub)) { SettingsContent(tools(BuiltInItem), SettingsActions()) } }
         render("nav-desktop-tools-rules", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Hub)) { SettingsContent(tools(RulesItem), SettingsActions()) } }
-        render("nav-desktop-routines", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Routines)) { SettingsContent(routines("journal"), SettingsActions()) } }
+        val flows = kinuvo.ui.workflow.WorkflowsSection(listOf(
+            kinuvo.protocol.workflow.Workflow(kinuvo.protocol.workflow.WorkflowId("w1"), "Weekly release", listOf(
+                kinuvo.protocol.workflow.WorkflowStep.AgentTurn(kinuvo.protocol.workflow.StepId("s1"), AgentId("echo"), "Draft notes"),
+                kinuvo.protocol.workflow.WorkflowStep.AgentTurn(kinuvo.protocol.workflow.StepId("s2"), AgentId("echo"), "Review")), createdAt = 2),
+            kinuvo.protocol.workflow.Workflow(kinuvo.protocol.workflow.WorkflowId("w2"), "Expense report", listOf(
+                kinuvo.protocol.workflow.WorkflowStep.AgentTurn(kinuvo.protocol.workflow.StepId("s1"), AgentId("echo"), "Collect receipts")), enabled = false, createdAt = 1),
+        ), onOpen = {}, onNew = {})
+        render("nav-desktop-routines", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Routines)) {
+            CompositionLocalProvider(kinuvo.ui.workflow.LocalWorkflows provides flows) { SettingsContent(routines("journal"), SettingsActions()) }
+        } }
         render("nav-desktop-today", 1440, 900) { desktop(Route.Home) { HomeContent(home, HomeActions(), wide = true) } }
         render("nav-desktop-board", 1440, 900) { desktop(Route.Board) { BoardContent(board, BoardActions()) } }
         render("nav-desktop-settings", 1440, 900) { desktop(Route.Settings(AgentId("echo"), SettingsSection.Providers)) { SettingsContent(SettingsUi(SettingsState(Route.Settings(AgentId("echo"), SettingsSection.Providers), providers = listOf(ProviderInfo("codex", "ChatGPT / Codex"), ProviderInfo("openai", "OpenAI API"))), owners, at, capabilities = capabilities), SettingsActions()) } }

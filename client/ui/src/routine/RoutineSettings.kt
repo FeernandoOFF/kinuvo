@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.dp
 import com.composables.icons.lucide.*
 import com.composables.ui.components.*
 import com.composables.ui.theme.*
@@ -25,29 +26,61 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 
+/** Routines and Workflows in one place, as two tables: the picked Agent's Routines, then the Server's Workflows. */
 @Composable
 internal fun RoutineList(p: Pane) {
     val ui = p.ui
     val routines = ui.state.routines
     val error = ui.state.routinesError
     val restricted = !ui.management
+    val workflows = kinuvo.ui.workflow.LocalWorkflows.current
+    val agent = ui.agent?.name ?: "the Agent"
+    val newRoutine = { p.go(ui.route.copy(item = null, editing = true)) }
     ItemList(
-        p, "Routines",
-        // An empty list explains itself in its empty state.
-        if (routines?.isEmpty() == true) "" else "Prompts ${ui.agent?.name ?: "the Agent"} runs on a schedule, each in its own Session.",
-        // An empty list offers one way to add, under it.
-        "New routine", routines == null && error == null && !restricted, canAdd = !restricted && routines?.isEmpty() != true,
+        p, if (workflows != null) "Routines & Workflows" else "Routines",
+        if (workflows != null) "Routines run one prompt on a schedule. Workflows chain several steps, Agents and Approvals." else "Prompts $agent runs on a schedule, each in its own Session.",
+        "New routine", routines == null && error == null && !restricted, canAdd = false,
     ) {
-        when {
-            restricted -> ManagementAccessRequired()
-            error != null -> LoadFailure(error, onAction = p.actions.onReloadRoutines)
-            routines?.isEmpty() == true -> EmptyState(Lucide.AlarmClock, "No routines yet", "Prompts ${ui.agent?.name ?: "the Agent"} runs on a schedule. Create one here, or ask in chat, e.g. “every weekday at 9, summarize my inbox”.") {
-                Button(onClick = { p.go(ui.route.copy(item = null, editing = true)) }, style = ButtonStyle.Primary) { Text("Create routine") }
+        Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+            TableHeader("Routines", "New routine", newRoutine.takeIf { !restricted && error == null })
+            when {
+                restricted -> ManagementAccessRequired()
+                error != null -> LoadFailure(error, onAction = p.actions.onReloadRoutines)
+                routines.isNullOrEmpty() -> RowGroup {
+                    GroupRow("No routines yet", subtitle = "Prompts $agent runs on a schedule. Add one, or ask in chat, e.g. “every weekday at 9, summarize my inbox”.", icon = Lucide.AlarmClock, tint = color(mutedColor))
+                }
+                else -> RowGroup { routines.forEach { r ->
+                    ItemRow(r.id == ui.route.item, r.icon(), r.name, r.summary(ui.now), { p.go(ui.route.copy(item = r.id, editing = false)) }, muted = !r.enabled) { r.statusPill() }
+                } }
             }
         }
-        if (!restricted && !routines.isNullOrEmpty()) RowGroup { routines.forEach { r ->
-            ItemRow(r.id == ui.route.item, r.icon(), r.name, r.summary(ui.now), { p.go(ui.route.copy(item = r.id, editing = false)) }, muted = !r.enabled) { r.statusPill() }
-        } }
+        if (workflows != null) Column(verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
+            TableHeader("Workflows", "New workflow", workflows.onNew)
+            val list = workflows.workflows
+            when {
+                list == null -> Box(Modifier.fillMaxWidth().padding(Spacing.space12), contentAlignment = Alignment.Center) { Spinner() }
+                list.isEmpty() -> RowGroup {
+                    GroupRow("No workflows yet", subtitle = "Chain Agent turns and Approvals into steps the Server runs for you, on demand or on a schedule.", icon = Lucide.Workflow, tint = color(mutedColor))
+                }
+                else -> RowGroup { list.sortedByDescending { it.createdAt }.forEach { w ->
+                    ItemRow(false, Lucide.Workflow, w.name, kinuvo.ui.workflow.summary(w), { workflows.onOpen(w.id) }, muted = !w.enabled) { if (!w.enabled) Pill("Off") }
+                } }
+            }
+        }
+    }
+}
+
+/** A table's caption with its Add button. */
+@Composable
+private fun TableHeader(title: String, addLabel: String, onAdd: (() -> Unit)?) {
+    Row(Modifier.fillMaxWidth().padding(start = Spacing.space6), verticalAlignment = Alignment.CenterVertically) {
+        SectionLabel(title, Modifier.weight(1f))
+        onAdd?.let {
+            Button(onClick = it, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(accentColor)) {
+                Icon(Lucide.Plus, Modifier.size(14.dp))
+                Text(addLabel, style = TextStyles.label, singleLine = true)
+            }
+        }
     }
 }
 

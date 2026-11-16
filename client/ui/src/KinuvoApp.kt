@@ -348,8 +348,15 @@ fun KinuvoApp(app: AppViewModel = koinViewModel(), initialRoute: Route? = null, 
                         }
                         entry<Route.Settings>(metadata = { if (it.home) emptyMap() else SettingsTransitions(compact) }) { route ->
                             val settings = koinViewModel<SettingsViewModel>(key = "settings/${app.serverLifetime}/${route.agentId}") { parametersOf(route) }
+                            // Home's Routines page lists the Server's Workflows too.
+                            val workflows = if (route.home && route.section == SettingsSection.Routines) {
+                                val list = koinViewModel<WorkflowsViewModel>(key = "workflows/${app.serverLifetime}")
+                                val listed by list.state.collectAsState()
+                                kinuvo.ui.workflow.WorkflowsSection(listed.workflows, onOpen = { history.open(Route.Workflows(it)) },
+                                    onNew = { list.create(route.agentId) { history.open(Route.Workflows(it)) } })
+                            } else null
                             key(route, homeEdits.revision) {
-                                CompositionLocalProvider(LocalSettingsEdits provides homeEdits) {
+                                CompositionLocalProvider(LocalSettingsEdits provides homeEdits, kinuvo.ui.workflow.LocalWorkflows provides workflows) {
                                     SettingsScreen(app, settings, onNavigate = openSettings, onBack = back,
                                         onOpenSession = { next -> homeEdits.leave { history.open(next) } })
                                 }

@@ -142,7 +142,7 @@ class SettingsFlowTest {
 
         tap("Agents and sessions")
         tap("Home")
-        tap("Routines")
+        tap("Routines & Workflows")
         await(".*E2E Agent, change Agent")
         await("Heartbeat.*")
         tap("New routine")
@@ -181,6 +181,7 @@ class SettingsFlowTest {
         await("Endpoint Model ID")
         screenshot("endpoint-manual-fallback")
         tap("Back")
+        scrollTo("Harnesses")
         tap("Harnesses")
         await("Claude Agent")
         await("Link a Kinuvo Server")
