@@ -1,5 +1,6 @@
 package kinuvo.desktop
 
+import kinuvo.server.jvm.diagnostics.DiagnosticLogging
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -17,6 +18,7 @@ import kinuvo.server.jvm.JvmServerHost
 import kinuvo.server.jvm.LocalServer
 import kinuvo.server.jvm.LoginServiceSettings
 import kinuvo.server.jvm.kinuvoHome
+import kinuvo.app.diagnostics.LocalDiagnostics
 import kinuvo.app.computer.ComputerDriver
 import kinuvo.app.connection.EmbeddedServer
 import kinuvo.plugins.cua.DesktopComputer
@@ -89,8 +91,10 @@ fun main(args: Array<String>) {
         "--serve" -> exitProcess(serveFromLogin())
         "--service" -> exitProcess(runServiceCommand(args.getOrNull(1)))
     }
+    DiagnosticLogging.install("desktop")
     startKinuvo(module {
         single<EmbeddedServer> { HarnessEmbeddedServer }
+        single<LocalDiagnostics> { DesktopDiagnostics() }
         single<ComputerDriver> { CuaComputerDriver() }
     })
     application {

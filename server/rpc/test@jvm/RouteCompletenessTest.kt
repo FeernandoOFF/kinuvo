@@ -1,5 +1,6 @@
 package kinuvo.server.rpc
 
+import kinuvo.server.RouteAccess
 import kinuvo.protocol.Api
 import kinuvo.protocol.Method
 import kinuvo.server.ServerRuntime
@@ -31,6 +32,13 @@ class RouteCompletenessTest {
         val routes = serverRoutes()
         val expected = setOf(Api.LiveVoiceStart, Api.LiveVoiceEnd, Api.CatchUp, Api.Unsubscribe, Api.Send, Api.CancelQueued, Api.Stop, Api.Presence, Api.DeviceTools, Api.SurfaceCatalogs, Api.RevokeDevice, Api.RotateToken).map { it.name }.toSet()
         assertEquals(expected, routes.methods.filter { routes.ordered(it) }.toSet())
+    }
+
+    @Test fun diagnosticsRequireManagementAccess() {
+        val routes = serverRoutes()
+        listOf(Api.DiagnosticsStatus, Api.DiagnosticsExport, Api.DiagnosticsRecord).forEach {
+            assertEquals(RouteAccess.Management, routes.access(it.name))
+        }
     }
 
     @Test fun registeringAMethodTwiceFails() {

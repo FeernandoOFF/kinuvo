@@ -1,5 +1,6 @@
 package kinuvo.ui
 
+import kinuvo.app.diagnostics.DiagnosticFilePicker
 import kinuvo.app.connection.*
 import kinuvo.app.device.*
 
@@ -65,6 +66,7 @@ internal class FilePreferences(dir: File) : Preferences {
 private val home get() = System.getenv("KINUVO_HOME")?.let(::File) ?: File(System.getProperty("user.home"), ".kinuvo")
 
 internal actual val platformModule = module {
+    single<DiagnosticFilePicker> { DesktopDiagnosticFilePicker() }
     if (currentPlatform == Platform.MacOS || currentPlatform == Platform.Windows) {
         single<SpeechEngine> { DesktopSpeechEngine() }
     }

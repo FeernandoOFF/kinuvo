@@ -1,5 +1,8 @@
 package kinuvo.protocol
 
+import kinuvo.protocol.diagnostics.DiagnosticStatus
+import kinuvo.protocol.diagnostics.DiagnosticReport
+import kinuvo.protocol.diagnostics.RecordDiagnosticsParams
 import kinuvo.protocol.workflow.*
 import kinuvo.protocol.workflow.Workflow as WorkflowValue
 import kinuvo.protocol.team.TeamId
@@ -100,6 +103,10 @@ open class KnownEnumSet<E : Enum<E>>(element: KSerializer<E>) : JsonTransforming
 const val MAX_CONCURRENT_REQUESTS = 8
 
 object Api {
+    val DiagnosticsStatus = Method("diagnostics.status", Unit.serializer(), DiagnosticStatus.serializer())
+    val DiagnosticsExport = Method("diagnostics.export", Unit.serializer(), DiagnosticReport.serializer())
+    val DiagnosticsRecord = Method("diagnostics.record", RecordDiagnosticsParams.serializer(), DiagnosticStatus.serializer())
+
     val Workflows = Method("workflows.list", Unit.serializer(), ListSerializer(WorkflowValue.serializer()))
     val Workflow = Method("workflows.get", WorkflowId.serializer(), WorkflowValue.serializer())
     val CreateWorkflow = Method("workflows.create", WorkflowValue.serializer(), WorkflowValue.serializer())

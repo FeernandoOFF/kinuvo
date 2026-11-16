@@ -64,7 +64,10 @@ port and network configuration. macOS uses one launch-service label across data
 homes; only its assigned checkout should manage it.
 
 JVM diagnostics use kotlin-logging through SLF4J and Logback. Interactive commands
-and the desktop app log to stderr, leaving CLI results on stdout. `KINUVO_LOG_LEVEL`
+and the desktop app log to stderr and per-process rotating files in `<home>/logs/`,
+leaving CLI results on stdout. Desktop and CLI capture uncaught exceptions in
+`<home>/crashes/`. See [Export diagnostics](support.md#export-diagnostics) for collection,
+temporary debug recording and AI-assisted triage. `KINUVO_LOG_LEVEL`
 sets the minimum level (default `INFO`). Installed services use
 `logback-service.xml` and `-Dkinuvo.log.file=<home>/logs/server.log`: the file rolls
 daily or at 10 MB, with seven days of compressed archives capped at 100 MB.

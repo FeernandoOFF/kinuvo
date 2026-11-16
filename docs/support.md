@@ -33,3 +33,72 @@ Kinuvo has no publisher-hosted user account to delete. Disconnecting a remote Se
 For complete deletion, ask your Server operator to stop and remove its data, or remove your on-device app data using platform controls. Separately revoke provider tokens, remove retained keychain entries where applicable, and delete external service copies or backups. See the [privacy policy](privacy.md) and [Server backup guide](operate/backup.md).
 
 To remove support correspondence held by the publisher, email **me@feernandooff.com**. Support correspondence and voluntarily supplied diagnostics are deleted within 90 days after resolution unless a legal obligation requires retention.
+
+## Export diagnostics
+
+In the desktop app, open **Settings → Help & diagnostics → Export diagnostics**.
+Save the ZIP, open it and review the files before attaching it to an issue or email.
+Known credentials and your home-folder path are redacted on a best-effort basis;
+logs can still contain private information. Nothing is uploaded automatically.
+
+The export includes recent operational logs, crash details, Agent trace metadata,
+app version, OS and Java information. It does not copy your chats, attachments,
+configuration, database or memory dumps. Debug logs and exception messages may
+contain private details. Native JVM crash reports are reduced to their header
+and stack frames. A sudden termination or OS kill may leave no crash report.
+
+This Device's diagnostics include its local Server. To include a selected remote
+Server, enable **Include Server diagnostics**; this requires management access.
+Server export and debug recording are currently supported by JVM Servers.
+Diagnostic export from the app is currently supported on desktop; mobile and web
+apps can still report problems using the information above.
+
+For intermittent problems, choose **Record debug logs**, reproduce
+the problem, then stop recording and export. Recording ends automatically, lasts
+at most 30 minutes and applies to JVM processes using the same Kinuvo home.
+
+If the app will not open, use the CLI with the same `KINUVO_HOME`:
+
+```sh
+kinuvo diagnostics status
+kinuvo diagnostics record 15
+kinuvo diagnostics record 0
+kinuvo diagnostics export --output diagnostics.zip
+```
+
+Desktop and CLI logs are stored in `<Kinuvo home>/logs/`, and crash details in
+`<Kinuvo home>/crashes/`. On Windows the default home is `%USERPROFILE%\.kinuvo`.
+Each process keeps up to three log files of about 4 MiB. Old process logs are
+pruned at startup, retaining up to 24 files from stopped processes or seven days;
+crash files retain up to 12 reports or seven days. Existing service log retention
+is separate. JVM fatal reports are captured where the installed JVM permits it.
+
+## Ask AI to triage a problem
+
+```sh
+kinuvo triage "The Windows app closes when I open Settings"
+kinuvo triage "Pairing fails" --report diagnostics.zip --provider codex --model gpt-5.6-sol
+```
+
+Triage collects bounded, redacted diagnostic excerpts and saves `context.txt` for
+you to review. It asks before sending that text and your description to the chosen
+model provider; that provider's data handling applies. It uses your existing model
+provider sign-in or API key. Use `--provider` and `--model` to choose another model.
+Triage does not require a running Server and has no shell or other tools.
+
+The result is an editable `issue.md`, with observed evidence separated from
+possible causes. AI can make mistakes: check the draft before publishing it.
+The command prints its saved path and a publishing command:
+
+```sh
+kinuvo triage --publish /path/to/issue.md
+kinuvo triage --publish /path/to/issue.md --repo owner/repository
+```
+
+Publishing requires the GitHub CLI (`gh`) installed and signed in with access to
+create issues in the repository. The default repository is `FeernandoOFF/kinuvo`.
+The command shows the issue and asks before creating it; visibility follows the
+repository. It publishes the draft text, not the ZIP or full diagnostic context.
+Use `--create-issue` during triage to offer publishing immediately after drafting.
+`--yes` skips prompts: with `--create-issue` or `--publish` it also authorizes
+publishing. Without those options, `--yes` only authorizes the model request.

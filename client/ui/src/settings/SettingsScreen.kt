@@ -1,5 +1,6 @@
 package kinuvo.ui.settings
 
+import kinuvo.ui.diagnostics.DiagnosticsHelp
 import kinuvo.app.connection.*
 import kinuvo.app.session.*
 import kinuvo.app.agent.*
@@ -317,6 +318,7 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
                 }
             }
             SectionLabel("About", Modifier.padding(top = 12.dp))
+            DiagnosticsHelp(ui.management, true, ui.server)
             links.forEach { (label, icon, url) ->
                 ListRow(selected = false, onClick = { runCatching { uri.openUri(url) } }, leading = { Icon(icon, Modifier.size(16.dp)) }) {
                     Text(label, Modifier.weight(1f), singleLine = true)
@@ -335,6 +337,7 @@ private fun SettingsSections(ui: SettingsUi, selected: SettingsSection?, go: (Ro
                 }
             }
             RowGroup("About") {
+                DiagnosticsHelp(ui.management, false, ui.server)
                 links.forEach { (label, icon, url) -> ActionRow(label, icon, { runCatching { uri.openUri(url) } }) }
             }
         }
