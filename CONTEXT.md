@@ -182,6 +182,9 @@ _Avoid_: Gateway, backend
 A client (desktop app, phone, browser) paired with a Server through a pairing code.
 _Avoid_: Node, client app
 
+**Tailcat address**:
+A secret address that lets a Device reach a Server through an encrypted peer-to-peer tunnel. The Device still needs to pair or authenticate.
+
 **Pairing link**:
 A link that opens a Device ready to pair with a Server, with its address and pairing code filled in; the user still chooses to pair.
 
