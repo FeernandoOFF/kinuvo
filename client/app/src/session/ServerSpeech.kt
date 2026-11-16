@@ -38,6 +38,19 @@ class ServerSpeech(private val device: SpeechEngine, private val server: Connect
     private var speech: Job? = null
     private val utterances = mutableSetOf<Job>()
     private var speakingGeneration = 0
+    fun preparePlayback(completion: (String?) -> Unit) {
+        serverGeneration = server.generation
+        val epoch = generation
+        speech = server.scope.launch {
+            try {
+                setup = bounded(15_000, "Loading Server voice settings") { server.call { it.call(Api.VoiceSetup, Unit) } }
+                if (setup.synthesizer && audio == null) error("This Device cannot play Server voice audio")
+                if (current(epoch)) completion(null)
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { if (current(epoch)) completion(userMessage(e.message) ?: "Server voice unavailable") }
+        }.also { utterances += it }
+    }
+
     override fun authorize(completion: (String?) -> Unit) {
         serverGeneration = server.generation
         val epoch = ++generation

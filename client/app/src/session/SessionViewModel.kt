@@ -170,6 +170,7 @@ data class ChatState(
     val models: ModelsCatalog = ModelsCatalog(),
     val attachments: List<PendingAttachment> = emptyList(),
     val unsent: String? = null,
+    val readingAloud: String? = null,
     val sending: Boolean = false,
     /** What the Server and model can do in this Session; null until known, when nothing is disabled. */
     val capabilities: SessionCapabilities? = null,
@@ -228,6 +229,7 @@ data class SessionState(
     val data: SessionData? = null,
     val skills: List<SkillInfo> = emptyList(),
     val errors: List<String> = emptyList(),
+    val readingAloud: String? = null,
     val sending: Boolean = false,
     /** The Session's settings, or those the next new Session starts with. */
     val settings: SessionSettings = SessionSettings(),
@@ -263,7 +265,7 @@ data class SessionState(
 
 /** One Session screen: a view of the Session in the [SessionRepository], plus sending, stopping, Approvals and answers. */
 @OptIn(ExperimentalCoroutinesApi::class)
-class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, private val consent: AiConsent? = null) : ViewModel() {
+class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, private val consent: AiConsent? = null, private val reader: Synthesizer? = null) : ViewModel() {
     private val client: KinuvoClient = requireNotNull(repo.connection.client) { "Not connected" }
     val state: StateFlow<SessionState>
         field = MutableStateFlow(SessionState(route))
@@ -275,6 +277,9 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
     private val loadingAttachments = mutableSetOf<String>()
 
     init {
+        viewModelScope.launch {
+            state.map { it.route }.distinctUntilChanged().collect { stopReading() }
+        }
         repo.connection.bind(viewModelScope, client)
         // A Session cached on this Device opens before the Server is reached.
         if (route.agentId != null && route.sessionId in repo.state.value.sessions) state.update { it.copy(resolving = false) }
@@ -320,7 +325,44 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
         }
     }
 
-    fun voiceStarted() = state.update { it.copy(voiceRequested = false) }
+    private var readingGeneration = 0
+
+    fun readAloud(itemId: String, text: String) {
+        val engine = reader ?: return
+        stopReading()
+        val words = speakable(text).ifBlank { return }
+        if (!DeviceAudio.acquire(engine, this)) return
+        val epoch = ++readingGeneration
+        state.update { it.copy(readingAloud = itemId) }
+        fun failed(error: String) {
+            if (readingGeneration != epoch) return
+            stopReading()
+            state.update { it.copy(errors = it.errors + error) }
+        }
+        fun speak() {
+            if (readingGeneration != epoch) return
+            try {
+                engine.speak(words, { if (readingGeneration == epoch) stopReading() }, ::failed)
+            } catch (e: Exception) { failed(e.message ?: "Read aloud failed") }
+        }
+        if (engine is ServerSpeech) engine.preparePlayback { error ->
+            if (error == null) speak() else failed(error)
+        } else speak()
+    }
+
+    fun stopReading() {
+        readingGeneration++
+        if (state.value.readingAloud == null) return
+        state.update { it.copy(readingAloud = null) }
+        try { reader?.stopSpeaking() } finally { reader?.let { DeviceAudio.release(it, this) } }
+    }
+
+    override fun onCleared() { stopReading() }
+
+    fun voiceStarted() {
+        stopReading()
+        state.update { it.copy(voiceRequested = false) }
+    }
 
     /** The screen is showing: keeps the Session cached and current. */
     fun shown() {

@@ -31,6 +31,44 @@ class AgentDefaultsTest {
     private val serverJobs = mutableListOf<Job>()
     private val stores = mutableListOf<ViewModelStore>()
     private fun store() = ViewModelStore().also(stores::add)
+    @Test fun readingReplacesStopsAndIgnoresStaleCallbacks() = withOwner { owner, _, _ ->
+        connect(owner, Script())
+        val reader = object : Synthesizer {
+            var done: () -> Unit = {}
+            var failure: (String) -> Unit = {}
+            var spoken = ""
+            override fun speak(text: String, onDone: () -> Unit) { spoken = text; done = onDone }
+            override fun speak(text: String, onDone: () -> Unit, onError: (String) -> Unit) { speak(text, onDone); failure = onError }
+            override fun stopSpeaking() { done() }
+        }
+        val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("agent"), null), reader = reader)
+        val store = store()
+        store.put("reading", vm)
+        vm.state.first { !it.resolving }
+        vm.readAloud("one", "**Hello** [world](https://example.com) ![image](x)")
+        assertEquals("Hello world", reader.spoken)
+        val stale = reader.done
+        vm.readAloud("two", "Second")
+        stale()
+        assertEquals("two", vm.state.value.readingAloud)
+        reader.failure("playback failed")
+        assertNull(vm.state.value.readingAloud)
+        assertTrue("playback failed" in vm.state.value.errors)
+        val other = Any()
+        assertTrue(DeviceAudio.acquire(reader, other))
+        vm.readAloud("busy", "Busy")
+        assertNull(vm.state.value.readingAloud)
+        DeviceAudio.release(reader, other)
+        vm.readAloud("voice", "Voice")
+        vm.voiceStarted()
+        assertNull(vm.state.value.readingAloud)
+        vm.readAloud("clear", "Clear")
+        store.clearAndJoin()
+        assertNull(vm.state.value.readingAloud)
+        assertTrue(DeviceAudio.acquire(reader, other))
+        DeviceAudio.release(reader, other)
+    }
+
     @Test fun savedDefaultsUpdateOpenAndFutureNewSessionsWithoutBecomingOverrides() = withOwner { owner, _, _ ->
         val script = Script()
         connect(owner, script)

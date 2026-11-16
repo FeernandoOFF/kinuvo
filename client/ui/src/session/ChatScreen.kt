@@ -135,6 +135,7 @@ fun ChatScreen(
         loaded = current.loaded,
         hasOlder = current.data?.hasOlder == true,
         running = current.running,
+        readingAloud = current.readingAloud,
         completions = if (agent?.external != true && current.capabilities?.server.supports(ServerFeature.Skills)) listOf(CompletionSource('/', current.skills.filter { it.active && it.userInvocable }.map { Completion(it.name, it.description) }, startOnly = true)) else emptyList(),
         settings = current.settings,
         defaults = current.defaults,
@@ -167,6 +168,8 @@ fun ChatScreen(
                 onNew = { if (route.sessionId != null) onOpen(Route.Chat(route.agentId, compose = true)) },
                 onSelect = { id -> if (id != route.sessionId?.value) onOpen(Route.Chat(route.agentId, SessionId(id))) },
                 onSend = session::send,
+                onReadAloud = session::readAloud,
+                onStopReading = session::stopReading,
                 onSurfaceAction = { text, action -> session.send(text, action = action) },
                 onAppResource = session::appResource,
                 onAppTool = session::appCallTool,
@@ -198,7 +201,7 @@ fun ChatScreen(
                 onSettings = { route.agentId?.let(onSettings) },
                 onRename = session::rename,
                 onFavorite = session::favorite,
-                onVoice = voice?.let { v -> { dictation?.stop(); v.start() } },
+                onVoice = voice?.let { v -> { dictation?.stop(); session.stopReading(); v.start() } },
                 onPauseVoice = { if (it) voice?.pause() else voice?.resume() },
                 onHoldVoice = { if (it) voice?.hold() else voice?.letGo() },
                 onSpeaker = { voice?.speaker(it) },
@@ -223,6 +226,8 @@ fun ChatScreen(
 }
 
 class ChatActions(
+    val onReadAloud: (String, String) -> Unit = { _, _ -> },
+    val onStopReading: () -> Unit = {},
     val onNew: () -> Unit = {},
     val onSelect: (String) -> Unit = {},
     val onSend: (String) -> Unit = {},
