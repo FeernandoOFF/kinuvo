@@ -374,7 +374,7 @@ private fun QuestionsBody(asked: PendingInteraction.Questions, drafts: Map<Inter
 @Composable
 private fun TakeoverBody(asked: PendingInteraction.Questions, input: RequestInput, wide: Boolean, actions: ChatActions) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
-        Text("Hand back in Live view when finished. Answering or skipping keeps Takeover paused.", style = TextStyles.caption, color = color(mutedColor))
+        Text("Do this step yourself in Live view, then hand back there. Sending a note or skipping doesn't hand it back.", style = TextStyles.caption, color = color(mutedColor))
         Actions(wide,
             primary = { Button(onClick = { asked.screen?.let { actions.onScreen(it, asked.title) } ?: actions.onWatch() }, modifier = it, style = ButtonStyle.Primary) { Text("Open Live view") } },
             others = { Button(onClick = { actions.onAnswer(null) }, modifier = it, style = ButtonStyle.Ghost, contentColor = color(mutedColor)) { Text("Skip") } })

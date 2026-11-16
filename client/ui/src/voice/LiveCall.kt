@@ -365,12 +365,13 @@ private const val CaptionsKey = "live.captions"
  */
 @Composable
 fun CallApprovalSheet(agentName: String, event: PendingInteraction.Approval, onDecision: (ApprovalDecision) -> Unit, onEnd: () -> Unit, modifier: Modifier = Modifier) {
-    val shell = event.identity?.instance?.pluginId == "kinuvo.exec" && event.identity?.localId == "shell"
+    val shell = event.identity?.let { it.instance.pluginId == "kinuvo.exec" && it.localId == "shell" } ?: (event.toolCallName == "shell")
     val command = if (shell) commandOf(event.args)?.let { "$ $it" } else null
     val tone = when (event.risk) { Risk.High -> color(destructiveColor); Risk.Medium -> color(warningColor); Risk.Low -> color(accentColor) }
     CallRequestSheet(
         event.id, if (shell) Lucide.SquareTerminal else Lucide.ShieldAlert, tone,
-        if (shell) "$agentName wants to run a command" else "$agentName wants to use ${event.identity?.localId ?: event.toolCallName}",
+        // The tool's ID reads as words here; the exact call is under Show details.
+        if (shell) "$agentName wants to run a command" else "$agentName wants to use ${(event.identity?.localId ?: event.toolCallName).replace('_', ' ')}",
         command ?: event.reason ?: event.trustHint, mono = command != null,
         buttons = listOfNotNull(
             SheetChoice("Allow once", filled = true) { onDecision(ApprovalDecision.AllowOnce) },
