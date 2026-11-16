@@ -29,7 +29,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.ChevronUp
+import com.composables.icons.lucide.SlidersHorizontal
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.composables.icons.lucide.Lucide
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -123,6 +127,18 @@ fun ToggleSwitch(checked: Boolean, onChange: ((Boolean) -> Unit)?, modifier: Mod
             .then(if (onChange != null) Modifier.toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange) else Modifier)
             .alpha(if (enabled) 1f else 0.45f).padding(3.dp),
     ) { Box(Modifier.offset(x = offset).size(22.dp).background(if (checked) Color.White else color(mutedColor), CircleShape)) }
+}
+
+/** Settings most people never change, folded under a [title] row until opened; [summary] says what's inside while closed. */
+@Composable
+fun AdvancedGroup(title: String = "Advanced", summary: String? = null, initiallyOpen: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+    var open by rememberSaveable { mutableStateOf(initiallyOpen) }
+    RowGroup {
+        GroupRow(title, { open = !open }, summary.takeIf { !open }, Lucide.SlidersHorizontal, chevron = false) {
+            Icon(if (open) Lucide.ChevronUp else Lucide.ChevronDown, Modifier.size(16.dp), tint = color(mutedColor))
+        }
+        if (open) content()
+    }
 }
 
 /** Free-form content as a row of a [RowGroup], e.g. a field. */

@@ -47,7 +47,7 @@ private fun ServiceForm(setup: ServiceSetup, p: Pane) {
         RowGroup {
             if (push) SwitchRow("Push to paired Devices", form.push, { form = form.copy(push = it) }, pushedTo(p.ui.devices.devices), Lucide.Smartphone)
             PickerRow(if (push) "Also send through" else "Provider", (listOf<String?>(null) + setup.providers.map { it.id } + listOfNotNull(form.provider)).distinct(), form.provider,
-                { id -> setup.providers.firstOrNull { it.id == id }?.name ?: id ?: "Off" }, { form = form.select(it) },
+                { id -> setup.providers.firstOrNull { it.id == id }?.name ?: id ?: noProvider(kind, push) }, { form = form.select(it) },
                 if (kind == ServiceKind.Search) Lucide.Search else Lucide.Bell)
             if (!form.editable) GroupRow(if (form.definition == null) "This provider is not installed on the Server." else "Update this client to configure this provider.", tint = color(mutedColor))
         }
@@ -56,6 +56,13 @@ private fun ServiceForm(setup: ServiceSetup, p: Pane) {
             form.editable && !p.ui.state.testing, { p.actions.onTestService(form.testParams(kind)) },
             p.ui.state.serviceTest?.let { t -> t.error?.let { "Didn't work: $it" } to "Works: ${t.summary}" })
     }
+}
+
+/** What picking no provider means: search falls back to opening pages; notifications to push alone, or none. */
+private fun noProvider(kind: ServiceKind, push: Boolean) = when {
+    kind == ServiceKind.Search -> "None · open pages only"
+    push -> "Nothing else"
+    else -> "Off"
 }
 
 private fun pushedTo(devices: List<PairedDeviceInfo>?) = devices?.filter { it.push }?.map { it.name }?.let {

@@ -105,11 +105,11 @@ private val Headlines = listOf("Where should I live?", "Which mind should I use?
     "Where does your new Agent run?", "Which Agents?")
 private val Subtitles = listOf(
     "Pick where your Server runs. You can add more Servers later.",
-    "Your model powers every conversation. Each provider decides where your messages are processed.",
+    "The AI that powers me. A subscription you already have is the easiest start.",
     "Optional. I'll keep it in my notes about you.",
     "Swipe or tap to change how I look, then give me a name.",
     "Five choices shape my Soul. You can change it anytime in Settings.",
-    "Optional. Each one lets me do more for you; all of them are in Settings later.",
+    "Notes and Tasks work out of the box. Add more now, or anytime in Settings.",
     "Kinuvo's own Agent, or an agent you already use, started by this Server.",
     "Only Agents the other Server shares with linked Servers.",
 )
@@ -232,23 +232,43 @@ private fun ConnectSetup(app: AppViewModel, agentId: AgentId, section: kinuvo.ap
 
 private val ConnectInfo = mapOf(
     kinuvo.app.navigation.SettingsSection.Secrets to Triple(Lucide.KeyRound, "Password manager", "Use passwords and API keys without pasting them into settings."),
-    kinuvo.app.navigation.SettingsSection.Knowledge to Triple(Lucide.Library, "Notes", "Where I keep what I learn about your people and projects: built in, or your Obsidian vault or Anytype space."),
-    kinuvo.app.navigation.SettingsSection.Tasks to Triple(Lucide.ListChecks, "Tasks", "Your reminders, so I can see and work on your to-dos."),
+    kinuvo.app.navigation.SettingsSection.Knowledge to Triple(Lucide.Library, "Notes", "What I learn about your people and projects. Or use your Obsidian vault or Anytype."),
+    kinuvo.app.navigation.SettingsSection.Tasks to Triple(Lucide.ListChecks, "Tasks", "Your to-dos, so I can see and work on them. Or use the to-do app you already have."),
     kinuvo.app.navigation.SettingsSection.Notifications to Triple(Lucide.Bell, "Notifications", "So I can reach you when something needs you."),
     kinuvo.app.navigation.SettingsSection.Search to Triple(Lucide.Search, "Web search", "Search the web, not just open pages."),
     kinuvo.app.navigation.SettingsSection.Workspace to Triple(Lucide.Terminal, "Shell and files", "This machine, a container or an SSH host where I can run commands."),
     kinuvo.app.navigation.SettingsSection.Mcp to Triple(Lucide.Plug, "Apps and services", "Notion, Linear, GitHub, Google and more."),
 )
 
+/** Connect sections by how much a new user needs them; Advanced ones stay folded. */
+private val ConnectGroups = listOf(
+    "Ready to use" to listOf(kinuvo.app.navigation.SettingsSection.Knowledge, kinuvo.app.navigation.SettingsSection.Tasks),
+    "Recommended" to listOf(kinuvo.app.navigation.SettingsSection.Notifications, kinuvo.app.navigation.SettingsSection.Search),
+    "Optional" to listOf(kinuvo.app.navigation.SettingsSection.Mcp),
+)
+private val ConnectAdvanced = listOf(kinuvo.app.navigation.SettingsSection.Workspace, kinuvo.app.navigation.SettingsSection.Secrets)
+private val BuiltInSections = setOf(kinuvo.app.navigation.SettingsSection.Knowledge, kinuvo.app.navigation.SettingsSection.Tasks)
+
 @Composable
 internal fun ConnectList(s: OnboardingState, available: (kinuvo.app.navigation.SettingsSection) -> Boolean, onSetUp: (kinuvo.app.navigation.SettingsSection) -> Unit) {
-    RowGroup {
-        ConnectSections.forEach { section ->
-            val (icon, title, description) = ConnectInfo.getValue(section)
-            val enabled = available(section)
-            GroupRow(title, { onSetUp(section) }, if (enabled) description else "Not on this Server", icon, enabled = enabled) {
-                if (s.connected[section] == true) Pill("On", tone = Tone.Success, icon = Lucide.CircleCheck)
+    @Composable fun Row(section: kinuvo.app.navigation.SettingsSection) {
+        val (icon, title, description) = ConnectInfo.getValue(section)
+        GroupRow(title, { onSetUp(section) }, description, icon) {
+            when (s.connected[section]) {
+                true -> Pill(if (section in BuiltInSections) "Connected" else "On", tone = Tone.Success, icon = Lucide.CircleCheck)
+                false -> if (section in BuiltInSections) Pill("Built-in", tone = Tone.Success, icon = Lucide.CircleCheck)
+                null -> {}
             }
+        }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.space16)) {
+        ConnectGroups.forEach { (title, sections) ->
+            val shown = sections.filter(available)
+            if (shown.isNotEmpty()) RowGroup(title) { shown.forEach { Row(it) } }
+        }
+        val advanced = ConnectAdvanced.filter(available)
+        if (advanced.isNotEmpty()) AdvancedGroup("For technical users", summary = advanced.joinToString(" · ") { ConnectInfo.getValue(it).second }) {
+            advanced.forEach { Row(it) }
         }
     }
 }
@@ -682,7 +702,7 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
                 ChoiceRow(Lucide.Brain, info?.name ?: s.catalog.providers.firstOrNull { it.id == id }?.name ?: id,
                     providerStatus(info).orEmpty(), id == s.provider) { onProvider(id) }
             }
-            if (title == "On device" && s.provider in providers) Row(Modifier.fillMaxWidth().background(color(warningColor).copy(alpha = 0.1f))
+            if (title == "Private, on this Server" && s.provider in providers) Row(Modifier.fillMaxWidth().background(color(warningColor).copy(alpha = 0.1f))
                 .padding(horizontal = Spacing.space16, vertical = Spacing.space12), horizontalArrangement = Arrangement.spacedBy(Spacing.space12)) {
                 Icon(Lucide.TriangleAlert, Modifier.size(24.dp), tint = color(warningColor))
                 Column(verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
@@ -692,18 +712,11 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
             }
         }
     }
-    RowGroup {
-        ActionRow("Refresh models and sign-in", Lucide.RefreshCw, onRefresh, enabled = !s.busy)
-    }
-    if (onEndpoint != null) {
-        var adding by remember { mutableStateOf(false) }
-        RowGroup { ActionRow("Add OpenAI-compatible endpoint", Lucide.Plus, { adding = !adding }) }
-        if (adding) EndpointForm { id, model -> adding = false; onEndpoint(id, model) }
-    }
-    RowGroup {
-        if (!group?.chatModels.isNullOrEmpty()) PickerRow("Model", (group.chatModels.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
-            { id -> group.chatModels.firstOrNull { it.id == id }?.name ?: id }, { value -> onEdit { it.copy(model = value) } }, Lucide.Cpu)
-        else key(s.provider) { DraftRow("Model ID", s.model, "Enter a model ID") { value -> onEdit { it.copy(model = value) } } }
+    val picked = s.provider.isNotBlank()
+    // A listed model is preselected, so only an unlisted one asks for input up front.
+    val listed = !group?.chatModels.isNullOrEmpty()
+    if (picked) RowGroup {
+        if (!listed) key(s.provider) { DraftRow("Model ID", s.model, "Enter a model ID") { value -> onEdit { it.copy(model = value) } } }
         account?.downloads?.let { downloads ->
             downloads.models.filter { it.id == s.model }.takeIf { it.isNotEmpty() }?.let { selected ->
                 ModelDownloadRows(downloads.copy(models = selected), { onDownload() }, onCancel, {})
@@ -724,6 +737,14 @@ internal fun ModelStep(s: OnboardingState, onProvider: (String) -> Unit, onRefre
             ActionRow("Open sign-in page", Lucide.ExternalLink, { runCatching { uri.openUri(code.url) } })
         }
     }
+    var adding by remember { mutableStateOf(false) }
+    AdvancedGroup("More options", summary = listOfNotNull(group?.chatModels?.firstOrNull { it.id == s.model }?.let { "Model: ${it.name}" }, "Custom endpoint").joinToString(" · ")) {
+        if (picked && listed) PickerRow("Model", (group.chatModels.map { it.id } + s.model).filter(String::isNotBlank).distinct(), s.model,
+            { id -> group.chatModels.firstOrNull { it.id == id }?.name ?: id }, { value -> onEdit { it.copy(model = value) } }, Lucide.Cpu)
+        ActionRow("Refresh models and sign-in", Lucide.RefreshCw, onRefresh, enabled = !s.busy)
+        if (onEndpoint != null) ActionRow("Add OpenAI-compatible endpoint", Lucide.Plus, { adding = !adding })
+    }
+    if (adding && onEndpoint != null) EndpointForm { id, model -> adding = false; onEndpoint(id, model) }
     (account?.downloads?.error ?: s.catalog.model(s.provider, s.model)?.state?.reason ?: group?.warning ?: s.catalog.warning ?: account?.error)?.let { Text(it, color = color(mutedColor), style = TextStyles.caption) }
 }
 

@@ -115,9 +115,9 @@ data class OnboardingState(
     }
 
     val providerGroups get() = listOf(
-        "Subscriptions" to availableProviders.filter { id -> providers.firstOrNull { it.id == id }?.account != null },
-        "On device" to availableProviders.filter { it == "apple" || it == "local" },
-        "API providers" to availableProviders.filter { id -> id != "apple" && id != "local" && providers.firstOrNull { it.id == id }?.account == null },
+        "Use a subscription you have" to availableProviders.filter { id -> providers.firstOrNull { it.id == id }?.account != null },
+        "Private, on this Server" to availableProviders.filter { it == "apple" || it == "local" },
+        "With an API key" to availableProviders.filter { id -> id != "apple" && id != "local" && providers.firstOrNull { it.id == id }?.account == null },
     )
     private val availableProviders get() = (catalog.providers.map { it.id } + providers.map { it.id }).distinct()
         .filter { id -> providers.firstOrNull { it.id == id }?.downloads?.models?.none { it.supported } != true }
