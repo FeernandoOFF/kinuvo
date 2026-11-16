@@ -55,6 +55,7 @@ import androidx.compose.foundation.text.input.TextFieldState
 import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
 import kinuvo.client.ConnectionState
+import kinuvo.protocol.session.SendDelivery
 import kinuvo.protocol.approval.InteractionAnswer
 import kinuvo.protocol.approval.PendingInteraction
 import kinuvo.protocol.approval.ApprovalDecision
@@ -136,6 +137,9 @@ fun ChatScreen(
         hasOlder = current.data?.hasOlder == true,
         running = current.running,
         readingAloud = current.readingAloud,
+        queued = current.queued,
+        canQueue = current.canQueue,
+        canSteer = current.canSteer,
         completions = if (agent?.external != true && current.capabilities?.server.supports(ServerFeature.Skills)) listOf(CompletionSource('/', current.skills.filter { it.active && it.userInvocable }.map { Completion(it.name, it.description) }, startOnly = true)) else emptyList(),
         settings = current.settings,
         defaults = current.defaults,
@@ -170,6 +174,9 @@ fun ChatScreen(
                 onSend = session::send,
                 onReadAloud = session::readAloud,
                 onStopReading = session::stopReading,
+                onQueue = { session.send(it, delivery = SendDelivery.Queue) },
+                onSteer = { session.send(it, delivery = SendDelivery.Steer) },
+                onCancelQueued = session::cancelQueued,
                 onSurfaceAction = { text, action -> session.send(text, action = action) },
                 onAppResource = session::appResource,
                 onAppTool = session::appCallTool,
@@ -228,6 +235,9 @@ fun ChatScreen(
 class ChatActions(
     val onReadAloud: (String, String) -> Unit = { _, _ -> },
     val onStopReading: () -> Unit = {},
+    val onQueue: (String) -> Unit = {},
+    val onSteer: (String) -> Unit = {},
+    val onCancelQueued: (String) -> Unit = {},
     val onNew: () -> Unit = {},
     val onSelect: (String) -> Unit = {},
     val onSend: (String) -> Unit = {},
@@ -450,6 +460,8 @@ fun ChatContent(
                             running = state.running,
                             onSend = { follow.value = true; actions.onDiscardDictation(); actions.onSend(it) },
                             onStop = actions.onStop,
+                            onQueue = { text: String -> follow.value = true; actions.onDiscardDictation(); actions.onQueue(text) }.takeIf { state.canQueue },
+                            onSteer = { text: String -> follow.value = true; actions.onDiscardDictation(); actions.onSteer(text) }.takeIf { state.canSteer },
                             canStop = state.canStop,
                             stopWhileSending = state.external && state.canStop,
                             placeholder = "Chat with ${state.agent?.name ?: "Kinuvo"}",

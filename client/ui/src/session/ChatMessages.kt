@@ -172,6 +172,10 @@ internal fun Messages(
                             Text(if (writing) "Writing…" else "Working…", color = color(mutedColor), style = TextStyles.secondary)
                         }
                     }
+                    // Queued messages wait after the turn in progress, greyed until they start.
+                    items(state.queued, key = { "queued:${it.id}" }) { queued ->
+                        Box(Modifier.animateItem().widthIn(max = ContentWidth).fillMaxWidth()) { QueuedBubble(queued.text) { actions.onCancelQueued(queued.id) } }
+                    }
                 }
             }
             // Touch screens scroll by swiping; estimating mixed-height rows there only made the bar jump.
@@ -620,6 +624,27 @@ private fun ReadAloudButton(reading: Boolean, onRead: () -> Unit, onStop: () -> 
             contentColor = if (reading) color(accentColor) else color(mutedColor),
         ) {
             Icon(if (reading) Lucide.Square else Lucide.Volume2, Modifier.size(14.dp), contentDescription = label)
+        }
+    }
+}
+
+/** A message queued for after the current turn: the user's bubble, faded, saying so, with a way to cancel it. */
+@Composable
+private fun QueuedBubble(text: String, onCancel: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(start = Spacing.space48), horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(Spacing.space4)) {
+        Panel(
+            Modifier.widthIn(max = 560.dp).alpha(0.55f),
+            color = color(selectedControlColor),
+            borderColor = Color.Transparent,
+            shape = Theme[shapes][largeShape],
+            contentPadding = PaddingValues(horizontal = Spacing.space14, vertical = Spacing.space10),
+        ) { Markdown(text) }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.space4)) {
+            Icon(Lucide.Clock, Modifier.size(12.dp), tint = color(mutedColor))
+            Text("Queued · sends after this turn", style = TextStyles.caption, color = color(mutedColor))
+            Button(onClick = onCancel, style = ButtonStyle.Ghost, buttonSize = ButtonSize.Small, contentColor = color(mutedColor)) {
+                Text("Cancel", style = TextStyles.caption)
+            }
         }
     }
 }

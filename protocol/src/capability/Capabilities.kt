@@ -100,6 +100,8 @@ data class SessionCapabilities(
     /** Accepted attachment MIME types, resolved from the model and provider's file handling. Null from older Servers. */
     val attachments: Map<String, CapabilityState>? = null,
     val execution: ExecutionCapabilities? = null,
+    val queue: Boolean = false,
+    val steer: Boolean = false,
 ) {
     fun input(kind: String) = inputs[kind] ?: CapabilityState.unsupported("This model does not accept $kind input")
     fun attachment(mimeType: String): CapabilityState = when {

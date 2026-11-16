@@ -10,6 +10,9 @@ import kotlinx.serialization.Serializable
 /** Events emitted during a run, named after AG-UI event types. */
 @Serializable
 sealed interface AgentEvent {
+    @Serializable @SerialName("QUEUE_CHANGED")
+    data class QueueChanged(val messages: List<QueuedMessage>) : AgentEvent
+
     @Serializable @SerialName("SUB_AGENT_CHANGED")
     data class SubAgentChanged(val child: SubAgentState) : AgentEvent
 

@@ -49,9 +49,12 @@ class AgentExecution(
     suspend fun send(params: SendParams, catalogs: List<UiCatalog>?, onEvent: suspend (AgentEvent) -> Unit = {}): SendResult =
         if (registry.registration(params.agentId) != null) management.withLock {
             params.sessionId?.let { subAgents?.begin(it) }
+            require(params.delivery == SendDelivery.Turn) { "This external harness does not support Queue or Steer" }
             external.send(params)
         }
         else native.send(params, catalogs, onEvent)
+
+    suspend fun cancelQueued(params: CancelQueuedParams) = native.cancelQueued(params)
 
     override suspend fun stop(sessionId: SessionId) { subAgents?.cancelChildren(sessionId); forSession(sessionId).stop(sessionId) }
 }

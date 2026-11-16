@@ -31,6 +31,7 @@ interface AgentRunner {
         voice: Boolean = false,
         action: SurfaceAction? = null,
         report: SessionEntry.ToolReport? = null,
+        steering: suspend () -> List<SessionEntry.UserMessage> = { emptyList() },
     ): Flow<AgentEvent>
 }
 
