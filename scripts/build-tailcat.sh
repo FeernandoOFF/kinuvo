@@ -29,6 +29,9 @@ if [ "${1:-}" = android ]; then
         done
         printf '%s\n' "$output/libKinuvoTailcat.so"
     done
+    # Kotlin Toolchain 0.13 does not track jniLibs as packaging inputs.
+    rm -f "$kinuvo_project_root"/build/incremental.state/_android_buildAndroidDebug-* \
+        "$kinuvo_project_root"/build/incremental.state/_android-play_buildAndroidDebug-*
     exit 0
 fi
 case "$(uname -s)" in
@@ -50,6 +53,7 @@ if [ "$target_os" = darwin ]; then
 fi
 case "$(uname -m)" in arm64|aarch64) host_arch=arm64 ;; *) host_arch=amd64 ;; esac
 if [ "$target_arch" = "$host_arch" ]; then
-    cp "$output/libKinuvoTailcat.$suffix" "$kinuvo_project_root/build/"
+    cp "$output/libKinuvoTailcat.$suffix" "$kinuvo_project_root/build/.libKinuvoTailcat.$suffix.new"
+    mv -f "$kinuvo_project_root/build/.libKinuvoTailcat.$suffix.new" "$kinuvo_project_root/build/libKinuvoTailcat.$suffix"
 fi
 printf '%s\n' "$output/libKinuvoTailcat.$suffix"

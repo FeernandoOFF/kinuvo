@@ -2,6 +2,7 @@ package kinuvo.client
 
 import io.ktor.client.plugins.websocket.WebSockets
 import kinuvo.protocol.FrameConnection
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
@@ -94,6 +95,7 @@ suspend fun tailcatConnection(address: String, forwarder: TailcatForwarder = pla
         }
     } catch (e: Throwable) {
         withContext(NonCancellable) { try { forward.invalidate() } finally { try { forward.close() } finally { http.close() } } }
-        throw e
+        if (e is CancellationException) throw e
+        throw IllegalStateException("Could not reach the Server through Tailcat", e)
     }
 }
