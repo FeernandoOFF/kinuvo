@@ -215,7 +215,7 @@ private fun ColumnScope.Manual(options: WelcomeOptions) {
         // An error about the code shows under it; anything else is about reaching the Server.
         val error = options.error
         val codeError = error?.contains("code", ignoreCase = true) == true
-        FieldRow("Server address or pairing link") { Input(options.url, "https://your-server:8787", error = error != null && !codeError); error?.takeUnless { codeError }?.let { FieldError(it) } }
+        FieldRow("Server address or pairing link") { Input(options.url, "https://your-server:8787 or a pairing link", error = error != null && !codeError); error?.takeUnless { codeError }?.let { FieldError(it) } }
         FieldRow("Pairing code") {
             Input(options.code, "Code from the Server", error = codeError)
             error?.takeIf { codeError }?.let {

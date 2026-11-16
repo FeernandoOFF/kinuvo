@@ -49,21 +49,24 @@ import androidx.compose.ui.graphics.vector.ImageVector
  */
 @Composable
 internal fun PairingPanel(info: PairingInfo, selected: String?, onSelect: (String) -> Unit, onRefresh: () -> Unit, error: String? = null) {
-    var browser by remember { mutableStateOf(false) }
+    var mode by remember { mutableIntStateOf(0) }
+    val modes = listOfNotNull("Kinuvo app", "Browser", "Any network".takeIf { info.tailcatLink != null })
+    val browser = mode == 1
+    val tailcat = mode == 2 && info.tailcatLink != null
     val base = selected?.takeIf { it in info.bases } ?: info.bases.firstOrNull()
     val remaining by produceState((info.expiresAt - Clock.System.now()).inWholeSeconds, info.expiresAt) {
         while (true) { value = (info.expiresAt - Clock.System.now()).inWholeSeconds; delay(1000) }
     }
     val share = rememberShare()
-    val link = base?.let { if (browser) info.webLink(it) else info.appLink(it) }
+    val link = if (tailcat) info.tailcatLink else base?.let { if (browser) info.webLink(it) else info.appLink(it) }
     val live = remaining > 0
     Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) { Column(Modifier.widthIn(max = 380.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space14), horizontalAlignment = Alignment.CenterHorizontally) {
-        Segmented(listOf("Kinuvo app", "Browser"), if (browser) 1 else 0) { browser = it == 1 }
+        Segmented(modes, mode.coerceAtMost(modes.lastIndex)) { mode = it }
         val shape = RoundedCornerShape(Radius.sheet)
         Box(Modifier.size(212.dp).clip(shape).background(if (live && link != null) Color.White else color(subtleColor), shape), contentAlignment = Alignment.Center) {
             when {
                 link == null -> Text("No address the other device can reach. Use this server's IP or VPN address.", Modifier.padding(Spacing.space20), color = color(mutedColor), style = TextStyles.secondary, textAlign = TextAlign.Center)
-                live -> Image(rememberQrCodePainter(link), "Pairing QR code for ${base.substringAfter("://")}", Modifier.fillMaxSize().padding(Spacing.space18))
+                live -> Image(rememberQrCodePainter(link), if (tailcat) "Pairing QR code for any network" else "Pairing QR code for ${base?.substringAfter("://")}", Modifier.fillMaxSize().padding(Spacing.space18))
                 else -> Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.space10)) {
                     Icon(Lucide.TimerOff, Modifier.size(28.dp), tint = color(mutedColor))
                     Text("This code expired", color = color(mutedColor))
@@ -72,7 +75,11 @@ internal fun PairingPanel(info: PairingInfo, selected: String?, onSelect: (Strin
             }
         }
         if (link != null && live) {
-            Text(if (browser) "Scan with the other device's camera, or open the link in its browser." else "Scan with the other device's camera, or open the link there.",
+            Text(when {
+                tailcat -> "Scan in the Kinuvo app on the other device. It connects from any network through Tailcat, with nothing else to install."
+                browser -> "Scan with the other device's camera, or open the link in its browser."
+                else -> "Scan with the other device's camera, or open the link there."
+            },
                 color = color(mutedColor), style = TextStyles.secondary, lineHeight = 18.sp, textAlign = TextAlign.Center)
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Spacing.space8)) {
                 share?.let { send -> Button({ send(link) }, Modifier.weight(1f), style = ButtonStyle.Primary) { ActionLabel(Lucide.Share, "Share link") } }
@@ -80,7 +87,7 @@ internal fun PairingPanel(info: PairingInfo, selected: String?, onSelect: (Strin
             }
         }
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(Spacing.space6)) {
-            if (base != null && info.bases.size > 1) Row(verticalAlignment = Alignment.CenterVertically) {
+            if (!tailcat && base != null && info.bases.size > 1) Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Reachable at", Modifier.weight(1f), color = color(mutedColor), style = TextStyles.secondary)
                 Picker(info.bases, base, { it.substringAfter("://") }, onSelect)
             }
@@ -94,6 +101,7 @@ internal fun PairingPanel(info: PairingInfo, selected: String?, onSelect: (Strin
                 CopyButton(info.code)
             }
         }
+        if (tailcat) Pill("This link holds the Server's private address. Share it only with your own devices.", Modifier.fillMaxWidth(), icon = Lucide.KeyRound)
         if (info.management) Pill("Can change server settings and answer approvals", Modifier.fillMaxWidth(), tone = Tone.Warning, icon = Lucide.ShieldAlert)
         error?.let { Pill(it, Modifier.fillMaxWidth(), tone = Tone.Danger, icon = Lucide.CircleX) }
     } }
@@ -153,7 +161,7 @@ internal fun ConnectionSettingsPane(p: Pane) {
                         Button({ p.actions.onRenameServer(shown, name.text.toString()) }, enabled = name.text.toString() != shown.name.orEmpty(),
                             style = ButtonStyle.Primary, buttonSize = ButtonSize.Small) { Text("Save") }
                     }
-                    Text(shown.url, color = color(mutedColor), style = TextStyles.caption)
+                    Text(if (shown.transport == RemoteTransport.Tailcat) "Reached from any network through Tailcat" else shown.url, color = color(mutedColor), style = TextStyles.caption)
                 }
                 if (shown == connected) ConfirmRow("Rotate Device credential", Lucide.RotateCcwKey, "Rotate this Device's credential?", p.actions.onRotateToken, "Rotate",
                     destructive = false, detail = "Its other connections disconnect and need the new credential.")
@@ -161,9 +169,20 @@ internal fun ConnectionSettingsPane(p: Pane) {
                     detail = "This Device unpairs and removes the Server. You can pair again with a new code.")
             }
         } else Text(connected?.label ?: "No Server connected")
-        if (connected is Server.Embedded && p.ui.sharing != null) RowGroup("Reach this Server from other Devices") {
-            GroupRow("Local network and Tailscale", subtitle = "Other Devices pair with a code from here. Keep it off on networks you don't trust.", icon = Lucide.Wifi, chevron = false) {
+        val tailcat = p.ui.sharingOptions[SharingOption.Tailcat]?.takeUnless { it == SharingState.Unavailable }
+        if (connected is Server.Embedded && (p.ui.sharing != null || tailcat != null)) RowGroup("Reach this Server from other Devices") {
+            if (p.ui.sharing != null) GroupRow("Local network and Tailscale", subtitle = "Other Devices pair with a code from here. Keep it off on networks you don't trust.", icon = Lucide.Wifi, chevron = false) {
                 ToggleSwitch(p.ui.sharing, p.actions.onShare)
+            }
+            if (tailcat != null) {
+                val starting = tailcat == SharingState.Starting
+                GroupRow("Any network", subtitle = "Devices connect from anywhere through Tailcat, with no account or VPN. They still pair with a code from here.", icon = Lucide.Globe, chevron = false) {
+                    if (starting) Spinner()
+                    ToggleSwitch(tailcat == SharingState.On || starting, p.actions.onShareTailcat, enabled = !starting)
+                }
+                (tailcat as? SharingState.Error)?.let { GroupBox { Pill(it.message, tone = Tone.Danger, icon = Lucide.CircleX) } }
+                ConfirmRow("Reset private address", Lucide.RotateCcw, "Reset this Server's private address?", p.actions.onResetTailcat, "Reset", enabled = !starting,
+                    detail = "Devices that connect through Tailcat stop reaching this Server until they pair again with a new link. Devices on your network are not affected.")
             }
         }
         if (p.ui.capabilities.supports(ServerFeature.Pairing)) {
