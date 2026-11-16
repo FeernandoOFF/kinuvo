@@ -4,6 +4,7 @@ import kinuvo.harness.Agent
 import kinuvo.harness.AgentConfig
 import kinuvo.server.store.FileStore
 import kinuvo.server.store.Store
+import kinuvo.protocol.session.QueuedMessage
 import kinuvo.protocol.session.AgentEvent
 import kinuvo.protocol.session.SessionChange
 import kinuvo.protocol.session.withWrittenAt
@@ -30,6 +31,25 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 
 class SessionLogTest {
+    @Test fun queuedMessagesReachLiveSubscribersAndReconnectWhileIdle() = runBlocking {
+        val fixture = RuntimeFixture()
+        val log = SessionLog(fixture.store)
+        val id = log.createSession(fixture.agent.id, "").id
+        val queue = listOf(QueuedMessage("q", "waiting"))
+        log.publish(fixture.agent.id, id, AgentEvent.QueueChanged(queue))
+        log.append(fixture.agent.id, id, SessionEntry.UserMessage("previous"))
+        val received = mutableListOf<SessionUpdate>()
+        log.subscribe(fixture.agent.id, id, null, 100, object : SessionLog.Subscriber {
+            override fun offer(update: SessionUpdate): Boolean { received += update; return true }
+        })
+        assertEquals(queue, received.map { it.change }.filterIsInstance<SessionChange.Live>().single().state.queued)
+        log.publish(fixture.agent.id, id, AgentEvent.RunStarted(RunId("run")))
+        log.publish(fixture.agent.id, id, AgentEvent.RunFinished(RunId("run")))
+        received.clear()
+        log.publish(fixture.agent.id, id, AgentEvent.QueueChanged(emptyList()))
+        assertEquals(AgentEvent.QueueChanged(emptyList()), (received.single().change as SessionChange.Event).event)
+    }
+
     @Test fun metadataUpdatesPreserveEachOther() = runBlocking {
         val log = SessionLog(RuntimeFixture().store)
         val id = log.createSession(AgentId("external"), "").id

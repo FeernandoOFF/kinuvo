@@ -228,6 +228,7 @@ object Api {
     val ConfigureSession = Method("session.configure", ConfigureSessionParams.serializer(), SessionInfo.serializer())
     val UpdateSession = Method("session.update", UpdateSessionParams.serializer(), SessionInfo.serializer())
     val Send = Method("chat.send", SendParams.serializer(), SendResult.serializer())
+    val CancelQueued = Method("chat.cancelQueued", CancelQueuedParams.serializer(), Unit.serializer())
     val Stop = Method("chat.stop", StopParams.serializer(), Unit.serializer())
     val ReviewReflection = Method("reflection.review", ReviewReflectionParams.serializer(), Unit.serializer())
     val Respond = Method("session.respond", RespondParams.serializer(), Boolean.serializer())

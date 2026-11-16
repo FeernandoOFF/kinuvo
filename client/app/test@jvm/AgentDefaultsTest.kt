@@ -31,6 +31,37 @@ class AgentDefaultsTest {
     private val serverJobs = mutableListOf<Job>()
     private val stores = mutableListOf<ViewModelStore>()
     private fun store() = ViewModelStore().also(stores::add)
+    @Test fun deliveryCapabilitiesGateSendsAndQueueUpdatesReachTheVm() = withOwner { owner, _, _ ->
+        val script = Script()
+        connect(owner, script)
+        val vm = SessionViewModel(owner.sessions, Route.Chat(AgentId("agent"), SessionId("session")))
+        store().put("delivery", vm)
+        vm.state.first { it.capabilities != null && !it.resolving }
+        assertFalse(vm.state.value.canQueue)
+        vm.send("blocked", delivery = SendDelivery.Queue)
+        assertTrue(script.deliveries.isEmpty)
+        script.deliverySupported = true
+        script.event(Api.CapabilitiesChanged, Unit)
+        vm.state.first { it.canQueue && it.canSteer }
+        vm.shown()
+        vm.state.first { it.data != null }
+        val waiting = QueuedMessage("queued", "waiting")
+        script.event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Live(LiveState(running = true, queued = listOf(waiting)))))
+        vm.state.first { it.running && it.queued.size == 1 }
+        vm.send("blocked turn")
+        assertTrue(script.deliveries.isEmpty)
+        vm.send("queue", delivery = SendDelivery.Queue)
+        assertEquals(SendDelivery.Queue, script.deliveries.receive().delivery)
+        vm.state.first { !it.sending }
+        vm.send("adjust", delivery = SendDelivery.Steer)
+        assertEquals(SendDelivery.Steer, script.deliveries.receive().delivery)
+        vm.state.first { !it.sending }
+        vm.cancelQueued("queued")
+        assertEquals("queued", script.cancellations.receive().id)
+        script.event(Api.Update, SessionUpdate(AgentId("agent"), SessionId("session"), SessionChange.Event(AgentEvent.QueueChanged(emptyList()))))
+        vm.state.first { it.queued.isEmpty() }
+    }
+
     @Test fun readingReplacesStopsAndIgnoresStaleCallbacks() = withOwner { owner, _, _ ->
         connect(owner, Script())
         val reader = object : Synthesizer {
@@ -190,6 +221,10 @@ class AgentDefaultsTest {
         val blocked = Channel<Unit>(Channel.UNLIMITED)
         val release = CompletableDeferred<Unit>()
         val sent = Channel<SessionSettings>(Channel.UNLIMITED)
+        var deliverySupported = false
+        val deliveries = Channel<SendParams>(Channel.UNLIMITED)
+        val cancellations = Channel<CancelQueuedParams>(Channel.UNLIMITED)
+        suspend fun <T> event(type: EventType<T>, payload: T) = frames.send(Frame.Event(type.name, ProtocolJson.encodeToJsonElement(type.payload, payload), 1))
         val reviews = Channel<ReviewReflectionParams>(Channel.UNLIMITED)
         override suspend fun send(frame: Frame) {
             val request = frame as Frame.Request
@@ -208,7 +243,7 @@ class AgentDefaultsTest {
                     settings = settings.copy(model = params.model ?: settings.model, reasoning = params.reasoning ?: settings.reasoning)
                     reply(request, Api.UpdateAgent, AgentDetails(AgentInfo(AgentId("agent"), "Agent", "none"), settings, "", ""))
                 }
-                Api.Capabilities.name -> reply(request, Api.Capabilities, SessionCapabilities(revision, ServerCapabilities("test")))
+                Api.Capabilities.name -> reply(request, Api.Capabilities, SessionCapabilities(revision, ServerCapabilities("test"), queue = deliverySupported, steer = deliverySupported))
                 Api.Models.name -> reply(request, Api.Models, ModelsCatalog())
                 Api.Providers.name -> reply(request, Api.Providers, emptyList())
                 Api.Skills.name -> reply(request, Api.Skills, emptyList())
@@ -218,7 +253,8 @@ class AgentDefaultsTest {
                     sessionSettings = ProtocolJson.decodeFromJsonElement(Api.ConfigureSession.params, request.params).settings
                     reply(request, Api.ConfigureSession, SessionInfo(SessionId("new"), AgentId("agent"), "New", settings = sessionSettings))
                 }
-                Api.Send.name -> { sent.send(sessionSettings); reply(request, Api.Send, SendResult(SessionId("new"), RunId("run"), "hello")) }
+                Api.CancelQueued.name -> { cancellations.send(ProtocolJson.decodeFromJsonElement(Api.CancelQueued.params, request.params)); reply(request, Api.CancelQueued, Unit) }
+                Api.Send.name -> { deliveries.send(ProtocolJson.decodeFromJsonElement(Api.Send.params, request.params)); sent.send(sessionSettings); reply(request, Api.Send, SendResult(SessionId("new"), RunId("run"), "hello")) }
                 Api.Session.name -> reply(request, Api.Session, SessionInfo(SessionId("session"), AgentId("agent"), "Review"))
                 Api.ReviewReflection.name -> {
                     reviews.send(ProtocolJson.decodeFromJsonElement(Api.ReviewReflection.params, request.params))

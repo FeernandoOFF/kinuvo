@@ -12,6 +12,7 @@ import kotlinx.serialization.Serializable
 @Serializable
 data class LiveState(
     val running: Boolean = false,
+    val queued: List<QueuedMessage> = emptyList(),
     val reflectionId: String? = null,
     /** The streaming message's ID, shared with its saved [SessionEntry.AssistantMessage] and [SessionEntry.Reasoning]. */
     val messageId: String? = null,
@@ -24,6 +25,7 @@ data class LiveState(
     val interactionChildren: Map<InteractionId, SessionId> = emptyMap(),
 ) {
     fun on(event: AgentEvent): LiveState = when (event) {
+        is AgentEvent.QueueChanged -> copy(queued = event.messages)
         is AgentEvent.SubAgentChanged -> copy(children = children + (event.child.sessionId to event.child))
         is AgentEvent.InteractionRequested -> copy(pending = pending.filterNot { it.id == event.interaction.id } + event.interaction,
             interactionChildren = event.childSessionId?.let { interactionChildren + (event.interaction.id to it) } ?: interactionChildren)
@@ -39,7 +41,7 @@ data class LiveState(
             copy(entries = entries.toMutableList().apply { if (index < 0) add(event.entry) else set(index, event.entry) })
         }
         is AgentEvent.ReflectionStarted -> copy(reflectionId = event.id)
-        is AgentEvent.RunStarted -> LiveState(running = true, reflectionId = reflectionId, executionPhase = executionPhase, pending = pending, entries = entries, children = children, interactionChildren = interactionChildren)
+        is AgentEvent.RunStarted -> LiveState(running = true, queued = queued, reflectionId = reflectionId, executionPhase = executionPhase, pending = pending, entries = entries, children = children, interactionChildren = interactionChildren)
         is AgentEvent.TextMessageContent -> if (executionPhase == null) copy(messageId = event.messageId, text = text + event.delta)
             else {
                 val previous = entries.filterIsInstance<SessionEntry.AssistantMessage>().firstOrNull { it.messageId == event.messageId }

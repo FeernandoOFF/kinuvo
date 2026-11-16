@@ -54,10 +54,11 @@ class AgentRun(
         voice: Boolean,
         action: SurfaceAction?,
         report: SessionEntry.ToolReport?,
+        steering: suspend () -> List<SessionEntry.UserMessage>,
     ): Flow<AgentEvent> = channelFlow {
         send(AgentEvent.RunStarted(runId))
         warnings.forEach { send(AgentEvent.Warning(it)) }
-        val session = RunSession(agent, store, sessionId, runId, model, tools, requestKind, contextTokens, profile.history.latestTurnOnly, profile, { send(it) }, voice = voice)
+        val session = RunSession(agent, store, sessionId, runId, model, tools, requestKind, contextTokens, profile.history.latestTurnOnly, profile, { send(it) }, voice = voice, steering = steering)
         var stopped = "Cancelled by user"
         var cancelled = false
         val turn = ToolTurn(

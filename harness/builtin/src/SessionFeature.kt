@@ -67,6 +67,7 @@ internal class RunSession(
     val profile: ModelProfile,
     val emit: suspend (AgentEvent) -> Unit,
     private val voice: Boolean = false,
+    private val steering: suspend () -> List<SessionEntry.UserMessage> = { emptyList() },
 ) {
     val tools = provider.advertised.map { it.toDescriptor() }
     val messages = SessionMessages(model, tools.any { it.name == ToolNames.GENERATE_IMAGE })
@@ -97,6 +98,7 @@ internal class RunSession(
     val compressionStrategy get() = HistoryCompression { (budget ?: 24_576) - instructions.length / 4 }
 
     suspend fun load(): Prompt {
+        withContext(NonCancellable) { steering().forEach { append(it) } }
         val entries = store.entries(agent.id, sessionId)
         instructions = if (profile.prompt == PromptStyle.Full) entries.filterIsInstance<SessionEntry.Started>().firstOrNull()?.instructions.orEmpty() else ""
         if (voice) instructions += "\n\n$liveVoiceInstructions"

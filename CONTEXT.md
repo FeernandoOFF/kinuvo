@@ -257,3 +257,9 @@ _Avoid_: Truncation, pruning
 
 **Result limits**:
 The Model profile's item counts and per-tool-result token budget. Earlier turns receive a smaller share; only the model prompt is shortened, while the saved Session keeps the full result.
+
+**Queue**:
+A message waiting for the next Agent turn in its Session, in the order it was sent.
+
+**Steer**:
+A user message added to the current Agent turn so the Agent can adjust its work before continuing.

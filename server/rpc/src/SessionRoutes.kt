@@ -14,6 +14,7 @@ internal fun RouteBuilder.sessionRoutes() {
     device(Api.UpdateSession) { server.sessions.update(it) }
     device(Api.Capabilities) { server.execution.sessionCapabilities(it) }
     device(Api.Send, ordered = true) { server.dispatch.send(it, caller.surfaceCatalogs) }
+    device(Api.CancelQueued, ordered = true) { server.dispatch.cancelQueued(it) }
     device(Api.Stop, ordered = true) { server.dispatch.stop(it.sessionId) }
     device(Api.UploadAttachment) { server.uploadAttachment(it) }
     device(Api.Attachment) { server.downloadAttachment(it) }
