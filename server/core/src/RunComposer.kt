@@ -248,7 +248,7 @@ class RunComposer internal constructor(
                 else -> CapabilityState.unsupported("This file type isn't supported by this provider and model")
             }
         }
-        return SessionCapabilities(revision, server, chat, listOf("text", "image", "file", "audio").associateWith(::input), prepared.catalog, attachments)
+        return SessionCapabilities(revision, server, chat, listOf("text", "image", "file", "audio").associateWith(::input), prepared.catalog, attachments, queue = true, steer = true)
     }
 
     /**

@@ -8,7 +8,16 @@ import kotlinx.serialization.Serializable
 
 /** [voice] marks [text] as transcribed from voice chat. */
 @Serializable
-data class SendParams(val agentId: AgentId, val sessionId: SessionId? = null, val text: String, val attachments: List<String> = emptyList(), val voice: Boolean = false, val submissionId: String? = null, val action: SurfaceAction? = null)
+data class SendParams(val agentId: AgentId, val sessionId: SessionId? = null, val text: String, val attachments: List<String> = emptyList(), val voice: Boolean = false, val submissionId: String? = null, val action: SurfaceAction? = null, val delivery: SendDelivery = SendDelivery.Turn)
+
+@Serializable
+enum class SendDelivery { Turn, Queue, Steer }
+
+@Serializable
+data class QueuedMessage(val id: String, val text: String, val attachments: List<Attachment> = emptyList())
+
+@Serializable
+data class CancelQueuedParams(val agentId: AgentId, val sessionId: SessionId, val id: String)
 
 /** [activation] is set when the text was a `/skill` command; [message] is what was sent to the model. */
 @Serializable

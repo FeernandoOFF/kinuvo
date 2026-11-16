@@ -49,6 +49,45 @@ import kotlin.test.*
 import kinuvo.server.providers.ModelProvider
 
 class RunPreparationRuntimeTest {
+    @Test fun steeringAppearsAfterToolResultsBeforeTheNextModelRequest() = runBlocking {
+        var executed = false
+        var requests = 0
+        var taken = false
+        val plugin = object : ServerPlugin {
+            override val definition = PluginDefinition("test.steering", "Steering")
+            override suspend fun prepare(run: RunContext, activate: Boolean) = PluginTools(listOf(object : Tool {
+                override val descriptor = toolSpec("read", "Read")
+                override val risk = Risk.Low
+                override suspend fun execute(args: JsonObject): String { executed = true; return "done" }
+            }))
+        }
+        val provider = object : TestModelProvider {
+            override val id = "test"
+            override suspend fun models() = listOf(ModelInfo("tools", tools = true))
+            override fun model(config: AgentConfig) = scriptedModel { prompt, _ ->
+                if (requests++ == 0) flowOf(StreamFrame.ToolCallComplete("call", "read", "{}"), StreamFrame.End())
+                else {
+                    assertTrue(executed)
+                    assertEquals("adjust", prompt.messages.filterIsInstance<Message.User>().last().textContent())
+                    flowOf(StreamFrame.End())
+                }
+            }
+        }
+        val runtime = harness(listOf(plugin), listOf(provider))
+        try {
+            val agent = agent(runtime).let { it.copy(config = it.config.copy(approvals = "full")) }
+            val session = runtime.newSession(agent)
+            val events = runtime.composer.runner(agent, session.id).run(session.id, "first", steering = {
+                if (executed && !taken) { taken = true; listOf(SessionEntry.UserMessage("adjust")) } else emptyList()
+            }).toList()
+            assertTrue(taken)
+            assertEquals(2, requests)
+            assertTrue(events.none { it is AgentEvent.RunError })
+            val entries = runtime.store.entries(agent.id, session.id)
+            assertTrue(entries.indexOfLast { it is SessionEntry.ToolResult } < entries.indexOfLast { it is SessionEntry.UserMessage })
+        } finally { runtime.close() }
+    }
+
     @Test fun basicProfileOmitsFrozenIdentityAndSoul() = runBlocking {
         val fixture = RuntimeFixture()
         fixture.documents[AgentDoc.Identity] = "IDENTITY_SENTINEL".repeat(1000)

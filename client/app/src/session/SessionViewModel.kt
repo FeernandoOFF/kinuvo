@@ -162,6 +162,9 @@ data class ChatState(
     val loaded: Boolean = true,
     val hasOlder: Boolean = false,
     val running: Boolean = false,
+    val queued: List<QueuedMessage> = emptyList(),
+    val canQueue: Boolean = false,
+    val canSteer: Boolean = false,
     val completions: List<CompletionSource> = emptyList(),
     val settings: SessionSettings = SessionSettings(),
     /** The Agent's own settings, which unset [settings] follow. */
@@ -256,6 +259,9 @@ data class SessionState(
     val phase get() = data?.live?.executionPhase
     val loaded get() = !resolving && (route.sessionId == null || data?.loaded == true)
     val resumeOnSend get() = resumeOnSend(phase, capabilities)
+    val queued get() = data?.live?.queued.orEmpty()
+    val canQueue get() = capabilities?.queue == true && capabilities.chat.actionable && !sending
+    val canSteer get() = capabilities?.steer == true && capabilities.chat.actionable && !sending
     val running get() = sending || resuming || data?.live?.running == true
     internal val echoed get() = outgoing == null || data?.items?.lastOrNull { it is ChatItem.User }?.id != outgoingAfter
     val items: List<ChatItem> get() = data?.items.orEmpty() + listOfNotNull(outgoing.takeUnless { echoed }) + errors.mapIndexed { i, e -> ChatItem.Error("error-$i", e) }
@@ -406,26 +412,31 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
             .onSuccess { info -> state.update { it.copy(info = info, settings = info.settings) } }.isSuccess
 
     /** [voice] marks [text] as transcribed from voice chat, so the reply suits being read aloud. */
-    fun send(text: String, voice: Boolean = false, action: SurfaceAction? = null) {
+    fun send(text: String, voice: Boolean = false, action: SurfaceAction? = null, delivery: SendDelivery = SendDelivery.Turn) {
         val agent = route.agentId ?: return
         val pending = state.value.attachments
-        if ((text.isBlank() && pending.isEmpty()) || state.value.running || (state.value.capabilities?.chat?.actionable == false && !state.value.resumeOnSend)) return
+        val current = state.value
+        if ((text.isBlank() && pending.isEmpty()) || current.sending) return
+        if (current.running && delivery == SendDelivery.Turn) return
+        if (delivery == SendDelivery.Queue && !current.canQueue) return
+        if (delivery == SendDelivery.Steer && !current.canSteer) return
+        if (current.capabilities?.chat?.actionable == false && !current.resumeOnSend) return
         val provider = state.value.settings.provider ?: state.value.defaults?.provider.orEmpty()
-        if (consent?.needed(provider) == true) return state.update { it.copy(aiConsent = AiConsentRequest(provider, text, voice, action)) }
-        val submission = pendingSubmission?.takeIf { it.text == text && it.attachments == pending.map { a -> a.id } && it.voice == voice && it.action == action }
-            ?: PendingSubmission(Uuid.random().toString(), text, pending.map { it.id }, voice, action)
+        if (consent?.needed(provider) == true) return state.update { it.copy(aiConsent = AiConsentRequest(provider, text, voice, action, delivery)) }
+        val submission = pendingSubmission?.takeIf { it.text == text && it.attachments == pending.map { a -> a.id } && it.voice == voice && it.action == action && it.delivery == delivery }
+            ?: PendingSubmission(Uuid.random().toString(), text, pending.map { it.id }, voice, action, delivery)
         pendingSubmission = submission
         state.update { s ->
             s.copy(
                 sending = true, attachments = emptyList(), unsent = null,
-                outgoing = ChatItem.User("user-${submission.id}", text, attachments = pending.map { it.attachment.copy(id = it.id) }, voice = voice, action = action),
+                outgoing = if (delivery == SendDelivery.Turn) ChatItem.User("user-${submission.id}", text, attachments = pending.map { it.attachment.copy(id = it.id) }, voice = voice, action = action) else null,
                 outgoingAfter = s.data?.items?.lastOrNull { it is ChatItem.User }?.id,
                 downloads = s.downloads + pending.associate { it.id to AttachmentData(it.attachment, it.upload.base64) },
             )
         }
         val uploads = mutableMapOf<String, Attachment>()
         viewModelScope.launch {
-            try { repo.connection.run { ordered.withLock { sendNow(agent, text, pending, uploads, voice, submission.id, action) } } }
+            try { repo.connection.run { ordered.withLock { sendNow(agent, text, pending, uploads, voice, submission.id, action, delivery) } } }
             catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 state.update { it.copy(errors = it.errors + listOfNotNull(e.report()), outgoing = null, unsent = text, attachments = pending.map { p -> p.copy(uploaded = uploads[p.id] ?: p.uploaded) } + it.attachments) }
@@ -453,10 +464,10 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
     fun answerAiConsent(allow: Boolean) {
         val request = state.value.aiConsent ?: return
         state.update { it.copy(aiConsent = null, unsent = if (allow) it.unsent else request.text) }
-        if (allow) { consent?.grant(request.provider); send(request.text, request.voice, request.action) }
+        if (allow) { consent?.grant(request.provider); send(request.text, request.voice, request.action, request.delivery) }
     }
 
-    private suspend fun sendNow(agent: AgentId, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean, submissionId: String, action: SurfaceAction?) {
+    private suspend fun sendNow(agent: AgentId, text: String, pending: List<PendingAttachment>, uploads: MutableMap<String, Attachment>, voice: Boolean, submissionId: String, action: SurfaceAction?, delivery: SendDelivery) {
         val sessionId = sessionFor(agent)
         if (state.value.resumeOnSend) {
             state.update { it.copy(resuming = true) }
@@ -471,13 +482,13 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
                 state.update { it.copy(downloads = it.downloads + (a.id to AttachmentData(a, draft.upload.base64))) }
             })
         }
-        repo.send(agent, sessionId, text, uploaded.map { it.id }, voice, submissionId, action)
+        repo.send(agent, sessionId, text, uploaded.map { it.id }, voice, submissionId, action, delivery)
         pendingSubmission = null
     }
 
     fun addAttachments(files: List<UploadAttachmentParams>, error: String? = null) {
         if (error != null) { attachmentError(error); return }
-        if (state.value.running || files.isEmpty()) return
+        if ((state.value.running && !state.value.canQueue && !state.value.canSteer) || files.isEmpty()) return
         val pending = files.map { PendingAttachment(Uuid.random().toString(), it) }
         val all = state.value.attachments + pending
         val issue = when {
@@ -605,6 +616,12 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
         viewModelScope.launch { attempt { repo.connection.harnesses.check(connectionId) } }
     }
 
+    fun cancelQueued(id: String) {
+        val agent = route.agentId ?: return
+        val session = route.sessionId ?: return
+        viewModelScope.launch { attempt { client.call(Api.CancelQueued, CancelQueuedParams(agent, session, id)) } }
+    }
+
     fun stop() {
         if (state.value.capabilities?.execution?.cancel == false) return
         val sessionId = route.sessionId ?: return
@@ -625,4 +642,4 @@ class SessionViewModel(private val repo: SessionRepository, route: Route.Chat, p
     private fun Exception.report() = takeUnless { it is DisconnectedException }?.let { message ?: toString() }
 }
 
-private data class PendingSubmission(val id: String, val text: String, val attachments: List<String>, val voice: Boolean, val action: SurfaceAction?)
+private data class PendingSubmission(val id: String, val text: String, val attachments: List<String>, val voice: Boolean, val action: SurfaceAction?, val delivery: SendDelivery)

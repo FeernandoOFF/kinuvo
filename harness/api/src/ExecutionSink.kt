@@ -20,6 +20,7 @@ data class ExecutionInput(
     val kind: RunKind = RunKind.Chat(),
     val runId: RunId? = null,
     val mcp: McpServerDescriptor? = null,
+    val steering: suspend () -> List<SessionEntry.UserMessage> = { emptyList() },
 )
 
 /** Source insertion identity; null means unavailable, never rejection or foreground completion. */

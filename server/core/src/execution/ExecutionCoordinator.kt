@@ -208,6 +208,7 @@ class ExecutionCoordinator(
         finally { lock.withLock { opening.remove(id) } }
     }
     override suspend fun send(p: SendParams): SendResult {
+        require(p.delivery == SendDelivery.Turn) { "This external harness does not support Queue or Steer" }
         require(p.text.isNotBlank() || p.attachments.isNotEmpty())
         require(p.attachments.size <= MAX_ATTACHMENTS && p.attachments.distinct().size == p.attachments.size)
         val attachments = p.attachments.map(resolve)

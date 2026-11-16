@@ -135,6 +135,9 @@ fun ChatScreen(
         loaded = current.loaded,
         hasOlder = current.data?.hasOlder == true,
         running = current.running,
+        queued = current.queued,
+        canQueue = current.canQueue,
+        canSteer = current.canSteer,
         completions = if (agent?.external != true && current.capabilities?.server.supports(ServerFeature.Skills)) listOf(CompletionSource('/', current.skills.filter { it.active && it.userInvocable }.map { Completion(it.name, it.description) }, startOnly = true)) else emptyList(),
         settings = current.settings,
         defaults = current.defaults,
@@ -167,6 +170,9 @@ fun ChatScreen(
                 onNew = { if (route.sessionId != null) onOpen(Route.Chat(route.agentId, compose = true)) },
                 onSelect = { id -> if (id != route.sessionId?.value) onOpen(Route.Chat(route.agentId, SessionId(id))) },
                 onSend = session::send,
+                onQueue = { session.send(it, delivery = SendDelivery.Queue) },
+                onSteer = { session.send(it, delivery = SendDelivery.Steer) },
+                onCancelQueued = session::cancelQueued,
                 onSurfaceAction = { text, action -> session.send(text, action = action) },
                 onAppResource = session::appResource,
                 onAppTool = session::appCallTool,
@@ -223,6 +229,9 @@ fun ChatScreen(
 }
 
 class ChatActions(
+    val onQueue: (String) -> Unit = {},
+    val onSteer: (String) -> Unit = {},
+    val onCancelQueued: (String) -> Unit = {},
     val onNew: () -> Unit = {},
     val onSelect: (String) -> Unit = {},
     val onSend: (String) -> Unit = {},

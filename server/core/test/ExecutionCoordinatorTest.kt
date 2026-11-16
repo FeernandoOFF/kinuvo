@@ -36,6 +36,12 @@ class ExecutionCoordinatorTest {
         }
         val coordinator = ExecutionCoordinator(registry, factory, backgroundScope, log, recovery)
         val id = coordinator.create(AgentId("a")).id
+        assertFailsWith<IllegalArgumentException> {
+            coordinator.send(SendParams(AgentId("a"), id, "steer", delivery = SendDelivery.Steer))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            coordinator.send(SendParams(AgentId("a"), id, "queue", delivery = SendDelivery.Queue))
+        }
         coordinator.send(SendParams(AgentId("a"), id, "hello", submissionId = "submission"))
         runCurrent()
         coordinator.send(SendParams(AgentId("a"), id, "hello", submissionId = "submission"))
